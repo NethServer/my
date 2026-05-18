@@ -329,6 +329,12 @@ func main() {
 			{
 				usersFiltersGroup.GET("", methods.GetUserFilters) // Aggregated filters: roles, organizations
 			}
+
+			// Alerts filters (read:systems required, mirrors the alerts views)
+			alertsFiltersGroup := filtersGroup.Group("/alerts", middleware.RequireResourcePermission("systems"))
+			{
+				alertsFiltersGroup.GET("", methods.GetAlertFilters) // Aggregated filters: systems, alerts, severities, organizations
+			}
 		}
 
 		// ===========================================

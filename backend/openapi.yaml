@@ -86,7 +86,13 @@ tags:
     description: Backend service health check
 
   - name: Backend - Alerts
-    description: Alert routing configuration and active alert monitoring via Mimir
+    description: Active alert monitoring and aggregates (list, totals, trend, stats, history, activity)
+  - name: Backend - Alerts Configuration
+    description: Per-organization alerting layer configuration and effective merged config
+  - name: Backend - Alerts Silences
+    description: Cross-hierarchy alert silences (mute/unmute across systems)
+  - name: Backend - Alerts (Per-System)
+    description: Alerts and silences scoped to a single system (/systems/{id}/alerts)
 
   - name: Collect - Health
     description: Collect service health and monitoring
@@ -8897,12 +8903,1694 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /alerts:
+    get:
+      operationId: getAlerts
+      tags:
+        - Backend - Alerts
+      summary: "/alerts - List active alerts (cross-hierarchy)"
+      description: |
+        Retrieves active alerts from Mimir for the caller's scope, paginated. Each
+        alert is enriched with a `system` object (`name`, `type`) looked up from the
+        local `systems` table, so the UI can render the system column without an
+        extra round-trip per row.
+
+        Sortable by `starts_at` (default desc), `severity` (criticality rank: critical
+        > warning > info), `alertname`, or `status` (Alertmanager state). `fingerprint`
+        is used as a stable tiebreaker so pagination doesn't shift between requests.
+
+        Scope follows the same three modes as `/alerts/totals`:
+        - `organization_id` omitted → caller's full hierarchy (cross-tenant fan-out).
+        - `organization_id=X` → single tenant `X`.
+        - `organization_id=X&include=descendants` → `X` plus its sub-tree.
+
+        All filter params support **multiple values** (repeat the param): values within
+        the same filter are matched as OR; different filters AND together. Example:
+        `?severity=critical&severity=warning&alertname=CVE-2024-1234` returns
+        CVE-2024-1234 alerts that are critical or warning.
+
+        Per-tenant failures during fan-out (timeout, 5xx) are non-fatal: the rest of the
+        result is returned and the failure is reported in the `warnings` array.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          description: |
+            Target organization ID(s). Repeat the param to pass multiple values.
+            Optional for all roles except Customer (where it is ignored).
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: include
+          in: query
+          description: Set to `descendants` together with `organization_id` to expand each value to its sub-tree.
+          schema:
+            type: string
+            enum: [descendants]
+        - name: page
+          in: query
+          description: 1-based page number.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          description: Page size. Default 50, max 100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: sort_by
+          in: query
+          description: Sort column (allowlist).
+          schema:
+            type: string
+            enum: [starts_at, severity, alertname, status]
+            default: starts_at
+        - name: sort_direction
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: status
+          in: query
+          description: Filter alerts by Alertmanager state. Supports multiple values.
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [active, suppressed, unprocessed]
+          style: form
+          explode: true
+        - name: severity
+          in: query
+          description: Filter alerts by severity label. Supports multiple values.
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [critical, warning, info]
+          style: form
+          explode: true
+        - name: system_key
+          in: query
+          description: Filter alerts by system_key label. Supports multiple values.
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: alertname
+          in: query
+          description: |
+            Filter alerts by alertname label (the alert "type" — e.g. `HighCPU`,
+            `DiskFull`, `CVE-2024-1234`). Supports multiple values.
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+      responses:
+        '200':
+          description: Paginated list of active alerts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: alerts retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      alerts:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ActiveAlert'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+                      warnings:
+                        type: array
+                        description: |
+                          Per-tenant errors encountered during fan-out. Always present
+                          (empty array when every tenant responded OK). Each entry is
+                          a string `org <logto_id>: <error>`.
+                        items:
+                          type: string
+              examples:
+                ActiveAlertExample:
+                  summary: One active warning across the caller's hierarchy
+                  description: |
+                    A single warning alert. System identity (id, key, name, type) is
+                    carried as labels, stamped at ingest time. `state="active"` means
+                    Mimir has not been told to silence it; an actively-muted alert
+                    would have `state="suppressed"` and a non-empty `silencedBy`.
+                  value:
+                    code: 200
+                    message: alerts retrieved successfully
+                    data:
+                      alerts:
+                        - fingerprint: "0a9d04bb6eed523f"
+                          labels:
+                            alertname: "DiskFilling"
+                            severity: "warning"
+                            system_id: "e4eb4844-46f6-448c-8279-7cfedf5e1037"
+                            system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                            system_name: "test-sys"
+                            system_type: "ns8"
+                          annotations:
+                            summary: "/var is 92% full on test-sys"
+                            description: "Disk usage exceeded the warning threshold."
+                          status:
+                            state: "active"
+                            silencedBy: []
+                            inhibitedBy: []
+                          startsAt: "2026-05-12T08:14:00Z"
+                          endsAt: "2026-05-12T08:44:00Z"
+                      pagination:
+                        page: 1
+                        page_size: 50
+                        total_count: 1
+                        total_pages: 1
+                        has_next: false
+                        has_prev: false
+                      warnings: []
+                PartialFanoutWarning:
+                  summary: One tenant timed out during fan-out
+                  description: |
+                    When `organization_id` is omitted (or `include=descendants` is
+                    used), the request fans out to every tenant in scope. A single
+                    slow Mimir does not fail the whole request — the rest of the
+                    results are returned and the failing tenant lands in `warnings`.
+                  value:
+                    code: 200
+                    message: alerts retrieved successfully
+                    data:
+                      alerts: []
+                      pagination:
+                        page: 1
+                        page_size: 50
+                        total_count: 0
+                        total_pages: 0
+                        has_next: false
+                        has_prev: false
+                      warnings:
+                        - "org pt8gqs6y5wpr: context deadline exceeded"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ===========================================
+  # ALERTING ENDPOINTS (Collect - Mimir Proxy)
+  # ===========================================
+
+  /alerts/totals:
+    get:
+      operationId: getAlertsTotals
+      tags:
+        - Backend - Alerts
+      summary: "/alerts/totals - Get alert totals by severity"
+      description: |
+        Returns active alert counts by severity (from Mimir, per-tenant) and total resolved
+        alert history count (from DB). Requires `read:systems` permission.
+
+        **Scope modes** (selected by query params):
+
+        | `organization_id`            | `include`     | Result |
+        |---|---|---|
+        | omitted                      | —             | Caller's full hierarchy (recursive). For Customer it's just self. |
+        | `X`                          | omitted       | Single tenant `X` only. Resellers/Distributors hold no alerts on their own tenant — those live on their customer tenants — so single-tenant queries on a non-leaf org typically return zero. |
+        | `X` (repeated for multi)     | omitted       | Union of all `organization_id` values passed. Each must be in the caller's hierarchy (Owner exempt). |
+        | `X` (single or multi)        | `descendants` | Each org_id is expanded to itself + its sub-tree (deduplicated). Use this to drill into one or more sub-trees. |
+
+        Active counts are aggregated across the resolved scope by fanning out to Mimir,
+        one request per tenant, with bounded concurrency and a global timeout. Per-tenant
+        failures (timeout, 5xx, parse error) are non-fatal: their counts simply don't
+        contribute, and the failure is reported in the `warnings` array. The `history`
+        total comes from a single SQL query scoped to the same set of organization IDs.
+
+        Customer callers are always pinned to their own organization regardless of
+        `organization_id`/`include` (Mimir tenant is fixed to `user.organization_id`).
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          description: |
+            Target organization ID(s). Repeat the param to pass multiple values
+            (`?organization_id=A&organization_id=B`). Optional for all roles except
+            Customer (where it is ignored). Distributors/Resellers receive `403` if any
+            value is not in their hierarchy.
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: include
+          in: query
+          description: |
+            Set to `descendants` together with `organization_id` to expand each value
+            to its full sub-tree (results deduplicated). Ignored when `organization_id`
+            is omitted (the caller's own hierarchy is already used) and when the caller
+            is a Customer.
+          schema:
+            type: string
+            enum: [descendants]
+      responses:
+        '200':
+          description: Alert totals retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: alert totals retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      active:
+                        type: integer
+                        description: Total active alerts in scope
+                      critical:
+                        type: integer
+                        description: Active critical alerts in scope
+                      warning:
+                        type: integer
+                        description: Active warning alerts in scope
+                      info:
+                        type: integer
+                        description: Active info alerts in scope
+                      muted:
+                        type: integer
+                        description: Active alerts currently silenced (Alertmanager `silencedBy` non-empty)
+                      history:
+                        type: integer
+                        description: Total resolved alerts in history (DB) in scope
+                      warnings:
+                        type: array
+                        description: |
+                          Per-tenant errors encountered during fan-out. Always present
+                          (empty array when every tenant responded OK). Each entry is a
+                          string in the form `org <logto_id>: <error>` or
+                          `history: <error>` for the DB lookup.
+                        items:
+                          type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /alerts/trend:
+    get:
+      operationId: getAlertsTrend
+      tags:
+        - Backend - Alerts
+      summary: "/alerts/trend - Get alert history trend"
+      description: |
+        Returns trend data for resolved alerts over a specified period with daily data points.
+        Compares the current period with the previous period of equal length.
+        Requires `read:systems` permission.
+
+        Scope follows the same three modes as `/alerts/totals`:
+        - `organization_id` omitted → caller's full hierarchy.
+        - `organization_id=X` → single tenant `X`.
+        - `organization_id=X&include=descendants` → `X` plus its sub-tree.
+
+        Customer callers are always pinned to their own organization regardless of params.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          description: |
+            Target organization ID(s). Repeat the param to pass multiple values.
+            Optional for all roles except Customer (where it is ignored).
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: include
+          in: query
+          description: Set to `descendants` together with `organization_id` to expand each value to its sub-tree.
+          schema:
+            type: string
+            enum: [descendants]
+        - name: period
+          in: query
+          description: Trend period in days
+          schema:
+            type: integer
+            enum: [7, 30, 180, 365]
+            default: 7
+      responses:
+        '200':
+          description: Alert trend data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: alerts trend retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      period:
+                        type: integer
+                      period_label:
+                        type: string
+                      current_total:
+                        type: integer
+                      previous_total:
+                        type: integer
+                      delta:
+                        type: integer
+                      delta_percentage:
+                        type: number
+                      trend:
+                        type: string
+                        enum: [up, down, stable]
+                      data_points:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            date:
+                              type: string
+                              format: date
+                            count:
+                              type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /alerts/stats:
+    get:
+      operationId: getAlertsStats
+      tags:
+        - Backend - Alerts
+      summary: "/alerts/stats - Aggregate alert statistics"
+      description: |
+        Returns aggregate statistics over `alert_history` for the caller's scope:
+        total, severity buckets, top-N alertname and system_key by count, plus MTTR
+        (mean time to resolve) and MTBF (mean time between failures, approximated).
+
+        Scope follows the same three modes as `/alerts/totals`:
+        - `organization_id` omitted → caller's full hierarchy.
+        - `organization_id=X` → single tenant.
+        - `organization_id=X&include=descendants` → sub-tree drill-down.
+
+        MTBF formula:
+        - When both `from_date` and `to_date` are provided: `(to - from) / total`.
+        - Otherwise: `(max(starts_at) - min(starts_at)) / (total - 1)`.
+        - Omitted from the response when the result is undefined.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          description: |
+            Target organization ID(s). Repeat the param to pass multiple values.
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: include
+          in: query
+          schema:
+            type: string
+            enum: [descendants]
+        - name: from_date
+          in: query
+          description: Lower bound on `created_at` (inclusive). RFC3339 timestamp.
+          schema:
+            type: string
+            format: date-time
+            example: "2026-05-01T00:00:00Z"
+        - name: to_date
+          in: query
+          description: Upper bound on `created_at` (exclusive). RFC3339 timestamp.
+          schema:
+            type: string
+            format: date-time
+            example: "2026-05-08T00:00:00Z"
+        - name: top
+          in: query
+          description: Cap for top-N alertname / system_key buckets. Default 10, max 50.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: Alert stats retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: alert stats retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                        description: Total alerts in scope (sum of severity buckets, including null severity).
+                      by_severity:
+                        type: object
+                        additionalProperties:
+                          type: integer
+                        example:
+                          critical: 30
+                          warning: 100
+                          info: 26
+                      top_alertnames:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            alertname:
+                              type: string
+                            count:
+                              type: integer
+                      top_systems:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            system_key:
+                              type: string
+                            count:
+                              type: integer
+                      mttr_seconds:
+                        type: integer
+                        description: Mean time to resolve (avg `ends_at - starts_at` over rows with `ends_at` set). Omitted when no resolved alerts.
+                      mtbf_seconds:
+                        type: integer
+                        description: Mean time between failures (approximation, see endpoint description). Omitted when undefined.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /alerts/history:
+    get:
+      operationId: getAlertsHistory
+      tags:
+        - Backend - Alerts
+      summary: "/alerts/history - Org-level paginated alert history"
+      description: |
+        Returns paginated resolved alert history scoped to the caller's hierarchy
+        (no `organization_id`), a single tenant (`organization_id=X`), or a sub-tree
+        (`organization_id=X&include=descendants`). Mirrors the scope rules of
+        `/alerts/totals` and `/alerts/trend`.
+
+        Supports date range (`from_date`/`to_date`, RFC3339) and multi-value label
+        filters (`system_key`, `alertname`, `severity`, `status`). All multi-value
+        filters: OR within the same filter, AND across filters.
+
+        Customer callers are always pinned to their own organization regardless of params.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          description: |
+            Target organization ID(s). Repeat the param to pass multiple values.
+            Optional for all roles except Customer (where it is ignored).
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: include
+          in: query
+          description: Set to `descendants` together with `organization_id` to expand each value to its sub-tree.
+          schema:
+            type: string
+            enum: [descendants]
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: sort_by
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [id, alertname, severity, status, starts_at, ends_at, created_at]
+            default: created_at
+        - name: sort_direction
+          in: query
+          required: false
+          description: |
+            Sort direction. Unlike the shared default of `asc`, this endpoint
+            defaults to `desc` so the natural "most recent first" ordering is
+            applied when the caller omits the param.
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: from_date
+          in: query
+          description: Lower bound on `created_at` (inclusive). RFC3339 timestamp.
+          schema:
+            type: string
+            format: date-time
+            example: "2026-05-01T00:00:00Z"
+        - name: to_date
+          in: query
+          description: Upper bound on `created_at` (exclusive). RFC3339 timestamp. Must be after `from_date`.
+          schema:
+            type: string
+            format: date-time
+            example: "2026-05-08T00:00:00Z"
+        - name: system_key
+          in: query
+          description: |
+            Filter by one or more system keys. Repeat the param to pass multiple
+            values; results are matched as `system_key IN (...)`.
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: alertname
+          in: query
+          description: Filter by alertname. Supports multiple values.
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: severity
+          in: query
+          description: Filter by severity. Supports multiple values.
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [critical, warning, info]
+          style: form
+          explode: true
+        - name: status
+          in: query
+          description: Filter by status. Supports multiple values.
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+      responses:
+        '200':
+          description: Paginated alert history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: alert history retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      alerts:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AlertHistoryRecord'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+              examples:
+                TwoResolvedAlerts:
+                  summary: Two resolved alerts on the same system
+                  description: |
+                    Result for a Customer caller. Same `system_key` appears in both
+                    rows because they were fired against the same NS8 host. Each
+                    row is a discrete event (firing → resolved) captured by the
+                    history webhook at dispatch time; `created_at` records when
+                    the row landed in `alert_history`.
+                  value:
+                    code: 200
+                    message: alert history retrieved successfully
+                    data:
+                      alerts:
+                        - id: 55
+                          organization_id: "m4m3mdjdiizs"
+                          system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                          alertname: "PlainBodyTest"
+                          severity: "critical"
+                          status: "resolved"
+                          fingerprint: "11a9302b0fa6526e"
+                          starts_at: "2026-05-12T07:46:50Z"
+                          ends_at: "2026-05-12T07:51:50Z"
+                          summary: "plain body check"
+                          labels:
+                            alertname: "PlainBodyTest"
+                            severity: "critical"
+                            system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                          annotations:
+                            summary: "plain body check"
+                            description: "checking html:'' fix"
+                          receiver: "severity-critical-receiver"
+                          created_at: "2026-05-12T07:52:00Z"
+                        - id: 54
+                          organization_id: "m4m3mdjdiizs"
+                          system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                          alertname: "HistFlowTest"
+                          severity: "critical"
+                          status: "resolved"
+                          fingerprint: "9c1a23e87f4d0a11"
+                          starts_at: "2026-05-12T08:01:07Z"
+                          ends_at: "2026-05-12T08:06:06Z"
+                          summary: "history flow check"
+                          labels:
+                            alertname: "HistFlowTest"
+                            severity: "critical"
+                            system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                          annotations:
+                            summary: "history flow check"
+                            description: "resolved"
+                          receiver: "severity-critical-receiver"
+                          created_at: "2026-05-12T08:11:30Z"
+                      pagination:
+                        page: 1
+                        page_size: 50
+                        total_count: 2
+                        total_pages: 1
+                        has_next: false
+                        has_prev: false
+                EmptyHistory:
+                  summary: No history rows match
+                  value:
+                    code: 200
+                    message: alert history retrieved successfully
+                    data:
+                      alerts: []
+                      pagination:
+                        page: 1
+                        page_size: 50
+                        total_count: 0
+                        total_pages: 0
+                        has_next: false
+                        has_prev: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ===========================================
+  # ALERTING ENDPOINTS (Per-alert audit timeline)
+  # ===========================================
+
+  /alerts/activity/{fingerprint}:
+    parameters:
+      - name: fingerprint
+        in: path
+        required: true
+        description: |
+          Alertmanager fingerprint of the alert (hex hash of its labels).
+          Stable across re-firings of the same alert.
+        schema:
+          type: string
+          pattern: '^[A-Za-z0-9._:-]{1,128}$'
+      - name: organization_id
+        in: query
+        required: true
+        description: Tenant the alert belongs to. Required for non-Customer roles.
+        schema:
+          type: string
+    get:
+      operationId: getAlertActivity
+      tags:
+        - Backend - Alerts
+      summary: "/alerts/activity/{fingerprint} - Per-alert audit timeline"
+      description: |
+        Returns the audit timeline for the alert identified by `fingerprint`, most recent
+        first. Events are written transparently as silences are created, updated, or
+        removed via the `/api/alerts/silences` and `/api/systems/:id/alerts/silences` endpoints.
+
+        Operator notes are stored as the silence `comment` (Alertmanager native), so a
+        note edit appears here as a `silence_updated` event whose `details` payload
+        includes the new comment.
+
+        Requires `read:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          description: Max events to return. Default 100, max 500.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        '200':
+          description: Activity timeline
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: alert activity retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      events:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AlertActivityEntry'
+              examples:
+                SilenceCreatedThenRemoved:
+                  summary: A silence was created and later removed
+                  description: |
+                    Events are most-recent first. Both rows share the same
+                    `silence_id` because they describe the same silence's
+                    lifecycle. `actor_user_id` is the logto_id of the operator
+                    who performed the action; `details` carries the silence
+                    metadata captured at action time (comment, end_at, etc.).
+                  value:
+                    code: 200
+                    message: alert activity retrieved successfully
+                    data:
+                      events:
+                        - id: 5
+                          organization_id: "m4m3mdjdiizs"
+                          fingerprint: "0a9d04bb6eed523f"
+                          action: "unsilenced"
+                          actor_user_id: "c5gpnoo2do48"
+                          actor_name: "R1C1 Admin"
+                          silence_id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+                          details: {}
+                          created_at: "2026-05-12T08:20:38.410596Z"
+                        - id: 4
+                          organization_id: "m4m3mdjdiizs"
+                          fingerprint: "0a9d04bb6eed523f"
+                          action: "silenced"
+                          actor_user_id: "c5gpnoo2do48"
+                          actor_name: "R1C1 Admin"
+                          silence_id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+                          details:
+                            comment: "silenced during maintenance window"
+                            end_at: "2026-05-12T09:16:36Z"
+                            duration_minutes: 0
+                          created_at: "2026-05-12T08:16:36.661832Z"
+                EmptyTimeline:
+                  summary: No silence events yet
+                  description: |
+                    The alert has fired but has never been silenced. The events
+                    array is empty (not `null`).
+                  value:
+                    code: 200
+                    message: alert activity retrieved successfully
+                    data:
+                      events: []
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ===========================================
+  # ALERTING ENDPOINTS (Backend - Cross-system silences)
+  # ===========================================
+
+  /alerts/config:
+    post:
+      operationId: configureAlerts
+      tags:
+        - Backend - Alerts Configuration
+      summary: "/alerts/config - Save the caller's alerting layer"
+      description: |
+        Saves the CALLER's alerting configuration layer (one row per
+        organization in alert_config_layers). The body is an
+        `AlertingConfigLayer`: three channel toggles plus three recipient
+        lists. Each recipient carries its own `severities[]`; email
+        recipients additionally carry `language` and `format`.
+
+        After save, the effective per-tenant Mimir YAML is recomputed
+        server-side (merge of all layers walking up to the Owner) and
+        pushed to every tenant in the caller's hierarchy with bounded
+        concurrency. Per-tenant push failures are returned in `warnings[]`;
+        the caller's layer is saved regardless of push outcome (Mimir can
+        be reconciled by saving again).
+
+        Additive-only contract: descendants can ADD recipients but cannot
+        disable channels enabled by ancestors. The server normalises any
+        explicit `false` in `enabled.{email,webhook,telegram}` from
+        non-Owner layers to null on storage.
+
+        Save+propagate is serialised per-organization (in-process mutex) to
+        prevent two concurrent saves from racing at the Mimir push step.
+        Body is capped at 1 MiB; oversized payloads are rejected with 413.
+
+        Requires `manage:alerts` permission.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertingConfigLayer'
+            examples:
+              OwnerGlobalBaseline:
+                summary: Owner — global baseline
+                description: |
+                  Owner enables email + webhook globally, sets a NOC
+                  recipient on all severities in Italian HTML, plus a SIEM
+                  webhook on every severity. Every descendant inherits.
+                value:
+                  enabled: { email: true, webhook: true, telegram: false }
+                  email_recipients:
+                    - address: "noc@msp.example"
+                      severities: []
+                      language: "it"
+                      format: "html"
+                  webhook_recipients:
+                    - name: "central-siem"
+                      url: "https://siem.example/api/alerts"
+                      severities: []
+                  telegram_recipients: []
+              DescendantAddRecipient:
+                summary: Reseller — additively add a recipient
+                description: |
+                  Reseller does NOT touch channel toggles (null = "no
+                  opinion"); it just adds a local NOC mailbox in English
+                  for critical+warning. Merged with Owner's recipients.
+                value:
+                  enabled: { email: null, webhook: null, telegram: null }
+                  email_recipients:
+                    - address: "noc@reseller.example"
+                      severities: ["critical", "warning"]
+                      language: "en"
+                      format: "html"
+                  webhook_recipients: []
+                  telegram_recipients: []
+              CustomerMixedFormatAndLang:
+                summary: Customer — mixed languages and formats per recipient
+                description: |
+                  Different recipients can request different bodies. The
+                  on-call inbox wants plain text (alerts piped into a
+                  ticketing tool); the manager wants HTML in Italian.
+                value:
+                  enabled: { email: null, webhook: null, telegram: null }
+                  email_recipients:
+                    - address: "oncall@customer.example"
+                      severities: ["critical"]
+                      language: "en"
+                      format: "plain"
+                    - address: "manager@customer.example"
+                      severities: []
+                      language: "it"
+                      format: "html"
+                  webhook_recipients: []
+                  telegram_recipients: []
+              CustomerWebhookCriticalOnly:
+                summary: Customer — Slack webhook only for `critical`
+                description: |
+                  Customer adds a Slack webhook scoped to critical. The
+                  rendered Alertmanager route puts this webhook only on
+                  the critical receiver.
+                value:
+                  enabled: { email: null, webhook: null, telegram: null }
+                  email_recipients: []
+                  webhook_recipients:
+                    - name: "ops-slack"
+                      url: "https://hooks.slack.com/services/T000/B000/XXX"
+                      severities: ["critical"]
+                  telegram_recipients: []
+              TelegramAllSeverities:
+                summary: Customer — Telegram channel on every severity
+                description: |
+                  Single Telegram bot pushing to a channel for every
+                  severity (severities=[]). Telegram messages are
+                  currently always rendered in English.
+                value:
+                  enabled: { email: null, webhook: null, telegram: true }
+                  email_recipients: []
+                  webhook_recipients: []
+                  telegram_recipients:
+                    - bot_token: "123456:ABC-DEF1234ghIkl"
+                      chat_id: -1001234567890
+                      severities: []
+              InheritPurely:
+                summary: Descendant — explicit "inherit everything"
+                description: |
+                  Saving an empty layer is meaningful: it just records
+                  audit metadata (who/when) without contributing
+                  recipients or toggles.
+                value:
+                  enabled: { email: null, webhook: null, telegram: null }
+                  email_recipients: []
+                  webhook_recipients: []
+                  telegram_recipients: []
+      responses:
+        '200':
+          description: Layer saved (and propagation attempted)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: alerting configuration updated successfully
+                  data:
+                    type: object
+                    properties:
+                      affected_tenants:
+                        type: integer
+                        description: Number of tenants in caller's hierarchy whose effective config was recomputed
+                      propagated_to:
+                        type: integer
+                        description: Of `affected_tenants`, how many were successfully pushed to Mimir
+                      warnings:
+                        type: array
+                        description: |
+                          Per-tenant push errors. Always present; empty when every push succeeded.
+                          Each entry: `org <logto_id>: <error>`.
+                        items:
+                          type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          description: Request body exceeds the configured maximum (1 MiB).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 413
+                  message:
+                    type: string
+                    example: request body exceeds the configured maximum
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: disableAlerts
+      tags:
+        - Backend - Alerts Configuration
+      summary: "/alerts/config - Remove the caller's alerting layer"
+      description: |
+        Removes the CALLER's layer from alert_config_layers. The effective
+        config of all descendant tenants is recomputed without the caller's
+        contribution and re-pushed to Mimir; ancestor layers are preserved.
+        To completely silence a tenant, every layer in its chain must drop
+        its contribution.
+
+        Requires `manage:alerts` permission.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Layer removed (and propagation attempted)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: alerting layer removed successfully
+                  data:
+                    type: object
+                    properties:
+                      affected_tenants:
+                        type: integer
+                      propagated_to:
+                        type: integer
+                      warnings:
+                        type: array
+                        items:
+                          type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      operationId: getAlertingConfig
+      tags:
+        - Backend - Alerts Configuration
+      summary: "/alerts/config - Get the caller's alerting layer"
+      description: |
+        Returns the CALLER's own alerting configuration layer. No inherited
+        ancestor layers, no merged effective view: every organization sees
+        only its own configuration. The server-side merge that backs the
+        Mimir YAML stays inside the backend.
+
+        When the caller has never saved a layer the response body contains
+        an empty layer (toggles all null, recipient lists empty) and the
+        two audit fields set to null. The UI uses that state to render a
+        first-save form.
+
+        Requires `read:alerts` permission.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Caller's layer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: alerting layer retrieved successfully
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/AlertingConfigLayer'
+                      - type: object
+                        properties:
+                          updated_by_name:
+                            type: string
+                            nullable: true
+                          updated_at:
+                            type: string
+                            format: date-time
+                            nullable: true
+              examples:
+                Configured:
+                  summary: Caller has saved a layer
+                  value:
+                    code: 200
+                    message: "alerting layer retrieved successfully"
+                    data:
+                      enabled: { email: true, webhook: null, telegram: null }
+                      email_recipients:
+                        - address: "noc@reseller.example"
+                          severities: ["critical"]
+                          language: "it"
+                          format: "html"
+                      webhook_recipients: []
+                      telegram_recipients: []
+                      updated_by_name: "Reseller Admin"
+                      updated_at: "2026-05-09T10:14:00Z"
+                FirstTime:
+                  summary: Caller has not saved a layer yet
+                  value:
+                    code: 200
+                    message: "alerting layer retrieved successfully"
+                    data:
+                      enabled: { email: null, webhook: null, telegram: null }
+                      email_recipients: []
+                      webhook_recipients: []
+                      telegram_recipients: []
+                      updated_by_name: null
+                      updated_at: null
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /alerts/config/effective:
+    get:
+      operationId: getEffectiveAlertingConfig
+      tags:
+        - Backend - Alerts Configuration
+      summary: "/alerts/config/effective - Inspect a tenant's effective merged config"
+      description: |
+        Privileged troubleshooting view. Returns the configuration a tenant
+        ACTUALLY receives: the per-layer contribution of every organization
+        in its ancestor chain (Owner → tenant), the merged effective layer,
+        and the rendered Alertmanager YAML pushed to Mimir for that tenant.
+
+        Unlike `GET /alerts/config` (which returns only the caller's own
+        layer), this exposes the full inherited + merged view, so it is
+        gated by the dedicated `config:alerts` permission. That permission
+        lives solely on the `super` user role, which is owner-assignable
+        only — so in practice only an Owner-org Super Admin can reach this.
+        It is not reachable by Distributor/Reseller admins.
+
+        Secrets are redacted in the response: telegram `bot_token` and
+        webhook URL path/query in every layer and in the effective layer,
+        and SMTP credentials / bearer / bot tokens in the rendered YAML.
+
+        `organization_id` is required and may target ANY tenant. A
+        nonexistent id returns an empty effective config (no error) — the
+        honest answer for a diagnostic tool. Read-only: no Mimir push, no
+        DB writes.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Logto organization id of the tenant to inspect.
+      responses:
+        '200':
+          description: Effective configuration report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: effective alerting configuration retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      organization_id:
+                        type: string
+                      chain:
+                        type: array
+                        description: |
+                          Contributing layers ordered Owner first → tenant
+                          last. Orgs with no saved layer are listed with
+                          `has_layer: false` and an empty layer.
+                        items:
+                          type: object
+                          properties:
+                            organization_id:
+                              type: string
+                            organization_name:
+                              type: string
+                            organization_role:
+                              type: string
+                              enum: [owner, distributor, reseller, customer]
+                            has_layer:
+                              type: boolean
+                            layer:
+                              $ref: '#/components/schemas/AlertingConfigLayer'
+                            updated_by_name:
+                              type: string
+                              nullable: true
+                            updated_at:
+                              type: string
+                              format: date-time
+                              nullable: true
+                      effective:
+                        $ref: '#/components/schemas/AlertingConfigLayer'
+                      yaml:
+                        type: string
+                        description: Rendered Alertmanager YAML (secrets redacted).
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /alerts/silences:
+    get:
+      operationId: getAlertSilences
+      tags:
+        - Backend - Alerts Silences
+      summary: "/alerts/silences - List active+pending silences (hierarchy-wide)"
+      description: |
+        Cross-system parallel of `GET /systems/{id}/alerts/silences`. Returns
+        every active or pending Alertmanager silence in the caller's scope,
+        enriched with `organization_id` (the tenant that owns the silence) and
+        `system_key` (extracted from the silence matchers). Expired silences
+        and silences without a `system_key` matcher are excluded — only
+        silences our UI ever creates are addressable.
+
+        Scope follows the same three modes as `/alerts/totals`:
+        - `organization_id` omitted → caller's full hierarchy (cross-tenant fan-out).
+        - `organization_id=X` → single tenant `X`.
+        - `organization_id=X&include=descendants` → `X` plus its sub-tree.
+
+        Requires `read:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          description: |
+            Target organization ID(s). Repeat the param for multiple values.
+            Optional for all roles except Customer (where it is ignored).
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: include
+          in: query
+          description: Set to `descendants` together with `organization_id` to expand each value to its sub-tree.
+          schema:
+            type: string
+            enum: [descendants]
+        - name: system_key
+          in: query
+          description: |
+            Filter silences by one or more system keys (exact match on the
+            `system_key` matcher). Repeat the param for multiple values.
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+      responses:
+        '200':
+          description: Paginated list of system-scoped silences
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: silences retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      silences:
+                        type: array
+                        items:
+                          allOf:
+                            - $ref: '#/components/schemas/AlertmanagerSilence'
+                            - type: object
+                              properties:
+                                organization_id:
+                                  type: string
+                                  description: Tenant that owns the silence (Mimir stores silences per-tenant).
+                                  example: "m4m3mdjdiizs"
+                                system_key:
+                                  type: string
+                                  description: System key extracted from the silence matchers.
+                                  example: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                      warnings:
+                        type: array
+                        description: |
+                          Per-tenant fan-out errors. Always present (empty when
+                          every tenant responded OK). Each entry is a string
+                          `org <logto_id>: <error>`.
+                        items:
+                          type: string
+              examples:
+                OneActive:
+                  summary: One active silence on a customer system
+                  value:
+                    code: 200
+                    message: silences retrieved successfully
+                    data:
+                      silences:
+                        - id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+                          organization_id: "m4m3mdjdiizs"
+                          system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                          matchers:
+                            - name: "system_key"
+                              value: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                              isRegex: false
+                            - name: "alertname"
+                              value: "HighCPUUsage"
+                              isRegex: false
+                            - name: "severity"
+                              value: "warning"
+                              isRegex: false
+                          startsAt: "2026-05-12T08:16:36Z"
+                          endsAt: "2026-05-12T09:16:36Z"
+                          updatedAt: "2026-05-12T08:16:36Z"
+                          createdBy: "amelia.foster"
+                          comment: "muted during maintenance window"
+                          status:
+                            state: "active"
+                      warnings: []
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      operationId: createAlertSilence
+      tags:
+        - Backend - Alerts Silences
+      summary: "/alerts/silences - Mute an alert across systems"
+      description: |
+        Cross-system parallel of `POST /systems/{id}/alerts/silences`. Mutes
+        an active alert identified by fingerprint inside a single tenant
+        (`?organization_id=`). The backend looks up the alert in Mimir,
+        extracts `system_key` from its labels, builds the matchers
+        server-side, and delegates to the same silence-creation path used by
+        the per-system endpoint — so the silence object stored in Mimir is
+        byte-identical regardless of which route created it.
+
+        If `end_at` is set it takes precedence over `duration_minutes`.
+
+        Requires `manage:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          description: |
+            Tenant that owns the alert. Mandatory for every role except
+            Customer (where it is ignored — they're always pinned to their
+            own organization). Owners can address any tenant in the system.
+          schema:
+            type: string
+            example: "m4m3mdjdiizs"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fingerprint
+              properties:
+                fingerprint:
+                  type: string
+                  description: Fingerprint of the active alert to silence.
+                  example: "0a9d04bb6eed523f"
+                comment:
+                  type: string
+                  description: Optional silence comment. Defaults to a system-generated value when empty.
+                  example: "silenced during maintenance"
+                duration_minutes:
+                  type: integer
+                  minimum: 1
+                  maximum: 10080
+                  description: Optional duration in minutes. Defaults to 60 when omitted. Ignored when end_at is set.
+                  example: 60
+                end_at:
+                  type: string
+                  format: date-time
+                  description: Optional explicit end time (RFC3339). Takes precedence over duration_minutes.
+                  example: "2026-05-12T09:16:36Z"
+            examples:
+              ExplicitEndAt:
+                summary: Silence until a specific date/time
+                value:
+                  fingerprint: "0a9d04bb6eed523f"
+                  comment: "silenced during maintenance window"
+                  end_at: "2026-05-12T09:16:36Z"
+      responses:
+        '200':
+          description: Alert silenced successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "alert silenced successfully"
+                  data:
+                    type: object
+                    properties:
+                      silence_id:
+                        type: string
+                        example: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /alerts/silences/{silence_id}:
+    get:
+      operationId: getAlertSilence
+      tags:
+        - Backend - Alerts Silences
+      summary: "/alerts/silences/{silence_id} - Get a single silence"
+      description: |
+        Cross-system parallel of `GET /systems/{id}/alerts/silences/{silence_id}`.
+        Looks up a silence inside a single tenant (`?organization_id=`) and
+        returns it enriched with `organization_id` and `system_key`. Silences
+        without a `system_key` matcher are reported as 404 — they don't belong
+        to our domain.
+
+        Requires `read:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: silence_id
+          in: path
+          required: true
+          description: Alertmanager silence ID.
+          schema:
+            type: string
+            example: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+        - name: organization_id
+          in: query
+          required: true
+          description: |
+            Tenant that owns the silence. Mandatory for every role except
+            Customer (where it is ignored).
+          schema:
+            type: string
+            example: "m4m3mdjdiizs"
+      responses:
+        '200':
+          description: Silence retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "silence retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      silence:
+                        allOf:
+                          - $ref: '#/components/schemas/AlertmanagerSilence'
+                          - type: object
+                            properties:
+                              organization_id:
+                                type: string
+                                example: "m4m3mdjdiizs"
+                              system_key:
+                                type: string
+                                example: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateAlertSilence
+      tags:
+        - Backend - Alerts Silences
+      summary: "/alerts/silences/{silence_id} - Update a silence"
+      description: |
+        Cross-system parallel of `PUT /systems/{id}/alerts/silences/{silence_id}`.
+        Preserves the original matchers and start time; only `end_at` and
+        `comment` change. Refuses to operate on silences without a
+        `system_key` matcher (404). Requires `manage:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: silence_id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            example: "m4m3mdjdiizs"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - end_at
+              properties:
+                comment:
+                  type: string
+                  example: "extended for maintenance window"
+                end_at:
+                  type: string
+                  format: date-time
+                  example: "2026-05-12T12:16:36Z"
+      responses:
+        '200':
+          description: Silence updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "silence updated successfully"
+                  data:
+                    type: object
+                    properties:
+                      silence_id:
+                        type: string
+                        example: "f1e1c2a4-7e57-4b1a-aaa0-2b96c8b5a3aa"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteAlertSilence
+      tags:
+        - Backend - Alerts Silences
+      summary: "/alerts/silences/{silence_id} - Unmute an alert (delete silence)"
+      description: |
+        Cross-system parallel of `DELETE /systems/{id}/alerts/silences/{silence_id}`.
+        Removes a system-scoped silence; generic Alertmanager silences (no
+        `system_key` matcher) are not addressable through this endpoint and
+        return 404. Requires `manage:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: silence_id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+            example: "m4m3mdjdiizs"
+      responses:
+        '200':
+          description: Silence disabled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "silence disabled successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ===========================================
+  # ALERTING ENDPOINTS (Backend - Configuration)
+  # ===========================================
+
   /systems/{id}/alerts:
     get:
       operationId: getSystemAlerts
       tags:
-        - Backend - Alerts
-      summary: /systems/{id}/alerts - Get active alerts for a system
+        - Backend - Alerts (Per-System)
+      summary: "/systems/{id}/alerts - Get active alerts for a system"
       description: |
         Returns current alerts from Mimir scoped to a single system. Mirrors
         the filter, pagination, and sort surface of `GET /alerts`: the only
@@ -9087,442 +10775,12 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /systems/{id}/alerts/silences:
-    get:
-      operationId: getSystemAlertSilences
-      tags:
-        - Backend - Alerts
-      summary: /systems/{id}/alerts/silences - List active silences for a system
-      description: |
-        Returns all active and pending Alertmanager silences scoped to the target system.
-        Expired silences are excluded. Results are filtered server-side to silences that carry
-        an exact `system_key` matcher matching the system's key.
-        Requires `read:systems` permission.
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: System ID (database UUID)
-          schema:
-            type: string
-            example: "sys_123456789"
-      responses:
-        '200':
-          description: Silences retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "silences retrieved successfully"
-                  data:
-                    type: object
-                    properties:
-                      silences:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/AlertmanagerSilence'
-              examples:
-                ActiveSilence:
-                  summary: One active silence for the system
-                  description: |
-                    The silence matches on `system_key` (server-injected) plus the
-                    labels that uniquely identified the alert at silence creation
-                    time. `silencedBy` on the active alert references this same
-                    `id`.
-                  value:
-                    code: 200
-                    message: "silences retrieved successfully"
-                    data:
-                      silences:
-                        - id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
-                          matchers:
-                            - name: "system_key"
-                              value: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
-                              isRegex: false
-                            - name: "alertname"
-                              value: "DiskFilling"
-                              isRegex: false
-                            - name: "severity"
-                              value: "warning"
-                              isRegex: false
-                          startsAt: "2026-05-12T08:16:36Z"
-                          endsAt: "2026-05-12T09:16:36Z"
-                          updatedAt: "2026-05-12T08:16:36Z"
-                          createdBy: "R1C1 Admin <c5gpnoo2do48>"
-                          comment: "silenced during maintenance window"
-                          status:
-                            state: "active"
-                NoSilences:
-                  summary: No silences for the system
-                  value:
-                    code: 200
-                    message: "silences retrieved successfully"
-                    data:
-                      silences: []
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    post:
-      operationId: createSystemAlertSilence
-      tags:
-        - Backend - Alerts
-      summary: /systems/{id}/alerts/silences - Create a silence for a system alert
-      description: |
-        Creates an Alertmanager silence for a specific active alert on the target system.
-        The request identifies the live alert by fingerprint. The backend resolves the alert,
-        builds the silence matchers server-side, and always uses the system's authoritative
-        `system_key`.
-        If `end_at` is provided it takes precedence over `duration_minutes`.
-        Requires `manage:systems` permission.
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: System ID (database UUID)
-          schema:
-            type: string
-            example: "sys_123456789"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - fingerprint
-              properties:
-                fingerprint:
-                  type: string
-                  description: Fingerprint of the active alert to silence
-                  example: "8f2d65896d4bcf97"
-                comment:
-                  type: string
-                  description: Optional silence comment. Defaults to a system-generated value when empty.
-                  example: "silenced during maintenance"
-                duration_minutes:
-                  type: integer
-                  minimum: 1
-                  maximum: 10080
-                  description: Optional silence duration in minutes. Defaults to 60 when omitted. Ignored when end_at is set.
-                  example: 60
-                end_at:
-                  type: string
-                  format: date-time
-                  description: Optional explicit end time (RFC3339). Takes precedence over duration_minutes.
-                  example: "2024-01-01T02:00:00Z"
-            examples:
-              ExplicitEndAt:
-                summary: Silence until a specific date/time
-                description: |
-                  When `end_at` is set, the silence expires at that moment
-                  regardless of `duration_minutes`. The backend resolves the
-                  alert by `fingerprint`, attaches the system's authoritative
-                  `system_key` to the matchers, and creates the silence.
-                value:
-                  fingerprint: "0a9d04bb6eed523f"
-                  comment: "silenced during maintenance window"
-                  end_at: "2026-05-12T09:16:36Z"
-              DurationBased:
-                summary: Silence for the next 60 minutes
-                description: |
-                  Without `end_at`, `duration_minutes` applies. If both are
-                  omitted, the silence defaults to 60 minutes from creation.
-                value:
-                  fingerprint: "0a9d04bb6eed523f"
-                  comment: "investigating"
-                  duration_minutes: 60
-      responses:
-        '200':
-          description: Alert silence created successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "alert silenced successfully"
-                  data:
-                    type: object
-                    properties:
-                      silence_id:
-                        type: string
-                        example: "4e6f0c30-c383-4e22-9443-0d7b6a8bd40b"
-              examples:
-                Created:
-                  summary: Silence created
-                  description: |
-                    `silence_id` is the Alertmanager-assigned UUID; use it to
-                    look up, update, or delete the silence later. The
-                    corresponding `silenced` event is appended to the alert's
-                    activity timeline (`GET /alerts/activity/{fingerprint}`).
-                  value:
-                    code: 200
-                    message: "alert silenced successfully"
-                    data:
-                      silence_id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /systems/{id}/alerts/silences/{silence_id}:
-    get:
-      operationId: getSystemAlertSilence
-      tags:
-        - Backend - Alerts
-      summary: /systems/{id}/alerts/silences/{silence_id} - Get a single silence
-      description: |
-        Returns a specific Alertmanager silence after verifying it belongs to the target system
-        via its `system_key` matcher.
-        Requires `read:systems` permission.
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: System ID (database UUID)
-          schema:
-            type: string
-            example: "sys_123456789"
-        - name: silence_id
-          in: path
-          required: true
-          description: Alertmanager silence ID
-          schema:
-            type: string
-            example: "4e6f0c30-c383-4e22-9443-0d7b6a8bd40b"
-      responses:
-        '200':
-          description: Silence retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "silence retrieved successfully"
-                  data:
-                    type: object
-                    properties:
-                      silence:
-                        $ref: '#/components/schemas/AlertmanagerSilence'
-              examples:
-                ActiveSilence:
-                  summary: Silence found and active
-                  value:
-                    code: 200
-                    message: "silence retrieved successfully"
-                    data:
-                      silence:
-                        id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
-                        matchers:
-                          - name: "system_key"
-                            value: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
-                            isRegex: false
-                          - name: "alertname"
-                            value: "DiskFilling"
-                            isRegex: false
-                          - name: "severity"
-                            value: "warning"
-                            isRegex: false
-                        startsAt: "2026-05-12T08:16:36Z"
-                        endsAt: "2026-05-12T09:16:36Z"
-                        updatedAt: "2026-05-12T08:16:36Z"
-                        createdBy: "R1C1 Admin <c5gpnoo2do48>"
-                        comment: "silenced during maintenance window"
-                        status:
-                          state: "active"
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    put:
-      operationId: updateSystemAlertSilence
-      tags:
-        - Backend - Alerts
-      summary: /systems/{id}/alerts/silences/{silence_id} - Update a silence
-      description: |
-        Updates the end time and/or comment of an existing silence. Preserves the original
-        matchers and start time. Ownership is verified via the `system_key` matcher.
-        Requires `manage:systems` permission.
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: System ID (database UUID)
-          schema:
-            type: string
-            example: "sys_123456789"
-        - name: silence_id
-          in: path
-          required: true
-          description: Alertmanager silence ID
-          schema:
-            type: string
-            example: "4e6f0c30-c383-4e22-9443-0d7b6a8bd40b"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - end_at
-              properties:
-                comment:
-                  type: string
-                  description: New comment for the silence. Defaults to previous value if empty.
-                  example: "extended for maintenance window"
-                end_at:
-                  type: string
-                  format: date-time
-                  description: New end time (RFC3339). Must be in the future.
-                  example: "2024-01-01T04:00:00Z"
-            examples:
-              ExtendEndTime:
-                summary: Extend the silence by 3 more hours
-                description: |
-                  Alertmanager treats an update as "create a new silence with
-                  the same matchers and start_at, then drop the old one", so
-                  the response carries a new `silence_id`. The activity
-                  timeline records this as a `silence_updated` event.
-                value:
-                  comment: "extended for maintenance window"
-                  end_at: "2026-05-12T12:16:36Z"
-      responses:
-        '200':
-          description: Silence updated successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "silence updated successfully"
-                  data:
-                    type: object
-                    properties:
-                      silence_id:
-                        type: string
-                        example: "4e6f0c30-c383-4e22-9443-0d7b6a8bd40b"
-              examples:
-                Updated:
-                  summary: New silence id after update
-                  value:
-                    code: 200
-                    message: "silence updated successfully"
-                    data:
-                      silence_id: "f1e1c2a4-7e57-4b1a-aaa0-2b96c8b5a3aa"
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    delete:
-      operationId: deleteSystemAlertSilence
-      tags:
-        - Backend - Alerts
-      summary: /systems/{id}/alerts/silences/{silence_id} - Disable a system alert silence
-      description: |
-        Deletes a system-scoped Alertmanager silence after validating that the silence belongs
-        to the target system through the authoritative `system_key` matcher.
-        Requires `manage:systems` permission.
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: System ID (database UUID)
-          schema:
-            type: string
-            example: "sys_123456789"
-        - name: silence_id
-          in: path
-          required: true
-          description: Alertmanager silence ID
-          schema:
-            type: string
-            example: "4e6f0c30-c383-4e22-9443-0d7b6a8bd40b"
-      responses:
-        '200':
-          description: Alert silence disabled successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "silence disabled successfully"
-              examples:
-                Disabled:
-                  summary: Silence removed
-                  description: |
-                    The silence is expired (not hard-deleted) so it disappears
-                    from `GET /silences` but stays referenced in the alert's
-                    activity timeline as an `unsilenced` event. On the wire
-                    the response also carries `"data": null`; the example
-                    omits it to match the declared schema which only includes
-                    `code` and `message`.
-                  value:
-                    code: 200
-                    message: "silence disabled successfully"
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
   /systems/{id}/alerts/history:
     get:
       operationId: getSystemAlertHistory
       tags:
-        - Backend - Alerts
-      summary: /systems/{id}/alerts/history - Get system alert history
+        - Backend - Alerts (Per-System)
+      summary: "/systems/{id}/alerts/history - Get system alert history"
       description: |
         Get paginated history of resolved and inactive alerts for a specific system.
         Alerts are stored by the collect service when Alertmanager sends webhook notifications.
@@ -9712,6 +10970,437 @@ paths:
   # ===========================================================================
   # SYSTEM BACKUPS
   # ===========================================================================
+
+  /systems/{id}/alerts/silences:
+    get:
+      operationId: getSystemAlertSilences
+      tags:
+        - Backend - Alerts (Per-System)
+      summary: "/systems/{id}/alerts/silences - List active silences for a system"
+      description: |
+        Returns all active and pending Alertmanager silences scoped to the target system.
+        Expired silences are excluded. Results are filtered server-side to silences that carry
+        an exact `system_key` matcher matching the system's key.
+        Requires `read:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID (database UUID)
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: Silences retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "silences retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      silences:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AlertmanagerSilence'
+              examples:
+                ActiveSilence:
+                  summary: One active silence for the system
+                  description: |
+                    The silence matches on `system_key` (server-injected) plus the
+                    labels that uniquely identified the alert at silence creation
+                    time. `silencedBy` on the active alert references this same
+                    `id`.
+                  value:
+                    code: 200
+                    message: "silences retrieved successfully"
+                    data:
+                      silences:
+                        - id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+                          matchers:
+                            - name: "system_key"
+                              value: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                              isRegex: false
+                            - name: "alertname"
+                              value: "DiskFilling"
+                              isRegex: false
+                            - name: "severity"
+                              value: "warning"
+                              isRegex: false
+                          startsAt: "2026-05-12T08:16:36Z"
+                          endsAt: "2026-05-12T09:16:36Z"
+                          updatedAt: "2026-05-12T08:16:36Z"
+                          createdBy: "R1C1 Admin <c5gpnoo2do48>"
+                          comment: "silenced during maintenance window"
+                          status:
+                            state: "active"
+                NoSilences:
+                  summary: No silences for the system
+                  value:
+                    code: 200
+                    message: "silences retrieved successfully"
+                    data:
+                      silences: []
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      operationId: createSystemAlertSilence
+      tags:
+        - Backend - Alerts (Per-System)
+      summary: "/systems/{id}/alerts/silences - Create a silence for a system alert"
+      description: |
+        Creates an Alertmanager silence for a specific active alert on the target system.
+        The request identifies the live alert by fingerprint. The backend resolves the alert,
+        builds the silence matchers server-side, and always uses the system's authoritative
+        `system_key`.
+        If `end_at` is provided it takes precedence over `duration_minutes`.
+        Requires `manage:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID (database UUID)
+          schema:
+            type: string
+            example: "sys_123456789"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fingerprint
+              properties:
+                fingerprint:
+                  type: string
+                  description: Fingerprint of the active alert to silence
+                  example: "8f2d65896d4bcf97"
+                comment:
+                  type: string
+                  description: Optional silence comment. Defaults to a system-generated value when empty.
+                  example: "silenced during maintenance"
+                duration_minutes:
+                  type: integer
+                  minimum: 1
+                  maximum: 10080
+                  description: Optional silence duration in minutes. Defaults to 60 when omitted. Ignored when end_at is set.
+                  example: 60
+                end_at:
+                  type: string
+                  format: date-time
+                  description: Optional explicit end time (RFC3339). Takes precedence over duration_minutes.
+                  example: "2024-01-01T02:00:00Z"
+            examples:
+              ExplicitEndAt:
+                summary: Silence until a specific date/time
+                description: |
+                  When `end_at` is set, the silence expires at that moment
+                  regardless of `duration_minutes`. The backend resolves the
+                  alert by `fingerprint`, attaches the system's authoritative
+                  `system_key` to the matchers, and creates the silence.
+                value:
+                  fingerprint: "0a9d04bb6eed523f"
+                  comment: "silenced during maintenance window"
+                  end_at: "2026-05-12T09:16:36Z"
+              DurationBased:
+                summary: Silence for the next 60 minutes
+                description: |
+                  Without `end_at`, `duration_minutes` applies. If both are
+                  omitted, the silence defaults to 60 minutes from creation.
+                value:
+                  fingerprint: "0a9d04bb6eed523f"
+                  comment: "investigating"
+                  duration_minutes: 60
+      responses:
+        '200':
+          description: Alert silence created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "alert silenced successfully"
+                  data:
+                    type: object
+                    properties:
+                      silence_id:
+                        type: string
+                        example: "4e6f0c30-c383-4e22-9443-0d7b6a8bd40b"
+              examples:
+                Created:
+                  summary: Silence created
+                  description: |
+                    `silence_id` is the Alertmanager-assigned UUID; use it to
+                    look up, update, or delete the silence later. The
+                    corresponding `silenced` event is appended to the alert's
+                    activity timeline (`GET /alerts/activity/{fingerprint}`).
+                  value:
+                    code: 200
+                    message: "alert silenced successfully"
+                    data:
+                      silence_id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/alerts/silences/{silence_id}:
+    get:
+      operationId: getSystemAlertSilence
+      tags:
+        - Backend - Alerts (Per-System)
+      summary: "/systems/{id}/alerts/silences/{silence_id} - Get a single silence"
+      description: |
+        Returns a specific Alertmanager silence after verifying it belongs to the target system
+        via its `system_key` matcher.
+        Requires `read:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID (database UUID)
+          schema:
+            type: string
+            example: "sys_123456789"
+        - name: silence_id
+          in: path
+          required: true
+          description: Alertmanager silence ID
+          schema:
+            type: string
+            example: "4e6f0c30-c383-4e22-9443-0d7b6a8bd40b"
+      responses:
+        '200':
+          description: Silence retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "silence retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      silence:
+                        $ref: '#/components/schemas/AlertmanagerSilence'
+              examples:
+                ActiveSilence:
+                  summary: Silence found and active
+                  value:
+                    code: 200
+                    message: "silence retrieved successfully"
+                    data:
+                      silence:
+                        id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
+                        matchers:
+                          - name: "system_key"
+                            value: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
+                            isRegex: false
+                          - name: "alertname"
+                            value: "DiskFilling"
+                            isRegex: false
+                          - name: "severity"
+                            value: "warning"
+                            isRegex: false
+                        startsAt: "2026-05-12T08:16:36Z"
+                        endsAt: "2026-05-12T09:16:36Z"
+                        updatedAt: "2026-05-12T08:16:36Z"
+                        createdBy: "R1C1 Admin <c5gpnoo2do48>"
+                        comment: "silenced during maintenance window"
+                        status:
+                          state: "active"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateSystemAlertSilence
+      tags:
+        - Backend - Alerts (Per-System)
+      summary: "/systems/{id}/alerts/silences/{silence_id} - Update a silence"
+      description: |
+        Updates the end time and/or comment of an existing silence. Preserves the original
+        matchers and start time. Ownership is verified via the `system_key` matcher.
+        Requires `manage:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID (database UUID)
+          schema:
+            type: string
+            example: "sys_123456789"
+        - name: silence_id
+          in: path
+          required: true
+          description: Alertmanager silence ID
+          schema:
+            type: string
+            example: "4e6f0c30-c383-4e22-9443-0d7b6a8bd40b"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - end_at
+              properties:
+                comment:
+                  type: string
+                  description: New comment for the silence. Defaults to previous value if empty.
+                  example: "extended for maintenance window"
+                end_at:
+                  type: string
+                  format: date-time
+                  description: New end time (RFC3339). Must be in the future.
+                  example: "2024-01-01T04:00:00Z"
+            examples:
+              ExtendEndTime:
+                summary: Extend the silence by 3 more hours
+                description: |
+                  Alertmanager treats an update as "create a new silence with
+                  the same matchers and start_at, then drop the old one", so
+                  the response carries a new `silence_id`. The activity
+                  timeline records this as a `silence_updated` event.
+                value:
+                  comment: "extended for maintenance window"
+                  end_at: "2026-05-12T12:16:36Z"
+      responses:
+        '200':
+          description: Silence updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "silence updated successfully"
+                  data:
+                    type: object
+                    properties:
+                      silence_id:
+                        type: string
+                        example: "4e6f0c30-c383-4e22-9443-0d7b6a8bd40b"
+              examples:
+                Updated:
+                  summary: New silence id after update
+                  value:
+                    code: 200
+                    message: "silence updated successfully"
+                    data:
+                      silence_id: "f1e1c2a4-7e57-4b1a-aaa0-2b96c8b5a3aa"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteSystemAlertSilence
+      tags:
+        - Backend - Alerts (Per-System)
+      summary: "/systems/{id}/alerts/silences/{silence_id} - Disable a system alert silence"
+      description: |
+        Deletes a system-scoped Alertmanager silence after validating that the silence belongs
+        to the target system through the authoritative `system_key` matcher.
+        Requires `manage:systems` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID (database UUID)
+          schema:
+            type: string
+            example: "sys_123456789"
+        - name: silence_id
+          in: path
+          required: true
+          description: Alertmanager silence ID
+          schema:
+            type: string
+            example: "4e6f0c30-c383-4e22-9443-0d7b6a8bd40b"
+      responses:
+        '200':
+          description: Alert silence disabled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "silence disabled successfully"
+              examples:
+                Disabled:
+                  summary: Silence removed
+                  description: |
+                    The silence is expired (not hard-deleted) so it disappears
+                    from `GET /silences` but stays referenced in the alert's
+                    activity timeline as an `unsilenced` event. On the wire
+                    the response also carries `"data": null`; the example
+                    omits it to match the declared schema which only includes
+                    `code` and `message`.
+                  value:
+                    code: 200
+                    message: "silence disabled successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /systems/{id}/backups:
     get:
       operationId: getSystemBackups
@@ -10290,6 +11979,160 @@ paths:
                     - id: "org_def456"
                       name: "TechStart Inc"
                       type: "reseller"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /filters/alerts:
+    get:
+      operationId: getAlertFilters
+      tags:
+        - Backend - Filters
+      summary: /filters/alerts - Get aggregated alert filters
+      description: |
+        Aggregated endpoint for the alerts views' filter dropdowns.
+
+        `systems`, `severities` and `organizations` are data-driven: only
+        values that actually appear in alert history within the caller's scope
+        are returned. `alerts` is a static catalog of every alert a NethServer
+        (NS8) or NethSecurity system can raise — it is NOT scoped to the
+        caller's data, so the dropdown can filter on alerts not yet received.
+
+        Auth is checked once, then the data-driven datasets are fetched in
+        parallel.
+
+        Scope follows the same rules as the other alerts endpoints:
+        `organization_id` omitted = caller's full hierarchy; one or more
+        `organization_id` = those tenants (validated, Owner exempt);
+        Customer is always pinned to its own organization.
+      parameters:
+        - name: organization_id
+          in: query
+          required: false
+          description: |
+            Tenant scope. Omit for the caller's full hierarchy, or repeat to
+            target specific tenants (each validated against the caller's
+            hierarchy; Owner exempt).
+          schema:
+            type: array
+            items:
+              type: string
+          example: ["org_abc123"]
+        - name: include
+          in: query
+          required: false
+          description: When set to `descendants`, expand each organization_id to itself plus its sub-tree.
+          schema:
+            type: string
+            enum: [descendants]
+      responses:
+        '200':
+          description: Alert filters retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "alert filters retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      systems:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              description: System local ID
+                              example: "sys_abc123"
+                            name:
+                              type: string
+                              description: System display name
+                              example: "Milan Office Server"
+                            type:
+                              type: string
+                              description: System type (empty string if unknown)
+                              example: "ns8"
+                            key:
+                              type: string
+                              description: Unique system key
+                              example: "ABCD1234"
+                      alerts:
+                        type: array
+                        description: |
+                          Static catalog of every alert a NethServer (NS8) or
+                          NethSecurity system can raise. Not scoped to the
+                          caller's data — returned in full regardless of what
+                          alert history exists.
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                              description: Alert name (alertname label)
+                              example: "DiskSpaceLow"
+                            severity:
+                              type: string
+                              enum: [critical, warning, info]
+                              description: Default severity for this alert type
+                              example: "warning"
+                            service:
+                              type: string
+                              description: Sub-service that raises the alert (omitted when not applicable)
+                              example: "storage"
+                      severities:
+                        type: array
+                        items:
+                          type: string
+                        description: Distinct severities present in alert history
+                        example: ["critical", "warning"]
+                      organizations:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            logto_id:
+                              type: string
+                              description: Organization Logto ID
+                              example: "org_abc123"
+                            name:
+                              type: string
+                              description: Organization name
+                              example: "ACME Corp"
+                            type:
+                              type: string
+                              enum: [distributor, reseller, customer]
+                              description: Organization type
+                              example: "customer"
+              example:
+                code: 200
+                message: "alert filters retrieved successfully"
+                data:
+                  systems:
+                    - id: "sys_abc123"
+                      name: "Milan Office Server"
+                      type: "ns8"
+                      key: "ABCD1234"
+                  alerts:
+                    - name: "DiskSpaceLow"
+                      severity: "warning"
+                      service: "storage"
+                    - name: "ServiceDown"
+                      severity: "critical"
+                  severities:
+                    - "critical"
+                    - "warning"
+                  organizations:
+                    - logto_id: "org_abc123"
+                      name: "ACME Corp"
+                      type: "customer"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -11496,1688 +13339,6 @@ paths:
 
   # ===========================================
   # ALERTING ENDPOINTS (Backend - Totals & Trend)
-  # ===========================================
-
-  /alerts/totals:
-    get:
-      operationId: getAlertsTotals
-      tags:
-        - Backend - Alerts
-      summary: Get alert totals
-      description: |
-        Returns active alert counts by severity (from Mimir, per-tenant) and total resolved
-        alert history count (from DB). Requires `read:systems` permission.
-
-        **Scope modes** (selected by query params):
-
-        | `organization_id`            | `include`     | Result |
-        |---|---|---|
-        | omitted                      | —             | Caller's full hierarchy (recursive). For Customer it's just self. |
-        | `X`                          | omitted       | Single tenant `X` only. Resellers/Distributors hold no alerts on their own tenant — those live on their customer tenants — so single-tenant queries on a non-leaf org typically return zero. |
-        | `X` (repeated for multi)     | omitted       | Union of all `organization_id` values passed. Each must be in the caller's hierarchy (Owner exempt). |
-        | `X` (single or multi)        | `descendants` | Each org_id is expanded to itself + its sub-tree (deduplicated). Use this to drill into one or more sub-trees. |
-
-        Active counts are aggregated across the resolved scope by fanning out to Mimir,
-        one request per tenant, with bounded concurrency and a global timeout. Per-tenant
-        failures (timeout, 5xx, parse error) are non-fatal: their counts simply don't
-        contribute, and the failure is reported in the `warnings` array. The `history`
-        total comes from a single SQL query scoped to the same set of organization IDs.
-
-        Customer callers are always pinned to their own organization regardless of
-        `organization_id`/`include` (Mimir tenant is fixed to `user.organization_id`).
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: organization_id
-          in: query
-          description: |
-            Target organization ID(s). Repeat the param to pass multiple values
-            (`?organization_id=A&organization_id=B`). Optional for all roles except
-            Customer (where it is ignored). Distributors/Resellers receive `403` if any
-            value is not in their hierarchy.
-          schema:
-            type: array
-            items:
-              type: string
-          style: form
-          explode: true
-        - name: include
-          in: query
-          description: |
-            Set to `descendants` together with `organization_id` to expand each value
-            to its full sub-tree (results deduplicated). Ignored when `organization_id`
-            is omitted (the caller's own hierarchy is already used) and when the caller
-            is a Customer.
-          schema:
-            type: string
-            enum: [descendants]
-      responses:
-        '200':
-          description: Alert totals retrieved
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: alert totals retrieved successfully
-                  data:
-                    type: object
-                    properties:
-                      active:
-                        type: integer
-                        description: Total active alerts in scope
-                      critical:
-                        type: integer
-                        description: Active critical alerts in scope
-                      warning:
-                        type: integer
-                        description: Active warning alerts in scope
-                      info:
-                        type: integer
-                        description: Active info alerts in scope
-                      muted:
-                        type: integer
-                        description: Active alerts currently silenced (Alertmanager `silencedBy` non-empty)
-                      history:
-                        type: integer
-                        description: Total resolved alerts in history (DB) in scope
-                      warnings:
-                        type: array
-                        description: |
-                          Per-tenant errors encountered during fan-out. Always present
-                          (empty array when every tenant responded OK). Each entry is a
-                          string in the form `org <logto_id>: <error>` or
-                          `history: <error>` for the DB lookup.
-                        items:
-                          type: string
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /alerts/trend:
-    get:
-      operationId: getAlertsTrend
-      tags:
-        - Backend - Alerts
-      summary: Get alert history trend
-      description: |
-        Returns trend data for resolved alerts over a specified period with daily data points.
-        Compares the current period with the previous period of equal length.
-        Requires `read:systems` permission.
-
-        Scope follows the same three modes as `/alerts/totals`:
-        - `organization_id` omitted → caller's full hierarchy.
-        - `organization_id=X` → single tenant `X`.
-        - `organization_id=X&include=descendants` → `X` plus its sub-tree.
-
-        Customer callers are always pinned to their own organization regardless of params.
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: organization_id
-          in: query
-          description: |
-            Target organization ID(s). Repeat the param to pass multiple values.
-            Optional for all roles except Customer (where it is ignored).
-          schema:
-            type: array
-            items:
-              type: string
-          style: form
-          explode: true
-        - name: include
-          in: query
-          description: Set to `descendants` together with `organization_id` to expand each value to its sub-tree.
-          schema:
-            type: string
-            enum: [descendants]
-        - name: period
-          in: query
-          description: Trend period in days
-          schema:
-            type: integer
-            enum: [7, 30, 180, 365]
-            default: 7
-      responses:
-        '200':
-          description: Alert trend data
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: alerts trend retrieved successfully
-                  data:
-                    type: object
-                    properties:
-                      period:
-                        type: integer
-                      period_label:
-                        type: string
-                      current_total:
-                        type: integer
-                      previous_total:
-                        type: integer
-                      delta:
-                        type: integer
-                      delta_percentage:
-                        type: number
-                      trend:
-                        type: string
-                        enum: [up, down, stable]
-                      data_points:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            date:
-                              type: string
-                              format: date
-                            count:
-                              type: integer
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /alerts/stats:
-    get:
-      operationId: getAlertsStats
-      tags:
-        - Backend - Alerts
-      summary: Aggregate alert statistics
-      description: |
-        Returns aggregate statistics over `alert_history` for the caller's scope:
-        total, severity buckets, top-N alertname and system_key by count, plus MTTR
-        (mean time to resolve) and MTBF (mean time between failures, approximated).
-
-        Scope follows the same three modes as `/alerts/totals`:
-        - `organization_id` omitted → caller's full hierarchy.
-        - `organization_id=X` → single tenant.
-        - `organization_id=X&include=descendants` → sub-tree drill-down.
-
-        MTBF formula:
-        - When both `from_date` and `to_date` are provided: `(to - from) / total`.
-        - Otherwise: `(max(starts_at) - min(starts_at)) / (total - 1)`.
-        - Omitted from the response when the result is undefined.
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: organization_id
-          in: query
-          description: |
-            Target organization ID(s). Repeat the param to pass multiple values.
-          schema:
-            type: array
-            items:
-              type: string
-          style: form
-          explode: true
-        - name: include
-          in: query
-          schema:
-            type: string
-            enum: [descendants]
-        - name: from_date
-          in: query
-          description: Lower bound on `created_at` (inclusive). RFC3339 timestamp.
-          schema:
-            type: string
-            format: date-time
-            example: "2026-05-01T00:00:00Z"
-        - name: to_date
-          in: query
-          description: Upper bound on `created_at` (exclusive). RFC3339 timestamp.
-          schema:
-            type: string
-            format: date-time
-            example: "2026-05-08T00:00:00Z"
-        - name: top
-          in: query
-          description: Cap for top-N alertname / system_key buckets. Default 10, max 50.
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 50
-            default: 10
-      responses:
-        '200':
-          description: Alert stats retrieved
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: alert stats retrieved successfully
-                  data:
-                    type: object
-                    properties:
-                      total:
-                        type: integer
-                        description: Total alerts in scope (sum of severity buckets, including null severity).
-                      by_severity:
-                        type: object
-                        additionalProperties:
-                          type: integer
-                        example:
-                          critical: 30
-                          warning: 100
-                          info: 26
-                      top_alertnames:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            alertname:
-                              type: string
-                            count:
-                              type: integer
-                      top_systems:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            system_key:
-                              type: string
-                            count:
-                              type: integer
-                      mttr_seconds:
-                        type: integer
-                        description: Mean time to resolve (avg `ends_at - starts_at` over rows with `ends_at` set). Omitted when no resolved alerts.
-                      mtbf_seconds:
-                        type: integer
-                        description: Mean time between failures (approximation, see endpoint description). Omitted when undefined.
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /alerts/history:
-    get:
-      operationId: getAlertsHistory
-      tags:
-        - Backend - Alerts
-      summary: Org-level paginated alert history
-      description: |
-        Returns paginated resolved alert history scoped to the caller's hierarchy
-        (no `organization_id`), a single tenant (`organization_id=X`), or a sub-tree
-        (`organization_id=X&include=descendants`). Mirrors the scope rules of
-        `/alerts/totals` and `/alerts/trend`.
-
-        Supports date range (`from_date`/`to_date`, RFC3339) and multi-value label
-        filters (`system_key`, `alertname`, `severity`, `status`). All multi-value
-        filters: OR within the same filter, AND across filters.
-
-        Customer callers are always pinned to their own organization regardless of params.
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: organization_id
-          in: query
-          description: |
-            Target organization ID(s). Repeat the param to pass multiple values.
-            Optional for all roles except Customer (where it is ignored).
-          schema:
-            type: array
-            items:
-              type: string
-          style: form
-          explode: true
-        - name: include
-          in: query
-          description: Set to `descendants` together with `organization_id` to expand each value to its sub-tree.
-          schema:
-            type: string
-            enum: [descendants]
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/PageSizeParam'
-        - name: sort_by
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [id, alertname, severity, status, starts_at, ends_at, created_at]
-            default: created_at
-        - name: sort_direction
-          in: query
-          required: false
-          description: |
-            Sort direction. Unlike the shared default of `asc`, this endpoint
-            defaults to `desc` so the natural "most recent first" ordering is
-            applied when the caller omits the param.
-          schema:
-            type: string
-            enum: [asc, desc]
-            default: desc
-        - name: from_date
-          in: query
-          description: Lower bound on `created_at` (inclusive). RFC3339 timestamp.
-          schema:
-            type: string
-            format: date-time
-            example: "2026-05-01T00:00:00Z"
-        - name: to_date
-          in: query
-          description: Upper bound on `created_at` (exclusive). RFC3339 timestamp. Must be after `from_date`.
-          schema:
-            type: string
-            format: date-time
-            example: "2026-05-08T00:00:00Z"
-        - name: system_key
-          in: query
-          description: |
-            Filter by one or more system keys. Repeat the param to pass multiple
-            values; results are matched as `system_key IN (...)`.
-          schema:
-            type: array
-            items:
-              type: string
-          style: form
-          explode: true
-        - name: alertname
-          in: query
-          description: Filter by alertname. Supports multiple values.
-          schema:
-            type: array
-            items:
-              type: string
-          style: form
-          explode: true
-        - name: severity
-          in: query
-          description: Filter by severity. Supports multiple values.
-          schema:
-            type: array
-            items:
-              type: string
-              enum: [critical, warning, info]
-          style: form
-          explode: true
-        - name: status
-          in: query
-          description: Filter by status. Supports multiple values.
-          schema:
-            type: array
-            items:
-              type: string
-          style: form
-          explode: true
-      responses:
-        '200':
-          description: Paginated alert history
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: alert history retrieved successfully
-                  data:
-                    type: object
-                    properties:
-                      alerts:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/AlertHistoryRecord'
-                      pagination:
-                        $ref: '#/components/schemas/Pagination'
-              examples:
-                TwoResolvedAlerts:
-                  summary: Two resolved alerts on the same system
-                  description: |
-                    Result for a Customer caller. Same `system_key` appears in both
-                    rows because they were fired against the same NS8 host. Each
-                    row is a discrete event (firing → resolved) captured by the
-                    history webhook at dispatch time; `created_at` records when
-                    the row landed in `alert_history`.
-                  value:
-                    code: 200
-                    message: alert history retrieved successfully
-                    data:
-                      alerts:
-                        - id: 55
-                          organization_id: "m4m3mdjdiizs"
-                          system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
-                          alertname: "PlainBodyTest"
-                          severity: "critical"
-                          status: "resolved"
-                          fingerprint: "11a9302b0fa6526e"
-                          starts_at: "2026-05-12T07:46:50Z"
-                          ends_at: "2026-05-12T07:51:50Z"
-                          summary: "plain body check"
-                          labels:
-                            alertname: "PlainBodyTest"
-                            severity: "critical"
-                            system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
-                          annotations:
-                            summary: "plain body check"
-                            description: "checking html:'' fix"
-                          receiver: "severity-critical-receiver"
-                          created_at: "2026-05-12T07:52:00Z"
-                        - id: 54
-                          organization_id: "m4m3mdjdiizs"
-                          system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
-                          alertname: "HistFlowTest"
-                          severity: "critical"
-                          status: "resolved"
-                          fingerprint: "9c1a23e87f4d0a11"
-                          starts_at: "2026-05-12T08:01:07Z"
-                          ends_at: "2026-05-12T08:06:06Z"
-                          summary: "history flow check"
-                          labels:
-                            alertname: "HistFlowTest"
-                            severity: "critical"
-                            system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
-                          annotations:
-                            summary: "history flow check"
-                            description: "resolved"
-                          receiver: "severity-critical-receiver"
-                          created_at: "2026-05-12T08:11:30Z"
-                      pagination:
-                        page: 1
-                        page_size: 50
-                        total_count: 2
-                        total_pages: 1
-                        has_next: false
-                        has_prev: false
-                EmptyHistory:
-                  summary: No history rows match
-                  value:
-                    code: 200
-                    message: alert history retrieved successfully
-                    data:
-                      alerts: []
-                      pagination:
-                        page: 1
-                        page_size: 50
-                        total_count: 0
-                        total_pages: 0
-                        has_next: false
-                        has_prev: false
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  # ===========================================
-  # ALERTING ENDPOINTS (Per-alert audit timeline)
-  # ===========================================
-
-  /alerts/activity/{fingerprint}:
-    parameters:
-      - name: fingerprint
-        in: path
-        required: true
-        description: |
-          Alertmanager fingerprint of the alert (hex hash of its labels).
-          Stable across re-firings of the same alert.
-        schema:
-          type: string
-          pattern: '^[A-Za-z0-9._:-]{1,128}$'
-      - name: organization_id
-        in: query
-        required: true
-        description: Tenant the alert belongs to. Required for non-Customer roles.
-        schema:
-          type: string
-    get:
-      operationId: getAlertActivity
-      tags:
-        - Backend - Alerts
-      summary: Per-alert audit timeline (silence events)
-      description: |
-        Returns the audit timeline for the alert identified by `fingerprint`, most recent
-        first. Events are written transparently as silences are created, updated, or
-        removed via the `/api/alerts/silences` and `/api/systems/:id/alerts/silences` endpoints.
-
-        Operator notes are stored as the silence `comment` (Alertmanager native), so a
-        note edit appears here as a `silence_updated` event whose `details` payload
-        includes the new comment.
-
-        Requires `read:systems` permission.
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: limit
-          in: query
-          description: Max events to return. Default 100, max 500.
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 500
-            default: 100
-      responses:
-        '200':
-          description: Activity timeline
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: alert activity retrieved successfully
-                  data:
-                    type: object
-                    properties:
-                      events:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/AlertActivityEntry'
-              examples:
-                SilenceCreatedThenRemoved:
-                  summary: A silence was created and later removed
-                  description: |
-                    Events are most-recent first. Both rows share the same
-                    `silence_id` because they describe the same silence's
-                    lifecycle. `actor_user_id` is the logto_id of the operator
-                    who performed the action; `details` carries the silence
-                    metadata captured at action time (comment, end_at, etc.).
-                  value:
-                    code: 200
-                    message: alert activity retrieved successfully
-                    data:
-                      events:
-                        - id: 5
-                          organization_id: "m4m3mdjdiizs"
-                          fingerprint: "0a9d04bb6eed523f"
-                          action: "unsilenced"
-                          actor_user_id: "c5gpnoo2do48"
-                          actor_name: "R1C1 Admin"
-                          silence_id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
-                          details: {}
-                          created_at: "2026-05-12T08:20:38.410596Z"
-                        - id: 4
-                          organization_id: "m4m3mdjdiizs"
-                          fingerprint: "0a9d04bb6eed523f"
-                          action: "silenced"
-                          actor_user_id: "c5gpnoo2do48"
-                          actor_name: "R1C1 Admin"
-                          silence_id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
-                          details:
-                            comment: "silenced during maintenance window"
-                            end_at: "2026-05-12T09:16:36Z"
-                            duration_minutes: 0
-                          created_at: "2026-05-12T08:16:36.661832Z"
-                EmptyTimeline:
-                  summary: No silence events yet
-                  description: |
-                    The alert has fired but has never been silenced. The events
-                    array is empty (not `null`).
-                  value:
-                    code: 200
-                    message: alert activity retrieved successfully
-                    data:
-                      events: []
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  # ===========================================
-  # ALERTING ENDPOINTS (Backend - Cross-system silences)
-  # ===========================================
-
-  /alerts/silences:
-    get:
-      operationId: getAlertSilences
-      tags:
-        - Backend - Alerts
-      summary: List active+pending silences across the caller's hierarchy
-      description: |
-        Cross-system parallel of `GET /systems/{id}/alerts/silences`. Returns
-        every active or pending Alertmanager silence in the caller's scope,
-        enriched with `organization_id` (the tenant that owns the silence) and
-        `system_key` (extracted from the silence matchers). Expired silences
-        and silences without a `system_key` matcher are excluded — only
-        silences our UI ever creates are addressable.
-
-        Scope follows the same three modes as `/alerts/totals`:
-        - `organization_id` omitted → caller's full hierarchy (cross-tenant fan-out).
-        - `organization_id=X` → single tenant `X`.
-        - `organization_id=X&include=descendants` → `X` plus its sub-tree.
-
-        Requires `read:systems` permission.
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: organization_id
-          in: query
-          description: |
-            Target organization ID(s). Repeat the param for multiple values.
-            Optional for all roles except Customer (where it is ignored).
-          schema:
-            type: array
-            items:
-              type: string
-          style: form
-          explode: true
-        - name: include
-          in: query
-          description: Set to `descendants` together with `organization_id` to expand each value to its sub-tree.
-          schema:
-            type: string
-            enum: [descendants]
-        - name: system_key
-          in: query
-          description: |
-            Filter silences by one or more system keys (exact match on the
-            `system_key` matcher). Repeat the param for multiple values.
-          schema:
-            type: array
-            items:
-              type: string
-          style: form
-          explode: true
-      responses:
-        '200':
-          description: Paginated list of system-scoped silences
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: silences retrieved successfully
-                  data:
-                    type: object
-                    properties:
-                      silences:
-                        type: array
-                        items:
-                          allOf:
-                            - $ref: '#/components/schemas/AlertmanagerSilence'
-                            - type: object
-                              properties:
-                                organization_id:
-                                  type: string
-                                  description: Tenant that owns the silence (Mimir stores silences per-tenant).
-                                  example: "m4m3mdjdiizs"
-                                system_key:
-                                  type: string
-                                  description: System key extracted from the silence matchers.
-                                  example: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
-                      warnings:
-                        type: array
-                        description: |
-                          Per-tenant fan-out errors. Always present (empty when
-                          every tenant responded OK). Each entry is a string
-                          `org <logto_id>: <error>`.
-                        items:
-                          type: string
-              examples:
-                OneActive:
-                  summary: One active silence on a customer system
-                  value:
-                    code: 200
-                    message: silences retrieved successfully
-                    data:
-                      silences:
-                        - id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
-                          organization_id: "m4m3mdjdiizs"
-                          system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
-                          matchers:
-                            - name: "system_key"
-                              value: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
-                              isRegex: false
-                            - name: "alertname"
-                              value: "HighCPUUsage"
-                              isRegex: false
-                            - name: "severity"
-                              value: "warning"
-                              isRegex: false
-                          startsAt: "2026-05-12T08:16:36Z"
-                          endsAt: "2026-05-12T09:16:36Z"
-                          updatedAt: "2026-05-12T08:16:36Z"
-                          createdBy: "amelia.foster"
-                          comment: "muted during maintenance window"
-                          status:
-                            state: "active"
-                      warnings: []
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-    post:
-      operationId: createAlertSilence
-      tags:
-        - Backend - Alerts
-      summary: Mute an alert across systems
-      description: |
-        Cross-system parallel of `POST /systems/{id}/alerts/silences`. Mutes
-        an active alert identified by fingerprint inside a single tenant
-        (`?organization_id=`). The backend looks up the alert in Mimir,
-        extracts `system_key` from its labels, builds the matchers
-        server-side, and delegates to the same silence-creation path used by
-        the per-system endpoint — so the silence object stored in Mimir is
-        byte-identical regardless of which route created it.
-
-        If `end_at` is set it takes precedence over `duration_minutes`.
-
-        Requires `manage:systems` permission.
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: organization_id
-          in: query
-          required: true
-          description: |
-            Tenant that owns the alert. Mandatory for every role except
-            Customer (where it is ignored — they're always pinned to their
-            own organization). Owners can address any tenant in the system.
-          schema:
-            type: string
-            example: "m4m3mdjdiizs"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - fingerprint
-              properties:
-                fingerprint:
-                  type: string
-                  description: Fingerprint of the active alert to silence.
-                  example: "0a9d04bb6eed523f"
-                comment:
-                  type: string
-                  description: Optional silence comment. Defaults to a system-generated value when empty.
-                  example: "silenced during maintenance"
-                duration_minutes:
-                  type: integer
-                  minimum: 1
-                  maximum: 10080
-                  description: Optional duration in minutes. Defaults to 60 when omitted. Ignored when end_at is set.
-                  example: 60
-                end_at:
-                  type: string
-                  format: date-time
-                  description: Optional explicit end time (RFC3339). Takes precedence over duration_minutes.
-                  example: "2026-05-12T09:16:36Z"
-            examples:
-              ExplicitEndAt:
-                summary: Silence until a specific date/time
-                value:
-                  fingerprint: "0a9d04bb6eed523f"
-                  comment: "silenced during maintenance window"
-                  end_at: "2026-05-12T09:16:36Z"
-      responses:
-        '200':
-          description: Alert silenced successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "alert silenced successfully"
-                  data:
-                    type: object
-                    properties:
-                      silence_id:
-                        type: string
-                        example: "d9f91c6e-1b33-484e-befa-bfb41020e178"
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /alerts/silences/{silence_id}:
-    get:
-      operationId: getAlertSilence
-      tags:
-        - Backend - Alerts
-      summary: Read a single silence
-      description: |
-        Cross-system parallel of `GET /systems/{id}/alerts/silences/{silence_id}`.
-        Looks up a silence inside a single tenant (`?organization_id=`) and
-        returns it enriched with `organization_id` and `system_key`. Silences
-        without a `system_key` matcher are reported as 404 — they don't belong
-        to our domain.
-
-        Requires `read:systems` permission.
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: silence_id
-          in: path
-          required: true
-          description: Alertmanager silence ID.
-          schema:
-            type: string
-            example: "d9f91c6e-1b33-484e-befa-bfb41020e178"
-        - name: organization_id
-          in: query
-          required: true
-          description: |
-            Tenant that owns the silence. Mandatory for every role except
-            Customer (where it is ignored).
-          schema:
-            type: string
-            example: "m4m3mdjdiizs"
-      responses:
-        '200':
-          description: Silence retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "silence retrieved successfully"
-                  data:
-                    type: object
-                    properties:
-                      silence:
-                        allOf:
-                          - $ref: '#/components/schemas/AlertmanagerSilence'
-                          - type: object
-                            properties:
-                              organization_id:
-                                type: string
-                                example: "m4m3mdjdiizs"
-                              system_key:
-                                type: string
-                                example: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    put:
-      operationId: updateAlertSilence
-      tags:
-        - Backend - Alerts
-      summary: Update a silence's end time / comment
-      description: |
-        Cross-system parallel of `PUT /systems/{id}/alerts/silences/{silence_id}`.
-        Preserves the original matchers and start time; only `end_at` and
-        `comment` change. Refuses to operate on silences without a
-        `system_key` matcher (404). Requires `manage:systems` permission.
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: silence_id
-          in: path
-          required: true
-          schema:
-            type: string
-            example: "d9f91c6e-1b33-484e-befa-bfb41020e178"
-        - name: organization_id
-          in: query
-          required: true
-          schema:
-            type: string
-            example: "m4m3mdjdiizs"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - end_at
-              properties:
-                comment:
-                  type: string
-                  example: "extended for maintenance window"
-                end_at:
-                  type: string
-                  format: date-time
-                  example: "2026-05-12T12:16:36Z"
-      responses:
-        '200':
-          description: Silence updated successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "silence updated successfully"
-                  data:
-                    type: object
-                    properties:
-                      silence_id:
-                        type: string
-                        example: "f1e1c2a4-7e57-4b1a-aaa0-2b96c8b5a3aa"
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    delete:
-      operationId: deleteAlertSilence
-      tags:
-        - Backend - Alerts
-      summary: Unmute an alert
-      description: |
-        Cross-system parallel of `DELETE /systems/{id}/alerts/silences/{silence_id}`.
-        Removes a system-scoped silence; generic Alertmanager silences (no
-        `system_key` matcher) are not addressable through this endpoint and
-        return 404. Requires `manage:systems` permission.
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: silence_id
-          in: path
-          required: true
-          schema:
-            type: string
-            example: "d9f91c6e-1b33-484e-befa-bfb41020e178"
-        - name: organization_id
-          in: query
-          required: true
-          schema:
-            type: string
-            example: "m4m3mdjdiizs"
-      responses:
-        '200':
-          description: Silence disabled successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "silence disabled successfully"
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  # ===========================================
-  # ALERTING ENDPOINTS (Backend - Configuration)
-  # ===========================================
-
-  /alerts/config:
-    post:
-      operationId: configureAlerts
-      tags:
-        - Backend - Alerts
-      summary: Save the caller's alerting layer
-      description: |
-        Saves the CALLER's alerting configuration layer (one row per
-        organization in alert_config_layers). The body is an
-        `AlertingConfigLayer`: three channel toggles plus three recipient
-        lists. Each recipient carries its own `severities[]`; email
-        recipients additionally carry `language` and `format`.
-
-        After save, the effective per-tenant Mimir YAML is recomputed
-        server-side (merge of all layers walking up to the Owner) and
-        pushed to every tenant in the caller's hierarchy with bounded
-        concurrency. Per-tenant push failures are returned in `warnings[]`;
-        the caller's layer is saved regardless of push outcome (Mimir can
-        be reconciled by saving again).
-
-        Additive-only contract: descendants can ADD recipients but cannot
-        disable channels enabled by ancestors. The server normalises any
-        explicit `false` in `enabled.{email,webhook,telegram}` from
-        non-Owner layers to null on storage.
-
-        Save+propagate is serialised per-organization (in-process mutex) to
-        prevent two concurrent saves from racing at the Mimir push step.
-        Body is capped at 1 MiB; oversized payloads are rejected with 413.
-
-        Requires `manage:alerts` permission.
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AlertingConfigLayer'
-            examples:
-              OwnerGlobalBaseline:
-                summary: Owner — global baseline
-                description: |
-                  Owner enables email + webhook globally, sets a NOC
-                  recipient on all severities in Italian HTML, plus a SIEM
-                  webhook on every severity. Every descendant inherits.
-                value:
-                  enabled: { email: true, webhook: true, telegram: false }
-                  email_recipients:
-                    - address: "noc@msp.example"
-                      severities: []
-                      language: "it"
-                      format: "html"
-                  webhook_recipients:
-                    - name: "central-siem"
-                      url: "https://siem.example/api/alerts"
-                      severities: []
-                  telegram_recipients: []
-              DescendantAddRecipient:
-                summary: Reseller — additively add a recipient
-                description: |
-                  Reseller does NOT touch channel toggles (null = "no
-                  opinion"); it just adds a local NOC mailbox in English
-                  for critical+warning. Merged with Owner's recipients.
-                value:
-                  enabled: { email: null, webhook: null, telegram: null }
-                  email_recipients:
-                    - address: "noc@reseller.example"
-                      severities: ["critical", "warning"]
-                      language: "en"
-                      format: "html"
-                  webhook_recipients: []
-                  telegram_recipients: []
-              CustomerMixedFormatAndLang:
-                summary: Customer — mixed languages and formats per recipient
-                description: |
-                  Different recipients can request different bodies. The
-                  on-call inbox wants plain text (alerts piped into a
-                  ticketing tool); the manager wants HTML in Italian.
-                value:
-                  enabled: { email: null, webhook: null, telegram: null }
-                  email_recipients:
-                    - address: "oncall@customer.example"
-                      severities: ["critical"]
-                      language: "en"
-                      format: "plain"
-                    - address: "manager@customer.example"
-                      severities: []
-                      language: "it"
-                      format: "html"
-                  webhook_recipients: []
-                  telegram_recipients: []
-              CustomerWebhookCriticalOnly:
-                summary: Customer — Slack webhook only for `critical`
-                description: |
-                  Customer adds a Slack webhook scoped to critical. The
-                  rendered Alertmanager route puts this webhook only on
-                  the critical receiver.
-                value:
-                  enabled: { email: null, webhook: null, telegram: null }
-                  email_recipients: []
-                  webhook_recipients:
-                    - name: "ops-slack"
-                      url: "https://hooks.slack.com/services/T000/B000/XXX"
-                      severities: ["critical"]
-                  telegram_recipients: []
-              TelegramAllSeverities:
-                summary: Customer — Telegram channel on every severity
-                description: |
-                  Single Telegram bot pushing to a channel for every
-                  severity (severities=[]). Telegram messages are
-                  currently always rendered in English.
-                value:
-                  enabled: { email: null, webhook: null, telegram: true }
-                  email_recipients: []
-                  webhook_recipients: []
-                  telegram_recipients:
-                    - bot_token: "123456:ABC-DEF1234ghIkl"
-                      chat_id: -1001234567890
-                      severities: []
-              InheritPurely:
-                summary: Descendant — explicit "inherit everything"
-                description: |
-                  Saving an empty layer is meaningful: it just records
-                  audit metadata (who/when) without contributing
-                  recipients or toggles.
-                value:
-                  enabled: { email: null, webhook: null, telegram: null }
-                  email_recipients: []
-                  webhook_recipients: []
-                  telegram_recipients: []
-      responses:
-        '200':
-          description: Layer saved (and propagation attempted)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: alerting configuration updated successfully
-                  data:
-                    type: object
-                    properties:
-                      affected_tenants:
-                        type: integer
-                        description: Number of tenants in caller's hierarchy whose effective config was recomputed
-                      propagated_to:
-                        type: integer
-                        description: Of `affected_tenants`, how many were successfully pushed to Mimir
-                      warnings:
-                        type: array
-                        description: |
-                          Per-tenant push errors. Always present; empty when every push succeeded.
-                          Each entry: `org <logto_id>: <error>`.
-                        items:
-                          type: string
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '413':
-          description: Request body exceeds the configured maximum (1 MiB).
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 413
-                  message:
-                    type: string
-                    example: request body exceeds the configured maximum
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-    delete:
-      operationId: disableAlerts
-      tags:
-        - Backend - Alerts
-      summary: Remove the caller's alerting layer
-      description: |
-        Removes the CALLER's layer from alert_config_layers. The effective
-        config of all descendant tenants is recomputed without the caller's
-        contribution and re-pushed to Mimir; ancestor layers are preserved.
-        To completely silence a tenant, every layer in its chain must drop
-        its contribution.
-
-        Requires `manage:alerts` permission.
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Layer removed (and propagation attempted)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: alerting layer removed successfully
-                  data:
-                    type: object
-                    properties:
-                      affected_tenants:
-                        type: integer
-                      propagated_to:
-                        type: integer
-                      warnings:
-                        type: array
-                        items:
-                          type: string
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-    get:
-      operationId: getAlertingConfig
-      tags:
-        - Backend - Alerts
-      summary: Get the caller's alerting layer
-      description: |
-        Returns the CALLER's own alerting configuration layer. No inherited
-        ancestor layers, no merged effective view: every organization sees
-        only its own configuration. The server-side merge that backs the
-        Mimir YAML stays inside the backend.
-
-        When the caller has never saved a layer the response body contains
-        an empty layer (toggles all null, recipient lists empty) and the
-        two audit fields set to null. The UI uses that state to render a
-        first-save form.
-
-        Requires `read:alerts` permission.
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Caller's layer
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: alerting layer retrieved successfully
-                  data:
-                    allOf:
-                      - $ref: '#/components/schemas/AlertingConfigLayer'
-                      - type: object
-                        properties:
-                          updated_by_name:
-                            type: string
-                            nullable: true
-                          updated_at:
-                            type: string
-                            format: date-time
-                            nullable: true
-              examples:
-                Configured:
-                  summary: Caller has saved a layer
-                  value:
-                    code: 200
-                    message: "alerting layer retrieved successfully"
-                    data:
-                      enabled: { email: true, webhook: null, telegram: null }
-                      email_recipients:
-                        - address: "noc@reseller.example"
-                          severities: ["critical"]
-                          language: "it"
-                          format: "html"
-                      webhook_recipients: []
-                      telegram_recipients: []
-                      updated_by_name: "Reseller Admin"
-                      updated_at: "2026-05-09T10:14:00Z"
-                FirstTime:
-                  summary: Caller has not saved a layer yet
-                  value:
-                    code: 200
-                    message: "alerting layer retrieved successfully"
-                    data:
-                      enabled: { email: null, webhook: null, telegram: null }
-                      email_recipients: []
-                      webhook_recipients: []
-                      telegram_recipients: []
-                      updated_by_name: null
-                      updated_at: null
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /alerts/config/effective:
-    get:
-      operationId: getEffectiveAlertingConfig
-      tags:
-        - Backend - Alerts
-      summary: Inspect a tenant's effective (merged) alerting config
-      description: |
-        Privileged troubleshooting view. Returns the configuration a tenant
-        ACTUALLY receives: the per-layer contribution of every organization
-        in its ancestor chain (Owner → tenant), the merged effective layer,
-        and the rendered Alertmanager YAML pushed to Mimir for that tenant.
-
-        Unlike `GET /alerts/config` (which returns only the caller's own
-        layer), this exposes the full inherited + merged view, so it is
-        gated by the dedicated `config:alerts` permission. That permission
-        lives solely on the `super` user role, which is owner-assignable
-        only — so in practice only an Owner-org Super Admin can reach this.
-        It is not reachable by Distributor/Reseller admins.
-
-        Secrets are redacted in the response: telegram `bot_token` and
-        webhook URL path/query in every layer and in the effective layer,
-        and SMTP credentials / bearer / bot tokens in the rendered YAML.
-
-        `organization_id` is required and may target ANY tenant. A
-        nonexistent id returns an empty effective config (no error) — the
-        honest answer for a diagnostic tool. Read-only: no Mimir push, no
-        DB writes.
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: organization_id
-          in: query
-          required: true
-          schema:
-            type: string
-          description: Logto organization id of the tenant to inspect.
-      responses:
-        '200':
-          description: Effective configuration report
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: effective alerting configuration retrieved successfully
-                  data:
-                    type: object
-                    properties:
-                      organization_id:
-                        type: string
-                      chain:
-                        type: array
-                        description: |
-                          Contributing layers ordered Owner first → tenant
-                          last. Orgs with no saved layer are listed with
-                          `has_layer: false` and an empty layer.
-                        items:
-                          type: object
-                          properties:
-                            organization_id:
-                              type: string
-                            organization_name:
-                              type: string
-                            organization_role:
-                              type: string
-                              enum: [owner, distributor, reseller, customer]
-                            has_layer:
-                              type: boolean
-                            layer:
-                              $ref: '#/components/schemas/AlertingConfigLayer'
-                            updated_by_name:
-                              type: string
-                              nullable: true
-                            updated_at:
-                              type: string
-                              format: date-time
-                              nullable: true
-                      effective:
-                        $ref: '#/components/schemas/AlertingConfigLayer'
-                      yaml:
-                        type: string
-                        description: Rendered Alertmanager YAML (secrets redacted).
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
-
-  /alerts:
-    get:
-      operationId: getAlerts
-      tags:
-        - Backend - Alerts
-      summary: List active alerts
-      description: |
-        Retrieves active alerts from Mimir for the caller's scope, paginated. Each
-        alert is enriched with a `system` object (`name`, `type`) looked up from the
-        local `systems` table, so the UI can render the system column without an
-        extra round-trip per row.
-
-        Sortable by `starts_at` (default desc), `severity` (criticality rank: critical
-        > warning > info), `alertname`, or `status` (Alertmanager state). `fingerprint`
-        is used as a stable tiebreaker so pagination doesn't shift between requests.
-
-        Scope follows the same three modes as `/alerts/totals`:
-        - `organization_id` omitted → caller's full hierarchy (cross-tenant fan-out).
-        - `organization_id=X` → single tenant `X`.
-        - `organization_id=X&include=descendants` → `X` plus its sub-tree.
-
-        All filter params support **multiple values** (repeat the param): values within
-        the same filter are matched as OR; different filters AND together. Example:
-        `?severity=critical&severity=warning&alertname=CVE-2024-1234` returns
-        CVE-2024-1234 alerts that are critical or warning.
-
-        Per-tenant failures during fan-out (timeout, 5xx) are non-fatal: the rest of the
-        result is returned and the failure is reported in the `warnings` array.
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: organization_id
-          in: query
-          description: |
-            Target organization ID(s). Repeat the param to pass multiple values.
-            Optional for all roles except Customer (where it is ignored).
-          schema:
-            type: array
-            items:
-              type: string
-          style: form
-          explode: true
-        - name: include
-          in: query
-          description: Set to `descendants` together with `organization_id` to expand each value to its sub-tree.
-          schema:
-            type: string
-            enum: [descendants]
-        - name: page
-          in: query
-          description: 1-based page number.
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-        - name: page_size
-          in: query
-          description: Page size. Default 50, max 100.
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 50
-        - name: sort_by
-          in: query
-          description: Sort column (allowlist).
-          schema:
-            type: string
-            enum: [starts_at, severity, alertname, status]
-            default: starts_at
-        - name: sort_direction
-          in: query
-          schema:
-            type: string
-            enum: [asc, desc]
-            default: desc
-        - name: status
-          in: query
-          description: Filter alerts by Alertmanager state. Supports multiple values.
-          schema:
-            type: array
-            items:
-              type: string
-              enum: [active, suppressed, unprocessed]
-          style: form
-          explode: true
-        - name: severity
-          in: query
-          description: Filter alerts by severity label. Supports multiple values.
-          schema:
-            type: array
-            items:
-              type: string
-              enum: [critical, warning, info]
-          style: form
-          explode: true
-        - name: system_key
-          in: query
-          description: Filter alerts by system_key label. Supports multiple values.
-          schema:
-            type: array
-            items:
-              type: string
-          style: form
-          explode: true
-        - name: alertname
-          in: query
-          description: |
-            Filter alerts by alertname label (the alert "type" — e.g. `HighCPU`,
-            `DiskFull`, `CVE-2024-1234`). Supports multiple values.
-          schema:
-            type: array
-            items:
-              type: string
-          style: form
-          explode: true
-      responses:
-        '200':
-          description: Paginated list of active alerts
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: alerts retrieved successfully
-                  data:
-                    type: object
-                    properties:
-                      alerts:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/ActiveAlert'
-                      pagination:
-                        $ref: '#/components/schemas/Pagination'
-                      warnings:
-                        type: array
-                        description: |
-                          Per-tenant errors encountered during fan-out. Always present
-                          (empty array when every tenant responded OK). Each entry is
-                          a string `org <logto_id>: <error>`.
-                        items:
-                          type: string
-              examples:
-                ActiveAlertExample:
-                  summary: One active warning across the caller's hierarchy
-                  description: |
-                    A single warning alert. System identity (id, key, name, type) is
-                    carried as labels, stamped at ingest time. `state="active"` means
-                    Mimir has not been told to silence it; an actively-muted alert
-                    would have `state="suppressed"` and a non-empty `silencedBy`.
-                  value:
-                    code: 200
-                    message: alerts retrieved successfully
-                    data:
-                      alerts:
-                        - fingerprint: "0a9d04bb6eed523f"
-                          labels:
-                            alertname: "DiskFilling"
-                            severity: "warning"
-                            system_id: "e4eb4844-46f6-448c-8279-7cfedf5e1037"
-                            system_key: "NETH-D417-A2C2-7810-43D2-984B-2164-34C1-B22E"
-                            system_name: "test-sys"
-                            system_type: "ns8"
-                          annotations:
-                            summary: "/var is 92% full on test-sys"
-                            description: "Disk usage exceeded the warning threshold."
-                          status:
-                            state: "active"
-                            silencedBy: []
-                            inhibitedBy: []
-                          startsAt: "2026-05-12T08:14:00Z"
-                          endsAt: "2026-05-12T08:44:00Z"
-                      pagination:
-                        page: 1
-                        page_size: 50
-                        total_count: 1
-                        total_pages: 1
-                        has_next: false
-                        has_prev: false
-                      warnings: []
-                PartialFanoutWarning:
-                  summary: One tenant timed out during fan-out
-                  description: |
-                    When `organization_id` is omitted (or `include=descendants` is
-                    used), the request fans out to every tenant in scope. A single
-                    slow Mimir does not fail the whole request — the rest of the
-                    results are returned and the failing tenant lands in `warnings`.
-                  value:
-                    code: 200
-                    message: alerts retrieved successfully
-                    data:
-                      alerts: []
-                      pagination:
-                        page: 1
-                        page_size: 50
-                        total_count: 0
-                        total_pages: 0
-                        has_next: false
-                        has_prev: false
-                      warnings:
-                        - "org pt8gqs6y5wpr: context deadline exceeded"
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  # ===========================================
-  # ALERTING ENDPOINTS (Collect - Mimir Proxy)
   # ===========================================
 
   /services/mimir/alertmanager/api/v2/alerts:
