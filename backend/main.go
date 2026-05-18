@@ -269,50 +269,30 @@ func main() {
 		}
 
 		// ===========================================
-		// ALERTS - operations stay on `systems` (read:systems / manage:systems);
-		// configuration policy is gated by the dedicated `alerts` resource so
-		// only Admin/Super can rewrite the layered MSP policy.
+		// ALERTS - operations on `systems` RBAC; config policy on `alerts` resource
 		// ===========================================
 		alertsGroup := customAuthWithAudit.Group("/alerts", middleware.RequireResourcePermission("systems"))
 		{
-			// Lists: active (Mimir live) and resolved (DB history). Both honor
-			// the same scope rules (hierarchy / single / descendants) and the
-			// same multi-value label filters.
+			// Lists: active (Mimir live) + resolved (DB history); same scope rules + label filters
 			alertsGroup.GET("", methods.GetAlerts)                // List active alerts (cross-hierarchy paginated)
 			alertsGroup.GET("/history", methods.GetAlertsHistory) // List resolved alerts from DB (paginated, date range + filters)
 
-			// Aggregations: counts, trend over time, top-N + MTTR/MTBF.
+			// Aggregations: counts, trend over time, top-N + MTTR/MTBF
 			alertsGroup.GET("/totals", methods.GetAlertsTotals) // Alert counts by severity + history total
 			alertsGroup.GET("/trend", methods.GetAlertsTrend)   // Alert history trend with daily data points
 			alertsGroup.GET("/stats", methods.GetAlertsStats)   // Aggregate stats: severity buckets, top-N alertname/system_key, MTTR/MTBF
 
-			// Per-alert audit timeline (silence created/updated/removed events for the alert detail drawer).
-			// The "activity" literal segment comes BEFORE the param so this path
-			// doesn't collide with /alerts/silences/{silence_id} (3-segment param-second pattern).
+			// Per-alert audit timeline; "activity" literal before the param to avoid colliding with /silences/{silence_id}
 			alertsGroup.GET("/activity/:fingerprint", methods.GetAlertActivity)
 
-			// Silences (cross-system mute). Mirrors /systems/:id/alerts/silences*
-			// but takes ?organization_id= for the per-id ops and resolves the
-			// system_key from the alert labels (POST) or the silence matchers
-			// (PUT/DELETE). RBAC stays on `systems`: read:systems for GET,
-			// manage:systems for POST/PUT/DELETE.
+			// Cross-system silences; mirrors /systems/:id/alerts/silences*, ?organization_id= for per-id ops, RBAC on `systems`
 			alertsGroup.GET("/silences", methods.GetAlertSilences)                  // List active+pending silences across the caller's hierarchy
 			alertsGroup.POST("/silences", methods.CreateAlertSilence)               // Mute an alert (body: { fingerprint, end_at, comment, duration_minutes? })
 			alertsGroup.GET("/silences/:silence_id", methods.GetAlertSilence)       // Get a single silence (requires ?organization_id=)
 			alertsGroup.PUT("/silences/:silence_id", methods.UpdateAlertSilence)    // Update a silence's end time / comment (requires ?organization_id=)
 			alertsGroup.DELETE("/silences/:silence_id", methods.DeleteAlertSilence) // Unmute (requires ?organization_id=)
 
-			// Configuration management (per-org layered model) — gated on the
-			// dedicated `alerts` resource. GET → read:alerts, POST/DELETE → manage:alerts.
-			// The handler always operates on the caller's own organization layer; merged
-			// effective views never leave the backend (only the local server-side render
-			// to Mimir consumes them).
-			//
-			// MaxBodySize(1 MiB) caps the JSON payload before binding to prevent
-			// memory-exhaustion DoS via crafted oversized layers. With the
-			// per-field `max=N` constraints in models.AlertingConfigLayer the
-			// realistic worst case is well under 64 KB; 1 MiB leaves comfortable
-			// headroom for legitimate use of the full recipient lists.
+			// Caller's own layer (read/manage:alerts); body capped at 1 MiB
 			configGroup := alertsGroup.Group("/config",
 				middleware.RequireResourcePermission("alerts"),
 				middleware.MaxBodySize(1<<20),
@@ -322,6 +302,9 @@ func main() {
 				configGroup.POST("", methods.ConfigureAlerts)  // Save caller's layer + propagate to descendants (manage:alerts required)
 				configGroup.DELETE("", methods.DisableAlerts)  // Remove caller's layer + propagate to descendants (manage:alerts required)
 			}
+
+			// Merged effective config + Mimir YAML for any tenant; config:alerts (owner-only super), secrets redacted
+			alertsGroup.GET("/config/effective", middleware.RequirePermission("config:alerts"), methods.GetEffectiveAlertingConfig)
 		}
 
 		// ===========================================

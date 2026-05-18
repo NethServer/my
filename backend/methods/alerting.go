@@ -768,6 +768,31 @@ func GetAlertingConfig(c *gin.Context) {
 	}))
 }
 
+// GetEffectiveAlertingConfig handles GET /api/alerts/config/effective: privileged per-layer + merged config + Mimir YAML for any tenant (organization_id required; nonexistent id → empty config), secrets redacted.
+func GetEffectiveAlertingConfig(c *gin.Context) {
+	if _, ok := helpers.GetUserFromContext(c); !ok {
+		return
+	}
+
+	orgID := c.Query("organization_id")
+	if !requireOrgID(c, orgID) {
+		return
+	}
+
+	report, err := alerting.BuildEffectiveConfigReport(orgID)
+	if err != nil {
+		if errors.Is(err, alerting.ErrChainTooDeep) {
+			c.JSON(http.StatusUnprocessableEntity, response.UnprocessableEntity("organization ancestor chain is too deep or contains a cycle", nil))
+			return
+		}
+		logger.Error().Err(err).Str("org_id", orgID).Msg("failed to build effective alerting config report")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to build effective alerting config", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("effective alerting configuration retrieved successfully", alerting.RedactEffectiveConfigReport(report)))
+}
+
 // alertsTotalsFanoutTimeout caps how long /totals will wait for Mimir to answer
 // across the caller's whole hierarchy. Per-tenant calls that don't return in
 // time are reported as warnings; their counts simply don't contribute. Tuned

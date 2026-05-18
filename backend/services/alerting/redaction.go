@@ -17,11 +17,7 @@ import (
 // values live in alert_config_layers and are read only by the renderer.
 const RedactedSecretPlaceholder = "[REDACTED]"
 
-// RedactLayerForAudit returns a copy of `layer` with secrets scrubbed for
-// safe inclusion in audit log details. Used exclusively by the audit
-// snapshot helpers — the API never exposes layers other than the caller's
-// own and there is no /effective endpoint, so this is the only path on
-// which a layer's bytes leave their owning context.
+// RedactLayerForAudit returns a copy of `layer` with secrets scrubbed, used by audit snapshots and the effective-config inspection response.
 //
 // Specifically:
 //   - telegram_recipients[].bot_token → "[REDACTED]"
@@ -51,6 +47,19 @@ func RedactLayerForAudit(layer models.AlertingConfigLayer) models.AlertingConfig
 			}
 		}
 	}
+	return out
+}
+
+// RedactEffectiveConfigReport returns an API-safe copy: layers via RedactLayerForAudit, YAML via RedactSensitiveConfig; original untouched.
+func RedactEffectiveConfigReport(r EffectiveConfigReport) EffectiveConfigReport {
+	out := r
+	out.Chain = make([]EffectiveLayerContribution, len(r.Chain))
+	for i, c := range r.Chain {
+		c.Layer = RedactLayerForAudit(c.Layer)
+		out.Chain[i] = c
+	}
+	out.Effective = RedactLayerForAudit(r.Effective)
+	out.YAML = RedactSensitiveConfig(r.YAML)
 	return out
 }
 

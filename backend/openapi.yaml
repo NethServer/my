@@ -12865,6 +12865,102 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /alerts/config/effective:
+    get:
+      operationId: getEffectiveAlertingConfig
+      tags:
+        - Backend - Alerts
+      summary: Inspect a tenant's effective (merged) alerting config
+      description: |
+        Privileged troubleshooting view. Returns the configuration a tenant
+        ACTUALLY receives: the per-layer contribution of every organization
+        in its ancestor chain (Owner → tenant), the merged effective layer,
+        and the rendered Alertmanager YAML pushed to Mimir for that tenant.
+
+        Unlike `GET /alerts/config` (which returns only the caller's own
+        layer), this exposes the full inherited + merged view, so it is
+        gated by the dedicated `config:alerts` permission. That permission
+        lives solely on the `super` user role, which is owner-assignable
+        only — so in practice only an Owner-org Super Admin can reach this.
+        It is not reachable by Distributor/Reseller admins.
+
+        Secrets are redacted in the response: telegram `bot_token` and
+        webhook URL path/query in every layer and in the effective layer,
+        and SMTP credentials / bearer / bot tokens in the rendered YAML.
+
+        `organization_id` is required and may target ANY tenant. A
+        nonexistent id returns an empty effective config (no error) — the
+        honest answer for a diagnostic tool. Read-only: no Mimir push, no
+        DB writes.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Logto organization id of the tenant to inspect.
+      responses:
+        '200':
+          description: Effective configuration report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: effective alerting configuration retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      organization_id:
+                        type: string
+                      chain:
+                        type: array
+                        description: |
+                          Contributing layers ordered Owner first → tenant
+                          last. Orgs with no saved layer are listed with
+                          `has_layer: false` and an empty layer.
+                        items:
+                          type: object
+                          properties:
+                            organization_id:
+                              type: string
+                            organization_name:
+                              type: string
+                            organization_role:
+                              type: string
+                              enum: [owner, distributor, reseller, customer]
+                            has_layer:
+                              type: boolean
+                            layer:
+                              $ref: '#/components/schemas/AlertingConfigLayer'
+                            updated_by_name:
+                              type: string
+                              nullable: true
+                            updated_at:
+                              type: string
+                              format: date-time
+                              nullable: true
+                      effective:
+                        $ref: '#/components/schemas/AlertingConfigLayer'
+                      yaml:
+                        type: string
+                        description: Rendered Alertmanager YAML (secrets redacted).
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
   /alerts:
     get:
       operationId: getAlerts

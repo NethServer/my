@@ -8,6 +8,7 @@ package alerting
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/database"
@@ -97,13 +98,7 @@ func lookupCreatedBy(orgID string) (string, error) {
 	return *parent, nil
 }
 
-// computeEffectiveLayer is the package-private entry point that walks the
-// tenant's ancestor chain, fetches every layer in a single round-trip, and
-// merges them in order from Owner to tenant. Empty layers (orgs with no row
-// in alert_config_layers) contribute nothing but don't break the chain.
-//
-// Package-private intentionally: the merged view never leaves the backend.
-// Only RenderAndPushEffective uses it, to drive the Mimir YAML push.
+// computeEffectiveLayer walks the tenant's ancestor chain and merges every layer Owner→tenant (orgs with no row contribute nothing); used by RenderAndPushEffective for the Mimir push.
 func computeEffectiveLayer(tenantOrgID string) (models.AlertingConfigLayer, error) {
 	chain, err := ResolveAncestorChain(tenantOrgID)
 	if err != nil {
@@ -154,4 +149,105 @@ func RenderAndPushEffective(ctx context.Context, tenantOrgID string) error {
 	}
 	logger.Debug().Str("tenant", tenantOrgID).Msg("effective alerting config pushed to mimir")
 	return nil
+}
+
+// EffectiveLayerContribution is one org's stored layer in a tenant's chain; HasLayer false = no row (no contribution), Layer is unredacted until RedactEffectiveConfigReport.
+type EffectiveLayerContribution struct {
+	OrganizationID   string                     `json:"organization_id"`
+	OrganizationName string                     `json:"organization_name"`
+	OrganizationRole string                     `json:"organization_role"`
+	HasLayer         bool                       `json:"has_layer"`
+	Layer            models.AlertingConfigLayer `json:"layer"`
+	UpdatedByName    *string                    `json:"updated_by_name"`
+	UpdatedAt        *time.Time                 `json:"updated_at"`
+}
+
+// EffectiveConfigReport is a tenant's per-layer chain + merged layer + rendered Mimir YAML; unredacted until RedactEffectiveConfigReport.
+type EffectiveConfigReport struct {
+	OrganizationID string                       `json:"organization_id"`
+	Chain          []EffectiveLayerContribution `json:"chain"`
+	Effective      models.AlertingConfigLayer   `json:"effective"`
+	YAML           string                       `json:"yaml"`
+}
+
+// BuildEffectiveConfigReport resolves the chain, merges layers Owner→tenant, and renders the YAML; read-only, no Mimir push.
+func BuildEffectiveConfigReport(tenantOrgID string) (EffectiveConfigReport, error) {
+	chain, err := ResolveAncestorChain(tenantOrgID)
+	if err != nil {
+		return EffectiveConfigReport{}, err
+	}
+	repo := entities.NewLocalAlertConfigLayersRepository()
+	layersByOrg, err := repo.GetByOrgIDs(chain)
+	if err != nil {
+		return EffectiveConfigReport{}, err
+	}
+
+	contributions := make([]EffectiveLayerContribution, 0, len(chain))
+	ordered := make([]models.AlertingConfigLayer, 0, len(chain))
+	for _, oid := range chain {
+		ident, err := lookupOrgIdentity(oid)
+		if err != nil {
+			return EffectiveConfigReport{}, fmt.Errorf("resolve org identity for %s: %w", oid, err)
+		}
+		contribution := EffectiveLayerContribution{
+			OrganizationID:   oid,
+			OrganizationName: ident.Name,
+			OrganizationRole: ident.Role,
+		}
+		if rec, ok := layersByOrg[oid]; ok {
+			updatedAt := rec.UpdatedAt
+			contribution.HasLayer = true
+			contribution.Layer = rec.Config
+			contribution.UpdatedByName = rec.UpdatedByName
+			contribution.UpdatedAt = &updatedAt
+			ordered = append(ordered, rec.Config)
+		}
+		contributions = append(contributions, contribution)
+	}
+
+	effective := MergeLayers(ordered)
+
+	cfg := configuration.Config
+	yamlConfig, err := RenderConfig(
+		cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.SMTPTLS,
+		cfg.AlertingHistoryWebhookURL, cfg.AlertingHistoryWebhookSecret,
+		&effective,
+	)
+	if err != nil {
+		return EffectiveConfigReport{}, fmt.Errorf("render YAML for %s: %w", tenantOrgID, err)
+	}
+
+	return EffectiveConfigReport{
+		OrganizationID: tenantOrgID,
+		Chain:          contributions,
+		Effective:      effective,
+		YAML:           yamlConfig,
+	}, nil
+}
+
+// orgIdentity is best-effort display metadata for an org in a chain.
+type orgIdentity struct {
+	Name string
+	Role string
+}
+
+// lookupOrgIdentity returns orgID's name and role from the org tables; absent from all three = Owner.
+func lookupOrgIdentity(orgID string) (orgIdentity, error) {
+	row := database.DB.QueryRow(
+		`SELECT name, 'distributor' AS role FROM distributors WHERE logto_id = $1 AND deleted_at IS NULL
+		 UNION ALL
+		 SELECT name, 'reseller' AS role FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL
+		 UNION ALL
+		 SELECT name, 'customer' AS role FROM customers WHERE logto_id = $1 AND deleted_at IS NULL
+		 LIMIT 1`,
+		orgID,
+	)
+	var ident orgIdentity
+	if err := row.Scan(&ident.Name, &ident.Role); err != nil {
+		if err.Error() == "sql: no rows in result set" {
+			return orgIdentity{Role: "owner"}, nil
+		}
+		return orgIdentity{}, err
+	}
+	return ident, nil
 }
