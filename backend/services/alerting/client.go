@@ -23,7 +23,25 @@ import (
 	"github.com/nethesis/my/backend/models"
 )
 
-var httpClient = &http.Client{Timeout: 30 * time.Second}
+// httpClient is shared across all Mimir calls. The transport is tuned for
+// fan-out workloads (e.g. /alerts/totals over many tenants): Go's
+// DefaultTransport keeps only MaxIdleConnsPerHost=2 idle connections, which
+// forces a fresh TCP+TLS handshake for most concurrent calls when N goroutines
+// hit the same Mimir host. We raise the per-host pool so the fan-out reuses
+// keep-alive connections.
+var httpClient = &http.Client{
+	Timeout: 30 * time.Second,
+	Transport: &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		MaxIdleConns:          200,
+		MaxIdleConnsPerHost:   100,
+		MaxConnsPerHost:       100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		ForceAttemptHTTP2:     true,
+	},
+}
 var ErrSilenceNotFound = errors.New("silence not found")
 
 // maxMimirResponseSize caps how much data we read from Mimir responses.
