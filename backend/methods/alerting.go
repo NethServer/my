@@ -799,10 +799,40 @@ func GetEffectiveAlertingConfig(c *gin.Context) {
 // to keep dashboard latency bounded even when a tenant's Mimir slot is slow.
 const alertsTotalsFanoutTimeout = 10 * time.Second
 
+// alertsTotalsCacheTTL bounds how stale a cached /totals response can be.
+// The endpoint is dashboard-polling fodder, so a few seconds of staleness is
+// acceptable in exchange for cutting fan-out + DB count cost to ~zero on
+// repeat hits.
+const alertsTotalsCacheTTL = 15 * time.Second
+
+type alertsTotalsCacheEntry struct {
+	payload gin.H
+	expires time.Time
+}
+
+type alertsTotalsInflight struct {
+	done    chan struct{}
+	payload gin.H
+}
+
+var (
+	alertsTotalsCacheMu sync.Mutex
+	alertsTotalsCache   = map[string]alertsTotalsCacheEntry{}
+	alertsTotalsFlights = map[string]*alertsTotalsInflight{}
+)
+
+// alertsTotalsCacheKey produces a stable cache key from the orgIDs slice.
+func alertsTotalsCacheKey(orgIDs []string) string {
+	sorted := append([]string(nil), orgIDs...)
+	sort.Strings(sorted)
+	return strings.Join(sorted, ",")
+}
+
 // alertsTotalsFanoutConcurrency caps simultaneous in-flight Mimir requests for
 // the /totals fan-out. Prevents an Owner with hundreds of tenants from opening
-// hundreds of sockets at once.
-const alertsTotalsFanoutConcurrency = 10
+// hundreds of sockets at once. Must stay <= the alerting httpClient's
+// MaxConnsPerHost so we don't starve waiting for a free connection slot.
+const alertsTotalsFanoutConcurrency = 50
 
 // GetAlertsTotals handles GET /api/alerts/totals
 // Returns active alert counts by severity (from Mimir) and total history count (from DB).
@@ -822,6 +852,48 @@ func GetAlertsTotals(c *gin.Context) {
 		return
 	}
 
+	ownerAllScope := strings.ToLower(user.OrgRole) == "owner" && len(c.QueryArray("organization_id")) == 0
+	cacheKey := alertsTotalsCacheKey(orgIDs)
+
+	// Cache hit → serve immediately.
+	alertsTotalsCacheMu.Lock()
+	if entry, ok := alertsTotalsCache[cacheKey]; ok && time.Now().Before(entry.expires) {
+		alertsTotalsCacheMu.Unlock()
+		c.JSON(http.StatusOK, response.OK("alert totals retrieved successfully", entry.payload))
+		return
+	}
+
+	// Coalesce concurrent misses on the same key: only one goroutine computes,
+	// the others wait on its result. This protects Mimir + DB from a poll storm.
+	if flight, ok := alertsTotalsFlights[cacheKey]; ok {
+		alertsTotalsCacheMu.Unlock()
+		<-flight.done
+		c.JSON(http.StatusOK, response.OK("alert totals retrieved successfully", flight.payload))
+		return
+	}
+	flight := &alertsTotalsInflight{done: make(chan struct{})}
+	alertsTotalsFlights[cacheKey] = flight
+	alertsTotalsCacheMu.Unlock()
+
+	payload := computeAlertsTotals(c.Request.Context(), orgIDs, ownerAllScope)
+
+	alertsTotalsCacheMu.Lock()
+	alertsTotalsCache[cacheKey] = alertsTotalsCacheEntry{
+		payload: payload,
+		expires: time.Now().Add(alertsTotalsCacheTTL),
+	}
+	flight.payload = payload
+	delete(alertsTotalsFlights, cacheKey)
+	alertsTotalsCacheMu.Unlock()
+	close(flight.done)
+
+	c.JSON(http.StatusOK, response.OK("alert totals retrieved successfully", payload))
+}
+
+// computeAlertsTotals does the actual Mimir fan-out and DB count for /totals.
+// Extracted from GetAlertsTotals so the cache layer can call it under
+// singleflight.
+func computeAlertsTotals(parent context.Context, orgIDs []string, ownerAllScope bool) gin.H {
 	var (
 		active, critical, warning, info, muted int
 		warnings                               []string
@@ -829,7 +901,7 @@ func GetAlertsTotals(c *gin.Context) {
 		wg                                     sync.WaitGroup
 	)
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), alertsTotalsFanoutTimeout)
+	ctx, cancel := context.WithTimeout(parent, alertsTotalsFanoutTimeout)
 	defer cancel()
 
 	sem := make(chan struct{}, alertsTotalsFanoutConcurrency)
@@ -898,18 +970,28 @@ func GetAlertsTotals(c *gin.Context) {
 	}
 	wg.Wait()
 
+	// For an Owner with no organization_id filter, the IN(...) variant degenerates
+	// to "all rows" but with hundreds of placeholders. A bare COUNT(*) on the
+	// table is much faster: Postgres can use the index-only path on the visible
+	// rows without iterating the IN list.
 	repo := entities.NewLocalAlertHistoryRepository()
-	historyTotal, err := repo.GetAlertHistoryTotalsByOrgIDs(orgIDs)
-	if err != nil {
-		logger.Warn().Err(err).Msg("failed to count alert history for totals")
-		warnings = append(warnings, fmt.Sprintf("history: %s", err.Error()))
+	var historyTotal int
+	var historyErr error
+	if ownerAllScope {
+		historyTotal, historyErr = repo.GetAlertHistoryTotals("")
+	} else {
+		historyTotal, historyErr = repo.GetAlertHistoryTotalsByOrgIDs(orgIDs)
+	}
+	if historyErr != nil {
+		logger.Warn().Err(historyErr).Msg("failed to count alert history for totals")
+		warnings = append(warnings, fmt.Sprintf("history: %s", historyErr.Error()))
 	}
 
 	if warnings == nil {
 		warnings = []string{}
 	}
 
-	c.JSON(http.StatusOK, response.OK("alert totals retrieved successfully", gin.H{
+	return gin.H{
 		"active":   active,
 		"critical": critical,
 		"warning":  warning,
@@ -917,7 +999,7 @@ func GetAlertsTotals(c *gin.Context) {
 		"muted":    muted,
 		"history":  historyTotal,
 		"warnings": warnings,
-	}))
+	}
 }
 
 // GetAlertsTrend handles GET /api/alerts/trend
