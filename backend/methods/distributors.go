@@ -79,15 +79,14 @@ func CreateDistributor(c *gin.Context) {
 	// Log the action
 	logger.LogBusinessOperation(c, "distributors", "create", "distributor", distributor.ID, true, nil)
 
-	// Auto-provision default alerting configuration so the built-in history webhook
-	// is active from day one. Mail and webhook notifications are always disabled on
-	// creation; the distributor's email (if present) is stored as a pre-filled
-	// recipient but must be explicitly enabled. Failure is logged but does not block
-	// distributor creation.
+	// Auto-provision default alerting configuration so the built-in history
+	// webhook is active from day one and any ancestor layers (Owner already
+	// configured) propagate to Mimir for the new tenant. The new distributor
+	// starts with no layer of its own; admins opt in to notifications by
+	// saving a layer via POST /alerts/config. Failure is logged but does
+	// not block distributor creation.
 	if distributor.LogtoID != nil && *distributor.LogtoID != "" {
-		defaultEmail, _ := distributor.CustomData["email"].(string)
-		defaultLang, _ := distributor.CustomData["language"].(string)
-		if err := alerting.ProvisionDefaultConfig(*distributor.LogtoID, defaultEmail, defaultLang); err != nil {
+		if err := alerting.ProvisionDefaultConfig(*distributor.LogtoID); err != nil {
 			logger.Warn().
 				Err(err).
 				Str("distributor_id", distributor.ID).

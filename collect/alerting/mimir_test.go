@@ -21,6 +21,7 @@ func TestBuildSystemAlertContext(t *testing.T) {
 		OrganizationID:   "org-1",
 		SystemKey:        "SYS-001",
 		SystemName:       "web-01",
+		SystemType:       "ns8",
 		SystemFQDN:       "web-01.example.com",
 		SystemIPv4:       "192.0.2.10",
 		OrganizationName: "Acme Corp",
@@ -36,8 +37,10 @@ func TestBuildSystemAlertContext(t *testing.T) {
 		"system_id":         "system-1",
 		"system_key":        "SYS-001",
 		"system_name":       "web-01",
+		"system_type":       "ns8",
 		"system_fqdn":       "web-01.example.com",
 		"system_ipv4":       "192.0.2.10",
+		"organization_id":   "org-1",
 		"organization_name": "Acme Corp",
 		"organization_vat":  "IT00000000001",
 		"organization_type": "customer",
@@ -55,8 +58,10 @@ func TestBuildSystemAlertContext_EmptyFields(t *testing.T) {
 	require.NotNil(t, ctx)
 	// All identity labels must be present so InjectLabels can strip
 	// client-supplied spoofed values for keys the server has no value for.
+	assert.Contains(t, ctx.Labels, "system_type")
 	assert.Contains(t, ctx.Labels, "system_fqdn")
 	assert.Contains(t, ctx.Labels, "organization_name")
+	assert.Equal(t, "", ctx.Labels["system_type"])
 	assert.Equal(t, "", ctx.Labels["system_fqdn"])
 	assert.Equal(t, "", ctx.Labels["organization_name"])
 }

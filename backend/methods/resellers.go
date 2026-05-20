@@ -79,15 +79,14 @@ func CreateReseller(c *gin.Context) {
 	// Log the action
 	logger.LogBusinessOperation(c, "resellers", "create", "reseller", reseller.ID, true, nil)
 
-	// Auto-provision default alerting configuration so the built-in history webhook
-	// is active from day one. Mail and webhook notifications are always disabled on
-	// creation; the reseller's email (if present) is stored as a pre-filled
-	// recipient but must be explicitly enabled. Failure is logged but does not block
-	// reseller creation.
+	// Auto-provision default alerting configuration so the built-in history
+	// webhook is active from day one and any ancestor layers (Owner /
+	// Distributor) propagate to Mimir for the new tenant. The new reseller
+	// starts with no layer of its own; admins opt in to notifications by
+	// saving a layer via POST /alerts/config. Failure is logged but does
+	// not block reseller creation.
 	if reseller.LogtoID != nil && *reseller.LogtoID != "" {
-		defaultEmail, _ := reseller.CustomData["email"].(string)
-		defaultLang, _ := reseller.CustomData["language"].(string)
-		if err := alerting.ProvisionDefaultConfig(*reseller.LogtoID, defaultEmail, defaultLang); err != nil {
+		if err := alerting.ProvisionDefaultConfig(*reseller.LogtoID); err != nil {
 			logger.Warn().
 				Err(err).
 				Str("reseller_id", reseller.ID).

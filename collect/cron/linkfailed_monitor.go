@@ -94,6 +94,7 @@ func (m *LinkFailedMonitor) loadInactiveSystems(ctx context.Context) (map[string
 		       s.organization_id,
 		       s.system_key,
 		       s.name,
+		       s.type,
 		       s.fqdn,
 		       s.ipv4_address::text,
 		       COALESCE(d.name, r.name, c.name),
@@ -124,6 +125,7 @@ func (m *LinkFailedMonitor) loadInactiveSystems(ctx context.Context) (map[string
 	for rows.Next() {
 		var (
 			metadata         collectalerting.SystemAlertMetadata
+			systemType       sql.NullString
 			systemFQDN       sql.NullString
 			systemIPv4       sql.NullString
 			organizationName sql.NullString
@@ -137,6 +139,7 @@ func (m *LinkFailedMonitor) loadInactiveSystems(ctx context.Context) (map[string
 			&metadata.OrganizationID,
 			&metadata.SystemKey,
 			&metadata.SystemName,
+			&systemType,
 			&systemFQDN,
 			&systemIPv4,
 			&organizationName,
@@ -147,6 +150,7 @@ func (m *LinkFailedMonitor) loadInactiveSystems(ctx context.Context) (map[string
 			return nil, fmt.Errorf("scan inactive system: %w", err)
 		}
 
+		metadata.SystemType = nullStringValue(systemType)
 		metadata.SystemFQDN = nullStringValue(systemFQDN)
 		metadata.SystemIPv4 = nullStringValue(systemIPv4)
 		metadata.OrganizationName = nullStringValue(organizationName)

@@ -101,7 +101,7 @@ Usage:
       still has child orgs/users; clean those out first.
 
   apitool create-system --org=<name> <system-name>
-      Create a system under a customer org. Prints the system_key.
+      Create a system under a customer org. Prints system_key + system_secret.
 
   apitool cleanup-orphans --org=<name>
       Soft-delete every user listed in <org> whose email is NOT in registry.
@@ -482,11 +482,15 @@ func cmdCreateSystem(args []string) error {
 	if err != nil {
 		return err
 	}
-	systemKey, err := client.CreateSystem(systemName, org.LogtoID)
+	systemKey, systemSecret, err := client.CreateSystem(systemName, org.LogtoID)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Created system %q in org %q (system_key=%s)\n", systemName, orgKey, systemKey)
+	fmt.Printf("Created system %q in org %q\n", systemName, orgKey)
+	fmt.Printf("  system_key=%s\n", systemKey)
+	fmt.Printf("  system_secret=%s\n", systemSecret)
+	fmt.Printf("\nPush alerts as this system (Basic Auth) through collect:\n")
+	fmt.Printf("  curl -u '%s:%s' http://localhost:18081/api/services/mimir/alertmanager/api/v2/alerts ...\n", systemKey, systemSecret)
 	return nil
 }
 

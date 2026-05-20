@@ -147,9 +147,10 @@ Vue 3 + TypeScript, Vite, Tailwind, Pinia. Alerting UI present (`src/views/Alert
 Single-node Grafana Mimir with S3-compatible backend and multi-tenant Alertmanager. Containerfile, Makefile, docker-compose.yml + docker-compose.local.yml. `scripts/` contains Python helpers (`alert.py`, `alerting_config.py`) for manual testing.
 
 **Alerting integration**:
-- Backend (`backend/services/alerting/`) renders Alertmanager YAML from `AlertingConfig` models and pushes via `POST /api/v1/alerts` per tenant. Email templates are Go `html/template`-embedded, en/it locales, firing + resolved variants.
+- Backend (`backend/services/alerting/`) holds one `AlertingConfigLayer` per organization in `alert_config_layers` (flat recipient-based shape: `enabled`, `email_recipients[]`, `webhook_recipients[]`, `telegram_recipients[]`, each recipient carries its own `severities[]`; email also `language` + `format`). The effective per-tenant Mimir YAML is the server-side merge of every layer from Owner down to the tenant (union dedup, additive-only). `/alerts/config` only ever returns the caller's own layer — the merged view is internal and never leaves the backend. Templates are Go `html/template`-embedded, en/it locales, firing + resolved variants; both languages ship with every tenant push and the renderer picks per email recipient via per-language dispatchers (`alert_<lang>.html|txt|subject`).
 - Collect proxies systems to Alertmanager `alerts`/`silences` with `X-Scope-OrgID` from the authenticated system's org.
 - Alertmanager webhooks resolved alerts back to collect `/api/alert_history`, which persists them scoped by `organization_id` (column on `alert_history`, populated from the DB via `system_key` lookup — never trusted from the payload).
+- RBAC: `/alerts/config*` is gated on a dedicated `alerts` resource (`read:alerts` for GET, `manage:alerts` for POST/DELETE) — admin/super only. The list/silence endpoints (`/alerts`, `/alerts/history`, `/alerts/silences*`, `/alerts/activity/:fingerprint`, `/systems/:id/alerts*`) stay on `read:systems`/`manage:systems`. The cross-system `/alerts/silences*` set mirrors `/systems/:id/alerts/silences*` 1:1 — same backend `buildSystemAlertSilenceRequest` builds the Mimir payload, so a silence created via either route is interoperable with the other.
 
 ### 3.6 Proxy (`proxy/`)
 
@@ -370,8 +371,10 @@ Authoritative: `backend/openapi.yaml` (also `make docs` / redocly). High-level r
 /api/users/*                        CRUD + avatar + import/export + password reset + suspend/reactivate
 /api/systems/*                      CRUD + inventory + alerts + regenerate-secret + reachability + export
 /api/applications/*                 CRUD + assign/unassign org + totals/summary/trend
-/api/alerts, /api/alerts/{totals,trend,config}   active alerts + config + aggregates
-/api/filters/{systems,applications,users}  UI filter aggregation
+/api/alerts, /api/alerts/{totals,trend,stats,history,config}  active alerts + config + aggregates + history
+/api/alerts/silences/*                  cross-system silences (mute/unmute) — parallel to /systems/:id/alerts/silences
+/api/alerts/activity/:fingerprint       per-alert audit timeline (silence created/updated/removed)
+/api/filters/{systems,applications,users,alerts}  UI filter aggregation (alerts: static catalog + data-driven systems/severities/orgs)
 /api/rebranding/*                   per-org per-product asset management
 /api/organizations, /api/roles, /api/organization-roles  metadata
 /api/validators/vat/:entity_type    VAT validation

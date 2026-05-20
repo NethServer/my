@@ -29,12 +29,14 @@ func NewLocalAlertHistoryRepository() *LocalAlertHistoryRepository {
 
 // AlertHistoryQuery captures all the optional filters and pagination params
 // for QueryAlertHistory. OrgIDs is the only required field (callers resolve
-// scope upstream via resolveOrgScope or equivalent). SystemKey limits to one
-// system (used by /api/systems/:id/alerts/history); when empty the query is
-// org-level (used by /api/alerts/history).
+// scope upstream via resolveOrgScope or equivalent). SystemKeys narrows the
+// result to one or more systems: a single-element slice is the per-system
+// case (/api/systems/:id/alerts/history); a multi-value slice is the
+// cross-system filter exposed on /api/alerts/history; an empty slice means
+// "all systems in scope".
 type AlertHistoryQuery struct {
 	OrgIDs        []string
-	SystemKey     string
+	SystemKeys    []string
 	Alertnames    []string
 	Severities    []string
 	Statuses      []string
@@ -88,10 +90,14 @@ func (r *LocalAlertHistoryRepository) QueryAlertHistory(q AlertHistoryQuery) ([]
 		}
 		conds = append(conds, fmt.Sprintf("organization_id IN (%s)", strings.Join(ph, ",")))
 	}
-	if q.SystemKey != "" {
-		conds = append(conds, fmt.Sprintf("system_key = $%d", idx))
-		args = append(args, q.SystemKey)
-		idx++
+	if len(q.SystemKeys) > 0 {
+		ph := make([]string, len(q.SystemKeys))
+		for i, v := range q.SystemKeys {
+			ph[i] = fmt.Sprintf("$%d", idx)
+			args = append(args, v)
+			idx++
+		}
+		conds = append(conds, fmt.Sprintf("system_key IN (%s)", strings.Join(ph, ",")))
 	}
 	if len(q.Alertnames) > 0 {
 		ph := make([]string, len(q.Alertnames))

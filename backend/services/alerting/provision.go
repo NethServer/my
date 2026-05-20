@@ -11,62 +11,47 @@ import (
 
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/logger"
-	"github.com/nethesis/my/backend/models"
 )
 
 // provisionRetryDelays controls the backoff between retry attempts when
 // pushing the default config to Mimir fails with a transient error.
 var provisionRetryDelays = []time.Duration{1 * time.Second, 3 * time.Second, 5 * time.Second}
 
-// ProvisionDefaultConfig pushes a minimal default alerting configuration to Mimir
-// for the given organization. The built-in history webhook is always active so
-// resolved alerts are persisted in the alert_history table.
+// ProvisionDefaultConfig is called when a new organization is created. It
+// pushes the effective merged config for that org's tenant to Mimir so any
+// layers already saved by ancestors (Owner/Distributor/Reseller) take
+// effect immediately. The new org itself starts with no layer of its own;
+// the admin opts in to notifications by saving a layer via POST /alerts/config.
 //
-// If defaultEmail is non-empty it is stored as the default mail recipient so it
-// appears pre-filled in the UI, but mail notifications are always disabled on
-// creation. Webhook notifications are also always disabled.
-// Both must be explicitly enabled by the user after creation.
-//
-// defaultLang sets the email template language: "it" or "en". Invalid or empty
-// values default to English.
-//
-// This is typically called when a new organization is created, to ensure that
-// alerts received before the user configures alerting manually are still
-// captured in the history and that the empty-receiver fallback is never used.
-func ProvisionDefaultConfig(orgID, defaultEmail, defaultLang string) error {
+// The built-in history webhook is always active so resolved alerts are
+// persisted in alert_history regardless of admin choices.
+func ProvisionDefaultConfig(orgID string) error {
 	if orgID == "" {
 		return fmt.Errorf("orgID is required")
 	}
 
-	// Normalize language: accept only "it" or "en", fall back to "en" otherwise.
-	lang := ""
-	switch defaultLang {
-	case "it", "en":
-		lang = defaultLang
+	// Compute the effective merged config from any ancestor layers that
+	// exist. Fail closed: a misconfigured hierarchy (cycle, missing parent
+	// row, transient DB error) must NOT silently provision a less-protected
+	// config than the Owner intended. The org creation flow can retry; the
+	// alternative — "fall back to local defaults" — risks losing Owner-set
+	// recipients/severity rules during a window we cannot otherwise detect.
+	effective, err := computeEffectiveLayer(orgID)
+	if err != nil {
+		return fmt.Errorf("compute effective config at provision: %w", err)
 	}
 
 	cfg := configuration.Config
-	defaultAlerting := &models.AlertingConfig{
-		MailEnabled:       false,
-		WebhookEnabled:    false,
-		MailAddresses:     []string{},
-		WebhookReceivers:  []models.WebhookReceiver{},
-		EmailTemplateLang: lang,
-	}
-	if defaultEmail != "" {
-		defaultAlerting.MailAddresses = []string{defaultEmail}
-	}
-
 	yamlConfig, err := RenderConfig(
 		cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.SMTPTLS,
 		cfg.AlertingHistoryWebhookURL, cfg.AlertingHistoryWebhookSecret,
-		defaultAlerting,
+		&effective,
 	)
 	if err != nil {
 		return fmt.Errorf("rendering default alerting config: %w", err)
 	}
 
-	templateFiles, err := BuildTemplateFiles(lang, cfg.AppURL)
+	templateFiles, err := BuildTemplateFiles(cfg.AppURL)
 	if err != nil {
 		return fmt.Errorf("building default alerting templates: %w", err)
 	}

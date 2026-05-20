@@ -33,14 +33,28 @@ const maxMimirResponseSize = 10 << 20 // 10 MB
 
 var smtpSensitiveFields = regexp.MustCompile(`(?m)^(\s*smtp_(?:smarthost|auth_username|auth_password):\s*).*$`)
 var bearerTokenField = regexp.MustCompile(`(?m)^(\s*credentials:\s*).*$`)
-var telegramTokenField = regexp.MustCompile(`(?m)^(\s*bot_token:\s*).*$`)
 
-// RedactSensitiveConfig replaces sensitive SMTP and bearer token fields in an alertmanager config
-// YAML string with a redaction placeholder before returning to clients.
+// bot_token is the first key of each telegram_configs list item, so the
+// rendered YAML emits it as `- bot_token: ...`; match the optional list
+// dash so the token is scrubbed in that form too.
+var telegramTokenField = regexp.MustCompile(`(?m)^(\s*(?:-\s+)?bot_token:\s*).*$`)
+
+// webhook_configs `url:` carries bearer-equivalent secrets in its path/query
+// (e.g. Slack incoming-webhook IDs); mask it like the layer redaction does
+// (scheme+host kept, path/query stripped) for parity with RedactLayerForAudit.
+var webhookURLField = regexp.MustCompile(`(?m)^(\s*-?\s*url:\s*)'?([^'\n]+)'?\s*$`)
+
+// RedactSensitiveConfig scrubs SMTP credentials, bearer tokens, telegram bot
+// tokens, and webhook URL secrets from an alertmanager config YAML before it
+// is returned to clients.
 func RedactSensitiveConfig(config string) string {
 	config = smtpSensitiveFields.ReplaceAllString(config, "${1}'[REDACTED]'")
 	config = bearerTokenField.ReplaceAllString(config, "${1}'[REDACTED]'")
 	config = telegramTokenField.ReplaceAllString(config, "${1}'[REDACTED]'")
+	config = webhookURLField.ReplaceAllStringFunc(config, func(line string) string {
+		m := webhookURLField.FindStringSubmatch(line)
+		return m[1] + "'" + maskWebhookURL(strings.TrimSpace(m[2])) + "'"
+	})
 	return config
 }
 
@@ -112,8 +126,14 @@ func GetAlerts(orgID string) ([]byte, error) {
 
 // GetAlertsCtx is the context-aware variant of GetAlerts. Use this when callers
 // need to enforce a deadline (e.g., fan-out over many tenants for /totals).
+//
+// We explicitly request silenced and inhibited alerts in addition to the
+// default active set. Alertmanager's default response excludes silenced
+// alerts entirely, which would make our `muted` counter on /alerts/totals
+// always zero and hide muted rows from the list. Including them lets the UI
+// surface the "Muted" badge alongside live ones.
 func GetAlertsCtx(ctx context.Context, orgID string) ([]byte, error) {
-	url := configuration.Config.MimirURL + "/alertmanager/api/v2/alerts"
+	url := configuration.Config.MimirURL + "/alertmanager/api/v2/alerts?active=true&silenced=true&inhibited=true"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

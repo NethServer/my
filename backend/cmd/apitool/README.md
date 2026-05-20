@@ -145,24 +145,61 @@ working user whose token reflects the real hierarchy.
 
 ## Push test alerts
 
-`apitool` doesn't push alerts itself — they go straight to Mimir Alertmanager,
-which is per-tenant by `X-Scope-OrgID`. The org's `logto_id` (visible via
-`apitool list`) is the tenant ID:
+`apitool` doesn't push alerts itself. Alerts **must go through the `collect`
+service**, not directly to Mimir Alertmanager. Hitting Mimir on `:9009` directly
+bypasses authentication, skips the server-side label enrichment
+(`system_key`, `system_id`, `organization_*`, …) and annotation templating, and
+is not how real appliances behave — the GET `/api/alerts` aggregation will not
+show such alerts as expected.
+
+`collect` authenticates the pushing **system** via HTTP Basic Auth
+(`system_key:system_secret`) and injects `X-Scope-OrgID` itself from that
+system's organization. So you push as a system, never as an org, and you never
+send `X-Scope-OrgID` yourself.
+
+`create-system` now prints both the `system_key` and the full `system_secret`
+token (`my_<public>.<secret>`). The secret is only ever returned at creation
+time — save it. Use `apitool create-system ... ` from the hierarchy example
+above to get a system.
+
+**The system must be registered before `collect` will accept it.** `collect`
+rejects appliances that have a valid secret on file but never completed
+`POST /api/systems/register` (you'd get `401 invalid system credentials` on the
+push otherwise). Register once with the `system_secret`:
 
 ```bash
-ORG=$(./apitool list | awk '/TestCust1/ {print $3; exit}')
+SYSTEM_KEY='NETH-...'
+SYSTEM_SECRET='my_....'
+
+# Public, unauthenticated endpoint — the secret is the credential.
+curl -s -X POST "http://localhost:8080/api/systems/register" \
+  -H "Content-Type: application/json" \
+  -d "{\"system_secret\":\"$SYSTEM_SECRET\"}"
+```
+
+Then push the alert through `collect`:
+
+```bash
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 END=$(date -u -v+1H +"%Y-%m-%dT%H:%M:%SZ")
 
-curl -s -X POST "http://localhost:9009/alertmanager/api/v2/alerts" \
-  -H "X-Scope-OrgID: $ORG" -H "Content-Type: application/json" \
+# collect: localhost:18081 in the docker-compose full stack
+curl -s -X POST \
+  "http://localhost:18081/api/services/mimir/alertmanager/api/v2/alerts" \
+  -u "$SYSTEM_KEY:$SYSTEM_SECRET" \
+  -H "Content-Type: application/json" \
   -d "[{\"startsAt\":\"$NOW\",\"endsAt\":\"$END\",
         \"labels\":{\"alertname\":\"HighCPU\",\"severity\":\"critical\",
-                    \"system_key\":\"NETH-...\",\"instance\":\"test\"},
+                    \"instance\":\"test\"},
         \"annotations\":{\"summary\":\"Test alert\"}}]"
 ```
 
-Then verify aggregation through `/api/alerts/totals` with each role's token.
+`collect` enriches the payload with the authoritative `system_key`,
+`system_id`, `system_name`, `organization_*` labels itself — don't set them in
+the request; any client-supplied values are overridden.
+
+Then verify aggregation through `/api/alerts/totals` (and `/api/alerts`) with
+each role's token.
 
 ## Known quirks
 

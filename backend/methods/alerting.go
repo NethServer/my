@@ -23,7 +23,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
@@ -35,12 +34,6 @@ import (
 
 const defaultSystemAlertSilenceDurationMinutes = 60
 const defaultSystemAlertSilenceComment = "silenced from my"
-
-// systemKeyPattern restricts SystemOverride.SystemKey to characters that are safe
-// to embed verbatim in an Alertmanager matcher (which is rendered inside a
-// double-quoted YAML scalar). This prevents a user from injecting additional
-// matcher labels or breaking out of the YAML scalar with quotes or backslashes.
-var systemKeyPattern = regexp.MustCompile(`^[A-Za-z0-9_:.\-]+$`)
 
 // webhookHostDenylist rejects URLs whose host resolves to loopback, link-local,
 // cloud metadata service, RFC1918 private ranges, or unspecified addresses.
@@ -104,29 +97,21 @@ func requireOrgID(c *gin.Context, orgID string) bool {
 // Used by aggregate endpoints (e.g., /totals) where omitting organization_id means
 // "aggregate across the caller's full hierarchy" rather than "specific tenant".
 //
-// Three modes (selected by query params):
+// Modes:
 //
-//  1. organization_id omitted        → caller's full hierarchy (incl. self).
+//  1. organization_id omitted      → caller's full hierarchy (incl. self).
+//  2. organization_id=X            → single tenant X.
+//  3. organization_id=X&organization_id=Y (multi)
+//     → union of {X, Y, ...}. Each must be in the
+//     caller's hierarchy (Owner exempt).
+//  4. + include=descendants        → expand each org_id to itself + its sub-tree
+//     (deduplicated). Useful to mix-and-match drill-downs across siblings.
 //
-//  2. organization_id=X              → single tenant X (Mimir is per-tenant,
-//     so this returns only alerts attributed to X itself, not its descendants).
-//
-//  3. organization_id=X & include=descendants
-//     → X plus everything under X (drill-down on a sub-tree). Required because
-//     resellers/distributors hold no alerts on their own tenant — those live
-//     in their customer tenants.
-//
-//     - Customer: always pinned to their own organization (single element).
-//     organization_id and include params are ignored (Mimir tenant is fixed
-//     to the user's own org).
-//     - Owner/Distributor/Reseller without organization_id: caller's hierarchy.
-//     - Owner/Distributor/Reseller with organization_id: validates hierarchy
-//     access (Owner is exempt), then returns either [X] (single tenant) or
-//     X + descendants of X (when include=descendants).
+// Customer is always pinned to their own organization regardless of params.
 //
 // Returns false on auth/validation failure (response already written).
 func resolveOrgScope(c *gin.Context, user *models.User) ([]string, bool) {
-	orgID := c.Query("organization_id")
+	orgIDsParam := c.QueryArray("organization_id")
 	includeDescendants := c.Query("include") == "descendants"
 	orgRole := strings.ToLower(user.OrgRole)
 
@@ -136,155 +121,348 @@ func resolveOrgScope(c *gin.Context, user *models.User) ([]string, bool) {
 
 	userService := local.NewUserService()
 
-	if orgID != "" {
-		if orgRole != "owner" && !userService.IsOrganizationInHierarchy(orgRole, user.OrganizationID, orgID) {
-			c.JSON(http.StatusForbidden, response.Forbidden("access denied: organization not in your hierarchy", nil))
-			return nil, false
-		}
-		if !includeDescendants {
-			return []string{orgID}, true
-		}
-		// Drill-down: derive descendants from orgID's own type, not the caller's
-		// role. A Distributor drilling into a Reseller wants the Reseller's
-		// customers; passing the caller's role would query the wrong relation.
-		targetType := userService.GetOrganizationType(orgID)
-		orgIDs, err := userService.GetHierarchicalOrganizationIDs(targetType, orgID)
+	// No org_id passed → caller's full hierarchy.
+	if len(orgIDsParam) == 0 {
+		orgIDs, err := userService.GetHierarchicalOrganizationIDs(orgRole, user.OrganizationID)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve descendants: "+err.Error(), nil))
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve organization hierarchy: "+err.Error(), nil))
 			return nil, false
 		}
 		return orgIDs, true
 	}
 
-	orgIDs, err := userService.GetHierarchicalOrganizationIDs(orgRole, user.OrganizationID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve organization hierarchy: "+err.Error(), nil))
-		return nil, false
+	// One or more org_ids: validate each, optionally expand each with descendants,
+	// dedupe to keep the fan-out minimal when sub-trees overlap.
+	result := make([]string, 0, len(orgIDsParam))
+	seen := make(map[string]struct{}, len(orgIDsParam))
+	for _, oid := range orgIDsParam {
+		if oid == "" {
+			continue
+		}
+		if orgRole != "owner" && !userService.IsOrganizationInHierarchy(orgRole, user.OrganizationID, oid) {
+			c.JSON(http.StatusForbidden, response.Forbidden("access denied: organization not in your hierarchy", nil))
+			return nil, false
+		}
+		if includeDescendants {
+			targetType := userService.GetOrganizationType(oid)
+			expanded, err := userService.GetHierarchicalOrganizationIDs(targetType, oid)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve descendants: "+err.Error(), nil))
+				return nil, false
+			}
+			for _, e := range expanded {
+				if _, ok := seen[e]; !ok {
+					seen[e] = struct{}{}
+					result = append(result, e)
+				}
+			}
+		} else {
+			if _, ok := seen[oid]; !ok {
+				seen[oid] = struct{}{}
+				result = append(result, oid)
+			}
+		}
 	}
-	return orgIDs, true
+	return result, true
 }
 
-// ConfigureAlerts handles POST /api/alerts/config
+// configPropagationFanoutTimeout caps how long a POST /alerts/config call
+// will wait for re-rendering+pushing the effective config across descendant
+// tenants. Tuned so a Owner save with hundreds of tenants completes in
+// reasonable time without holding the request open too long.
+const configPropagationFanoutTimeout = 30 * time.Second
+
+// configPropagationFanoutConcurrency limits simultaneous in-flight Mimir
+// pushes to avoid opening hundreds of sockets when an Owner saves.
+const configPropagationFanoutConcurrency = 10
+
+// alertLayerMutexes guards per-organization layer save+propagate operations.
+// Two parallel POSTs/DELETEs for the same org would otherwise race at the
+// Mimir push step: the DB upsert atomically last-write-wins, but the two
+// fan-outs run concurrently and the slower-arriving push can land AFTER
+// the faster one — leaving Mimir with stale state while the DB holds the
+// newer layer. We serialise per-org to make save+propagate a critical
+// section. Different orgs are independent (no global lock).
+//
+// Single-process scope. If/when the backend is deployed multi-instance,
+// swap this for a Postgres advisory lock keyed on the same org_id.
+var alertLayerMutexes sync.Map // map[string]*sync.Mutex
+
+func acquireOrgLayerLock(orgID string) func() {
+	mu, _ := alertLayerMutexes.LoadOrStore(orgID, &sync.Mutex{})
+	m := mu.(*sync.Mutex)
+	m.Lock()
+	return m.Unlock
+}
+
+// snapshotLayerForAudit produces a JSON-serialisable, secret-redacted snapshot
+// of a layer record suitable for inclusion in audit log details. The unredacted
+// layer is on disk in alert_config_layers; the audit log only needs to record
+// what changed, not the secrets themselves.
+func snapshotLayerForAudit(rec *entities.AlertConfigLayerRecord) map[string]interface{} {
+	if rec == nil {
+		return nil
+	}
+	cfg := alerting.RedactLayerForAudit(rec.Config)
+	return map[string]interface{}{
+		"organization_id":    rec.OrganizationID,
+		"config":             cfg,
+		"updated_by_user_id": rec.UpdatedByUserID,
+		"updated_by_name":    rec.UpdatedByName,
+		"updated_at":         rec.UpdatedAt,
+	}
+}
+
+// snapshotLayerBodyForAudit captures the inbound layer body (post-Normalize)
+// before persistence, so the audit "after" reflects what we intend to write.
+// Same redaction policy as snapshotLayerForAudit.
+func snapshotLayerBodyForAudit(orgID string, layer models.AlertingConfigLayer) map[string]interface{} {
+	cfg := alerting.RedactLayerForAudit(layer)
+	return map[string]interface{}{
+		"organization_id": orgID,
+		"config":          cfg,
+	}
+}
+
+// ConfigureAlerts handles POST /api/alerts/config — writes the CALLER's
+// alerting layer (one row per organization in alert_config_layers) and
+// propagates the change by re-rendering and re-pushing the effective Mimir
+// config for every tenant in the caller's hierarchy.
+//
+// Per the additive model, descendants can ADD recipients/severity rules but
+// cannot disable channels enabled by ancestors: NormalizeLayerForRole strips
+// any explicit *bool=&false from non-Owner layers before storage.
+//
+// Returns a `warnings[]` array listing per-tenant push failures (timeout,
+// 5xx, etc.). The caller's layer is saved regardless of push outcome — Mimir
+// can be reconciled by saving again.
 func ConfigureAlerts(c *gin.Context) {
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
 		return
 	}
 
-	orgID, ok := resolveOrgID(c, user)
-	if !ok {
-		return
-	}
-	if !requireOrgID(c, orgID) {
-		return
-	}
-
-	var req models.AlertingConfig
+	var req models.AlertingConfigLayer
 	if err := c.ShouldBindJSON(&req); err != nil {
+		// MaxBytesReader (registered via middleware.MaxBodySize on the route)
+		// surfaces as a "http: request body too large" error here; map to 413
+		// so the client can distinguish "too big" from "malformed".
+		if strings.Contains(err.Error(), "request body too large") {
+			c.JSON(http.StatusRequestEntityTooLarge, response.Error(http.StatusRequestEntityTooLarge, "request body exceeds the configured maximum", nil))
+			return
+		}
 		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
 
-	// Validate severity values
-	validSeverities := map[string]bool{"critical": true, "warning": true, "info": true}
-	for _, severity := range req.Severities {
-		if !validSeverities[severity.Severity] {
-			c.JSON(http.StatusBadRequest, response.BadRequest("invalid severity level: "+severity.Severity+". allowed: critical, warning, info", nil))
-			return
-		}
-		if err := validateWebhookReceivers(severity.WebhookReceivers); err != nil {
-			c.JSON(http.StatusBadRequest, response.BadRequest(err.Error(), nil))
-			return
-		}
-	}
-
-	// Validate per-system overrides: SystemKey is rendered verbatim into an
-	// Alertmanager matcher, so it must be restricted to a safe character set.
-	for _, sys := range req.Systems {
-		if !systemKeyPattern.MatchString(sys.SystemKey) {
-			c.JSON(http.StatusBadRequest, response.BadRequest("invalid system_key: only alphanumeric characters and _ : . - are allowed", nil))
-			return
-		}
-		if err := validateWebhookReceivers(sys.WebhookReceivers); err != nil {
-			c.JSON(http.StatusBadRequest, response.BadRequest(err.Error(), nil))
-			return
-		}
-	}
-
-	if err := validateWebhookReceivers(req.WebhookReceivers); err != nil {
+	// Webhook URLs go through DNS-aware validation (denylist resolution,
+	// loopback/private-range rejection). The model's stateless Validate
+	// covers format/structure for everything else (email format, severity
+	// enum, language, format).
+	if err := validateWebhookRecipients(req.WebhookRecipients); err != nil {
 		c.JSON(http.StatusBadRequest, response.BadRequest(err.Error(), nil))
 		return
 	}
 
-	// Validate email template language
-	if req.EmailTemplateLang != "" && !slices.Contains(alerting.ValidTemplateLangs, req.EmailTemplateLang) {
-		c.JSON(http.StatusBadRequest, response.BadRequest("invalid email_template_lang: allowed values are "+strings.Join(alerting.ValidTemplateLangs, ", "), nil))
+	// Enforce additive-only contract: descendants cannot encode "disable
+	// channel" by writing explicit false. Owner is exempt (top of the chain
+	// can globally turn a channel off, though OR with descendants may bring
+	// it back).
+	alerting.NormalizeLayerForRole(&req, user.OrgRole)
+
+	// Serialise save+propagate per-org: prevents two concurrent saves from
+	// racing at the Mimir push step, where the slower-arriving fan-out can
+	// land AFTER the faster one and leave Mimir with stale state while the
+	// DB holds the newer layer.
+	releaseLock := acquireOrgLayerLock(user.OrganizationID)
+	defer releaseLock()
+
+	// Persist the caller's layer. Capture the previous layer (if any) BEFORE
+	// the upsert so the audit log records the actual diff that was applied.
+	layerRepo := entities.NewLocalAlertConfigLayersRepository()
+	prevLayer, prevErr := layerRepo.Get(user.OrganizationID)
+	if prevErr != nil && !errors.Is(prevErr, entities.ErrAlertConfigLayerNotFound) {
+		logger.Warn().Err(prevErr).Str("org_id", user.OrganizationID).Msg("failed to read previous layer for audit; continuing")
+		prevLayer = nil
+	}
+
+	updatedBy := ""
+	if user.LogtoID != nil {
+		updatedBy = *user.LogtoID
+	}
+	if _, err := layerRepo.Upsert(user.OrganizationID, req, updatedBy, user.Name); err != nil {
+		logger.Error().Err(err).Str("org_id", user.OrganizationID).Msg("failed to save alert config layer")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to save alert config: "+err.Error(), nil))
 		return
 	}
 
-	cfg := configuration.Config
-	yamlConfig, err := alerting.RenderConfig(
-		cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.SMTPTLS,
-		cfg.AlertingHistoryWebhookURL, cfg.AlertingHistoryWebhookSecret,
-		&req,
-	)
+	// Propagate: the caller's save affects the effective config of all
+	// descendants in their hierarchy (including self). Walk the descendant
+	// list, fan-out re-render+push to Mimir for each.
+	userService := local.NewUserService()
+	descendants, err := userService.GetHierarchicalOrganizationIDs(user.OrgRole, user.OrganizationID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to render alertmanager config: "+err.Error(), nil))
+		// Layer saved but couldn't enumerate descendants — return success on
+		// save with a warning; reconciliation possible by re-saving.
+		logger.Warn().Err(err).Str("org_id", user.OrganizationID).Msg("layer saved but hierarchy enumeration failed")
+		auditDetails := map[string]interface{}{
+			"before": snapshotLayerForAudit(prevLayer),
+			"after":  snapshotLayerBodyForAudit(user.OrganizationID, req),
+		}
+		logger.LogBusinessOperationDetails(c, "alerts", "save_layer", "alert_config_layer", user.OrganizationID, true, nil, auditDetails)
+		c.JSON(http.StatusOK, response.OK("alerting layer saved (propagation skipped)", gin.H{
+			"warnings": []string{fmt.Sprintf("hierarchy: %s", err.Error())},
+		}))
 		return
 	}
 
-	templateFiles, err := alerting.BuildTemplateFiles(req.EmailTemplateLang, cfg.AppURL)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to load alert email templates: "+err.Error(), nil))
-		return
+	warnings := propagateAlertingConfigToTenants(c.Request.Context(), descendants)
+	auditDetails := map[string]interface{}{
+		"before":               snapshotLayerForAudit(prevLayer),
+		"after":                snapshotLayerBodyForAudit(user.OrganizationID, req),
+		"affected_tenants":     len(descendants),
+		"propagation_warnings": len(warnings),
 	}
-
-	if err := alerting.PushConfig(orgID, yamlConfig, templateFiles); err != nil {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to push config to mimir: "+err.Error(), nil))
-		return
-	}
-
-	c.JSON(http.StatusOK, response.OK("alerting configuration updated successfully", nil))
+	logger.LogBusinessOperationDetails(c, "alerts", "save_layer", "alert_config_layer", user.OrganizationID, true, nil, auditDetails)
+	c.JSON(http.StatusOK, response.OK("alerting configuration updated successfully", gin.H{
+		"warnings":         warnings,
+		"propagated_to":    len(descendants) - len(warnings),
+		"affected_tenants": len(descendants),
+	}))
 }
 
-// DisableAlerts handles DELETE /api/alerts/config
+// propagateAlertingConfigToTenants re-renders and re-pushes the effective
+// Mimir config for each tenant in the list, with bounded concurrency and a
+// global timeout. Per-tenant errors are collected as warnings (string
+// `org <logto_id>: <error>`) and returned; non-erroring tenants are pushed
+// successfully. Always returns a non-nil slice.
+func propagateAlertingConfigToTenants(parent context.Context, tenants []string) []string {
+	warnings := []string{}
+	if len(tenants) == 0 {
+		return warnings
+	}
+	var (
+		mu sync.Mutex
+		wg sync.WaitGroup
+	)
+	ctx, cancel := context.WithTimeout(parent, configPropagationFanoutTimeout)
+	defer cancel()
+	sem := make(chan struct{}, configPropagationFanoutConcurrency)
+
+	for _, tenant := range tenants {
+		wg.Add(1)
+		go func(tenant string) {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				mu.Lock()
+				warnings = append(warnings, fmt.Sprintf("org %s: timed out waiting for slot", tenant))
+				mu.Unlock()
+				return
+			}
+			if err := alerting.RenderAndPushEffective(ctx, tenant); err != nil {
+				logger.Warn().Err(err).Str("org_id", tenant).Msg("config propagation failed")
+				mu.Lock()
+				warnings = append(warnings, fmt.Sprintf("org %s: %s", tenant, err.Error()))
+				mu.Unlock()
+			}
+		}(tenant)
+	}
+	wg.Wait()
+	return warnings
+}
+
+// DisableAlerts handles DELETE /api/alerts/config — removes the CALLER's
+// alerting layer entirely. The effective config of all descendant tenants
+// is re-rendered as the merge of the remaining ancestor layers (so the
+// caller's contribution disappears but ancestor recipients/severity rules
+// are preserved). To completely silence a tenant's alerting, every layer
+// in its chain must drop its contribution; alternatively the Owner can do
+// it globally by removing their own layer.
 func DisableAlerts(c *gin.Context) {
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
 		return
 	}
 
-	orgID, ok := resolveOrgID(c, user)
-	if !ok {
-		return
+	// Same critical section as ConfigureAlerts: serialise per-org so a
+	// concurrent save+delete race cannot leave Mimir with stale state.
+	releaseLock := acquireOrgLayerLock(user.OrganizationID)
+	defer releaseLock()
+
+	layerRepo := entities.NewLocalAlertConfigLayersRepository()
+
+	// Capture pre-delete snapshot for audit so the log records what was
+	// removed, not just "delete_layer".
+	prevLayer, prevErr := layerRepo.Get(user.OrganizationID)
+	if prevErr != nil && !errors.Is(prevErr, entities.ErrAlertConfigLayerNotFound) {
+		logger.Warn().Err(prevErr).Str("org_id", user.OrganizationID).Msg("failed to read previous layer for audit; continuing")
+		prevLayer = nil
 	}
-	if !requireOrgID(c, orgID) {
+
+	if err := layerRepo.Delete(user.OrganizationID); err != nil {
+		logger.Error().Err(err).Str("org_id", user.OrganizationID).Msg("failed to delete alert config layer")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete alert config: "+err.Error(), nil))
 		return
 	}
 
-	cfg := configuration.Config
-	yamlConfig, err := alerting.RenderConfig(
-		cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.SMTPTLS,
-		cfg.AlertingHistoryWebhookURL, cfg.AlertingHistoryWebhookSecret,
-		nil,
-	)
+	userService := local.NewUserService()
+	descendants, err := userService.GetHierarchicalOrganizationIDs(user.OrgRole, user.OrganizationID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to render blackhole config: "+err.Error(), nil))
+		logger.Warn().Err(err).Str("org_id", user.OrganizationID).Msg("layer deleted but hierarchy enumeration failed")
+		auditDetails := map[string]interface{}{"before": snapshotLayerForAudit(prevLayer), "after": nil}
+		logger.LogBusinessOperationDetails(c, "alerts", "delete_layer", "alert_config_layer", user.OrganizationID, true, nil, auditDetails)
+		c.JSON(http.StatusOK, response.OK("alerting layer removed (propagation skipped)", gin.H{
+			"warnings": []string{fmt.Sprintf("hierarchy: %s", err.Error())},
+		}))
 		return
 	}
 
-	if err := alerting.PushConfig(orgID, yamlConfig, nil); err != nil {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to push config to mimir: "+err.Error(), nil))
-		return
+	warnings := propagateAlertingConfigToTenants(c.Request.Context(), descendants)
+	auditDetails := map[string]interface{}{
+		"before":               snapshotLayerForAudit(prevLayer),
+		"after":                nil,
+		"affected_tenants":     len(descendants),
+		"propagation_warnings": len(warnings),
 	}
-
-	c.JSON(http.StatusOK, response.OK("all alerts disabled successfully", nil))
+	logger.LogBusinessOperationDetails(c, "alerts", "delete_layer", "alert_config_layer", user.OrganizationID, true, nil, auditDetails)
+	c.JSON(http.StatusOK, response.OK("alerting layer removed successfully", gin.H{
+		"warnings":         warnings,
+		"propagated_to":    len(descendants) - len(warnings),
+		"affected_tenants": len(descendants),
+	}))
 }
 
 // alertsListDefaultPageSize matches the per-list default the project uses
 // elsewhere when the helper's general 20 is too small for the typical UX
 // (cf. systems.go which also overrides to 50). Capped at 100 by the helper.
 const alertsListDefaultPageSize = 50
+
+// alertsListAllowedSortBy enumerates the user-selectable sort columns for the
+// active /api/alerts list. Default is starts_at desc (most recent first).
+// severity is sorted by criticality rank (critical > warning > info > other),
+// not lexicographically. Anything outside this set falls back to starts_at.
+//
+// The intersection with /api/alerts/history (starts_at, severity, alertname,
+// status) is intentional: the UI can offer a single "Sort by" dropdown that
+// works on both tabs without sending column names that one side would
+// silently fall back to its default.
+var alertsListAllowedSortBy = map[string]bool{
+	"starts_at": true,
+	"severity":  true,
+	"alertname": true,
+	"status":    true,
+}
+
+// severityRank maps severity labels to a comparable integer (higher = more
+// severe). Unknown values get -1 so they sort below info.
+var severityRank = map[string]int{
+	"critical": 3,
+	"warning":  2,
+	"info":     1,
+}
 
 // GetAlerts handles GET /api/alerts
 //
@@ -314,27 +492,29 @@ func GetAlerts(c *gin.Context) {
 		pageSize = alertsListDefaultPageSize
 	}
 
+	// helpers.GetSortingFromQuery defaults sort_direction to "asc"; for active
+	// alerts the natural default is "what's firing now" first, so we override
+	// to desc when the caller didn't pass an explicit direction.
+	sortBy, sortDirection := helpers.GetSortingFromQuery(c)
+	if !alertsListAllowedSortBy[sortBy] {
+		sortBy = "starts_at"
+	}
+	if c.Query("sort_direction") == "" {
+		sortDirection = "desc"
+	}
+
 	all, warnings := fanOutMimirAlerts(c.Request.Context(), orgIDs)
 
 	all = filterAlerts(all, alertFilter{
-		states:     c.QueryArray("state"),
+		statuses:   c.QueryArray("status"),
 		severities: c.QueryArray("severity"),
 		systemKeys: c.QueryArray("system_key"),
 		alertnames: c.QueryArray("alertname"),
 	})
 
-	// Sort by starts_at desc (most recent first); fingerprint as tiebreaker
-	// so pagination is stable across requests when timestamps tie.
-	sort.SliceStable(all, func(i, j int) bool {
-		si, _ := all[i]["startsAt"].(string)
-		sj, _ := all[j]["startsAt"].(string)
-		if si != sj {
-			return si > sj
-		}
-		fi, _ := all[i]["fingerprint"].(string)
-		fj, _ := all[j]["fingerprint"].(string)
-		return fi < fj
-	})
+	// Sort with fingerprint as a stable tiebreaker so pagination doesn't
+	// shift between requests when the primary key ties.
+	sortAlertsList(all, sortBy, sortDirection)
 
 	totalCount := len(all)
 	start := (page - 1) * pageSize
@@ -356,16 +536,137 @@ func GetAlerts(c *gin.Context) {
 
 	c.JSON(http.StatusOK, response.OK("alerts retrieved successfully", gin.H{
 		"alerts":     pageAlerts,
-		"pagination": helpers.BuildPaginationInfo(page, pageSize, totalCount),
+		"pagination": helpers.BuildPaginationInfoWithSorting(page, pageSize, totalCount, sortBy, sortDirection),
 		"warnings":   warnings,
+	}))
+}
+
+// sortAlertsList orders an in-memory slice of Mimir alerts by the given column
+// and direction. Always uses fingerprint as a stable secondary key so paging
+// doesn't shuffle alerts that tie on the primary key.
+func sortAlertsList(alerts []map[string]interface{}, sortBy, sortDirection string) {
+	desc := sortDirection == "desc"
+	sort.SliceStable(alerts, func(i, j int) bool {
+		var primaryLess bool
+		var primaryEqual bool
+		switch sortBy {
+		case "severity":
+			si := severityRank[severityOf(alerts[i])]
+			sj := severityRank[severityOf(alerts[j])]
+			primaryEqual = si == sj
+			primaryLess = si < sj
+		case "alertname":
+			ai := alertnameOf(alerts[i])
+			aj := alertnameOf(alerts[j])
+			primaryEqual = ai == aj
+			primaryLess = ai < aj
+		case "status":
+			ai := statusOf(alerts[i])
+			aj := statusOf(alerts[j])
+			primaryEqual = ai == aj
+			primaryLess = ai < aj
+		default: // starts_at
+			si, _ := alerts[i]["startsAt"].(string)
+			sj, _ := alerts[j]["startsAt"].(string)
+			primaryEqual = si == sj
+			primaryLess = si < sj
+		}
+		if !primaryEqual {
+			if desc {
+				return !primaryLess
+			}
+			return primaryLess
+		}
+		// Tiebreaker: fingerprint asc, deterministic regardless of direction.
+		fi, _ := alerts[i]["fingerprint"].(string)
+		fj, _ := alerts[j]["fingerprint"].(string)
+		return fi < fj
+	})
+}
+
+func severityOf(alert map[string]interface{}) string {
+	labels, _ := alert["labels"].(map[string]interface{})
+	s, _ := labels["severity"].(string)
+	return s
+}
+
+func alertnameOf(alert map[string]interface{}) string {
+	labels, _ := alert["labels"].(map[string]interface{})
+	s, _ := labels["alertname"].(string)
+	return s
+}
+
+// statusOf returns the Alertmanager status.state of an active alert
+// ("active", "suppressed", "unprocessed"). Named after the public query
+// param (`?status=`) and the sort column (`sort_by=status`) rather than
+// the underlying JSON field; the alert payload still nests it under
+// `.status.state` because that's the upstream Alertmanager shape.
+func statusOf(alert map[string]interface{}) string {
+	status, _ := alert["status"].(map[string]interface{})
+	s, _ := status["state"].(string)
+	return s
+}
+
+// alertFingerprintPattern restricts the fingerprint path param to safe chars.
+// Alertmanager fingerprints are 16-char lowercase hex but we allow a slightly
+// looser charset to accommodate test fixtures and any future format change.
+var alertFingerprintPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
+
+// GetAlertActivity handles GET /api/alerts/activity/:fingerprint
+// Returns the per-alert audit timeline (silence created/updated/removed) for
+// the alert identified by fingerprint within the resolved tenant. Most recent
+// first. Operator notes are stored as the comment of the silence the action
+// produced, so the timeline is the source of truth for "what happened, when,
+// by whom". Literal `activity` precedes `:fingerprint` so the route does not
+// collide with /alerts/silences/{silence_id}.
+func GetAlertActivity(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+	fp := c.Param("fingerprint")
+	if !alertFingerprintPattern.MatchString(fp) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid fingerprint", nil))
+		return
+	}
+	orgID, ok := resolveOrgID(c, user)
+	if !ok {
+		return
+	}
+	if !requireOrgID(c, orgID) {
+		return
+	}
+
+	limit := 100
+	if s := c.Query("limit"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			limit = n
+			if limit > 500 {
+				limit = 500
+			}
+		}
+	}
+
+	repo := entities.NewLocalAlertActivityRepository()
+	entries, err := repo.ListByFingerprint(orgID, fp, limit)
+	if err != nil {
+		logger.Error().Err(err).Str("org_id", orgID).Str("fingerprint", fp).Msg("failed to list alert activity")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to list alert activity", nil))
+		return
+	}
+	c.JSON(http.StatusOK, response.OK("alert activity retrieved successfully", gin.H{
+		"events": entries,
 	}))
 }
 
 // fanOutMimirAlerts fetches active alerts from Mimir for every tenant in scope
 // concurrently, with bounded concurrency and a global timeout. Per-tenant
 // failures (timeout, 5xx, parse error) are collected as warnings; the rest of
-// the result is returned. Used by /api/alerts (list) and is shaped so future
-// stats/aggregation endpoints can reuse it.
+// the result is returned.
+//
+// System identity (id, key, name, type) is carried as labels on the alert
+// itself (system_id, system_key, system_name, system_type), stamped at ingest
+// time by collect. No per-request DB lookup is needed here.
 func fanOutMimirAlerts(parent context.Context, orgIDs []string) ([]map[string]interface{}, []string) {
 	var (
 		all      []map[string]interface{}
@@ -419,54 +720,77 @@ func fanOutMimirAlerts(parent context.Context, orgIDs []string) ([]map[string]in
 	return all, warnings
 }
 
-// GetAlertingConfig handles GET /api/alerts/config
-// By default returns structured JSON parsed from Mimir YAML.
-// Use ?format=yaml to get the raw (redacted) YAML.
+// GetAlertingConfig handles GET /api/alerts/config — returns the CALLER's
+// own alerting layer. Returns an empty layer (with audit metadata absent)
+// when the caller has never saved one; the frontend renders the empty-state
+// form on top of it.
+//
+// Nothing else is exposed: no inherited ancestor layers, no merged
+// effective view. Every organization sees only its own configuration,
+// regardless of role. The merge happens server-side at render time and
+// stays inside the backend.
 func GetAlertingConfig(c *gin.Context) {
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
 		return
 	}
 
-	orgID, ok := resolveOrgID(c, user)
-	if !ok {
+	repo := entities.NewLocalAlertConfigLayersRepository()
+	rec, err := repo.Get(user.OrganizationID)
+	if err != nil && !errors.Is(err, entities.ErrAlertConfigLayerNotFound) {
+		logger.Error().Err(err).Str("org_id", user.OrganizationID).Msg("failed to load alert config layer")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to load alert config", nil))
 		return
 	}
+
+	if rec == nil {
+		// First-time view: emit an empty layer body so the UI can render
+		// without a null-check, plus null audit fields the UI uses to detect
+		// the "never saved" state.
+		c.JSON(http.StatusOK, response.OK("alerting layer retrieved successfully", gin.H{
+			"enabled":             models.ChannelToggles{},
+			"email_recipients":    []models.EmailRecipient{},
+			"webhook_recipients":  []models.WebhookRecipient{},
+			"telegram_recipients": []models.TelegramRecipient{},
+			"updated_by_name":     nil,
+			"updated_at":          nil,
+		}))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("alerting layer retrieved successfully", gin.H{
+		"enabled":             rec.Config.Enabled,
+		"email_recipients":    rec.Config.EmailRecipients,
+		"webhook_recipients":  rec.Config.WebhookRecipients,
+		"telegram_recipients": rec.Config.TelegramRecipients,
+		"updated_by_name":     rec.UpdatedByName,
+		"updated_at":          rec.UpdatedAt,
+	}))
+}
+
+// GetEffectiveAlertingConfig handles GET /api/alerts/config/effective: privileged per-layer + merged config + Mimir YAML for any tenant (organization_id required; nonexistent id → empty config), secrets redacted.
+func GetEffectiveAlertingConfig(c *gin.Context) {
+	if _, ok := helpers.GetUserFromContext(c); !ok {
+		return
+	}
+
+	orgID := c.Query("organization_id")
 	if !requireOrgID(c, orgID) {
 		return
 	}
 
-	body, err := alerting.GetConfig(orgID)
+	report, err := alerting.BuildEffectiveConfigReport(orgID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch alerting config from mimir: "+err.Error(), nil))
+		if errors.Is(err, alerting.ErrChainTooDeep) {
+			c.JSON(http.StatusUnprocessableEntity, response.UnprocessableEntity("organization ancestor chain is too deep or contains a cycle", nil))
+			return
+		}
+		logger.Error().Err(err).Str("org_id", orgID).Msg("failed to build effective alerting config report")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to build effective alerting config", nil))
 		return
 	}
 
-	// No config exists for this tenant (Mimir 404 or empty body). Return null
-	// so the frontend can show the "no configuration found" empty state.
-	if len(body) == 0 {
-		c.JSON(http.StatusOK, response.OK("alerting configuration retrieved successfully", gin.H{
-			"config": nil,
-		}))
-		return
-	}
-
-	if c.Query("format") == "yaml" {
-		c.JSON(http.StatusOK, response.OK("alerting configuration retrieved successfully", gin.H{
-			"config": alerting.RedactSensitiveConfig(string(body)),
-		}))
-		return
-	}
-
-	cfg, err := alerting.ParseConfig(string(body))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to parse alerting config: "+err.Error(), nil))
-		return
-	}
-
-	c.JSON(http.StatusOK, response.OK("alerting configuration retrieved successfully", gin.H{
-		"config": cfg,
-	}))
+	c.JSON(http.StatusOK, response.OK("effective alerting configuration retrieved successfully", alerting.RedactEffectiveConfigReport(report)))
 }
 
 // alertsTotalsFanoutTimeout caps how long /totals will wait for Mimir to answer
@@ -499,10 +823,10 @@ func GetAlertsTotals(c *gin.Context) {
 	}
 
 	var (
-		active, critical, warning, info int
-		warnings                        []string
-		mu                              sync.Mutex
-		wg                              sync.WaitGroup
+		active, critical, warning, info, muted int
+		warnings                               []string
+		mu                                     sync.Mutex
+		wg                                     sync.WaitGroup
 	)
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), alertsTotalsFanoutTimeout)
@@ -543,7 +867,7 @@ func GetAlertsTotals(c *gin.Context) {
 				return
 			}
 
-			var localCritical, localWarning, localInfo int
+			var localCritical, localWarning, localInfo, localMuted int
 			for _, alert := range alerts {
 				labels, _ := alert["labels"].(map[string]interface{})
 				switch sev, _ := labels["severity"].(string); sev {
@@ -554,6 +878,13 @@ func GetAlertsTotals(c *gin.Context) {
 				case "info":
 					localInfo++
 				}
+				// An alert is muted when Alertmanager has at least one
+				// active silence matching it (status.silencedBy non-empty).
+				if status, ok := alert["status"].(map[string]interface{}); ok {
+					if sb, ok := status["silencedBy"].([]interface{}); ok && len(sb) > 0 {
+						localMuted++
+					}
+				}
 			}
 
 			mu.Lock()
@@ -561,6 +892,7 @@ func GetAlertsTotals(c *gin.Context) {
 			critical += localCritical
 			warning += localWarning
 			info += localInfo
+			muted += localMuted
 			mu.Unlock()
 		}(orgID)
 	}
@@ -582,6 +914,7 @@ func GetAlertsTotals(c *gin.Context) {
 		"critical": critical,
 		"warning":  warning,
 		"info":     info,
+		"muted":    muted,
 		"history":  historyTotal,
 		"warnings": warnings,
 	}))
@@ -630,7 +963,7 @@ func GetAlertsTrend(c *gin.Context) {
 // it's a binding detail of one handler. Multiple values within a single field
 // are matched as OR; different fields AND together.
 type alertFilter struct {
-	states     []string
+	statuses   []string
 	severities []string
 	systemKeys []string
 	alertnames []string
@@ -641,19 +974,19 @@ type alertFilter struct {
 // or does not match any of the requested values; this prevents silent leakage
 // of unrelated alerts when the caller narrows the query.
 func filterAlerts(alerts []map[string]interface{}, f alertFilter) []map[string]interface{} {
-	if len(f.states) == 0 && len(f.severities) == 0 && len(f.systemKeys) == 0 && len(f.alertnames) == 0 {
+	if len(f.statuses) == 0 && len(f.severities) == 0 && len(f.systemKeys) == 0 && len(f.alertnames) == 0 {
 		return alerts
 	}
 
 	filtered := make([]map[string]interface{}, 0, len(alerts))
 	for _, alert := range alerts {
-		if len(f.states) > 0 {
+		if len(f.statuses) > 0 {
 			status, ok := alert["status"].(map[string]interface{})
 			if !ok {
 				continue
 			}
 			state, ok := status["state"].(string)
-			if !ok || !slices.Contains(f.states, state) {
+			if !ok || !slices.Contains(f.statuses, state) {
 				continue
 			}
 		}
@@ -804,7 +1137,17 @@ func silenceBelongsToSystem(silence *models.AlertmanagerSilence, systemKey strin
 }
 
 // GetSystemAlerts handles GET /api/systems/:id/alerts
-// Returns active alerts from Mimir for a specific system, filtered by system_key.
+// Returns active alerts from Mimir scoped to a single system, with the same
+// filters, pagination, and sorting surface as the cross-system /api/alerts
+// list. The system_key in the URL acts as a hard scope: the multi-value
+// `system_key` query filter that /api/alerts accepts is not exposed here
+// since it would either be redundant (same value) or rejected.
+//
+// Accepted query params (all optional):
+//   - severity, alertname, status (multi-value, OR within, AND across)
+//   - page, page_size (default 50, cap 100)
+//   - sort_by (starts_at | severity | alertname | status), default starts_at
+//   - sort_direction (asc | desc), default desc
 func GetSystemAlerts(c *gin.Context) {
 	systemID := c.Param("id")
 	if systemID == "" {
@@ -824,6 +1167,19 @@ func GetSystemAlerts(c *gin.Context) {
 		return
 	}
 
+	page, pageSize := helpers.GetPaginationFromQuery(c)
+	if c.Query("page_size") == "" {
+		pageSize = alertsListDefaultPageSize
+	}
+
+	sortBy, sortDirection := helpers.GetSortingFromQuery(c)
+	if !alertsListAllowedSortBy[sortBy] {
+		sortBy = "starts_at"
+	}
+	if c.Query("sort_direction") == "" {
+		sortDirection = "desc"
+	}
+
 	body, err := alerting.GetAlerts(getSystemAlertOrgID(system))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch alerts from mimir: "+err.Error(), nil))
@@ -833,22 +1189,49 @@ func GetSystemAlerts(c *gin.Context) {
 	var alerts []map[string]interface{}
 	if err := json.Unmarshal(body, &alerts); err != nil {
 		c.JSON(http.StatusOK, response.OK("alerts retrieved successfully", gin.H{
-			"alerts": []interface{}{},
+			"alerts":     []map[string]interface{}{},
+			"pagination": helpers.BuildPaginationInfoWithSorting(page, pageSize, 0, sortBy, sortDirection),
 		}))
 		return
 	}
 
-	// Filter alerts by this system's key
-	filtered := make([]map[string]interface{}, 0, len(alerts))
+	// Hard scope by system_key. System identity is carried as labels on the
+	// alert (system_id, system_key, system_name, system_type) stamped at
+	// ingest time by collect, so no DB join is needed.
+	scoped := make([]map[string]interface{}, 0, len(alerts))
 	for _, alert := range alerts {
 		labels, _ := alert["labels"].(map[string]interface{})
 		if sk, ok := labels["system_key"].(string); ok && sk == system.SystemKey {
-			filtered = append(filtered, alert)
+			scoped = append(scoped, alert)
 		}
 	}
 
+	filtered := filterAlerts(scoped, alertFilter{
+		statuses:   c.QueryArray("status"),
+		severities: c.QueryArray("severity"),
+		alertnames: c.QueryArray("alertname"),
+		// systemKeys intentionally omitted: the URL path is the source of truth.
+	})
+
+	sortAlertsList(filtered, sortBy, sortDirection)
+
+	totalCount := len(filtered)
+	start := (page - 1) * pageSize
+	end := start + pageSize
+	if start > totalCount {
+		start = totalCount
+	}
+	if end > totalCount {
+		end = totalCount
+	}
+	pageAlerts := filtered[start:end]
+	if pageAlerts == nil {
+		pageAlerts = []map[string]interface{}{}
+	}
+
 	c.JSON(http.StatusOK, response.OK("alerts retrieved successfully", gin.H{
-		"alerts": filtered,
+		"alerts":     pageAlerts,
+		"pagination": helpers.BuildPaginationInfoWithSorting(page, pageSize, totalCount, sortBy, sortDirection),
 	}))
 }
 
@@ -935,9 +1318,45 @@ func CreateSystemAlertSilence(c *gin.Context) {
 		return
 	}
 
+	// Best-effort activity log: a write failure must not break the user's
+	// silence creation, so we only log a warning. The silence is the source
+	// of truth; activity is a denormalised UX convenience.
+	logAlertActivity(c, getSystemAlertOrgID(system), req.Fingerprint, entities.AlertActivitySilenced, user, silenceResp.SilenceID, map[string]interface{}{
+		"comment":          normalizeAlertSilenceComment(req.Comment),
+		"duration_minutes": req.DurationMinutes,
+		"end_at":           req.EndAt,
+	})
+
 	c.JSON(http.StatusOK, response.OK("alert silenced successfully", gin.H{
 		"silence_id": silenceResp.SilenceID,
 	}))
+}
+
+// logAlertActivity writes one row to alert_activity. Fails open: a DB error
+// is logged at warn level but does not surface to the caller, since the
+// activity timeline is auxiliary to the primary action. Empty fingerprint
+// silently no-ops because the row would be unreachable from any alert detail
+// view.
+func logAlertActivity(c *gin.Context, orgID, fingerprint, action string, user *models.User, silenceID string, details map[string]interface{}) {
+	if fingerprint == "" {
+		return
+	}
+	actorUserID := ""
+	if user != nil && user.LogtoID != nil {
+		actorUserID = *user.LogtoID
+	}
+	actorName := ""
+	if user != nil {
+		actorName = user.Name
+	}
+	repo := entities.NewLocalAlertActivityRepository()
+	if err := repo.Log(orgID, fingerprint, action, actorUserID, actorName, silenceID, details); err != nil {
+		logger.Warn().Err(err).
+			Str("org_id", orgID).
+			Str("fingerprint", fingerprint).
+			Str("action", action).
+			Msg("failed to write alert activity (non-fatal)")
+	}
 }
 
 // DeleteSystemAlertSilence handles DELETE /api/systems/:id/alerts/silences/:silence_id
@@ -992,6 +1411,13 @@ func DeleteSystemAlertSilence(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete silence in mimir: "+err.Error(), nil))
 		return
 	}
+
+	// Resolve the fingerprint of the alert this silence was originally tied to
+	// so the unsilence event lands on the right timeline. If we can't find it
+	// (e.g. silence pre-dates activity tracking), skip the activity write.
+	activityRepo := entities.NewLocalAlertActivityRepository()
+	fingerprint, _ := activityRepo.FindFingerprintBySilenceID(orgID, silenceID)
+	logAlertActivity(c, orgID, fingerprint, entities.AlertActivityUnsilenced, user, silenceID, nil)
 
 	c.JSON(http.StatusOK, response.OK("silence disabled successfully", nil))
 }
@@ -1155,9 +1581,437 @@ func UpdateSystemAlertSilence(c *gin.Context) {
 		return
 	}
 
+	// Resolve fingerprint from the original silence creation event so the
+	// update lands on the right alert's timeline.
+	activityRepo := entities.NewLocalAlertActivityRepository()
+	fingerprint, _ := activityRepo.FindFingerprintBySilenceID(orgID, silenceID)
+	logAlertActivity(c, orgID, fingerprint, entities.AlertActivitySilenceUpdated, user, silenceResp.SilenceID, map[string]interface{}{
+		"comment": normalizeAlertSilenceComment(req.Comment),
+		"end_at":  req.EndAt,
+	})
+
 	c.JSON(http.StatusOK, response.OK("silence updated successfully", gin.H{
 		"silence_id": silenceResp.SilenceID,
 	}))
+}
+
+// systemKeyFromSilence returns the `system_key` matcher value of a silence,
+// or "" if the silence has no exact (non-regex) system_key matcher. The
+// cross-system silence endpoints use it to scope operations to silences that
+// were created against a specific system (the only ones our UI ever creates)
+// and to ignore generic Alertmanager silences that may exist for the tenant.
+func systemKeyFromSilence(s *models.AlertmanagerSilence) string {
+	if s == nil {
+		return ""
+	}
+	for _, m := range s.Matchers {
+		if m.Name == "system_key" && !m.IsRegex {
+			return m.Value
+		}
+	}
+	return ""
+}
+
+// resolveAlertSilenceContext looks up an active alert by fingerprint inside
+// a single tenant's Mimir and returns the alert plus the `system_key` label
+// the cross-system silence handler needs to attach as a matcher. Used by
+// POST /api/alerts/silences; not used by the per-system silence handlers
+// (those already know the system_key from the URL path).
+//
+// Returns (alert, systemKey, true) on success. On any failure the response
+// is already written and the caller must just return.
+func resolveAlertSilenceContext(c *gin.Context, orgID, fingerprint string) (*models.ActiveAlert, string, bool) {
+	body, err := alerting.GetAlerts(orgID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch alerts from mimir: "+err.Error(), nil))
+		return nil, "", false
+	}
+	var alerts []models.ActiveAlert
+	if err := json.Unmarshal(body, &alerts); err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to parse alerts from mimir: "+err.Error(), nil))
+		return nil, "", false
+	}
+	for i := range alerts {
+		if alerts[i].Fingerprint != fingerprint {
+			continue
+		}
+		systemKey := alerts[i].Labels["system_key"]
+		if systemKey == "" {
+			c.JSON(http.StatusBadRequest, response.BadRequest("alert is not system-scoped (missing system_key label)", nil))
+			return nil, "", false
+		}
+		return &alerts[i], systemKey, true
+	}
+	c.JSON(http.StatusNotFound, response.NotFound("alert not found", nil))
+	return nil, "", false
+}
+
+// CreateAlertSilence handles POST /api/alerts/silences
+// Cross-system mute: body is { fingerprint, end_at, comment, duration_minutes? }.
+// The tenant comes from ?organization_id= (mandatory for non-Owner) and the
+// system_key matcher is resolved from the alert's labels in Mimir. The actual
+// silence creation reuses the same buildSystemAlertSilenceRequest +
+// alerting.CreateSilence path used by the per-system endpoint, so the silence
+// object stored in Mimir is byte-identical regardless of which route created it.
+func CreateAlertSilence(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+	orgID, ok := resolveOrgID(c, user)
+	if !ok {
+		return
+	}
+	if !requireOrgID(c, orgID) {
+		return
+	}
+
+	var req models.CreateSystemAlertSilenceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
+		return
+	}
+	if !alertFingerprintPattern.MatchString(req.Fingerprint) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid fingerprint", nil))
+		return
+	}
+
+	alert, systemKey, ok := resolveAlertSilenceContext(c, orgID, req.Fingerprint)
+	if !ok {
+		return
+	}
+	if len(alert.Status.SilencedBy) > 0 {
+		c.JSON(http.StatusBadRequest, response.BadRequest("alert is already silenced", nil))
+		return
+	}
+
+	now := time.Now().UTC()
+	var endsAt time.Time
+	if req.EndAt != "" {
+		parsed, err := time.Parse(time.RFC3339, req.EndAt)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, response.BadRequest("invalid end_at: must be RFC3339 datetime", nil))
+			return
+		}
+		if !parsed.After(now) {
+			c.JSON(http.StatusBadRequest, response.BadRequest("invalid end_at: must be in the future", nil))
+			return
+		}
+		endsAt = parsed.UTC()
+	}
+
+	silenceReq := buildSystemAlertSilenceRequest(
+		alert,
+		systemKey,
+		getAlertSilenceCreatedBy(user),
+		req.Comment,
+		req.DurationMinutes,
+		now,
+		endsAt,
+	)
+
+	silenceResp, err := alerting.CreateSilence(orgID, silenceReq)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to create silence in mimir: "+err.Error(), nil))
+		return
+	}
+
+	logAlertActivity(c, orgID, req.Fingerprint, entities.AlertActivitySilenced, user, silenceResp.SilenceID, map[string]interface{}{
+		"comment":          normalizeAlertSilenceComment(req.Comment),
+		"duration_minutes": req.DurationMinutes,
+		"end_at":           req.EndAt,
+	})
+
+	c.JSON(http.StatusOK, response.OK("alert silenced successfully", gin.H{
+		"silence_id": silenceResp.SilenceID,
+	}))
+}
+
+// alertSilenceWithOrg is the per-row payload returned by GET /api/alerts/silences.
+// We extend AlertmanagerSilence with the originating organization_id (Mimir
+// stores silences per-tenant, so this isn't on the silence object itself) and
+// with the system_key extracted from the matchers, so the FE can render the
+// "muted on system X" pill without re-parsing matchers.
+type alertSilenceWithOrg struct {
+	models.AlertmanagerSilence
+	OrganizationID string `json:"organization_id"`
+	SystemKey      string `json:"system_key"`
+}
+
+// GetAlertSilences handles GET /api/alerts/silences
+// Cross-hierarchy list of active and pending silences. Scope follows the same
+// three modes as /api/alerts/totals (no organization_id / single tenant /
+// descendants). Only system-scoped silences (those with a `system_key` matcher)
+// are returned; generic Alertmanager silences are filtered out because they
+// don't belong to our domain model. Expired silences are also excluded.
+//
+// Per-tenant fan-out failures are non-fatal and surface in `warnings`.
+//
+// Optional filters: `system_key` (multi-value, exact match on matcher value).
+func GetAlertSilences(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+	orgIDs, ok := resolveOrgScope(c, user)
+	if !ok {
+		return
+	}
+
+	systemKeyFilter := c.QueryArray("system_key")
+
+	var (
+		out      []alertSilenceWithOrg
+		warnings []string
+		mu       sync.Mutex
+		wg       sync.WaitGroup
+	)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), alertsTotalsFanoutTimeout)
+	defer cancel()
+	sem := make(chan struct{}, alertsTotalsFanoutConcurrency)
+
+	for _, orgID := range orgIDs {
+		wg.Add(1)
+		go func(orgID string) {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				mu.Lock()
+				warnings = append(warnings, fmt.Sprintf("org %s: timed out waiting for slot", orgID))
+				mu.Unlock()
+				return
+			}
+
+			silences, err := alerting.GetSilences(orgID)
+			if err != nil {
+				logger.Warn().Err(err).Str("org_id", orgID).Msg("failed to fetch silences from mimir for cross-system list")
+				mu.Lock()
+				warnings = append(warnings, fmt.Sprintf("org %s: %s", orgID, err.Error()))
+				mu.Unlock()
+				return
+			}
+
+			local := make([]alertSilenceWithOrg, 0, len(silences))
+			for i := range silences {
+				if silences[i].Status != nil && silences[i].Status.State == "expired" {
+					continue
+				}
+				sk := systemKeyFromSilence(&silences[i])
+				if sk == "" {
+					continue
+				}
+				if len(systemKeyFilter) > 0 && !slices.Contains(systemKeyFilter, sk) {
+					continue
+				}
+				local = append(local, alertSilenceWithOrg{
+					AlertmanagerSilence: silences[i],
+					OrganizationID:      orgID,
+					SystemKey:           sk,
+				})
+			}
+
+			if len(local) == 0 {
+				return
+			}
+			mu.Lock()
+			out = append(out, local...)
+			mu.Unlock()
+		}(orgID)
+	}
+	wg.Wait()
+
+	if out == nil {
+		out = []alertSilenceWithOrg{}
+	}
+	if warnings == nil {
+		warnings = []string{}
+	}
+
+	c.JSON(http.StatusOK, response.OK("silences retrieved successfully", gin.H{
+		"silences": out,
+		"warnings": warnings,
+	}))
+}
+
+// GetAlertSilence handles GET /api/alerts/silences/:silence_id
+// Single-silence read across the caller's scope. The tenant is resolved from
+// ?organization_id= (mandatory for non-Owner). Refuses to return silences
+// that aren't system-scoped (no `system_key` matcher) — those don't belong to
+// our domain and a generic 404 keeps the surface tight.
+func GetAlertSilence(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+	orgID, ok := resolveOrgID(c, user)
+	if !ok {
+		return
+	}
+	if !requireOrgID(c, orgID) {
+		return
+	}
+	silenceID := c.Param("silence_id")
+	if silenceID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("silence id required", nil))
+		return
+	}
+
+	silence, err := alerting.GetSilence(orgID, silenceID)
+	if errors.Is(err, alerting.ErrSilenceNotFound) {
+		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch silence from mimir: "+err.Error(), nil))
+		return
+	}
+	systemKey := systemKeyFromSilence(silence)
+	if systemKey == "" {
+		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("silence retrieved successfully", gin.H{
+		"silence": alertSilenceWithOrg{
+			AlertmanagerSilence: *silence,
+			OrganizationID:      orgID,
+			SystemKey:           systemKey,
+		},
+	}))
+}
+
+// UpdateAlertSilence handles PUT /api/alerts/silences/:silence_id
+// Cross-system silence edit (change end time / comment). Mirrors
+// UpdateSystemAlertSilence but discovers system_key from the silence matchers
+// instead of taking it from the URL.
+func UpdateAlertSilence(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+	orgID, ok := resolveOrgID(c, user)
+	if !ok {
+		return
+	}
+	if !requireOrgID(c, orgID) {
+		return
+	}
+	silenceID := c.Param("silence_id")
+	if silenceID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("silence id required", nil))
+		return
+	}
+
+	var req models.UpdateSystemAlertSilenceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
+		return
+	}
+
+	now := time.Now().UTC()
+	endsAt, err := time.Parse(time.RFC3339, req.EndAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid end_at: must be RFC3339 datetime", nil))
+		return
+	}
+	if !endsAt.After(now) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid end_at: must be in the future", nil))
+		return
+	}
+
+	existing, err := alerting.GetSilence(orgID, silenceID)
+	if errors.Is(err, alerting.ErrSilenceNotFound) {
+		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch silence from mimir: "+err.Error(), nil))
+		return
+	}
+	if systemKeyFromSilence(existing) == "" {
+		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
+		return
+	}
+
+	updateReq := &models.AlertmanagerSilenceRequest{
+		ID:        existing.ID,
+		Matchers:  existing.Matchers,
+		StartsAt:  existing.StartsAt,
+		EndsAt:    endsAt.UTC().Format(time.RFC3339),
+		Comment:   normalizeAlertSilenceComment(req.Comment),
+		CreatedBy: existing.CreatedBy,
+	}
+
+	silenceResp, err := alerting.CreateSilence(orgID, updateReq)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to update silence in mimir: "+err.Error(), nil))
+		return
+	}
+
+	activityRepo := entities.NewLocalAlertActivityRepository()
+	fingerprint, _ := activityRepo.FindFingerprintBySilenceID(orgID, silenceID)
+	logAlertActivity(c, orgID, fingerprint, entities.AlertActivitySilenceUpdated, user, silenceResp.SilenceID, map[string]interface{}{
+		"comment": normalizeAlertSilenceComment(req.Comment),
+		"end_at":  req.EndAt,
+	})
+
+	c.JSON(http.StatusOK, response.OK("silence updated successfully", gin.H{
+		"silence_id": silenceResp.SilenceID,
+	}))
+}
+
+// DeleteAlertSilence handles DELETE /api/alerts/silences/:silence_id
+// Cross-system unmute. Same ownership rule as UpdateAlertSilence: only
+// silences carrying a `system_key` matcher are addressable through this
+// endpoint, so generic Alertmanager silences cannot be removed via the
+// public API.
+func DeleteAlertSilence(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+	orgID, ok := resolveOrgID(c, user)
+	if !ok {
+		return
+	}
+	if !requireOrgID(c, orgID) {
+		return
+	}
+	silenceID := c.Param("silence_id")
+	if silenceID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("silence id required", nil))
+		return
+	}
+
+	silence, err := alerting.GetSilence(orgID, silenceID)
+	if errors.Is(err, alerting.ErrSilenceNotFound) {
+		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch silence from mimir: "+err.Error(), nil))
+		return
+	}
+	if systemKeyFromSilence(silence) == "" {
+		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
+		return
+	}
+
+	if err := alerting.DeleteSilence(orgID, silenceID); errors.Is(err, alerting.ErrSilenceNotFound) {
+		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
+		return
+	} else if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete silence in mimir: "+err.Error(), nil))
+		return
+	}
+
+	activityRepo := entities.NewLocalAlertActivityRepository()
+	fingerprint, _ := activityRepo.FindFingerprintBySilenceID(orgID, silenceID)
+	logAlertActivity(c, orgID, fingerprint, entities.AlertActivityUnsilenced, user, silenceID, nil)
+
+	c.JSON(http.StatusOK, response.OK("silence disabled successfully", nil))
 }
 
 // GetSystemAlertHistory handles GET /api/systems/:id/alerts/history
@@ -1185,6 +2039,16 @@ func GetSystemAlertHistory(c *gin.Context) {
 	}
 
 	page, pageSize, sortBy, sortDirection := helpers.GetPaginationAndSortingFromQuery(c)
+	// Natural defaults for history are "by ingest time, most recent first".
+	// The shared helpers default sort_by to "" and sort_direction to asc,
+	// which (a) hide what the repo actually sorts on from the pagination
+	// response and (b) would surface the oldest events first.
+	if c.Query("sort_by") == "" {
+		sortBy = "created_at"
+	}
+	if c.Query("sort_direction") == "" {
+		sortDirection = "desc"
+	}
 
 	from, to, perr := parseDateRange(c)
 	if perr != nil {
@@ -1195,7 +2059,7 @@ func GetSystemAlertHistory(c *gin.Context) {
 	repo := entities.NewLocalAlertHistoryRepository()
 	records, totalCount, err := repo.QueryAlertHistory(entities.AlertHistoryQuery{
 		OrgIDs:        []string{system.Organization.LogtoID},
-		SystemKey:     system.SystemKey,
+		SystemKeys:    []string{system.SystemKey},
 		Alertnames:    c.QueryArray("alertname"),
 		Severities:    c.QueryArray("severity"),
 		Statuses:      c.QueryArray("status"),
@@ -1239,6 +2103,15 @@ func GetAlertsHistory(c *gin.Context) {
 	}
 
 	page, pageSize, sortBy, sortDirection := helpers.GetPaginationAndSortingFromQuery(c)
+	// See GetSystemAlertHistory for the rationale: default sort_by to
+	// created_at so the pagination response reflects what the repo actually
+	// sorts on, and flip the direction default to desc ("most recent first").
+	if c.Query("sort_by") == "" {
+		sortBy = "created_at"
+	}
+	if c.Query("sort_direction") == "" {
+		sortDirection = "desc"
+	}
 
 	from, to, perr := parseDateRange(c)
 	if perr != nil {
@@ -1249,6 +2122,7 @@ func GetAlertsHistory(c *gin.Context) {
 	repo := entities.NewLocalAlertHistoryRepository()
 	records, totalCount, err := repo.QueryAlertHistory(entities.AlertHistoryQuery{
 		OrgIDs:        orgIDs,
+		SystemKeys:    c.QueryArray("system_key"),
 		Alertnames:    c.QueryArray("alertname"),
 		Severities:    c.QueryArray("severity"),
 		Statuses:      c.QueryArray("status"),
@@ -1351,18 +2225,30 @@ func parseDateRange(c *gin.Context) (*time.Time, *time.Time, error) {
 	return from, to, nil
 }
 
-// validateWebhookReceivers enforces that every webhook URL is a plain http/https
+// validateWebhookRecipients enforces that every webhook URL is a plain http/https
 // URL pointing to a publicly-routable host. This protects Mimir's Alertmanager
 // (which dispatches alert payloads from inside the internal network) from being
 // abused as a blind SSRF relay to loopback, metadata, or private-range hosts.
-func validateWebhookReceivers(receivers []models.WebhookReceiver) error {
-	for _, r := range receivers {
+func validateWebhookRecipients(recipients []models.WebhookRecipient) error {
+	for _, r := range recipients {
 		if err := validateWebhookURL(r.URL); err != nil {
-			return fmt.Errorf("webhook receiver %q: %w", r.Name, err)
+			return fmt.Errorf("webhook recipient %q: %w", r.Name, err)
 		}
 	}
 	return nil
 }
+
+// fqdnPattern restricts webhook hostnames to the canonical RFC1035 form when
+// they aren't valid IP literals. Rejecting non-canonical forms (decimal IPs
+// like "2130706433", octal "0177.0.0.1", hex "0x7f.0.0.1") closes the door
+// on libc-dependent address parsing where some resolvers (notably glibc)
+// would interpret them as 127.0.0.1, while our denylist keys on string
+// prefixes that miss those encodings.
+var fqdnPattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*\.?$`)
+
+// cgnatRange is the carrier-grade NAT range (RFC6598). Not covered by
+// net.IP.IsPrivate() and a real bypass risk on cloud and ISP networks.
+var cgnatRange = &net.IPNet{IP: net.IPv4(100, 64, 0, 0).To4(), Mask: net.CIDRMask(10, 32)}
 
 func validateWebhookURL(raw string) error {
 	u, err := url.Parse(raw)
@@ -1388,31 +2274,55 @@ func validateWebhookURL(raw string) error {
 		}
 	}
 
-	// Reject IP literals pointing to private/loopback/link-local/multicast/unspecified.
-	// Also handles IPv6-mapped IPv4 (e.g. ::ffff:127.0.0.1) via ip.To4() unmasking.
-	if ip := net.ParseIP(host); ip != nil {
-		if err := rejectNonPublicIP(ip); err != nil {
-			return fmt.Errorf("webhook url host %q: %w", host, err)
+	// Strict input shape. Either:
+	//   1) a valid IP literal (v4 or v6), or
+	//   2) a canonical FQDN (RFC1035 — alpha-prefixed labels, optional trailing dot)
+	//      AND containing at least one alphabetic character.
+	// The "at least one letter" rule rejects all-digit hosts that some resolvers
+	// (notably macOS BSD libc) interpret as alternative IP encodings. Concrete
+	// case caught: "0177.0.0.1" — net.ParseIP returns nil, fqdnPattern matches,
+	// but BSD getaddrinfo strips the leading zero and resolves to "177.0.0.1"
+	// (a public IP unrelated to the user's intent of 127.0.0.1). Without the
+	// letter requirement, the URL would be saved with an unexpected destination.
+	parsedIP := net.ParseIP(host)
+	if parsedIP == nil {
+		if !fqdnPattern.MatchString(host) {
+			return fmt.Errorf("webhook url host %q is not a canonical hostname or IP literal", host)
+		}
+		if !strings.ContainsAny(host, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+			return fmt.Errorf("webhook url host %q must be either an IP literal or a hostname with at least one letter", host)
 		}
 	}
 
-	// DNS resolution: resolve the hostname and reject if ANY address is private.
-	// This mitigates DNS rebinding attacks where the hostname initially resolves
-	// to a public IP at validation time but later resolves to an internal IP when
-	// Alertmanager delivers the webhook.
-	if net.ParseIP(host) == nil {
-		addrs, err := net.LookupHost(host)
-		if err != nil {
-			return fmt.Errorf("webhook url host %q: dns resolution failed: %w", host, err)
+	// IP literal path: reject loopback / private / link-local / multicast /
+	// unspecified / CGNAT. Handles IPv6-mapped IPv4 via ip.To4() unmasking.
+	if parsedIP != nil {
+		if err := rejectNonPublicIP(parsedIP); err != nil {
+			return fmt.Errorf("webhook url host %q: %w", host, err)
 		}
-		for _, addr := range addrs {
-			ip := net.ParseIP(addr)
-			if ip == nil {
-				return fmt.Errorf("webhook url host %q resolved to unparseable address %q", host, addr)
-			}
-			if err := rejectNonPublicIP(ip); err != nil {
-				return fmt.Errorf("webhook url host %q resolved to non-public address %s: %w", host, addr, err)
-			}
+		return nil
+	}
+
+	// FQDN path: resolve and reject if ANY returned address is non-public.
+	// NOTE on DNS rebinding: this validation is point-in-time; Mimir's
+	// Alertmanager re-resolves the hostname when delivering the webhook.
+	// A short-TTL record can resolve to a public IP here and to a private
+	// one at delivery. Authoritative mitigation requires either pinning the
+	// resolved IP into the URL pushed to Mimir (breaks legitimate cloud-LB
+	// hosts whose IPs rotate) or running the egress through a proxy that
+	// re-validates per-request. Today we accept the residual risk and rely
+	// on Mimir-side network ACLs to backstop egress to private ranges.
+	addrs, err := net.LookupHost(host)
+	if err != nil {
+		return fmt.Errorf("webhook url host %q: dns resolution failed: %w", host, err)
+	}
+	for _, addr := range addrs {
+		ip := net.ParseIP(addr)
+		if ip == nil {
+			return fmt.Errorf("webhook url host %q resolved to unparseable address %q", host, addr)
+		}
+		if err := rejectNonPublicIP(ip); err != nil {
+			return fmt.Errorf("webhook url host %q resolved to non-public address %s: %w", host, addr, err)
 		}
 	}
 
@@ -1420,8 +2330,8 @@ func validateWebhookURL(raw string) error {
 }
 
 // rejectNonPublicIP returns an error if the IP is loopback, private, link-local,
-// multicast, or unspecified. For IPv6-mapped IPv4 addresses (::ffff:A.B.C.D),
-// the underlying IPv4 is checked.
+// multicast, unspecified, or in the carrier-grade NAT range (RFC6598). For
+// IPv6-mapped IPv4 addresses (::ffff:A.B.C.D), the underlying IPv4 is checked.
 func rejectNonPublicIP(ip net.IP) error {
 	// Unmask IPv6-mapped IPv4 so checks work on the real address.
 	if v4 := ip.To4(); v4 != nil {
@@ -1431,6 +2341,10 @@ func rejectNonPublicIP(ip net.IP) error {
 		ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast() ||
 		ip.IsMulticast() || ip.IsUnspecified() {
 		return fmt.Errorf("address is not publicly routable")
+	}
+	// IsPrivate covers RFC1918 only — not CGNAT (100.64.0.0/10).
+	if v4 := ip.To4(); v4 != nil && cgnatRange.Contains(v4) {
+		return fmt.Errorf("address is in the carrier-grade NAT range (100.64.0.0/10)")
 	}
 	return nil
 }

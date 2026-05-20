@@ -269,25 +269,42 @@ func main() {
 		}
 
 		// ===========================================
-		// ALERTS - resource-based permission validation (read:systems for GET, manage:systems for POST/DELETE)
+		// ALERTS - operations on `systems` RBAC; config policy on `alerts` resource
 		// ===========================================
 		alertsGroup := customAuthWithAudit.Group("/alerts", middleware.RequireResourcePermission("systems"))
 		{
-			// Lists: active (Mimir live) and resolved (DB history). Both honor
-			// the same scope rules (hierarchy / single / descendants) and the
-			// same multi-value label filters.
+			// Lists: active (Mimir live) + resolved (DB history); same scope rules + label filters
 			alertsGroup.GET("", methods.GetAlerts)                // List active alerts (cross-hierarchy paginated)
 			alertsGroup.GET("/history", methods.GetAlertsHistory) // List resolved alerts from DB (paginated, date range + filters)
 
-			// Aggregations: counts, trend over time, top-N + MTTR/MTBF.
+			// Aggregations: counts, trend over time, top-N + MTTR/MTBF
 			alertsGroup.GET("/totals", methods.GetAlertsTotals) // Alert counts by severity + history total
 			alertsGroup.GET("/trend", methods.GetAlertsTrend)   // Alert history trend with daily data points
 			alertsGroup.GET("/stats", methods.GetAlertsStats)   // Aggregate stats: severity buckets, top-N alertname/system_key, MTTR/MTBF
 
-			// Configuration management
-			alertsGroup.GET("/config", methods.GetAlertingConfig) // Get current alerting configuration
-			alertsGroup.POST("/config", methods.ConfigureAlerts)  // Configure alert routing (manage:systems required)
-			alertsGroup.DELETE("/config", methods.DisableAlerts)  // Disable all alerts (manage:systems required)
+			// Per-alert audit timeline; "activity" literal before the param to avoid colliding with /silences/{silence_id}
+			alertsGroup.GET("/activity/:fingerprint", methods.GetAlertActivity)
+
+			// Cross-system silences; mirrors /systems/:id/alerts/silences*, ?organization_id= for per-id ops, RBAC on `systems`
+			alertsGroup.GET("/silences", methods.GetAlertSilences)                  // List active+pending silences across the caller's hierarchy
+			alertsGroup.POST("/silences", methods.CreateAlertSilence)               // Mute an alert (body: { fingerprint, end_at, comment, duration_minutes? })
+			alertsGroup.GET("/silences/:silence_id", methods.GetAlertSilence)       // Get a single silence (requires ?organization_id=)
+			alertsGroup.PUT("/silences/:silence_id", methods.UpdateAlertSilence)    // Update a silence's end time / comment (requires ?organization_id=)
+			alertsGroup.DELETE("/silences/:silence_id", methods.DeleteAlertSilence) // Unmute (requires ?organization_id=)
+
+			// Caller's own layer (read/manage:alerts); body capped at 1 MiB
+			configGroup := alertsGroup.Group("/config",
+				middleware.RequireResourcePermission("alerts"),
+				middleware.MaxBodySize(1<<20),
+			)
+			{
+				configGroup.GET("", methods.GetAlertingConfig) // Caller's own layer (no inherited / merged view leaks to descendants)
+				configGroup.POST("", methods.ConfigureAlerts)  // Save caller's layer + propagate to descendants (manage:alerts required)
+				configGroup.DELETE("", methods.DisableAlerts)  // Remove caller's layer + propagate to descendants (manage:alerts required)
+			}
+
+			// Merged effective config + Mimir YAML for any tenant; config:alerts (owner-only super), secrets redacted
+			alertsGroup.GET("/config/effective", middleware.RequirePermission("config:alerts"), methods.GetEffectiveAlertingConfig)
 		}
 
 		// ===========================================
@@ -311,6 +328,12 @@ func main() {
 			usersFiltersGroup := filtersGroup.Group("/users", middleware.RequireResourcePermission("users"))
 			{
 				usersFiltersGroup.GET("", methods.GetUserFilters) // Aggregated filters: roles, organizations
+			}
+
+			// Alerts filters (read:systems required, mirrors the alerts views)
+			alertsFiltersGroup := filtersGroup.Group("/alerts", middleware.RequireResourcePermission("systems"))
+			{
+				alertsFiltersGroup.GET("", methods.GetAlertFilters) // Aggregated filters: systems, alerts, severities, organizations
 			}
 		}
 

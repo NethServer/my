@@ -17,17 +17,21 @@ La funzionalità di Alerting fornisce una vista centralizzata di tutti gli allar
 Dalla pagina Alerting puoi:
 
 - Visualizzare gli allarmi attivi filtrati per stato, severità o sistema specifico
-- Configurare notifiche email, webhook e Telegram per ogni organizzazione
-- Definire regole di notifica personalizzate per severità e per sistema
+- Configurare notifiche email, webhook e Telegram per la tua organizzazione
+- Marcare ogni destinatario con le severità da ricevere (`critical`, `warning`, `info`, oppure tutte)
+- Scegliere lingua e formato del corpo email per ogni destinatario
 - Consultare lo storico degli allarmi di ciascun sistema
 
 ## Accesso
 
-La pagina Alerting è accessibile dal menu laterale alla voce **Alerting**. L'accesso richiede il permesso `read:systems` per visualizzare gli allarmi e `manage:systems` per modificare la configurazione.
+La pagina Alerting è accessibile dal menu laterale alla voce **Alerting**. I due tab hanno permessi diversi:
+
+- Tab **Allarmi** — richiede `read:systems` (admin, support, reader). Per creare o rimuovere silences serve `manage:systems`.
+- Tab **Configurazione alerting** — richiede `read:alerts` (solo admin/super); `manage:alerts` per salvare o rimuovere una configurazione.
 
 ## Selezione organizzazione
 
-Poiché l'alerting si configura per organizzazione, la pagina include un selettore in alto. Scegli l'organizzazione cliente di cui vuoi gestire allarmi e configurazione. Il selettore elenca solo le organizzazioni non-owner disponibili nella tua gerarchia.
+Il selettore in cima al tab **Allarmi** è usato dall'Owner per filtrare la lista degli allarmi per tenant. Il tab **Configurazione alerting** invece opera **sempre** sulla propria organizzazione — non mostra mai la configurazione di un'altra organizzazione, indipendentemente dal valore del selettore.
 
 ## Allarmi attivi
 
@@ -67,126 +71,122 @@ Clicca **Reset filtri** per rimuovere tutti i filtri attivi, oppure **Aggiorna**
 
 ## Configurazione alerting
 
-Il tab **Configurazione** ti permette di definire come vengono instradati gli allarmi ai destinatari. La configurazione viene pushata ad Alertmanager e persiste finché non la cambi.
+Il tab **Configurazione alerting** ti permette di definire chi viene notificato quando un allarme scatta nella tua organizzazione. Quello che salvi qui è il tuo **layer** — il server lo unisce ai layer di tutte le organizzazioni sopra di te nella gerarchia (Owner → Distributor → Reseller → Customer) e pusha la YAML Alertmanager risultante a Mimir.
 
-### Visualizzare la configurazione
+### Cosa vedi tu vs. cosa vede Mimir
 
-La configurazione viene mostrata in due modalità:
+Quello che vedi in questo tab è sempre **e solo** il tuo layer. Non vedi mai i layer delle organizzazioni sopra di te, e le organizzazioni sotto di te non vedono mai il tuo. La configurazione effettiva mergiata viene calcolata server-side al momento del render e non lascia mai il backend; non oltrepassa mai il confine del tenant.
 
-- **Vista strutturata**: sezioni organizzate che mostrano le impostazioni mail e webhook correnti, le override per severità e per sistema in formato leggibile
-- **Vista YAML raw**: la configurazione Alertmanager completa in YAML, con i campi sensibili (credenziali SMTP, token webhook) automaticamente offuscati. Clicca **Copia YAML** per copiare l'intera configurazione negli appunti.
+Questo isolamento è intenzionale: confina URL dei webhook, token Telegram e indirizzi email destinatari all'organizzazione che li ha digitati.
 
-Se non esiste ancora alcuna configurazione, la pagina mostra un messaggio "Nessuna configurazione trovata" con un pulsante **Modifica configurazione** per creare l'impostazione iniziale.
+### Contratto additivo
 
-### Campi di configurazione
+I layer sono additivi. Un discendente può **aggiungere** destinatari su quanto configurato dall'antenato, ma non può rimuovere o disabilitare canali che un antenato ha abilitato. Per esempio:
 
-La configurazione viene modificata come oggetto JSON con i seguenti campi:
+- L'Owner abilita `email` globalmente e aggiunge `noc@msp.example` → ogni tenant sotto eredita entrambi.
+- Un Reseller può aggiungere `noc@reseller.example` sopra — ora entrambi gli indirizzi ricevono gli allarmi che li riguardano.
+- Lo stesso Reseller **non può** spegnere `email` per il proprio sottoalbero. Solo l'Owner può disabilitare globalmente un canale; per i ruoli non-Owner, un `false` esplicito su un toggle viene normalizzato a `null` ("nessuna opinione") al salvataggio.
 
-#### Impostazioni globali
+### Forma della configurazione
 
-| Campo | Tipo | Descrizione |
-|-------|------|-------------|
-| `mail_enabled` | boolean | Abilita o disabilita le notifiche email globalmente |
-| `mail_addresses` | string[] | Lista di indirizzi email che ricevono tutti gli allarmi |
-| `webhook_enabled` | boolean | Abilita o disabilita le notifiche webhook globalmente |
-| `webhook_receivers` | object[] | Lista di endpoint webhook, ciascuno con `name` e `url` |
-| `telegram_enabled` | boolean | Abilita o disabilita le notifiche Telegram globalmente |
-| `telegram_receivers` | object[] | Lista di receiver Telegram, ciascuno con `bot_token` e `chat_id` |
-| `email_template_lang` | string | Lingua dei template email: `en` o `it` (default: `en`) |
-
-#### Override per severità
-
-Il campo `severities` ti permette di personalizzare il comportamento delle notifiche per ciascun livello di severità. Utile quando vuoi che gli allarmi critici raggiungano destinatari diversi rispetto a quelli informativi.
-
-Ogni override include:
-
-- `severity`: uno tra `critical`, `warning`, `info`
-- `mail_enabled` (opzionale): override dell'impostazione email globale per questa severità
-- `webhook_enabled` (opzionale): override dell'impostazione webhook globale
-- `telegram_enabled` (opzionale): override dell'impostazione Telegram globale
-- `mail_addresses` (opzionale): lista di indirizzi email per questa severità
-- `webhook_receivers` (opzionale): lista di webhook receiver per questa severità
-- `telegram_receivers` (opzionale): lista di receiver Telegram per questa severità
-
-Se la lista degli indirizzi di un override è vuota, vengono usati gli indirizzi globali come fallback.
-
-#### Override per sistema
-
-Il campo `systems` ti permette di personalizzare il comportamento per sistemi specifici. Utile quando sistemi diversi devono notificare team diversi.
-
-Ogni override include:
-
-- `system_key`: l'identificatore del sistema target
-- `mail_enabled` (opzionale): override per questo sistema
-- `webhook_enabled` (opzionale): override per questo sistema
-- `telegram_enabled` (opzionale): override per questo sistema
-- `mail_addresses` (opzionale): destinatari aggiuntivi per gli allarmi di questo sistema
-- `webhook_receivers` (opzionale): webhook aggiuntivi per gli allarmi di questo sistema
-- `telegram_receivers` (opzionale): receiver Telegram aggiuntivi per gli allarmi di questo sistema
-
-### Priorità delle override
-
-Quando si instrada un allarme, la priorità è:
-
-1. **Override per sistema** (la più specifica)
-2. **Override per severità**
-3. **Impostazioni globali** (fallback)
-
-### Esempio di configurazione
+Il layer è un oggetto JSON flat con tre toggle di canale e tre liste di destinatari:
 
 ```json
 {
-  "mail_enabled": true,
-  "webhook_enabled": false,
-  "telegram_enabled": true,
-  "mail_addresses": ["ops@example.com"],
-  "webhook_receivers": [],
-  "telegram_receivers": [
-    { "bot_token": "123456789:ABCDEFabcdef...", "chat_id": -1001234567890 }
+  "enabled": { "email": true, "webhook": null, "telegram": null },
+  "email_recipients": [
+    { "address": "noc@org.example", "severities": ["critical","warning"], "language": "it", "format": "html" }
   ],
-  "email_template_lang": "it",
-  "severities": [
-    {
-      "severity": "critical",
-      "mail_addresses": ["oncall@example.com", "ops@example.com"]
-    },
-    {
-      "severity": "info",
-      "mail_enabled": false,
-      "telegram_enabled": false
-    }
+  "webhook_recipients": [
+    { "name": "ops-slack", "url": "https://hooks.slack.com/services/T000/B000/XXX", "severities": ["critical"] }
   ],
-  "systems": [
-    {
-      "system_key": "NETH-ABCD-1234",
-      "mail_addresses": ["platform-team@example.com"]
-    }
+  "telegram_recipients": [
+    { "bot_token": "123456789:ABCDEFabcdef...", "chat_id": -1001234567890, "severities": [] }
   ]
 }
 ```
 
-In questo esempio:
+#### Toggle dei canali (`enabled`)
 
-- Tutti gli allarmi warning vanno a `ops@example.com` e alla chat Telegram configurata
-- Gli allarmi critical vanno sia a `oncall@example.com` che a `ops@example.com`
-- Gli allarmi info sono soppressi (email e Telegram disabilitati)
-- Gli allarmi dal sistema `NETH-ABCD-1234` vanno anche a `platform-team@example.com`
-- I template email vengono renderizzati in italiano
+Ogni canale è tri-stato:
 
-### Modificare la configurazione
+| Valore | Significato |
+|--------|-------------|
+| `true` | Canale abilitato a questo layer |
+| `false` | Canale disabilitato a questo layer (solo Owner; per i non-Owner `false` viene normalizzato a `null` al salvataggio) |
+| `null` | Nessuna opinione a questo layer; lo stato effettivo eredita da un eventuale antenato che ha preso posizione. Se nessun layer abilita il canale, resta off. |
 
-1. Clicca **Modifica configurazione** nella vista strutturata
-2. Modifica il JSON nell'editor
-3. Clicca **Salva configurazione** — il JSON non valido viene rifiutato con un errore di validazione
-4. Al successo, la vista si aggiorna e appare una notifica di conferma
+#### Destinatari email (`email_recipients`)
 
-Per annullare senza salvare, clicca **Annulla**.
+| Campo | Tipo | Descrizione |
+|-------|------|-------------|
+| `address` | string | Indirizzo email che riceve la notifica |
+| `severities` | string[] | Sottoinsieme di `["critical","warning","info"]`. Array vuoto = "tutte le severità" |
+| `language` | string | `en` o `it`. Determina lingua del subject e del body del template renderizzato |
+| `format` | string | `html` (default, multipart HTML primario + text fallback) o `plain` (body solo testo) |
 
-### Disabilitare tutti gli allarmi
+#### Destinatari webhook (`webhook_recipients`)
 
-In fondo alla pagina di configurazione trovi l'azione **Disabilita tutti gli allarmi**. Questa sostituisce la configurazione corrente con un routing "blackhole" che silenzia tutte le notifiche per l'organizzazione, senza perdere permanentemente la configurazione precedente — puoi ricrearla modificando di nuovo la configurazione.
+| Campo | Tipo | Descrizione |
+|-------|------|-------------|
+| `name` | string | Etichetta descrittiva del target (mostrata nella UI) |
+| `url` | string | Endpoint HTTPS/HTTP. Validato lato server: loopback, RFC1918, RFC6598 CGNAT, link-local, multicast e metadata cloud sono rifiutati |
+| `severities` | string[] | Stessa semantica delle email |
 
-Cliccando appare un passaggio di conferma prima dell'esecuzione.
+#### Destinatari Telegram (`telegram_recipients`)
+
+| Campo | Tipo | Descrizione |
+|-------|------|-------------|
+| `bot_token` | string | Token ottenuto da `@BotFather` |
+| `chat_id` | integer | Id numerico della chat (positivo per utenti, negativo per gruppi/canali) |
+| `severities` | string[] | Stessa semantica delle email |
+
+### Scope per severità
+
+L'array `severities` di ciascun destinatario controlla quali severità riceve:
+
+- **Vuoto (`[]`)** — il destinatario riceve **ogni** severità. È il default per un indirizzo "catch-all".
+- **Sottoinsieme (es. `["critical"]`)** — il destinatario riceve **solo** quelle severità.
+
+Mimir Alertmanager espande un receiver per severità (`severity-critical-receiver`, `severity-warning-receiver`, `severity-info-receiver`); un destinatario con `severities=[]` finisce in tutti e tre.
+
+### Merge nella gerarchia
+
+Quando il server renderizza la configurazione effettiva per un tenant, percorre la catena da Owner fino al tenant e unisce i layer con queste regole:
+
+- **Toggle dei canali** — OR logico: se un qualunque layer della catena abilita un canale, il canale è on per il tenant.
+- **Destinatari** — union con dedup stabile. Chiavi di dedup: `address` per email, `url` per webhook, `(bot_token, chat_id)` per Telegram. In caso di collisione di `language` o `format`, vince la prima occorrenza (più vicina all'Owner).
+- **`severities` per destinatario** — union; se una qualunque copia che contribuisce ha `severities=[]` (tutte), la copia mergiata si allarga a `[]` (lo scope più largo vince sempre).
+
+### Esempio: layer di livello customer che aggiunge notifiche
+
+Supponi che l'Owner abbia già abilitato l'email con `noc@msp.example` per tutte le severità. Un Customer aggiunge questo layer per la propria organizzazione:
+
+```json
+{
+  "enabled": { "email": null, "webhook": null, "telegram": null },
+  "email_recipients": [
+    { "address": "oncall@customer.example", "severities": ["critical"], "language": "en", "format": "plain" },
+    { "address": "manager@customer.example", "severities": [], "language": "it", "format": "html" }
+  ],
+  "webhook_recipients": [],
+  "telegram_recipients": [
+    { "bot_token": "123456789:ABCDEFabcdef...", "chat_id": -1001234567890, "severities": ["critical","warning"] }
+  ]
+}
+```
+
+Cosa consegna Mimir per questo customer:
+
+- `oncall@customer.example` riceve **solo** gli allarmi critical come email in inglese plain text.
+- `manager@customer.example` riceve **tutti** gli allarmi come email HTML in italiano.
+- `noc@msp.example` dell'Owner continua a ricevere tutti gli allarmi (ereditato).
+- La chat Telegram riceve gli allarmi **critical e warning** (il toggle `telegram` dell'Owner non era on, quindi questi `telegram_recipients` non scattano finché un antenato non abilita il canale Telegram — solo l'Owner può abilitare globalmente un canale).
+
+### Salvare e rimuovere un layer
+
+- **Salva configurazione** persiste il tuo layer e triggera un re-render + push a Mimir per ogni tenant della tua gerarchia. La response riporta `affected_tenants` e `propagated_to`; eventuali fallimenti per tenant compaiono come warning senza rollback del salvataggio (Mimir può essere riconciliato salvando di nuovo).
+- **Rimuovi questa configurazione** cancella il tuo layer per intero. Il tuo contributo sparisce dalla config mergiata; i layer degli antenati (Owner / Distributor / Reseller) restano intatti e continuano a scattare. Per silenziare completamente un tenant, ogni layer della sua catena deve eliminare il proprio contributo.
 
 ## Allarmi a livello di sistema
 
@@ -212,11 +212,11 @@ Quando le notifiche email sono abilitate, gli allarmi vengono consegnati da Aler
 
 - Il nome e la severità dell'allarme
 - La system key e l'eventuale label service
-- Riepilogo e descrizione localizzati (in base al `email_template_lang` configurato)
+- Riepilogo e descrizione localizzati (nella lingua scelta per ciascun destinatario)
 - Il timestamp di firing o risoluzione
 - Un pulsante **Visualizza sistema** che linka direttamente alla pagina di dettaglio del sistema
 
-I template sono disponibili in **inglese** e **italiano**, selezionati tramite il campo `email_template_lang`.
+I template sono disponibili in **inglese** e **italiano**. La lingua viene scelta **per destinatario** tramite il campo `language` di ogni voce in `email_recipients[]` — destinatari diversi della stessa organizzazione possono ricevere rendering in lingue diverse. Allo stesso modo, ogni destinatario sceglie il proprio `format`: `html` per un corpo multipart con HTML primario, `plain` per un corpo solo testo (utile per sistemi di ticketing o bridge mail-to-chat).
 
 ## Notifiche Telegram
 
@@ -255,28 +255,30 @@ Il `chat_id` è l'identificatore numerico della destinazione (un utente privato,
 2. Invia un messaggio nel gruppo in modo che Alertmanager abbia qualcosa da leggere
 3. Chiama `getUpdates` come sopra — il `chat_id` per gruppi e canali è un numero **negativo** (es. `-1001234567890`). Eventualmente, potresti trovare il `chat_id` anche nell'URL della conversazione con il bot, nel formato `https://web.telegram.org/z/#-<CHAT_ID>` (nota il segno negativo per gruppi/canali)
 
-### Passaggio 3 — Configura il JSON di alerting
+### Passaggio 3 — Aggiungi il destinatario Telegram al tuo layer
 
-Aggiungi `telegram_enabled` e `telegram_receivers` alla configurazione di alerting. Ogni voce in `telegram_receivers` richiede:
+Aggiungi una voce a `telegram_recipients`; abilitare il canale con `enabled.telegram = true` è necessario solo a livello Owner (il canale si propaga additivamente verso il basso).
 
 | Campo | Tipo | Descrizione |
 |-------|------|-------------|
 | `bot_token` | string | Il token fornito da BotFather |
 | `chat_id` | integer | L'ID numerico della chat Telegram (positivo per utenti, negativo per gruppi/canali) |
+| `severities` | string[] | Sottoinsieme di `["critical","warning","info"]`. Array vuoto = tutte le severità |
 
-Esempio:
+Esempio (layer Owner che abilita Telegram per tutto l'albero):
 
 ```json
 {
-  "mail_enabled": false,
-  "telegram_enabled": true,
-  "telegram_receivers": [
-    { "bot_token": "123456789:ABCDEFabcdef...", "chat_id": -1001234567890 }
+  "enabled": { "email": null, "webhook": null, "telegram": true },
+  "email_recipients": [],
+  "webhook_recipients": [],
+  "telegram_recipients": [
+    { "bot_token": "123456789:ABCDEFabcdef...", "chat_id": -1001234567890, "severities": [] }
   ]
 }
 ```
 
-È possibile definire più receiver per inviare gli allarmi a più bot o chat contemporaneamente.
+È possibile definire più destinatari per inviare gli allarmi a più bot o chat contemporaneamente. I messaggi Telegram sono attualmente sempre renderizzati in inglese.
 
 ## Argomenti correlati
 

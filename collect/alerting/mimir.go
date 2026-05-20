@@ -37,6 +37,7 @@ type SystemAlertMetadata struct {
 	OrganizationID   string
 	SystemKey        string
 	SystemName       string
+	SystemType       string
 	SystemFQDN       string
 	SystemIPv4       string
 	OrganizationName string
@@ -56,6 +57,7 @@ type SystemAlertContext struct {
 func LookupSystemAlertContext(ctx context.Context, db *sql.DB, systemID string) (*SystemAlertContext, error) {
 	var (
 		metadata         SystemAlertMetadata
+		systemType       sql.NullString
 		systemFQDN       sql.NullString
 		systemIPv4       sql.NullString
 		organizationName sql.NullString
@@ -68,6 +70,7 @@ func LookupSystemAlertContext(ctx context.Context, db *sql.DB, systemID string) 
 		       s.organization_id,
 		       s.system_key,
 		       s.name,
+		       s.type,
 		       s.fqdn,
 		       s.ipv4_address::text,
 		       COALESCE(d.name, r.name, c.name),
@@ -88,6 +91,7 @@ func LookupSystemAlertContext(ctx context.Context, db *sql.DB, systemID string) 
 		&metadata.OrganizationID,
 		&metadata.SystemKey,
 		&metadata.SystemName,
+		&systemType,
 		&systemFQDN,
 		&systemIPv4,
 		&organizationName,
@@ -98,6 +102,7 @@ func LookupSystemAlertContext(ctx context.Context, db *sql.DB, systemID string) 
 		return nil, err
 	}
 
+	metadata.SystemType = nullStringValue(systemType)
 	metadata.SystemFQDN = nullStringValue(systemFQDN)
 	metadata.SystemIPv4 = nullStringValue(systemIPv4)
 	metadata.OrganizationName = nullStringValue(organizationName)
@@ -116,8 +121,10 @@ func BuildSystemAlertContext(metadata SystemAlertMetadata) *SystemAlertContext {
 		"system_id":         metadata.SystemID,
 		"system_key":        metadata.SystemKey,
 		"system_name":       metadata.SystemName,
+		"system_type":       metadata.SystemType,
 		"system_fqdn":       metadata.SystemFQDN,
 		"system_ipv4":       metadata.SystemIPv4,
+		"organization_id":   metadata.OrganizationID,
 		"organization_name": metadata.OrganizationName,
 		"organization_vat":  metadata.OrganizationVAT,
 		"organization_type": metadata.OrganizationType,
