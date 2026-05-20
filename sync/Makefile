@@ -17,7 +17,7 @@ all: clean test build
 
 # Build the binary
 .PHONY: build
-build:
+build: sync-templates
 	@echo "Building $(BINARY_NAME)..."
 	@mkdir -p $(BUILD_DIR)
 	@CGO_ENABLED=0 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./$(CMD_DIR)
@@ -25,7 +25,7 @@ build:
 
 # Build for multiple platforms
 .PHONY: build-all
-build-all: clean
+build-all: clean sync-templates
 	@echo "Building for multiple platforms..."
 	@mkdir -p $(BUILD_DIR)
 	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./$(CMD_DIR)
@@ -89,14 +89,14 @@ install: build
 
 # Run the application
 .PHONY: run
-run:
+run: sync-templates
 	@go run ./$(CMD_DIR) $(filter-out $@,$(MAKECMDGOALS))
 %:
 	@:
 
 # Run the application with QA environment
 .PHONY: run-qa
-run-qa:
+run-qa: sync-templates
 	@go run ./$(CMD_DIR) --env-file .env.qa --config configs/config.qa.yml $(filter-out $@,$(MAKECMDGOALS))
 
 
