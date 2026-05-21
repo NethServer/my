@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 
 	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/helpers"
@@ -251,6 +252,29 @@ func ConfigureAlerts(c *gin.Context) {
 			c.JSON(http.StatusRequestEntityTooLarge, response.Error(http.StatusRequestEntityTooLarge, "request body exceeds the configured maximum", nil))
 			return
 		}
+		// Translate go-playground/validator errors into the standard
+		// validation_error envelope (type/key/message/value) so the UI can
+		// render per-field messages instead of a stringly-typed blob.
+		if _, ok := err.(validator.ValidationErrors); ok {
+			c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", buildAlertingValidationErrors(err.(validator.ValidationErrors))))
+			return
+		}
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
+		return
+	}
+
+	// Defense-in-depth: run the model's stateless Validate before the
+	// network-aware webhook checks so we surface any structural issue
+	// (severities, language, format, email shape) that slipped past
+	// binding tags as a structured 400 instead of a generic 500 from
+	// the entity layer's backstop call.
+	if err := req.Validate(); err != nil {
+		if fieldErr := asAlertingFieldError(err); fieldErr != nil {
+			c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+				{Key: fieldErr.Key, Message: fieldErr.Code, Value: fieldErr.Value},
+			}))
+			return
+		}
 		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
@@ -260,6 +284,12 @@ func ConfigureAlerts(c *gin.Context) {
 	// covers format/structure for everything else (email format, severity
 	// enum, language, format).
 	if err := validateWebhookRecipients(req.WebhookRecipients); err != nil {
+		if fieldErr := asAlertingFieldError(err); fieldErr != nil {
+			c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+				{Key: fieldErr.Key, Message: fieldErr.Code, Value: fieldErr.Value},
+			}))
+			return
+		}
 		c.JSON(http.StatusBadRequest, response.BadRequest(err.Error(), nil))
 		return
 	}
@@ -291,6 +321,16 @@ func ConfigureAlerts(c *gin.Context) {
 		updatedBy = *user.LogtoID
 	}
 	if _, err := layerRepo.Upsert(user.OrganizationID, req, updatedBy, user.Name); err != nil {
+		// The entity layer calls cfg.Validate() as a backstop. If something
+		// here trips it (shouldn't, given req.Validate() already ran above),
+		// still surface a 400 with the structured envelope rather than 500.
+		if fieldErr := asAlertingFieldError(err); fieldErr != nil {
+			logger.Warn().Err(err).Str("org_id", user.OrganizationID).Msg("entity-layer validation backstop tripped")
+			c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+				{Key: fieldErr.Key, Message: fieldErr.Code, Value: fieldErr.Value},
+			}))
+			return
+		}
 		logger.Error().Err(err).Str("org_id", user.OrganizationID).Msg("failed to save alert config layer")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to save alert config: "+err.Error(), nil))
 		return
@@ -1130,6 +1170,31 @@ func normalizeAlertSilenceComment(comment string) string {
 	return comment
 }
 
+// parseFutureEndAt parses an RFC3339 end_at and asserts it is in the future.
+// Returns (endsAtUTC, true) on success. On failure it writes a structured
+// validation_error response and returns (zero, false); the caller must just
+// return. An empty endAt is treated as "not set" (success with zero time) so
+// create paths can fall back to duration_minutes.
+func parseFutureEndAt(c *gin.Context, endAt string, now time.Time) (time.Time, bool) {
+	if endAt == "" {
+		return time.Time{}, true
+	}
+	parsed, err := time.Parse(time.RFC3339, endAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+			{Key: "end_at", Message: "invalid_format", Value: endAt},
+		}))
+		return time.Time{}, false
+	}
+	if !parsed.After(now) {
+		c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+			{Key: "end_at", Message: "must_be_future", Value: endAt},
+		}))
+		return time.Time{}, false
+	}
+	return parsed.UTC(), true
+}
+
 func getAlertSilenceCreatedBy(user *models.User) string {
 	if user == nil {
 		return "my"
@@ -1343,6 +1408,10 @@ func CreateSystemAlertSilence(c *gin.Context) {
 
 	var req models.CreateSystemAlertSilenceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		if _, ok := err.(validator.ValidationErrors); ok {
+			c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+			return
+		}
 		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
@@ -1370,18 +1439,9 @@ func CreateSystemAlertSilence(c *gin.Context) {
 	}
 
 	now := time.Now().UTC()
-	var endsAt time.Time
-	if req.EndAt != "" {
-		parsed, err := time.Parse(time.RFC3339, req.EndAt)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, response.BadRequest("invalid end_at: must be RFC3339 datetime", nil))
-			return
-		}
-		if !parsed.After(now) {
-			c.JSON(http.StatusBadRequest, response.BadRequest("invalid end_at: must be in the future", nil))
-			return
-		}
-		endsAt = parsed.UTC()
+	endsAt, ok := parseFutureEndAt(c, req.EndAt, now)
+	if !ok {
+		return
 	}
 
 	silenceReq := buildSystemAlertSilenceRequest(
@@ -1618,18 +1678,17 @@ func UpdateSystemAlertSilence(c *gin.Context) {
 
 	var req models.UpdateSystemAlertSilenceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		if _, ok := err.(validator.ValidationErrors); ok {
+			c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+			return
+		}
 		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
 
 	now := time.Now().UTC()
-	endsAt, err := time.Parse(time.RFC3339, req.EndAt)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, response.BadRequest("invalid end_at: must be RFC3339 datetime", nil))
-		return
-	}
-	if !endsAt.After(now) {
-		c.JSON(http.StatusBadRequest, response.BadRequest("invalid end_at: must be in the future", nil))
+	endsAt, ok := parseFutureEndAt(c, req.EndAt, now)
+	if !ok {
 		return
 	}
 
@@ -1750,11 +1809,17 @@ func CreateAlertSilence(c *gin.Context) {
 
 	var req models.CreateSystemAlertSilenceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		if _, ok := err.(validator.ValidationErrors); ok {
+			c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+			return
+		}
 		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
 	if !alertFingerprintPattern.MatchString(req.Fingerprint) {
-		c.JSON(http.StatusBadRequest, response.BadRequest("invalid fingerprint", nil))
+		c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+			{Key: "fingerprint", Message: "invalid_format", Value: req.Fingerprint},
+		}))
 		return
 	}
 
@@ -1768,18 +1833,9 @@ func CreateAlertSilence(c *gin.Context) {
 	}
 
 	now := time.Now().UTC()
-	var endsAt time.Time
-	if req.EndAt != "" {
-		parsed, err := time.Parse(time.RFC3339, req.EndAt)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, response.BadRequest("invalid end_at: must be RFC3339 datetime", nil))
-			return
-		}
-		if !parsed.After(now) {
-			c.JSON(http.StatusBadRequest, response.BadRequest("invalid end_at: must be in the future", nil))
-			return
-		}
-		endsAt = parsed.UTC()
+	endsAt, ok := parseFutureEndAt(c, req.EndAt, now)
+	if !ok {
+		return
 	}
 
 	silenceReq := buildSystemAlertSilenceRequest(
@@ -1988,18 +2044,17 @@ func UpdateAlertSilence(c *gin.Context) {
 
 	var req models.UpdateSystemAlertSilenceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		if _, ok := err.(validator.ValidationErrors); ok {
+			c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+			return
+		}
 		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
 
 	now := time.Now().UTC()
-	endsAt, err := time.Parse(time.RFC3339, req.EndAt)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, response.BadRequest("invalid end_at: must be RFC3339 datetime", nil))
-		return
-	}
-	if !endsAt.After(now) {
-		c.JSON(http.StatusBadRequest, response.BadRequest("invalid end_at: must be in the future", nil))
+	endsAt, ok := parseFutureEndAt(c, req.EndAt, now)
+	if !ok {
 		return
 	}
 
@@ -2307,14 +2362,142 @@ func parseDateRange(c *gin.Context) (*time.Time, *time.Time, error) {
 	return from, to, nil
 }
 
+// asAlertingFieldError extracts a *models.AlertingFieldError from any error
+// in the chain. Returns nil when the error is not a structured validation
+// failure (so the caller can fall back to a generic 4xx/5xx response).
+func asAlertingFieldError(err error) *models.AlertingFieldError {
+	var fe *models.AlertingFieldError
+	if errors.As(err, &fe) {
+		return fe
+	}
+	return nil
+}
+
+// buildAlertingValidationErrors converts go-playground/validator errors into
+// the standard ValidationError slice, preserving the full JSON path (e.g.
+// `email_recipients.0.address`) so the UI can pin the failure to the exact
+// input. Falls back to snake_case'd field name when the path can't be parsed.
+func buildAlertingValidationErrors(verrs validator.ValidationErrors) []response.ValidationError {
+	out := make([]response.ValidationError, 0, len(verrs))
+	for _, ve := range verrs {
+		key := alertingJSONPath(ve.Namespace())
+		value := ""
+		if v := ve.Value(); v != nil {
+			value = fmt.Sprintf("%v", v)
+		}
+		out = append(out, response.ValidationError{
+			Key:     key,
+			Message: alertingValidatorTagToCode(ve.Tag()),
+			Value:   value,
+		})
+	}
+	return out
+}
+
+// alertingJSONPath turns a validator namespace like
+// "AlertingConfigLayer.EmailRecipients[0].Address" into the JSON path
+// "email_recipients.0.address". The first segment (the struct name) is
+// dropped; array indices in brackets become dotted segments.
+func alertingJSONPath(ns string) string {
+	parts := strings.Split(ns, ".")
+	if len(parts) == 0 {
+		return ns
+	}
+	parts = parts[1:] // drop root struct name
+	for i, p := range parts {
+		// Split "EmailRecipients[0]" → "email_recipients.0"
+		if idx := strings.Index(p, "["); idx >= 0 && strings.HasSuffix(p, "]") {
+			field := alertingFieldToJSON(p[:idx])
+			arrIdx := p[idx+1 : len(p)-1]
+			parts[i] = field + "." + arrIdx
+		} else {
+			parts[i] = alertingFieldToJSON(p)
+		}
+	}
+	return strings.Join(parts, ".")
+}
+
+// alertingFieldToJSON maps a PascalCase Go field name to the snake_case JSON
+// name used in models.AlertingConfigLayer and its nested types. Covers every
+// field on the layer surface; unknown names fall back to a generic snake_case
+// conversion so future additions don't silently produce a wrong key.
+func alertingFieldToJSON(field string) string {
+	switch field {
+	case "EmailRecipients":
+		return "email_recipients"
+	case "WebhookRecipients":
+		return "webhook_recipients"
+	case "TelegramRecipients":
+		return "telegram_recipients"
+	case "Address":
+		return "address"
+	case "Severities":
+		return "severities"
+	case "Language":
+		return "language"
+	case "Format":
+		return "format"
+	case "Name":
+		return "name"
+	case "URL":
+		return "url"
+	case "BotToken":
+		return "bot_token"
+	case "ChatID":
+		return "chat_id"
+	case "Enabled":
+		return "enabled"
+	case "Email":
+		return "email"
+	case "Webhook":
+		return "webhook"
+	case "Telegram":
+		return "telegram"
+	}
+	var b strings.Builder
+	for i, r := range field {
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			b.WriteRune('_')
+		}
+		if r >= 'A' && r <= 'Z' {
+			r = r + ('a' - 'A')
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// alertingValidatorTagToCode maps go-playground/validator tag names to the
+// stable codes the UI consumes. "email" / "url" become "invalid_format" so
+// the UI doesn't have to know the underlying validator; "oneof" becomes
+// "invalid_value". Everything else (required, max, min, len, ...) passes
+// through as-is to match what `ValidationBadRequestMultiple` produces for
+// the rest of the backend.
+func alertingValidatorTagToCode(tag string) string {
+	switch tag {
+	case "email", "url":
+		return "invalid_format"
+	case "oneof":
+		return "invalid_value"
+	}
+	return tag
+}
+
 // validateWebhookRecipients enforces that every webhook URL is a plain http/https
 // URL pointing to a publicly-routable host. This protects Mimir's Alertmanager
 // (which dispatches alert payloads from inside the internal network) from being
 // abused as a blind SSRF relay to loopback, metadata, or private-range hosts.
+//
+// On failure returns a *models.AlertingFieldError pinned to
+// `webhook_recipients.<i>.url` so the handler can surface a structured 400.
 func validateWebhookRecipients(recipients []models.WebhookRecipient) error {
-	for _, r := range recipients {
-		if err := validateWebhookURL(r.URL); err != nil {
-			return fmt.Errorf("webhook recipient %q: %w", r.Name, err)
+	for i, r := range recipients {
+		if code, err := validateWebhookURL(r.URL); err != nil {
+			return &models.AlertingFieldError{
+				Key:   fmt.Sprintf("webhook_recipients.%d.url", i),
+				Code:  code,
+				Value: r.URL,
+			}
 		}
 	}
 	return nil
@@ -2332,27 +2515,31 @@ var fqdnPattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9
 // net.IP.IsPrivate() and a real bypass risk on cloud and ISP networks.
 var cgnatRange = &net.IPNet{IP: net.IPv4(100, 64, 0, 0).To4(), Mask: net.CIDRMask(10, 32)}
 
-func validateWebhookURL(raw string) error {
+// validateWebhookURL returns (code, error). On success both are zero. On
+// failure code is a stable machine token for the UI ("invalid_format",
+// "invalid_scheme", "host_not_allowed", ...) and error preserves the human
+// message for logs and tests.
+func validateWebhookURL(raw string) (string, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
-		return fmt.Errorf("invalid webhook url: %w", err)
+		return "invalid_format", fmt.Errorf("invalid webhook url: %w", err)
 	}
 	scheme := strings.ToLower(u.Scheme)
 	if scheme != "http" && scheme != "https" {
-		return fmt.Errorf("webhook url must use http or https, got %q", u.Scheme)
+		return "invalid_scheme", fmt.Errorf("webhook url must use http or https, got %q", u.Scheme)
 	}
 	if u.User != nil {
-		return fmt.Errorf("webhook url must not contain credentials")
+		return "credentials_not_allowed", fmt.Errorf("webhook url must not contain credentials")
 	}
 	host := u.Hostname()
 	if host == "" {
-		return fmt.Errorf("webhook url is missing a host")
+		return "missing_host", fmt.Errorf("webhook url is missing a host")
 	}
 
 	hostLower := strings.ToLower(host)
 	for _, prefix := range webhookHostDenylist {
 		if hostLower == strings.TrimSuffix(prefix, ".") || strings.HasPrefix(hostLower, prefix) {
-			return fmt.Errorf("webhook url host %q is not allowed (loopback, metadata, or private network)", host)
+			return "host_not_allowed", fmt.Errorf("webhook url host %q is not allowed (loopback, metadata, or private network)", host)
 		}
 	}
 
@@ -2369,10 +2556,10 @@ func validateWebhookURL(raw string) error {
 	parsedIP := net.ParseIP(host)
 	if parsedIP == nil {
 		if !fqdnPattern.MatchString(host) {
-			return fmt.Errorf("webhook url host %q is not a canonical hostname or IP literal", host)
+			return "invalid_host_format", fmt.Errorf("webhook url host %q is not a canonical hostname or IP literal", host)
 		}
 		if !strings.ContainsAny(host, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") {
-			return fmt.Errorf("webhook url host %q must be either an IP literal or a hostname with at least one letter", host)
+			return "invalid_host_format", fmt.Errorf("webhook url host %q must be either an IP literal or a hostname with at least one letter", host)
 		}
 	}
 
@@ -2380,9 +2567,9 @@ func validateWebhookURL(raw string) error {
 	// unspecified / CGNAT. Handles IPv6-mapped IPv4 via ip.To4() unmasking.
 	if parsedIP != nil {
 		if err := rejectNonPublicIP(parsedIP); err != nil {
-			return fmt.Errorf("webhook url host %q: %w", host, err)
+			return "host_not_publicly_routable", fmt.Errorf("webhook url host %q: %w", host, err)
 		}
-		return nil
+		return "", nil
 	}
 
 	// FQDN path: resolve and reject if ANY returned address is non-public.
@@ -2396,19 +2583,19 @@ func validateWebhookURL(raw string) error {
 	// on Mimir-side network ACLs to backstop egress to private ranges.
 	addrs, err := net.LookupHost(host)
 	if err != nil {
-		return fmt.Errorf("webhook url host %q: dns resolution failed: %w", host, err)
+		return "dns_resolution_failed", fmt.Errorf("webhook url host %q: dns resolution failed: %w", host, err)
 	}
 	for _, addr := range addrs {
 		ip := net.ParseIP(addr)
 		if ip == nil {
-			return fmt.Errorf("webhook url host %q resolved to unparseable address %q", host, addr)
+			return "host_not_publicly_routable", fmt.Errorf("webhook url host %q resolved to unparseable address %q", host, addr)
 		}
 		if err := rejectNonPublicIP(ip); err != nil {
-			return fmt.Errorf("webhook url host %q resolved to non-public address %s: %w", host, addr, err)
+			return "host_not_publicly_routable", fmt.Errorf("webhook url host %q resolved to non-public address %s: %w", host, addr, err)
 		}
 	}
 
-	return nil
+	return "", nil
 }
 
 // rejectNonPublicIP returns an error if the IP is loopback, private, link-local,

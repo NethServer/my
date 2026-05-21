@@ -3144,6 +3144,74 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
 
+    SilenceValidationFailed:
+      description: |
+        Validation failed. `data.type` is always `validation_error`.
+        `data.errors[]` lists per-field failures with stable `message`
+        codes the UI consumes for i18n: `required` (missing field),
+        `invalid_format` (bad fingerprint regex or non-RFC3339 end_at),
+        `must_be_future` (end_at in the past), `max` / `min` (out of
+        range duration_minutes).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            MissingFingerprint:
+              summary: fingerprint is required on create
+              value:
+                code: 400
+                message: "validation failed"
+                data:
+                  type: "validation_error"
+                  errors:
+                    - key: "fingerprint"
+                      message: "required"
+            InvalidFingerprint:
+              summary: fingerprint format rejected by the server-side regex
+              value:
+                code: 400
+                message: "validation failed"
+                data:
+                  type: "validation_error"
+                  errors:
+                    - key: "fingerprint"
+                      message: "invalid_format"
+                      value: "bad!fingerprint"
+            InvalidEndAtFormat:
+              summary: end_at is not RFC3339
+              value:
+                code: 400
+                message: "validation failed"
+                data:
+                  type: "validation_error"
+                  errors:
+                    - key: "end_at"
+                      message: "invalid_format"
+                      value: "not-a-date"
+            EndAtInThePast:
+              summary: end_at must be in the future
+              value:
+                code: 400
+                message: "validation failed"
+                data:
+                  type: "validation_error"
+                  errors:
+                    - key: "end_at"
+                      message: "must_be_future"
+                      value: "2020-01-01T00:00:00Z"
+            DurationOutOfRange:
+              summary: duration_minutes outside the allowed range
+              value:
+                code: 400
+                message: "validation failed"
+                data:
+                  type: "validation_error"
+                  errors:
+                    - key: "duration_minutes"
+                      message: "max"
+                      value: "999999"
+
     Unauthorized:
       description: Unauthorized - invalid or missing token
       content:
@@ -9934,7 +10002,62 @@ paths:
                         items:
                           type: string
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: |
+            Validation failed. `data.type` is always `validation_error`.
+            `data.errors[]` lists per-field failures with `key` set to the
+            JSON path (with dotted array indices, e.g.
+            `email_recipients.2.address`), `message` to a stable machine
+            code (`required`, `invalid_format`, `invalid_value`,
+            `invalid_scheme`, `host_not_allowed`, `must_be_future`, ...)
+            and `value` to the offending input when not sensitive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                InvalidEmail:
+                  summary: Bad email format in a nested recipient
+                  value:
+                    code: 400
+                    message: "validation failed"
+                    data:
+                      type: "validation_error"
+                      errors:
+                        - key: "email_recipients.2.address"
+                          message: "invalid_format"
+                          value: "wwwwwww"
+                InvalidWebhookScheme:
+                  summary: Webhook URL without an http(s) scheme
+                  value:
+                    code: 400
+                    message: "validation failed"
+                    data:
+                      type: "validation_error"
+                      errors:
+                        - key: "webhook_recipients.0.url"
+                          message: "invalid_scheme"
+                          value: "asdf"
+                MissingRequired:
+                  summary: Missing required field
+                  value:
+                    code: 400
+                    message: "validation failed"
+                    data:
+                      type: "validation_error"
+                      errors:
+                        - key: "webhook_recipients.0.name"
+                          message: "required"
+                InvalidSeverity:
+                  summary: Severity not in the allowed enum
+                  value:
+                    code: 400
+                    message: "validation failed"
+                    data:
+                      type: "validation_error"
+                      errors:
+                        - key: "email_recipients.0.severities.0"
+                          message: "invalid_value"
+                          value: "fatal"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -10417,7 +10540,7 @@ paths:
                     data:
                       silence_id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
         '400':
-          $ref: '#/components/responses/BadRequest'
+          $ref: '#/components/responses/SilenceValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -10609,7 +10732,7 @@ paths:
                     data:
                       silence_id: "f1e1c2a4-7e57-4b1a-aaa0-2b96c8b5a3aa"
         '400':
-          $ref: '#/components/responses/BadRequest'
+          $ref: '#/components/responses/SilenceValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -11255,7 +11378,7 @@ paths:
                     data:
                       silence_id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
         '400':
-          $ref: '#/components/responses/BadRequest'
+          $ref: '#/components/responses/SilenceValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -11425,7 +11548,7 @@ paths:
                     data:
                       silence_id: "f1e1c2a4-7e57-4b1a-aaa0-2b96c8b5a3aa"
         '400':
-          $ref: '#/components/responses/BadRequest'
+          $ref: '#/components/responses/SilenceValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
