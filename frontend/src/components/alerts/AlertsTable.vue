@@ -6,6 +6,7 @@
 <script setup lang="ts">
 import {
   faArrowsRotate,
+  faBell,
   faBellSlash,
   faCircleCheck,
   faEye,
@@ -29,22 +30,32 @@ import {
   NeTableRow,
   NeTooltip,
   type FilterOption,
-  type NeBadgeV2Kind,
   type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAlerts } from '@/queries/alerts/alerts'
-import { getAlertSummary, type Alert } from '@/lib/alerts'
+import {
+  deleteAlertSilence,
+  getAlertSilenceIds,
+  getAlertSummary,
+  getSeverityBadgeKind,
+  isAlertSilenced,
+  type Alert,
+} from '@/lib/alerts'
+import { useNotificationsStore } from '@/stores/notifications'
 import { formatDateTime, formatTimeAgo } from '@/lib/dateTime'
-import { canManageAlerts, canManageSystems } from '@/lib/permissions'
+import { canManageSystems } from '@/lib/permissions'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import SystemLogo from '@/components/systems/SystemLogo.vue'
 import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
 import OrganizationLink from '@/components/applications/OrganizationLink.vue'
 import MuteAlertDrawer from '@/components/alerts/MuteAlertDrawer.vue'
+import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
+import capitalize from 'lodash/capitalize'
 
 const { t, locale } = useI18n()
+const notificationsStore = useNotificationsStore()
 
 const {
   state,
@@ -80,9 +91,9 @@ const noEmptyStateShown = computed(
 // ── Filter options ─────────────────────────────────────────────────────────────
 
 const severityFilterOptions: FilterOption[] = [
-  { id: 'critical', label: t('alerts.severity_high') },
-  { id: 'warning', label: t('alerts.severity_medium') },
-  { id: 'info', label: t('alerts.severity_low') },
+  { id: 'critical', label: 'Critical' },
+  { id: 'warning', label: 'Warning' },
+  { id: 'info', label: 'Info' },
 ]
 
 const alertNameFilterOptions = computed<FilterOption[]>(() => {
@@ -109,21 +120,6 @@ const sortDescending = computed({
   },
 })
 
-// ── Severity badge ─────────────────────────────────────────────────────────────
-
-function getSeverityBadgeKind(severity?: string): NeBadgeV2Kind {
-  switch (severity?.toLowerCase()) {
-    case 'critical':
-      return 'rose'
-    case 'warning':
-      return 'amber'
-    case 'info':
-      return 'blue'
-    default:
-      return 'gray'
-  }
-}
-
 // ── Mute alert drawer ────────────────────────────────────────────────────────────
 
 const selectedAlert = ref<Alert | undefined>(undefined)
@@ -134,15 +130,66 @@ function showMuteDrawer(alert: Alert) {
   isMuteDrawerShown.value = true
 }
 
+// ── Unmute alert ────────────────────────────────────────────────────────────
+
+const unmuteError = ref<string | null>(null)
+
+async function handleUnmuteAlert(alert: Alert) {
+  unmuteError.value = null
+  try {
+    const silenceIds = getAlertSilenceIds(alert)
+    if (!silenceIds.length) return
+
+    const organizationId = alert.labels?.organization_id
+
+    // Delete all silences for this alert
+    for (const silenceId of silenceIds) {
+      await deleteAlertSilence(silenceId, organizationId)
+    }
+
+    // Show success notification with delay (per frontend conventions)
+    setTimeout(() => {
+      notificationsStore.createNotification({
+        kind: 'success',
+        title: t('alerts.alert_unmuted_successfully'),
+      })
+    }, 500)
+
+    // Refetch alerts to reflect changes
+    refetch()
+  } catch (error) {
+    console.error('Error unmuting alert:', error)
+    unmuteError.value = t('alerts.cannot_unmute_alert')
+  }
+}
+
+// ── Alert details drawer ──────────────────────────────────────────────────────
+
+const detailsDrawerAlert = ref<Alert | undefined>(undefined)
+const isDetailsDrawerShown = ref(false)
+
+function showDetailsDrawer(alert: Alert) {
+  detailsDrawerAlert.value = alert
+  isDetailsDrawerShown.value = true
+}
 function getKebabMenuItems(alert: Alert): NeDropdownItem[] {
   const items: NeDropdownItem[] = []
   if (canManageSystems()) {
-    items.push({
-      id: 'muteAlert',
-      label: t('alerts.mute_alert'),
-      icon: faBellSlash,
-      action: () => showMuteDrawer(alert),
-    })
+    if (isAlertSilenced(alert)) {
+      items.push({
+        id: 'unmuteAlert',
+        label: t('alerts.unmute_alert'),
+        icon: faBell,
+        action: () => handleUnmuteAlert(alert),
+      })
+    } else {
+      items.push({
+        id: 'muteAlert',
+        label: t('alerts.mute_alert'),
+        icon: faBellSlash,
+        action: () => showMuteDrawer(alert),
+      })
+    }
   }
   return items
 }
@@ -156,12 +203,21 @@ function handleReload() {
 
 <template>
   <div>
-    <!-- Error notification -->
+    <!-- Error notification: data load -->
     <NeInlineNotification
       v-if="state.status === 'error'"
       kind="error"
       :title="$t('alerts.cannot_retrieve_alerts')"
       class="mb-6"
+    />
+
+    <!-- Error notification: unmute -->
+    <NeInlineNotification
+      v-if="unmuteError"
+      kind="error"
+      :title="unmuteError"
+      class="mb-6"
+      @close="unmuteError = null"
     />
 
     <!-- Toolbar -->
@@ -257,10 +313,6 @@ function handleReload() {
             </template>
             {{ t('alerts.reload_alerts') }}
           </NeButton>
-          <!-- Create silence button -->
-          <NeButton v-if="canManageAlerts()" kind="primary" size="md" @click="() => {}">
-            {{ t('alerts.create_silence') }}
-          </NeButton>
         </div>
       </div>
     </div>
@@ -293,7 +345,7 @@ function handleReload() {
       :sort-key="sortBy"
       :sort-descending="sortDirection === 'desc'"
       :aria-label="$t('alerts.title')"
-      card-breakpoint="xl"
+      card-breakpoint="2xl"
       :loading="state.status === 'pending'"
       :skeleton-columns="5"
       :skeleton-rows="7"
@@ -313,19 +365,25 @@ function handleReload() {
           <!-- Severity -->
           <NeTableCell :data-label="$t('alerts.severity')">
             <NeBadgeV2 :kind="getSeverityBadgeKind(alert.labels?.severity)">
-              {{ t(`alerts.severity_${alert.labels?.severity}`) }}
+              {{ capitalize(alert.labels?.severity) }}
             </NeBadgeV2>
           </NeTableCell>
           <!-- Alert -->
           <NeTableCell :data-label="$t('alerts.alertname')">
-            <div>
-              <p class="font-medium">{{ alert.labels?.alertname || '-' }}</p>
-              <p
-                v-if="getAlertSummary(alert, locale)"
-                class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5"
-              >
-                {{ getAlertSummary(alert, locale) }}
-              </p>
+            <div class="flex items-start gap-2">
+              <div>
+                <p class="font-medium">{{ alert.labels?.alertname || '-' }}</p>
+                <p
+                  v-if="getAlertSummary(alert, locale)"
+                  class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5 break-all"
+                >
+                  {{ getAlertSummary(alert, locale) }}
+                </p>
+              </div>
+              <NeBadgeV2 v-if="alert.status.state === 'suppressed'" kind="gray">
+                <FontAwesomeIcon :icon="faBellSlash" class="size-4" />
+                {{ t('alerts.muted') }}
+              </NeBadgeV2>
             </div>
           </NeTableCell>
           <!-- System -->
@@ -373,15 +431,17 @@ function handleReload() {
           </NeTableCell>
           <!-- Started at -->
           <NeTableCell :data-label="$t('alerts.started')">
-            <p>{{ formatTimeAgo(alert.startsAt, $t) }}</p>
-            <p class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5">
-              {{ formatDateTime(new Date(alert.startsAt), locale) }}
-            </p>
+            <div>
+              <p>{{ formatTimeAgo(alert.startsAt, $t) }}</p>
+              <p class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5">
+                {{ formatDateTime(new Date(alert.startsAt), locale) }}
+              </p>
+            </div>
           </NeTableCell>
           <!-- Actions -->
           <NeTableCell :data-label="$t('common.actions')">
-            <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
-              <NeButton kind="tertiary" size="sm" @click="() => {}">
+            <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
+              <NeButton kind="tertiary" size="sm" @click="() => showDetailsDrawer(alert)">
                 <template #prefix>
                   <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
                 </template>
@@ -420,6 +480,13 @@ function handleReload() {
       :is-shown="isMuteDrawerShown"
       :alert="selectedAlert"
       @close="isMuteDrawerShown = false"
+    />
+
+    <!-- Alert details drawer -->
+    <AlertDetailsDrawer
+      :is-shown="isDetailsDrawerShown"
+      :alert="detailsDrawerAlert"
+      @close="isDetailsDrawerShown = false"
     />
   </div>
 </template>

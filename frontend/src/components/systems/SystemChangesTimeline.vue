@@ -45,6 +45,7 @@ import {
   faCodeCompare,
 } from '@fortawesome/free-solid-svg-icons'
 import { useThemeStore } from '@/stores/theme'
+import capitalize from 'lodash/capitalize'
 
 const { t, locale } = useI18n()
 const themeStore = useThemeStore()
@@ -95,7 +96,7 @@ watch(
 const severityFilterOptions = computed<FilterOption[]>(() =>
   (['critical', 'high', 'medium', 'low'] as const)
     .filter((s) => (inventoryChangesState.value.data?.changes_by_severity?.[s] ?? 0) > 0)
-    .map((s) => ({ id: s, label: t(`system_detail.severity_${s}`) })),
+    .map((s) => ({ id: s, label: capitalize(s) })),
 )
 
 const categoryFilterOptions = computed<FilterOption[]>(() => [
@@ -298,10 +299,6 @@ function getSeverityCustomKindClasses(severity: InventoryDiffSeverity): string |
   if (severity === 'medium')
     return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-700 dark:text-yellow-100'
   return undefined
-}
-
-function getSeverityLabel(severity: InventoryDiffSeverity): string {
-  return t(`system_detail.severity_${severity}`)
 }
 
 function getCategoryLabel(category: InventoryDiffCategory): string {
@@ -611,7 +608,7 @@ const diffTypeFilterModel = computed<string[]>({
                         :custom-kind-classes="getSeverityCustomKindClasses(diff.severity)"
                         class="mr-2 min-w-[80px] justify-center"
                       >
-                        {{ getSeverityLabel(diff.severity) }}
+                        {{ capitalize(diff.severity) }}
                       </NeBadgeV2>
                       <!-- Field path -->
                       <span

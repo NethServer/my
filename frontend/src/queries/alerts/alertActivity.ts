@@ -4,24 +4,30 @@
 import { getAlertActivity, ALERT_ACTIVITY_KEY } from '@/lib/alerts'
 import { useLoginStore } from '@/stores/login'
 import { useQuery } from '@pinia/colada'
-import { ref } from 'vue'
+import { ref, toValue, type MaybeRefOrGetter } from 'vue'
 
-export const useAlertActivity = (fingerprint: string | undefined) => {
+export const useAlertActivity = (
+  fingerprint: MaybeRefOrGetter<string | undefined>,
+  organizationId: MaybeRefOrGetter<string | undefined>,
+) => {
   const loginStore = useLoginStore()
-  const pageNum = ref(1)
-  const pageSize = ref(50)
+  const limit = ref(100)
 
   const { state, asyncStatus, ...rest } = useQuery({
-    key: () => [ALERT_ACTIVITY_KEY, fingerprint as string, pageNum.value, pageSize.value],
-    enabled: () => !!loginStore.jwtToken && !!fingerprint,
-    query: () => getAlertActivity(fingerprint!, pageNum.value, pageSize.value),
+    key: () => [
+      ALERT_ACTIVITY_KEY,
+      toValue(fingerprint) ?? '',
+      toValue(organizationId) ?? '',
+      limit.value,
+    ],
+    enabled: () => !!loginStore.jwtToken && !!toValue(fingerprint) && !!toValue(organizationId),
+    query: () => getAlertActivity(toValue(fingerprint)!, toValue(organizationId)!, limit.value),
   })
 
   return {
     ...rest,
     state,
     asyncStatus,
-    pageNum,
-    pageSize,
+    limit,
   }
 }

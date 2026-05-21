@@ -10,10 +10,16 @@ export const useAlertsHistory = defineQuery(() => {
   const loginStore = useLoginStore()
   const organizationIds = ref<string[]>([])
   const pageNum = ref(1)
-  const pageSize = ref(50)
-  const sortBy = ref('starts_at')
+  const pageSize = ref(20)
+  const sortBy = ref('created_at')
   const sortDirection = ref<'asc' | 'desc'>('desc')
   const includeDescendants = ref(false)
+  const fromDate = ref<string | undefined>(undefined)
+  const toDate = ref<string | undefined>(undefined)
+  const systemKeyFilters = ref<string[]>([])
+  const alertnameFilters = ref<string[]>([])
+  const severityFilters = ref<string[]>([])
+  const statusFilters = ref<string[]>([])
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
@@ -24,6 +30,12 @@ export const useAlertsHistory = defineQuery(() => {
       sortBy.value,
       sortDirection.value,
       includeDescendants.value,
+      fromDate.value ?? '',
+      toDate.value ?? '',
+      systemKeyFilters.value.join(','),
+      alertnameFilters.value.join(','),
+      severityFilters.value.join(','),
+      statusFilters.value.join(','),
     ],
     enabled: () => !!loginStore.jwtToken,
     query: () =>
@@ -34,6 +46,12 @@ export const useAlertsHistory = defineQuery(() => {
         sortBy.value,
         sortDirection.value,
         includeDescendants.value ? 'descendants' : undefined,
+        fromDate.value,
+        toDate.value,
+        systemKeyFilters.value.length > 0 ? systemKeyFilters.value : undefined,
+        alertnameFilters.value.length > 0 ? alertnameFilters.value : undefined,
+        severityFilters.value.length > 0 ? severityFilters.value : undefined,
+        statusFilters.value.length > 0 ? statusFilters.value : undefined,
       ),
   })
 
@@ -47,5 +65,11 @@ export const useAlertsHistory = defineQuery(() => {
     sortBy,
     sortDirection,
     includeDescendants,
+    fromDate,
+    toDate,
+    systemKeyFilters,
+    alertnameFilters,
+    severityFilters,
+    statusFilters,
   }
 })

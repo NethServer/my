@@ -5,6 +5,8 @@ import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import { type Pagination } from './common'
+import type { NeBadgeV2Kind } from '@nethesis/vue-components/components/NeBadgeV2.vue.js'
+import * as v from 'valibot'
 
 export const ALERTS_CONFIG_KEY = 'alertsConfig'
 export const ALERTS_ALERTS_KEY = 'alertsAlerts'
@@ -53,6 +55,58 @@ export interface AlertingConfigLayer {
   telegram_recipients: TelegramRecipient[]
 }
 
+// ── Valibot schemas ───────────────────────────────────────────────────────────
+
+const SeveritySchema = v.picklist(['critical', 'warning', 'info'])
+
+export const EmailRecipientPayloadSchema = v.object({
+  address: v.pipe(
+    v.string(),
+    v.nonEmpty('alerts.email_address_required'),
+    v.email('alerts.email_address_invalid_format'),
+    v.maxLength(320, 'alerts.email_address_invalid_format'),
+  ),
+  severities: v.optional(v.array(SeveritySchema)),
+  language: v.optional(v.picklist(['en', 'it'])),
+  format: v.optional(v.picklist(['html', 'plain'])),
+})
+
+export const WebhookRecipientPayloadSchema = v.object({
+  url: v.pipe(
+    v.string(),
+    v.nonEmpty('alerts.webhook_url_required'),
+    v.url('alerts.webhook_url_invalid'),
+    v.maxLength(2048, 'alerts.webhook_url_invalid'),
+  ),
+  name: v.optional(v.string()),
+  severities: v.optional(v.array(SeveritySchema)),
+})
+
+export const TelegramRecipientPayloadSchema = v.object({
+  bot_token: v.pipe(
+    v.string(),
+    v.nonEmpty('alerts.telegram_bot_token_required'),
+    v.maxLength(256, 'alerts.telegram_bot_token_required'),
+  ),
+  chat_id: v.pipe(
+    v.number(),
+    v.check((n) => n !== 0, 'alerts.telegram_chat_id_required'),
+  ),
+  severities: v.optional(v.array(SeveritySchema)),
+})
+
+export const EmailNotificationsPayloadSchema = v.object({
+  email_recipients: v.array(EmailRecipientPayloadSchema),
+})
+
+export const WebhookNotificationsPayloadSchema = v.object({
+  webhook_recipients: v.array(WebhookRecipientPayloadSchema),
+})
+
+export const TelegramNotificationsPayloadSchema = v.object({
+  telegram_recipients: v.array(TelegramRecipientPayloadSchema),
+})
+
 export type AlertState = 'active' | 'suppressed' | 'unprocessed'
 
 export interface AlertStatus {
@@ -85,6 +139,8 @@ export interface AlertmanagerMatcher {
 
 export interface AlertmanagerSilence {
   id: string
+  organization_id?: string
+  system_key?: string
   matchers: AlertmanagerMatcher[]
   startsAt: string
   endsAt: string
@@ -234,6 +290,7 @@ interface SystemAlertSilencesResponse {
   message: string
   data: {
     silences: AlertmanagerSilence[]
+    warnings?: string[]
   }
 }
 
@@ -297,7 +354,13 @@ export const getAlertsTrend = (
     .then((res) => res.data.data)
 }
 
-export const getAlertsStats = (organizationIds?: string | string[], include?: 'descendants') => {
+export const getAlertsStats = (
+  organizationIds?: string | string[],
+  include?: 'descendants',
+  fromDate?: string,
+  toDate?: string,
+  top?: number,
+) => {
   const loginStore = useLoginStore()
   const params = new URLSearchParams()
 
@@ -308,6 +371,15 @@ export const getAlertsStats = (organizationIds?: string | string[], include?: 'd
 
   if (include === 'descendants') {
     params.append('include', 'descendants')
+  }
+  if (fromDate) {
+    params.append('from_date', fromDate)
+  }
+  if (toDate) {
+    params.append('to_date', toDate)
+  }
+  if (top !== undefined) {
+    params.append('top', Math.min(top, 50).toString())
   }
 
   return axios
@@ -320,10 +392,16 @@ export const getAlertsStats = (organizationIds?: string | string[], include?: 'd
 export const getAlertsHistory = (
   organizationIds?: string | string[],
   page: number = 1,
-  pageSize: number = 50,
-  sortBy: string = 'starts_at',
+  pageSize: number = 20,
+  sortBy: string = 'created_at',
   sortDirection: 'asc' | 'desc' = 'desc',
   include?: 'descendants',
+  fromDate?: string,
+  toDate?: string,
+  systemKeyFilters?: string | string[],
+  alertnameFilters?: string | string[],
+  severityFilters?: string | string[],
+  statusFilters?: string | string[],
 ) => {
   const loginStore = useLoginStore()
   const params = new URLSearchParams()
@@ -338,9 +416,32 @@ export const getAlertsHistory = (
   }
 
   params.append('page', page.toString())
-  params.append('page_size', Math.min(pageSize, 100).toString())
+  params.append('page_size', Math.min(pageSize, 200).toString())
   params.append('sort_by', sortBy)
   params.append('sort_direction', sortDirection)
+
+  if (fromDate) {
+    params.append('from_date', fromDate)
+  }
+  if (toDate) {
+    params.append('to_date', toDate)
+  }
+  if (systemKeyFilters) {
+    const keys = Array.isArray(systemKeyFilters) ? systemKeyFilters : [systemKeyFilters]
+    keys.forEach((key) => params.append('system_key', key))
+  }
+  if (alertnameFilters) {
+    const names = Array.isArray(alertnameFilters) ? alertnameFilters : [alertnameFilters]
+    names.forEach((name) => params.append('alertname', name))
+  }
+  if (severityFilters) {
+    const severities = Array.isArray(severityFilters) ? severityFilters : [severityFilters]
+    severities.forEach((severity) => params.append('severity', severity))
+  }
+  if (statusFilters) {
+    const statuses = Array.isArray(statusFilters) ? statusFilters : [statusFilters]
+    statuses.forEach((status) => params.append('status', status))
+  }
 
   return axios
     .get<AlertHistoryResponse>(`${API_URL}/alerts/history?${params}`, {
@@ -349,12 +450,16 @@ export const getAlertsHistory = (
     .then((res) => res.data.data)
 }
 
-export const getAlertActivity = (fingerprint: string, page: number = 1, pageSize: number = 50) => {
+export const getAlertActivity = (
+  fingerprint: string,
+  organizationId: string,
+  limit: number = 100,
+) => {
   const loginStore = useLoginStore()
   const params = new URLSearchParams()
 
-  params.append('page', page.toString())
-  params.append('page_size', Math.min(pageSize, 100).toString())
+  params.append('organization_id', organizationId)
+  params.append('limit', Math.min(limit, 500).toString())
 
   return axios
     .get<AlertActivityResponse>(
@@ -368,9 +473,8 @@ export const getAlertActivity = (fingerprint: string, page: number = 1, pageSize
 
 export const getAlertsSilences = (
   organizationIds?: string | string[],
-  page: number = 1,
-  pageSize: number = 50,
   include?: 'descendants',
+  systemKeyFilters?: string | string[],
 ) => {
   const loginStore = useLoginStore()
   const params = new URLSearchParams()
@@ -384,8 +488,10 @@ export const getAlertsSilences = (
     params.append('include', 'descendants')
   }
 
-  params.append('page', page.toString())
-  params.append('page_size', Math.min(pageSize, 100).toString())
+  if (systemKeyFilters) {
+    const keys = Array.isArray(systemKeyFilters) ? systemKeyFilters : [systemKeyFilters]
+    keys.forEach((key) => params.append('system_key', key))
+  }
 
   return axios
     .get<SystemAlertSilencesResponse>(`${API_URL}/alerts/silences?${params}`, {
@@ -397,51 +503,65 @@ export const getAlertsSilences = (
 export const createAlertSilence = (
   fingerprint: string,
   organizationId?: string,
-  systemId?: string,
   comment?: string,
   endAt?: string,
+  durationMinutes?: number,
 ) => {
   const loginStore = useLoginStore()
-  const payload: Record<string, unknown> = { fingerprint }
+  const params = new URLSearchParams()
+  if (organizationId) {
+    params.append('organization_id', organizationId)
+  }
 
+  const payload: Record<string, unknown> = { fingerprint }
   if (comment?.trim()) {
     payload.comment = comment.trim()
   }
   if (endAt) {
     payload.end_at = endAt
   }
-  if (organizationId) {
-    payload.organization_id = organizationId
-  }
-  if (systemId) {
-    payload.system_id = systemId
+  if (durationMinutes !== undefined) {
+    payload.duration_minutes = durationMinutes
   }
 
   return axios
-    .post<CreateSystemAlertSilenceResponse>(`${API_URL}/alerts/silences`, payload, {
+    .post<CreateSystemAlertSilenceResponse>(`${API_URL}/alerts/silences?${params}`, payload, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)
 }
 
-export const getAlertSilence = (silenceId: string) => {
+export const getAlertSilence = (silenceId: string, organizationId?: string) => {
   const loginStore = useLoginStore()
+  const params = new URLSearchParams()
+  if (organizationId) {
+    params.append('organization_id', organizationId)
+  }
 
   return axios
     .get<{
       code: number
       message: string
       data: { silence: AlertmanagerSilence }
-    }>(`${API_URL}/alerts/silences/${encodeURIComponent(silenceId)}`, {
+    }>(`${API_URL}/alerts/silences/${encodeURIComponent(silenceId)}?${params}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data.silence)
 }
 
-export const updateAlertSilence = (silenceId: string, comment?: string, endAt?: string) => {
+export const updateAlertSilence = (
+  silenceId: string,
+  organizationId?: string,
+  comment?: string,
+  endAt?: string,
+) => {
   const loginStore = useLoginStore()
-  const payload: Record<string, unknown> = {}
+  const params = new URLSearchParams()
+  if (organizationId) {
+    params.append('organization_id', organizationId)
+  }
 
+  const payload: Record<string, unknown> = {}
   if (comment !== undefined) {
     payload.comment = comment
   }
@@ -449,15 +569,21 @@ export const updateAlertSilence = (silenceId: string, comment?: string, endAt?: 
     payload.end_at = endAt
   }
 
-  return axios.put(`${API_URL}/alerts/silences/${encodeURIComponent(silenceId)}`, payload, {
-    headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-  })
+  return axios.put(
+    `${API_URL}/alerts/silences/${encodeURIComponent(silenceId)}?${params}`,
+    payload,
+    { headers: { Authorization: `Bearer ${loginStore.jwtToken}` } },
+  )
 }
 
-export const deleteAlertSilence = (silenceId: string) => {
+export const deleteAlertSilence = (silenceId: string, organizationId?: string) => {
   const loginStore = useLoginStore()
+  const params = new URLSearchParams()
+  if (organizationId) {
+    params.append('organization_id', organizationId)
+  }
 
-  return axios.delete(`${API_URL}/alerts/silences/${encodeURIComponent(silenceId)}`, {
+  return axios.delete(`${API_URL}/alerts/silences/${encodeURIComponent(silenceId)}?${params}`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
@@ -566,10 +692,39 @@ export const getSystemAlertHistory = (
 }
 
 // Get active alerts for a specific system via the dedicated endpoint
-export const getSystemActiveAlerts = (systemId: string) => {
+export const getSystemActiveAlerts = (
+  systemId: string,
+  page: number = 1,
+  pageSize: number = 50,
+  sortBy: 'starts_at' | 'severity' | 'alertname' | 'status' = 'starts_at',
+  sortDirection: 'asc' | 'desc' = 'desc',
+  statusFilters?: string | string[],
+  severityFilters?: string | string[],
+  alertnameFilters?: string | string[],
+) => {
   const loginStore = useLoginStore()
+  const params = new URLSearchParams()
+
+  params.append('page', page.toString())
+  params.append('page_size', Math.min(pageSize, 100).toString())
+  params.append('sort_by', sortBy)
+  params.append('sort_direction', sortDirection)
+
+  if (statusFilters) {
+    const statuses = Array.isArray(statusFilters) ? statusFilters : [statusFilters]
+    statuses.forEach((status) => params.append('status', status))
+  }
+  if (severityFilters) {
+    const severities = Array.isArray(severityFilters) ? severityFilters : [severityFilters]
+    severities.forEach((severity) => params.append('severity', severity))
+  }
+  if (alertnameFilters) {
+    const names = Array.isArray(alertnameFilters) ? alertnameFilters : [alertnameFilters]
+    names.forEach((name) => params.append('alertname', name))
+  }
+
   return axios
-    .get<AlertsResponse>(`${API_URL}/systems/${systemId}/alerts`, {
+    .get<AlertsResponse>(`${API_URL}/systems/${systemId}/alerts?${params}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)
@@ -603,6 +758,7 @@ export const createSystemAlertSilence = (
   fingerprint: string,
   comment?: string,
   endAt?: string,
+  durationMinutes?: number,
 ) => {
   const loginStore = useLoginStore()
   const payload: Record<string, unknown> = { fingerprint }
@@ -611,6 +767,9 @@ export const createSystemAlertSilence = (
   }
   if (endAt) {
     payload.end_at = endAt
+  }
+  if (durationMinutes !== undefined) {
+    payload.duration_minutes = durationMinutes
   }
 
   return axios
@@ -731,5 +890,18 @@ export const getSeverityBadgeColor = (severity?: string) => {
       return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
     default:
       return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+  }
+}
+
+export const getSeverityBadgeKind = (severity?: string): NeBadgeV2Kind => {
+  switch (severity?.toLowerCase()) {
+    case 'critical':
+      return 'rose'
+    case 'warning':
+      return 'amber'
+    case 'info':
+      return 'blue'
+    default:
+      return 'gray'
   }
 }

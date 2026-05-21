@@ -29,13 +29,13 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
     <div class="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
       <CounterCard :title="t('alerts.total_alerts')" :counter="totalAlerts" :loading="isLoading" />
       <CounterCard
-        :title="t('alerts.high_severity')"
+        title="Critical"
         :counter="criticalCount"
         :loading="isLoading"
         color-classes="text-red-600 dark:text-red-400"
       />
       <CounterCard
-        :title="t('alerts.medium_severity')"
+        title="Warning"
         :counter="warningCount"
         :loading="isLoading"
         color-classes="text-orange-600 dark:text-orange-400"

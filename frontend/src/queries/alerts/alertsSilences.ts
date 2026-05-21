@@ -6,28 +6,27 @@ import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { ref } from 'vue'
 
+//// delete if unused
+
 export const useAlertsSilences = defineQuery(() => {
   const loginStore = useLoginStore()
   const organizationIds = ref<string[]>([])
-  const pageNum = ref(1)
-  const pageSize = ref(50)
   const includeDescendants = ref(false)
+  const systemKeyFilters = ref<string[]>([])
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
       ALERTS_SILENCES_KEY,
       organizationIds.value.join(','),
-      pageNum.value,
-      pageSize.value,
       includeDescendants.value,
+      systemKeyFilters.value.join(','),
     ],
     enabled: () => !!loginStore.jwtToken,
     query: () =>
       getAlertsSilences(
         organizationIds.value.length > 0 ? organizationIds.value : undefined,
-        pageNum.value,
-        pageSize.value,
         includeDescendants.value ? 'descendants' : undefined,
+        systemKeyFilters.value.length > 0 ? systemKeyFilters.value : undefined,
       ),
   })
 
@@ -36,8 +35,7 @@ export const useAlertsSilences = defineQuery(() => {
     state,
     asyncStatus,
     organizationIds,
-    pageNum,
-    pageSize,
     includeDescendants,
+    systemKeyFilters,
   }
 })

@@ -50,6 +50,9 @@ const queryCache = useQueryCache()
 
 const { state, asyncStatus } = useSystemBackups()
 
+// Download flow error state
+const downloadError = ref<string | null>(null)
+
 function refresh() {
   queryCache.invalidateQueries({ key: [SYSTEM_BACKUPS_KEY] })
 }
@@ -76,6 +79,7 @@ const downloadingId = ref<string | null>(null)
 
 async function download(backup: BackupMetadata) {
   downloadingId.value = backup.id
+  downloadError.value = null
   try {
     const { download_url } = await getBackupDownloadUrl(route.params.systemId as string, backup.id)
     // Use a hidden anchor to preserve the filename the server exposes
@@ -87,11 +91,8 @@ async function download(backup: BackupMetadata) {
     anchor.click()
     document.body.removeChild(anchor)
   } catch (err) {
-    notificationsStore.createNotification({
-      kind: 'error',
-      title: t('backups.cannot_download_backup'),
-      description: err instanceof Error ? err.message : String(err),
-    })
+    console.error('Error downloading backup:', err)
+    downloadError.value = err instanceof Error ? err.message : String(err)
   } finally {
     downloadingId.value = null
   }
@@ -204,13 +205,23 @@ function getKebabMenuItems(backup: BackupMetadata): NeDropdownItem[] {
     </div>
   </div>
 
-  <!-- error -->
+  <!-- error: data load -->
   <NeInlineNotification
     v-if="state.status === 'error'"
     kind="error"
     :title="$t('backups.cannot_retrieve_backups')"
     :description="state.error?.message"
     class="mb-4"
+  />
+
+  <!-- error: download -->
+  <NeInlineNotification
+    v-if="downloadError"
+    kind="error"
+    :title="$t('backups.cannot_download_backup')"
+    :description="downloadError"
+    class="mb-4"
+    @close="downloadError = null"
   />
 
   <!-- empty state -->
