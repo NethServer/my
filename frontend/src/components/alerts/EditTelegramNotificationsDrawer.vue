@@ -19,10 +19,11 @@ import {
   faCircleCheck,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { ref, watch } from 'vue'
+import { nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useI18n } from 'vue-i18n'
 import * as v from 'valibot'
+import type { Focusable } from '@/lib/common'
 import {
   ALERTS_CONFIG_KEY,
   TelegramNotificationsPayloadSchema,
@@ -54,6 +55,8 @@ const newBotToken = ref('')
 const newChannelError = ref('')
 const newBotTokenError = ref('')
 const expandedIndex = ref<number | null>(null)
+const expandedChatIdRef = useTemplateRef<Focusable[]>('expandedChatIdRef')
+const expandedBotTokenRef = useTemplateRef<Focusable[]>('expandedBotTokenRef')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const SEVERITIES = ['critical', 'warning', 'info'] as const
@@ -215,7 +218,17 @@ function validate(): boolean {
     validationIssues.value = issues.nested as Record<string, string[]>
     const firstKey = Object.keys(issues.nested)[0]
     const match = firstKey.match(/^telegram_recipients\.(\d+)\./)
-    if (match) expandedIndex.value = parseInt(match[1])
+    if (match) {
+      expandedIndex.value = parseInt(match[1])
+      const fieldSuffix = firstKey.split('.').pop()
+      nextTick(() => {
+        if (fieldSuffix === 'bot_token') {
+          expandedBotTokenRef.value?.[0]?.focus()
+        } else {
+          expandedChatIdRef.value?.[0]?.focus()
+        }
+      })
+    }
   }
   return false
 }
@@ -292,7 +305,7 @@ function closeDrawer() {
         v-if="channels.length"
         class="divide-y divide-gray-700 rounded-lg border border-gray-700"
       >
-        <div v-for="(ch, index) in channels" :key="ch.chat_id + '-' + index">
+        <div v-for="(ch, index) in channels" :key="index">
           <!-- Collapsed header -->
           <button
             class="flex w-full items-start justify-between px-4 py-3 text-left"
@@ -326,6 +339,7 @@ function closeDrawer() {
           <div v-if="expandedIndex === index" class="space-y-6 bg-gray-800/50 p-4">
             <!-- Telegram channel -->
             <NeTextInput
+              ref="expandedChatIdRef"
               :model-value="ch._chatIdInput"
               :label="t('alerts.telegram_channel_input')"
               :invalid-message="
@@ -342,6 +356,7 @@ function closeDrawer() {
 
             <!-- Telegram bot token -->
             <NeTextInput
+              ref="expandedBotTokenRef"
               v-model="ch.bot_token"
               :label="t('alerts.telegram_bot_input')"
               :invalid-message="

@@ -19,10 +19,11 @@ import {
   faCircleCheck,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { ref, watch } from 'vue'
+import { nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useI18n } from 'vue-i18n'
 import * as v from 'valibot'
+import type { Focusable } from '@/lib/common'
 import {
   ALERTS_CONFIG_KEY,
   WebhookNotificationsPayloadSchema,
@@ -50,6 +51,7 @@ const endpoints = ref<(WebhookRecipient & { _expanded: boolean })[]>([])
 const newEndpoint = ref('')
 const newEndpointError = ref('')
 const expandedIndex = ref<number | null>(null)
+const expandedUrlRef = useTemplateRef<Focusable[]>('expandedUrlRef')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const SEVERITIES = ['critical', 'warning', 'info'] as const
@@ -189,7 +191,10 @@ function validate(): boolean {
     validationIssues.value = issues.nested as Record<string, string[]>
     const firstKey = Object.keys(issues.nested)[0]
     const match = firstKey.match(/^webhook_recipients\.(\d+)\./)
-    if (match) expandedIndex.value = parseInt(match[1])
+    if (match) {
+      expandedIndex.value = parseInt(match[1])
+      nextTick(() => expandedUrlRef.value?.[0]?.focus())
+    }
   }
   return false
 }
@@ -226,7 +231,7 @@ function closeDrawer() {
         <p class="text-sm font-medium text-gray-700 dark:text-gray-200">
           {{ t('alerts.endpoint') }}
         </p>
-        <div class="flex gap-2">
+        <div class="flex items-start gap-2">
           <NeTextInput
             v-model="newEndpoint"
             class="flex-1"
@@ -248,7 +253,7 @@ function closeDrawer() {
         v-if="endpoints.length"
         class="divide-y divide-gray-700 rounded-lg border border-gray-700"
       >
-        <div v-for="(ep, index) in endpoints" :key="ep.url + index">
+        <div v-for="(ep, index) in endpoints" :key="index">
           <!-- Collapsed header -->
           <button
             class="flex w-full items-start justify-between px-4 py-3 text-left"
@@ -282,6 +287,7 @@ function closeDrawer() {
           <div v-if="expandedIndex === index" class="space-y-6 bg-gray-800/50 p-4">
             <!-- Endpoint URL field -->
             <NeTextInput
+              ref="expandedUrlRef"
               v-model="ep.url"
               :label="t('alerts.endpoint')"
               :invalid-message="

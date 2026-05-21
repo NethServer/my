@@ -9,6 +9,8 @@ export interface Pagination {
   total_pages: number
 }
 
+export type Focusable = { focus(): void }
+
 // utility to build query string params for pagination, filtering and sorting
 export const getQueryStringParams = (
   pageNum: number,

@@ -980,9 +980,9 @@
     "cannot_load_notifications": "Cannot load notification configuration",
     "email_address_required": "Email address is required",
     "email_address_duplicate": "Duplicate email address",
-    "email_address_invalid_format": "Email address is not valid",
+    "email_address_invalid_format": "Invalid email address",
     "webhook_url_required": "Webhook URL is required",
-    "webhook_url_invalid": "Webhook URL is not valid",
+    "webhook_url_invalid": "Invalid webhook URL",
     "telegram_bot_token_required": "Bot token is required",
     "telegram_chat_id_required": "Chat ID is required"
   },

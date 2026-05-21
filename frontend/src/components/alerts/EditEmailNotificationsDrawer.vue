@@ -19,10 +19,11 @@ import {
   faCircleCheck,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { ref, watch } from 'vue'
+import { nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useI18n } from 'vue-i18n'
 import * as v from 'valibot'
+import type { Focusable } from '@/lib/common'
 import {
   ALERTS_CONFIG_KEY,
   EmailNotificationsPayloadSchema,
@@ -50,6 +51,7 @@ const recipients = ref<(EmailRecipient & { _expanded: boolean })[]>([])
 const newAddress = ref('')
 const newAddressError = ref('')
 const expandedIndex = ref<number | null>(null)
+const expandedAddressRef = useTemplateRef<Focusable[]>('expandedAddressRef')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const SEVERITIES = ['critical', 'warning', 'info'] as const
@@ -196,7 +198,10 @@ function validate(): boolean {
     validationIssues.value = issues.nested as Record<string, string[]>
     const firstKey = Object.keys(issues.nested)[0]
     const match = firstKey.match(/^email_recipients\.(\.?\d+)\./)
-    if (match) expandedIndex.value = parseInt(match[1])
+    if (match) {
+      expandedIndex.value = parseInt(match[1])
+      nextTick(() => expandedAddressRef.value?.[0]?.focus())
+    }
   }
   return false
 }
@@ -233,7 +238,7 @@ function closeDrawer() {
         <p class="text-sm font-medium text-gray-700 dark:text-gray-200">
           {{ t('alerts.email_address') }}
         </p>
-        <div class="flex gap-2">
+        <div class="flex items-start gap-2">
           <NeTextInput
             v-model="newAddress"
             class="flex-1"
@@ -255,7 +260,7 @@ function closeDrawer() {
         v-if="recipients.length"
         class="divide-y divide-gray-700 rounded-lg border border-gray-700"
       >
-        <div v-for="(recipient, index) in recipients" :key="recipient.address + index">
+        <div v-for="(recipient, index) in recipients" :key="index">
           <!-- Collapsed header -->
           <button
             class="flex w-full items-start justify-between px-4 py-3 text-left"
@@ -289,6 +294,7 @@ function closeDrawer() {
           <div v-if="expandedIndex === index" class="space-y-6 bg-gray-800/50 p-4">
             <!-- Email address field -->
             <NeTextInput
+              ref="expandedAddressRef"
               v-model="recipient.address"
               :label="t('alerts.email_address')"
               :invalid-message="
