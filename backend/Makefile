@@ -225,13 +225,7 @@ db-migrate:
 	set -a && source .env && set +a && \
 	cd database/migrations && \
 	for migration in $$(ls *.sql | grep -E '^[0-9]+_.*\.sql$$' | sed 's/_.*\.sql$$//' | sort -u); do \
-		echo "Checking migration $$migration..."; \
-		if ./run_migration.sh $$migration status >/dev/null 2>&1; then \
-			echo "Migration $$migration already applied, skipping"; \
-		else \
-			echo "Applying migration $$migration..."; \
-			./run_migration.sh $$migration apply; \
-		fi; \
+		./run_migration.sh $$migration apply || exit $$?; \
 	done; \
 	echo "All migrations completed!"
 
@@ -246,13 +240,7 @@ db-migrate-qa:
 	set -a && source .env.qa && set +a && \
 	cd database/migrations && \
 	for migration in $$(ls *.sql | grep -E '^[0-9]+_.*\.sql$$' | sed 's/_.*\.sql$$//' | sort -u); do \
-		echo "Checking migration $$migration..."; \
-		if ./run_migration.sh $$migration status >/dev/null 2>&1; then \
-			echo "Migration $$migration already applied, skipping"; \
-		else \
-			echo "Applying migration $$migration..."; \
-			./run_migration.sh $$migration apply; \
-		fi; \
+		./run_migration.sh $$migration apply || exit $$?; \
 	done; \
 	echo "All migrations completed!"
 
