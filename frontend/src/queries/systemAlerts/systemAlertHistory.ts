@@ -1,0 +1,67 @@
+//  Copyright (C) 2026 Nethesis S.r.l.
+//  SPDX-License-Identifier: GPL-3.0-or-later
+
+import { getSystemAlertHistory, SYSTEM_ALERT_HISTORY_KEY } from '@/lib/systemAlerts'
+import { useLoginStore } from '@/stores/login'
+import { defineQuery, useQuery } from '@pinia/colada'
+import { ref } from 'vue'
+import { useRoute } from 'vue-router'
+
+export const useSystemAlertHistory = defineQuery(() => {
+  const loginStore = useLoginStore()
+  const route = useRoute()
+
+  const pageNum = ref(1)
+  const pageSize = ref(50)
+  const sortBy = ref('starts_at')
+  const sortDescending = ref(true)
+  const severityFilters = ref<string[]>([])
+  const alertnameFilters = ref<string[]>([])
+
+  const { state, asyncStatus, ...rest } = useQuery({
+    key: () => [
+      SYSTEM_ALERT_HISTORY_KEY,
+      route.params.systemId,
+      pageNum.value,
+      pageSize.value,
+      sortBy.value,
+      sortDescending.value,
+      severityFilters.value.join(','),
+      alertnameFilters.value.join(','),
+    ],
+    enabled: () => !!loginStore.jwtToken && !!route.params.systemId,
+    query: () =>
+      getSystemAlertHistory(
+        route.params.systemId as string,
+        pageNum.value,
+        pageSize.value,
+        sortBy.value,
+        sortDescending.value,
+        severityFilters.value.length > 0 ? severityFilters.value : undefined,
+        alertnameFilters.value.length > 0 ? alertnameFilters.value : undefined,
+      ),
+  })
+
+  const areDefaultFiltersApplied = () =>
+    !severityFilters.value.length && !alertnameFilters.value.length
+
+  const resetFilters = () => {
+    severityFilters.value = []
+    alertnameFilters.value = []
+    pageNum.value = 1
+  }
+
+  return {
+    ...rest,
+    state,
+    asyncStatus,
+    pageNum,
+    pageSize,
+    sortBy,
+    sortDescending,
+    severityFilters,
+    alertnameFilters,
+    areDefaultFiltersApplied,
+    resetFilters,
+  }
+})

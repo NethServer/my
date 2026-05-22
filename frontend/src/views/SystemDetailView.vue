@@ -21,6 +21,7 @@ import { useI18n } from 'vue-i18n'
 import SystemOverviewPanel from '@/components/systems/SystemOverviewPanel.vue'
 import SystemChangeHistoryPanel from '@/components/systems/SystemChangeHistoryPanel.vue'
 import SystemBackupsPanel from '@/components/systems/SystemBackupsPanel.vue'
+import SystemAlertsPanel from '@/components/systems/SystemAlertsPanel.vue'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import { useSystemReachability } from '@/queries/systems/systemReachability'
 import { computed } from 'vue'
@@ -130,7 +131,7 @@ const openSystem = () => {
     />
     <SystemOverviewPanel v-if="selectedTab === 'overview'" />
     <SystemChangeHistoryPanel v-else-if="selectedTab === 'change_history'" />
-    <!-- <SystemAlertHistoryPanel v-else-if="selectedTab === 'alert_history'" /> -->
+    <SystemAlertsPanel v-else-if="selectedTab === 'alert_history'" />
     <SystemBackupsPanel v-else-if="selectedTab === 'backups'" />
   </div>
 </template>

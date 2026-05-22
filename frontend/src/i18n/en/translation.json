@@ -675,7 +675,11 @@
     "service_flashstart": "FlashStart",
     "service_threat_shield": "Yoroi blocklist",
     "system_registered": "System registered",
-    "system_created": "System created"
+    "system_created": "System created",
+    "active_alerts_title": "Active alerts",
+    "active_alerts_description": "View active alerts and monitor ongoing issues for this system.",
+    "alert_history_title": "Alert history",
+    "alert_history_description": "View resolved alerts for this system."
   },
   "application_detail": {
     "title": "Application detail",

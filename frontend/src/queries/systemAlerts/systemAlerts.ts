@@ -1,0 +1,72 @@
+//  Copyright (C) 2026 Nethesis S.r.l.
+//  SPDX-License-Identifier: GPL-3.0-or-later
+
+import { getSystemActiveAlerts, SYSTEM_ALERTS_KEY } from '@/lib/systemAlerts'
+import { useLoginStore } from '@/stores/login'
+import { defineQuery, useQuery } from '@pinia/colada'
+import { ref } from 'vue'
+import { useRoute } from 'vue-router'
+
+export const useSystemAlerts = defineQuery(() => {
+  const loginStore = useLoginStore()
+  const route = useRoute()
+
+  const pageNum = ref(1)
+  const pageSize = ref(50)
+  const sortBy = ref<'starts_at' | 'severity' | 'alertname' | 'status'>('starts_at')
+  const sortDirection = ref<'asc' | 'desc'>('desc')
+  const severityFilters = ref<string[]>([])
+  const alertnameFilters = ref<string[]>([])
+  const statusFilters = ref<string[]>([])
+
+  const { state, asyncStatus, ...rest } = useQuery({
+    key: () => [
+      SYSTEM_ALERTS_KEY,
+      route.params.systemId,
+      pageNum.value,
+      pageSize.value,
+      sortBy.value,
+      sortDirection.value,
+      severityFilters.value.join(','),
+      alertnameFilters.value.join(','),
+      statusFilters.value.join(','),
+    ],
+    enabled: () => !!loginStore.jwtToken && !!route.params.systemId,
+    query: () =>
+      getSystemActiveAlerts(
+        route.params.systemId as string,
+        pageNum.value,
+        pageSize.value,
+        sortBy.value,
+        sortDirection.value,
+        statusFilters.value.length > 0 ? statusFilters.value : undefined,
+        severityFilters.value.length > 0 ? severityFilters.value : undefined,
+        alertnameFilters.value.length > 0 ? alertnameFilters.value : undefined,
+      ),
+  })
+
+  const areDefaultFiltersApplied = () =>
+    !severityFilters.value.length && !alertnameFilters.value.length && !statusFilters.value.length
+
+  const resetFilters = () => {
+    severityFilters.value = []
+    alertnameFilters.value = []
+    statusFilters.value = []
+    pageNum.value = 1
+  }
+
+  return {
+    ...rest,
+    state,
+    asyncStatus,
+    pageNum,
+    pageSize,
+    sortBy,
+    sortDirection,
+    severityFilters,
+    alertnameFilters,
+    statusFilters,
+    areDefaultFiltersApplied,
+    resetFilters,
+  }
+})

@@ -20,6 +20,8 @@ export const ALERTS_SILENCES_KEY = 'alertsSilences'
 export const ALERT_SILENCES_KEY = 'alertSilences'
 export const ALERT_HISTORY_TABLE_ID = 'alertHistoryTable'
 export const SYSTEM_ALERT_SILENCES_KEY = 'systemAlertSilences'
+export const SYSTEM_ALERTS_KEY = 'systemAlerts'
+export const SYSTEM_ALERT_HISTORY_KEY = 'systemAlertHistory'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -678,6 +680,9 @@ export const getSystemAlertHistory = (
   pageSize: number = 50,
   sortBy: string = 'starts_at',
   sortDescending: boolean = true,
+  severityFilters?: string | string[],
+  alertnameFilters?: string | string[],
+  statusFilters?: string | string[],
 ) => {
   const loginStore = useLoginStore()
   const params = new URLSearchParams({
@@ -686,6 +691,19 @@ export const getSystemAlertHistory = (
     sort_by: sortBy,
     sort_direction: sortDescending ? 'desc' : 'asc',
   })
+
+  if (severityFilters) {
+    const severities = Array.isArray(severityFilters) ? severityFilters : [severityFilters]
+    severities.forEach((s) => params.append('severity', s))
+  }
+  if (alertnameFilters) {
+    const names = Array.isArray(alertnameFilters) ? alertnameFilters : [alertnameFilters]
+    names.forEach((n) => params.append('alertname', n))
+  }
+  if (statusFilters) {
+    const statuses = Array.isArray(statusFilters) ? statusFilters : [statusFilters]
+    statuses.forEach((s) => params.append('status', s))
+  }
 
   return axios
     .get<AlertHistoryResponse>(`${API_URL}/systems/${systemId}/alerts/history?${params}`, {
