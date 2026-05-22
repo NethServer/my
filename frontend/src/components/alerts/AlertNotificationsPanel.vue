@@ -4,20 +4,13 @@
 -->
 
 <script setup lang="ts">
-import { faEnvelope, faLink, faPaperPlane, faPenToSquare } from '@fortawesome/free-solid-svg-icons'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faCircleCheck, faCircleXmark } from '@fortawesome/free-solid-svg-icons'
-import {
-  NeButton,
-  NeCard,
-  NeHeading,
-  NeInlineNotification,
-  NeSkeleton,
-} from '@nethesis/vue-components'
+import { faEnvelope, faLink, faPaperPlane } from '@fortawesome/free-solid-svg-icons'
+import { NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAlertsConfig } from '@/queries/alerts/alertsConfig'
 import { canManageAlerts } from '@/lib/permissions'
+import NotificationChannelCard from '@/components/alerts/NotificationChannelCard.vue'
 import EditEmailNotificationsDrawer from '@/components/alerts/EditEmailNotificationsDrawer.vue'
 import EditWebhookNotificationsDrawer from '@/components/alerts/EditWebhookNotificationsDrawer.vue'
 import EditTelegramNotificationsDrawer from '@/components/alerts/EditTelegramNotificationsDrawer.vue'
@@ -45,6 +38,10 @@ const telegramChannelCount = computed(() => config.value?.telegram_recipients?.l
 const emailEnabled = computed(() => config.value?.enabled?.email ?? false)
 const webhookEnabled = computed(() => config.value?.enabled?.webhook ?? false)
 const telegramEnabled = computed(() => config.value?.enabled?.telegram ?? false)
+
+const emailNotConfigured = computed(() => config.value?.enabled?.email == null)
+const webhookNotConfigured = computed(() => config.value?.enabled?.webhook == null)
+const telegramNotConfigured = computed(() => config.value?.enabled?.telegram == null)
 </script>
 
 <template>
@@ -73,200 +70,53 @@ const telegramEnabled = computed(() => config.value?.enabled?.telegram ?? false)
 
     <!-- Channel cards -->
     <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      <!-- Email card -->
-      <NeCard>
-        <div class="flex items-start justify-between">
-          <div class="flex items-center gap-3">
-            <div
-              class="flex size-10 shrink-0 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/40"
-            >
-              <FontAwesomeIcon :icon="faEnvelope" class="size-5 text-sky-600 dark:text-sky-400" />
-            </div>
-            <div>
-              <p class="font-medium text-gray-900 dark:text-gray-100">
-                {{ t('alerts.email_channel_title') }}
-              </p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
-                {{ t('alerts.email_channel_description') }}
-              </p>
-            </div>
-          </div>
-          <NeButton
-            v-if="canManageAlerts()"
-            kind="tertiary"
-            size="sm"
-            @click="showEmailDrawer = true"
-          >
-            <template #prefix>
-              <FontAwesomeIcon :icon="faPenToSquare" class="size-3.5" />
-            </template>
-            {{ t('common.edit') }}
-          </NeButton>
-        </div>
+      <NotificationChannelCard
+        :icon="faEnvelope"
+        :title="t('alerts.email_channel_title')"
+        :description="t('alerts.email_channel_description')"
+        :can-manage="canManageAlerts()"
+        :not-configured="emailNotConfigured"
+        :not-configured-title="t('alerts.email_not_configured')"
+        :not-configured-description="t('alerts.email_not_configured_description')"
+        :count="emailRecipientCount"
+        :count-label="t('alerts.recipients_count')"
+        :enabled="emailEnabled"
+        :enabled-text="t('alerts.notifications_enabled')"
+        :disabled-text="t('alerts.notifications_disabled')"
+        @edit="showEmailDrawer = true"
+      />
 
-        <div class="mt-4 border-t border-gray-100 pt-4 dark:border-gray-700">
-          <div class="flex items-center justify-between">
-            <span class="text-sm text-gray-500 dark:text-gray-400">
-              {{ t('alerts.recipients_count') }}
-            </span>
-            <span class="text-2xl font-medium text-gray-900 dark:text-gray-100">
-              {{ emailRecipientCount }}
-            </span>
-          </div>
-        </div>
+      <NotificationChannelCard
+        :icon="faLink"
+        :title="t('alerts.webhook_channel_title')"
+        :description="t('alerts.webhook_channel_description')"
+        :can-manage="canManageAlerts()"
+        :not-configured="webhookNotConfigured"
+        :not-configured-title="t('alerts.webhook_not_configured')"
+        :not-configured-description="t('alerts.webhook_not_configured_description')"
+        :count="webhookEndpointCount"
+        :count-label="t('alerts.endpoints_count')"
+        :enabled="webhookEnabled"
+        :enabled-text="t('alerts.notifications_enabled')"
+        :disabled-text="t('alerts.notifications_disabled')"
+        @edit="showWebhookDrawer = true"
+      />
 
-        <div class="mt-3 flex items-center gap-1.5">
-          <FontAwesomeIcon
-            :icon="emailEnabled ? faCircleCheck : faCircleXmark"
-            :class="[
-              'size-4',
-              emailEnabled ? 'text-emerald-500' : 'text-gray-400 dark:text-gray-500',
-            ]"
-          />
-          <span
-            :class="[
-              'text-sm',
-              emailEnabled
-                ? 'text-emerald-600 dark:text-emerald-400'
-                : 'text-gray-500 dark:text-gray-400',
-            ]"
-          >
-            {{
-              emailEnabled ? t('alerts.notification_enabled') : t('alerts.notification_disabled')
-            }}
-          </span>
-        </div>
-      </NeCard>
-
-      <!-- Webhook card -->
-      <NeCard>
-        <div class="flex items-start justify-between">
-          <div class="flex items-center gap-3">
-            <div
-              class="flex size-10 shrink-0 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/40"
-            >
-              <FontAwesomeIcon :icon="faLink" class="size-5 text-sky-600 dark:text-sky-400" />
-            </div>
-            <div>
-              <p class="font-medium text-gray-900 dark:text-gray-100">
-                {{ t('alerts.webhook_channel_title') }}
-              </p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
-                {{ t('alerts.webhook_channel_description') }}
-              </p>
-            </div>
-          </div>
-          <NeButton
-            v-if="canManageAlerts()"
-            kind="tertiary"
-            size="sm"
-            @click="showWebhookDrawer = true"
-          >
-            <template #prefix>
-              <FontAwesomeIcon :icon="faPenToSquare" class="size-3.5" />
-            </template>
-            {{ t('common.edit') }}
-          </NeButton>
-        </div>
-
-        <div class="mt-4 border-t border-gray-100 pt-4 dark:border-gray-700">
-          <div class="flex items-center justify-between">
-            <span class="text-sm text-gray-500 dark:text-gray-400">
-              {{ t('alerts.endpoints_count') }}
-            </span>
-            <span class="text-2xl font-medium text-gray-900 dark:text-gray-100">
-              {{ webhookEndpointCount }}
-            </span>
-          </div>
-        </div>
-
-        <div class="mt-3 flex items-center gap-1.5">
-          <FontAwesomeIcon
-            :icon="webhookEnabled ? faCircleCheck : faCircleXmark"
-            :class="[
-              'size-4',
-              webhookEnabled ? 'text-emerald-500' : 'text-gray-400 dark:text-gray-500',
-            ]"
-          />
-          <span
-            :class="[
-              'text-sm',
-              webhookEnabled
-                ? 'text-emerald-600 dark:text-emerald-400'
-                : 'text-gray-500 dark:text-gray-400',
-            ]"
-          >
-            {{
-              webhookEnabled ? t('alerts.notification_enabled') : t('alerts.notification_disabled')
-            }}
-          </span>
-        </div>
-      </NeCard>
-
-      <!-- Telegram card -->
-      <NeCard>
-        <div class="flex items-start justify-between">
-          <div class="flex items-center gap-3">
-            <div
-              class="flex size-10 shrink-0 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/40"
-            >
-              <FontAwesomeIcon :icon="faPaperPlane" class="size-5 text-sky-600 dark:text-sky-400" />
-            </div>
-            <div>
-              <p class="font-medium text-gray-900 dark:text-gray-100">
-                {{ t('alerts.telegram_channel_title') }}
-              </p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
-                {{ t('alerts.telegram_channel_description') }}
-              </p>
-            </div>
-          </div>
-          <NeButton
-            v-if="canManageAlerts()"
-            kind="tertiary"
-            size="sm"
-            @click="showTelegramDrawer = true"
-          >
-            <template #prefix>
-              <FontAwesomeIcon :icon="faPenToSquare" class="size-3.5" />
-            </template>
-            {{ t('common.edit') }}
-          </NeButton>
-        </div>
-
-        <div class="mt-4 border-t border-gray-100 pt-4 dark:border-gray-700">
-          <div class="flex items-center justify-between">
-            <span class="text-sm text-gray-500 dark:text-gray-400">
-              {{ t('alerts.channels_count') }}
-            </span>
-            <span class="text-2xl font-medium text-gray-900 dark:text-gray-100">
-              {{ telegramChannelCount }}
-            </span>
-          </div>
-        </div>
-
-        <div class="mt-3 flex items-center gap-1.5">
-          <FontAwesomeIcon
-            :icon="telegramEnabled ? faCircleCheck : faCircleXmark"
-            :class="[
-              'size-4',
-              telegramEnabled ? 'text-emerald-500' : 'text-gray-400 dark:text-gray-500',
-            ]"
-          />
-          <span
-            :class="[
-              'text-sm',
-              telegramEnabled
-                ? 'text-emerald-600 dark:text-emerald-400'
-                : 'text-gray-500 dark:text-gray-400',
-            ]"
-          >
-            {{
-              telegramEnabled ? t('alerts.notification_enabled') : t('alerts.notification_disabled')
-            }}
-          </span>
-        </div>
-      </NeCard>
+      <NotificationChannelCard
+        :icon="faPaperPlane"
+        :title="t('alerts.telegram_channel_title')"
+        :description="t('alerts.telegram_channel_description')"
+        :can-manage="canManageAlerts()"
+        :not-configured="telegramNotConfigured"
+        :not-configured-title="t('alerts.telegram_not_configured')"
+        :not-configured-description="t('alerts.telegram_not_configured_description')"
+        :count="telegramChannelCount"
+        :count-label="t('alerts.channels_count')"
+        :enabled="telegramEnabled"
+        :enabled-text="t('alerts.notifications_enabled')"
+        :disabled-text="t('alerts.notifications_disabled')"
+        @edit="showTelegramDrawer = true"
+      />
     </div>
 
     <!-- Drawers -->

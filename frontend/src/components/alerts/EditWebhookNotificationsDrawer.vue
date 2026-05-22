@@ -11,13 +11,7 @@ import {
   NeTextInput,
   NeToggle,
 } from '@nethesis/vue-components'
-import {
-  faTrash,
-  faPlus,
-  faChevronUp,
-  faChevronDown,
-  faCircleCheck,
-} from '@fortawesome/free-solid-svg-icons'
+import { faTrash, faPlus, faChevronDown, faCircleCheck } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useMutation, useQueryCache } from '@pinia/colada'
@@ -48,22 +42,18 @@ const notificationsStore = useNotificationsStore()
 
 const webhookEnabled = ref(false)
 const endpoints = ref<(WebhookRecipient & { _expanded: boolean })[]>([])
-const newEndpoint = ref('')
-const newEndpointError = ref('')
 const expandedIndex = ref<number | null>(null)
 const expandedUrlRef = useTemplateRef<Focusable[]>('expandedUrlRef')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const SEVERITIES = ['critical', 'warning', 'info'] as const
 const SEVERITY_LABELS: Record<string, string> = {
-  critical: t('alerts.severity_high'),
-  warning: t('alerts.severity_medium'),
-  info: t('alerts.severity_low'),
+  critical: 'High',
+  warning: 'Medium',
+  info: 'Low',
 }
 
 function initForm() {
-  newEndpoint.value = ''
-  newEndpointError.value = ''
   expandedIndex.value = null
   validationIssues.value = {}
 
@@ -114,20 +104,14 @@ function hasSeverity(endpoint: WebhookRecipient & { _expanded: boolean }, severi
 // ── Add / Remove ──────────────────────────────────────────────────────────────
 
 function addEndpoint() {
-  newEndpointError.value = ''
-  const url = newEndpoint.value.trim()
-  if (!url) {
-    newEndpointError.value = t('alerts.endpoint_placeholder')
-    return
-  }
   endpoints.value.push({
-    name: url,
-    url,
+    name: '',
+    url: '',
     severities: [...SEVERITIES],
-    _expanded: false,
+    _expanded: true,
   })
   expandedIndex.value = endpoints.value.length - 1
-  newEndpoint.value = ''
+  nextTick(() => expandedUrlRef.value?.[0]?.focus())
 }
 
 function removeEndpoint(index: number) {
@@ -218,35 +202,19 @@ function closeDrawer() {
     @close="closeDrawer"
   >
     <div class="space-y-6">
-      <!-- Status toggle -->
-      <div class="space-y-2">
-        <p class="text-sm font-medium text-gray-700 dark:text-gray-200">
-          {{ t('common.status') }}
-        </p>
-        <NeToggle v-model="webhookEnabled" :label="t('common.enabled')" />
-      </div>
+      <!-- Notifications disabled warning -->
+      <NeInlineNotification
+        v-if="!webhookEnabled"
+        kind="warning"
+        :description="t('alerts.notifications_disabled_warning')"
+      />
 
-      <!-- Add endpoint -->
-      <div class="space-y-2">
-        <p class="text-sm font-medium text-gray-700 dark:text-gray-200">
-          {{ t('alerts.endpoint') }}
-        </p>
-        <div class="flex items-start gap-2">
-          <NeTextInput
-            v-model="newEndpoint"
-            class="flex-1"
-            placeholder="https://api.yourdomain.com/webhooks"
-            :invalid-message="newEndpointError"
-            @keydown.enter="addEndpoint"
-          />
-          <NeButton kind="secondary" @click="addEndpoint">
-            <template #prefix>
-              <FontAwesomeIcon :icon="faPlus" class="size-4" />
-            </template>
-            {{ t('common.add') ?? 'Add' }}
-          </NeButton>
-        </div>
-      </div>
+      <!-- Status toggle -->
+      <NeToggle
+        v-model="webhookEnabled"
+        :top-label="t('common.status')"
+        :label="t('common.enabled')"
+      />
 
       <!-- Endpoints list -->
       <div
@@ -278,65 +246,73 @@ function closeDrawer() {
               </div>
             </div>
             <FontAwesomeIcon
-              :icon="expandedIndex === index ? faChevronUp : faChevronDown"
-              class="ml-3 size-4 shrink-0 text-gray-400"
+              :icon="faChevronDown"
+              class="ml-3 size-4 shrink-0 text-gray-400 transition-transform duration-200"
+              :style="{ transform: expandedIndex === index ? 'rotate(180deg)' : 'rotate(0deg)' }"
             />
           </button>
 
           <!-- Expanded body -->
-          <div v-if="expandedIndex === index" class="space-y-6 bg-gray-800/50 p-4">
-            <!-- Endpoint URL field -->
-            <NeTextInput
-              ref="expandedUrlRef"
-              v-model="ep.url"
-              :label="t('alerts.endpoint')"
-              :invalid-message="
-                validationIssues[`webhook_recipients.${index}.url`]?.[0]
-                  ? $t(validationIssues[`webhook_recipients.${index}.url`][0])
-                  : ''
-              "
-            />
+          <Transition name="accordion">
+            <div v-if="expandedIndex === index" class="space-y-6 bg-gray-800/50 p-4">
+              <!-- Endpoint URL field -->
+              <NeTextInput
+                ref="expandedUrlRef"
+                v-model="ep.url"
+                :label="t('alerts.endpoint')"
+                :placeholder="
+                  $t('common.eg_value', { value: 'https://api.yourdomain.com/mywebhook' })
+                "
+                :invalid-message="
+                  validationIssues[`webhook_recipients.${index}.url`]?.[0]
+                    ? $t(validationIssues[`webhook_recipients.${index}.url`][0])
+                    : ''
+                "
+              />
 
-            <!-- Severity multi-select -->
-            <div class="space-y-2">
-              <p class="text-sm font-medium text-gray-200">{{ t('alerts.severity') }}</p>
-              <div class="flex gap-2">
-                <button
-                  v-for="sev in SEVERITIES"
-                  :key="sev"
-                  :class="[
-                    'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors',
-                    hasSeverity(ep, sev)
-                      ? 'border-sky-500 bg-sky-900/30 text-sky-300'
-                      : 'border-gray-600 text-gray-400 hover:border-gray-500',
-                  ]"
-                  type="button"
-                  @click="toggleSeverity(ep, sev)"
-                >
-                  <FontAwesomeIcon
-                    v-if="hasSeverity(ep, sev)"
-                    :icon="faCircleCheck"
-                    class="size-3.5 text-sky-400"
-                  />
-                  {{ SEVERITY_LABELS[sev] }}
-                </button>
+              <!-- Severity multi-select -->
+              <div class="space-y-2">
+                <p class="text-sm font-medium text-gray-200">{{ t('alerts.severity') }}</p>
+                <div class="flex gap-2">
+                  <button
+                    v-for="sev in SEVERITIES"
+                    :key="sev"
+                    :class="[
+                      'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors',
+                      hasSeverity(ep, sev)
+                        ? 'border-sky-500 bg-sky-900/30 text-sky-300'
+                        : 'border-gray-600 text-gray-400 hover:border-gray-500',
+                    ]"
+                    type="button"
+                    @click="toggleSeverity(ep, sev)"
+                  >
+                    <FontAwesomeIcon
+                      v-if="hasSeverity(ep, sev)"
+                      :icon="faCircleCheck"
+                      class="size-3.5 text-sky-400"
+                    />
+                    {{ SEVERITY_LABELS[sev] }}
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <!-- Remove button -->
-            <NeButton
-              kind="tertiary"
-              class="text-red-400 hover:text-red-300"
-              @click="removeEndpoint(index)"
-            >
-              <template #prefix>
-                <FontAwesomeIcon :icon="faTrash" class="size-4" />
-              </template>
-              {{ t('alerts.remove_endpoint') }}
-            </NeButton>
-          </div>
+              <!-- Remove button -->
+              <NeButton kind="tertiary" class="-ml-2.5" @click="removeEndpoint(index)">
+                <template #prefix>
+                  <FontAwesomeIcon :icon="faTrash" class="size-4" />
+                </template>
+                {{ t('alerts.remove_endpoint') }}
+              </NeButton>
+            </div>
+          </Transition>
         </div>
       </div>
+      <NeButton kind="secondary" @click="addEndpoint">
+        <template #prefix>
+          <FontAwesomeIcon :icon="faPlus" class="size-4" />
+        </template>
+        {{ t('alerts.add_webhook') }}
+      </NeButton>
     </div>
 
     <!-- Error -->
@@ -353,8 +329,29 @@ function closeDrawer() {
     <div class="flex justify-end gap-3">
       <NeButton kind="tertiary" @click="closeDrawer">{{ t('common.cancel') }}</NeButton>
       <NeButton kind="primary" :loading="isSaving" @click="onSave">
-        {{ t('alerts.configure') }}
+        {{ config?.enabled?.webhook == null ? t('alerts.configure') : t('common.save') }}
       </NeButton>
     </div>
   </NeSideDrawer>
 </template>
+
+<style scoped>
+.accordion-enter-active,
+.accordion-leave-active {
+  overflow: hidden;
+  transition:
+    max-height 0.25s ease,
+    opacity 0.2s ease;
+}
+
+.accordion-enter-from,
+.accordion-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+
+.accordion-enter-to,
+.accordion-leave-from {
+  max-height: 800px;
+}
+</style>

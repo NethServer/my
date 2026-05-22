@@ -152,6 +152,8 @@
   --error: var(--color-rose-700);
 
   --background-input: var(--color-white);
+  --icon-enabled: var(--color-green-700);
+  --icon-disabled: var(--color-gray-700);
 }
 
 /* Apply dark theme when .dark class is present (overrides media query) */
@@ -188,6 +190,8 @@
   --error: var(--color-rose-200);
 
   --background-input: var(--color-gray-950);
+  --icon-enabled: var(--color-green-500);
+  --icon-disabled: var(--color-gray-400);
 }
 
 /* Reference the CSS custom properties in @theme inline */
@@ -212,6 +216,8 @@
   --color-danger: var(--danger);
   --color-placeholder: var(--placeholder);
   --color-border-secondary: var(--border-secondary);
+  --color-icon-enabled: var(--icon-enabled);
+  --color-icon-disabled: var(--icon-disabled);
 
   --border-ring-button: var(--ring-button);
   --border-ring-input: var(--ring-input);

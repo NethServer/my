@@ -35,6 +35,7 @@ import {
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAlerts } from '@/queries/alerts/alerts'
+import { useAlertFilters } from '@/queries/alerts/alertFilters'
 import {
   deleteAlertSilence,
   getAlertSilenceIds,
@@ -64,6 +65,7 @@ const {
   pageSize,
   sortBy,
   sortDirection,
+  statusFilters,
   severityFilters,
   alertnameFilters,
   systemKeyFilters,
@@ -72,6 +74,8 @@ const {
   resetFilters,
   refetch,
 } = useAlerts()
+
+const { state: alertFiltersState } = useAlertFilters()
 
 const alerts = computed(() => state.value.data?.alerts ?? [])
 const pagination = computed(() => state.value.data?.pagination)
@@ -90,26 +94,32 @@ const noEmptyStateShown = computed(
 
 // ── Filter options ─────────────────────────────────────────────────────────────
 
-const severityFilterOptions: FilterOption[] = [
-  { id: 'critical', label: 'Critical' },
-  { id: 'warning', label: 'Warning' },
-  { id: 'info', label: 'Info' },
-]
+const alertFiltersData = computed(() => alertFiltersState.value.data)
+
+const severityFilterOptions = computed<FilterOption[]>(() => {
+  const severities = alertFiltersData.value?.severities ?? []
+  return severities.map((s) => ({ id: s, label: capitalize(s) }))
+})
 
 const alertNameFilterOptions = computed<FilterOption[]>(() => {
-  const names = [...new Set(alerts.value.map((a) => a.labels?.alertname).filter(Boolean))]
-  return names.map((name) => ({ id: name, label: name }))
+  const alerts = alertFiltersData.value?.alerts ?? []
+  return alerts.map((a) => ({ id: a.name, label: a.name }))
 })
 
 const systemFilterOptions = computed<FilterOption[]>(() => {
-  const keys = [...new Set(alerts.value.map((a) => a.labels?.system_key).filter(Boolean))]
-  return keys.map((key) => ({ id: key, label: key }))
+  const systems = alertFiltersData.value?.systems ?? []
+  return systems.map((s) => ({ id: s.key, label: s.name }))
 })
 
 const organizationFilterOptions = computed<FilterOption[]>(() => {
-  const orgIds = [...new Set(alerts.value.map((a) => a.labels?.organization_id).filter(Boolean))]
-  return orgIds.map((id) => ({ id, label: id }))
+  const orgs = alertFiltersData.value?.organizations ?? []
+  return orgs.map((o) => ({ id: o.logto_id, label: o.name }))
 })
+
+const statusFilterOptions: FilterOption[] = [
+  { id: 'muted', label: t('alerts.filter_status_muted') },
+  { id: 'unmuted', label: t('alerts.filter_status_unmuted') },
+]
 
 // ── Sort ────────────────────────────────────────────────────────────────────────
 
@@ -273,6 +283,20 @@ function handleReload() {
             kind="checkbox"
             :label="t('alerts.filter_organization')"
             :options="organizationFilterOptions"
+            :show-clear-filter="false"
+            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            @update:model-value="() => (pageNum = 1)"
+          />
+          <!-- Status filter -->
+          <NeDropdownFilter
+            v-model="statusFilters"
+            kind="checkbox"
+            :label="t('alerts.filter_status')"
+            :options="statusFilterOptions"
             :show-clear-filter="false"
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"

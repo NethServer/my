@@ -11,13 +11,7 @@ import {
   NeTextInput,
   NeToggle,
 } from '@nethesis/vue-components'
-import {
-  faTrash,
-  faPlus,
-  faChevronUp,
-  faChevronDown,
-  faCircleCheck,
-} from '@fortawesome/free-solid-svg-icons'
+import { faTrash, faPlus, faChevronDown, faCircleCheck } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useMutation, useQueryCache } from '@pinia/colada'
@@ -48,22 +42,18 @@ const notificationsStore = useNotificationsStore()
 
 const emailEnabled = ref(false)
 const recipients = ref<(EmailRecipient & { _expanded: boolean })[]>([])
-const newAddress = ref('')
-const newAddressError = ref('')
 const expandedIndex = ref<number | null>(null)
 const expandedAddressRef = useTemplateRef<Focusable[]>('expandedAddressRef')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const SEVERITIES = ['critical', 'warning', 'info'] as const
 const SEVERITY_LABELS: Record<string, string> = {
-  critical: t('alerts.severity_high'),
-  warning: t('alerts.severity_medium'),
-  info: t('alerts.severity_low'),
+  critical: 'High',
+  warning: 'Medium',
+  info: 'Low',
 }
 
 function initForm() {
-  newAddress.value = ''
-  newAddressError.value = ''
   expandedIndex.value = null
   validationIssues.value = {}
 
@@ -114,25 +104,15 @@ function hasSeverity(recipient: EmailRecipient & { _expanded: boolean }, severit
 // ── Add / Remove ──────────────────────────────────────────────────────────────
 
 function addRecipient() {
-  newAddressError.value = ''
-  const addr = newAddress.value.trim()
-  if (!addr) {
-    newAddressError.value = t('alerts.email_address_required')
-    return
-  }
-  if (recipients.value.some((r) => r.address === addr)) {
-    newAddressError.value = t('alerts.email_address_duplicate')
-    return
-  }
   recipients.value.push({
-    address: addr,
+    address: '',
     severities: [...SEVERITIES],
     language: 'en',
     format: 'html',
-    _expanded: false,
+    _expanded: true,
   })
   expandedIndex.value = recipients.value.length - 1
-  newAddress.value = ''
+  nextTick(() => expandedAddressRef.value?.[0]?.focus())
 }
 
 function removeRecipient(index: number) {
@@ -225,35 +205,19 @@ function closeDrawer() {
     @close="closeDrawer"
   >
     <div class="space-y-6">
-      <!-- Status toggle -->
-      <div class="space-y-2">
-        <p class="text-sm font-medium text-gray-700 dark:text-gray-200">
-          {{ t('common.status') }}
-        </p>
-        <NeToggle v-model="emailEnabled" :label="t('common.enabled')" />
-      </div>
+      <!-- Notifications disabled warning -->
+      <NeInlineNotification
+        v-if="!emailEnabled"
+        kind="warning"
+        :description="t('alerts.notifications_disabled_warning')"
+      />
 
-      <!-- Add email address -->
-      <div class="space-y-2">
-        <p class="text-sm font-medium text-gray-700 dark:text-gray-200">
-          {{ t('alerts.email_address') }}
-        </p>
-        <div class="flex items-start gap-2">
-          <NeTextInput
-            v-model="newAddress"
-            class="flex-1"
-            placeholder="user@example.com"
-            :invalid-message="newAddressError"
-            @keydown.enter="addRecipient"
-          />
-          <NeButton kind="secondary" @click="addRecipient">
-            <template #prefix>
-              <FontAwesomeIcon :icon="faPlus" class="size-4" />
-            </template>
-            {{ t('common.add') ?? 'Add' }}
-          </NeButton>
-        </div>
-      </div>
+      <!-- Status toggle -->
+      <NeToggle
+        v-model="emailEnabled"
+        :top-label="t('common.status')"
+        :label="t('common.enabled')"
+      />
 
       <!-- Recipients list -->
       <div
@@ -285,101 +249,107 @@ function closeDrawer() {
               </div>
             </div>
             <FontAwesomeIcon
-              :icon="expandedIndex === index ? faChevronUp : faChevronDown"
-              class="ml-3 size-4 shrink-0 text-gray-400"
+              :icon="faChevronDown"
+              class="ml-3 size-4 shrink-0 text-gray-400 transition-transform duration-200"
+              :style="{ transform: expandedIndex === index ? 'rotate(180deg)' : 'rotate(0deg)' }"
             />
           </button>
 
           <!-- Expanded body -->
-          <div v-if="expandedIndex === index" class="space-y-6 bg-gray-800/50 p-4">
-            <!-- Email address field -->
-            <NeTextInput
-              ref="expandedAddressRef"
-              v-model="recipient.address"
-              :label="t('alerts.email_address')"
-              :invalid-message="
-                validationIssues[`email_recipients.${index}.address`]?.[0]
-                  ? $t(validationIssues[`email_recipients.${index}.address`][0])
-                  : ''
-              "
-            />
+          <Transition name="accordion">
+            <div v-if="expandedIndex === index" class="space-y-6 bg-gray-800/50 p-4">
+              <!-- Email address field -->
+              <NeTextInput
+                ref="expandedAddressRef"
+                v-model="recipient.address"
+                :label="t('alerts.email_address')"
+                :placeholder="$t('common.eg_value', { value: 'user@example.com' })"
+                :invalid-message="
+                  validationIssues[`email_recipients.${index}.address`]?.[0]
+                    ? $t(validationIssues[`email_recipients.${index}.address`][0])
+                    : ''
+                "
+              />
 
-            <!-- Severity multi-select -->
-            <div class="space-y-2">
-              <p class="text-sm font-medium text-gray-200">{{ t('alerts.severity') }}</p>
-              <div class="flex gap-2">
-                <button
-                  v-for="sev in SEVERITIES"
-                  :key="sev"
-                  :class="[
-                    'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors',
-                    hasSeverity(recipient, sev)
-                      ? 'border-sky-500 bg-sky-900/30 text-sky-300'
-                      : 'border-gray-600 text-gray-400 hover:border-gray-500',
-                  ]"
-                  type="button"
-                  @click="toggleSeverity(recipient, sev)"
-                >
-                  <FontAwesomeIcon
-                    v-if="hasSeverity(recipient, sev)"
-                    :icon="faCircleCheck"
-                    class="size-3.5 text-sky-400"
-                  />
-                  {{ SEVERITY_LABELS[sev] }}
-                </button>
-              </div>
-            </div>
-
-            <!-- Email language -->
-            <div class="space-y-2">
-              <p class="text-sm font-medium text-gray-200">{{ t('alerts.email_language') }}</p>
+              <!-- Severity multi-select -->
               <div class="space-y-2">
-                <label class="flex cursor-pointer items-center gap-2">
-                  <input
-                    type="radio"
-                    :name="`lang-${index}`"
-                    value="it"
-                    :checked="recipient.language === 'it'"
-                    class="text-sky-500 focus:ring-sky-500"
-                    @change="recipient.language = 'it'"
-                  />
-                  <span class="text-sm text-gray-200">{{ t('alerts.language_italian') }}</span>
-                </label>
-                <label class="flex cursor-pointer items-center gap-2">
-                  <input
-                    type="radio"
-                    :name="`lang-${index}`"
-                    value="en"
-                    :checked="!recipient.language || recipient.language === 'en'"
-                    class="text-sky-500 focus:ring-sky-500"
-                    @change="recipient.language = 'en'"
-                  />
-                  <span class="text-sm text-gray-200">{{ t('alerts.language_english') }}</span>
-                </label>
+                <p class="text-sm font-medium text-gray-200">{{ t('alerts.severity') }}</p>
+                <div class="flex gap-2">
+                  <button
+                    v-for="sev in SEVERITIES"
+                    :key="sev"
+                    :class="[
+                      'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors',
+                      hasSeverity(recipient, sev)
+                        ? 'border-sky-500 bg-sky-900/30 text-sky-300'
+                        : 'border-gray-600 text-gray-400 hover:border-gray-500',
+                    ]"
+                    type="button"
+                    @click="toggleSeverity(recipient, sev)"
+                  >
+                    <FontAwesomeIcon
+                      v-if="hasSeverity(recipient, sev)"
+                      :icon="faCircleCheck"
+                      class="size-3.5 text-sky-400"
+                    />
+                    {{ SEVERITY_LABELS[sev] }}
+                  </button>
+                </div>
               </div>
+
+              <!-- Email language -->
+              <div class="space-y-2">
+                <p class="text-sm font-medium text-gray-200">{{ t('alerts.email_language') }}</p>
+                <div class="space-y-2">
+                  <label class="flex cursor-pointer items-center gap-2">
+                    <input
+                      type="radio"
+                      :name="`lang-${index}`"
+                      value="it"
+                      :checked="recipient.language === 'it'"
+                      class="text-sky-500 focus:ring-sky-500"
+                      @change="recipient.language = 'it'"
+                    />
+                    <span class="text-sm text-gray-200">{{ t('alerts.language_italian') }}</span>
+                  </label>
+                  <label class="flex cursor-pointer items-center gap-2">
+                    <input
+                      type="radio"
+                      :name="`lang-${index}`"
+                      value="en"
+                      :checked="!recipient.language || recipient.language === 'en'"
+                      class="text-sky-500 focus:ring-sky-500"
+                      @change="recipient.language = 'en'"
+                    />
+                    <span class="text-sm text-gray-200">{{ t('alerts.language_english') }}</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- HTML format toggle -->
+              <NeToggle
+                :model-value="recipient.format !== 'plain'"
+                :label="t('alerts.html_formatted_emails')"
+                @update:model-value="(v: boolean) => (recipient.format = v ? 'html' : 'plain')"
+              />
+
+              <!-- Remove button -->
+              <NeButton kind="tertiary" class="-ml-2.5" @click="removeRecipient(index)">
+                <template #prefix>
+                  <FontAwesomeIcon :icon="faTrash" class="size-4" />
+                </template>
+                {{ t('alerts.remove_address') }}
+              </NeButton>
             </div>
-
-            <!-- HTML format toggle -->
-            <NeToggle
-              :model-value="recipient.format !== 'plain'"
-              :label="t('alerts.html_formatted_emails')"
-              @update:model-value="(v: boolean) => (recipient.format = v ? 'html' : 'plain')"
-            />
-
-            <!-- Remove button -->
-            <NeButton
-              kind="tertiary"
-              class="text-red-400 hover:text-red-300"
-              @click="removeRecipient(index)"
-            >
-              <template #prefix>
-                <FontAwesomeIcon :icon="faTrash" class="size-4" />
-              </template>
-              {{ t('alerts.remove_address') }}
-            </NeButton>
-          </div>
+          </Transition>
         </div>
       </div>
+      <NeButton kind="secondary" @click="addRecipient">
+        <template #prefix>
+          <FontAwesomeIcon :icon="faPlus" class="size-4" />
+        </template>
+        {{ t('alerts.add_email_address') }}
+      </NeButton>
     </div>
 
     <!-- Error -->
@@ -396,8 +366,29 @@ function closeDrawer() {
     <div class="flex justify-end gap-3">
       <NeButton kind="tertiary" @click="closeDrawer">{{ t('common.cancel') }}</NeButton>
       <NeButton kind="primary" :loading="isSaving" @click="onSave">
-        {{ t('common.save') }}
+        {{ config?.enabled?.email == null ? t('alerts.configure') : t('common.save') }}
       </NeButton>
     </div>
   </NeSideDrawer>
 </template>
+
+<style scoped>
+.accordion-enter-active,
+.accordion-leave-active {
+  overflow: hidden;
+  transition:
+    max-height 0.25s ease,
+    opacity 0.2s ease;
+}
+
+.accordion-enter-from,
+.accordion-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+
+.accordion-enter-to,
+.accordion-leave-from {
+  max-height: 800px;
+}
+</style>

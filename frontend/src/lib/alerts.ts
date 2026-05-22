@@ -89,8 +89,8 @@ export const TelegramRecipientPayloadSchema = v.object({
     v.maxLength(256, 'alerts.telegram_bot_token_required'),
   ),
   chat_id: v.pipe(
-    v.number(),
-    v.check((n) => n !== 0, 'alerts.telegram_chat_id_required'),
+    v.number('alerts.telegram_chat_id_required'),
+    v.check((n) => n !== 0, 'alerts.telegram_chat_id_invalid'),
   ),
   severities: v.optional(v.array(SeveritySchema)),
 })
@@ -308,7 +308,10 @@ export const getAlertsConfig = (format?: 'yaml') => {
     .then((res) => res.data.data)
 }
 
-export const getAlertsTotals = (organizationIds?: string | string[], include?: 'descendants') => {
+export const getAlertsTotals = (
+  organizationIds?: string | string[],
+  include: 'descendants' = 'descendants',
+) => {
   const loginStore = useLoginStore()
   const params = new URLSearchParams()
 
@@ -330,7 +333,7 @@ export const getAlertsTotals = (organizationIds?: string | string[], include?: '
 
 export const getAlertsTrend = (
   organizationIds?: string | string[],
-  include?: 'descendants',
+  include: 'descendants' = 'descendants',
   period: 7 | 30 | 180 | 365 = 7,
 ) => {
   const loginStore = useLoginStore()
@@ -356,7 +359,7 @@ export const getAlertsTrend = (
 
 export const getAlertsStats = (
   organizationIds?: string | string[],
-  include?: 'descendants',
+  include: 'descendants' = 'descendants',
   fromDate?: string,
   toDate?: string,
   top?: number,
@@ -395,7 +398,7 @@ export const getAlertsHistory = (
   pageSize: number = 20,
   sortBy: string = 'created_at',
   sortDirection: 'asc' | 'desc' = 'desc',
-  include?: 'descendants',
+  include: 'descendants' = 'descendants',
   fromDate?: string,
   toDate?: string,
   systemKeyFilters?: string | string[],
@@ -473,7 +476,7 @@ export const getAlertActivity = (
 
 export const getAlertsSilences = (
   organizationIds?: string | string[],
-  include?: 'descendants',
+  include: 'descendants' = 'descendants',
   systemKeyFilters?: string | string[],
 ) => {
   const loginStore = useLoginStore()
@@ -614,7 +617,7 @@ export const getAlerts = (
   severityFilters?: string | string[],
   systemKeyFilters?: string | string[],
   alertnameFilters?: string | string[],
-  include?: 'descendants',
+  include: 'descendants' = 'descendants',
 ) => {
   const loginStore = useLoginStore()
   const params = new URLSearchParams()

@@ -34,6 +34,7 @@ import {
   faGrid2 as falGrid2,
 } from '@nethesis/nethesis-light-svg-icons'
 import {
+  canReadAlerts,
   canReadApplications,
   canReadCustomers,
   canReadDistributors,
@@ -74,7 +75,7 @@ const navigation = computed(() => {
     })
   }
 
-  if (loginStore.isOwner) {
+  if (canReadAlerts() || canReadSystems()) {
     menuItems.push({
       name: 'alerts.alerts_title',
       to: 'alerts',
