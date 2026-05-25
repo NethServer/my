@@ -19,8 +19,11 @@ import (
 )
 
 // GetSystemFilters handles GET /api/filters/systems - aggregated filters endpoint
-// Returns products, created_by, versions, and organizations in a single response.
+// Returns products, created_by, and versions in a single response.
 // Single auth check, parallel data fetching.
+//
+// Organizations dropdown is populated by /api/organizations, which supports
+// search + pagination and scales to tenants with thousands of rows.
 func GetSystemFilters(c *gin.Context) {
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 	if userID == "" {
@@ -39,22 +42,16 @@ func GetSystemFilters(c *gin.Context) {
 		Versions []string `json:"versions"`
 	}
 
-	type Organization struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
-	}
-
 	var (
-		products      []string
-		creators      []Creator
-		versions      []ProductVersions
-		organizations []Organization
+		products []string
+		creators []Creator
+		versions []ProductVersions
 
-		errProducts, errCreators, errVersions, errOrgs error
-		wg                                             sync.WaitGroup
+		errProducts, errCreators, errVersions error
+		wg                                    sync.WaitGroup
 	)
 
-	wg.Add(4)
+	wg.Add(3)
 
 	// Products
 	go func() {
@@ -179,50 +176,9 @@ func GetSystemFilters(c *gin.Context) {
 		}
 	}()
 
-	// Organizations
-	go func() {
-		defer wg.Done()
-
-		baseQuery := `
-			WITH all_organizations AS (
-				SELECT id, logto_id, name FROM distributors WHERE deleted_at IS NULL
-				UNION
-				SELECT id, logto_id, name FROM resellers WHERE deleted_at IS NULL
-				UNION
-				SELECT id, logto_id, name FROM customers WHERE deleted_at IS NULL
-			)
-			SELECT DISTINCT
-				o.logto_id AS id,
-				o.name
-			FROM systems s
-			INNER JOIN all_organizations o ON s.organization_id = o.logto_id
-			WHERE s.deleted_at IS NULL
-		`
-		var args []interface{}
-		query, args, _ := helpers.AppendOrgFilter(baseQuery, userOrgRole, userOrgID, "s.", args, 1)
-		query += ` ORDER BY o.name ASC`
-
-		rows, err := database.DB.Query(query, args...)
-		if err != nil {
-			errOrgs = fmt.Errorf("failed to retrieve organization filters: %w", err)
-			return
-		}
-		defer func() { _ = rows.Close() }()
-
-		organizations = make([]Organization, 0)
-		for rows.Next() {
-			var org Organization
-			if err := rows.Scan(&org.ID, &org.Name); err != nil {
-				continue
-			}
-			organizations = append(organizations, org)
-		}
-	}()
-
 	wg.Wait()
 
-	// Check for errors
-	for _, e := range []error{errProducts, errCreators, errVersions, errOrgs} {
+	for _, e := range []error{errProducts, errCreators, errVersions} {
 		if e != nil {
 			logger.Error().Err(e).Str("user_id", userID).Msg("Failed in system filters")
 			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve system filters", nil))
@@ -231,9 +187,8 @@ func GetSystemFilters(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response.OK("system filters retrieved successfully", gin.H{
-		"products":      products,
-		"created_by":    creators,
-		"versions":      versions,
-		"organizations": organizations,
+		"products":   products,
+		"created_by": creators,
+		"versions":   versions,
 	}))
 }

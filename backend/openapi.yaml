@@ -6908,12 +6908,17 @@ paths:
         - Backend - Filters
       summary: /filters/systems - Get aggregated system filters
       description: |
-        Aggregated endpoint that returns all system filter data in a single request.
-        Auth is checked once, then products, created_by, versions, and organizations are fetched in parallel.
-        Respects RBAC hierarchy - users only see data from systems they can access.
+        Aggregated endpoint that returns products, creators and versions
+        for the systems views. Auth is checked once, then the three datasets
+        are fetched in parallel. Respects RBAC hierarchy - users only see
+        data from systems they can access.
 
-        **Version Format**: Returns versions in prefixed format `product:version` (e.g., `"nsec:1.2.3"`, `"ns8:1.2.3"`)
-        to avoid ambiguity when the same version number exists for multiple products.
+        **Version Format**: Returns versions in prefixed format `product:version`
+        (e.g., `"nsec:1.2.3"`, `"ns8:1.2.3"`) to avoid ambiguity when the same
+        version number exists for multiple products.
+
+        Organizations dropdown is populated by the dedicated `/api/organizations`
+        endpoint, which supports search and pagination.
       responses:
         '200':
           description: System filters retrieved successfully
@@ -6970,20 +6975,6 @@ paths:
                               description: List of versions in prefixed format (product:version)
                               example: ["nsec:8.6.0", "nsec:8.5.2"]
                         description: Versions grouped by product type
-                      organizations:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            id:
-                              type: string
-                              description: Organization logto_id (not UUID)
-                              example: "ug9v4l0m6mwt"
-                            name:
-                              type: string
-                              description: Organization name
-                              example: "Customer Organization 3"
-                        description: List of organizations with systems
               example:
                 code: 200
                 message: "system filters retrieved successfully"
@@ -6998,11 +6989,6 @@ paths:
                       versions: ["nsec:8.6.0", "nsec:8.5.2"]
                     - product: "ns8"
                       versions: ["ns8:1.2.3", "ns8:1.1.0"]
-                  organizations:
-                    - id: "ug9v4l0m6mwt"
-                      name: "Cust3"
-                    - id: "guwy6opsll17"
-                      name: "Owner"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -7048,7 +7034,40 @@ paths:
       tags:
         - Backend - Metadata
       summary: /organizations - Get available organizations
-      description: Get organizations the current user can assign users to, filtered by business hierarchy
+      description: |
+        Paginated list of organizations across the caller's hierarchy
+        (distributors + resellers + customers). Supports text search and
+        per-field filters; intended for filter dropdowns and assignment
+        pickers.
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/SearchParam'
+        - name: name
+          in: query
+          required: false
+          description: Filter by organization name (exact match)
+          schema:
+            type: string
+        - name: description
+          in: query
+          required: false
+          description: Filter by organization description (exact match)
+          schema:
+            type: string
+        - name: type
+          in: query
+          required: false
+          description: Filter by organization type
+          schema:
+            type: string
+            enum: [distributor, reseller, customer]
+        - name: created_by
+          in: query
+          required: false
+          description: Filter by creator user ID
+          schema:
+            type: string
       responses:
         '200':
           description: Organizations retrieved successfully
@@ -12034,13 +12053,16 @@ paths:
         - Backend - Filters
       summary: /filters/applications - Get aggregated application filters
       description: |
-        Aggregated endpoint that returns all application filter data in a single request.
-        RBAC is resolved once, then types, versions, systems, and organizations are fetched in parallel.
+        Returns the catalog of application types and versions available in the
+        caller's scope. RBAC is resolved once, then types and versions are
+        fetched in parallel.
 
-        **Version Format**: Returns versions in prefixed format `type:version` (e.g., `"nethvoice:1.5.3"`, `"mail:1.7.4"`)
+        **Version Format**: Returns versions in prefixed format `type:version`
+        (e.g., `"nethvoice:1.5.3"`, `"mail:1.7.4"`).
 
-        **Organizations special value**: If there are applications without an assigned organization, the response includes
-        a special "No organization" entry with `id: "no_org"` and `type: "unassigned"`.
+        Systems and organizations dropdowns are populated by the dedicated
+        `/api/systems` and `/api/organizations` endpoints, which support search
+        and pagination.
       responses:
         '200':
           description: Application filters retrieved successfully
@@ -12081,14 +12103,6 @@ paths:
                                 type: string
                               description: Prefixed versions (type:version)
                               example: ["nethvoice:1.5.4", "nethvoice:1.5.3"]
-                      systems:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/ApplicationSystemSummary'
-                      organizations:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/OrganizationSummary'
               example:
                 code: 200
                 message: "application filters retrieved successfully"
@@ -12107,22 +12121,6 @@ paths:
                     - application: "nethvoice"
                       name: "NethVoice"
                       versions: ["nethvoice:1.5.4", "nethvoice:1.5.3"]
-                  systems:
-                    - id: "abc123-system-uuid"
-                      name: "Production Server"
-                    - id: "def456-system-uuid"
-                      name: "Development Server"
-                  organizations:
-                    - id: "no_org"
-                      logto_id: "no_org"
-                      name: "No organization"
-                      description: ""
-                      type: "unassigned"
-                    - id: "8b04e253-d408-4218-a30e-b048196847e5"
-                      logto_id: "fso3biosnaqp"
-                      name: "Acme Corp"
-                      description: ""
-                      type: "customer"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -12133,11 +12131,13 @@ paths:
       operationId: getUserFilters
       tags:
         - Backend - Filters
-      summary: /filters/users - Get aggregated user filters
+      summary: /filters/users - Get the roles available in the caller's scope
       description: |
-        Aggregated endpoint that returns all user filter data in a single request.
-        Auth is checked once, then roles and organizations are fetched in parallel.
-        Respects RBAC hierarchy for both roles and organizations.
+        Returns the list of roles the caller can assign to users, respecting
+        RBAC hierarchy.
+
+        Organizations dropdown is populated by the dedicated
+        `/api/organizations` endpoint, which supports search and pagination.
       responses:
         '200':
           description: User filters retrieved successfully
@@ -12159,24 +12159,6 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/Role'
-                      organizations:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            id:
-                              type: string
-                              description: Organization Logto ID
-                              example: "org_abc123"
-                            name:
-                              type: string
-                              description: Organization name
-                              example: "ACME Corp"
-                            type:
-                              type: string
-                              enum: [distributor, reseller, customer]
-                              description: Organization type
-                              example: "customer"
               example:
                 code: 200
                 message: "user filters retrieved successfully"
@@ -12188,13 +12170,6 @@ paths:
                     - id: "role_def456"
                       name: "Support"
                       description: "Support operator"
-                  organizations:
-                    - id: "org_abc123"
-                      name: "ACME Corp"
-                      type: "customer"
-                    - id: "org_def456"
-                      name: "TechStart Inc"
-                      type: "reseller"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
