@@ -43,7 +43,9 @@
     "vue-router": "^4.5.0"
   },
   "overrides": {
-    "uuid": "^14.0.0"
+    "js-cookie": "^3.0.6",
+    "uuid": "^14.0.0",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@pinia/colada-devtools": "^0.4.5",
