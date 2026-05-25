@@ -152,6 +152,13 @@ apply_migration() {
         return 0
     fi
 
+    # Refuse to replay a migration when later siblings are already recorded.
+    # Replaying is what triggers errors like "X is not a view" when a follow-up
+    # migration has changed the underlying object's type.
+    if ! detect_gaps; then
+        exit 3
+    fi
+
     CHECKSUM=$(get_file_checksum "$FILE" || true)
     DESC=$(basename "$FILE" .sql | sed "s/^${MIG}_//")
 
@@ -195,6 +202,103 @@ rollback_migration() {
     } | run_psql_file
 
     log_success "Migration $MIG rolled back"
+}
+
+list_applied_migrations() {
+    create_migrations_table
+    $CONTAINER_ENGINE run --rm -i \
+        --network=host \
+        "$POSTGRES_IMAGE" \
+        psql "$DATABASE_URL" -t -A \
+        -c "SELECT migration_number FROM schema_migrations ORDER BY migration_number;" \
+        | tr -d ' '
+}
+
+list_migration_files() {
+    find "$MIGRATION_DIR" -maxdepth 1 -type f -name '*.sql' ! -name '*_rollback.sql' \
+        | sed -E 's@.*/([0-9]+)_.*\.sql$@\1@' \
+        | sort -u
+}
+
+# Detect numbers that have a file on disk and a newer applied sibling but no
+# schema_migrations row. That state means apply will replay an already-applied
+# migration and fail (e.g. CREATE OR REPLACE VIEW over a now-MATERIALIZED view).
+detect_gaps() {
+    local applied_file gaps_file max_applied
+    applied_file=$(mktemp)
+    gaps_file=$(mktemp)
+
+    list_applied_migrations >"$applied_file"
+
+    if [ ! -s "$applied_file" ]; then
+        rm -f "$applied_file" "$gaps_file"
+        return 0
+    fi
+
+    max_applied=$(tail -n1 "$applied_file")
+
+    while read -r mig; do
+        [ -z "$mig" ] && continue
+        if [ "$(printf '%s\n' "$mig" "$max_applied" | sort | head -n1)" = "$mig" ] \
+           && [ "$mig" != "$max_applied" ] \
+           && ! grep -qx "$mig" "$applied_file"; then
+            echo "$mig" >>"$gaps_file"
+        fi
+    done < <(list_migration_files)
+
+    if [ -s "$gaps_file" ]; then
+        local gap_list
+        gap_list=$(tr '\n' ' ' <"$gaps_file" | sed 's/ $//')
+        log_error "schema_migrations is inconsistent — applied rows skip: $gap_list"
+        log_error "  but later migrations are recorded as applied (max=$max_applied)."
+        log_error ""
+        log_error "Either these were applied out-of-band (mark them) or never ran"
+        log_error "(investigate before doing anything)."
+        log_error ""
+        log_error "If the schema is actually up to date, mark them as applied:"
+        log_error "  ./run_migration.sh repair $gap_list"
+        log_error "  (or from the backend dir: make db-repair MIGRATIONS=\"$gap_list\")"
+        rm -f "$applied_file" "$gaps_file"
+        return 1
+    fi
+
+    rm -f "$applied_file" "$gaps_file"
+    return 0
+}
+
+repair_migrations() {
+    if [ $# -eq 0 ]; then
+        log_error "repair requires at least one migration number"
+        log_error "Usage: $0 repair <num> [<num>...]"
+        exit 1
+    fi
+
+    create_migrations_table
+
+    local mig file desc checksum
+    for mig in "$@"; do
+        file=$(find_migration_file "$mig")
+        if [ -z "$file" ]; then
+            log_error "Migration file for $mig not found — refusing to repair"
+            exit 1
+        fi
+
+        if check_migration_status "$mig"; then
+            log_warning "Migration $mig is already recorded — skipping"
+            continue
+        fi
+
+        desc=$(basename "$file" .sql | sed "s/^${mig}_//")
+        checksum=$(get_file_checksum "$file")
+
+        log_info "Marking migration $mig as applied (description=$desc)"
+        run_psql_raw "
+            INSERT INTO schema_migrations (migration_number, description, checksum)
+            VALUES ('$mig', '$desc', '$checksum')
+            ON CONFLICT (migration_number) DO UPDATE SET checksum = EXCLUDED.checksum;
+        " >/dev/null
+        log_success "Migration $mig marked as applied"
+    done
 }
 
 verify_all() {
@@ -243,14 +347,21 @@ verify_all() {
 show_usage() {
     echo "Usage: $0 <migration_number> {apply|rollback|status}"
     echo "       $0 verify"
+    echo "       $0 repair <num> [<num>...]"
 }
 
 main() {
     detect_container_engine
     check_database_url
 
-    if [ $# -eq 1 ] && [ "$1" = "verify" ]; then
+    if [ $# -ge 1 ] && [ "$1" = "verify" ]; then
         verify_all
+        exit $?
+    fi
+
+    if [ $# -ge 1 ] && [ "$1" = "repair" ]; then
+        shift
+        repair_migrations "$@"
         exit $?
     fi
 

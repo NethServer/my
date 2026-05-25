@@ -248,6 +248,27 @@ db-migrate-qa:
 	done; \
 	echo "All migrations completed!"
 
+# Repair schema_migrations when rows are missing but the schema is already
+# applied (see "schema_migrations is inconsistent" gap-check error).
+# Usage: make db-repair MIGRATIONS="010 012 013"
+#        make db-repair MIGRATIONS="010 012" ENV=qa
+.PHONY: db-repair
+db-repair:
+	@if [ -z "$(MIGRATIONS)" ]; then \
+		echo "Usage: make db-repair MIGRATIONS=\"<num> [<num>...]\" [ENV=qa]"; \
+		echo "Example: make db-repair MIGRATIONS=\"010 012 013 016\""; \
+		exit 1; \
+	fi; \
+	ENV_FILE=.env; \
+	if [ "$(ENV)" = "qa" ]; then ENV_FILE=.env.qa; fi; \
+	if [ ! -f $$ENV_FILE ]; then \
+		echo "Error: $$ENV_FILE not found."; \
+		exit 1; \
+	fi; \
+	set -a && source $$ENV_FILE && set +a && \
+	cd database/migrations && \
+	./run_migration.sh repair $(MIGRATIONS)
+
 # Individual migration management (for advanced users)
 .PHONY: db-migration
 db-migration:
@@ -326,6 +347,7 @@ help:
 	@echo "  db-migrate    - Run all pending database migrations (uses .env)"
 	@echo "  db-migrate-qa - Run all pending database migrations (uses .env.qa)"
 	@echo "  db-migration  - Run specific migration (MIGRATION=001 ACTION=apply [ENV=qa])"
+	@echo "  db-repair     - Mark migrations as applied (MIGRATIONS=\"010 012\" [ENV=qa])"
 	@echo ""
 	@echo "Redis commands:"
 	@echo "  redis-up      - Start Redis container"
