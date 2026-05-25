@@ -12205,43 +12205,16 @@ paths:
       operationId: getAlertFilters
       tags:
         - Backend - Filters
-      summary: /filters/alerts - Get aggregated alert filters
+      summary: /filters/alerts - Get the static alert catalog
       description: |
-        Aggregated endpoint for the alerts views' filter dropdowns.
+        Returns the static catalog of every alert a NethServer (NS8) or
+        NethSecurity system can raise. Used to populate the "alert name"
+        dropdown in the alerts views.
 
-        `systems`, `severities` and `organizations` are data-driven: only
-        values that actually appear in alert history within the caller's scope
-        are returned. `alerts` is a static catalog of every alert a NethServer
-        (NS8) or NethSecurity system can raise — it is NOT scoped to the
-        caller's data, so the dropdown can filter on alerts not yet received.
-
-        Auth is checked once, then the data-driven datasets are fetched in
-        parallel.
-
-        Scope follows the same rules as the other alerts endpoints:
-        `organization_id` omitted = caller's full hierarchy; one or more
-        `organization_id` = those tenants (validated, Owner exempt);
-        Customer is always pinned to its own organization.
-      parameters:
-        - name: organization_id
-          in: query
-          required: false
-          description: |
-            Tenant scope. Omit for the caller's full hierarchy, or repeat to
-            target specific tenants (each validated against the caller's
-            hierarchy; Owner exempt).
-          schema:
-            type: array
-            items:
-              type: string
-          example: ["org_abc123"]
-        - name: include
-          in: query
-          required: false
-          description: When set to `descendants`, expand each organization_id to itself plus its sub-tree.
-          schema:
-            type: string
-            enum: [descendants]
+        Systems and organizations dropdowns are populated by the dedicated
+        `/api/systems` and `/api/organizations` endpoints; severities are a
+        fixed enum (`critical|warning|info`) the UI hardcodes. None of those
+        need a scope-aware aggregation here.
       responses:
         '200':
           description: Alert filters retrieved successfully
@@ -12259,34 +12232,11 @@ paths:
                   data:
                     type: object
                     properties:
-                      systems:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            id:
-                              type: string
-                              description: System local ID
-                              example: "sys_abc123"
-                            name:
-                              type: string
-                              description: System display name
-                              example: "Milan Office Server"
-                            type:
-                              type: string
-                              description: System type (empty string if unknown)
-                              example: "ns8"
-                            key:
-                              type: string
-                              description: Unique system key
-                              example: "ABCD1234"
                       alerts:
                         type: array
                         description: |
                           Static catalog of every alert a NethServer (NS8) or
-                          NethSecurity system can raise. Not scoped to the
-                          caller's data — returned in full regardless of what
-                          alert history exists.
+                          NethSecurity system can raise.
                         items:
                           type: object
                           properties:
@@ -12303,52 +12253,16 @@ paths:
                               type: string
                               description: Sub-service that raises the alert (omitted when not applicable)
                               example: "storage"
-                      severities:
-                        type: array
-                        items:
-                          type: string
-                        description: Distinct severities present in alert history
-                        example: ["critical", "warning"]
-                      organizations:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            logto_id:
-                              type: string
-                              description: Organization Logto ID
-                              example: "org_abc123"
-                            name:
-                              type: string
-                              description: Organization name
-                              example: "ACME Corp"
-                            type:
-                              type: string
-                              enum: [distributor, reseller, customer]
-                              description: Organization type
-                              example: "customer"
               example:
                 code: 200
                 message: "alert filters retrieved successfully"
                 data:
-                  systems:
-                    - id: "sys_abc123"
-                      name: "Milan Office Server"
-                      type: "ns8"
-                      key: "ABCD1234"
                   alerts:
                     - name: "DiskSpaceLow"
                       severity: "warning"
                       service: "storage"
                     - name: "ServiceDown"
                       severity: "critical"
-                  severities:
-                    - "critical"
-                    - "warning"
-                  organizations:
-                    - logto_id: "org_abc123"
-                      name: "ACME Corp"
-                      type: "customer"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
