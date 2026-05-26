@@ -39,7 +39,7 @@ REDIS_URL=redis://localhost:6379
 REDIS_DB=2
 
 # Internal authentication (shared secret with backend)
-INTERNAL_SECRET=change-me-to-a-random-secret-min-32-chars
+SUPPORT_INTERNAL_SECRET=change-me-to-a-random-secret-min-32-chars
 ```
 
 ### Optional Environment Variables
