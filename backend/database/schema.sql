@@ -791,6 +791,51 @@ CREATE INDEX IF NOT EXISTS idx_system_org_transfers_to_org_id
   ON system_org_transfers(to_org_id);
 
 -- =============================================================================
+-- ALERT ACTIVITY (per-alert audit timeline)
+-- =============================================================================
+-- Append-only timeline of operator actions performed on a single alert
+-- (silence created/updated/deleted). See migration 023.
+
+CREATE TABLE IF NOT EXISTS alert_activity (
+    id              BIGSERIAL PRIMARY KEY,
+    organization_id VARCHAR(255) NOT NULL,
+    fingerprint     VARCHAR(255) NOT NULL,
+    action          VARCHAR(50)  NOT NULL,
+    actor_user_id   VARCHAR(255),
+    actor_name      VARCHAR(255),
+    silence_id      VARCHAR(255),
+    details         JSONB        NOT NULL DEFAULT '{}',
+    created_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE  alert_activity              IS 'Append-only audit timeline of operator actions on individual alerts';
+COMMENT ON COLUMN alert_activity.fingerprint  IS 'Alertmanager fingerprint (hex hash of labels) of the alert the action targets';
+COMMENT ON COLUMN alert_activity.action       IS 'Event kind: silenced | silence_updated | unsilenced. Note changes are silence_updated events.';
+COMMENT ON COLUMN alert_activity.silence_id   IS 'Silence ID associated with the event. Lets DELETE silence resolve the fingerprint.';
+
+CREATE INDEX IF NOT EXISTS idx_alert_activity_org_fp_created_at ON alert_activity(organization_id, fingerprint, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alert_activity_silence_lookup    ON alert_activity(organization_id, silence_id) WHERE silence_id IS NOT NULL;
+
+-- =============================================================================
+-- ALERT CONFIG LAYERS (per-organization alerting configuration)
+-- =============================================================================
+-- One row per organization carrying that org's alerting configuration as a
+-- flat recipient-based JSON blob. The effective per-tenant Mimir YAML is the
+-- server-side merge of all rows walking up the org hierarchy. See migration 024.
+
+CREATE TABLE IF NOT EXISTS alert_config_layers (
+    organization_id    VARCHAR(255) PRIMARY KEY,
+    config_json        JSONB NOT NULL,
+    updated_by_user_id VARCHAR(255),
+    updated_by_name    VARCHAR(255),
+    updated_at         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    created_at         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE  alert_config_layers              IS 'Per-organization alerting config layer. Effective Mimir YAML for a tenant is the merge of all layers from Owner down to that tenant; merge is server-side only and never exposed via API.';
+COMMENT ON COLUMN alert_config_layers.config_json  IS 'Serialized AlertingConfigLayer: { enabled:{email,webhook,telegram}, email_recipients[], webhook_recipients[], telegram_recipients[] }. Each recipient carries its own severities[]; email recipients additionally carry language+format. Channel toggles are nullable tri-state.';
+
+-- =============================================================================
 -- SCHEMA MIGRATIONS TABLE
 -- =============================================================================
 -- Tracks applied database migrations
