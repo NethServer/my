@@ -318,6 +318,8 @@ services:
     image:
       url: ghcr.io/nethserver/my/support:v0.6.1
     envVars:
+      - fromGroup: app-secrets-prod
+
       # Server Configuration
       - key: GIN_MODE
         value: release
@@ -555,6 +557,8 @@ services:
     rootDir: services/support
     dockerfilePath: Containerfile
     envVars:
+      - fromGroup: app-secrets-qa
+
       # Server Configuration
       - key: GIN_MODE
         value: debug
