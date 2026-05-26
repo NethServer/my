@@ -155,18 +155,38 @@ func TestGetAlertHistoryTotals_Scoped(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestGetAlertHistoryTotals_AllTenants(t *testing.T) {
+func TestGetAlertHistoryTotals_AllTenants_PlannerEstimate(t *testing.T) {
 	repo, mock, cleanup := setupAlertHistoryMock(t)
 	defer cleanup()
 
-	// Empty orgID means "all tenants" — no filter, no args
-	mock.ExpectQuery(`^SELECT COUNT\(\*\) FROM alert_history$`).
-		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(42))
+	// Owner-all-scope short-circuits to pg_class.reltuples to avoid the
+	// multi-second COUNT(*) on a large alert_history table.
+	mock.ExpectQuery(`SELECT reltuples FROM pg_class WHERE oid = 'public\.alert_history'::regclass`).
+		WillReturnRows(sqlmock.NewRows([]string{"reltuples"}).AddRow(42.0))
 
 	total, err := repo.GetAlertHistoryTotals("")
 
 	assert.NoError(t, err)
 	assert.Equal(t, 42, total)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetAlertHistoryTotals_AllTenants_FallbackToExactCount(t *testing.T) {
+	repo, mock, cleanup := setupAlertHistoryMock(t)
+	defer cleanup()
+
+	// reltuples is -1 when the planner has never analyzed the table (fresh
+	// install before autovacuum has kicked in). The repo falls back to the
+	// exact COUNT(*) so the first reading is still meaningful.
+	mock.ExpectQuery(`SELECT reltuples FROM pg_class WHERE oid = 'public\.alert_history'::regclass`).
+		WillReturnRows(sqlmock.NewRows([]string{"reltuples"}).AddRow(-1.0))
+	mock.ExpectQuery(`^SELECT COUNT\(\*\) FROM alert_history$`).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(7))
+
+	total, err := repo.GetAlertHistoryTotals("")
+
+	assert.NoError(t, err)
+	assert.Equal(t, 7, total)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 

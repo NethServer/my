@@ -228,13 +228,29 @@ func (r *LocalAlertHistoryRepository) QueryAlertHistory(q AlertHistoryQuery) ([]
 }
 
 // GetAlertHistoryTotals returns the total count of alert history records.
-// When orgID is non-empty, results are scoped to that organization; the caller
-// is expected to have validated hierarchy access. An empty orgID returns the
-// aggregate across all tenants and is reserved for callers (Owner) that have
-// already cleared that authorization gate.
+// When orgID is non-empty, results are scoped to that organization with an
+// exact COUNT(*); the caller is expected to have validated hierarchy access.
+//
+// An empty orgID returns the aggregate across all tenants — reserved for
+// callers (Owner) that have already cleared that authorization gate. Because
+// COUNT(*) on this table is a multi-second index-only scan on managed
+// Postgres (visibility map is rarely warm enough for a true fast path), the
+// global case uses `pg_class.reltuples` instead: the planner's row estimate
+// maintained by autovacuum. It is sub-millisecond, lags reality by at most
+// the autovacuum interval, and is intended for the dashboard "Alerts in
+// history" counter where approximate is sufficient. If the planner has never
+// analyzed the table (reltuples<0), we fall back to the exact COUNT(*) so
+// the very first call after a fresh install still returns a sensible value.
 func (r *LocalAlertHistoryRepository) GetAlertHistoryTotals(orgID string) (int, error) {
 	var total int
 	if orgID == "" {
+		var estimate float64
+		err := r.db.QueryRow(
+			`SELECT reltuples FROM pg_class WHERE oid = 'public.alert_history'::regclass`,
+		).Scan(&estimate)
+		if err == nil && estimate >= 0 {
+			return int(estimate), nil
+		}
 		if err := r.db.QueryRow(`SELECT COUNT(*) FROM alert_history`).Scan(&total); err != nil {
 			return 0, fmt.Errorf("failed to count alert history: %w", err)
 		}
