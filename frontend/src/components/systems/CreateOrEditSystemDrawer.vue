@@ -18,6 +18,7 @@ import {
   NeFormItemLabel,
 } from '@nethesis/vue-components'
 import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
+import { useDebounceFn } from '@vueuse/core'
 import {
   CreateSystemSchema,
   EditSystemSchema,
@@ -40,7 +41,10 @@ import { useLoginStore } from '@/stores/login'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faCheck, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
 import { SYSTEM_FILTERS_KEY } from '@/lib/systems/systemFilters'
-import { organizationsQuery } from '@/queries/organizations/organizations'
+import {
+  ORGANIZATIONS_SEARCH_KEY,
+  searchOrganizations,
+} from '@/lib/organizations/searchOrganizations'
 
 const { isShown = false, currentSystem = undefined } = defineProps<{
   isShown: boolean
@@ -54,9 +58,20 @@ const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
 const loginStore = useLoginStore()
 
+const orgSearchInput = ref('')
+const debouncedOrgSearch = ref('')
+
+watch(
+  () => orgSearchInput.value,
+  useDebounceFn(() => {
+    debouncedOrgSearch.value = orgSearchInput.value
+  }, 300),
+)
+
 const { state: organizations } = useQuery({
-  ...organizationsQuery,
+  key: () => [ORGANIZATIONS_SEARCH_KEY, debouncedOrgSearch.value],
   enabled: () => !!loginStore.jwtToken && isShown,
+  query: () => searchOrganizations(debouncedOrgSearch.value),
 })
 
 const {
@@ -151,6 +166,8 @@ const organizationOptions = computed(() => {
   }))
 })
 
+const organizationsLoading = computed(() => organizations.value.status === 'pending')
+
 const stepNumber = computed(() => {
   return step.value === 'create' ? 1 : 2
 })
@@ -161,6 +178,10 @@ watch(organizations, () => {
     organizationId.value = currentSystem.organization.logto_id || ''
   }
 })
+
+function onOrganizationFilter(query: string) {
+  orgSearchInput.value = query
+}
 
 watch(
   () => step.value,
@@ -347,20 +368,21 @@ function copySecretAndCloseDrawer() {
             v-model="organizationId"
             :options="organizationOptions"
             :label="$t('systems.organization')"
-            :placeholder="
-              organizations.status === 'pending' ? $t('common.loading') : $t('ne_combobox.choose')
-            "
+            :placeholder="organizationsLoading ? $t('common.loading') : $t('ne_combobox.choose')"
             :helper-text="$t('systems.organization_helper')"
             :invalid-message="
               validationIssues.organization_id?.[0] ? $t(validationIssues.organization_id[0]) : ''
             "
-            :disabled="organizations.status === 'pending' || saving"
+            :disabled="organizationsLoading || saving"
             :no-results-label="$t('ne_combobox.no_results')"
             :limited-options-label="$t('ne_combobox.limited_options_label')"
             :no-options-label="$t('systems.no_organizations')"
             :selected-label="$t('ne_combobox.selected')"
             :user-input-label="$t('ne_combobox.user_input_label')"
             :optional-label="$t('common.optional')"
+            external-filter
+            :loading-options="organizationsLoading"
+            @filter="onOrganizationFilter"
           />
           <!-- notes -->
           <NeTextArea

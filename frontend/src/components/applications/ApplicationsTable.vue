@@ -48,6 +48,8 @@ import { useApplicationFilters } from '@/queries/applications/applicationFilters
 import { buildVersionFilterOptions } from '@/lib/applications/applicationFilters'
 import router from '@/router'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
+import { useOrganizationFilter } from '@/composables/useOrganizationFilter'
+import { useSystemFilter } from '@/composables/useSystemFilter'
 
 const { t } = useI18n()
 const {
@@ -108,27 +110,17 @@ const versionFilterOptions = computed(() => {
   }
 })
 
-const systemFilterOptions = computed(() => {
-  if (!applicationFiltersState.value.data?.systems) {
-    return []
-  } else {
-    return applicationFiltersState.value.data.systems.map((appSystem) => ({
-      id: appSystem.id,
-      label: appSystem.name,
-    }))
-  }
-})
+const {
+  options: systemFilterOptions,
+  loading: systemFilterLoading,
+  onSearch: onSystemSearch,
+} = useSystemFilter('id')
 
-const organizationFilterOptions = computed(() => {
-  if (!applicationFiltersState.value.data?.organizations) {
-    return []
-  } else {
-    return applicationFiltersState.value.data.organizations.map((org) => ({
-      id: org.logto_id,
-      label: org.logto_id === 'no_org' ? t('applications.no_organization') : org.name,
-    }))
-  }
-})
+const {
+  options: organizationFilterOptions,
+  loading: organizationFilterLoading,
+  onSearch: onOrganizationSearch,
+} = useOrganizationFilter()
 
 const isFiltered = computed(() => {
   return (
@@ -263,28 +255,32 @@ const goToApplicationDetails = (application: Application) => {
             <NeDropdownFilter
               v-model="systemFilter"
               kind="checkbox"
-              :disabled="applicationFiltersState.status === 'pending'"
               :label="t('systems.system')"
               :options="systemFilterOptions"
               show-options-filter
+              external-filter
+              :loading-options="systemFilterLoading"
               :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
               :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
               :no-options-label="t('ne_dropdown_filter.no_options')"
               :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
               :clear-search-label="t('ne_dropdown_filter.clear_search')"
+              @search="onSystemSearch"
             />
             <NeDropdownFilter
               v-model="organizationFilter"
               kind="checkbox"
-              :disabled="applicationFiltersState.status === 'pending'"
               :label="t('organizations.organization')"
               :options="organizationFilterOptions"
               show-options-filter
+              external-filter
+              :loading-options="organizationFilterLoading"
               :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
               :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
               :no-options-label="t('ne_dropdown_filter.no_options')"
               :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
               :clear-search-label="t('ne_dropdown_filter.clear_search')"
+              @search="onOrganizationSearch"
             />
             <!-- sort dropdown -->
             <NeSortDropdown

@@ -54,6 +54,8 @@ import OrganizationLink from '@/components/applications/OrganizationLink.vue'
 import MuteAlertDrawer from '@/components/alerts/MuteAlertDrawer.vue'
 import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
 import capitalize from 'lodash/capitalize'
+import { useOrganizationFilter } from '@/composables/useOrganizationFilter'
+import { useSystemFilter } from '@/composables/useSystemFilter'
 
 const { t, locale } = useI18n()
 const notificationsStore = useNotificationsStore()
@@ -106,15 +108,17 @@ const alertNameFilterOptions = computed<FilterOption[]>(() => {
   return alerts.map((a) => ({ id: a.name, label: a.name }))
 })
 
-const systemFilterOptions = computed<FilterOption[]>(() => {
-  const systems = alertFiltersData.value?.systems ?? []
-  return systems.map((s) => ({ id: s.key, label: s.name }))
-})
+const {
+  options: systemFilterOptions,
+  loading: systemFilterLoading,
+  onSearch: onSystemSearch,
+} = useSystemFilter('system_key')
 
-const organizationFilterOptions = computed<FilterOption[]>(() => {
-  const orgs = alertFiltersData.value?.organizations ?? []
-  return orgs.map((o) => ({ id: o.logto_id, label: o.name }))
-})
+const {
+  options: organizationFilterOptions,
+  loading: organizationFilterLoading,
+  onSearch: onOrganizationSearch,
+} = useOrganizationFilter()
 
 const statusFilterOptions: FilterOption[] = [
   { id: 'muted', label: t('alerts.filter_status_muted') },
@@ -270,11 +274,15 @@ function handleReload() {
             :label="t('alerts.filter_system')"
             :options="systemFilterOptions"
             :show-clear-filter="false"
+            show-options-filter
+            external-filter
+            :loading-options="systemFilterLoading"
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            @search="onSystemSearch"
             @update:model-value="() => (pageNum = 1)"
           />
           <!-- Organization filter -->
@@ -284,11 +292,15 @@ function handleReload() {
             :label="t('alerts.filter_organization')"
             :options="organizationFilterOptions"
             :show-clear-filter="false"
+            show-options-filter
+            external-filter
+            :loading-options="organizationFilterLoading"
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            @search="onOrganizationSearch"
             @update:model-value="() => (pageNum = 1)"
           />
           <!-- Status filter -->

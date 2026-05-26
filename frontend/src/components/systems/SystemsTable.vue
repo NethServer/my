@@ -53,6 +53,7 @@ import DeleteSystemModal from './DeleteSystemModal.vue'
 import { useSystemFilters } from '@/queries/systems/systemFilters'
 import UserAvatar from '../users/UserAvatar.vue'
 import { buildVersionFilterOptions } from '@/lib/systems/systemFilters'
+import { useOrganizationFilter } from '@/composables/useOrganizationFilter'
 import OrganizationIcon from '../organizations/OrganizationIcon.vue'
 import RegenerateSecretModal from './RegenerateSecretModal.vue'
 import SecretRegeneratedModal from './SecretRegeneratedModal.vue'
@@ -167,16 +168,11 @@ const createdByFilterOptions = computed(() => {
   }
 })
 
-const organizationFilterOptions = computed(() => {
-  if (!systemFiltersState.value.data || !systemFiltersState.value.data.organizations) {
-    return []
-  } else {
-    return systemFiltersState.value.data.organizations.map((org) => ({
-      id: org.id,
-      label: org.name,
-    }))
-  }
-})
+const {
+  options: organizationFilterOptions,
+  loading: organizationFilterLoading,
+  onSearch: onOrganizationSearch,
+} = useOrganizationFilter()
 
 const isNoDataEmptyStateShown = computed(() => {
   return (
@@ -437,13 +433,15 @@ function onCloseSecretRegeneratedModal() {
             kind="checkbox"
             :label="t('systems.organization')"
             :options="organizationFilterOptions"
-            :disabled="systemFiltersState.status === 'pending'"
             show-options-filter
+            external-filter
+            :loading-options="organizationFilterLoading"
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            @search="onOrganizationSearch"
           />
           <!-- status filter -->
           <NeDropdownFilter
