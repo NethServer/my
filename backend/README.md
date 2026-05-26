@@ -144,6 +144,12 @@ Multiple cache layers with graceful degradation (system works without Redis):
 | Organization Users | 3 min | `org_users:*` |
 | JWKS | 5 min | `jwks:*` |
 
+### Active alerts totals
+
+`/api/alerts/totals` does not fan out to Mimir at request time. The active-alert counts are pre-aggregated per organization into the `alerts_totals_by_org` table by the `AlertsTotalsRefresher` cron in the `collect` service (one Mimir round-trip per tenant, every 60s, bounded concurrency). The endpoint resolves it with a single `SELECT SUM(...) FROM alerts_totals_by_org WHERE organization_id = ANY($1)`, scoped to the caller's hierarchy by `resolveOrgScope`. The `history` count still queries `alert_history` directly (bare `COUNT(*)` for the owner-all path, scoped IN-list otherwise).
+
+When the freshest row in scope is older than 5 minutes (refresher lagging or down), the response carries a `warnings[]` entry like `totals: stale data, oldest refresh Xs ago`; the rest of the payload is still served.
+
 ## API Endpoints
 
 See [openapi.yaml](openapi.yaml) for complete API specification.

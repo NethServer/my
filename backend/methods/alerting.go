@@ -714,9 +714,9 @@ func fanOutMimirAlerts(parent context.Context, orgIDs []string) ([]map[string]in
 		mu       sync.Mutex
 		wg       sync.WaitGroup
 	)
-	ctx, cancel := context.WithTimeout(parent, alertsTotalsFanoutTimeout)
+	ctx, cancel := context.WithTimeout(parent, mimirFanoutTimeout)
 	defer cancel()
-	sem := make(chan struct{}, alertsTotalsFanoutConcurrency)
+	sem := make(chan struct{}, mimirFanoutConcurrency)
 
 	for _, orgID := range orgIDs {
 		wg.Add(1)
@@ -833,54 +833,39 @@ func GetEffectiveAlertingConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("effective alerting configuration retrieved successfully", alerting.RedactEffectiveConfigReport(report)))
 }
 
-// alertsTotalsFanoutTimeout caps how long /totals will wait for Mimir to answer
-// across the caller's whole hierarchy. Per-tenant calls that don't return in
-// time are reported as warnings; their counts simply don't contribute. Tuned
-// to keep dashboard latency bounded even when a tenant's Mimir slot is slow.
-const alertsTotalsFanoutTimeout = 10 * time.Second
+// mimirFanoutTimeout caps how long cross-tenant Mimir fan-outs (alerts list,
+// silences list) will wait. /alerts/totals no longer fans out: collect's
+// AlertsTotalsRefresher pre-aggregates per-org counts into
+// alerts_totals_by_org and this endpoint reads them with a single SUM.
+const mimirFanoutTimeout = 10 * time.Second
 
-// alertsTotalsCacheTTL bounds how stale a cached /totals response can be.
-// The endpoint is dashboard-polling fodder, so a few seconds of staleness is
-// acceptable in exchange for cutting fan-out + DB count cost to ~zero on
-// repeat hits.
-const alertsTotalsCacheTTL = 15 * time.Second
+// mimirFanoutConcurrency caps simultaneous in-flight Mimir requests per
+// fan-out. Must stay <= the alerting httpClient's MaxConnsPerHost so we don't
+// starve waiting for a free connection slot.
+const mimirFanoutConcurrency = 50
 
-type alertsTotalsCacheEntry struct {
-	payload gin.H
-	expires time.Time
-}
-
-type alertsTotalsInflight struct {
-	done    chan struct{}
-	payload gin.H
-}
-
-var (
-	alertsTotalsCacheMu sync.Mutex
-	alertsTotalsCache   = map[string]alertsTotalsCacheEntry{}
-	alertsTotalsFlights = map[string]*alertsTotalsInflight{}
-)
-
-// alertsTotalsCacheKey produces a stable cache key from the orgIDs slice.
-func alertsTotalsCacheKey(orgIDs []string) string {
-	sorted := append([]string(nil), orgIDs...)
-	sort.Strings(sorted)
-	return strings.Join(sorted, ",")
-}
-
-// alertsTotalsFanoutConcurrency caps simultaneous in-flight Mimir requests for
-// the /totals fan-out. Prevents an Owner with hundreds of tenants from opening
-// hundreds of sockets at once. Must stay <= the alerting httpClient's
-// MaxConnsPerHost so we don't starve waiting for a free connection slot.
-const alertsTotalsFanoutConcurrency = 50
+// alertsTotalsStaleThreshold flags the /totals response when the oldest
+// refreshed row is older than this. Surfaces "collect refresher is lagging
+// or down" to the caller without blocking the response.
+const alertsTotalsStaleThreshold = 5 * time.Minute
 
 // GetAlertsTotals handles GET /api/alerts/totals
-// Returns active alert counts by severity (from Mimir) and total history count (from DB).
 //
-// Without organization_id the totals are aggregated across the caller's full
-// hierarchy (one Mimir call per tenant, fanned out with bounded concurrency
-// and a global timeout). With organization_id the call is scoped to that
-// single tenant.
+// Returns active alert counts by severity (and muted count) plus the total
+// history count. Active counts come from alerts_totals_by_org, maintained by
+// collect's AlertsTotalsRefresher cron — the endpoint is a single SQL SUM
+// regardless of scope size, so it answers in <50ms even for the owner-wide
+// dashboard view.
+//
+// Scope resolution follows the same three modes as the rest of /api/alerts/*:
+// no organization_id → caller's full hierarchy; organization_id=X → single
+// tenant X; +include=descendants → expand each org_id to its sub-tree.
+// resolveOrgScope is the sole authorization gate; the SUM query filters by
+// the returned list so a user only sees totals for orgs they can access.
+//
+// `warnings[]` carries non-fatal degradation messages (DB error on either
+// table, or "stale data" when the refresher is lagging) so the UI can
+// surface them without erroring out.
 func GetAlertsTotals(c *gin.Context) {
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
@@ -893,153 +878,44 @@ func GetAlertsTotals(c *gin.Context) {
 	}
 
 	ownerAllScope := strings.ToLower(user.OrgRole) == "owner" && len(c.QueryArray("organization_id")) == 0
-	cacheKey := alertsTotalsCacheKey(orgIDs)
 
-	// Cache hit → serve immediately.
-	alertsTotalsCacheMu.Lock()
-	if entry, ok := alertsTotalsCache[cacheKey]; ok && time.Now().Before(entry.expires) {
-		alertsTotalsCacheMu.Unlock()
-		c.JSON(http.StatusOK, response.OK("alert totals retrieved successfully", entry.payload))
-		return
+	warnings := []string{}
+
+	totalsRepo := entities.NewLocalAlertsTotalsByOrgRepository()
+	sum, err := totalsRepo.SumByOrgIDs(orgIDs)
+	if err != nil {
+		logger.Warn().Err(err).Msg("failed to sum alerts totals from alerts_totals_by_org")
+		warnings = append(warnings, fmt.Sprintf("totals: %s", err.Error()))
+	} else if !sum.OldestUpdate.IsZero() && time.Since(sum.OldestUpdate) > alertsTotalsStaleThreshold {
+		warnings = append(warnings, fmt.Sprintf("totals: stale data, oldest refresh %s ago", time.Since(sum.OldestUpdate).Truncate(time.Second)))
 	}
 
-	// Coalesce concurrent misses on the same key: only one goroutine computes,
-	// the others wait on its result. This protects Mimir + DB from a poll storm.
-	if flight, ok := alertsTotalsFlights[cacheKey]; ok {
-		alertsTotalsCacheMu.Unlock()
-		<-flight.done
-		c.JSON(http.StatusOK, response.OK("alert totals retrieved successfully", flight.payload))
-		return
-	}
-	flight := &alertsTotalsInflight{done: make(chan struct{})}
-	alertsTotalsFlights[cacheKey] = flight
-	alertsTotalsCacheMu.Unlock()
-
-	payload := computeAlertsTotals(c.Request.Context(), orgIDs, ownerAllScope)
-
-	alertsTotalsCacheMu.Lock()
-	alertsTotalsCache[cacheKey] = alertsTotalsCacheEntry{
-		payload: payload,
-		expires: time.Now().Add(alertsTotalsCacheTTL),
-	}
-	flight.payload = payload
-	delete(alertsTotalsFlights, cacheKey)
-	alertsTotalsCacheMu.Unlock()
-	close(flight.done)
-
-	c.JSON(http.StatusOK, response.OK("alert totals retrieved successfully", payload))
-}
-
-// computeAlertsTotals does the actual Mimir fan-out and DB count for /totals.
-// Extracted from GetAlertsTotals so the cache layer can call it under
-// singleflight.
-func computeAlertsTotals(parent context.Context, orgIDs []string, ownerAllScope bool) gin.H {
-	var (
-		active, critical, warning, info, muted int
-		warnings                               []string
-		mu                                     sync.Mutex
-		wg                                     sync.WaitGroup
-	)
-
-	ctx, cancel := context.WithTimeout(parent, alertsTotalsFanoutTimeout)
-	defer cancel()
-
-	sem := make(chan struct{}, alertsTotalsFanoutConcurrency)
-
-	for _, orgID := range orgIDs {
-		wg.Add(1)
-		go func(orgID string) {
-			defer wg.Done()
-
-			select {
-			case sem <- struct{}{}:
-				defer func() { <-sem }()
-			case <-ctx.Done():
-				mu.Lock()
-				warnings = append(warnings, fmt.Sprintf("org %s: timed out waiting for slot", orgID))
-				mu.Unlock()
-				return
-			}
-
-			body, err := alerting.GetAlertsCtx(ctx, orgID)
-			if err != nil {
-				logger.Warn().Err(err).Str("org_id", orgID).Msg("failed to fetch alerts from mimir for totals")
-				mu.Lock()
-				warnings = append(warnings, fmt.Sprintf("org %s: %s", orgID, err.Error()))
-				mu.Unlock()
-				return
-			}
-
-			var alerts []map[string]interface{}
-			if err := json.Unmarshal(body, &alerts); err != nil {
-				logger.Warn().Err(err).Str("org_id", orgID).Msg("failed to parse mimir alerts response for totals")
-				mu.Lock()
-				warnings = append(warnings, fmt.Sprintf("org %s: parse error", orgID))
-				mu.Unlock()
-				return
-			}
-
-			var localCritical, localWarning, localInfo, localMuted int
-			for _, alert := range alerts {
-				labels, _ := alert["labels"].(map[string]interface{})
-				switch sev, _ := labels["severity"].(string); sev {
-				case "critical":
-					localCritical++
-				case "warning":
-					localWarning++
-				case "info":
-					localInfo++
-				}
-				// An alert is muted when Alertmanager has at least one
-				// active silence matching it (status.silencedBy non-empty).
-				if status, ok := alert["status"].(map[string]interface{}); ok {
-					if sb, ok := status["silencedBy"].([]interface{}); ok && len(sb) > 0 {
-						localMuted++
-					}
-				}
-			}
-
-			mu.Lock()
-			active += len(alerts)
-			critical += localCritical
-			warning += localWarning
-			info += localInfo
-			muted += localMuted
-			mu.Unlock()
-		}(orgID)
-	}
-	wg.Wait()
-
-	// For an Owner with no organization_id filter, the IN(...) variant degenerates
-	// to "all rows" but with hundreds of placeholders. A bare COUNT(*) on the
-	// table is much faster: Postgres can use the index-only path on the visible
-	// rows without iterating the IN list.
-	repo := entities.NewLocalAlertHistoryRepository()
+	// For an Owner with no organization_id filter, the IN(...) variant
+	// degenerates to "all rows" but with hundreds of placeholders. A bare
+	// COUNT(*) on the table is much faster: Postgres can use the index-only
+	// path on the visible rows without iterating the IN list.
+	historyRepo := entities.NewLocalAlertHistoryRepository()
 	var historyTotal int
 	var historyErr error
 	if ownerAllScope {
-		historyTotal, historyErr = repo.GetAlertHistoryTotals("")
+		historyTotal, historyErr = historyRepo.GetAlertHistoryTotals("")
 	} else {
-		historyTotal, historyErr = repo.GetAlertHistoryTotalsByOrgIDs(orgIDs)
+		historyTotal, historyErr = historyRepo.GetAlertHistoryTotalsByOrgIDs(orgIDs)
 	}
 	if historyErr != nil {
 		logger.Warn().Err(historyErr).Msg("failed to count alert history for totals")
 		warnings = append(warnings, fmt.Sprintf("history: %s", historyErr.Error()))
 	}
 
-	if warnings == nil {
-		warnings = []string{}
-	}
-
-	return gin.H{
-		"active":   active,
-		"critical": critical,
-		"warning":  warning,
-		"info":     info,
-		"muted":    muted,
+	c.JSON(http.StatusOK, response.OK("alert totals retrieved successfully", gin.H{
+		"active":   sum.Active,
+		"critical": sum.Critical,
+		"warning":  sum.Warning,
+		"info":     sum.Info,
+		"muted":    sum.Muted,
 		"history":  historyTotal,
 		"warnings": warnings,
-	}
+	}))
 }
 
 // GetAlertsTrend handles GET /api/alerts/trend
@@ -1904,9 +1780,9 @@ func GetAlertSilences(c *gin.Context) {
 		mu       sync.Mutex
 		wg       sync.WaitGroup
 	)
-	ctx, cancel := context.WithTimeout(c.Request.Context(), alertsTotalsFanoutTimeout)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), mimirFanoutTimeout)
 	defer cancel()
-	sem := make(chan struct{}, alertsTotalsFanoutConcurrency)
+	sem := make(chan struct{}, mimirFanoutConcurrency)
 
 	for _, orgID := range orgIDs {
 		wg.Add(1)

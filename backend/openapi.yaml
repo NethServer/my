@@ -9216,8 +9216,8 @@ paths:
         - Backend - Alerts
       summary: "/alerts/totals - Get alert totals by severity"
       description: |
-        Returns active alert counts by severity (from Mimir, per-tenant) and total resolved
-        alert history count (from DB). Requires `read:systems` permission.
+        Returns active alert counts by severity and total resolved alert history
+        count. Requires `read:systems` permission.
 
         **Scope modes** (selected by query params):
 
@@ -9228,14 +9228,23 @@ paths:
         | `X` (repeated for multi)     | omitted       | Union of all `organization_id` values passed. Each must be in the caller's hierarchy (Owner exempt). |
         | `X` (single or multi)        | `descendants` | Each org_id is expanded to itself + its sub-tree (deduplicated). Use this to drill into one or more sub-trees. |
 
-        Active counts are aggregated across the resolved scope by fanning out to Mimir,
-        one request per tenant, with bounded concurrency and a global timeout. Per-tenant
-        failures (timeout, 5xx, parse error) are non-fatal: their counts simply don't
-        contribute, and the failure is reported in the `warnings` array. The `history`
-        total comes from a single SQL query scoped to the same set of organization IDs.
+        Active counts come from `alerts_totals_by_org`, a per-organization
+        pre-aggregated table maintained by the `collect` service's
+        `AlertsTotalsRefresher` cron (one Mimir round-trip per tenant every 60s,
+        off the user request path). The endpoint resolves the response with a
+        single SQL `SUM` scoped to the caller's hierarchy, so latency is
+        independent of how many tenants are in scope. The `history` total comes
+        from a single SQL query against `alert_history` scoped to the same set
+        of organization IDs.
 
-        Customer callers are always pinned to their own organization regardless of
-        `organization_id`/`include` (Mimir tenant is fixed to `user.organization_id`).
+        When the freshest row in scope is older than 5 minutes (refresher
+        lagging or down), the response carries a `warnings[]` entry
+        (`totals: stale data, oldest refresh Xs ago`); counts are still served
+        as last known. DB errors on either table are likewise non-fatal and
+        surface as `warnings[]` entries.
+
+        Customer callers are always pinned to their own organization regardless
+        of `organization_id`/`include`.
       security:
         - BearerAuth: []
       parameters:
@@ -9300,10 +9309,12 @@ paths:
                       warnings:
                         type: array
                         description: |
-                          Per-tenant errors encountered during fan-out. Always present
-                          (empty array when every tenant responded OK). Each entry is a
-                          string in the form `org <logto_id>: <error>` or
-                          `history: <error>` for the DB lookup.
+                          Non-fatal degradation messages. Always present (empty
+                          array when the response is fully fresh). Possible
+                          entries: `totals: stale data, oldest refresh Xs ago`
+                          (refresher is lagging or down), `totals: <error>` (DB
+                          error reading `alerts_totals_by_org`), `history: <error>`
+                          (DB error reading `alert_history`).
                         items:
                           type: string
         '401':

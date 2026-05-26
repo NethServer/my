@@ -836,6 +836,28 @@ COMMENT ON TABLE  alert_config_layers              IS 'Per-organization alerting
 COMMENT ON COLUMN alert_config_layers.config_json  IS 'Serialized AlertingConfigLayer: { enabled:{email,webhook,telegram}, email_recipients[], webhook_recipients[], telegram_recipients[] }. Each recipient carries its own severities[]; email recipients additionally carry language+format. Channel toggles are nullable tri-state.';
 
 -- =============================================================================
+-- ALERTS TOTALS BY ORG (pre-aggregated active alert counts)
+-- =============================================================================
+-- Per-organization counts of active alerts (severity + muted) maintained by
+-- the collect AlertsTotalsRefresher cron. Lets /api/alerts/totals answer with
+-- a single SUM query instead of fanning out to Mimir per tenant. See
+-- migration 025.
+
+CREATE TABLE IF NOT EXISTS alerts_totals_by_org (
+    organization_id VARCHAR(255) PRIMARY KEY,
+    active     INTEGER NOT NULL DEFAULT 0,
+    critical   INTEGER NOT NULL DEFAULT 0,
+    warning    INTEGER NOT NULL DEFAULT 0,
+    info       INTEGER NOT NULL DEFAULT 0,
+    muted      INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE alerts_totals_by_org IS 'Per-organization active alert counts, refreshed by collect''s AlertsTotalsRefresher cron';
+COMMENT ON COLUMN alerts_totals_by_org.muted IS 'Active alerts that have at least one matching Alertmanager silence';
+COMMENT ON COLUMN alerts_totals_by_org.updated_at IS 'Last successful refresh for this org; stale rows indicate the refresher is lagging';
+
+-- =============================================================================
 -- SCHEMA MIGRATIONS TABLE
 -- =============================================================================
 -- Tracks applied database migrations
