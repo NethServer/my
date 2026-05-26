@@ -24,15 +24,15 @@ import (
 )
 
 // signedEnvelope wraps a Redis pub/sub payload with an HMAC-SHA256 signature.
-// The backend signs all messages with SUPPORT_INTERNAL_SECRET; the support service verifies
-// using INTERNAL_SECRET (the same shared secret) before processing any command.
+// Both backend and support read SUPPORT_INTERNAL_SECRET (shared secret) and the
+// support service verifies the signature before processing any command.
 type signedEnvelope struct {
 	Payload string `json:"payload"`
 	Sig     string `json:"sig"`
 }
 
 // verifyAndUnwrap authenticates a signed Redis message and returns the inner payload.
-// INTERNAL_SECRET is required at startup, so HMAC verification is always enforced.
+// SUPPORT_INTERNAL_SECRET is required at startup, so HMAC verification is always enforced.
 func verifyAndUnwrap(raw string) (string, bool) {
 	var env signedEnvelope
 	if err := json.Unmarshal([]byte(raw), &env); err != nil {
