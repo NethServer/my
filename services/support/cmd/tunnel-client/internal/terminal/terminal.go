@@ -40,7 +40,7 @@ var sensitiveEnvPrefixes = []string{
 	"REDIS_ADDR=",
 	"REDIS_PASSWORD=",
 	"REDIS_URL=",
-	"INTERNAL_SECRET=",
+	"SUPPORT_INTERNAL_SECRET=",
 	"TUNNEL_CONFIG=",
 }
 
