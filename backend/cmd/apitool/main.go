@@ -49,6 +49,8 @@ func main() {
 		err = cmdDeleteOrg(args)
 	case "create-system":
 		err = cmdCreateSystem(args)
+	case "register-system":
+		err = cmdRegisterSystem(args)
 	case "cleanup-orphans":
 		err = cmdCleanupOrphans(args)
 	case "help", "-h", "--help":
@@ -100,8 +102,17 @@ Usage:
       Soft-delete a registered org and remove from registry. Will fail if it
       still has child orgs/users; clean those out first.
 
-  apitool create-system --org=<name> <system-name>
+  apitool create-system --org=<name> <system-name> [--register]
       Create a system under a customer org. Prints system_key + system_secret.
+      Pass --register to also complete the public registration handshake so the
+      system can immediately authenticate against collect (Mimir proxy,
+      heartbeat, inventory). Without --register an appliance must call
+      POST /systems/register before it can talk to collect.
+
+  apitool register-system <system_secret>
+      Complete the public registration handshake for an already-created system.
+      Returns the canonical system_key. Use this when --register was not passed
+      to create-system, or when re-registering after a credential rotation.
 
   apitool cleanup-orphans --org=<name>
       Soft-delete every user listed in <org> whose email is NOT in registry.
@@ -467,7 +478,7 @@ func cmdCreateSystem(args []string) error {
 	flags, pos := parseFlags(args)
 	orgKey := flags["org"]
 	if orgKey == "" || len(pos) < 1 {
-		return fmt.Errorf("usage: apitool create-system --org=<name> <system-name>")
+		return fmt.Errorf("usage: apitool create-system --org=<name> <system-name> [--register]")
 	}
 	systemName := pos[0]
 	r, err := loadOrInit()
@@ -489,8 +500,41 @@ func cmdCreateSystem(args []string) error {
 	fmt.Printf("Created system %q in org %q\n", systemName, orgKey)
 	fmt.Printf("  system_key=%s\n", systemKey)
 	fmt.Printf("  system_secret=%s\n", systemSecret)
+
+	if flags["register"] == "true" {
+		if _, err := client.RegisterSystem(systemSecret); err != nil {
+			return fmt.Errorf("create succeeded but register failed: %w", err)
+		}
+		fmt.Println("  registered=true")
+	} else {
+		fmt.Println("  registered=false (pass --register to also complete the public registration handshake)")
+	}
+
 	fmt.Printf("\nPush alerts as this system (Basic Auth) through collect:\n")
 	fmt.Printf("  curl -u '%s:%s' http://localhost:18081/api/services/mimir/alertmanager/api/v2/alerts ...\n", systemKey, systemSecret)
+	return nil
+}
+
+func cmdRegisterSystem(args []string) error {
+	_, pos := parseFlags(args)
+	if len(pos) < 1 {
+		return fmt.Errorf("usage: apitool register-system <system_secret>")
+	}
+	secret := pos[0]
+	r, err := loadOrInit()
+	if err != nil {
+		return err
+	}
+	// /systems/register is public — no JWT needed. Skip loginAs.
+	client, err := NewClient(r.Config)
+	if err != nil {
+		return err
+	}
+	systemKey, err := client.RegisterSystem(secret)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Registered system\n  system_key=%s\n", systemKey)
 	return nil
 }
 
