@@ -135,6 +135,74 @@ report_checksum_drift() {
     return 1
 }
 
+# baseline_if_schema_present: if schema_migrations is empty but the schema is
+# clearly already in place (any non-bookkeeping table exists in public), mark
+# every on-disk migration as applied without running it. This is how we keep
+# the runner idempotent against the backend's database.Init() boot-time
+# schema.sql apply — schema.sql already represents the cumulative head state,
+# so re-running migrations against it is both redundant and dangerous (some
+# migrations are not idempotent; e.g. 010 CREATE OR REPLACE VIEW fails when
+# 012's MATERIALIZED VIEW already sits on the same name).
+#
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ INVARIANT: schema.sql MUST contain every CREATE TABLE / INDEX / VIEW    │
+# │ that on-disk migrations produce. If you add a new migration without     │
+# │ folding its effect into schema.sql, a fresh-init flow                   │
+# │ (`make dev-up` → `make run` → `make db-migrate`) will silently mark     │
+# │ your new migration as applied without ever creating the table — and     │
+# │ the bug only shows up at runtime when a query hits the missing object.  │
+# │ See backend/database/migrations/README.md.                              │
+# └─────────────────────────────────────────────────────────────────────────┘
+#
+# Safe against partial migrations: only fires when schema_migrations has zero
+# rows. As soon as anything is recorded (including by this function itself)
+# subsequent calls no-op — adding a new migration to an existing DB runs it
+# normally.
+baseline_if_schema_present() {
+    create_migrations_table
+
+    local rowcount tablecount
+    rowcount=$($CONTAINER_ENGINE run --rm -i \
+        --network=host \
+        "$POSTGRES_IMAGE" \
+        psql "$DATABASE_URL" -t -A -c \
+        "SELECT COUNT(*) FROM schema_migrations;")
+    [ "$rowcount" = "0" ] || return 0
+
+    # Count tables in the public schema other than schema_migrations itself.
+    # >0 means schema.sql (or an earlier setup) already created the cumulative
+    # schema; <=0 means a truly empty database where every migration must run.
+    tablecount=$($CONTAINER_ENGINE run --rm -i \
+        --network=host \
+        "$POSTGRES_IMAGE" \
+        psql "$DATABASE_URL" -t -A -c \
+        "SELECT COUNT(*) FROM information_schema.tables
+         WHERE table_schema = 'public' AND table_name <> 'schema_migrations';")
+    [ "$tablecount" -gt 0 ] || return 0
+
+    log_info "Schema present but schema_migrations is empty — baselining from on-disk migrations"
+
+    # Redirect stdin to /dev/null inside the loop body: `podman run -i` (used
+    # by run_psql_raw) consumes the pipe's stdin, so without this redirect the
+    # loop reads only the first migration and the rest of the list is eaten by
+    # podman. The classic stdin-leak-in-subprocess-inside-while-read bug.
+    local mig file desc checksum
+    while read -r mig; do
+        [ -z "$mig" ] && continue
+        file=$(find_migration_file "$mig")
+        [ -z "$file" ] && continue
+        desc=$(basename "$file" .sql | sed "s/^${mig}_//")
+        checksum=$(get_file_checksum "$file")
+        run_psql_raw "
+            INSERT INTO schema_migrations (migration_number, description, checksum)
+            VALUES ('$mig', '$desc', '$checksum')
+            ON CONFLICT (migration_number) DO NOTHING;
+        " </dev/null >/dev/null
+    done < <(list_migration_files)
+
+    log_success "Baselined schema_migrations from existing schema"
+}
+
 apply_migration() {
     MIG="$1"
     FILE=$(find_migration_file "$MIG")
@@ -143,6 +211,15 @@ apply_migration() {
         log_error "Migration file for $MIG not found"
         exit 1
     fi
+
+    # Detect "fresh from schema.sql" — backend's database.Init() applies the
+    # baseline schema.sql which already contains every table in its
+    # post-migration form, but schema_migrations is left empty. Without this
+    # step we'd then try to replay 001..N against the already-populated schema
+    # and fail on non-idempotent statements (e.g. 010's CREATE OR REPLACE VIEW
+    # unified_organizations on top of 012's MATERIALIZED VIEW). Baseline the
+    # bookkeeping once; subsequent ticks see "already applied" and no-op.
+    baseline_if_schema_present
 
     if check_migration_status "$MIG"; then
         if ! report_checksum_drift "$MIG" "$FILE"; then
