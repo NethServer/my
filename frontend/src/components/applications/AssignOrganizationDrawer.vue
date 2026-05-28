@@ -11,7 +11,8 @@ import {
   NeInlineNotification,
   NeCombobox,
 } from '@nethesis/vue-components'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useDebounceFn } from '@vueuse/core'
 import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
@@ -25,7 +26,10 @@ import {
 import { type Organization } from '@/lib/organizations/organizations'
 import { useLoginStore } from '@/stores/login'
 import type { AxiosError } from 'axios'
-import { organizationsQuery } from '@/queries/organizations/organizations'
+import {
+  ORGANIZATIONS_SEARCH_KEY,
+  searchOrganizations,
+} from '@/lib/organizations/searchOrganizations'
 
 const { isShown = false, currentApplication = undefined } = defineProps<{
   isShown: boolean
@@ -40,6 +44,15 @@ const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
 
 const organizationId = ref('')
+const orgSearchInput = ref('')
+const debouncedOrgSearch = ref('')
+
+watch(
+  () => orgSearchInput.value,
+  useDebounceFn(() => {
+    debouncedOrgSearch.value = orgSearchInput.value
+  }, 300),
+)
 
 const {
   mutate: assignOrganizationMutate,
@@ -78,9 +91,12 @@ const {
 })
 
 const { state: organizations } = useQuery({
-  ...organizationsQuery,
+  key: () => [ORGANIZATIONS_SEARCH_KEY, debouncedOrgSearch.value],
   enabled: () => !!loginStore.jwtToken && isShown,
+  query: () => searchOrganizations(debouncedOrgSearch.value),
 })
+
+const organizationsLoading = computed(() => organizations.value.status === 'pending')
 
 const validationIssues = ref<Record<string, string[]>>({})
 
@@ -95,6 +111,10 @@ const organizationOptions = computed(() => {
     description: t(`organizations.${org.type}`),
   }))
 })
+
+function onOrganizationFilter(query: string) {
+  orgSearchInput.value = query
+}
 
 function onShow() {
   clearErrors()
@@ -155,20 +175,21 @@ async function saveApplication() {
           :options="organizationOptions"
           :label="$t('organizations.organization')"
           :placeholder="
-            organizations.status === 'pending'
-              ? $t('common.loading')
-              : $t('organizations.choose_organization')
+            organizationsLoading ? $t('common.loading') : $t('organizations.choose_organization')
           "
           :invalid-message="
             validationIssues.organization_id?.[0] ? $t(validationIssues.organization_id[0]) : ''
           "
-          :disabled="organizations.status === 'pending' || assignOrganizationLoading"
+          :disabled="organizationsLoading || assignOrganizationLoading"
           :no-results-label="$t('ne_combobox.no_results')"
           :limited-options-label="$t('ne_combobox.limited_options_label')"
           :no-options-label="$t('organizations.no_organizations')"
           :selected-label="$t('ne_combobox.selected')"
           :user-input-label="$t('ne_combobox.user_input_label')"
           :optional-label="$t('common.optional')"
+          external-filter
+          :loading-options="organizationsLoading"
+          @filter="onOrganizationFilter"
         />
         <!-- assign organization error notification -->
         <NeInlineNotification

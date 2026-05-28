@@ -57,6 +57,7 @@ import MuteAlertDrawer from '@/components/alerts/MuteAlertDrawer.vue'
 import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import { useRoute } from 'vue-router'
+import { SEVERITY_FILTER_OPTIONS } from '@/lib/alerts'
 
 const { t, locale } = useI18n()
 const notificationsStore = useNotificationsStore()
@@ -136,12 +137,6 @@ const alertsSortDescending = computed({
 })
 
 // ── Filter options ────────────────────────────────────────────────────────────
-
-const severityFilterOptions: FilterOption[] = [
-  { id: 'critical', label: capitalize('critical') },
-  { id: 'warning', label: capitalize('warning') },
-  { id: 'info', label: capitalize('info') },
-]
 
 const alertsAlertNameOptions = computed<FilterOption[]>(() => {
   const alerts = alertFiltersState.value.data?.alerts ?? []
@@ -316,7 +311,7 @@ function onMuteDrawerClose() {
             v-model="alertsSeverityFilters"
             kind="checkbox"
             :label="t('alerts.filter_severity')"
-            :options="severityFilterOptions"
+            :options="SEVERITY_FILTER_OPTIONS"
             :show-clear-filter="false"
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
@@ -522,7 +517,7 @@ function onMuteDrawerClose() {
               v-model="historySeverityFilters"
               kind="checkbox"
               :label="t('alerts.filter_severity')"
-              :options="severityFilterOptions"
+              :options="SEVERITY_FILTER_OPTIONS"
               :show-clear-filter="false"
               :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
               :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"

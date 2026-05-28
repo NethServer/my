@@ -15,6 +15,7 @@ import {
   NeFormItemLabel,
 } from '@nethesis/vue-components'
 import { computed, ref, useTemplateRef, watch, type Ref, type ShallowRef } from 'vue'
+import { useDebounceFn } from '@vueuse/core'
 import {
   CreateUserSchema,
   EditUserSchema,
@@ -36,7 +37,10 @@ import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
 import { PRODUCT_NAME } from '@/lib/config'
 import { normalize } from '@/lib/common'
-import { organizationsQuery } from '@/queries/organizations/organizations'
+import {
+  ORGANIZATIONS_SEARCH_KEY,
+  searchOrganizations,
+} from '@/lib/organizations/searchOrganizations'
 import { userRolesQuery } from '@/queries/users/userRoles'
 import { USER_FILTERS_KEY } from '@/lib/users/userFilters'
 import { combinePhoneParts, countryCodeComboOptions, parsePhoneForForm } from '@/lib/phone'
@@ -53,10 +57,31 @@ const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
 const loginStore = useLoginStore()
 
+const orgSearchInput = ref('')
+const debouncedOrgSearch = ref('')
+
+watch(
+  () => orgSearchInput.value,
+  useDebounceFn(() => {
+    debouncedOrgSearch.value = orgSearchInput.value
+  }, 300),
+)
+
 const { state: organizations } = useQuery({
-  ...organizationsQuery,
+  key: () => [ORGANIZATIONS_SEARCH_KEY, debouncedOrgSearch.value],
   enabled: () => !!loginStore.jwtToken && isShown,
+  query: () => searchOrganizations(debouncedOrgSearch.value),
 })
+
+const organizationsLoading = computed(
+  () => organizations.value.status === 'pending' && !organizations.value.data,
+)
+
+// Track whether organizations have been fetched at least once (for disabling only on initial load)
+const organizationsInitiallyLoading = computed(
+  () =>
+    organizations.value.status === 'pending' && !organizations.value.data && !orgSearchInput.value,
+)
 
 const { state: allUserRoles } = useQuery({
   ...userRolesQuery,
@@ -249,6 +274,10 @@ function closeDrawer() {
   emit('close')
 }
 
+function onOrganizationFilter(query: string) {
+  orgSearchInput.value = query
+}
+
 function clearErrors() {
   createUserReset()
   editUserReset()
@@ -383,24 +412,27 @@ function getEmailInvalidMessage(): string {
           :disabled="saving"
         />
         <!-- organization -->
+        <!-- //// remove acceptUserInput -->
         <NeCombobox
           ref="organizationIdRef"
           v-model="organizationId"
           :options="organizationOptions"
           :label="$t('users.organization')"
-          :placeholder="
-            organizations.status === 'pending' ? $t('common.loading') : $t('ne_combobox.choose')
-          "
+          :placeholder="organizationsLoading ? $t('common.loading') : $t('ne_combobox.choose')"
           :invalid-message="
             validationIssues.organization_id?.[0] ? $t(validationIssues.organization_id[0]) : ''
           "
-          :disabled="organizations.status === 'pending' || saving"
+          :disabled="organizationsInitiallyLoading || saving"
           :no-results-label="$t('ne_combobox.no_results')"
           :limited-options-label="$t('ne_combobox.limited_options_label')"
           :no-options-label="$t('users.no_organizations')"
           :selected-label="$t('ne_combobox.selected')"
           :user-input-label="$t('ne_combobox.user_input_label')"
           :optional-label="$t('common.optional')"
+          external-filter
+          :loading-options="organizationsLoading"
+          @filter="onOrganizationFilter"
+          acceptUserInput
         />
         <!-- user roles -->
         <NeCombobox

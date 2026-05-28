@@ -5,7 +5,7 @@ import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import { type Pagination } from './common'
-import type { NeBadgeV2Kind } from '@nethesis/vue-components/components/NeBadgeV2.vue.js'
+import type { NeBadgeV2Kind, FilterOption } from '@nethesis/vue-components'
 import * as v from 'valibot'
 
 export const ALERTS_CONFIG_KEY = 'alertsConfig'
@@ -22,6 +22,12 @@ export const ALERT_HISTORY_TABLE_ID = 'alertHistoryTable'
 export const SYSTEM_ALERT_SILENCES_KEY = 'systemAlertSilences'
 export const SYSTEM_ALERTS_KEY = 'systemAlerts'
 export const SYSTEM_ALERT_HISTORY_KEY = 'systemAlertHistory'
+
+export const SEVERITY_FILTER_OPTIONS: FilterOption[] = [
+  { id: 'critical', label: 'Critical' },
+  { id: 'warning', label: 'Warning' },
+  { id: 'info', label: 'Info' },
+]
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

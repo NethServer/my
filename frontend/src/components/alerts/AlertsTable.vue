@@ -42,6 +42,7 @@ import {
   getAlertSummary,
   getSeverityBadgeKind,
   isAlertSilenced,
+  SEVERITY_FILTER_OPTIONS,
   type Alert,
 } from '@/lib/alerts'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -97,11 +98,6 @@ const noEmptyStateShown = computed(
 // ── Filter options ─────────────────────────────────────────────────────────────
 
 const alertFiltersData = computed(() => alertFiltersState.value.data)
-
-const severityFilterOptions = computed<FilterOption[]>(() => {
-  const severities = alertFiltersData.value?.severities ?? []
-  return severities.map((s) => ({ id: s, label: capitalize(s) }))
-})
 
 const alertNameFilterOptions = computed<FilterOption[]>(() => {
   const alerts = alertFiltersData.value?.alerts ?? []
@@ -186,6 +182,7 @@ function showDetailsDrawer(alert: Alert) {
   detailsDrawerAlert.value = alert
   isDetailsDrawerShown.value = true
 }
+
 function getKebabMenuItems(alert: Alert): NeDropdownItem[] {
   const items: NeDropdownItem[] = []
   if (canManageSystems()) {
@@ -244,8 +241,8 @@ function handleReload() {
             v-model="severityFilters"
             kind="checkbox"
             :label="t('alerts.filter_severity')"
-            :options="severityFilterOptions"
-            :show-clear-filter="false"
+            :options="SEVERITY_FILTER_OPTIONS"
+            show-options-filter
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
@@ -259,7 +256,7 @@ function handleReload() {
             kind="checkbox"
             :label="t('alerts.filter_alert')"
             :options="alertNameFilterOptions"
-            :show-clear-filter="false"
+            show-options-filter
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
@@ -273,7 +270,6 @@ function handleReload() {
             kind="checkbox"
             :label="t('alerts.filter_system')"
             :options="systemFilterOptions"
-            :show-clear-filter="false"
             show-options-filter
             external-filter
             :loading-options="systemFilterLoading"
@@ -291,7 +287,6 @@ function handleReload() {
             kind="checkbox"
             :label="t('alerts.filter_organization')"
             :options="organizationFilterOptions"
-            :show-clear-filter="false"
             show-options-filter
             external-filter
             :loading-options="organizationFilterLoading"
@@ -309,7 +304,7 @@ function handleReload() {
             kind="checkbox"
             :label="t('alerts.filter_status')"
             :options="statusFilterOptions"
-            :show-clear-filter="false"
+            show-options-filter
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"

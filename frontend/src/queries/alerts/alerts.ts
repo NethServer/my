@@ -47,6 +47,7 @@ export const useAlerts = defineQuery(() => {
   })
 
   const resetFilters = () => {
+    organizationIds.value = []
     statusFilters.value = []
     severityFilters.value = []
     systemKeyFilters.value = []
@@ -56,6 +57,7 @@ export const useAlerts = defineQuery(() => {
 
   const areDefaultFiltersApplied = () => {
     return (
+      !organizationIds.value.length &&
       !statusFilters.value.length &&
       !severityFilters.value.length &&
       !systemKeyFilters.value.length &&
