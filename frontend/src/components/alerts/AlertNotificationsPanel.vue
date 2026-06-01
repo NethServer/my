@@ -69,7 +69,7 @@ const telegramNotConfigured = computed(() => config.value?.enabled?.telegram == 
     <NeSkeleton v-if="isLoading && !config" :lines="4" />
 
     <!-- Channel cards -->
-    <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
       <NotificationChannelCard
         :icon="faEnvelope"
         :title="t('alerts.email_channel_title')"

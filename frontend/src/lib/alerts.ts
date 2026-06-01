@@ -894,32 +894,6 @@ export const isAlertSilenced = (alert: Alert) => {
   return getAlertSilenceIds(alert).length > 0
 }
 
-export const getStatusBadgeColor = (status?: string) => {
-  switch (status?.toLowerCase()) {
-    case 'active':
-      return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-    case 'suppressed':
-      return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-    case 'resolved':
-      return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-    default:
-      return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
-  }
-}
-
-export const getSeverityBadgeColor = (severity?: string) => {
-  switch (severity?.toLowerCase()) {
-    case 'critical':
-      return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-    case 'warning':
-      return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
-    case 'info':
-      return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-    default:
-      return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
-  }
-}
-
 export const getSeverityBadgeKind = (severity?: string): NeBadgeV2Kind => {
   switch (severity?.toLowerCase()) {
     case 'critical':

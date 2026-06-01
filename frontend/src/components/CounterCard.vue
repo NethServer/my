@@ -18,6 +18,7 @@ const {
   uppercaseTitle = true,
   centeredCounter = true,
   colorClasses = undefined,
+  isEstimated = false,
 } = defineProps<{
   title: string
   counter: number
@@ -27,6 +28,7 @@ const {
   uppercaseTitle?: boolean
   centeredCounter?: boolean
   colorClasses?: string
+  isEstimated?: boolean
 }>()
 
 const slots = useSlots()
@@ -56,7 +58,7 @@ const hasDefaultSlot = computed(() => !!slots.default)
             { 'self-center': centeredCounter },
           ]"
         >
-          {{ counter }}
+          {{ isEstimated ? '~' : '' }}{{ counter }}
         </span>
       </div>
       <div v-if="hasDefaultSlot" class="mt-5">

@@ -55,8 +55,8 @@ import OrganizationLink from '@/components/applications/OrganizationLink.vue'
 import MuteAlertDrawer from '@/components/alerts/MuteAlertDrawer.vue'
 import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
 import capitalize from 'lodash/capitalize'
-import { useOrganizationFilter } from '@/composables/useOrganizationFilter'
-import { useSystemFilter } from '@/composables/useSystemFilter'
+import SystemDropdownFilter from '@/components/systems/SystemDropdownFilter.vue'
+import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 
 const { t, locale } = useI18n()
 const notificationsStore = useNotificationsStore()
@@ -104,21 +104,9 @@ const alertNameFilterOptions = computed<FilterOption[]>(() => {
   return alerts.map((a) => ({ id: a.name, label: a.name }))
 })
 
-const {
-  options: systemFilterOptions,
-  loading: systemFilterLoading,
-  onSearch: onSystemSearch,
-} = useSystemFilter('system_key')
-
-const {
-  options: organizationFilterOptions,
-  loading: organizationFilterLoading,
-  onSearch: onOrganizationSearch,
-} = useOrganizationFilter()
-
 const statusFilterOptions: FilterOption[] = [
-  { id: 'muted', label: t('alerts.filter_status_muted') },
-  { id: 'unmuted', label: t('alerts.filter_status_unmuted') },
+  { id: 'suppressed', label: t('alerts.muted') },
+  { id: 'active', label: t('alerts.unmuted') },
 ]
 
 // ── Sort ────────────────────────────────────────────────────────────────────────
@@ -240,7 +228,7 @@ function handleReload() {
           <NeDropdownFilter
             v-model="severityFilters"
             kind="checkbox"
-            :label="t('alerts.filter_severity')"
+            :label="t('alerts.severity')"
             :options="SEVERITY_FILTER_OPTIONS"
             show-options-filter
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
@@ -254,7 +242,7 @@ function handleReload() {
           <NeDropdownFilter
             v-model="alertnameFilters"
             kind="checkbox"
-            :label="t('alerts.filter_alert')"
+            :label="t('alerts.alert')"
             :options="alertNameFilterOptions"
             show-options-filter
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
@@ -265,44 +253,21 @@ function handleReload() {
             @update:model-value="() => (pageNum = 1)"
           />
           <!-- System filter -->
-          <NeDropdownFilter
+          <SystemDropdownFilter
             v-model="systemKeyFilters"
-            kind="checkbox"
-            :label="t('alerts.filter_system')"
-            :options="systemFilterOptions"
-            show-options-filter
-            external-filter
-            :loading-options="systemFilterLoading"
-            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
-            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-            :no-options-label="t('ne_dropdown_filter.no_options')"
-            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-            :clear-search-label="t('ne_dropdown_filter.clear_search')"
-            @search="onSystemSearch"
+            id-field="system_key"
             @update:model-value="() => (pageNum = 1)"
           />
           <!-- Organization filter -->
-          <NeDropdownFilter
+          <OrganizationDropdownFilter
             v-model="organizationIds"
-            kind="checkbox"
-            :label="t('alerts.filter_organization')"
-            :options="organizationFilterOptions"
-            show-options-filter
-            external-filter
-            :loading-options="organizationFilterLoading"
-            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
-            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-            :no-options-label="t('ne_dropdown_filter.no_options')"
-            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-            :clear-search-label="t('ne_dropdown_filter.clear_search')"
-            @search="onOrganizationSearch"
             @update:model-value="() => (pageNum = 1)"
           />
           <!-- Status filter -->
           <NeDropdownFilter
             v-model="statusFilters"
             kind="checkbox"
-            :label="t('alerts.filter_status')"
+            :label="t('common.status')"
             :options="statusFilterOptions"
             show-options-filter
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"

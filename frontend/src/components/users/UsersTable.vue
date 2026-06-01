@@ -62,7 +62,7 @@ import { normalize } from '@/lib/common'
 import OrganizationLink from '../applications/OrganizationLink.vue'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import UserAvatar from './UserAvatar.vue'
-import { useOrganizationFilter } from '@/composables/useOrganizationFilter'
+import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -151,12 +151,6 @@ const isNoMatchEmptyStateShown = computed(() => {
 const noEmptyStateShown = computed(() => {
   return !isNoDataEmptyStateShown.value && !isNoMatchEmptyStateShown.value
 })
-
-const {
-  options: organizationFilterOptions,
-  loading: organizationFilterLoading,
-  onSearch: onOrganizationSearch,
-} = useOrganizationFilter()
 
 const roleFilterOptions = computed(() => {
   if (!userFiltersState.value.data?.roles) {
@@ -359,21 +353,7 @@ const onClosePasswordChangedModal = () => {
             class="max-w-48 sm:max-w-sm"
           />
           <!-- organization filter -->
-          <NeDropdownFilter
-            v-model="organizationFilter"
-            kind="checkbox"
-            :label="t('organizations.organization')"
-            :options="organizationFilterOptions"
-            show-options-filter
-            external-filter
-            :loading-options="organizationFilterLoading"
-            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
-            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-            :no-options-label="t('ne_dropdown_filter.no_options')"
-            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-            :clear-search-label="t('ne_dropdown_filter.clear_search')"
-            @search="onOrganizationSearch"
-          />
+          <OrganizationDropdownFilter v-model="organizationFilter" />
           <!-- role filter -->
           <NeDropdownFilter
             v-model="roleFilter"

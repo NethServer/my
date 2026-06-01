@@ -310,7 +310,7 @@ function onMuteDrawerClose() {
           <NeDropdownFilter
             v-model="alertsSeverityFilters"
             kind="checkbox"
-            :label="t('alerts.filter_severity')"
+            :label="t('alerts.severity')"
             :options="SEVERITY_FILTER_OPTIONS"
             :show-clear-filter="false"
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
@@ -324,7 +324,7 @@ function onMuteDrawerClose() {
           <NeDropdownFilter
             v-model="alertsAlertNameFilters"
             kind="checkbox"
-            :label="t('alerts.filter_alert')"
+            :label="t('alerts.alert')"
             :options="alertsAlertNameOptions"
             :show-clear-filter="false"
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
