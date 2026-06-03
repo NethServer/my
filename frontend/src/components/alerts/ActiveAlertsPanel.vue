@@ -11,6 +11,8 @@ import AlertsTable from '@/components/alerts/AlertsTable.vue'
 import { useAlertsTotals } from '@/queries/alerts/alertsTotals'
 import { useLoginStore } from '@/stores/login'
 
+const MIN_ESTIMATED_COUNT = 50
+
 const { t } = useI18n()
 const loginStore = useLoginStore()
 const { state: totalsState } = useAlertsTotals()
@@ -34,7 +36,7 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
         :counter="totalCount"
         :loading="isLoading"
         colorClasses="text-secondary-neutral dark:text-secondary-neutral"
-        :is-estimated="loginStore.isOwner && totalCount > 0"
+        :is-estimated="loginStore.isOwner && totalCount > MIN_ESTIMATED_COUNT"
         class="sm:col-span-3 xl:col-span-1"
       />
       <CounterCard
@@ -42,7 +44,7 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
         :counter="mutedCount"
         :loading="isLoading"
         color-classes="text-secondary-neutral dark:text-secondary-neutral"
-        :is-estimated="loginStore.isOwner && mutedCount > 0"
+        :is-estimated="loginStore.isOwner && mutedCount > MIN_ESTIMATED_COUNT"
         class="sm:col-span-3 xl:col-span-1"
       />
       <CounterCard
@@ -50,7 +52,7 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
         :counter="criticalCount"
         :loading="isLoading"
         color-classes="text-rose-600 dark:text-rose-400"
-        :is-estimated="loginStore.isOwner && criticalCount > 0"
+        :is-estimated="loginStore.isOwner && criticalCount > MIN_ESTIMATED_COUNT"
         class="sm:col-span-2 xl:col-span-1"
       />
       <CounterCard
@@ -58,7 +60,7 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
         :counter="warningCount"
         :loading="isLoading"
         color-classes="text-amber-600 dark:text-amber-400"
-        :is-estimated="loginStore.isOwner && warningCount > 0"
+        :is-estimated="loginStore.isOwner && warningCount > MIN_ESTIMATED_COUNT"
         class="sm:col-span-2 xl:col-span-1"
       />
       <CounterCard
@@ -66,7 +68,7 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
         :counter="infoCount"
         :loading="isLoading"
         color-classes="text-blue-600 dark:text-blue-400"
-        :is-estimated="loginStore.isOwner && infoCount > 0"
+        :is-estimated="loginStore.isOwner && infoCount > MIN_ESTIMATED_COUNT"
         class="sm:col-span-2 xl:col-span-1"
       />
     </div>
