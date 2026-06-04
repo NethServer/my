@@ -4,11 +4,7 @@
 -->
 
 <script setup lang="ts">
-import {
-  faTriangleExclamation,
-  faBellSlash,
-  faCircleCheck,
-} from '@fortawesome/free-solid-svg-icons'
+import { faTriangleExclamation, faBellSlash } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   NeBadgeV2,
@@ -17,8 +13,8 @@ import {
   NeSkeleton,
   NeInlineNotification,
   NeTextArea,
-  NeHeading,
   NeTooltip,
+  NeFormItemLabel,
 } from '@nethesis/vue-components'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -116,9 +112,9 @@ function closeDrawer() {
     :close-aria-label="$t('common.shell.close_side_drawer')"
     @close="closeDrawer"
   >
-    <div v-if="alert" class="space-y-8">
+    <div v-if="alert" class="space-y-7">
       <!-- Alert Header -->
-      <div class="space-y-5">
+      <div class="space-y-7">
         <!-- Avatar + Alert Name + Badges -->
         <div class="flex gap-4">
           <!-- Avatar -->
@@ -165,10 +161,10 @@ function closeDrawer() {
         </div>
 
         <!-- Started at -->
-        <div class="space-y-1">
-          <p class="text-secondary-neutral text-sm font-medium dark:text-gray-300">
+        <div>
+          <NeFormItemLabel class="mb-1!">
             {{ t('alerts.started') }}
-          </p>
+          </NeFormItemLabel>
           <p class="text-tertiary-neutral text-sm dark:text-gray-400">
             {{ formatDateTimeNoSeconds(new Date(alert.startsAt), locale) }}
           </p>
@@ -176,19 +172,19 @@ function closeDrawer() {
 
         <!-- Silenced until -->
         <div v-if="alert.status.state === 'suppressed' && silencedUntil" class="space-y-1">
-          <p class="text-secondary-neutral text-sm font-medium dark:text-gray-300">
+          <NeFormItemLabel class="mb-1!">
             {{ t('alerts.silenced_until') }}
-          </p>
+          </NeFormItemLabel>
           <p class="text-tertiary-neutral text-sm dark:text-gray-400">
             {{ formatDateTimeNoSeconds(silencedUntil, locale) }}
           </p>
         </div>
 
         <!-- System -->
-        <div class="space-y-2">
-          <p class="text-secondary-neutral text-sm font-medium dark:text-gray-300">
+        <div>
+          <NeFormItemLabel class="mb-1!">
             {{ t('alerts.system') }}
-          </p>
+          </NeFormItemLabel>
           <div class="flex items-center gap-2">
             <SystemLogo :system="alert.labels?.system_type" />
             <RouterLink
@@ -206,10 +202,10 @@ function closeDrawer() {
       </div>
 
       <!-- Description -->
-      <div class="space-y-2">
-        <p class="text-secondary-neutral text-sm font-medium dark:text-gray-300">
+      <div>
+        <NeFormItemLabel class="mb-1!">
           {{ t('alerts.description') }}
-        </p>
+        </NeFormItemLabel>
         <p class="text-tertiary-neutral text-sm dark:text-gray-400">
           {{ alert.annotations?.description || '-' }}
         </p>
@@ -225,10 +221,10 @@ function closeDrawer() {
       />
 
       <!-- Activity Timeline -->
-      <div>
-        <NeHeading tag="h6" class="text-secondary-neutral mb-3 font-medium">
+      <div v-if="activity.length > 0">
+        <NeFormItemLabel>
           {{ t('alerts.activity') }}
-        </NeHeading>
+        </NeFormItemLabel>
 
         <!-- Loading skeleton -->
         <div v-if="activityAsyncStatus === 'loading'" class="space-y-3 pt-3">
@@ -244,23 +240,11 @@ function closeDrawer() {
           :title="t('alerts.cannot_retrieve_activity')"
         />
 
-        <!-- Empty state -->
-        <div v-else-if="!activity.length" class="flex flex-col items-center gap-2 py-6">
-          <FontAwesomeIcon
-            :icon="faCircleCheck"
-            class="size-10 text-gray-300 dark:text-gray-600"
-            aria-hidden="true"
-          />
-          <p class="text-tertiary-neutral text-sm dark:text-gray-400">
-            {{ t('alerts.no_activity') }}
-          </p>
-        </div>
-
         <!-- Activity list -->
         <div v-else class="relative">
           <!-- Vertical timeline line -->
           <div
-            class="absolute inset-y-0 left-[9px] w-px bg-gray-200 dark:bg-gray-700"
+            class="absolute inset-y-0 left-2.25 w-px bg-gray-200 dark:bg-gray-700"
             aria-hidden="true"
           />
 
@@ -274,7 +258,7 @@ function closeDrawer() {
             <!-- Humanized time (absolute datetime shown on hover) -->
             <NeTooltip placement="top" trigger-event="mouseenter focus">
               <template #trigger>
-                <span class="text-tertiary-neutral w-fit cursor-default text-xs dark:text-gray-500">
+                <span class="text-tertiary-neutral w-fit cursor-default">
                   {{ formatTimeAgo(event.created_at, t) }}
                 </span>
               </template>
@@ -292,10 +276,10 @@ function closeDrawer() {
                 :is-owner="false"
                 size="xs"
               />
-              <span class="text-secondary-neutral shrink-0 text-sm font-medium dark:text-gray-300">
+              <span class="text-secondary-neutral shrink-0 text-sm font-medium">
                 {{ event.actor_name || t('alerts.activity_actor_system') }}
               </span>
-              <span class="text-tertiary-neutral truncate text-sm dark:text-gray-500">
+              <span class="text-tertiary-neutral truncate text-sm">
                 {{ getActionLabel(event.action) }}
               </span>
             </div>
@@ -303,7 +287,7 @@ function closeDrawer() {
             <!-- Comment (max 1 line, ellipsized) -->
             <p
               v-if="event.details?.comment && typeof event.details.comment === 'string'"
-              class="text-tertiary-neutral mt-1 truncate text-sm dark:text-gray-500"
+              class="text-tertiary-neutral mt-1 truncate"
             >
               {{ event.details.comment }}
             </p>

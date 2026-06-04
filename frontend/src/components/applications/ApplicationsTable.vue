@@ -35,6 +35,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { canManageApplications } from '@/lib/permissions'
+import { isUserCustomer } from '@/lib/organizations/organizations'
 import { APPLICATIONS_TABLE_ID } from '@/lib/applications/applications'
 import OrganizationIcon from '../organizations/OrganizationIcon.vue'
 import { useApplications } from '@/queries/applications/applications'
@@ -241,7 +242,7 @@ const goToApplicationDetails = (application: Application) => {
               :clear-search-label="t('ne_dropdown_filter.clear_search')"
             />
             <SystemDropdownFilter v-model="systemFilter" id-field="id" />
-            <OrganizationDropdownFilter v-model="organizationFilter" />
+            <OrganizationDropdownFilter v-if="!isUserCustomer()" v-model="organizationFilter" />
             <!-- sort dropdown -->
             <NeSortDropdown
               v-model:sort-key="sortBy"

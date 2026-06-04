@@ -5,6 +5,7 @@
 
 <script setup lang="ts">
 import {
+  NeBadgeV2,
   NeButton,
   NeInlineNotification,
   NeSideDrawer,
@@ -21,11 +22,13 @@ import type { Focusable } from '@/lib/common'
 import {
   ALERTS_CONFIG_KEY,
   TelegramNotificationsPayloadSchema,
+  getSeverityBadgeKind,
   postAlertsConfig,
   type AlertingConfigLayer,
   type TelegramRecipient,
 } from '@/lib/alerts'
 import { useNotificationsStore } from '@/stores/notifications'
+import capitalize from 'lodash/capitalize'
 
 const { isShown = false, config = null } = defineProps<{
   isShown: boolean
@@ -50,11 +53,6 @@ const expandedBotTokenRef = useTemplateRef<Focusable[]>('expandedBotTokenRef')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const SEVERITIES = ['critical', 'warning', 'info'] as const
-const SEVERITY_LABELS: Record<string, string> = {
-  critical: 'High',
-  warning: 'Medium',
-  info: 'Low',
-}
 
 function initForm() {
   expandedIndex.value = null
@@ -248,19 +246,14 @@ function closeDrawer() {
             <div class="min-w-0 flex-1">
               <p class="truncate text-sm font-medium text-gray-100">{{ ch._chatIdInput }}</p>
               <div v-if="expandedIndex !== index" class="mt-4 flex flex-wrap gap-1">
-                <span
+                <NeBadgeV2
                   v-for="sev in SEVERITIES"
+                  :kind="getSeverityBadgeKind(sev)"
                   v-show="hasSeverity(ch, sev)"
                   :key="sev"
-                  :class="[
-                    'rounded-full px-2 py-0.5 text-xs font-medium',
-                    sev === 'critical' ? 'bg-rose-700 text-white' : '',
-                    sev === 'warning' ? 'bg-amber-600 text-white' : '',
-                    sev === 'info' ? 'bg-sky-600 text-white' : '',
-                  ]"
                 >
-                  {{ SEVERITY_LABELS[sev] }}
-                </span>
+                  {{ capitalize(sev) }}
+                </NeBadgeV2>
               </div>
             </div>
             <FontAwesomeIcon
@@ -272,7 +265,7 @@ function closeDrawer() {
 
           <!-- Expanded body -->
           <Transition name="accordion">
-            <div v-if="expandedIndex === index" class="space-y-6 bg-gray-800/50 p-4">
+            <div v-if="expandedIndex === index" class="space-y-6 p-4">
               <!-- Telegram channel + bot token -->
               <div class="space-y-4">
                 <NeTextInput
@@ -311,7 +304,7 @@ function closeDrawer() {
                     :class="[
                       'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors',
                       hasSeverity(ch, sev)
-                        ? 'border-sky-500 bg-sky-900/30 text-sky-300'
+                        ? 'border-primary-500 bg-primary-900/30 text-primary-300'
                         : 'border-gray-600 text-gray-400 hover:border-gray-500',
                     ]"
                     type="button"
@@ -320,9 +313,9 @@ function closeDrawer() {
                     <FontAwesomeIcon
                       v-if="hasSeverity(ch, sev)"
                       :icon="faCircleCheck"
-                      class="size-3.5 text-sky-400"
+                      class="text-primary-400 size-3.5"
                     />
-                    {{ SEVERITY_LABELS[sev] }}
+                    {{ capitalize(sev) }}
                   </button>
                 </div>
               </div>

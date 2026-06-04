@@ -527,7 +527,7 @@
     "page_description": "List of licensed NethServer and NethSecurity systems.",
     "system": "System",
     "cannot_retrieve_systems": "Cannot retrieve systems",
-    "no_systems": "No systems",
+    "no_systems": "No systems configured",
     "no_systems_found": "No systems found",
     "filter_systems": "Filter systems",
     "product": "Product",
@@ -976,6 +976,7 @@
     "telegram_not_configured": "Telegram notifications not configured",
     "telegram_not_configured_description": "Configure a Telegram channel to send alert notifications.",
     "notifications_disabled_warning": "Notifications for this channel are currently disabled and won't be sent.",
+    "no_systems_configured": "No systems configured",
     "reload_history": "Reload history"
   },
   "ne_tabs": {

@@ -43,6 +43,11 @@ export function getOrganizationIcon(orgType: string) {
   }
 }
 
+export const isUserCustomer = () => {
+  const loginStore = useLoginStore()
+  return loginStore.userInfo?.org_role?.toLowerCase() === 'customer'
+}
+
 // ============================================================
 // Common Import Types (used across all entities)
 // ============================================================

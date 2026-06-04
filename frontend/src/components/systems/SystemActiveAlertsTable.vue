@@ -367,7 +367,11 @@ function onMuteDrawerClose(): void {
           <NeTableCell :data-label="$t('alerts.alertname')">
             <div class="flex items-start gap-2">
               <div>
-                <p class="font-medium">{{ alert.labels?.alertname || '-' }}</p>
+                <span
+                  class="cursor-pointer font-medium hover:underline"
+                  @click="() => showDetails(alert)"
+                  >{{ alert.labels?.alertname || '-' }}</span
+                >
                 <p
                   v-if="getAlertSummary(alert, locale)"
                   class="mt-0.5 text-sm break-all text-gray-500 dark:text-gray-400"

@@ -283,7 +283,11 @@ function showDetails(alert: Alert): void {
           </NeTableCell>
           <!-- Alert name + summary -->
           <NeTableCell :data-label="$t('alerts.alertname')">
-            <p class="font-medium">{{ record.alertname || '-' }}</p>
+            <span
+              class="cursor-pointer font-medium hover:underline"
+              @click="() => showDetails(toAlert(record))"
+              >{{ record.alertname || '-' }}</span
+            >
             <p
               v-if="record.summary"
               class="mt-0.5 text-sm break-all text-gray-500 dark:text-gray-400"

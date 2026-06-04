@@ -5,12 +5,14 @@
 
 <script setup lang="ts">
 import {
+  faArrowRight,
   faArrowsRotate,
   faBell,
   faBellSlash,
   faCircleCheck,
   faEye,
   faMagnifyingGlass,
+  faServer,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -34,6 +36,7 @@ import {
 } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useAlerts } from '@/queries/alerts/alerts'
 import { useAlertFilters } from '@/queries/alerts/alertFilters'
 import {
@@ -48,7 +51,7 @@ import {
 } from '@/lib/alerts'
 import { useNotificationsStore } from '@/stores/notifications'
 import { formatDateTime, formatTimeAgo } from '@/lib/dateTime'
-import { canManageSystems } from '@/lib/permissions'
+import { canManageSystems, canReadSystems } from '@/lib/permissions'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import SystemLogo from '@/components/systems/SystemLogo.vue'
 import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
@@ -59,8 +62,10 @@ import capitalize from 'lodash/capitalize'
 import SystemDropdownFilter from '@/components/systems/SystemDropdownFilter.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
+import { isUserCustomer } from '@/lib/organizations/organizations'
 
 const { t, locale } = useI18n()
+const router = useRouter()
 const notificationsStore = useNotificationsStore()
 
 const {
@@ -93,8 +98,18 @@ const isNoMatchEmptyStateShown = computed(
   () => !alerts.value.length && state.value.status === 'success' && !areDefaultFiltersApplied(),
 )
 
+const isNoSystemsEmptyStateShown = computed(
+  () =>
+    !alertFiltersData.value?.systems?.length &&
+    state.value.status === 'success' &&
+    areDefaultFiltersApplied(),
+)
+
 const noEmptyStateShown = computed(
-  () => !isNoDataEmptyStateShown.value && !isNoMatchEmptyStateShown.value,
+  () =>
+    !isNoDataEmptyStateShown.value &&
+    !isNoMatchEmptyStateShown.value &&
+    !isNoSystemsEmptyStateShown.value,
 )
 
 // ── Filter options ─────────────────────────────────────────────────────────────
@@ -200,6 +215,12 @@ function getKebabMenuItems(alert: Alert): NeDropdownItem[] {
 function handleReload() {
   refetch()
 }
+
+// ── Navigation ──────────────────────────────────────────────────────────────────
+
+function goToSystems() {
+  router.push({ name: 'systems' })
+}
 </script>
 
 <template>
@@ -261,6 +282,7 @@ function handleReload() {
           />
           <!-- Organization filter -->
           <OrganizationDropdownFilter
+            v-if="!isUserCustomer()"
             v-model="organizationIds"
             @update:model-value="() => (pageNum = 1)"
           />
@@ -318,9 +340,24 @@ function handleReload() {
       </div>
     </div>
 
+    <!-- Empty state: no systems configured -->
+    <NeEmptyState
+      v-if="isNoSystemsEmptyStateShown"
+      :title="$t('alerts.no_systems_configured')"
+      :icon="faServer"
+      class="bg-white dark:bg-gray-950"
+    >
+      <NeButton v-if="canReadSystems()" kind="primary" @click="goToSystems">
+        <template #prefix>
+          <FontAwesomeIcon :icon="faArrowRight" aria-hidden="true" />
+        </template>
+        {{ $t('common.go_to_page', { page: $t('systems.title') }) }}
+      </NeButton>
+    </NeEmptyState>
+
     <!-- Empty state: no data -->
     <NeEmptyState
-      v-if="isNoDataEmptyStateShown"
+      v-else-if="isNoDataEmptyStateShown"
       :title="$t('alerts.no_active_alerts')"
       :description="$t('alerts.no_active_alerts_description')"
       :icon="faCircleCheck"
@@ -373,7 +410,11 @@ function handleReload() {
           <NeTableCell :data-label="$t('alerts.alertname')">
             <div class="flex items-start gap-2">
               <div>
-                <p class="font-medium">{{ alert.labels?.alertname || '-' }}</p>
+                <span
+                  class="cursor-pointer font-medium hover:underline"
+                  @click="() => showDetailsDrawer(alert)"
+                  >{{ alert.labels?.alertname || '-' }}</span
+                >
                 <p
                   v-if="getAlertSummary(alert, locale)"
                   class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5 break-all"

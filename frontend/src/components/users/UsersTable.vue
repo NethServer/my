@@ -63,6 +63,7 @@ import OrganizationLink from '../applications/OrganizationLink.vue'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import UserAvatar from './UserAvatar.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
+import { isUserCustomer } from '@/lib/organizations/organizations.ts'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -353,7 +354,7 @@ const onClosePasswordChangedModal = () => {
             class="max-w-48 sm:max-w-sm"
           />
           <!-- organization filter -->
-          <OrganizationDropdownFilter v-model="organizationFilter" />
+          <OrganizationDropdownFilter v-if="!isUserCustomer()" v-model="organizationFilter" />
           <!-- role filter -->
           <NeDropdownFilter
             v-model="roleFilter"

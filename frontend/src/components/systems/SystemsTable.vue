@@ -64,6 +64,7 @@ import DestroySystemModal from './DestroySystemModal.vue'
 import SystemStatusIcon from './SystemStatusIcon.vue'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
+import { isUserCustomer } from '@/lib/organizations/organizations.ts'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -422,7 +423,7 @@ function onCloseSecretRegeneratedModal() {
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
           />
-          <OrganizationDropdownFilter v-model="organizationFilter" />
+          <OrganizationDropdownFilter v-if="!isUserCustomer()" v-model="organizationFilter" />
           <!-- status filter -->
           <NeDropdownFilter
             v-model="statusFilter"
