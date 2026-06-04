@@ -299,11 +299,16 @@ function handleReload() {
           </NeButton>
         </div>
         <!-- Right-side actions -->
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-4">
           <!-- Update indicator -->
           <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
           <!-- Reload button -->
-          <NeButton kind="secondary" size="md" @click="handleReload">
+          <NeButton
+            kind="secondary"
+            size="md"
+            :disabled="asyncStatus === 'loading'"
+            @click="handleReload"
+          >
             <template #prefix>
               <FontAwesomeIcon :icon="faArrowsRotate" class="h-4 w-4" aria-hidden="true" />
             </template>

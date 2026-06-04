@@ -4,15 +4,9 @@
 -->
 
 <script setup lang="ts">
-import {
-  NeButton,
-  NeInlineNotification,
-  NeSideDrawer,
-  NeTextArea,
-  NeTextInput,
-  focusElement,
-} from '@nethesis/vue-components'
-import { ref, useTemplateRef } from 'vue'
+import { NeButton, NeInlineNotification, NeSideDrawer, NeTextArea } from '@nethesis/vue-components'
+import { VueDatePicker } from '@vuepic/vue-datepicker'
+import { ref } from 'vue'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useI18n } from 'vue-i18n'
 import {
@@ -23,6 +17,7 @@ import {
   type Alert,
 } from '@/lib/alerts'
 import { useNotificationsStore } from '@/stores/notifications'
+import { useThemeStore } from '@/stores/theme'
 
 const { isShown = false, alert = undefined } = defineProps<{
   isShown: boolean
@@ -34,10 +29,10 @@ const emit = defineEmits(['close'])
 const { t } = useI18n()
 const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
+const themeStore = useThemeStore()
 
-const endsAt = ref('')
+const endsAt = ref<Date | null>(null)
 const notes = ref('')
-const endsAtRef = useTemplateRef<HTMLInputElement>('endsAtRef')
 const endsAtError = ref('')
 
 const {
@@ -52,7 +47,7 @@ const {
       alert.labels.system_id,
       alert.fingerprint,
       notes.value.trim() || undefined,
-      endsAt.value ? new Date(endsAt.value).toISOString() : undefined,
+      endsAt.value ? endsAt.value.toISOString() : undefined,
     )
   },
   onSuccess() {
@@ -75,9 +70,8 @@ const {
 
 function onShow() {
   clearErrors()
-  endsAt.value = ''
+  endsAt.value = null
   notes.value = ''
-  focusElement(endsAtRef)
 }
 
 function closeDrawer() {
@@ -95,7 +89,7 @@ function validate(): boolean {
     endsAtError.value = t('alerts.mute_until_date_required')
     return false
   }
-  if (new Date(endsAt.value) <= new Date()) {
+  if (endsAt.value <= new Date()) {
     endsAtError.value = t('alerts.mute_until_date_future')
     return false
   }
@@ -107,9 +101,8 @@ function handleSubmit() {
   muteAlertMutate()
 }
 
-function getMinDateTime(): string {
-  const d = new Date(Date.now() + 60_000)
-  return d.toISOString().slice(0, 16)
+function getMinDate(): Date {
+  return new Date(Date.now() + 60_000)
 }
 </script>
 
@@ -124,15 +117,31 @@ function getMinDateTime(): string {
     <form @submit.prevent="handleSubmit">
       <div class="space-y-6">
         <!-- Mute until date/time -->
-        <NeTextInput
-          ref="endsAtRef"
-          v-model="endsAt"
-          type="datetime-local"
-          :label="t('alerts.mute_until_date')"
-          :min="getMinDateTime()"
-          :invalid-message="endsAtError"
-          :disabled="muteAlertLoading"
-        />
+        <div class="space-y-1.5">
+          <label
+            for="muteUntilDate"
+            class="block text-sm font-medium text-gray-700 dark:text-gray-200"
+          >
+            {{ t('alerts.mute_until_date') }}
+          </label>
+          <VueDatePicker
+            v-model="endsAt"
+            class="vue-datepicker"
+            :dark="!themeStore.isLight"
+            :enable-time-picker="true"
+            :enable-seconds="false"
+            :min-date="getMinDate()"
+            :disabled="muteAlertLoading"
+            :placeholder="t('alerts.mute_until_date_placeholder')"
+            :time-config="{ timePickerInline: true }"
+            :input-attrs="{ id: 'muteUntilDate' }"
+            auto-apply
+            @update:model-value="endsAtError = ''"
+          />
+          <p v-if="endsAtError" class="text-sm text-rose-700 dark:text-rose-400">
+            {{ endsAtError }}
+          </p>
+        </div>
         <!-- Notes (optional) -->
         <NeTextArea
           v-model="notes"

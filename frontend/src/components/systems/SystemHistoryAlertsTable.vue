@@ -213,11 +213,16 @@ function showDetails(alert: Alert): void {
           {{ t('common.reset_filters') }}
         </NeButton>
       </div>
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-4">
         <UpdatingSpinner
           v-if="historyAsyncStatus === 'loading' && historyState.status !== 'pending'"
         />
-        <NeButton kind="secondary" size="md" @click="historyRefetch()">
+        <NeButton
+          kind="secondary"
+          size="md"
+          :disabled="historyAsyncStatus === 'loading'"
+          @click="historyRefetch()"
+        >
           <template #prefix>
             <FontAwesomeIcon :icon="faArrowsRotate" class="h-4 w-4" aria-hidden="true" />
           </template>

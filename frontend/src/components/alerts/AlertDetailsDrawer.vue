@@ -16,13 +16,18 @@ import {
   NeSideDrawer,
   NeSkeleton,
   NeInlineNotification,
+  NeTextArea,
+  NeHeading,
+  NeTooltip,
 } from '@nethesis/vue-components'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { RouterLink } from 'vue-router'
 import { useAlertActivity } from '@/queries/alerts/alertActivity'
 import { getSeverityBadgeKind, type Alert } from '@/lib/alerts'
 import SystemLogo from '@/components/systems/SystemLogo.vue'
-import { formatDateTime, formatTimeAgo } from '@/lib/dateTime'
+import UserAvatar from '@/components/users/UserAvatar.vue'
+import { formatDateTimeNoSeconds, formatTimeAgo } from '@/lib/dateTime'
 
 interface Props {
   isShown: boolean
@@ -45,6 +50,46 @@ const { state: activityState, asyncStatus: activityAsyncStatus } = useAlertActiv
 )
 
 const activity = computed(() => activityState.value.data?.events ?? [])
+
+// The end_at from the most recently created silence event, shown when the alert is suppressed
+const silencedUntil = computed<Date | null>(() => {
+  if (props.alert?.status.state !== 'suppressed') return null
+  let latestCreatedAt: Date | null = null
+  let matchedEndAt: Date | null = null
+  for (const event of activity.value) {
+    if (event.action !== 'silenced' && event.action !== 'silence_updated') continue
+    const endAt = event.details?.end_at
+    if (typeof endAt !== 'string') continue
+    const endDate = new Date(endAt)
+    if (isNaN(endDate.getTime())) continue
+    const createdAt = new Date(event.created_at)
+    if (isNaN(createdAt.getTime())) continue
+    if (latestCreatedAt === null || createdAt > latestCreatedAt) {
+      latestCreatedAt = createdAt
+      matchedEndAt = endDate
+    }
+  }
+  return matchedEndAt
+})
+
+// Comment from the most recent silenced/silence_updated event, shown as read-only notes
+const muteComment = computed<string | null>(() => {
+  if (props.alert?.status.state !== 'suppressed') return null
+  let latestDate: Date | null = null
+  let latestComment: string | null = null
+  for (const event of activity.value) {
+    if (event.action !== 'silenced' && event.action !== 'silence_updated') continue
+    const comment = event.details?.comment
+    if (typeof comment !== 'string' || !comment) continue
+    const eventDate = new Date(event.created_at)
+    if (isNaN(eventDate.getTime())) continue
+    if (latestDate === null || eventDate > latestDate) {
+      latestDate = eventDate
+      latestComment = comment
+    }
+  }
+  return latestComment
+})
 
 function getActionLabel(action: string): string {
   switch (action) {
@@ -90,8 +135,8 @@ function closeDrawer() {
           </div>
 
           <!-- Alert Name + Badges -->
-          <div class="flex flex-col gap-3">
-            <div class="flex items-center gap-3">
+          <div class="flex flex-col gap-2">
+            <div class="flex flex-wrap items-center gap-2">
               <h3 class="text-primary-neutral text-lg font-medium dark:text-gray-100">
                 {{ alert.labels?.alertname || '-' }}
               </h3>
@@ -125,7 +170,17 @@ function closeDrawer() {
             {{ t('alerts.started') }}
           </p>
           <p class="text-tertiary-neutral text-sm dark:text-gray-400">
-            {{ formatDateTime(new Date(alert.startsAt), locale) }}
+            {{ formatDateTimeNoSeconds(new Date(alert.startsAt), locale) }}
+          </p>
+        </div>
+
+        <!-- Silenced until -->
+        <div v-if="alert.status.state === 'suppressed' && silencedUntil" class="space-y-1">
+          <p class="text-secondary-neutral text-sm font-medium dark:text-gray-300">
+            {{ t('alerts.silenced_until') }}
+          </p>
+          <p class="text-tertiary-neutral text-sm dark:text-gray-400">
+            {{ formatDateTimeNoSeconds(silencedUntil, locale) }}
           </p>
         </div>
 
@@ -136,7 +191,14 @@ function closeDrawer() {
           </p>
           <div class="flex items-center gap-2">
             <SystemLogo :system="alert.labels?.system_type" />
-            <p class="text-tertiary-neutral text-sm dark:text-gray-400">
+            <RouterLink
+              v-if="alert.labels?.system_id"
+              :to="{ name: 'system_detail', params: { systemId: alert.labels.system_id } }"
+              class="cursor-pointer font-medium hover:underline"
+            >
+              {{ alert.labels?.system_name || alert.labels?.system_key || '-' }}
+            </RouterLink>
+            <p v-else class="text-tertiary-neutral text-sm dark:text-gray-400">
               {{ alert.labels?.system_name || alert.labels?.system_key || '-' }}
             </p>
           </div>
@@ -153,14 +215,23 @@ function closeDrawer() {
         </p>
       </div>
 
+      <!-- Mute notes (read-only, shown when the alert is suppressed and a note was left) -->
+      <NeTextArea
+        v-if="alert.status.state === 'suppressed' && muteComment"
+        :model-value="muteComment"
+        :label="t('alerts.mute_notes')"
+        :readonly="true"
+        :rows="4"
+      />
+
       <!-- Activity Timeline -->
-      <div class="space-y-4">
-        <p class="text-secondary-neutral text-sm font-medium dark:text-gray-300">
+      <div>
+        <NeHeading tag="h6" class="text-secondary-neutral mb-3 font-medium">
           {{ t('alerts.activity') }}
-        </p>
+        </NeHeading>
 
         <!-- Loading skeleton -->
-        <div v-if="activityAsyncStatus === 'loading'" class="space-y-3">
+        <div v-if="activityAsyncStatus === 'loading'" class="space-y-3 pt-3">
           <div v-for="i in 2" :key="i" class="space-y-2">
             <NeSkeleton :lines="2" />
           </div>
@@ -186,23 +257,53 @@ function closeDrawer() {
         </div>
 
         <!-- Activity list -->
-        <div v-else class="space-y-3">
+        <div v-else class="relative">
+          <!-- Vertical timeline line -->
           <div
-            v-for="event in activity"
-            :key="event.id"
-            class="border-l-2 border-gray-200 pl-3 dark:border-gray-700"
-          >
-            <p class="text-secondary-neutral text-sm font-medium dark:text-gray-300">
-              {{ getActionLabel(event.action) }}
-            </p>
-            <p class="text-tertiary-neutral text-xs dark:text-gray-500">
-              <span>{{ event.actor_name || 'System' }}</span>
-              <span> • </span>
-              <span>{{ formatTimeAgo(event.created_at, t) }}</span>
-            </p>
+            class="absolute inset-y-0 left-[9px] w-px bg-gray-200 dark:bg-gray-700"
+            aria-hidden="true"
+          />
+
+          <div v-for="event in activity" :key="event.id" class="relative pb-6 pl-8">
+            <!-- Timeline dot -->
+            <span
+              class="absolute top-[1.35rem] left-1.5 size-2 -translate-y-1/2 rounded-full bg-gray-400 dark:bg-gray-500"
+              aria-hidden="true"
+            />
+
+            <!-- Humanized time (absolute datetime shown on hover) -->
+            <NeTooltip placement="top" trigger-event="mouseenter focus">
+              <template #trigger>
+                <span class="text-tertiary-neutral w-fit cursor-default text-xs dark:text-gray-500">
+                  {{ formatTimeAgo(event.created_at, t) }}
+                </span>
+              </template>
+              <template #content>
+                {{ formatDateTimeNoSeconds(new Date(event.created_at), locale) }}
+              </template>
+            </NeTooltip>
+
+            <!-- Avatar + actor name + action label -->
+            <div class="mt-1 flex items-center gap-2">
+              <UserAvatar
+                v-if="event.actor_user_id"
+                :name="event.actor_name ?? ''"
+                :logto-id="event.actor_user_id"
+                :is-owner="false"
+                size="xs"
+              />
+              <span class="text-secondary-neutral shrink-0 text-sm font-medium dark:text-gray-300">
+                {{ event.actor_name || t('alerts.activity_actor_system') }}
+              </span>
+              <span class="text-tertiary-neutral truncate text-sm dark:text-gray-500">
+                {{ getActionLabel(event.action) }}
+              </span>
+            </div>
+
+            <!-- Comment (max 1 line, ellipsized) -->
             <p
-              v-if="event.details?.comment"
-              class="text-tertiary-neutral mt-1 text-sm dark:text-gray-400"
+              v-if="event.details?.comment && typeof event.details.comment === 'string'"
+              class="text-tertiary-neutral mt-1 truncate text-sm dark:text-gray-500"
             >
               {{ event.details.comment }}
             </p>

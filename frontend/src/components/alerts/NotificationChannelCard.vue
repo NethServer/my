@@ -50,7 +50,7 @@ const emit = defineEmits<{ edit: [] }>()
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ description }}</p>
         </div>
       </div>
-      <NeButton v-if="canManage" kind="tertiary" size="sm" @click="emit('edit')">
+      <NeButton v-if="canManage && !notConfigured" kind="tertiary" size="sm" @click="emit('edit')">
         <template #prefix>
           <FontAwesomeIcon :icon="faPenToSquare" class="size-3.5" />
         </template>

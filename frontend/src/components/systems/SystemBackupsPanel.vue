@@ -196,7 +196,7 @@ function getKebabMenuItems(backup: BackupMetadata): NeDropdownItem[] {
 
     <div class="flex items-center justify-end gap-4">
       <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
-      <NeButton kind="tertiary" :disabled="asyncStatus === 'loading'" @click="refresh()">
+      <NeButton kind="secondary" :disabled="asyncStatus === 'loading'" @click="refresh()">
         <template #prefix>
           <FontAwesomeIcon :icon="faArrowsRotate" aria-hidden="true" />
         </template>

@@ -296,11 +296,16 @@ function onMuteDrawerClose(): void {
         </NeButton>
       </div>
       <!-- Right-side actions -->
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-4">
         <UpdatingSpinner
           v-if="alertsAsyncStatus === 'loading' && alertsState.status !== 'pending'"
         />
-        <NeButton kind="secondary" size="md" @click="alertsRefetch()">
+        <NeButton
+          kind="secondary"
+          size="md"
+          :disabled="alertsAsyncStatus === 'loading'"
+          @click="alertsRefetch()"
+        >
           <template #prefix>
             <FontAwesomeIcon :icon="faArrowsRotate" class="h-4 w-4" aria-hidden="true" />
           </template>
