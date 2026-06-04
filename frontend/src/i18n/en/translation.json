@@ -995,7 +995,8 @@
     "webhook_not_configured_description": "Configure a webhook endpoint to send alerts to external services.",
     "telegram_not_configured": "Telegram notifications not configured",
     "telegram_not_configured_description": "Configure a Telegram channel to send alert notifications.",
-    "notifications_disabled_warning": "Notifications for this channel are currently disabled and won't be sent."
+    "notifications_disabled_warning": "Notifications for this channel are currently disabled and won't be sent.",
+    "reload_history": "Reload history"
   },
   "ne_tabs": {
     "tabs": "Tabs",

@@ -35,7 +35,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { canManageApplications } from '@/lib/permissions'
-import { SYSTEMS_TABLE_ID } from '@/lib/systems/systems'
+import { APPLICATIONS_TABLE_ID } from '@/lib/applications/applications'
 import OrganizationIcon from '../organizations/OrganizationIcon.vue'
 import { useApplications } from '@/queries/applications/applications'
 import { getDisplayName, type Application } from '@/lib/applications/applications'
@@ -414,7 +414,7 @@ const goToApplicationDetails = (application: Application) => {
             @select-page-size="
               (size: number) => {
                 pageSize = size
-                savePageSizeToStorage(SYSTEMS_TABLE_ID, size)
+                savePageSizeToStorage(APPLICATIONS_TABLE_ID, size)
               }
             "
           />

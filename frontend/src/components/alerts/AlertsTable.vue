@@ -37,6 +37,7 @@ import { useI18n } from 'vue-i18n'
 import { useAlerts } from '@/queries/alerts/alerts'
 import { useAlertFilters } from '@/queries/alerts/alertFilters'
 import {
+  ALERTS_TABLE_ID,
   deleteAlertSilence,
   getAlertSilenceIds,
   getAlertSummary,
@@ -57,6 +58,7 @@ import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
 import capitalize from 'lodash/capitalize'
 import SystemDropdownFilter from '@/components/systems/SystemDropdownFilter.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
+import { savePageSizeToStorage } from '@/lib/tablePageSize'
 
 const { t, locale } = useI18n()
 const notificationsStore = useNotificationsStore()
@@ -230,7 +232,6 @@ function handleReload() {
             kind="checkbox"
             :label="t('alerts.severity')"
             :options="SEVERITY_FILTER_OPTIONS"
-            show-options-filter
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
@@ -269,7 +270,6 @@ function handleReload() {
             kind="checkbox"
             :label="t('common.status')"
             :options="statusFilterOptions"
-            show-options-filter
             :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
@@ -464,7 +464,7 @@ function handleReload() {
           @select-page-size="
             (size: number) => {
               pageSize = size
-              pageNum = 1
+              savePageSizeToStorage(ALERTS_TABLE_ID, size)
             }
           "
         />

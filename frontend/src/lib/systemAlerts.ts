@@ -27,6 +27,9 @@ export {
   type Alert,
   type AlertHistoryRecord,
   type AlertmanagerSilence,
+  // Table IDs
+  SYSTEM_ALERT_HISTORY_TABLE_ID,
+  SYSTEM_ALERTS_TABLE_ID,
 } from '@/lib/alerts'
 
 export {

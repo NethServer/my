@@ -1,10 +1,15 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { getSystemAlertHistory, SYSTEM_ALERT_HISTORY_KEY } from '@/lib/systemAlerts'
+import {
+  getSystemAlertHistory,
+  SYSTEM_ALERT_HISTORY_KEY,
+  SYSTEM_ALERT_HISTORY_TABLE_ID,
+} from '@/lib/alerts'
+import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 export const useSystemAlertHistory = defineQuery(() => {
@@ -12,7 +17,7 @@ export const useSystemAlertHistory = defineQuery(() => {
   const route = useRoute()
 
   const pageNum = ref(1)
-  const pageSize = ref(50)
+  const pageSize = ref(DEFAULT_PAGE_SIZE)
   const sortBy = ref('starts_at')
   const sortDescending = ref(true)
   const severityFilters = ref<string[]>([])
@@ -54,6 +59,25 @@ export const useSystemAlertHistory = defineQuery(() => {
     statusFilters.value = []
     pageNum.value = 1
   }
+
+  // load table page size from storage
+  watch(
+    () => loginStore.userInfo?.email,
+    (email) => {
+      if (email) {
+        pageSize.value = loadPageSizeFromStorage(SYSTEM_ALERT_HISTORY_TABLE_ID)
+      }
+    },
+    { immediate: true },
+  )
+
+  // reset to first page when page size changes
+  watch(
+    () => pageSize.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
 
   return {
     ...rest,

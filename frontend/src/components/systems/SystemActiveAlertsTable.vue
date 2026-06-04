@@ -44,8 +44,10 @@ import {
   isAlertSilenced,
   SYSTEM_ALERTS_KEY,
   SYSTEM_ALERT_SILENCES_KEY,
+  SYSTEM_ALERTS_TABLE_ID,
   type Alert,
 } from '@/lib/systemAlerts'
+import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useSystemAlerts } from '@/queries/systemAlerts/systemAlerts'
 import { useAlertFilters } from '@/queries/alerts/alertFilters'
 import { formatDateTime } from '@/lib/dateTime'
@@ -251,6 +253,7 @@ function onMuteDrawerClose(): void {
           kind="checkbox"
           :label="t('alerts.alert')"
           :options="alertsAlertNameOptions"
+          show-options-filter
           :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
           :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
           :no-options-label="t('ne_dropdown_filter.no_options')"
@@ -410,7 +413,7 @@ function onMuteDrawerClose(): void {
           @select-page-size="
             (size: number) => {
               alertsPageSize = size
-              alertsPageNum = 1
+              savePageSizeToStorage(SYSTEM_ALERTS_TABLE_ID, size)
             }
           "
         />

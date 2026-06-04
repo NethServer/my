@@ -4,7 +4,12 @@
 -->
 
 <script setup lang="ts">
-import { faCircleCheck, faEye, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons'
+import {
+  faArrowsRotate,
+  faCircleCheck,
+  faEye,
+  faMagnifyingGlass,
+} from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   NeBadgeV2,
@@ -25,8 +30,15 @@ import {
 import capitalize from 'lodash/capitalize'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { getSeverityBadgeKind, type Alert, type AlertHistoryRecord } from '@/lib/systemAlerts'
+import {
+  getSeverityBadgeKind,
+  type Alert,
+  type AlertHistoryRecord,
+  SYSTEM_ALERT_HISTORY_TABLE_ID,
+} from '@/lib/systemAlerts'
 import { useSystemAlertHistory } from '@/queries/systemAlerts/systemAlertHistory'
+import { useAlertFilters } from '@/queries/alerts/alertFilters'
+import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { formatDateTime } from '@/lib/dateTime'
 import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
@@ -48,7 +60,12 @@ const {
   statusFilters: historyStatusFilters,
   areDefaultFiltersApplied: historyAreDefaultFiltersApplied,
   resetFilters: historyResetFilters,
+  refetch: historyRefetch,
 } = useSystemAlertHistory()
+
+// ── Alert filters query ───────────────────────────────────────────────────────
+
+const { state: alertFiltersState } = useAlertFilters()
 
 // ── Status filter options ─────────────────────────────────────────────────────
 
@@ -65,11 +82,14 @@ const historyPagination = computed(() => historyState.value.data?.pagination)
 // ── Filter options ────────────────────────────────────────────────────────────
 
 const historyAlertNameOptions = computed<FilterOption[]>(() => {
+  const filterAlerts = alertFiltersState.value.data?.alerts ?? []
   const names = new Set<string>()
-  historyAlerts.value.forEach((a) => {
-    if (a.alertname) names.add(a.alertname)
+  filterAlerts.forEach((a) => {
+    if (a.name) names.add(a.name)
   })
-  return Array.from(names).map((n) => ({ id: n, label: n }))
+  return Array.from(names)
+    .sort()
+    .map((n) => ({ id: n, label: n }))
 })
 
 // ── Empty states ──────────────────────────────────────────────────────────────
@@ -150,6 +170,7 @@ function showDetails(alert: Alert): void {
           kind="checkbox"
           :label="t('alerts.alert')"
           :options="historyAlertNameOptions"
+          show-options-filter
           :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
           :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
           :no-options-label="t('ne_dropdown_filter.no_options')"
@@ -192,10 +213,16 @@ function showDetails(alert: Alert): void {
           {{ t('common.reset_filters') }}
         </NeButton>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-3">
         <UpdatingSpinner
           v-if="historyAsyncStatus === 'loading' && historyState.status !== 'pending'"
         />
+        <NeButton kind="secondary" size="md" @click="historyRefetch()">
+          <template #prefix>
+            <FontAwesomeIcon :icon="faArrowsRotate" class="h-4 w-4" aria-hidden="true" />
+          </template>
+          {{ $t('alerts.reload_history') }}
+        </NeButton>
       </div>
     </div>
 
@@ -295,7 +322,7 @@ function showDetails(alert: Alert): void {
           @select-page-size="
             (size: number) => {
               historyPageSize = size
-              historyPageNum = 1
+              savePageSizeToStorage(SYSTEM_ALERT_HISTORY_TABLE_ID, size)
             }
           "
         />

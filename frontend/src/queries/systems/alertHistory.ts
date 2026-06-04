@@ -47,6 +47,14 @@ export const useAlertHistory = defineQuery(() => {
     { immediate: true },
   )
 
+  // reset to first page when page size changes
+  watch(
+    () => pageSize.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
   return {
     ...rest,
     state,
