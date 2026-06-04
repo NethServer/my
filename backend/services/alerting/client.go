@@ -145,13 +145,14 @@ func GetAlerts(orgID string) ([]byte, error) {
 // GetAlertsCtx is the context-aware variant of GetAlerts. Use this when callers
 // need to enforce a deadline (e.g., fan-out over many tenants for /totals).
 //
-// We explicitly request silenced and inhibited alerts in addition to the
-// default active set. Alertmanager's default response excludes silenced
+// We explicitly request silenced, inhibited and unprocessed alerts in addition
+// to the default active set. Alertmanager's default response excludes silenced
 // alerts entirely, which would make our `muted` counter on /alerts/totals
 // always zero and hide muted rows from the list. Including them lets the UI
-// surface the "Muted" badge alongside live ones.
+// surface the "Muted" badge alongside live ones. Requesting unprocessed too
+// keeps the `?status=unprocessed` filter meaningful end-to-end.
 func GetAlertsCtx(ctx context.Context, orgID string) ([]byte, error) {
-	url := configuration.Config.MimirURL + "/alertmanager/api/v2/alerts?active=true&silenced=true&inhibited=true"
+	url := configuration.Config.MimirURL + "/alertmanager/api/v2/alerts?active=true&silenced=true&inhibited=true&unprocessed=true"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
