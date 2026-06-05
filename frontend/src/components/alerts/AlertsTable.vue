@@ -39,6 +39,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAlerts } from '@/queries/alerts/alerts'
 import { useAlertFilters } from '@/queries/alerts/alertFilters'
+import { useSystems } from '@/queries/systems/systems'
 import {
   ALERTS_TABLE_ID,
   deleteAlertSilence,
@@ -49,9 +50,10 @@ import {
   SEVERITY_FILTER_OPTIONS,
   type Alert,
 } from '@/lib/alerts'
+import { type AlertFilterAlert } from '@/lib/alertFilters'
 import { useNotificationsStore } from '@/stores/notifications'
 import { formatDateTime, formatTimeAgo } from '@/lib/dateTime'
-import { canManageSystems, canReadSystems } from '@/lib/permissions'
+import { canManageSystems } from '@/lib/permissions'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import SystemLogo from '@/components/systems/SystemLogo.vue'
 import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
@@ -68,9 +70,11 @@ const { t, locale } = useI18n()
 const router = useRouter()
 const notificationsStore = useNotificationsStore()
 
+const { state: systemsState } = useSystems()
+
 const {
-  state,
-  asyncStatus,
+  state: alertsState,
+  asyncStatus: alertsAsyncStatus,
   pageNum,
   pageSize,
   sortBy,
@@ -87,21 +91,23 @@ const {
 
 const { state: alertFiltersState } = useAlertFilters()
 
-const alerts = computed(() => state.value.data?.alerts ?? [])
-const pagination = computed(() => state.value.data?.pagination)
+const alerts = computed(() => alertsState.value.data?.alerts ?? [])
+const pagination = computed(() => alertsState.value.data?.pagination)
 
 const isNoDataEmptyStateShown = computed(
-  () => !alerts.value.length && state.value.status === 'success' && areDefaultFiltersApplied(),
+  () =>
+    !alerts.value.length && alertsState.value.status === 'success' && areDefaultFiltersApplied(),
 )
 
 const isNoMatchEmptyStateShown = computed(
-  () => !alerts.value.length && state.value.status === 'success' && !areDefaultFiltersApplied(),
+  () =>
+    !alerts.value.length && alertsState.value.status === 'success' && !areDefaultFiltersApplied(),
 )
 
 const isNoSystemsEmptyStateShown = computed(
   () =>
-    !alertFiltersData.value?.systems?.length &&
-    state.value.status === 'success' &&
+    !systemsState.value.data?.systems?.length &&
+    systemsState.value.status === 'success' &&
     areDefaultFiltersApplied(),
 )
 
@@ -114,11 +120,9 @@ const noEmptyStateShown = computed(
 
 // ── Filter options ─────────────────────────────────────────────────────────────
 
-const alertFiltersData = computed(() => alertFiltersState.value.data)
-
 const alertNameFilterOptions = computed<FilterOption[]>(() => {
-  const alerts = alertFiltersData.value?.alerts ?? []
-  return alerts.map((a) => ({ id: a.name, label: a.name }))
+  const alerts = alertFiltersState.value.data?.alerts ?? []
+  return alerts.map((a: AlertFilterAlert) => ({ id: a.name, label: a.name }))
 })
 
 const statusFilterOptions: FilterOption[] = [
@@ -216,7 +220,7 @@ function handleReload() {
   refetch()
 }
 
-// ── Navigation ──────────────────────────────────────────────────────────────────
+// ── Navigation ──────────────────────────────────────────────────────────────────────
 
 function goToSystems() {
   router.push({ name: 'systems' })
@@ -227,7 +231,7 @@ function goToSystems() {
   <div>
     <!-- Error notification: data load -->
     <NeInlineNotification
-      v-if="state.status === 'error'"
+      v-if="alertsState.status === 'error'"
       kind="error"
       :title="$t('alerts.cannot_retrieve_alerts')"
       class="mb-6"
@@ -323,12 +327,14 @@ function goToSystems() {
         <!-- Right-side actions -->
         <div class="flex items-center gap-4">
           <!-- Update indicator -->
-          <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
+          <UpdatingSpinner
+            v-if="alertsAsyncStatus === 'loading' && alertsState.status !== 'pending'"
+          />
           <!-- Reload button -->
           <NeButton
             kind="secondary"
             size="md"
-            :disabled="asyncStatus === 'loading'"
+            :disabled="alertsAsyncStatus === 'loading'"
             @click="handleReload"
           >
             <template #prefix>
@@ -347,7 +353,7 @@ function goToSystems() {
       :icon="faServer"
       class="bg-white dark:bg-gray-950"
     >
-      <NeButton v-if="canReadSystems()" kind="primary" @click="goToSystems">
+      <NeButton kind="tertiary" @click="goToSystems">
         <template #prefix>
           <FontAwesomeIcon :icon="faArrowRight" aria-hidden="true" />
         </template>
@@ -384,7 +390,7 @@ function goToSystems() {
       :sort-descending="sortDirection === 'desc'"
       :aria-label="$t('alerts.title')"
       card-breakpoint="2xl"
-      :loading="state.status === 'pending'"
+      :loading="alertsState.status === 'pending'"
       :skeleton-columns="5"
       :skeleton-rows="7"
     >

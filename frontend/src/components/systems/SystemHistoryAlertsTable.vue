@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import { formatTimeAgo } from '@/lib/dateTime'
 import {
   faArrowsRotate,
   faCircleCheck,
@@ -38,6 +39,7 @@ import {
 } from '@/lib/systemAlerts'
 import { useSystemAlertHistory } from '@/queries/systemAlerts/systemAlertHistory'
 import { useAlertFilters } from '@/queries/alerts/alertFilters'
+import { type AlertFilterAlert } from '@/lib/alertFilters'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { formatDateTime } from '@/lib/dateTime'
 import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
@@ -82,9 +84,9 @@ const historyPagination = computed(() => historyState.value.data?.pagination)
 // ── Filter options ────────────────────────────────────────────────────────────
 
 const historyAlertNameOptions = computed<FilterOption[]>(() => {
-  const filterAlerts = alertFiltersState.value.data?.alerts ?? []
+  const filterAlerts = (alertFiltersState.value.data?.alerts ?? []) as AlertFilterAlert[]
   const names = new Set<string>()
-  filterAlerts.forEach((a) => {
+  filterAlerts.forEach((a: AlertFilterAlert) => {
     if (a.name) names.add(a.name)
   })
   return Array.from(names)
@@ -297,11 +299,23 @@ function showDetails(alert: Alert): void {
           </NeTableCell>
           <!-- Started at -->
           <NeTableCell :data-label="$t('alerts.started')">
-            {{ record.starts_at ? formatDateTime(new Date(record.starts_at), locale) : '-' }}
+            <div v-if="record.starts_at">
+              <p>{{ formatTimeAgo(record.starts_at, $t) }}</p>
+              <p class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5">
+                {{ formatDateTime(new Date(record.starts_at), locale) }}
+              </p>
+            </div>
+            <div v-else>-</div>
           </NeTableCell>
           <!-- Ended at -->
           <NeTableCell :data-label="$t('alerts.ends_at')">
-            {{ record.ends_at ? formatDateTime(new Date(record.ends_at), locale) : '-' }}
+            <div v-if="record.ends_at">
+              <p>{{ formatTimeAgo(record.ends_at, $t) }}</p>
+              <p class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5">
+                {{ formatDateTime(new Date(record.ends_at), locale) }}
+              </p>
+            </div>
+            <div v-else>-</div>
           </NeTableCell>
           <!-- Actions -->
           <NeTableCell :data-label="$t('common.actions')">

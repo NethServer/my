@@ -50,7 +50,8 @@ import {
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useSystemAlerts } from '@/queries/systemAlerts/systemAlerts'
 import { useAlertFilters } from '@/queries/alerts/alertFilters'
-import { formatDateTime } from '@/lib/dateTime'
+import { type AlertFilterAlert } from '@/lib/alertFilters'
+import { formatDateTime, formatTimeAgo } from '@/lib/dateTime'
 import { canManageSystems } from '@/lib/permissions'
 import MuteAlertDrawer from '@/components/alerts/MuteAlertDrawer.vue'
 import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
@@ -108,9 +109,9 @@ const alertsSortDescending = computed({
 // ── Filter options ────────────────────────────────────────────────────────────
 
 const alertsAlertNameOptions = computed<FilterOption[]>(() => {
-  const filterAlerts = alertFiltersState.value.data?.alerts ?? []
+  const filterAlerts = (alertFiltersState.value.data?.alerts ?? []) as AlertFilterAlert[]
   const names = new Set<string>()
-  filterAlerts.forEach((a) => {
+  filterAlerts.forEach((a: AlertFilterAlert) => {
     if (a.name) names.add(a.name)
   })
   return Array.from(names)
@@ -387,7 +388,12 @@ function onMuteDrawerClose(): void {
           </NeTableCell>
           <!-- Started at -->
           <NeTableCell :data-label="$t('alerts.started')">
-            {{ formatDateTime(new Date(alert.startsAt), locale) }}
+            <div>
+              <p>{{ formatTimeAgo(alert.startsAt, $t) }}</p>
+              <p class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5">
+                {{ formatDateTime(new Date(alert.startsAt), locale) }}
+              </p>
+            </div>
           </NeTableCell>
           <!-- Actions -->
           <NeTableCell :data-label="$t('common.actions')">
