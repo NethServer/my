@@ -53,7 +53,24 @@ func DiscoverNethServerServices(ctx context.Context, redisAddr string) map[strin
 
 	// Read local NODE_ID to distinguish local vs remote nodes
 	localNodeID := ReadNodeID()
-	log.Printf("NethServer discovery: found %d node(s): %v (local: %s)", len(nodeIDs), nodeIDs, localNodeID)
+
+	// Discover the cluster leader so we can give its routes precedence when
+	// the same service name (e.g. cluster-admin) is advertised on multiple
+	// nodes' Traefiks. The cluster agent stores its own NODE_ID in
+	// cluster/environment, and the cluster agent runs on the leader.
+	leaderNodeID, err := rdb.HGet(ctx, "cluster/environment", "NODE_ID").Result()
+	if err != nil {
+		log.Printf("NethServer discovery: cannot read cluster/environment NODE_ID (no leader hint): %v", err)
+		leaderNodeID = ""
+	}
+
+	// Order nodes so the leader is processed first, then the local node (if
+	// different), then the remaining ones in sorted order. Combined with the
+	// first-writer-wins merge below, this picks leader-hosted routes when a
+	// service exists on multiple nodes.
+	ordered := orderNodesByLeaderAndLocal(nodeIDs, leaderNodeID, localNodeID)
+	log.Printf("NethServer discovery: found %d node(s): %v (local: %s, leader: %s, order: %v)",
+		len(nodeIDs), nodeIDs, localNodeID, leaderNodeID, ordered)
 
 	// Build a map of remote node IPs from Redis VPN config
 	nodeIPs := make(map[string]string)
@@ -70,7 +87,7 @@ func DiscoverNethServerServices(ctx context.Context, redisAddr string) map[strin
 		log.Printf("NethServer discovery: node %s -> %s", nid, ip)
 	}
 
-	for _, nodeID := range nodeIDs {
+	for _, nodeID := range ordered {
 		nodeServices := discoverNodeRoutes(ctx, rdb, nodeID)
 
 		// For remote nodes, rewrite targets to go through the node's Traefik (HTTPS).
@@ -90,12 +107,41 @@ func DiscoverNethServerServices(ctx context.Context, redisAddr string) map[strin
 			}
 		}
 
+		// First-writer-wins so the leader's view of a duplicated route prevails.
 		for name, svc := range nodeServices {
-			services[name] = svc
+			if _, exists := services[name]; !exists {
+				services[name] = svc
+			}
 		}
 	}
 
 	return services
+}
+
+// orderNodesByLeaderAndLocal returns nodeIDs reordered so the leader comes
+// first, then the local node (if different), then the rest in their input
+// order. Empty strings for leader/local are ignored.
+func orderNodesByLeaderAndLocal(nodeIDs []string, leaderNodeID, localNodeID string) []string {
+	seen := make(map[string]bool, len(nodeIDs))
+	out := make([]string, 0, len(nodeIDs))
+	push := func(id string) {
+		if id == "" || seen[id] {
+			return
+		}
+		for _, n := range nodeIDs {
+			if n == id {
+				seen[id] = true
+				out = append(out, id)
+				return
+			}
+		}
+	}
+	push(leaderNodeID)
+	push(localNodeID)
+	for _, n := range nodeIDs {
+		push(n)
+	}
+	return out
 }
 
 // ReadNodeID reads NODE_ID from the NS8 node environment file.
