@@ -11,7 +11,6 @@ import { useMutation, useQueryCache } from '@pinia/colada'
 import { useI18n } from 'vue-i18n'
 import {
   ALERTS_ALERTS_KEY,
-  ALERTS_SILENCES_KEY,
   ALERTS_TOTALS_KEY,
   createSystemAlertSilence,
   type Alert,
@@ -63,7 +62,6 @@ const {
   },
   onSettled: () => {
     queryCache.invalidateQueries({ key: [ALERTS_ALERTS_KEY] })
-    queryCache.invalidateQueries({ key: [ALERTS_SILENCES_KEY] })
     queryCache.invalidateQueries({ key: [ALERTS_TOTALS_KEY] })
   },
 })

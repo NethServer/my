@@ -128,8 +128,8 @@ const alertNameFilterOptions = computed<FilterOption[]>(() => {
 })
 
 const statusFilterOptions: FilterOption[] = [
-  { id: 'suppressed', label: t('alerts.muted') },
   { id: 'active', label: t('alerts.unmuted') },
+  { id: 'suppressed', label: t('alerts.muted') },
 ]
 
 // ── Sort ────────────────────────────────────────────────────────────────────────

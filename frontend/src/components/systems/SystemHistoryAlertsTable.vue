@@ -60,7 +60,6 @@ const {
   sortDescending: historySortDescending,
   severityFilters: historySeverityFilters,
   alertnameFilters: historyAlertNameFilters,
-  statusFilters: historyStatusFilters,
   areDefaultFiltersApplied: historyAreDefaultFiltersApplied,
   resetFilters: historyResetFilters,
   refetch: historyRefetch,
@@ -69,13 +68,6 @@ const {
 // ── Alert filters query ───────────────────────────────────────────────────────
 
 const { state: alertFiltersState } = useAlertFilters()
-
-// ── Status filter options ─────────────────────────────────────────────────────
-
-const statusFilterOptions = computed(() => [
-  { id: 'suppressed', label: t('alerts.muted') },
-  { id: 'active', label: t('alerts.unmuted') },
-])
 
 // ── Computed data ─────────────────────────────────────────────────────────────
 
@@ -174,19 +166,6 @@ function showDetails(alert: Alert): void {
           :label="t('alerts.alert')"
           :options="historyAlertNameOptions"
           show-options-filter
-          :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
-          :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-          :no-options-label="t('ne_dropdown_filter.no_options')"
-          :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-          :clear-search-label="t('ne_dropdown_filter.clear_search')"
-          @update:model-value="() => (historyPageNum = 1)"
-        />
-        <!-- Status filter -->
-        <NeDropdownFilter
-          v-model="historyStatusFilters"
-          kind="checkbox"
-          :label="t('common.status')"
-          :options="statusFilterOptions"
           :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
           :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
           :no-options-label="t('ne_dropdown_filter.no_options')"

@@ -22,7 +22,6 @@ export const useSystemAlertHistory = defineQuery(() => {
   const sortDescending = ref(true)
   const severityFilters = ref<string[]>([])
   const alertnameFilters = ref<string[]>([])
-  const statusFilters = ref<string[]>([])
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
@@ -34,7 +33,6 @@ export const useSystemAlertHistory = defineQuery(() => {
       sortDescending.value,
       severityFilters.value.join(','),
       alertnameFilters.value.join(','),
-      statusFilters.value.join(','),
     ],
     enabled: () => !!loginStore.jwtToken && !!route.params.systemId,
     query: () =>
@@ -46,17 +44,15 @@ export const useSystemAlertHistory = defineQuery(() => {
         sortDescending.value,
         severityFilters.value.length > 0 ? severityFilters.value : undefined,
         alertnameFilters.value.length > 0 ? alertnameFilters.value : undefined,
-        statusFilters.value.length > 0 ? statusFilters.value : undefined,
       ),
   })
 
   const areDefaultFiltersApplied = () =>
-    !severityFilters.value.length && !alertnameFilters.value.length && !statusFilters.value.length
+    !severityFilters.value.length && !alertnameFilters.value.length
 
   const resetFilters = () => {
     severityFilters.value = []
     alertnameFilters.value = []
-    statusFilters.value = []
     pageNum.value = 1
   }
 
@@ -89,7 +85,6 @@ export const useSystemAlertHistory = defineQuery(() => {
     sortDescending,
     severityFilters,
     alertnameFilters,
-    statusFilters,
     areDefaultFiltersApplied,
     resetFilters,
   }

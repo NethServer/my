@@ -1,6 +1,7 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
+import type { AlertStatusEnum } from '@/lib/alerts'
 import {
   getSystemActiveAlerts,
   SYSTEM_ALERTS_KEY,
@@ -22,7 +23,7 @@ export const useSystemAlerts = defineQuery(() => {
   const sortDirection = ref<'asc' | 'desc'>('desc')
   const severityFilters = ref<string[]>([])
   const alertnameFilters = ref<string[]>([])
-  const statusFilters = ref<string[]>([])
+  const statusFilters = ref<AlertStatusEnum[]>(['active'])
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
@@ -51,13 +52,21 @@ export const useSystemAlerts = defineQuery(() => {
   })
 
   const areDefaultFiltersApplied = () =>
-    !severityFilters.value.length && !alertnameFilters.value.length && !statusFilters.value.length
+    !severityFilters.value.length &&
+    !alertnameFilters.value.length &&
+    statusFilters.value.length === 1 &&
+    statusFilters.value.includes('active') &&
+    !statusFilters.value.includes('suppressed')
 
   const resetFilters = () => {
     severityFilters.value = []
     alertnameFilters.value = []
-    statusFilters.value = []
+    resetStatusFilter()
     pageNum.value = 1
+  }
+
+  const resetStatusFilter = () => {
+    statusFilters.value = ['active']
   }
 
   // load table page size from storage
@@ -92,5 +101,6 @@ export const useSystemAlerts = defineQuery(() => {
     statusFilters,
     areDefaultFiltersApplied,
     resetFilters,
+    resetStatusFilter,
   }
 })

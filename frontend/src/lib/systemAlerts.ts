@@ -6,16 +6,11 @@
 // provides the canonical query-key constants and a single import point for
 // components in the system-detail context.
 
-////
-
 export {
-  // API functions — all 7 per-system endpoints
+  // API functions — per-system endpoints
   getSystemActiveAlerts,
   getSystemAlertHistory,
-  getSystemAlertSilences,
-  getSystemAlertSilence,
   createSystemAlertSilence,
-  updateSystemAlertSilence,
   deleteSystemAlertSilence,
   // Shared helpers
   getSeverityBadgeKind,

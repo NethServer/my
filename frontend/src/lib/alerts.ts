@@ -11,18 +11,11 @@ import * as v from 'valibot'
 export const ALERTS_CONFIG_KEY = 'alertsConfig'
 export const ALERTS_ALERTS_KEY = 'alertsAlerts'
 export const ALERTS_TOTALS_KEY = 'alertsTotals'
-export const ALERTS_TREND_KEY = 'alertsTrend'
-export const ALERTS_STATS_KEY = 'alertsStats'
-export const ALERTS_HISTORY_KEY = 'alertsHistory'
-export const ALERT_HISTORY_KEY = 'alertHistory'
 export const ALERT_ACTIVITY_KEY = 'alertActivity'
 export const ALERTS_SILENCES_KEY = 'alertsSilences'
-export const ALERT_SILENCES_KEY = 'alertSilences'
 export const ALERTS_TABLE_ID = 'alertsTable'
-export const ALERT_HISTORY_TABLE_ID = 'alertHistoryTable'
 export const SYSTEM_ALERT_HISTORY_TABLE_ID = 'systemAlertHistoryTable'
 export const SYSTEM_ALERTS_TABLE_ID = 'systemAlertsTable'
-export const ALERTS_HISTORY_TABLE_ID = 'alertsHistoryTable'
 export const SYSTEM_ALERT_SILENCES_KEY = 'systemAlertSilences'
 export const SYSTEM_ALERTS_KEY = 'systemAlerts'
 export const SYSTEM_ALERT_HISTORY_KEY = 'systemAlertHistory'
@@ -215,53 +208,6 @@ interface AlertsTotalsResponse {
   }
 }
 
-interface AlertNameCount {
-  alertname: string
-  count: number
-}
-
-interface SystemKeyCount {
-  system_key: string
-  count: number
-}
-
-interface AlertStats {
-  total: number
-  by_severity: Record<string, number>
-  top_alertnames: AlertNameCount[]
-  top_systems: SystemKeyCount[]
-  mttr_seconds?: number
-  mtbf_seconds?: number
-}
-
-interface AlertsStatsResponse {
-  code: number
-  message: string
-  data: AlertStats
-}
-
-interface TrendDataPoint {
-  date: string
-  count: number
-}
-
-interface TrendResponse {
-  period: number
-  period_label: string
-  current_total: number
-  previous_total: number
-  delta: number
-  delta_percentage: number
-  trend: 'up' | 'down' | 'stable'
-  data_points: TrendDataPoint[]
-}
-
-interface AlertsTrendResponse {
-  code: number
-  message: string
-  data: TrendResponse
-}
-
 interface AlertHistoryResponse {
   code: number
   message: string
@@ -296,15 +242,6 @@ interface CreateSystemAlertSilenceResponse {
   message: string
   data: {
     silence_id: string
-  }
-}
-
-interface SystemAlertSilencesResponse {
-  code: number
-  message: string
-  data: {
-    silences: AlertmanagerSilence[]
-    warnings?: string[]
   }
 }
 
@@ -345,128 +282,6 @@ export const getAlertsTotals = (
     .then((res) => res.data.data)
 }
 
-export const getAlertsTrend = (
-  organizationIds?: string | string[],
-  include: 'descendants' = 'descendants',
-  period: 7 | 30 | 180 | 365 = 7,
-) => {
-  const loginStore = useLoginStore()
-  const params = new URLSearchParams()
-
-  if (organizationIds) {
-    const orgIds = Array.isArray(organizationIds) ? organizationIds : [organizationIds]
-    orgIds.forEach((id) => params.append('organization_id', id))
-  }
-
-  if (include === 'descendants') {
-    params.append('include', 'descendants')
-  }
-
-  params.append('period', period.toString())
-
-  return axios
-    .get<AlertsTrendResponse>(`${API_URL}/alerts/trend?${params}`, {
-      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-    })
-    .then((res) => res.data.data)
-}
-
-export const getAlertsStats = (
-  organizationIds?: string | string[],
-  include: 'descendants' = 'descendants',
-  fromDate?: string,
-  toDate?: string,
-  top?: number,
-) => {
-  const loginStore = useLoginStore()
-  const params = new URLSearchParams()
-
-  if (organizationIds) {
-    const orgIds = Array.isArray(organizationIds) ? organizationIds : [organizationIds]
-    orgIds.forEach((id) => params.append('organization_id', id))
-  }
-
-  if (include === 'descendants') {
-    params.append('include', 'descendants')
-  }
-  if (fromDate) {
-    params.append('from_date', fromDate)
-  }
-  if (toDate) {
-    params.append('to_date', toDate)
-  }
-  if (top !== undefined) {
-    params.append('top', Math.min(top, 50).toString())
-  }
-
-  return axios
-    .get<AlertsStatsResponse>(`${API_URL}/alerts/stats?${params}`, {
-      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-    })
-    .then((res) => res.data.data)
-}
-
-export const getAlertsHistory = (
-  organizationIds?: string | string[],
-  page: number = 1,
-  pageSize: number = 20,
-  sortBy: string = 'created_at',
-  sortDirection: 'asc' | 'desc' = 'desc',
-  include: 'descendants' = 'descendants',
-  fromDate?: string,
-  toDate?: string,
-  systemKeyFilters?: string | string[],
-  alertnameFilters?: string | string[],
-  severityFilters?: string | string[],
-  statusFilters?: string | string[],
-) => {
-  const loginStore = useLoginStore()
-  const params = new URLSearchParams()
-
-  if (organizationIds) {
-    const orgIds = Array.isArray(organizationIds) ? organizationIds : [organizationIds]
-    orgIds.forEach((id) => params.append('organization_id', id))
-  }
-
-  if (include === 'descendants') {
-    params.append('include', 'descendants')
-  }
-
-  params.append('page', page.toString())
-  params.append('page_size', Math.min(pageSize, 200).toString())
-  params.append('sort_by', sortBy)
-  params.append('sort_direction', sortDirection)
-
-  if (fromDate) {
-    params.append('from_date', fromDate)
-  }
-  if (toDate) {
-    params.append('to_date', toDate)
-  }
-  if (systemKeyFilters) {
-    const keys = Array.isArray(systemKeyFilters) ? systemKeyFilters : [systemKeyFilters]
-    keys.forEach((key) => params.append('system_key', key))
-  }
-  if (alertnameFilters) {
-    const names = Array.isArray(alertnameFilters) ? alertnameFilters : [alertnameFilters]
-    names.forEach((name) => params.append('alertname', name))
-  }
-  if (severityFilters) {
-    const severities = Array.isArray(severityFilters) ? severityFilters : [severityFilters]
-    severities.forEach((severity) => params.append('severity', severity))
-  }
-  if (statusFilters) {
-    const statuses = Array.isArray(statusFilters) ? statusFilters : [statusFilters]
-    statuses.forEach((status) => params.append('status', status))
-  }
-
-  return axios
-    .get<AlertHistoryResponse>(`${API_URL}/alerts/history?${params}`, {
-      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-    })
-    .then((res) => res.data.data)
-}
-
 export const getAlertActivity = (
   fingerprint: string,
   organizationId: string,
@@ -488,111 +303,6 @@ export const getAlertActivity = (
     .then((res) => res.data.data)
 }
 
-export const getAlertsSilences = (
-  organizationIds?: string | string[],
-  include: 'descendants' = 'descendants',
-  systemKeyFilters?: string | string[],
-) => {
-  const loginStore = useLoginStore()
-  const params = new URLSearchParams()
-
-  if (organizationIds) {
-    const orgIds = Array.isArray(organizationIds) ? organizationIds : [organizationIds]
-    orgIds.forEach((id) => params.append('organization_id', id))
-  }
-
-  if (include === 'descendants') {
-    params.append('include', 'descendants')
-  }
-
-  if (systemKeyFilters) {
-    const keys = Array.isArray(systemKeyFilters) ? systemKeyFilters : [systemKeyFilters]
-    keys.forEach((key) => params.append('system_key', key))
-  }
-
-  return axios
-    .get<SystemAlertSilencesResponse>(`${API_URL}/alerts/silences?${params}`, {
-      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-    })
-    .then((res) => res.data.data)
-}
-
-export const createAlertSilence = (
-  fingerprint: string,
-  organizationId?: string,
-  comment?: string,
-  endAt?: string,
-  durationMinutes?: number,
-) => {
-  const loginStore = useLoginStore()
-  const params = new URLSearchParams()
-  if (organizationId) {
-    params.append('organization_id', organizationId)
-  }
-
-  const payload: Record<string, unknown> = { fingerprint }
-  if (comment?.trim()) {
-    payload.comment = comment.trim()
-  }
-  if (endAt) {
-    payload.end_at = endAt
-  }
-  if (durationMinutes !== undefined) {
-    payload.duration_minutes = durationMinutes
-  }
-
-  return axios
-    .post<CreateSystemAlertSilenceResponse>(`${API_URL}/alerts/silences?${params}`, payload, {
-      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-    })
-    .then((res) => res.data.data)
-}
-
-export const getAlertSilence = (silenceId: string, organizationId?: string) => {
-  const loginStore = useLoginStore()
-  const params = new URLSearchParams()
-  if (organizationId) {
-    params.append('organization_id', organizationId)
-  }
-
-  return axios
-    .get<{
-      code: number
-      message: string
-      data: { silence: AlertmanagerSilence }
-    }>(`${API_URL}/alerts/silences/${encodeURIComponent(silenceId)}?${params}`, {
-      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-    })
-    .then((res) => res.data.data.silence)
-}
-
-export const updateAlertSilence = (
-  silenceId: string,
-  organizationId?: string,
-  comment?: string,
-  endAt?: string,
-) => {
-  const loginStore = useLoginStore()
-  const params = new URLSearchParams()
-  if (organizationId) {
-    params.append('organization_id', organizationId)
-  }
-
-  const payload: Record<string, unknown> = {}
-  if (comment !== undefined) {
-    payload.comment = comment
-  }
-  if (endAt) {
-    payload.end_at = endAt
-  }
-
-  return axios.put(
-    `${API_URL}/alerts/silences/${encodeURIComponent(silenceId)}?${params}`,
-    payload,
-    { headers: { Authorization: `Bearer ${loginStore.jwtToken}` } },
-  )
-}
-
 export const deleteAlertSilence = (silenceId: string, organizationId?: string) => {
   const loginStore = useLoginStore()
   const params = new URLSearchParams()
@@ -609,14 +319,6 @@ export const postAlertsConfig = (config: AlertingConfigLayer) => {
   const loginStore = useLoginStore()
 
   return axios.post(`${API_URL}/alerts/config`, config, {
-    headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-  })
-}
-
-export const deleteAlertsConfig = () => {
-  const loginStore = useLoginStore()
-
-  return axios.delete(`${API_URL}/alerts/config`, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }
@@ -763,29 +465,6 @@ export const getSystemActiveAlerts = (
     .then((res) => res.data.data)
 }
 
-export const getSystemAlertSilences = (systemId: string) => {
-  const loginStore = useLoginStore()
-  return axios
-    .get<SystemAlertSilencesResponse>(`${API_URL}/systems/${systemId}/alerts/silences`, {
-      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-    })
-    .then((res) => res.data.data.silences)
-}
-
-export const getSystemAlertSilence = (systemId: string, silenceId: string) => {
-  const loginStore = useLoginStore()
-
-  return axios
-    .get<{
-      code: number
-      message: string
-      data: { silence: AlertmanagerSilence }
-    }>(`${API_URL}/systems/${systemId}/alerts/silences/${encodeURIComponent(silenceId)}`, {
-      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-    })
-    .then((res) => res.data.data.silence)
-}
-
 export const createSystemAlertSilence = (
   systemId: string,
   fingerprint: string,
@@ -814,31 +493,6 @@ export const createSystemAlertSilence = (
       },
     )
     .then((res) => res.data.data)
-}
-
-export const updateSystemAlertSilence = (
-  systemId: string,
-  silenceId: string,
-  comment?: string,
-  endAt?: string,
-) => {
-  const loginStore = useLoginStore()
-  const payload: Record<string, unknown> = {}
-
-  if (comment !== undefined) {
-    payload.comment = comment
-  }
-  if (endAt) {
-    payload.end_at = endAt
-  }
-
-  return axios.put(
-    `${API_URL}/systems/${systemId}/alerts/silences/${encodeURIComponent(silenceId)}`,
-    payload,
-    {
-      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-    },
-  )
 }
 
 export const deleteSystemAlertSilence = (systemId: string, silenceId: string) => {

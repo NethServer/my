@@ -79,6 +79,7 @@ const {
   statusFilters: alertsStatusFilters,
   areDefaultFiltersApplied: alertsAreDefaultFiltersApplied,
   resetFilters: alertsResetFilters,
+  resetStatusFilter: alertsResetStatusFilter,
   refetch: alertsRefetch,
 } = useSystemAlerts()
 
@@ -89,8 +90,8 @@ const { state: alertFiltersState } = useAlertFilters()
 // ── Status filter options ─────────────────────────────────────────────────────
 
 const statusFilterOptions = computed(() => [
-  { id: 'suppressed', label: t('alerts.muted') },
   { id: 'active', label: t('alerts.unmuted') },
+  { id: 'suppressed', label: t('alerts.muted') },
 ])
 
 // ── Computed data ─────────────────────────────────────────────────────────────
@@ -274,6 +275,9 @@ function onMuteDrawerClose(): void {
           :no-options-label="t('ne_dropdown_filter.no_options')"
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
           :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          :show-clear-filter="false"
+          :custom-action-label="t('ne_dropdown_filter.reset_selection')"
+          @custom-action="alertsResetStatusFilter"
           @update:model-value="() => (alertsPageNum = 1)"
         />
         <!-- Sort -->
