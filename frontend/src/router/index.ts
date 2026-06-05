@@ -102,7 +102,7 @@ const router = createRouter({
     },
     {
       path: '/support-sessions',
-      name: 'support_sessions',
+      name: 'support',
       component: () => import('../views/SupportSessionsView.vue'),
     },
   ],
