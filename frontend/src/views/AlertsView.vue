@@ -10,13 +10,16 @@ import { useTabs } from '@/composables/useTabs'
 import { canReadAlerts } from '@/lib/permissions'
 import ActiveAlertsPanel from '@/components/alerts/ActiveAlertsPanel.vue'
 import AlertNotificationsPanel from '@/components/alerts/AlertNotificationsPanel.vue'
+import { computed } from 'vue'
 
 const { t } = useI18n()
 
-const { tabs, selectedTab } = useTabs([
+const tabsConfig = computed(() => [
   { name: 'active_alerts', label: t('alerts.active_alerts_tab') },
   ...(canReadAlerts() ? [{ name: 'notifications', label: t('alerts.notifications_tab') }] : []),
 ])
+
+const { tabs, selectedTab } = useTabs(tabsConfig)
 </script>
 
 <template>

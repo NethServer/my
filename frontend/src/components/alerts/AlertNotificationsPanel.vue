@@ -5,7 +5,7 @@
 
 <script setup lang="ts">
 import { faEnvelope, faLink, faPaperPlane } from '@fortawesome/free-solid-svg-icons'
-import { NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
+import { NeHeading, NeInlineNotification } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAlertsConfig } from '@/queries/alerts/alertsConfig'
@@ -65,11 +65,8 @@ const telegramNotConfigured = computed(() => config.value?.enabled?.telegram == 
       class="mb-6"
     />
 
-    <!-- Loading skeleton -->
-    <NeSkeleton v-if="isLoading && !config" :lines="4" />
-
     <!-- Channel cards -->
-    <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
       <NotificationChannelCard
         :icon="faEnvelope"
         :title="t('alerts.email_channel_title')"
@@ -83,6 +80,7 @@ const telegramNotConfigured = computed(() => config.value?.enabled?.telegram == 
         :enabled="emailEnabled"
         :enabled-text="t('alerts.notifications_enabled')"
         :disabled-text="t('alerts.notifications_disabled')"
+        :loading="isLoading && !config"
         @edit="showEmailDrawer = true"
       />
 
@@ -99,6 +97,7 @@ const telegramNotConfigured = computed(() => config.value?.enabled?.telegram == 
         :enabled="webhookEnabled"
         :enabled-text="t('alerts.notifications_enabled')"
         :disabled-text="t('alerts.notifications_disabled')"
+        :loading="isLoading && !config"
         @edit="showWebhookDrawer = true"
       />
 
@@ -115,6 +114,7 @@ const telegramNotConfigured = computed(() => config.value?.enabled?.telegram == 
         :enabled="telegramEnabled"
         :enabled-text="t('alerts.notifications_enabled')"
         :disabled-text="t('alerts.notifications_disabled')"
+        :loading="isLoading && !config"
         @edit="showTelegramDrawer = true"
       />
     </div>

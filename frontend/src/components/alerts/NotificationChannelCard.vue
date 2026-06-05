@@ -30,13 +30,14 @@ defineProps<{
   enabled: boolean
   enabledText: string
   disabledText: string
+  loading?: boolean
 }>()
 
 const emit = defineEmits<{ edit: [] }>()
 </script>
 
 <template>
-  <NeCard>
+  <NeCard :loading="loading" :skeleton-lines="6">
     <!-- Header: icon + title/description + Edit button -->
     <div class="flex items-start justify-between">
       <div class="flex items-center gap-3">
