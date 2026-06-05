@@ -18,6 +18,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/user"
 	"strings"
 	"sync"
 
@@ -55,7 +56,22 @@ func HandleTerminal(stream net.Conn) {
 	}
 
 	cmd := exec.Command(shell, "-l")
-	cmd.Env = append(SanitizeEnv(os.Environ()), defaultTermEnv)
+	// Resolve the home directory from the passwd database, not $HOME, because
+	// systemd does not propagate HOME to system services and os.UserHomeDir
+	// would fail. Falls back to / if the lookup fails.
+	home := ""
+	if u, err := user.Current(); err == nil {
+		home = u.HomeDir
+	}
+	if home != "" {
+		cmd.Dir = home
+	}
+	env := SanitizeEnv(os.Environ())
+	env = append(env, defaultTermEnv)
+	if home != "" {
+		env = append(env, "HOME="+home)
+	}
+	cmd.Env = env
 
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
