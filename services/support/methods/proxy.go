@@ -49,16 +49,15 @@ func HandleProxy(c *gin.Context) {
 
 	log := logger.ComponentLogger("proxy")
 
-	// Find tunnel by session ID
-	t := TunnelManager.GetBySessionID(sessionID)
-	if t == nil {
-		c.JSON(http.StatusNotFound, response.NotFound("tunnel not found for session", nil))
-		return
-	}
-
-	// Look up service in manifest
-	svc, ok := t.GetService(serviceName)
+	// Find the tunnel hosting the requested service. With multi-node sessions
+	// (e.g. NS8 clusters) we prefer the tunnel whose NodeID matches the
+	// service entry, falling back to whichever tunnel knows the service.
+	t, svc, ok := TunnelManager.FindServiceInSession(sessionID, serviceName)
 	if !ok {
+		if len(TunnelManager.GetAllBySessionID(sessionID)) == 0 {
+			c.JSON(http.StatusNotFound, response.NotFound("tunnel not found for session", nil))
+			return
+		}
 		c.JSON(http.StatusNotFound, response.NotFound("service not found in tunnel manifest", nil))
 		return
 	}
@@ -82,6 +81,15 @@ func HandleProxy(c *gin.Context) {
 		path = strings.TrimPrefix(path, svc.PathPrefix)
 		if path == "" || path[0] != '/' {
 			path = "/" + path
+		}
+	} else if svc.Path != "" && svc.Path != "/" {
+		// Forwarding through a remote router (e.g. a remote NS8 node's Traefik).
+		// Discovery clears PathPrefix in this case to avoid double-stripping, but
+		// the remote router still needs to see the route's Path to dispatch the
+		// request. Prepend Path when the request does not already include it.
+		routePath := strings.TrimRight(svc.Path, "/")
+		if path != routePath && !strings.HasPrefix(path, routePath+"/") {
+			path = routePath + path
 		}
 	}
 
@@ -197,18 +205,19 @@ func HandleProxy(c *gin.Context) {
 	proxy.ServeHTTP(c.Writer, c.Request)
 }
 
-// ListServices returns the service manifest for a tunnel
+// ListServices returns the aggregated service manifest for all tunnels in
+// the session, deduplicated so the entry from the node that hosts the
+// service wins over sibling nodes that learned about it via shared Traefik.
 // Route: GET /api/proxy/:session_id/services
 func ListServices(c *gin.Context) {
 	sessionID := c.Param("session_id")
 
-	t := TunnelManager.GetBySessionID(sessionID)
-	if t == nil {
+	if len(TunnelManager.GetAllBySessionID(sessionID)) == 0 {
 		c.JSON(http.StatusNotFound, response.NotFound("tunnel not found for session", nil))
 		return
 	}
 
-	services := t.GetServices()
+	services := TunnelManager.AggregateSessionServices(sessionID)
 	c.JSON(http.StatusOK, response.OK("services retrieved successfully", gin.H{
 		"services": services,
 	}))
@@ -228,7 +237,7 @@ func isRewritableResponse(resp *http.Response) bool {
 const maxRewriteBodySize = 5 * 1024 * 1024
 
 // buildHostRewriteMap creates a map of original hostname -> proxy hostname for all
-// services in the tunnel. This enables multi-hostname rewriting: when proxying
+// services in the session. This enables multi-hostname rewriting: when proxying
 // service A, references to service B's hostname are also rewritten to B's proxy URL.
 func buildHostRewriteMap(t *tunnel.Tunnel, currentProxyHost string) map[string]string {
 	if currentProxyHost == "" {
@@ -256,8 +265,9 @@ func buildHostRewriteMap(t *tunnel.Tunnel, currentProxyHost string) map[string]s
 	// When multiple services share the same original hostname (common in NS8
 	// where Traefik routes by path), prefer the current service's proxy hostname.
 	// This keeps API calls same-origin and lets Traefik handle path-based routing.
+	// Aggregate across the whole session so sibling-node services are covered too.
 	rewrites := make(map[string]string)
-	services := t.GetServices()
+	services := TunnelManager.AggregateSessionServices(t.SessionID)
 	for svcName, svc := range services {
 		if svc.Host == "" {
 			continue
