@@ -352,7 +352,7 @@ const goToResellerDetails = (reseller: Reseller) => {
         }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('organizations.vat_number') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('customers.title') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('resellers.total_systems') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('systems.total_systems') }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
           $t('common.status')
         }}</NeTableHeadCell>
@@ -390,7 +390,7 @@ const goToResellerDetails = (reseller: Reseller) => {
               {{ item.customers_count }}
             </div>
           </NeTableCell>
-          <NeTableCell :data-label="$t('resellers.total_systems')">
+          <NeTableCell :data-label="$t('systems.total_systems')">
             <div class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
               <FontAwesomeIcon
                 :icon="faServer"

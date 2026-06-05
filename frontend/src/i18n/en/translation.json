@@ -116,7 +116,6 @@
     "export_distributors_to_pdf": "Export distributors to PDF",
     "export_distributors_to_csv": "Export distributors to CSV",
     "total_customers": "Total Customers",
-    "total_systems": "Total Systems",
     "import_distributors": "Import distributors",
     "distributors_imported": "Distributors imported"
   },
@@ -155,8 +154,7 @@
     "export_resellers_to_pdf": "Export resellers to PDF",
     "export_resellers_to_csv": "Export resellers to CSV",
     "import_resellers": "Import resellers",
-    "resellers_imported": "Resellers imported",
-    "total_systems": "Total Systems"
+    "resellers_imported": "Resellers imported"
   },
   "customers": {
     "title": "Customers",
@@ -181,8 +179,7 @@
     "export_customers_to_pdf": "Export customers to PDF",
     "export_customers_to_csv": "Export customers to CSV",
     "import_customers": "Import customers",
-    "customers_imported": "Customers imported",
-    "total_systems": "Total Systems"
+    "customers_imported": "Customers imported"
   },
   "organizations": {
     "name": "Company name",

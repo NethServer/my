@@ -19,7 +19,7 @@ const { state: applicationsTotal } = useApplicationsTotal()
 
 <template>
   <CounterCard
-    :title="$t('applications.title')"
+    :title="$t('applications.total_applications')"
     :counter="applicationsTotal.data?.total ?? 0"
     :icon="faGridOne"
     :loading="applicationsTotal.status === 'pending'"

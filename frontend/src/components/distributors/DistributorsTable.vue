@@ -357,7 +357,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
           {{ $t('distributors.total_customers') }}
         </NeTableHeadCell>
         <NeTableHeadCell>
-          {{ $t('distributors.total_systems') }}
+          {{ $t('systems.total_systems') }}
         </NeTableHeadCell>
         <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
           $t('common.status')
@@ -406,7 +406,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
               {{ item.customers_count }}
             </div>
           </NeTableCell>
-          <NeTableCell :data-label="$t('distributors.total_systems')">
+          <NeTableCell :data-label="$t('systems.total_systems')">
             <div class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
               <FontAwesomeIcon
                 :icon="faServer"
