@@ -1,7 +1,7 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { getAlerts, ALERTS_ALERTS_KEY, ALERTS_TABLE_ID } from '@/lib/alerts'
+import { getAlerts, ALERTS_ALERTS_KEY, ALERTS_TABLE_ID, type AlertStatusEnum } from '@/lib/alerts'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
@@ -14,7 +14,7 @@ export const useAlerts = defineQuery(() => {
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const sortBy = ref<'starts_at' | 'severity' | 'alertname' | 'status'>('starts_at')
   const sortDirection = ref<'asc' | 'desc'>('desc')
-  const statusFilters = ref<string[]>([])
+  const statusFilters = ref<AlertStatusEnum[]>(['active'])
   const severityFilters = ref<string[]>([])
   const systemKeyFilters = ref<string[]>([])
   const alertnameFilters = ref<string[]>([])
@@ -49,24 +49,30 @@ export const useAlerts = defineQuery(() => {
 
   const resetFilters = () => {
     organizationIds.value = []
-    statusFilters.value = []
     severityFilters.value = []
     systemKeyFilters.value = []
     alertnameFilters.value = []
+    resetStatusFilter()
     pageNum.value = 1
+  }
+
+  const resetStatusFilter = () => {
+    statusFilters.value = ['active']
   }
 
   const areDefaultFiltersApplied = () => {
     return (
       !organizationIds.value.length &&
-      !statusFilters.value.length &&
+      statusFilters.value.length === 1 &&
+      statusFilters.value.includes('active') &&
+      !statusFilters.value.includes('suppressed') &&
       !severityFilters.value.length &&
       !systemKeyFilters.value.length &&
       !alertnameFilters.value.length
     )
   }
 
-  const toggleStatusFilter = (status: string) => {
+  const toggleStatusFilter = (status: AlertStatusEnum) => {
     const idx = statusFilters.value.indexOf(status)
     if (idx >= 0) {
       statusFilters.value.splice(idx, 1)
@@ -125,6 +131,15 @@ export const useAlerts = defineQuery(() => {
     },
   )
 
+  // reset to first page when status filter changes
+  watch(
+    () => statusFilters.value,
+    () => {
+      pageNum.value = 1
+    },
+    { deep: true },
+  )
+
   return {
     ...rest,
     state,
@@ -139,6 +154,7 @@ export const useAlerts = defineQuery(() => {
     systemKeyFilters,
     alertnameFilters,
     resetFilters,
+    resetStatusFilter,
     areDefaultFiltersApplied,
     toggleStatusFilter,
     toggleSeverityFilter,

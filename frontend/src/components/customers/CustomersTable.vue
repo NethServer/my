@@ -5,6 +5,7 @@
 
 <script setup lang="ts">
 import { CUSTOMERS_TABLE_ID, type Customer } from '@/lib/organizations/customers'
+import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import {
   faCircleInfo,
   faPenToSquare,
@@ -70,6 +71,7 @@ const {
   sortDescending,
   areDefaultFiltersApplied,
   resetFilters,
+  resetStatusFilter,
 } = useCustomers()
 
 const currentCustomer = ref<Customer | undefined>()
@@ -284,11 +286,13 @@ const goToCustomerDetails = (customer: Customer) => {
             :label="t('common.status')"
             :options="statusFilterOptions"
             :show-clear-filter="false"
-            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            :custom-action-label="t('ne_dropdown_filter.reset_selection')"
+            @custom-action="resetStatusFilter"
           />
           <NeSortDropdown
             v-model:sort-key="sortBy"
@@ -441,7 +445,7 @@ const goToCustomerDetails = (customer: Customer) => {
           :current-page="pageNum"
           :total-rows="pagination?.total_count || 0"
           :page-size="pageSize"
-          :page-sizes="[5, 10, 25, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :nav-pagination-label="$t('ne_table.pagination')"
           :next-label="$t('ne_table.go_to_next_page')"
           :previous-label="$t('ne_table.go_to_previous_page')"

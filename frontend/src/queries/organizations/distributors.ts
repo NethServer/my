@@ -102,6 +102,10 @@ export const useDistributors = defineQuery(() => {
 
   const resetFilters = () => {
     textFilter.value = ''
+    resetStatusFilter()
+  }
+
+  const resetStatusFilter = () => {
     statusFilter.value = ['enabled', 'suspended']
   }
 
@@ -118,5 +122,6 @@ export const useDistributors = defineQuery(() => {
     sortDescending,
     areDefaultFiltersApplied,
     resetFilters,
+    resetStatusFilter,
   }
 })

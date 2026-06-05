@@ -33,7 +33,7 @@ import {
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { savePageSizeToStorage } from '@/lib/tablePageSize'
+import { savePageSizeToStorage, PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import { canManageApplications } from '@/lib/permissions'
 import { isUserCustomer } from '@/lib/organizations/organizations'
 import { APPLICATIONS_TABLE_ID } from '@/lib/applications/applications'
@@ -222,7 +222,7 @@ const goToApplicationDetails = (application: Application) => {
               :label="t('applications.type')"
               :options="typeFilterOptions"
               show-options-filter
-              :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+              :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
               :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
               :no-options-label="t('ne_dropdown_filter.no_options')"
               :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -235,7 +235,7 @@ const goToApplicationDetails = (application: Application) => {
               :label="t('applications.version')"
               :options="versionFilterOptions"
               show-options-filter
-              :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+              :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
               :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
               :no-options-label="t('ne_dropdown_filter.no_options')"
               :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -401,7 +401,7 @@ const goToApplicationDetails = (application: Application) => {
             :current-page="pageNum"
             :total-rows="pagination?.total_count || 0"
             :page-size="pageSize"
-            :page-sizes="[5, 10, 25, 50, 100]"
+            :page-sizes="PAGE_SIZE_OPTIONS"
             :nav-pagination-label="$t('ne_table.pagination')"
             :next-label="$t('ne_table.go_to_next_page')"
             :previous-label="$t('ne_table.go_to_previous_page')"

@@ -398,7 +398,7 @@ const diffTypeFilterModel = computed<string[]>({
           kind="checkbox"
           :label="t('system_detail.severity')"
           :options="severityFilterOptions"
-          :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+          :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
           :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
           :no-options-label="t('ne_dropdown_filter.no_options')"
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -411,7 +411,7 @@ const diffTypeFilterModel = computed<string[]>({
           :label="t('system_detail.category')"
           :options="categoryFilterOptions"
           show-options-filter
-          :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+          :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
           :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
           :no-options-label="t('ne_dropdown_filter.no_options')"
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -423,7 +423,7 @@ const diffTypeFilterModel = computed<string[]>({
           kind="checkbox"
           :label="t('system_detail.change_type')"
           :options="diffTypeFilterOptions"
-          :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+          :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
           :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
           :no-options-label="t('ne_dropdown_filter.no_options')"
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -457,7 +457,7 @@ const diffTypeFilterModel = computed<string[]>({
           </template>
           <template #menu-header>
             <NeLink @click="clearDateRange" class="inline-block pt-3 pl-3">{{
-              t('ne_dropdown_filter.clear_filter')
+              t('ne_dropdown_filter.clear_selection')
             }}</NeLink>
           </template>
         </VueDatePicker>

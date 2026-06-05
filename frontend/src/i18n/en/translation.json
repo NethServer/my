@@ -753,6 +753,7 @@
     "no_options": "No options",
     "more_options_hidden": "Continue typing to show more options",
     "clear_selection": "Clear selection",
+    "reset_selection": "Reset selection",
     "clear_search": "Clear search"
   },
   "ne_stepper": {

@@ -67,6 +67,8 @@ export interface AlertingConfigLayer {
   telegram_recipients: TelegramRecipient[]
 }
 
+export type AlertStatusEnum = 'active' | 'suppressed'
+
 // ── Valibot schemas ───────────────────────────────────────────────────────────
 
 const SeveritySchema = v.picklist(['critical', 'warning', 'info'])

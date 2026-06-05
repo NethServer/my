@@ -31,6 +31,7 @@ import {
   type FilterOption,
   type NeDropdownItem,
 } from '@nethesis/vue-components'
+import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import capitalize from 'lodash/capitalize'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -241,7 +242,7 @@ function onMuteDrawerClose(): void {
           kind="checkbox"
           :label="t('alerts.severity')"
           :options="SEVERITY_FILTER_OPTIONS"
-          :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+          :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
           :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
           :no-options-label="t('ne_dropdown_filter.no_options')"
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -255,7 +256,7 @@ function onMuteDrawerClose(): void {
           :label="t('alerts.alert')"
           :options="alertsAlertNameOptions"
           show-options-filter
-          :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+          :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
           :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
           :no-options-label="t('ne_dropdown_filter.no_options')"
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -268,7 +269,7 @@ function onMuteDrawerClose(): void {
           kind="checkbox"
           :label="t('common.status')"
           :options="statusFilterOptions"
-          :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+          :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
           :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
           :no-options-label="t('ne_dropdown_filter.no_options')"
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -418,7 +419,7 @@ function onMuteDrawerClose(): void {
           :current-page="alertsPageNum"
           :total-rows="alertsPagination.total_count"
           :page-size="alertsPageSize"
-          :page-sizes="[10, 25, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :nav-pagination-label="$t('ne_table.pagination')"
           :next-label="$t('ne_table.go_to_next_page')"
           :previous-label="$t('ne_table.go_to_previous_page')"

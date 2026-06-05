@@ -5,6 +5,7 @@
 
 <script setup lang="ts">
 import { formatTimeAgo } from '@/lib/dateTime'
+import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import {
   faArrowsRotate,
   faCircleCheck,
@@ -159,7 +160,7 @@ function showDetails(alert: Alert): void {
           kind="checkbox"
           :label="t('alerts.severity')"
           :options="SEVERITY_FILTER_OPTIONS"
-          :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+          :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
           :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
           :no-options-label="t('ne_dropdown_filter.no_options')"
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -173,7 +174,7 @@ function showDetails(alert: Alert): void {
           :label="t('alerts.alert')"
           :options="historyAlertNameOptions"
           show-options-filter
-          :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+          :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
           :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
           :no-options-label="t('ne_dropdown_filter.no_options')"
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -186,7 +187,7 @@ function showDetails(alert: Alert): void {
           kind="checkbox"
           :label="t('common.status')"
           :options="statusFilterOptions"
-          :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+          :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
           :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
           :no-options-label="t('ne_dropdown_filter.no_options')"
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -335,7 +336,7 @@ function showDetails(alert: Alert): void {
           :current-page="historyPageNum"
           :total-rows="historyPagination.total_count"
           :page-size="historyPageSize"
-          :page-sizes="[10, 25, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :nav-pagination-label="$t('ne_table.pagination')"
           :next-label="$t('ne_table.go_to_next_page')"
           :previous-label="$t('ne_table.go_to_previous_page')"

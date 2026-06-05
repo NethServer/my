@@ -37,6 +37,7 @@ import {
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import { useAlerts } from '@/queries/alerts/alerts'
 import { useAlertFilters } from '@/queries/alerts/alertFilters'
 import { useSystems } from '@/queries/systems/systems'
@@ -86,6 +87,7 @@ const {
   organizationIds,
   areDefaultFiltersApplied,
   resetFilters,
+  resetStatusFilter,
   refetch,
 } = useAlerts()
 
@@ -257,7 +259,7 @@ function goToSystems() {
             kind="checkbox"
             :label="t('alerts.severity')"
             :options="SEVERITY_FILTER_OPTIONS"
-            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -271,7 +273,7 @@ function goToSystems() {
             :label="t('alerts.alert')"
             :options="alertNameFilterOptions"
             show-options-filter
-            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -296,11 +298,14 @@ function goToSystems() {
             kind="checkbox"
             :label="t('common.status')"
             :options="statusFilterOptions"
-            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :show-clear-filter="false"
+            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            :custom-action-label="t('ne_dropdown_filter.reset_selection')"
+            @custom-action="resetStatusFilter"
             @update:model-value="() => (pageNum = 1)"
           />
           <!-- Sort -->
@@ -496,7 +501,11 @@ function goToSystems() {
                 {{ $t('alerts.view_details') }}
               </NeButton>
               <!-- kebab menu -->
-              <NeDropdown :items="getKebabMenuItems(alert)" :align-to-right="true" />
+              <NeDropdown
+                v-if="canManageSystems()"
+                :items="getKebabMenuItems(alert)"
+                :align-to-right="true"
+              />
             </div>
           </NeTableCell>
         </NeTableRow>
@@ -506,7 +515,7 @@ function goToSystems() {
           :current-page="pageNum"
           :total-rows="pagination.total_count"
           :page-size="pageSize"
-          :page-sizes="[10, 25, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :nav-pagination-label="$t('ne_table.pagination')"
           :next-label="$t('ne_table.go_to_next_page')"
           :previous-label="$t('ne_table.go_to_previous_page')"

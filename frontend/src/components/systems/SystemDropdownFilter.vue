@@ -36,7 +36,7 @@ const { options, loading, onSearch } = useSystemFilter(idField)
     show-options-filter
     external-filter
     :loading-options="loading"
-    :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+    :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
     :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
     :no-options-label="t('systems.no_systems')"
     :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"

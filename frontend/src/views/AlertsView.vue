@@ -7,6 +7,7 @@
 import { NeHeading, NeTabs } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useTabs } from '@/composables/useTabs'
+import { canReadAlerts } from '@/lib/permissions'
 import ActiveAlertsPanel from '@/components/alerts/ActiveAlertsPanel.vue'
 import AlertNotificationsPanel from '@/components/alerts/AlertNotificationsPanel.vue'
 
@@ -14,7 +15,7 @@ const { t } = useI18n()
 
 const { tabs, selectedTab } = useTabs([
   { name: 'active_alerts', label: t('alerts.active_alerts_tab') },
-  { name: 'notifications', label: t('alerts.notifications_tab') },
+  ...(canReadAlerts() ? [{ name: 'notifications', label: t('alerts.notifications_tab') }] : []),
 ])
 </script>
 
