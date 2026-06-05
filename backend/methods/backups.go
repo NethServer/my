@@ -42,18 +42,26 @@ func isValidBackupID(id string) bool {
 	return backupIDPattern.MatchString(strings.ToLower(id))
 }
 
+// backupDateInName matches an ISO date (YYYY-MM-DD) anywhere in a filename.
+// A UUID's dash layout (8-4-4-4-12) never produces a -DD-DD run, so this
+// cannot false-positive on the storage key used as a fallback name.
+var backupDateInName = regexp.MustCompile(`\d{4}-\d{2}-\d{2}`)
+
 // backupDownloadName composes the filename presented to the browser when
-// downloading a backup. The appliance-provided filename carries only the
-// date (e.g. backup-2026-06-05.tar), so we splice the object's upload
-// time in before the extension — backup-2026-06-05_00-29-48.tar — which
-// keeps multiple backups taken on the same day distinct and sortable.
-// The time is LastModified in UTC, matching the uploaded_at exposed in
-// the list response.
+// downloading a backup. The upload time comes from LastModified in UTC,
+// matching the uploaded_at exposed in the list response, and is spliced in
+// before the extension so multiple backups taken close together stay
+// distinct and sortable.
 //
-// When the appliance did not send a filename, the ingest side stores the
-// fallback "backup-<uuid>" with no extension; in that case we borrow the
-// extension from the storage key (backupID, e.g. <uuid>.bin) so the
-// download is never left extensionless.
+//   - filename already carries a date (e.g. backup-2026-06-05.tar): add
+//     only the time      -> backup-2026-06-05_09-00-23.tar
+//   - filename has no date (e.g. backup.gz): add the full date and time so
+//     the download stays self-describing -> backup_2026-06-05_09-00-23.gz
+//
+// When the appliance did not send a filename at all, the ingest side stores
+// the fallback "backup-<uuid>" with no extension; in that case we borrow the
+// extension from the storage key (backupID, e.g. <uuid>.bin) so the download
+// is never left extensionless.
 func backupDownloadName(filename, backupID string, uploadedAt time.Time) string {
 	name := sanitizeFilename(filename)
 	if name == "" {
@@ -62,15 +70,21 @@ func backupDownloadName(filename, backupID string, uploadedAt time.Time) string 
 	if name == "" {
 		return ""
 	}
-	ts := uploadedAt.UTC().Format("15-04-05")
-	// Splice before the first dot so multi-part extensions like
-	// .tar.gz stay intact (backup-...-05_00-29-48.tar.gz).
+
+	// Split base / extension at the first dot so multi-part extensions like
+	// .tar.gz stay intact. With no extension on the friendly name, borrow
+	// one from the storage key.
+	base, ext := name, backupKeyExtension(backupID)
 	if i := strings.IndexByte(name, '.'); i > 0 {
-		return name[:i] + "_" + ts + name[i:]
+		base, ext = name[:i], name[i:]
 	}
-	// No extension on the friendly name: append the time and then the
-	// storage key's extension.
-	return name + "_" + ts + backupKeyExtension(backupID)
+
+	t := uploadedAt.UTC()
+	stamp := t.Format("15-04-05")
+	if !backupDateInName.MatchString(base) {
+		stamp = t.Format("2006-01-02_15-04-05")
+	}
+	return base + "_" + stamp + ext
 }
 
 // backupKeyExtension returns the extension of a backup storage key
