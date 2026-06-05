@@ -15,6 +15,7 @@ import (
 	"io"
 	"net"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -213,7 +214,9 @@ func (m *Manager) Get(systemID, nodeID string) *Tunnel {
 	return m.tunnels[TunnelKey(systemID, nodeID)]
 }
 
-// GetBySessionID returns a tunnel by session ID
+// GetBySessionID returns a tunnel by session ID. When a session has multiple
+// tunnels (one per NS8 node), the result is non-deterministic; prefer
+// GetAllBySessionID or FindServiceInSession.
 func (m *Manager) GetBySessionID(sessionID string) *Tunnel {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -224,6 +227,76 @@ func (m *Manager) GetBySessionID(sessionID string) *Tunnel {
 		}
 	}
 	return nil
+}
+
+// GetAllBySessionID returns all tunnels belonging to a session, sorted by
+// NodeID for stable iteration.
+func (m *Manager) GetAllBySessionID(sessionID string) []*Tunnel {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var out []*Tunnel
+	for _, t := range m.tunnels {
+		if t.SessionID == sessionID {
+			out = append(out, t)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].NodeID < out[j].NodeID })
+	return out
+}
+
+// AggregateSessionServices merges the service manifests from every tunnel of
+// a session. When the same service name appears on multiple tunnels (NS8
+// replicates cluster routes across nodes), the entry from the tunnel whose
+// NodeID matches the service's NodeID wins — i.e. the node that actually
+// hosts the service, rather than a sibling that learned about it via the
+// shared Traefik view.
+func (m *Manager) AggregateSessionServices(sessionID string) map[string]ServiceInfo {
+	tunnels := m.GetAllBySessionID(sessionID)
+	merged := make(map[string]ServiceInfo)
+	for _, t := range tunnels {
+		for name, svc := range t.GetServices() {
+			existing, ok := merged[name]
+			if !ok {
+				merged[name] = svc
+				continue
+			}
+			// Prefer the entry where the tunnel itself owns the service.
+			newIsLocal := svc.NodeID != "" && svc.NodeID == t.NodeID
+			existingIsLocal := existing.NodeID != "" && existing.NodeID == t.NodeID
+			if newIsLocal && !existingIsLocal {
+				merged[name] = svc
+			}
+		}
+	}
+	return merged
+}
+
+// FindServiceInSession returns the tunnel best suited to proxy a request for
+// the given service. The chosen tunnel is the one whose NodeID matches the
+// service entry's NodeID; if none matches, the first tunnel that knows the
+// service is returned.
+func (m *Manager) FindServiceInSession(sessionID, serviceName string) (*Tunnel, ServiceInfo, bool) {
+	tunnels := m.GetAllBySessionID(sessionID)
+	var fallback *Tunnel
+	var fallbackSvc ServiceInfo
+	for _, t := range tunnels {
+		svc, ok := t.GetService(serviceName)
+		if !ok {
+			continue
+		}
+		if svc.NodeID != "" && svc.NodeID == t.NodeID {
+			return t, svc, true
+		}
+		if fallback == nil {
+			fallback = t
+			fallbackSvc = svc
+		}
+	}
+	if fallback != nil {
+		return fallback, fallbackSvc, true
+	}
+	return nil, ServiceInfo{}, false
 }
 
 // Count returns the number of active tunnels
