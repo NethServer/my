@@ -98,7 +98,7 @@ func Init() {
 	// Rate limiting configuration
 	Config.RateLimitTunnelPerIP = parseIntWithDefault("RATE_LIMIT_TUNNEL_PER_IP", 10)
 	Config.RateLimitTunnelPerKey = parseIntWithDefault("RATE_LIMIT_TUNNEL_PER_KEY", 5)
-	Config.RateLimitSessionPerID = parseIntWithDefault("RATE_LIMIT_SESSION_PER_ID", 2000)
+	Config.RateLimitSessionPerID = parseIntWithDefault("RATE_LIMIT_SESSION_PER_ID", 10000)
 	Config.RateLimitWindow = parseDurationWithDefault("RATE_LIMIT_WINDOW", 1*time.Minute)
 
 	// Internal authentication (required: fail fast if empty)
