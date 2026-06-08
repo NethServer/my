@@ -55,7 +55,6 @@ import { useNotificationsStore } from '@/stores/notifications'
 import { formatDateTime, formatTimeAgo } from '@/lib/dateTime'
 import { canManageSystems } from '@/lib/permissions'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
-import SystemLogo from '@/components/systems/SystemLogo.vue'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import MuteAlertDrawer from '@/components/alerts/MuteAlertDrawer.vue'
 import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
@@ -64,6 +63,7 @@ import SystemDropdownFilter from '@/components/systems/SystemDropdownFilter.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { isUserCustomer } from '@/lib/organizations/organizations'
+import SystemLogoAndLink from '../systems/SystemLogoAndLink.vue'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -439,17 +439,11 @@ function goToSystems() {
           </NeTableCell>
           <!-- System -->
           <NeTableCell :data-label="$t('alerts.system')">
-            <router-link
-              v-if="alert.labels?.system_id"
-              :to="{ name: 'system_detail', params: { systemId: alert.labels.system_id } }"
-              class="cursor-pointer font-medium hover:underline"
-            >
-              <div class="flex items-center gap-2">
-                <SystemLogo :system="alert.labels?.system_type" />
-                {{ alert.labels.system_name || alert.labels.system_key }}
-              </div>
-            </router-link>
-            <span v-else>-</span>
+            <SystemLogoAndLink
+              :system-id="alert.labels?.system_id"
+              :system-name="alert.labels?.system_name"
+              :system-type="alert.labels?.system_type"
+            ></SystemLogoAndLink>
           </NeTableCell>
           <!-- Organization -->
           <NeTableCell :data-label="$t('alerts.organization')">

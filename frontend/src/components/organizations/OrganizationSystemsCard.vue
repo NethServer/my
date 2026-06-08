@@ -8,7 +8,6 @@ import { NeButton, NeLink } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faArrowRight, faServer } from '@fortawesome/free-solid-svg-icons'
 import CounterCard from '@/components/CounterCard.vue'
-import SystemLogo from '@/components/systems/SystemLogo.vue'
 import SystemStatusIcon from '@/components/systems/SystemStatusIcon.vue'
 import { useI18n } from 'vue-i18n'
 import { computed } from 'vue'
@@ -16,6 +15,7 @@ import router from '@/router'
 import { useRoute } from 'vue-router'
 import { useSystems } from '@/queries/systems/systems'
 import type { System } from '@/lib/systems/systems'
+import SystemLogoAndLink from '../systems/SystemLogoAndLink.vue'
 
 interface SystemData {
   systems: System[]
@@ -67,17 +67,11 @@ const goToSystems = () => {
         :key="system.id"
         class="flex items-center justify-between gap-4 py-3"
       >
-        <router-link
-          :to="{ name: 'system_detail', params: { systemId: system.id } }"
-          class="cursor-pointer font-medium hover:underline"
-        >
-          <div class="flex items-center gap-2">
-            <SystemLogo :system="system.type" />
-            <span>
-              {{ system.name || '-' }}
-            </span>
-          </div>
-        </router-link>
+        <SystemLogoAndLink
+          :system-id="system.id"
+          :system-name="system.name"
+          :system-type="system.type"
+        />
         <div class="flex items-center gap-2">
           <template v-if="system.status">
             <SystemStatusIcon :status="system.status" />

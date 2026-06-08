@@ -4,13 +4,7 @@
 -->
 
 <script setup lang="ts">
-import {
-  faBuilding,
-  faCircleInfo,
-  faEye,
-  faPenToSquare,
-  faServer,
-} from '@fortawesome/free-solid-svg-icons'
+import { faBuilding, faCircleInfo, faEye, faPenToSquare } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   NeTable,
@@ -49,6 +43,7 @@ import router from '@/router'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import SystemDropdownFilter from '@/components/systems/SystemDropdownFilter.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
+import SystemLogoAndLink from '../systems/SystemLogoAndLink.vue'
 
 const { t } = useI18n()
 const {
@@ -336,18 +331,11 @@ const goToApplicationDetails = (application: Application) => {
               </div>
             </NeTableCell>
             <NeTableCell :data-label="$t('systems.system')">
-              <div>
-                <div class="flex items-center gap-2">
-                  <FontAwesomeIcon :icon="faServer" class="h-4 w-4" aria-hidden="true" />
-                  <router-link
-                    :to="{ name: 'system_detail', params: { systemId: item.system.id } }"
-                  >
-                    <span class="cursor-pointer font-medium hover:underline">
-                      {{ item.system.name || '-' }}
-                    </span>
-                  </router-link>
-                </div>
-              </div>
+              <SystemLogoAndLink
+                :system-id="item.system.id"
+                :system-name="item.system.name"
+                system-type="ns8"
+              />
             </NeTableCell>
             <NeTableCell :data-label="$t('organizations.organization')">
               <OrganizationIconAndLink v-if="item.organization" :organization="item.organization" />

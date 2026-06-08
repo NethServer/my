@@ -47,7 +47,6 @@ import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { canManageSystems, canDestroySystems } from '@/lib/permissions'
 import { useSystems } from '@/queries/systems/systems'
 import { exportSystem, getProductName, SYSTEMS_TABLE_ID, type System } from '@/lib/systems/systems'
-import SystemLogo from './SystemLogo.vue'
 import router from '@/router'
 import CreateOrEditSystemDrawer from './CreateOrEditSystemDrawer.vue'
 import DeleteSystemModal from './DeleteSystemModal.vue'
@@ -66,6 +65,7 @@ import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 import { isUserCustomer } from '@/lib/organizations/organizations.ts'
 import OrganizationIconAndLink from '../organizations/OrganizationIconAndLink.vue'
+import SystemLogoAndLink from './SystemLogoAndLink.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -525,24 +525,11 @@ function onCloseSecretRegeneratedModal() {
         <NeTableRow v-for="(item, index) in systemsPage" :key="index">
           <NeTableCell :data-label="$t('systems.name')">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
-              <router-link
-                v-if="item.status !== 'deleted'"
-                :to="{ name: 'system_detail', params: { systemId: item.id } }"
-                class="cursor-pointer font-medium hover:underline"
-              >
-                <div class="flex items-center gap-2">
-                  <SystemLogo :system="item.type" />
-                  <span>
-                    {{ item.name || '-' }}
-                  </span>
-                </div>
-              </router-link>
-              <div v-else class="flex items-center gap-2">
-                <SystemLogo :system="item.type" />
-                <span>
-                  {{ item.name || '-' }}
-                </span>
-              </div>
+              <SystemLogoAndLink
+                :system-id="item.status === 'deleted' ? '' : item.id"
+                :system-name="item.name"
+                :system-type="item.type"
+              />
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.version')" class="break-all 2xl:break-normal">

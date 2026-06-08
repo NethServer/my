@@ -18,10 +18,9 @@ import {
 } from '@nethesis/vue-components'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterLink } from 'vue-router'
 import { useAlertActivity } from '@/queries/alerts/alertActivity'
 import { getSeverityBadgeKind, type Alert } from '@/lib/alerts'
-import SystemLogo from '@/components/systems/SystemLogo.vue'
+import SystemLogoAndLink from '@/components/systems/SystemLogoAndLink.vue'
 import UserAvatar from '@/components/users/UserAvatar.vue'
 import { formatDateTimeNoSeconds, formatTimeAgo } from '@/lib/dateTime'
 
@@ -182,22 +181,14 @@ function closeDrawer() {
 
         <!-- System -->
         <div>
-          <NeFormItemLabel class="mb-1!">
+          <NeFormItemLabel>
             {{ t('alerts.system') }}
           </NeFormItemLabel>
-          <div class="flex items-center gap-2">
-            <SystemLogo :system="alert.labels?.system_type" />
-            <RouterLink
-              v-if="alert.labels?.system_id"
-              :to="{ name: 'system_detail', params: { systemId: alert.labels.system_id } }"
-              class="cursor-pointer font-medium hover:underline"
-            >
-              {{ alert.labels?.system_name || alert.labels?.system_key || '-' }}
-            </RouterLink>
-            <p v-else class="text-tertiary-neutral text-sm dark:text-gray-400">
-              {{ alert.labels?.system_name || alert.labels?.system_key || '-' }}
-            </p>
-          </div>
+          <SystemLogoAndLink
+            :system-id="alert.labels?.system_id"
+            :system-name="alert.labels?.system_name"
+            :system-type="alert.labels?.system_type"
+          />
         </div>
       </div>
 
