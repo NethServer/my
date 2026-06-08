@@ -62,6 +62,34 @@ func HandleProxy(c *gin.Context) {
 		return
 	}
 
+	// When several services share the same Host (NethVoice ties cti1/voice1
+	// to a UI + middleware + websocket + …), the SPA hits the proxy with
+	// `/api/login` and friends that the upstream Traefik would dispatch to a
+	// different backend by path. Replicate that here: if a sibling service
+	// targets the same Host and declares a more specific PathPrefix or Path
+	// that matches the request, route through it instead.
+	if svc.Host != "" {
+		sessionServices := TunnelManager.AggregateSessionServices(sessionID)
+		bestName, bestSvc, bestLen := serviceName, svc, prefixMatchLen(svc, path)
+		for name, candidate := range sessionServices {
+			if name == serviceName || candidate.Host != svc.Host {
+				continue
+			}
+			if l := prefixMatchLen(candidate, path); l > bestLen {
+				bestName, bestSvc, bestLen = name, candidate, l
+			}
+		}
+		if bestName != serviceName {
+			// Re-pick the tunnel that actually owns the chosen sibling so
+			// we forward through the right node.
+			if alt, altSvc, altOk := TunnelManager.FindServiceInSession(sessionID, bestName); altOk {
+				t, svc, serviceName = alt, altSvc, bestName
+			} else {
+				svc, serviceName = bestSvc, bestName
+			}
+		}
+	}
+
 	// Re-validate service target at connection time to prevent DNS rebinding attacks.
 	// The target was validated at manifest registration, but DNS records can change.
 	if err := tunnel.ValidateServiceTarget(svc.Target); err != nil {
@@ -221,6 +249,29 @@ func ListServices(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("services retrieved successfully", gin.H{
 		"services": services,
 	}))
+}
+
+// prefixMatchLen returns the length of the longest path prefix declared by
+// the service that matches the given request path. Returns 0 when the
+// service does not target a specific path (so a fallback service competes
+// against any sibling that has a more specific prefix). PathPrefix wins over
+// Path because it always reflects the upstream route, not just a display
+// hint left by discovery.
+func prefixMatchLen(svc tunnel.ServiceInfo, path string) int {
+	candidates := []string{svc.PathPrefix, svc.Path}
+	best := 0
+	for _, c := range candidates {
+		if c == "" || c == "/" {
+			continue
+		}
+		c = strings.TrimRight(c, "/")
+		if path == c || strings.HasPrefix(path, c+"/") {
+			if len(c) > best {
+				best = len(c)
+			}
+		}
+	}
+	return best
 }
 
 // isRewritableResponse returns true if the response Content-Type is HTML or JavaScript (#9).
