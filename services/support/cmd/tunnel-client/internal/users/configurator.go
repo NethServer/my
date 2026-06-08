@@ -206,12 +206,22 @@ func buildModuleContexts(services map[string]models.ServiceInfo, redisAddr strin
 		return nil
 	}
 
-	// Fetch USER_DOMAIN for each module instance (NS8 only)
+	// Fetch the user domain for each module instance (NS8 only). Resolution
+	// covers three cases:
+	//   1. Consumer binding via cluster/module_domains (set by bind-user-domains)
+	//   2. Provider's own environment USER_DOMAIN (some modules expose it)
+	//   3. Provider listed in cluster/list-user-domains[].providers[].id —
+	//      this catches the LDAP/AD providers themselves (openldap, samba…),
+	//      which are not in cluster/module_domains because they ARE the domain
 	domains := make(map[string]string)
 	if redisAddr != "" {
+		providerDomains := fetchProviderDomains()
 		for moduleID := range moduleMap {
-			domain := fetchModuleDomain(moduleID)
-			if domain != "" {
+			if domain := fetchModuleDomain(moduleID); domain != "" {
+				domains[moduleID] = domain
+				continue
+			}
+			if domain, ok := providerDomains[moduleID]; ok {
 				domains[moduleID] = domain
 			}
 		}
@@ -288,6 +298,38 @@ func discoverLocalModulesFromRedis() map[string]*moduleInfo {
 	return result
 }
 
+// RefreshModuleDomains recomputes the moduleID → domain map from the given
+// services manifest and merges it into users.ModuleDomains. Returns true when
+// any entry was added or changed so the caller can decide to resend the
+// users report. Newly removed modules are NOT pruned — keeping a stale entry
+// is harmless and avoids racing the next discovery if a module is briefly
+// missing from the manifest.
+func RefreshModuleDomains(users *SessionUsers, services map[string]models.ServiceInfo, redisAddr string) bool {
+	if users == nil {
+		return false
+	}
+	contexts := buildModuleContexts(services, redisAddr)
+	if len(contexts) == 0 {
+		return false
+	}
+	if users.ModuleDomains == nil {
+		users.ModuleDomains = make(map[string]string)
+	}
+	changed := false
+	for _, mc := range contexts {
+		for _, inst := range mc.Instances {
+			if inst.Domain == "" {
+				continue
+			}
+			if users.ModuleDomains[inst.ID] != inst.Domain {
+				users.ModuleDomains[inst.ID] = inst.Domain
+				changed = true
+			}
+		}
+	}
+	return changed
+}
+
 // fetchModuleDomain returns the user domain bound to a module instance.
 // NS8 stores consumer-to-domain bindings in the cluster/module_domains hash
 // (set by the cluster/bind-user-domains action); some providers also expose
@@ -302,6 +344,38 @@ func fetchModuleDomain(moduleID string) string {
 		}
 	}
 	return redisOutput("HGET", fmt.Sprintf("module/%s/environment", moduleID), "USER_DOMAIN")
+}
+
+// fetchProviderDomains returns a moduleID → domain map for the modules that
+// provide a user domain (LDAP/AD providers such as openldap, samba). These
+// modules are not in cluster/module_domains because they ARE the domain, so
+// fetchModuleDomain alone would miss them.
+func fetchProviderDomains() map[string]string {
+	out := make(map[string]string)
+	cmd := exec.Command("api-cli", "run", "cluster/list-user-domains", "--data", "{}") //nolint:gosec // api-cli is trusted
+	output, err := cmd.Output()
+	if err != nil {
+		return out
+	}
+	var resp struct {
+		Domains []struct {
+			Name      string `json:"name"`
+			Providers []struct {
+				ID string `json:"id"`
+			} `json:"providers"`
+		} `json:"domains"`
+	}
+	if err := json.Unmarshal(output, &resp); err != nil {
+		return out
+	}
+	for _, d := range resp.Domains {
+		for _, p := range d.Providers {
+			if p.ID != "" && d.Name != "" {
+				out[p.ID] = d.Name
+			}
+		}
+	}
+	return out
 }
 
 // redisOutput runs `redis-cli <args...>` and returns the trimmed stdout,
