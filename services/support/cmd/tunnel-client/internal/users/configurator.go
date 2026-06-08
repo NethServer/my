@@ -288,18 +288,35 @@ func discoverLocalModulesFromRedis() map[string]*moduleInfo {
 	return result
 }
 
-// fetchModuleDomain reads USER_DOMAIN from Redis for a module instance.
+// fetchModuleDomain returns the user domain bound to a module instance.
+// NS8 stores consumer-to-domain bindings in the cluster/module_domains hash
+// (set by the cluster/bind-user-domains action); some providers also expose
+// USER_DOMAIN directly in their own environment, so fall back to that when
+// the cluster mapping is missing. When a module is bound to multiple
+// domains we pick the first one — the support session only provisions one
+// domain user per module today.
 func fetchModuleDomain(moduleID string) string {
-	cmd := exec.Command("redis-cli", "HGET", fmt.Sprintf("module/%s/environment", moduleID), "USER_DOMAIN") //nolint:gosec // redis-cli is trusted
+	if v := redisOutput("HGET", "cluster/module_domains", moduleID); v != "" {
+		if fields := strings.Fields(v); len(fields) > 0 {
+			return fields[0]
+		}
+	}
+	return redisOutput("HGET", fmt.Sprintf("module/%s/environment", moduleID), "USER_DOMAIN")
+}
+
+// redisOutput runs `redis-cli <args...>` and returns the trimmed stdout,
+// or the empty string when the call fails or the value is nil.
+func redisOutput(args ...string) string {
+	cmd := exec.Command("redis-cli", args...) //nolint:gosec // redis-cli is trusted
 	output, err := cmd.Output()
 	if err != nil {
 		return ""
 	}
-	domain := string(bytes.TrimSpace(output))
-	if domain == "" || domain == "(nil)" {
+	v := string(bytes.TrimSpace(output))
+	if v == "" || v == "(nil)" {
 		return ""
 	}
-	return domain
+	return v
 }
 
 // discoverPlugins scans usersDir for valid executable plugin files.
