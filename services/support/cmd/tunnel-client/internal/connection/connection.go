@@ -405,6 +405,18 @@ func connect(ctx context.Context, cfg *config.ClientConfig, sessionUsers **users
 					} else {
 						log.Printf("Manifest updated with %d services", len(newServices))
 					}
+					// A module installed after session start (e.g. NethVoice
+					// configured later) brings a new user-domain binding that
+					// the frontend needs to show domain credentials. Refresh
+					// users.ModuleDomains and resend the report when changed.
+					if *sessionUsers != nil &&
+						users.RefreshModuleDomains(*sessionUsers, newServices, cfg.RedisAddr) {
+						if err := sendUsersReport(session, *sessionUsers); err != nil {
+							log.Printf("Failed to send updated users report: %v", err)
+						} else {
+							log.Printf("Users report updated (module_domains: %d)", len(((*sessionUsers).ModuleDomains)))
+						}
+					}
 				}
 			}
 		}
