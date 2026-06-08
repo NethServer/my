@@ -30,7 +30,6 @@ import {
   NeTableHead,
   NeTableHeadCell,
   NeTableRow,
-  NeTooltip,
   type FilterOption,
   type NeDropdownItem,
 } from '@nethesis/vue-components'
@@ -57,8 +56,7 @@ import { formatDateTime, formatTimeAgo } from '@/lib/dateTime'
 import { canManageSystems } from '@/lib/permissions'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import SystemLogo from '@/components/systems/SystemLogo.vue'
-import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
-import OrganizationLink from '@/components/applications/OrganizationLink.vue'
+import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import MuteAlertDrawer from '@/components/alerts/MuteAlertDrawer.vue'
 import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
 import capitalize from 'lodash/capitalize'
@@ -455,31 +453,14 @@ function goToSystems() {
           </NeTableCell>
           <!-- Organization -->
           <NeTableCell :data-label="$t('alerts.organization')">
-            <div
+            <OrganizationIconAndLink
               v-if="alert.labels?.organization_name || alert.labels?.organization_id"
-              class="flex items-center gap-2"
-            >
-              <NeTooltip
-                v-if="alert.labels?.organization_type"
-                placement="top"
-                trigger-event="mouseenter focus"
-                class="shrink-0"
-              >
-                <template #trigger>
-                  <OrganizationIcon :org-type="alert.labels.organization_type" size="sm" />
-                </template>
-                <template #content>
-                  {{ t(`organizations.${alert.labels.organization_type}`) }}
-                </template>
-              </NeTooltip>
-              <OrganizationLink
-                :organization="{
-                  logto_id: alert.labels?.organization_id,
-                  name: alert.labels?.organization_name || alert.labels?.organization_id || '-',
-                  type: alert.labels?.organization_type || '',
-                }"
-              />
-            </div>
+              :organization="{
+                logto_id: alert.labels?.organization_id,
+                name: alert.labels?.organization_name || alert.labels?.organization_id,
+                type: alert.labels?.organization_type || '',
+              }"
+            />
             <span v-else>-</span>
           </NeTableCell>
           <!-- Started at -->

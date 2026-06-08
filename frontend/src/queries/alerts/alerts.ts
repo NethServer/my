@@ -72,46 +72,6 @@ export const useAlerts = defineQuery(() => {
     )
   }
 
-  const toggleStatusFilter = (status: AlertStatusEnum) => {
-    const idx = statusFilters.value.indexOf(status)
-    if (idx >= 0) {
-      statusFilters.value.splice(idx, 1)
-    } else {
-      statusFilters.value.push(status)
-    }
-    pageNum.value = 1
-  }
-
-  const toggleSeverityFilter = (severity: string) => {
-    const idx = severityFilters.value.indexOf(severity)
-    if (idx >= 0) {
-      severityFilters.value.splice(idx, 1)
-    } else {
-      severityFilters.value.push(severity)
-    }
-    pageNum.value = 1
-  }
-
-  const toggleSystemKeyFilter = (systemKey: string) => {
-    const idx = systemKeyFilters.value.indexOf(systemKey)
-    if (idx >= 0) {
-      systemKeyFilters.value.splice(idx, 1)
-    } else {
-      systemKeyFilters.value.push(systemKey)
-    }
-    pageNum.value = 1
-  }
-
-  const toggleAlertNameFilter = (alertname: string) => {
-    const idx = alertnameFilters.value.indexOf(alertname)
-    if (idx >= 0) {
-      alertnameFilters.value.splice(idx, 1)
-    } else {
-      alertnameFilters.value.push(alertname)
-    }
-    pageNum.value = 1
-  }
-
   // load table page size from storage
   watch(
     () => loginStore.userInfo?.email,
@@ -156,9 +116,5 @@ export const useAlerts = defineQuery(() => {
     resetFilters,
     resetStatusFilter,
     areDefaultFiltersApplied,
-    toggleStatusFilter,
-    toggleSeverityFilter,
-    toggleSystemKeyFilter,
-    toggleAlertNameFilter,
   }
 })

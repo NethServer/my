@@ -37,7 +37,6 @@ import {
   NeSortDropdown,
   sortByProperty,
   type NeDropdownItem,
-  NeTooltip,
   NeDropdownFilter,
   type FilterOption,
 } from '@nethesis/vue-components'
@@ -56,11 +55,10 @@ import ImpersonateUserModal from './ImpersonateUserModal.vue'
 import SuspendUserModal from './SuspendUserModal.vue'
 import ReactivateUserModal from './ReactivateUserModal.vue'
 import RestoreUserModal from './RestoreUserModal.vue'
-import OrganizationIcon from '../organizations/OrganizationIcon.vue'
+import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import UserRoleBadge from './UserRoleBadge.vue'
 import { useUserFilters } from '@/queries/users/userFilters'
 import { normalize } from '@/lib/common'
-import OrganizationLink from '../applications/OrganizationLink.vue'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import UserAvatar from './UserAvatar.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
@@ -476,24 +474,13 @@ const onClosePasswordChangedModal = () => {
             {{ item.email }}
           </NeTableCell>
           <NeTableCell :data-label="$t('users.organization')">
-            <div class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
-              <NeTooltip
-                v-if="item.organization.type"
-                placement="top"
-                trigger-event="mouseenter focus"
-                class="shrink-0"
-              >
-                <template #trigger>
-                  <OrganizationIcon :org-type="item.organization.type" size="sm" />
-                </template>
-                <template #content>
-                  {{ t(`organizations.${item.organization.type}`) }}
-                </template>
-              </NeTooltip>
-              <OrganizationLink v-if="item.organization" :organization="item.organization" />
-              <span v-else class="font-medium">
-                {{ '-' }}
-              </span>
+            <div :class="{ 'opacity-50': item.deleted_at }">
+              <OrganizationIconAndLink
+                v-if="item.organization"
+                :organization="item.organization"
+                size="sm"
+              />
+              <span v-else>-</span>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('users.roles')">

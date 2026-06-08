@@ -7,7 +7,7 @@ import { getOrganizationIcon } from '@/lib/organizations/organizations'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { computed } from 'vue'
 
-type Size = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl'
+export type OrganizationIconSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl'
 
 const {
   orgType,
@@ -15,11 +15,11 @@ const {
   squared = false,
 } = defineProps<{
   orgType: string
-  size?: Size
+  size?: OrganizationIconSize
   squared?: boolean
 }>()
 
-const avatarSizeClasses: Record<Size, string> = {
+const avatarSizeClasses: Record<OrganizationIconSize, string> = {
   xs: 'size-6',
   sm: 'size-8',
   md: 'size-10',
@@ -32,8 +32,8 @@ const avatarSizeClasses: Record<Size, string> = {
 
 const placeholderColorClasses = 'bg-gray-700 text-white dark:bg-gray-200 dark:text-gray-950'
 
-const placeholderIconSizeClasses: Record<Size, string> = {
-  xs: 'size-3',
+const placeholderIconSizeClasses: Record<OrganizationIconSize, string> = {
+  xs: 'size-4',
   sm: 'size-4',
   md: 'size-5',
   lg: 'size-6',

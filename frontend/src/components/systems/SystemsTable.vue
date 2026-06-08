@@ -54,7 +54,6 @@ import DeleteSystemModal from './DeleteSystemModal.vue'
 import { useSystemFilters } from '@/queries/systems/systemFilters'
 import UserAvatar from '../users/UserAvatar.vue'
 import { buildVersionFilterOptions } from '@/lib/systems/systemFilters'
-import OrganizationIcon from '../organizations/OrganizationIcon.vue'
 import RegenerateSecretModal from './RegenerateSecretModal.vue'
 import SecretRegeneratedModal from './SecretRegeneratedModal.vue'
 import ClickToCopy from '../ClickToCopy.vue'
@@ -66,6 +65,7 @@ import SystemStatusIcon from './SystemStatusIcon.vue'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 import { isUserCustomer } from '@/lib/organizations/organizations.ts'
+import OrganizationIconAndLink from '../organizations/OrganizationIconAndLink.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -569,22 +569,8 @@ function onCloseSecretRegeneratedModal() {
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.organization')">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
-              <div class="flex items-center gap-2">
-                <NeTooltip
-                  v-if="item.organization.type"
-                  placement="top"
-                  trigger-event="mouseenter focus"
-                  class="shrink-0"
-                >
-                  <template #trigger>
-                    <OrganizationIcon :org-type="item.organization.type" size="sm" />
-                  </template>
-                  <template #content>
-                    {{ t(`organizations.${item.organization.type}`) }}
-                  </template>
-                </NeTooltip>
-                {{ item.organization.name || '-' }}
-              </div>
+              <OrganizationIconAndLink v-if="item.organization" :organization="item.organization" />
+              <span v-else>-</span>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.created_by')">

@@ -26,7 +26,6 @@ import {
   NeTextInput,
   NeDropdown,
   type SortEvent,
-  NeTooltip,
   type NeDropdownItem,
   NeDropdownFilter,
   NeSortDropdown,
@@ -37,14 +36,13 @@ import { savePageSizeToStorage, PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import { canManageApplications } from '@/lib/permissions'
 import { isUserCustomer } from '@/lib/organizations/organizations'
 import { APPLICATIONS_TABLE_ID } from '@/lib/applications/applications'
-import OrganizationIcon from '../organizations/OrganizationIcon.vue'
+import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import { useApplications } from '@/queries/applications/applications'
 import { getDisplayName, type Application } from '@/lib/applications/applications'
 import ApplicationLogo from './ApplicationLogo.vue'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import AssignOrganizationDrawer from './AssignOrganizationDrawer.vue'
 import SetNotesDrawer from './SetNotesDrawer.vue'
-import OrganizationLink from './OrganizationLink.vue'
 import { useApplicationFilters } from '@/queries/applications/applicationFilters'
 import { buildVersionFilterOptions } from '@/lib/applications/applicationFilters'
 import router from '@/router'
@@ -352,27 +350,8 @@ const goToApplicationDetails = (application: Application) => {
               </div>
             </NeTableCell>
             <NeTableCell :data-label="$t('organizations.organization')">
-              <div>
-                <div class="flex items-center gap-2">
-                  <NeTooltip
-                    v-if="item.organization?.type"
-                    placement="top"
-                    trigger-event="mouseenter focus"
-                    class="shrink-0"
-                  >
-                    <template #trigger>
-                      <OrganizationIcon :org-type="item.organization.type" size="sm" />
-                    </template>
-                    <template #content>
-                      {{ t(`organizations.${item.organization.type}`) }}
-                    </template>
-                  </NeTooltip>
-                  <OrganizationLink v-if="item.organization" :organization="item.organization" />
-                  <span v-else class="font-medium">
-                    {{ '-' }}
-                  </span>
-                </div>
-              </div>
+              <OrganizationIconAndLink v-if="item.organization" :organization="item.organization" />
+              <span v-else>-</span>
             </NeTableCell>
             <NeTableCell :data-label="$t('common.actions')">
               <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
