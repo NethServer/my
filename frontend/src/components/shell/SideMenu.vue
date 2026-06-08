@@ -21,7 +21,7 @@ import {
   faBuilding as fasBuilding,
   faUserGroup as fasUserGroup,
   faServer as fasServer,
-  faWarning,
+  faTriangleExclamation,
 } from '@fortawesome/free-solid-svg-icons'
 import { faGridOne as fasGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import {
@@ -32,6 +32,7 @@ import {
   faUserGroup as falUserGroup,
   faServer as falServer,
   faGrid2 as falGrid2,
+  faTriangleExclamation as falTriangleExclamation,
 } from '@nethesis/nethesis-light-svg-icons'
 import {
   canReadAlerts,
@@ -79,8 +80,8 @@ const navigation = computed(() => {
     menuItems.push({
       name: 'alerts.alerts_title',
       to: 'alerts',
-      solidIcon: faWarning,
-      lightIcon: faWarning,
+      solidIcon: faTriangleExclamation,
+      lightIcon: falTriangleExclamation,
     })
   }
 
