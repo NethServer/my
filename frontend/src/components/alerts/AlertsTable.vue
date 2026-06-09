@@ -6,7 +6,6 @@
 <script setup lang="ts">
 import {
   faArrowRight,
-  faArrowsRotate,
   faBell,
   faBellSlash,
   faCircleCheck,
@@ -24,6 +23,7 @@ import {
   NeInlineNotification,
   NePaginator,
   NeSortDropdown,
+  NeSpinner,
   NeTable,
   NeTableBody,
   NeTableCell,
@@ -50,14 +50,15 @@ import {
   SEVERITY_FILTER_OPTIONS,
   type Alert,
 } from '@/lib/alerts'
+import { setPendingAlertState, isProcessing } from '@/lib/alertPendingStates'
 import { type AlertFilterAlert } from '@/lib/alertFilters'
 import { useNotificationsStore } from '@/stores/notifications'
 import { formatDateTime, formatTimeAgo } from '@/lib/dateTime'
 import { canManageSystems } from '@/lib/permissions'
-import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import MuteAlertDrawer from '@/components/alerts/MuteAlertDrawer.vue'
 import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
+import ProcessingAlertBadge from '@/components/alerts/ProcessingAlertBadge.vue'
 import capitalize from 'lodash/capitalize'
 import SystemDropdownFilter from '@/components/systems/SystemDropdownFilter.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
@@ -85,13 +86,13 @@ const {
   organizationIds,
   areDefaultFiltersApplied,
   resetFilters,
-  resetStatusFilter,
   refetch,
 } = useAlerts()
 
 const { state: alertFiltersState } = useAlertFilters()
 
 const alerts = computed(() => alertsState.value.data?.alerts ?? [])
+
 const pagination = computed(() => alertsState.value.data?.pagination)
 
 const isNoDataEmptyStateShown = computed(
@@ -156,15 +157,18 @@ const unmuteError = ref<string | null>(null)
 async function handleUnmuteAlert(alert: Alert) {
   unmuteError.value = null
   try {
+    const organizationId = alert.labels?.organization_id
     const silenceIds = getAlertSilenceIds(alert)
     if (!silenceIds.length) return
-
-    const organizationId = alert.labels?.organization_id
 
     // Delete all silences for this alert
     for (const silenceId of silenceIds) {
       await deleteAlertSilence(silenceId, organizationId)
     }
+
+    // Record the target state so the alert shows as "processing" until the
+    // backend reflects the unmute.
+    setPendingAlertState(alert.fingerprint, organizationId ?? '', false)
 
     // Show success notification with delay (per frontend conventions)
     setTimeout(() => {
@@ -195,7 +199,25 @@ function showDetailsDrawer(alert: Alert) {
 function getKebabMenuItems(alert: Alert): NeDropdownItem[] {
   const items: NeDropdownItem[] = []
   if (canManageSystems()) {
-    if (isAlertSilenced(alert)) {
+    if (isProcessing(alert)) {
+      // In transition: disable both actions until the backend catches up.
+      items.push(
+        {
+          id: 'muteAlert',
+          label: t('alerts.mute_alert'),
+          icon: faBellSlash,
+          disabled: true,
+          action: () => {},
+        },
+        {
+          id: 'unmuteAlert',
+          label: t('alerts.unmute_alert'),
+          icon: faBell,
+          disabled: true,
+          action: () => {},
+        },
+      )
+    } else if (isAlertSilenced(alert)) {
       items.push({
         id: 'unmuteAlert',
         label: t('alerts.unmute_alert'),
@@ -212,12 +234,6 @@ function getKebabMenuItems(alert: Alert): NeDropdownItem[] {
     }
   }
   return items
-}
-
-// ── Reload ──────────────────────────────────────────────────────────────────────
-
-function handleReload() {
-  refetch()
 }
 
 // ── Navigation ──────────────────────────────────────────────────────────────────────
@@ -248,7 +264,7 @@ function goToSystems() {
 
     <!-- Toolbar -->
     <div class="mb-6 flex items-center gap-4">
-      <div class="flex w-full items-end justify-between gap-4">
+      <div class="flex w-full items-start justify-between gap-4">
         <!-- Filters -->
         <div class="flex flex-wrap items-center gap-4">
           <!-- Severity filter -->
@@ -296,14 +312,12 @@ function goToSystems() {
             kind="checkbox"
             :label="t('common.status')"
             :options="statusFilterOptions"
-            :show-clear-filter="false"
+            :show-clear-filter="true"
             :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
-            :custom-action-label="t('ne_dropdown_filter.reset_selection')"
-            @custom-action="resetStatusFilter"
             @update:model-value="() => (pageNum = 1)"
           />
           <!-- Sort -->
@@ -327,24 +341,15 @@ function goToSystems() {
             {{ t('common.reset_filters') }}
           </NeButton>
         </div>
-        <!-- Right-side actions -->
-        <div class="flex items-center gap-4">
-          <!-- Update indicator -->
-          <UpdatingSpinner
+        <!-- Data updated every X seconds -->
+        <div class="flex items-center gap-2">
+          <NeSpinner
+            color="white"
             v-if="alertsAsyncStatus === 'loading' && alertsState.status !== 'pending'"
           />
-          <!-- Reload button -->
-          <NeButton
-            kind="secondary"
-            size="md"
-            :disabled="alertsAsyncStatus === 'loading'"
-            @click="handleReload"
-          >
-            <template #prefix>
-              <FontAwesomeIcon :icon="faArrowsRotate" class="h-4 w-4" aria-hidden="true" />
-            </template>
-            {{ t('alerts.reload_alerts') }}
-          </NeButton>
+          <div class="text-tertiary-neutral">
+            {{ t('common.data_updated_every_seconds', { seconds: 10 }) }}
+          </div>
         </div>
       </div>
     </div>
@@ -431,7 +436,8 @@ function goToSystems() {
                   {{ getAlertSummary(alert, locale) }}
                 </p>
               </div>
-              <NeBadgeV2 v-if="alert.status.state === 'suppressed'" kind="gray">
+              <ProcessingAlertBadge v-if="isProcessing(alert)" />
+              <NeBadgeV2 v-else-if="isAlertSilenced(alert)" kind="gray">
                 <FontAwesomeIcon :icon="faBellSlash" class="size-4" />
                 {{ t('alerts.muted') }}
               </NeBadgeV2>

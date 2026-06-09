@@ -5,7 +5,6 @@
 
 <script setup lang="ts">
 import {
-  faArrowsRotate,
   faBell,
   faBellSlash,
   faCircleCheck,
@@ -22,6 +21,7 @@ import {
   NeInlineNotification,
   NePaginator,
   NeSortDropdown,
+  NeSpinner,
   NeTable,
   NeTableBody,
   NeTableCell,
@@ -48,6 +48,7 @@ import {
   SYSTEM_ALERTS_TABLE_ID,
   type Alert,
 } from '@/lib/systemAlerts'
+import { setPendingAlertState, isProcessing } from '@/lib/alertPendingStates'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useSystemAlerts } from '@/queries/systemAlerts/systemAlerts'
 import { useAlertFilters } from '@/queries/alerts/alertFilters'
@@ -56,7 +57,7 @@ import { formatDateTime, formatTimeAgo } from '@/lib/dateTime'
 import { canManageSystems } from '@/lib/permissions'
 import MuteAlertDrawer from '@/components/alerts/MuteAlertDrawer.vue'
 import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
-import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
+import ProcessingAlertBadge from '@/components/alerts/ProcessingAlertBadge.vue'
 import { useRoute } from 'vue-router'
 import { SEVERITY_FILTER_OPTIONS } from '@/lib/alerts'
 
@@ -79,8 +80,6 @@ const {
   statusFilters: alertsStatusFilters,
   areDefaultFiltersApplied: alertsAreDefaultFiltersApplied,
   resetFilters: alertsResetFilters,
-  resetStatusFilter: alertsResetStatusFilter,
-  refetch: alertsRefetch,
 } = useSystemAlerts()
 
 // ── Alert filters query ───────────────────────────────────────────────────────
@@ -97,6 +96,7 @@ const statusFilterOptions = computed(() => [
 // ── Computed data ─────────────────────────────────────────────────────────────
 
 const alerts = computed(() => alertsState.value.data?.alerts ?? [])
+
 const alertsPagination = computed(() => alertsState.value.data?.pagination)
 
 // ── Sort helper ───────────────────────────────────────────────────────────────
@@ -153,6 +153,7 @@ function showMuteDrawer(alert: Alert): void {
 async function handleUnmuteAlert(alert: Alert): Promise<void> {
   unmuteError.value = null
   try {
+    const orgId = alert.labels?.organization_id ?? ''
     const silenceIds = getAlertSilenceIds(alert)
     if (!silenceIds.length) return
 
@@ -160,6 +161,10 @@ async function handleUnmuteAlert(alert: Alert): Promise<void> {
     for (const silenceId of silenceIds) {
       await deleteSystemAlertSilence(systemId, silenceId)
     }
+
+    // Record the target state so the alert shows as "processing" until the
+    // backend reflects the unmute.
+    setPendingAlertState(alert.fingerprint, orgId, false)
 
     setTimeout(() => {
       notificationsStore.createNotification({
@@ -177,6 +182,25 @@ async function handleUnmuteAlert(alert: Alert): Promise<void> {
 
 function getAlertKebabItems(alert: Alert): NeDropdownItem[] {
   if (!canManageSystems()) return []
+  if (isProcessing(alert)) {
+    // In transition: disable both actions until the backend catches up.
+    return [
+      {
+        id: 'mute',
+        label: t('alerts.mute_alert'),
+        icon: faBellSlash,
+        disabled: true,
+        action: () => {},
+      },
+      {
+        id: 'unmute',
+        label: t('alerts.unmute_alert'),
+        icon: faBell,
+        disabled: true,
+        action: () => {},
+      },
+    ]
+  }
   if (isAlertSilenced(alert)) {
     return [
       {
@@ -275,9 +299,7 @@ function onMuteDrawerClose(): void {
           :no-options-label="t('ne_dropdown_filter.no_options')"
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
           :clear-search-label="t('ne_dropdown_filter.clear_search')"
-          :show-clear-filter="false"
-          :custom-action-label="t('ne_dropdown_filter.reset_selection')"
-          @custom-action="alertsResetStatusFilter"
+          :show-clear-filter="true"
           @update:model-value="() => (alertsPageNum = 1)"
         />
         <!-- Sort -->
@@ -301,22 +323,15 @@ function onMuteDrawerClose(): void {
           {{ t('common.reset_filters') }}
         </NeButton>
       </div>
-      <!-- Right-side actions -->
-      <div class="flex items-center gap-4">
-        <UpdatingSpinner
+      <!-- Data updated every X seconds -->
+      <div class="flex items-center gap-2">
+        <NeSpinner
+          color="white"
           v-if="alertsAsyncStatus === 'loading' && alertsState.status !== 'pending'"
         />
-        <NeButton
-          kind="secondary"
-          size="md"
-          :disabled="alertsAsyncStatus === 'loading'"
-          @click="alertsRefetch()"
-        >
-          <template #prefix>
-            <FontAwesomeIcon :icon="faArrowsRotate" class="h-4 w-4" aria-hidden="true" />
-          </template>
-          {{ $t('alerts.reload_alerts') }}
-        </NeButton>
+        <div class="text-tertiary-neutral">
+          {{ t('common.data_updated_every_seconds', { seconds: 10 }) }}
+        </div>
       </div>
     </div>
 
@@ -385,7 +400,8 @@ function onMuteDrawerClose(): void {
                   {{ getAlertSummary(alert, locale) }}
                 </p>
               </div>
-              <NeBadgeV2 v-if="alert.status.state === 'suppressed'" kind="gray">
+              <ProcessingAlertBadge v-if="isProcessing(alert)" />
+              <NeBadgeV2 v-else-if="isAlertSilenced(alert)" kind="gray">
                 <FontAwesomeIcon :icon="faBellSlash" class="size-4" aria-hidden="true" />
                 {{ t('alerts.muted') }}
               </NeBadgeV2>

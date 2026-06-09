@@ -28,6 +28,7 @@
     "@nethesis/nethesis-solid-svg-icons": "github:nethesis/Font-Awesome#ns-solid",
     "@nethesis/vue-components": "^3.9.0",
     "@pinia/colada": "^1.1.0",
+    "@pinia/colada-plugin-auto-refetch": "^0.2.6",
     "@tailwindcss/vite": "^4.1.10",
     "@vuepic/vue-datepicker": "^12.1.0",
     "@vueuse/core": "^13.4.0",

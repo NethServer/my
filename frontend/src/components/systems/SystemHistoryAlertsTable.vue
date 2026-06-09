@@ -6,12 +6,7 @@
 <script setup lang="ts">
 import { formatTimeAgo } from '@/lib/dateTime'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
-import {
-  faArrowsRotate,
-  faCircleCheck,
-  faEye,
-  faMagnifyingGlass,
-} from '@fortawesome/free-solid-svg-icons'
+import { faCircleCheck, faEye, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   NeBadgeV2,
@@ -21,6 +16,7 @@ import {
   NeInlineNotification,
   NePaginator,
   NeSortDropdown,
+  NeSpinner,
   NeTable,
   NeTableBody,
   NeTableCell,
@@ -44,7 +40,6 @@ import { type AlertFilterAlert } from '@/lib/alertFilters'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { formatDateTime } from '@/lib/dateTime'
 import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
-import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import { SEVERITY_FILTER_OPTIONS } from '@/lib/alerts'
 
 const { t, locale } = useI18n()
@@ -62,7 +57,6 @@ const {
   alertnameFilters: historyAlertNameFilters,
   areDefaultFiltersApplied: historyAreDefaultFiltersApplied,
   resetFilters: historyResetFilters,
-  refetch: historyRefetch,
 } = useSystemAlertHistory()
 
 // ── Alert filters query ───────────────────────────────────────────────────────
@@ -195,21 +189,15 @@ function showDetails(alert: Alert): void {
           {{ t('common.reset_filters') }}
         </NeButton>
       </div>
-      <div class="flex items-center gap-4">
-        <UpdatingSpinner
+      <!-- Data updated every X seconds -->
+      <div class="flex items-center gap-2">
+        <NeSpinner
+          color="white"
           v-if="historyAsyncStatus === 'loading' && historyState.status !== 'pending'"
         />
-        <NeButton
-          kind="secondary"
-          size="md"
-          :disabled="historyAsyncStatus === 'loading'"
-          @click="historyRefetch()"
-        >
-          <template #prefix>
-            <FontAwesomeIcon :icon="faArrowsRotate" class="h-4 w-4" aria-hidden="true" />
-          </template>
-          {{ $t('alerts.reload_history') }}
-        </NeButton>
+        <div class="text-tertiary-neutral">
+          {{ t('common.data_updated_every_seconds', { seconds: 10 }) }}
+        </div>
       </div>
     </div>
 

@@ -53,7 +53,8 @@
     "plus_n_more": "+{count} more | +{count} more",
     "node_id": "Node {id}",
     "add": "Add",
-    "eg_value": "e.g. {value}"
+    "eg_value": "e.g. {value}",
+    "data_updated_every_seconds": "Data updated every {seconds} seconds"
   },
   "shell": {
     "open_sidebar": "Open sidebar",
@@ -826,6 +827,8 @@
     "total_alerts": "Total alerts",
     "muted": "Muted",
     "unmuted": "Unmuted",
+    "processing": "Processing",
+    "processing_tooltip": "Mute and unmute actions might take a few minutes. While the system processes the request, the alert status will temporarily display as '@:{'alerts.processing'}'.",
     "system": "System",
     "organization": "Company",
     "reload_alerts": "Reload alerts",
@@ -906,8 +909,7 @@
     "telegram_not_configured": "Telegram notifications not configured",
     "telegram_not_configured_description": "Configure a Telegram channel to send alert notifications.",
     "notifications_disabled_warning": "Notifications for this channel are currently disabled and won't be sent.",
-    "no_systems_configured": "No systems configured",
-    "reload_history": "Reload history"
+    "no_systems_configured": "No systems configured"
   },
   "ne_tabs": {
     "tabs": "Tabs",

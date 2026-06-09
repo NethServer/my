@@ -2,6 +2,7 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import { getAlerts, ALERTS_ALERTS_KEY, ALERTS_TABLE_ID, type AlertStatusEnum } from '@/lib/alerts'
+import { syncWithBackend } from '@/lib/alertPendingStates'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
@@ -14,7 +15,7 @@ export const useAlerts = defineQuery(() => {
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const sortBy = ref<'starts_at' | 'severity' | 'alertname' | 'status'>('starts_at')
   const sortDirection = ref<'asc' | 'desc'>('desc')
-  const statusFilters = ref<AlertStatusEnum[]>(['active'])
+  const statusFilters = ref<AlertStatusEnum[]>([])
   const severityFilters = ref<string[]>([])
   const systemKeyFilters = ref<string[]>([])
   const alertnameFilters = ref<string[]>([])
@@ -45,6 +46,8 @@ export const useAlerts = defineQuery(() => {
         systemKeyFilters.value.length > 0 ? systemKeyFilters.value : undefined,
         alertnameFilters.value.length > 0 ? alertnameFilters.value : undefined,
       ),
+    staleTime: 10_000,
+    autoRefetch: true,
   })
 
   const resetFilters = () => {
@@ -57,15 +60,13 @@ export const useAlerts = defineQuery(() => {
   }
 
   const resetStatusFilter = () => {
-    statusFilters.value = ['active']
+    statusFilters.value = []
   }
 
   const areDefaultFiltersApplied = () => {
     return (
       !organizationIds.value.length &&
-      statusFilters.value.length === 1 &&
-      statusFilters.value.includes('active') &&
-      !statusFilters.value.includes('suppressed') &&
+      !statusFilters.value.length &&
       !severityFilters.value.length &&
       !systemKeyFilters.value.length &&
       !alertnameFilters.value.length
@@ -98,6 +99,14 @@ export const useAlerts = defineQuery(() => {
       pageNum.value = 1
     },
     { deep: true },
+  )
+
+  // When the backend returns fresh data, clean up pending states that are now confirmed
+  watch(
+    () => state.value.data?.alerts,
+    (alerts) => {
+      if (alerts) syncWithBackend(alerts)
+    },
   )
 
   return {

@@ -19,7 +19,9 @@ import {
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAlertActivity } from '@/queries/alerts/alertActivity'
-import { getSeverityBadgeKind, type Alert } from '@/lib/alerts'
+import { getSeverityBadgeKind, isAlertSilenced, type Alert } from '@/lib/alerts'
+import { isProcessing } from '@/lib/alertPendingStates'
+import ProcessingAlertBadge from '@/components/alerts/ProcessingAlertBadge.vue'
 import SystemLogoAndLink from '@/components/systems/SystemLogoAndLink.vue'
 import UserAvatar from '@/components/users/UserAvatar.vue'
 import { formatDateTimeNoSeconds, formatTimeAgo } from '@/lib/dateTime'
@@ -46,9 +48,10 @@ const { state: activityState, asyncStatus: activityAsyncStatus } = useAlertActiv
 
 const activity = computed(() => activityState.value.data?.events ?? [])
 
-// The end_at from the most recently created silence event, shown when the alert is suppressed
+// The end_at from the most recently created silence event, shown when the alert
+// is muted. Activity events are returned immediately by the backend.
 const silencedUntil = computed<Date | null>(() => {
-  if (props.alert?.status.state !== 'suppressed') return null
+  if (!props.alert || !isAlertSilenced(props.alert)) return null
   let latestCreatedAt: Date | null = null
   let matchedEndAt: Date | null = null
   for (const event of activity.value) {
@@ -67,9 +70,10 @@ const silencedUntil = computed<Date | null>(() => {
   return matchedEndAt
 })
 
-// Comment from the most recent silenced/silence_updated event, shown as read-only notes
+// Comment from the most recent silenced/silence_updated event, shown as
+// read-only notes when the alert is muted.
 const muteComment = computed<string | null>(() => {
-  if (props.alert?.status.state !== 'suppressed') return null
+  if (!props.alert || !isAlertSilenced(props.alert)) return null
   let latestDate: Date | null = null
   let latestComment: string | null = null
   for (const event of activity.value) {
@@ -143,8 +147,9 @@ function closeDrawer() {
                     : 'Unknown'
                 }}
               </NeBadgeV2>
-              <!-- Muted Badge -->
-              <NeBadgeV2 v-if="alert.status.state === 'suppressed'" kind="gray">
+              <!-- Processing / Muted Badge -->
+              <ProcessingAlertBadge v-if="isProcessing(alert)" />
+              <NeBadgeV2 v-else-if="isAlertSilenced(alert)" kind="gray">
                 <FontAwesomeIcon :icon="faBellSlash" class="size-4" aria-hidden="true" />
                 {{ t('alerts.muted') }}
               </NeBadgeV2>
@@ -170,7 +175,7 @@ function closeDrawer() {
         </div>
 
         <!-- Silenced until -->
-        <div v-if="alert.status.state === 'suppressed' && silencedUntil" class="space-y-1">
+        <div v-if="isAlertSilenced(alert) && silencedUntil" class="space-y-1">
           <NeFormItemLabel class="mb-1!">
             {{ t('alerts.silenced_until') }}
           </NeFormItemLabel>
@@ -204,7 +209,7 @@ function closeDrawer() {
 
       <!-- Mute notes (read-only, shown when the alert is suppressed and a note was left) -->
       <NeTextArea
-        v-if="alert.status.state === 'suppressed' && muteComment"
+        v-if="isAlertSilenced(alert) && muteComment"
         :model-value="muteComment"
         :label="t('alerts.mute_notes')"
         :readonly="true"

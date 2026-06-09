@@ -7,6 +7,7 @@ import {
   SYSTEM_ALERTS_KEY,
   SYSTEM_ALERTS_TABLE_ID,
 } from '@/lib/systemAlerts'
+import { syncWithBackend } from '@/lib/alertPendingStates'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
@@ -23,7 +24,7 @@ export const useSystemAlerts = defineQuery(() => {
   const sortDirection = ref<'asc' | 'desc'>('desc')
   const severityFilters = ref<string[]>([])
   const alertnameFilters = ref<string[]>([])
-  const statusFilters = ref<AlertStatusEnum[]>(['active'])
+  const statusFilters = ref<AlertStatusEnum[]>([])
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
@@ -49,14 +50,14 @@ export const useSystemAlerts = defineQuery(() => {
         severityFilters.value.length > 0 ? severityFilters.value : undefined,
         alertnameFilters.value.length > 0 ? alertnameFilters.value : undefined,
       ),
+    staleTime: 10_000,
+    autoRefetch: true,
   })
 
   const areDefaultFiltersApplied = () =>
     !severityFilters.value.length &&
     !alertnameFilters.value.length &&
-    statusFilters.value.length === 1 &&
-    statusFilters.value.includes('active') &&
-    !statusFilters.value.includes('suppressed')
+    !statusFilters.value.length
 
   const resetFilters = () => {
     severityFilters.value = []
@@ -66,7 +67,7 @@ export const useSystemAlerts = defineQuery(() => {
   }
 
   const resetStatusFilter = () => {
-    statusFilters.value = ['active']
+    statusFilters.value = []
   }
 
   // load table page size from storage
@@ -85,6 +86,14 @@ export const useSystemAlerts = defineQuery(() => {
     () => pageSize.value,
     () => {
       pageNum.value = 1
+    },
+  )
+
+  // When the backend returns fresh data, clean up pending states that are now confirmed
+  watch(
+    () => state.value.data?.alerts,
+    (alerts) => {
+      if (alerts) syncWithBackend(alerts)
     },
   )
 

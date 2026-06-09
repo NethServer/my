@@ -45,6 +45,8 @@ export const useSystemAlertHistory = defineQuery(() => {
         severityFilters.value.length > 0 ? severityFilters.value : undefined,
         alertnameFilters.value.length > 0 ? alertnameFilters.value : undefined,
       ),
+    staleTime: 10_000,
+    autoRefetch: true,
   })
 
   const areDefaultFiltersApplied = () =>

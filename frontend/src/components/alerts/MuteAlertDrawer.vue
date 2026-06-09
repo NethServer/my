@@ -15,6 +15,7 @@ import {
   createSystemAlertSilence,
   type Alert,
 } from '@/lib/alerts'
+import { setPendingAlertState } from '@/lib/alertPendingStates'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useThemeStore } from '@/stores/theme'
 
@@ -50,6 +51,9 @@ const {
     )
   },
   onSuccess() {
+    if (alert) {
+      setPendingAlertState(alert.fingerprint, alert.labels?.organization_id ?? '', true)
+    }
     const alertname = alert?.labels?.alertname ?? ''
     setTimeout(() => {
       notificationsStore.createNotification({
