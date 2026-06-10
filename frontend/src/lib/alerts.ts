@@ -19,6 +19,7 @@ export const SYSTEM_ALERTS_TABLE_ID = 'systemAlertsTable'
 export const SYSTEM_ALERT_SILENCES_KEY = 'systemAlertSilences'
 export const SYSTEM_ALERTS_KEY = 'systemAlerts'
 export const SYSTEM_ALERT_HISTORY_KEY = 'systemAlertHistory'
+export const ALERTS_REFETCH_INTERVAL_SECONDS = 10
 
 export const SEVERITY_FILTER_OPTIONS: FilterOption[] = [
   { id: 'critical', label: 'Critical' },

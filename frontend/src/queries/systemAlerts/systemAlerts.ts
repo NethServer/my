@@ -1,7 +1,7 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import type { AlertStatusEnum } from '@/lib/alerts'
+import { ALERTS_REFETCH_INTERVAL_SECONDS, type AlertStatusEnum } from '@/lib/alerts'
 import {
   getSystemActiveAlerts,
   SYSTEM_ALERTS_KEY,
@@ -25,6 +25,7 @@ export const useSystemAlerts = defineQuery(() => {
   const severityFilters = ref<string[]>([])
   const alertnameFilters = ref<string[]>([])
   const statusFilters = ref<AlertStatusEnum[]>([])
+  const shouldAutoRefetch = () => document.visibilityState === 'visible'
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
@@ -50,14 +51,12 @@ export const useSystemAlerts = defineQuery(() => {
         severityFilters.value.length > 0 ? severityFilters.value : undefined,
         alertnameFilters.value.length > 0 ? alertnameFilters.value : undefined,
       ),
-    staleTime: 10_000,
-    autoRefetch: true,
+    staleTime: ALERTS_REFETCH_INTERVAL_SECONDS * 1000,
+    autoRefetch: shouldAutoRefetch,
   })
 
   const areDefaultFiltersApplied = () =>
-    !severityFilters.value.length &&
-    !alertnameFilters.value.length &&
-    !statusFilters.value.length
+    !severityFilters.value.length && !alertnameFilters.value.length && !statusFilters.value.length
 
   const resetFilters = () => {
     severityFilters.value = []

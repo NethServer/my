@@ -3,6 +3,7 @@
 
 import {
   getSystemAlertHistory,
+  ALERTS_REFETCH_INTERVAL_SECONDS,
   SYSTEM_ALERT_HISTORY_KEY,
   SYSTEM_ALERT_HISTORY_TABLE_ID,
 } from '@/lib/alerts'
@@ -45,7 +46,7 @@ export const useSystemAlertHistory = defineQuery(() => {
         severityFilters.value.length > 0 ? severityFilters.value : undefined,
         alertnameFilters.value.length > 0 ? alertnameFilters.value : undefined,
       ),
-    staleTime: 10_000,
+    staleTime: ALERTS_REFETCH_INTERVAL_SECONDS * 1000,
     autoRefetch: true,
   })
 

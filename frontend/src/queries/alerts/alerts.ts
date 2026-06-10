@@ -1,7 +1,13 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { getAlerts, ALERTS_ALERTS_KEY, ALERTS_TABLE_ID, type AlertStatusEnum } from '@/lib/alerts'
+import {
+  getAlerts,
+  ALERTS_ALERTS_KEY,
+  ALERTS_TABLE_ID,
+  type AlertStatusEnum,
+  ALERTS_REFETCH_INTERVAL_SECONDS,
+} from '@/lib/alerts'
 import { syncWithBackend } from '@/lib/alertPendingStates'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
@@ -19,6 +25,7 @@ export const useAlerts = defineQuery(() => {
   const severityFilters = ref<string[]>([])
   const systemKeyFilters = ref<string[]>([])
   const alertnameFilters = ref<string[]>([])
+  const shouldAutoRefetch = () => document.visibilityState === 'visible'
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
@@ -46,8 +53,8 @@ export const useAlerts = defineQuery(() => {
         systemKeyFilters.value.length > 0 ? systemKeyFilters.value : undefined,
         alertnameFilters.value.length > 0 ? alertnameFilters.value : undefined,
       ),
-    staleTime: 10_000,
-    autoRefetch: true,
+    staleTime: ALERTS_REFETCH_INTERVAL_SECONDS * 1000,
+    autoRefetch: shouldAutoRefetch,
   })
 
   const resetFilters = () => {
