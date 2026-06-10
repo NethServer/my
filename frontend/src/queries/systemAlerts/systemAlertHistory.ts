@@ -53,7 +53,7 @@ export const useSystemAlertHistory = defineQuery(() => {
   const areDefaultFiltersApplied = () =>
     !severityFilters.value.length && !alertnameFilters.value.length
 
-  const resetFilters = () => {
+  const clearFilters = () => {
     severityFilters.value = []
     alertnameFilters.value = []
     pageNum.value = 1
@@ -89,6 +89,6 @@ export const useSystemAlertHistory = defineQuery(() => {
     severityFilters,
     alertnameFilters,
     areDefaultFiltersApplied,
-    resetFilters,
+    clearFilters,
   }
 })

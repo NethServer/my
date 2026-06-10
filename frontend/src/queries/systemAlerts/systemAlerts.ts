@@ -54,14 +54,14 @@ export const useSystemAlerts = defineQuery(() => {
   const areDefaultFiltersApplied = () =>
     !severityFilters.value.length && !alertnameFilters.value.length && !statusFilters.value.length
 
-  const resetFilters = () => {
+  const clearFilters = () => {
     severityFilters.value = []
     alertnameFilters.value = []
-    resetStatusFilter()
+    clearStatusFilter()
     pageNum.value = 1
   }
 
-  const resetStatusFilter = () => {
+  const clearStatusFilter = () => {
     statusFilters.value = []
   }
 
@@ -104,7 +104,7 @@ export const useSystemAlerts = defineQuery(() => {
     alertnameFilters,
     statusFilters,
     areDefaultFiltersApplied,
-    resetFilters,
-    resetStatusFilter,
+    clearFilters,
+    clearStatusFilter,
   }
 })

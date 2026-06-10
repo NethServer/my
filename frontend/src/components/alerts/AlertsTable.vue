@@ -85,7 +85,7 @@ const {
   systemKeyFilters,
   organizationIds,
   areDefaultFiltersApplied,
-  resetFilters,
+  clearFilters,
   refetch,
 } = useAlerts()
 
@@ -336,9 +336,9 @@ function goToSystems() {
             :ascending-label="t('sort.ascending')"
             :descending-label="t('sort.descending')"
           />
-          <!-- Reset filters -->
-          <NeButton kind="tertiary" @click="resetFilters">
-            {{ t('common.reset_filters') }}
+          <!-- Clear filters -->
+          <NeButton kind="tertiary" @click="clearFilters">
+            {{ t('common.clear_filters') }}
           </NeButton>
         </div>
         <!-- Data updated every X seconds -->
@@ -386,8 +386,8 @@ function goToSystems() {
       :icon="faMagnifyingGlass"
       class="bg-white dark:bg-gray-950"
     >
-      <NeButton kind="tertiary" @click="resetFilters">
-        {{ $t('common.reset_filters') }}
+      <NeButton kind="tertiary" @click="clearFilters">
+        {{ $t('common.clear_filters') }}
       </NeButton>
     </NeEmptyState>
 

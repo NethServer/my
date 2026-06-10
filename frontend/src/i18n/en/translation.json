@@ -909,7 +909,10 @@
     "telegram_not_configured": "Telegram notifications not configured",
     "telegram_not_configured_description": "Configure a Telegram channel to send alert notifications.",
     "notifications_disabled_warning": "Notifications for this channel are currently disabled and won't be sent.",
-    "no_systems_configured": "No systems configured"
+    "no_systems_configured": "No systems configured",
+    "count_critical": "{count} critical",
+    "count_warning": "{count} warning",
+    "count_muted": "{count} muted"
   },
   "ne_tabs": {
     "tabs": "Tabs",

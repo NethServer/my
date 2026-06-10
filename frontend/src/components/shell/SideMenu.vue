@@ -35,7 +35,6 @@ import {
   faTriangleExclamation as falTriangleExclamation,
 } from '@nethesis/nethesis-light-svg-icons'
 import {
-  canReadAlerts,
   canReadApplications,
   canReadCustomers,
   canReadDistributors,
@@ -76,7 +75,7 @@ const navigation = computed(() => {
     })
   }
 
-  if (canReadAlerts() || canReadSystems()) {
+  if (canReadSystems()) {
     menuItems.push({
       name: 'alerts.alerts_title',
       to: 'alerts',

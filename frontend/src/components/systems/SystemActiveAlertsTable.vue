@@ -79,7 +79,7 @@ const {
   alertnameFilters: alertsAlertNameFilters,
   statusFilters: alertsStatusFilters,
   areDefaultFiltersApplied: alertsAreDefaultFiltersApplied,
-  resetFilters: alertsResetFilters,
+  clearFilters: alertsClearFilters,
 } = useSystemAlerts()
 
 // ── Alert filters query ───────────────────────────────────────────────────────
@@ -318,9 +318,9 @@ function onMuteDrawerClose(): void {
           :ascending-label="t('sort.ascending')"
           :descending-label="t('sort.descending')"
         />
-        <!-- Reset filters -->
-        <NeButton kind="tertiary" @click="alertsResetFilters">
-          {{ t('common.reset_filters') }}
+        <!-- Clear filters -->
+        <NeButton kind="tertiary" @click="alertsClearFilters">
+          {{ t('common.clear_filters') }}
         </NeButton>
       </div>
       <!-- Data updated every X seconds -->
@@ -352,8 +352,8 @@ function onMuteDrawerClose(): void {
       :icon="faMagnifyingGlass"
       class="bg-white dark:bg-gray-950"
     >
-      <NeButton kind="tertiary" @click="alertsResetFilters">
-        {{ $t('common.reset_filters') }}
+      <NeButton kind="tertiary" @click="alertsClearFilters">
+        {{ $t('common.clear_filters') }}
       </NeButton>
     </NeEmptyState>
 

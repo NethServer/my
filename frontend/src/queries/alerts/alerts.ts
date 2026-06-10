@@ -57,7 +57,7 @@ export const useAlerts = defineQuery(() => {
     autoRefetch: shouldAutoRefetch,
   })
 
-  const resetFilters = () => {
+  const clearFilters = () => {
     organizationIds.value = []
     severityFilters.value = []
     systemKeyFilters.value = []
@@ -129,7 +129,7 @@ export const useAlerts = defineQuery(() => {
     severityFilters,
     systemKeyFilters,
     alertnameFilters,
-    resetFilters,
+    clearFilters,
     resetStatusFilter,
     areDefaultFiltersApplied,
   }

@@ -56,7 +56,7 @@ const {
   severityFilters: historySeverityFilters,
   alertnameFilters: historyAlertNameFilters,
   areDefaultFiltersApplied: historyAreDefaultFiltersApplied,
-  resetFilters: historyResetFilters,
+  clearFilters: historyClearFilters,
 } = useSystemAlertHistory()
 
 // ── Alert filters query ───────────────────────────────────────────────────────
@@ -184,9 +184,9 @@ function showDetails(alert: Alert): void {
           :ascending-label="t('sort.ascending')"
           :descending-label="t('sort.descending')"
         />
-        <!-- Reset filters -->
-        <NeButton kind="tertiary" @click="historyResetFilters">
-          {{ t('common.reset_filters') }}
+        <!-- Clear filters -->
+        <NeButton kind="tertiary" @click="historyClearFilters">
+          {{ t('common.clear_filters') }}
         </NeButton>
       </div>
       <!-- Data updated every X seconds -->
@@ -218,8 +218,8 @@ function showDetails(alert: Alert): void {
       :icon="faMagnifyingGlass"
       class="bg-white dark:bg-gray-950"
     >
-      <NeButton kind="tertiary" @click="historyResetFilters">
-        {{ $t('common.reset_filters') }}
+      <NeButton kind="tertiary" @click="historyClearFilters">
+        {{ $t('common.clear_filters') }}
       </NeButton>
     </NeEmptyState>
 
