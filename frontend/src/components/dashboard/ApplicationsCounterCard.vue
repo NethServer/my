@@ -23,6 +23,7 @@ const { state: applicationsTotal } = useApplicationsTotal()
     :counter="applicationsTotal.data?.total ?? 0"
     :icon="faGridOne"
     :loading="applicationsTotal.status === 'pending'"
+    title-route-name="applications"
   >
     <div v-if="applicationsTotal.data?.total ?? 0 > 0" class="flex justify-center">
       <NeBadgeV2 kind="blue">

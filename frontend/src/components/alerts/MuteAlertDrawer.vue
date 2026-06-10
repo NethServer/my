@@ -4,9 +4,15 @@
 -->
 
 <script setup lang="ts">
-import { NeButton, NeInlineNotification, NeSideDrawer, NeTextArea } from '@nethesis/vue-components'
+import {
+  NeButton,
+  NeInlineNotification,
+  NeSideDrawer,
+  NeSkeleton,
+  NeTextArea,
+} from '@nethesis/vue-components'
 import { VueDatePicker } from '@vuepic/vue-datepicker'
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useI18n } from 'vue-i18n'
 import {
@@ -34,6 +40,9 @@ const themeStore = useThemeStore()
 const endsAt = ref<Date | null>(null)
 const notes = ref('')
 const endsAtError = ref('')
+const isDatePickerMounted = ref(false)
+
+let mountDatePickerTimeout: ReturnType<typeof setTimeout> | undefined
 
 const {
   mutate: muteAlertMutate,
@@ -74,9 +83,11 @@ function onShow() {
   clearErrors()
   endsAt.value = null
   notes.value = ''
+  scheduleDatePickerMount()
 }
 
 function closeDrawer() {
+  scheduleDatePickerUnmount()
   emit('close')
 }
 
@@ -106,6 +117,32 @@ function handleSubmit() {
 function getMinDate(): Date {
   return new Date(Date.now() + 60_000)
 }
+
+function scheduleDatePickerMount() {
+  clearDatePickerMountTimeout()
+  isDatePickerMounted.value = false
+  mountDatePickerTimeout = setTimeout(() => {
+    isDatePickerMounted.value = true
+  }, 320)
+}
+
+function scheduleDatePickerUnmount() {
+  clearDatePickerMountTimeout()
+  mountDatePickerTimeout = setTimeout(() => {
+    isDatePickerMounted.value = false
+  }, 320)
+}
+
+function clearDatePickerMountTimeout() {
+  if (mountDatePickerTimeout) {
+    clearTimeout(mountDatePickerTimeout)
+    mountDatePickerTimeout = undefined
+  }
+}
+
+onBeforeUnmount(() => {
+  clearDatePickerMountTimeout()
+})
 </script>
 
 <template>
@@ -127,6 +164,7 @@ function getMinDate(): Date {
             {{ t('alerts.mute_until_date') }}
           </label>
           <VueDatePicker
+            v-if="isDatePickerMounted"
             v-model="endsAt"
             class="vue-datepicker"
             :dark="!themeStore.isLight"
@@ -140,6 +178,7 @@ function getMinDate(): Date {
             auto-apply
             @update:model-value="endsAtError = ''"
           />
+          <NeSkeleton v-else :lines="1" size="lg" class="mb-8 w-full" />
           <p v-if="endsAtError" class="text-sm text-rose-700 dark:text-rose-400">
             {{ endsAtError }}
           </p>

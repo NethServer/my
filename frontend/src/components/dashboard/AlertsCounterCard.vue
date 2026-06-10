@@ -27,6 +27,7 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
     :counter="totalCount"
     :icon="faTriangleExclamation"
     :loading="isLoading"
+    title-route-name="alerts"
   >
     <div class="mt-5 flex flex-wrap justify-center gap-2">
       <NeBadgeV2 v-if="criticalCount > 0" kind="rose">

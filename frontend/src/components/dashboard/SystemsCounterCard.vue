@@ -25,5 +25,6 @@ const { state: systemsTotal } = useQuery({
     :counter="systemsTotal.data?.total ?? 0"
     :icon="faServer"
     :loading="systemsTotal.status === 'pending'"
+    title-route-name="systems"
   />
 </template>
