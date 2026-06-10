@@ -64,7 +64,10 @@ type ProxyTokenClaims struct {
 
 // GenerateProxyToken creates a short-lived JWT for subdomain-based support proxy access
 func GenerateProxyToken(sessionID, serviceName, userID, orgRole, organizationID string) (string, error) {
-	expDuration := 8 * time.Hour
+	expDuration := configuration.Config.SupportProxyTokenTTL
+	if expDuration <= 0 {
+		expDuration = 1 * time.Hour
+	}
 
 	claims := ProxyTokenClaims{
 		TokenType:      "proxy",
