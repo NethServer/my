@@ -1,6 +1,10 @@
 -- Performance optimization: unified organizations view and indexes
 -- This view replaces the 3-way LEFT JOIN pattern used in applications queries
 
+-- Drop any existing form (view or materialized view) before recreating
+DROP MATERIALIZED VIEW IF EXISTS unified_organizations;
+DROP VIEW IF EXISTS unified_organizations;
+
 CREATE OR REPLACE VIEW unified_organizations AS
 SELECT logto_id, id::text AS db_id, name, 'distributor' AS org_type FROM distributors WHERE deleted_at IS NULL
 UNION ALL
