@@ -71,6 +71,10 @@ type Configuration struct {
 	SupportProxyDomain string `json:"support_proxy_domain"`
 	// Shared secret for backend→support internal authentication (#4)
 	SupportInternalSecret string `json:"-"`
+	// Lifetime of subdomain proxy tokens and their browser cookie. Bounds the
+	// window in which a leaked proxy token/cookie (or stale authorization)
+	// grants access to a customer's web UIs.
+	SupportProxyTokenTTL time.Duration `json:"support_proxy_token_ttl"`
 
 	// SMTP configuration for sending emails
 	SMTPHost     string `json:"smtp_host"`
@@ -261,6 +265,9 @@ func Init() {
 
 	// Shared secret for backend→support internal communication (#4)
 	Config.SupportInternalSecret = os.Getenv("SUPPORT_INTERNAL_SECRET")
+
+	// Subdomain proxy token lifetime (short-lived: re-issued by the UI on demand)
+	Config.SupportProxyTokenTTL = parseDurationWithDefault("SUPPORT_PROXY_TOKEN_TTL", 1*time.Hour)
 
 	// SMTP configuration
 	Config.SMTPHost = os.Getenv("SMTP_HOST")

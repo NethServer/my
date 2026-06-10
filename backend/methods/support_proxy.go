@@ -601,8 +601,13 @@ func SubdomainProxy(c *gin.Context) {
 	if fromQueryParam {
 		secureCookie := !strings.HasPrefix(configuration.Config.AppURL, "http://")
 		cookieDomain := ".support." + configuration.Config.SupportProxyDomain
+		// Cookie lives exactly as long as the proxy token it carries.
+		cookieMaxAge := int(configuration.Config.SupportProxyTokenTTL.Seconds())
+		if cookieMaxAge <= 0 {
+			cookieMaxAge = 3600
+		}
 		c.SetSameSite(http.SameSiteLaxMode)
-		c.SetCookie("support_proxy", tokenString, 8*60*60, "/", cookieDomain, secureCookie, true)
+		c.SetCookie("support_proxy", tokenString, cookieMaxAge, "/", cookieDomain, secureCookie, true)
 
 		// Sanitize redirect path to prevent open redirect via protocol-relative URLs (#3).
 		// "//evil.com" is interpreted by browsers as a redirect to evil.com.
