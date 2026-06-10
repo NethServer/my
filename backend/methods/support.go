@@ -218,9 +218,24 @@ func GetSupportSessionLogs(c *gin.Context) {
 		return
 	}
 
-	page, pageSize, _, _ := helpers.GetPaginationAndSortingFromQuery(c)
+	_, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 
 	repo := entities.NewSupportRepository()
+
+	// RBAC: only expose logs for sessions within the caller's organization scope.
+	sess, err := repo.GetSessionByID(sessionID, userOrgRole, userOrgID)
+	if err != nil {
+		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to get support session")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get support session", nil))
+		return
+	}
+	if sess == nil {
+		c.JSON(http.StatusNotFound, response.NotFound("support session not found", nil))
+		return
+	}
+
+	page, pageSize, _, _ := helpers.GetPaginationAndSortingFromQuery(c)
+
 	logs, totalCount, err := repo.GetAccessLogs(sessionID, page, pageSize)
 	if err != nil {
 		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to get access logs")
