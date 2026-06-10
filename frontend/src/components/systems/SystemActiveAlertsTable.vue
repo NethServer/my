@@ -46,8 +46,9 @@ import {
   SYSTEM_ALERTS_KEY,
   SYSTEM_ALERT_SILENCES_KEY,
   SYSTEM_ALERTS_TABLE_ID,
+  SEVERITY_FILTER_OPTIONS,
   type Alert,
-} from '@/lib/systemAlerts'
+} from '@/lib/alerts'
 import { setPendingAlertState, isProcessing } from '@/lib/alertPendingStates'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useSystemAlerts } from '@/queries/systemAlerts/systemAlerts'
@@ -59,7 +60,6 @@ import MuteAlertDrawer from '@/components/alerts/MuteAlertDrawer.vue'
 import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
 import ProcessingAlertBadge from '@/components/alerts/ProcessingAlertBadge.vue'
 import { useRoute } from 'vue-router'
-import { SEVERITY_FILTER_OPTIONS } from '@/lib/alerts'
 
 const { t, locale } = useI18n()
 const notificationsStore = useNotificationsStore()

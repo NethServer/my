@@ -14,13 +14,12 @@ export const ALERTS_TOTALS_KEY = 'alertsTotals'
 export const ALERT_ACTIVITY_KEY = 'alertActivity'
 export const ALERTS_SILENCES_KEY = 'alertsSilences'
 export const ALERTS_TABLE_ID = 'alertsTable'
+export const ALERTS_REFETCH_INTERVAL_SECONDS = 10
 export const SYSTEM_ALERT_HISTORY_TABLE_ID = 'systemAlertHistoryTable'
 export const SYSTEM_ALERTS_TABLE_ID = 'systemAlertsTable'
 export const SYSTEM_ALERT_SILENCES_KEY = 'systemAlertSilences'
 export const SYSTEM_ALERTS_KEY = 'systemAlerts'
 export const SYSTEM_ALERT_HISTORY_KEY = 'systemAlertHistory'
-export const ALERTS_REFETCH_INTERVAL_SECONDS = 10
-
 export const SEVERITY_FILTER_OPTIONS: FilterOption[] = [
   { id: 'critical', label: 'Critical' },
   { id: 'warning', label: 'Warning' },
@@ -59,6 +58,16 @@ export interface AlertingConfigLayer {
   email_recipients: EmailRecipient[]
   webhook_recipients: WebhookRecipient[]
   telegram_recipients: TelegramRecipient[]
+}
+
+export interface AlertsResponse {
+  code: number
+  message: string
+  data: {
+    alerts: Alert[]
+    pagination?: Pagination
+    warnings?: string[]
+  }
 }
 
 export type AlertStatusEnum = 'active' | 'suppressed'
@@ -182,16 +191,6 @@ interface AlertsConfigResponse {
   data: AlertingConfigLayer & {
     updated_by_name?: string | null
     updated_at?: string | null
-  }
-}
-
-interface AlertsResponse {
-  code: number
-  message: string
-  data: {
-    alerts: Alert[]
-    pagination?: Pagination
-    warnings?: string[]
   }
 }
 
@@ -427,45 +426,6 @@ export const getSystemAlertHistory = (
     .then((res) => res.data.data)
 }
 
-// Get active alerts for a specific system via the dedicated endpoint
-export const getSystemActiveAlerts = (
-  systemId: string,
-  page: number = 1,
-  pageSize: number = 50,
-  sortBy: 'starts_at' | 'severity' | 'alertname' | 'status' = 'starts_at',
-  sortDirection: 'asc' | 'desc' = 'desc',
-  statusFilters?: string | string[],
-  severityFilters?: string | string[],
-  alertnameFilters?: string | string[],
-) => {
-  const loginStore = useLoginStore()
-  const params = new URLSearchParams()
-
-  params.append('page', page.toString())
-  params.append('page_size', Math.min(pageSize, 100).toString())
-  params.append('sort_by', sortBy)
-  params.append('sort_direction', sortDirection)
-
-  if (statusFilters) {
-    const statuses = Array.isArray(statusFilters) ? statusFilters : [statusFilters]
-    statuses.forEach((status) => params.append('status', status))
-  }
-  if (severityFilters) {
-    const severities = Array.isArray(severityFilters) ? severityFilters : [severityFilters]
-    severities.forEach((severity) => params.append('severity', severity))
-  }
-  if (alertnameFilters) {
-    const names = Array.isArray(alertnameFilters) ? alertnameFilters : [alertnameFilters]
-    names.forEach((name) => params.append('alertname', name))
-  }
-
-  return axios
-    .get<AlertsResponse>(`${API_URL}/systems/${systemId}/alerts?${params}`, {
-      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-    })
-    .then((res) => res.data.data)
-}
-
 export const createSystemAlertSilence = (
   systemId: string,
   fingerprint: string,
@@ -494,17 +454,6 @@ export const createSystemAlertSilence = (
       },
     )
     .then((res) => res.data.data)
-}
-
-export const deleteSystemAlertSilence = (systemId: string, silenceId: string) => {
-  const loginStore = useLoginStore()
-
-  return axios.delete(
-    `${API_URL}/systems/${systemId}/alerts/silences/${encodeURIComponent(silenceId)}`,
-    {
-      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-    },
-  )
 }
 
 type AlertAnnotationKey = 'summary' | 'description'
@@ -549,6 +498,56 @@ export const getAlertDescription = (alert: AlertWithAnnotations, locale: string)
 
 export const getAlertSilenceIds = (alert: Alert) => {
   return Array.from(new Set((alert.status?.silencedBy || []).filter((silenceId) => !!silenceId)))
+}
+
+// Get active alerts for a specific system via the dedicated endpoint
+export const getSystemActiveAlerts = (
+  systemId: string,
+  page: number = 1,
+  pageSize: number = 50,
+  sortBy: 'starts_at' | 'severity' | 'alertname' | 'status' = 'starts_at',
+  sortDirection: 'asc' | 'desc' = 'desc',
+  statusFilters?: string | string[],
+  severityFilters?: string | string[],
+  alertnameFilters?: string | string[],
+) => {
+  const loginStore = useLoginStore()
+  const params = new URLSearchParams()
+
+  params.append('page', page.toString())
+  params.append('page_size', Math.min(pageSize, 100).toString())
+  params.append('sort_by', sortBy)
+  params.append('sort_direction', sortDirection)
+
+  if (statusFilters) {
+    const statuses = Array.isArray(statusFilters) ? statusFilters : [statusFilters]
+    statuses.forEach((status) => params.append('status', status))
+  }
+  if (severityFilters) {
+    const severities = Array.isArray(severityFilters) ? severityFilters : [severityFilters]
+    severities.forEach((severity) => params.append('severity', severity))
+  }
+  if (alertnameFilters) {
+    const names = Array.isArray(alertnameFilters) ? alertnameFilters : [alertnameFilters]
+    names.forEach((name) => params.append('alertname', name))
+  }
+
+  return axios
+    .get<AlertsResponse>(`${API_URL}/systems/${systemId}/alerts?${params}`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data)
+}
+
+export const deleteSystemAlertSilence = (systemId: string, silenceId: string) => {
+  const loginStore = useLoginStore()
+
+  return axios.delete(
+    `${API_URL}/systems/${systemId}/alerts/silences/${encodeURIComponent(silenceId)}`,
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
 }
 
 export const isAlertSilenced = (alert: Alert) => {

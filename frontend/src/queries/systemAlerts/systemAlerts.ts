@@ -2,17 +2,13 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import { ALERTS_REFETCH_INTERVAL_SECONDS, type AlertStatusEnum } from '@/lib/alerts'
-import {
-  getSystemActiveAlerts,
-  SYSTEM_ALERTS_KEY,
-  SYSTEM_ALERTS_TABLE_ID,
-} from '@/lib/systemAlerts'
 import { syncWithBackend } from '@/lib/alertPendingStates'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { getSystemActiveAlerts, SYSTEM_ALERTS_KEY, SYSTEM_ALERTS_TABLE_ID } from '@/lib/alerts'
 
 export const useSystemAlerts = defineQuery(() => {
   const loginStore = useLoginStore()

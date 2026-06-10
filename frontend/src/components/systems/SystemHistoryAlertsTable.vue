@@ -33,14 +33,14 @@ import {
   type Alert,
   type AlertHistoryRecord,
   SYSTEM_ALERT_HISTORY_TABLE_ID,
-} from '@/lib/systemAlerts'
+  SEVERITY_FILTER_OPTIONS,
+} from '@/lib/alerts'
 import { useSystemAlertHistory } from '@/queries/systemAlerts/systemAlertHistory'
 import { useAlertFilters } from '@/queries/alerts/alertFilters'
 import { type AlertFilterAlert } from '@/lib/alertFilters'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { formatDateTime } from '@/lib/dateTime'
 import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
-import { SEVERITY_FILTER_OPTIONS } from '@/lib/alerts'
 
 const { t, locale } = useI18n()
 
