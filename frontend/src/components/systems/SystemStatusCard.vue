@@ -35,7 +35,7 @@ const { state: latestInventory } = useLatestInventory()
 const { state: activeAlerts } = useSystemActiveAlerts()
 const { state: systemBackups } = useSystemBackups()
 
-const activeAlertsCount = computed(() => activeAlerts.value.data?.length ?? 0)
+const activeAlertsCount = computed(() => activeAlerts.value?.data?.alerts?.length ?? 0)
 const backupsCount = computed(() => systemBackups.value.data?.backups?.length ?? 0)
 const hasActiveAlerts = computed(() => activeAlertsCount.value > 0)
 const hasBackups = computed(() => backupsCount.value > 0)
@@ -193,7 +193,7 @@ const timezone = computed(() => {
       <!-- alerts indicator -->
       <DataItem>
         <template #label>
-          {{ $t('alerting.title') }}
+          {{ $t('alerts.title') }}
         </template>
         <template #data>
           <div class="flex items-center gap-2">

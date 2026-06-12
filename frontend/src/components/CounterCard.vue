@@ -8,6 +8,7 @@ import { NeCard, NeHeading, NeSkeleton } from '@nethesis/vue-components'
 import { type IconDefinition } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { computed, useSlots } from 'vue'
+import { RouterLink, type RouteRecordNameGeneric } from 'vue-router'
 
 const {
   title,
@@ -18,6 +19,8 @@ const {
   uppercaseTitle = true,
   centeredCounter = true,
   colorClasses = undefined,
+  isEstimated = false,
+  titleRouteName = undefined,
 } = defineProps<{
   title: string
   counter: number
@@ -27,6 +30,8 @@ const {
   uppercaseTitle?: boolean
   centeredCounter?: boolean
   colorClasses?: string
+  isEstimated?: boolean
+  titleRouteName?: RouteRecordNameGeneric
 }>()
 
 const slots = useSlots()
@@ -36,19 +41,30 @@ const hasDefaultSlot = computed(() => !!slots.default)
 
 <template>
   <NeCard>
+    <template #title>
+      <div class="flex items-center gap-3">
+        <FontAwesomeIcon
+          v-if="icon"
+          :icon="icon"
+          class="text-tertiary-neutral dark:text-tertiary-neutral size-5"
+        />
+        <RouterLink
+          v-if="titleRouteName"
+          :to="{ name: titleRouteName }"
+          class="text-tertiary-neutral dark:text-tertiary-neutral cursor-pointer hover:underline"
+        >
+          <NeHeading tag="h6" class="text-inherit">
+            {{ uppercaseTitle ? title.toUpperCase() : title }}
+          </NeHeading>
+        </RouterLink>
+        <NeHeading v-else tag="h6" class="text-tertiary-neutral dark:text-tertiary-neutral">
+          {{ uppercaseTitle ? title.toUpperCase() : title }}
+        </NeHeading>
+      </div>
+    </template>
     <NeSkeleton v-if="loading" :lines="skeletonLines" class="w-full" />
     <template v-else>
       <div :class="['flex', centeredCounter ? 'flex-col gap-4' : 'justify-between']">
-        <div class="flex items-center gap-3">
-          <FontAwesomeIcon
-            v-if="icon"
-            :icon="icon"
-            class="text-tertiary-neutral dark:text-tertiary-neutral size-5"
-          />
-          <NeHeading tag="h6" class="text-tertiary-neutral dark:text-tertiary-neutral">
-            {{ uppercaseTitle ? title.toUpperCase() : title }}
-          </NeHeading>
-        </div>
         <span
           :class="[
             'self-center text-4xl font-medium',
@@ -56,7 +72,7 @@ const hasDefaultSlot = computed(() => !!slots.default)
             { 'self-center': centeredCounter },
           ]"
         >
-          {{ counter }}
+          {{ isEstimated ? '~' : '' }}{{ counter }}
         </span>
       </div>
       <div v-if="hasDefaultSlot" class="mt-5">

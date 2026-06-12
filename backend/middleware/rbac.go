@@ -256,9 +256,36 @@ func hasStringInList(list []string, target string) bool {
 // - GET requests require "read:resource" permission
 // - POST, PUT, PATCH, DELETE requests require "manage:resource" permission
 func RequireResourcePermission(resource string) gin.HandlerFunc {
+	return requireResourcePermission(resource, false)
+}
+
+// RequireResourcePermissionOrSelf behaves like RequireResourcePermission, but additionally
+// allows GET requests when the ":id" route parameter matches the user's own organization ID.
+// Org roles only carry permissions for downstream levels of the hierarchy (e.g. Reseller has
+// read:customers but not read:resellers), so without this bypass users could never read their
+// own organization. Handlers still enforce object-level RBAC after this middleware.
+func RequireResourcePermissionOrSelf(resource string) gin.HandlerFunc {
+	return requireResourcePermission(resource, true)
+}
+
+func requireResourcePermission(resource string, allowSelf bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, ok := helpers.GetUserFromContext(c)
 		if !ok {
+			return
+		}
+
+		// Self-access: a user can always read their own organization
+		if allowSelf && c.Request.Method == "GET" && c.Param("id") != "" && c.Param("id") == user.OrganizationID {
+			logger.RequestLogger(c, "rbac").Info().
+				Str("operation", "resource_self_access_granted").
+				Str("resource", resource).
+				Str("user_id", user.ID).
+				Str("username", user.Username).
+				Str("organization_id", user.OrganizationID).
+				Str("org_role", user.OrgRole).
+				Msg("Resource self-access granted")
+			c.Next()
 			return
 		}
 

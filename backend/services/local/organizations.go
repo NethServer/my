@@ -1805,126 +1805,160 @@ func (s *LocalOrganizationService) DestroyCustomer(id, destroyedByUserID, destro
 // AGGREGATED ORGANIZATION OPERATIONS
 // ============================================
 
-// GetAllOrganizationsPaginated returns all organizations (distributors + resellers + customers) with pagination
-// This replaces the Logto API call with local database for better performance
+// GetAllOrganizationsPaginated returns all organizations (distributors + resellers
+// + customers) with true SQL-level pagination across the caller's hierarchy.
+//
+// RBAC: Owner sees every active organization. Non-owner sees own org + descendants
+// (the allowed set is computed by GetAllowedOrganizationIDs, cached). Filters,
+// search, sort and LIMIT/OFFSET are pushed to the database in a single UNION ALL
+// + COUNT pair, so total_count is accurate even past the first page.
 func (s *LocalOrganizationService) GetAllOrganizationsPaginated(userOrgRole, userOrgID string, page, pageSize int, filters models.OrganizationFilters) (*models.PaginatedOrganizations, error) {
-	var allOrganizations []models.LogtoOrganization
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
 
-	// For aggregated results, we need to get more data to apply filters and pagination correctly
-	// We'll get a reasonable amount and then paginate after filtering
-	fetchSize := pageSize * 10 // Get more data to account for filtering
+	// Resolve RBAC scope. Owner = no scope filter; others get the cached
+	// hierarchy (own org + descendants) from the applications service.
+	var scopeClause string
+	var scopeArgs []interface{}
+	nextIdx := 1
 
-	// Add own organization first (if user is distributor/reseller/customer)
-	if userOrgRole != "owner" && userOrgID != "" {
-		ownOrg, err := s.getUserOwnOrganization(userOrgRole, userOrgID)
-		if err == nil && ownOrg != nil {
-			allOrganizations = append(allOrganizations, *ownOrg)
+	if strings.ToLower(userOrgRole) != "owner" {
+		appsService := NewApplicationsService()
+		allowedIDs, err := appsService.GetAllowedOrganizationIDs(userOrgRole, userOrgID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve allowed organizations: %w", err)
 		}
-	}
-
-	// Fetch distributors
-	distributors, _, err := s.distributorRepo.List(userOrgRole, userOrgID, 1, fetchSize, "", "", "", nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get distributors: %w", err)
-	}
-	for _, d := range distributors {
-		logtoID := ""
-		if d.LogtoID != nil {
-			logtoID = *d.LogtoID
+		if len(allowedIDs) == 0 {
+			return emptyPaginatedOrganizations(page, pageSize), nil
 		}
-
-		allOrganizations = append(allOrganizations, models.LogtoOrganization{
-			ID:          logtoID,
-			Name:        d.Name,
-			Description: d.Description,
-			CustomData: map[string]interface{}{
-				"type":        "distributor",
-				"database_id": d.ID,
-			},
-		})
+		placeholders := make([]string, len(allowedIDs))
+		for i, id := range allowedIDs {
+			placeholders[i] = fmt.Sprintf("$%d", nextIdx)
+			scopeArgs = append(scopeArgs, id)
+			nextIdx++
+		}
+		scopeClause = fmt.Sprintf(" AND logto_id IN (%s)", strings.Join(placeholders, ","))
 	}
 
-	// Fetch resellers
-	resellers, _, err := s.resellerRepo.List(userOrgRole, userOrgID, 1, fetchSize, "", "", "", nil)
+	// Build filter clauses applied on top of the UNION.
+	var filterClauses []string
+	var filterArgs []interface{}
+
+	if filters.Type != "" {
+		filterClauses = append(filterClauses, fmt.Sprintf("type = $%d", nextIdx))
+		filterArgs = append(filterArgs, filters.Type)
+		nextIdx++
+	}
+	if filters.Name != "" {
+		filterClauses = append(filterClauses, fmt.Sprintf("name = $%d", nextIdx))
+		filterArgs = append(filterArgs, filters.Name)
+		nextIdx++
+	}
+	if filters.Description != "" {
+		filterClauses = append(filterClauses, fmt.Sprintf("description = $%d", nextIdx))
+		filterArgs = append(filterArgs, filters.Description)
+		nextIdx++
+	}
+	if filters.Search != "" {
+		filterClauses = append(filterClauses, fmt.Sprintf("(LOWER(name) LIKE LOWER('%%' || $%d || '%%') OR LOWER(description) LIKE LOWER('%%' || $%d || '%%'))", nextIdx, nextIdx))
+		filterArgs = append(filterArgs, filters.Search)
+		nextIdx++
+	}
+	if filters.CreatedBy != "" {
+		// Matches the old in-memory behavior: createdBy hits either distributorId
+		// or resellerId in custom_data.
+		filterClauses = append(filterClauses, fmt.Sprintf("(custom_data->>'distributorId' = $%d OR custom_data->>'resellerId' = $%d)", nextIdx, nextIdx))
+		filterArgs = append(filterArgs, filters.CreatedBy)
+		nextIdx++
+	}
+
+	filterClause := ""
+	if len(filterClauses) > 0 {
+		filterClause = " WHERE " + strings.Join(filterClauses, " AND ")
+	}
+
+	// UNION the three org tables, applying the RBAC scope per branch so the
+	// planner can use the logto_id index instead of materialising every row.
+	unionSQL := fmt.Sprintf(`
+		SELECT id, logto_id, name, description, custom_data, 'distributor' AS type
+		FROM distributors WHERE deleted_at IS NULL AND logto_id IS NOT NULL%s
+		UNION ALL
+		SELECT id, logto_id, name, description, custom_data, 'reseller' AS type
+		FROM resellers WHERE deleted_at IS NULL AND logto_id IS NOT NULL%s
+		UNION ALL
+		SELECT id, logto_id, name, description, custom_data, 'customer' AS type
+		FROM customers WHERE deleted_at IS NULL AND logto_id IS NOT NULL%s
+	`, scopeClause, scopeClause, scopeClause)
+
+	// Placeholders for scope are inserted into all three UNION branches via the
+	// same %s, so they share positional args ($1..$N). Bind scope once + filters.
+	queryArgs := make([]interface{}, 0, len(scopeArgs)+len(filterArgs)+2)
+	queryArgs = append(queryArgs, scopeArgs...)
+	queryArgs = append(queryArgs, filterArgs...)
+
+	// True total — counts rows after scope + filters, before paging.
+	countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM (%s) AS all_orgs%s`, unionSQL, filterClause)
+	var totalCount int
+	if err := database.DB.QueryRow(countQuery, queryArgs...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("failed to count organizations: %w", err)
+	}
+
+	offset := (page - 1) * pageSize
+	dataQuery := fmt.Sprintf(`SELECT id, logto_id, name, description, custom_data, type FROM (%s) AS all_orgs%s ORDER BY name ASC LIMIT $%d OFFSET $%d`, unionSQL, filterClause, nextIdx, nextIdx+1)
+	dataArgs := append(queryArgs, pageSize, offset)
+
+	rows, err := database.DB.Query(dataQuery, dataArgs...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get resellers: %w", err)
+		return nil, fmt.Errorf("failed to query organizations: %w", err)
 	}
-	for _, r := range resellers {
-		logtoID := ""
-		if r.LogtoID != nil {
-			logtoID = *r.LogtoID
+	defer func() { _ = rows.Close() }()
+
+	orgs := make([]models.LogtoOrganization, 0, pageSize)
+	for rows.Next() {
+		var (
+			dbID, logtoID, name, orgType string
+			description                  string
+			customDataJSON               []byte
+		)
+		if err := rows.Scan(&dbID, &logtoID, &name, &description, &customDataJSON, &orgType); err != nil {
+			return nil, fmt.Errorf("failed to scan organization: %w", err)
 		}
 
 		customData := map[string]interface{}{
-			"type":        "reseller",
-			"database_id": r.ID,
+			"type":        orgType,
+			"database_id": dbID,
 		}
-		// Preserve other custom data fields
-		if r.CustomData != nil {
-			for k, v := range r.CustomData {
-				if k != "type" && k != "database_id" {
+		if len(customDataJSON) > 0 {
+			var existing map[string]interface{}
+			if err := json.Unmarshal(customDataJSON, &existing); err == nil {
+				for k, v := range existing {
+					if k == "type" || k == "database_id" {
+						continue
+					}
 					customData[k] = v
 				}
 			}
 		}
-		allOrganizations = append(allOrganizations, models.LogtoOrganization{
+
+		orgs = append(orgs, models.LogtoOrganization{
 			ID:          logtoID,
-			Name:        r.Name,
-			Description: r.Description,
+			Name:        name,
+			Description: description,
 			CustomData:  customData,
 		})
 	}
-
-	// Fetch customers
-	customers, _, err := s.customerRepo.List(userOrgRole, userOrgID, 1, fetchSize, "", "", "", nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get customers: %w", err)
-	}
-	for _, c := range customers {
-		logtoID := ""
-		if c.LogtoID != nil {
-			logtoID = *c.LogtoID
-		}
-
-		customData := map[string]interface{}{
-			"type":        "customer",
-			"database_id": c.ID,
-		}
-		// Preserve other custom data fields
-		if c.CustomData != nil {
-			for k, v := range c.CustomData {
-				if k != "type" && k != "database_id" {
-					customData[k] = v
-				}
-			}
-		}
-
-		allOrganizations = append(allOrganizations, models.LogtoOrganization{
-			ID:          logtoID,
-			Name:        c.Name,
-			Description: c.Description,
-			CustomData:  customData,
-		})
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate organizations: %w", err)
 	}
 
-	// Apply client-side filters
-	filteredOrgs := s.applyLocalFilters(allOrganizations, filters)
-
-	// Apply pagination
-	totalCount := len(filteredOrgs)
-	startIndex := (page - 1) * pageSize
-	endIndex := startIndex + pageSize
-
-	if startIndex >= totalCount {
-		filteredOrgs = []models.LogtoOrganization{}
-	} else if endIndex > totalCount {
-		filteredOrgs = filteredOrgs[startIndex:]
-	} else {
-		filteredOrgs = filteredOrgs[startIndex:endIndex]
+	totalPages := 0
+	if totalCount > 0 {
+		totalPages = (totalCount + pageSize - 1) / pageSize
 	}
-
-	totalPages := (totalCount + pageSize - 1) / pageSize
-
 	paginationInfo := models.PaginationInfo{
 		Page:       page,
 		PageSize:   pageSize,
@@ -1933,81 +1967,34 @@ func (s *LocalOrganizationService) GetAllOrganizationsPaginated(userOrgRole, use
 		HasNext:    page < totalPages,
 		HasPrev:    page > 1,
 	}
-
 	if paginationInfo.HasNext {
 		nextPage := page + 1
 		paginationInfo.NextPage = &nextPage
 	}
-
 	if paginationInfo.HasPrev {
 		prevPage := page - 1
 		paginationInfo.PrevPage = &prevPage
 	}
 
 	return &models.PaginatedOrganizations{
-		Data:       filteredOrgs,
+		Data:       orgs,
 		Pagination: paginationInfo,
 	}, nil
 }
 
-// applyLocalFilters applies filters to local organization data
-func (s *LocalOrganizationService) applyLocalFilters(orgs []models.LogtoOrganization, filters models.OrganizationFilters) []models.LogtoOrganization {
-	if filters.Search == "" && filters.Name == "" && filters.Description == "" && filters.Type == "" && filters.CreatedBy == "" {
-		return orgs
+// emptyPaginatedOrganizations returns a zero-result paginated response.
+func emptyPaginatedOrganizations(page, pageSize int) *models.PaginatedOrganizations {
+	return &models.PaginatedOrganizations{
+		Data: []models.LogtoOrganization{},
+		Pagination: models.PaginationInfo{
+			Page:       page,
+			PageSize:   pageSize,
+			TotalCount: 0,
+			TotalPages: 0,
+			HasNext:    false,
+			HasPrev:    page > 1,
+		},
 	}
-
-	var filtered []models.LogtoOrganization
-	for _, org := range orgs {
-		// Search filter (matches name or description)
-		if filters.Search != "" {
-			searchLower := strings.ToLower(filters.Search)
-			if !strings.Contains(strings.ToLower(org.Name), searchLower) &&
-				!strings.Contains(strings.ToLower(org.Description), searchLower) {
-				continue
-			}
-		}
-
-		// Name filter (exact match)
-		if filters.Name != "" && org.Name != filters.Name {
-			continue
-		}
-
-		// Description filter (exact match)
-		if filters.Description != "" && org.Description != filters.Description {
-			continue
-		}
-
-		// Type filter
-		if filters.Type != "" {
-			if org.CustomData == nil {
-				continue
-			}
-			if orgType, ok := org.CustomData["type"].(string); !ok || orgType != filters.Type {
-				continue
-			}
-		}
-
-		// CreatedBy filter
-		if filters.CreatedBy != "" {
-			if org.CustomData == nil {
-				continue
-			}
-			matched := false
-			if distributorId, ok := org.CustomData["distributorId"].(string); ok && distributorId == filters.CreatedBy {
-				matched = true
-			}
-			if resellerId, ok := org.CustomData["resellerId"].(string); ok && resellerId == filters.CreatedBy {
-				matched = true
-			}
-			if !matched {
-				continue
-			}
-		}
-
-		filtered = append(filtered, org)
-	}
-
-	return filtered
 }
 
 // configureOrganizationJitRoles configures JIT roles for an organization based on its type
@@ -2045,126 +2032,6 @@ func (s *LocalOrganizationService) configureOrganizationJitRoles(logtoOrgID, org
 		Msg("Successfully configured JIT roles for organization")
 
 	return nil
-}
-
-// getUserOwnOrganization returns the user's own organization based on their role and org ID
-func (s *LocalOrganizationService) getUserOwnOrganization(userOrgRole, userOrgID string) (*models.LogtoOrganization, error) {
-	switch userOrgRole {
-	case "distributor":
-		// Search for distributor by logto_id (since userOrgID is the logto_id from JWT)
-		var distributor *models.LocalDistributor
-		query := `SELECT id, logto_id, name, description, custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
-		          FROM distributors WHERE logto_id = $1 AND deleted_at IS NULL LIMIT 1`
-		row := database.DB.QueryRow(query, userOrgID)
-
-		distributor = &models.LocalDistributor{}
-		var customDataJSON []byte
-		err := row.Scan(&distributor.ID, &distributor.LogtoID, &distributor.Name, &distributor.Description,
-			&customDataJSON, &distributor.CreatedAt, &distributor.UpdatedAt,
-			&distributor.LogtoSyncedAt, &distributor.LogtoSyncError, &distributor.DeletedAt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get distributor organization: %w", err)
-		}
-
-		return &models.LogtoOrganization{
-			ID:          userOrgID,
-			Name:        distributor.Name,
-			Description: distributor.Description,
-			CustomData: map[string]interface{}{
-				"type":        "distributor",
-				"database_id": distributor.ID,
-			},
-		}, nil
-
-	case "reseller":
-		// Search for reseller by logto_id (since userOrgID is the logto_id from JWT)
-		var reseller *models.LocalReseller
-		query := `SELECT id, logto_id, name, description, custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
-		          FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL LIMIT 1`
-		row := database.DB.QueryRow(query, userOrgID)
-
-		reseller = &models.LocalReseller{}
-		var customDataJSON []byte
-		err := row.Scan(&reseller.ID, &reseller.LogtoID, &reseller.Name, &reseller.Description,
-			&customDataJSON, &reseller.CreatedAt, &reseller.UpdatedAt,
-			&reseller.LogtoSyncedAt, &reseller.LogtoSyncError, &reseller.DeletedAt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get reseller organization: %w", err)
-		}
-
-		// Parse custom data
-		if len(customDataJSON) > 0 {
-			if err := json.Unmarshal(customDataJSON, &reseller.CustomData); err != nil {
-				reseller.CustomData = make(map[string]interface{})
-			}
-		}
-
-		customData := map[string]interface{}{
-			"type":        "reseller",
-			"database_id": reseller.ID,
-		}
-		// Preserve other custom data fields
-		if reseller.CustomData != nil {
-			for k, v := range reseller.CustomData {
-				if k != "type" && k != "database_id" {
-					customData[k] = v
-				}
-			}
-		}
-
-		return &models.LogtoOrganization{
-			ID:          userOrgID,
-			Name:        reseller.Name,
-			Description: reseller.Description,
-			CustomData:  customData,
-		}, nil
-
-	case "customer":
-		// Search for customer by logto_id (since userOrgID is the logto_id from JWT)
-		var customer *models.LocalCustomer
-		query := `SELECT id, logto_id, name, description, custom_data, created_at, updated_at, logto_synced_at, logto_sync_error, deleted_at
-		          FROM customers WHERE logto_id = $1 AND deleted_at IS NULL LIMIT 1`
-		row := database.DB.QueryRow(query, userOrgID)
-
-		customer = &models.LocalCustomer{}
-		var customDataJSON []byte
-		err := row.Scan(&customer.ID, &customer.LogtoID, &customer.Name, &customer.Description,
-			&customDataJSON, &customer.CreatedAt, &customer.UpdatedAt,
-			&customer.LogtoSyncedAt, &customer.LogtoSyncError, &customer.DeletedAt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get customer organization: %w", err)
-		}
-
-		// Parse custom data
-		if len(customDataJSON) > 0 {
-			if err := json.Unmarshal(customDataJSON, &customer.CustomData); err != nil {
-				customer.CustomData = make(map[string]interface{})
-			}
-		}
-
-		customData := map[string]interface{}{
-			"type":        "customer",
-			"database_id": customer.ID,
-		}
-		// Preserve other custom data fields
-		if customer.CustomData != nil {
-			for k, v := range customer.CustomData {
-				if k != "type" && k != "database_id" {
-					customData[k] = v
-				}
-			}
-		}
-
-		return &models.LogtoOrganization{
-			ID:          userOrgID,
-			Name:        customer.Name,
-			Description: customer.Description,
-			CustomData:  customData,
-		}, nil
-
-	default:
-		return nil, fmt.Errorf("unsupported user organization role: %s", userOrgRole)
-	}
 }
 
 // SuspendDistributor suspends a distributor and all its users and systems

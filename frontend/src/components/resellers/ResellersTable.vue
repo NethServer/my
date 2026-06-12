@@ -5,6 +5,7 @@
 
 <script setup lang="ts">
 import { RESELLERS_TABLE_ID, type Reseller } from '@/lib/organizations/resellers'
+import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import {
   faCircleInfo,
   faCity,
@@ -71,6 +72,7 @@ const {
   sortDescending,
   areDefaultFiltersApplied,
   resetFilters,
+  resetStatusFilter,
 } = useResellers()
 
 const currentReseller = ref<Reseller | undefined>()
@@ -285,11 +287,13 @@ const goToResellerDetails = (reseller: Reseller) => {
             :label="t('common.status')"
             :options="statusFilterOptions"
             :show-clear-filter="false"
-            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            :custom-action-label="t('ne_dropdown_filter.reset_selection')"
+            @custom-action="resetStatusFilter"
           />
           <NeSortDropdown
             v-model:sort-key="sortBy"
@@ -348,7 +352,7 @@ const goToResellerDetails = (reseller: Reseller) => {
         }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('organizations.vat_number') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('customers.title') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('resellers.total_systems') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('systems.total_systems') }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
           $t('common.status')
         }}</NeTableHeadCell>
@@ -386,7 +390,7 @@ const goToResellerDetails = (reseller: Reseller) => {
               {{ item.customers_count }}
             </div>
           </NeTableCell>
-          <NeTableCell :data-label="$t('resellers.total_systems')">
+          <NeTableCell :data-label="$t('systems.total_systems')">
             <div class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
               <FontAwesomeIcon
                 :icon="faServer"
@@ -453,7 +457,7 @@ const goToResellerDetails = (reseller: Reseller) => {
           :current-page="pageNum"
           :total-rows="pagination?.total_count || 0"
           :page-size="pageSize"
-          :page-sizes="[5, 10, 25, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :nav-pagination-label="$t('ne_table.pagination')"
           :next-label="$t('ne_table.go_to_next_page')"
           :previous-label="$t('ne_table.go_to_previous_page')"

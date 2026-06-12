@@ -499,6 +499,45 @@ func (c *Client) ListUsersInOrg(orgID string) ([]struct{ LogtoID, Email string }
 	return out, nil
 }
 
+// RegisterSystem completes the public registration handshake for a system that
+// already has credentials issued by CreateSystem. It mirrors what an appliance
+// would do on first contact: POST /api/systems/register with the secret token.
+// Returns the canonical system_key as stamped by the backend. The endpoint is
+// public (no Bearer auth) so we use a fresh HTTP request rather than c.api.
+func (c *Client) RegisterSystem(secret string) (string, error) {
+	payload, err := json.Marshal(map[string]string{"system_secret": secret})
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequest("POST", c.cfg.BackendURL+"/systems/register", bytes.NewReader(payload))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("register system failed (%d): %s", resp.StatusCode, body)
+	}
+	var r struct {
+		Data struct {
+			SystemKey string `json:"system_key"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &r); err != nil {
+		return "", err
+	}
+	if r.Data.SystemKey == "" {
+		return "", fmt.Errorf("no system_key in response: %s", body)
+	}
+	return r.Data.SystemKey, nil
+}
+
 // CreateSystem creates a system under an org. Returns the system_key and the
 // full system_secret token (my_<public>.<secret>), the latter only ever
 // returned by the API at creation time.

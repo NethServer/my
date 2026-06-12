@@ -13,6 +13,7 @@ import router from './router'
 import i18n from './i18n'
 import { LOGTO_APP_ID, LOGTO_ENDPOINT } from './lib/config'
 import { PiniaColada } from '@pinia/colada'
+import { PiniaColadaAutoRefetch } from '@pinia/colada-plugin-auto-refetch'
 
 // prevent FontAwesome from automatically adding CSS (needed to fix icons style)
 fontawesomeConfig.autoAddCss = false
@@ -27,7 +28,9 @@ const logtoConfig: LogtoConfig = {
 const app = createApp(App)
 
 app.use(createPinia())
-app.use(PiniaColada, {})
+app.use(PiniaColada, {
+  plugins: [PiniaColadaAutoRefetch({})],
+})
 app.use(i18n)
 app.use(router)
 app.use(createLogto, logtoConfig)

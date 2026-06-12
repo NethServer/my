@@ -6,6 +6,20 @@ This directory contains database migration scripts for the My Nethesis backend.
 
 Migrations are versioned SQL scripts that allow you to evolve your database schema over time while keeping track of changes. Each migration has a forward migration (apply) and a rollback migration (undo).
 
+## ⚠️ Hard rule: every migration MUST be reflected in `schema.sql`
+
+`backend/database/schema.sql` is the cumulative head state of the database. The backend applies it on boot when it detects an empty database (`database.Init`), so a fresh dev environment starts at "head" without running any migration.
+
+To keep that boot path correct, **whenever you add a migration here you also fold its effect into `schema.sql` in the same PR** (the CREATE TABLE / ALTER / CREATE INDEX / COMMENT statements). The migration file remains the source of truth for the delta; `schema.sql` is the source of truth for "what the DB looks like right now".
+
+### Why this matters
+
+The migration runner is idempotent against schema.sql via a baseline step: if it sees a populated DB with an empty `schema_migrations` table, it marks every on-disk migration as applied without running it (otherwise non-idempotent statements like `CREATE OR REPLACE VIEW` on a `MATERIALIZED VIEW` would fail — exactly what 010 does on top of 012).
+
+**The trade-off:** if you add a migration on disk but forget to fold it into `schema.sql`, a fresh-init flow (`make dev-up` → `make run` → `make db-migrate`) will silently mark your migration as applied without ever creating the object. The bug only surfaces at runtime when something queries the missing table.
+
+Always update both in the same PR. The check is on you — the runner cannot tell the difference between "schema.sql has it" and "schema.sql is stale".
+
 ## Available Migrations
 
 No migrations are currently defined. When migrations are added, they will be documented here.

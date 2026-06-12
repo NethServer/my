@@ -19,10 +19,11 @@ const { state: applicationsTotal } = useApplicationsTotal()
 
 <template>
   <CounterCard
-    :title="$t('applications.title')"
+    :title="$t('applications.total_applications')"
     :counter="applicationsTotal.data?.total ?? 0"
     :icon="faGridOne"
     :loading="applicationsTotal.status === 'pending'"
+    title-route-name="applications"
   >
     <div v-if="applicationsTotal.data?.total ?? 0 > 0" class="flex justify-center">
       <NeBadgeV2 kind="blue">

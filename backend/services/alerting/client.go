@@ -23,7 +23,25 @@ import (
 	"github.com/nethesis/my/backend/models"
 )
 
-var httpClient = &http.Client{Timeout: 30 * time.Second}
+// httpClient is shared across all Mimir calls. The transport is tuned for
+// fan-out workloads (e.g. /alerts/totals over many tenants): Go's
+// DefaultTransport keeps only MaxIdleConnsPerHost=2 idle connections, which
+// forces a fresh TCP+TLS handshake for most concurrent calls when N goroutines
+// hit the same Mimir host. We raise the per-host pool so the fan-out reuses
+// keep-alive connections.
+var httpClient = &http.Client{
+	Timeout: 30 * time.Second,
+	Transport: &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		MaxIdleConns:          200,
+		MaxIdleConnsPerHost:   100,
+		MaxConnsPerHost:       100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		ForceAttemptHTTP2:     true,
+	},
+}
 var ErrSilenceNotFound = errors.New("silence not found")
 
 // maxMimirResponseSize caps how much data we read from Mimir responses.
@@ -127,13 +145,14 @@ func GetAlerts(orgID string) ([]byte, error) {
 // GetAlertsCtx is the context-aware variant of GetAlerts. Use this when callers
 // need to enforce a deadline (e.g., fan-out over many tenants for /totals).
 //
-// We explicitly request silenced and inhibited alerts in addition to the
-// default active set. Alertmanager's default response excludes silenced
+// We explicitly request silenced, inhibited and unprocessed alerts in addition
+// to the default active set. Alertmanager's default response excludes silenced
 // alerts entirely, which would make our `muted` counter on /alerts/totals
 // always zero and hide muted rows from the list. Including them lets the UI
-// surface the "Muted" badge alongside live ones.
+// surface the "Muted" badge alongside live ones. Requesting unprocessed too
+// keeps the `?status=unprocessed` filter meaningful end-to-end.
 func GetAlertsCtx(ctx context.Context, orgID string) ([]byte, error) {
-	url := configuration.Config.MimirURL + "/alertmanager/api/v2/alerts?active=true&silenced=true&inhibited=true"
+	url := configuration.Config.MimirURL + "/alertmanager/api/v2/alerts?active=true&silenced=true&inhibited=true&unprocessed=true"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

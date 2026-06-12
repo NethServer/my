@@ -115,7 +115,9 @@ db-up:
 	@echo "Starting shared PostgreSQL container with $(CONTAINER_NAME)..."
 	@if $(CONTAINER_CMD) ps --format "{{.Names}}" | grep -q "^my-postgres$$"; then \
 		echo "PostgreSQL container already running"; \
-		echo "DATABASE_URL=postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable"; \
+	elif $(CONTAINER_CMD) ps -a --format "{{.Names}}" | grep -q "^my-postgres$$"; then \
+		echo "PostgreSQL container exists but is stopped, starting it..."; \
+		$(CONTAINER_CMD) start my-postgres; \
 	else \
 		$(CONTAINER_CMD) run -d --name my-postgres \
 			-e POSTGRES_DB=noc \
@@ -123,8 +125,8 @@ db-up:
 			-e POSTGRES_PASSWORD=noc_password \
 			-p 5432:5432 \
 			postgres:15-alpine; \
-		echo "DATABASE_URL=postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable"; \
 	fi
+	@echo "DATABASE_URL=postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable"
 
 .PHONY: db-down
 db-down:
@@ -143,11 +145,13 @@ redis-up:
 	@echo "Starting shared Redis container with $(CONTAINER_NAME)..."
 	@if $(CONTAINER_CMD) ps --format "{{.Names}}" | grep -q "^my-redis$$"; then \
 		echo "Redis container already running"; \
-		echo "REDIS_URL=redis://localhost:6379"; \
+	elif $(CONTAINER_CMD) ps -a --format "{{.Names}}" | grep -q "^my-redis$$"; then \
+		echo "Redis container exists but is stopped, starting it..."; \
+		$(CONTAINER_CMD) start my-redis; \
 	else \
 		$(CONTAINER_CMD) run -d --name my-redis -p 6379:6379 redis:7-alpine redis-server --save 60 1 --loglevel warning; \
-		echo "REDIS_URL=redis://localhost:6379"; \
 	fi
+	@echo "REDIS_URL=redis://localhost:6379"
 
 .PHONY: redis-down
 redis-down:
@@ -225,13 +229,7 @@ db-migrate:
 	set -a && source .env && set +a && \
 	cd database/migrations && \
 	for migration in $$(ls *.sql | grep -E '^[0-9]+_.*\.sql$$' | sed 's/_.*\.sql$$//' | sort -u); do \
-		echo "Checking migration $$migration..."; \
-		if ./run_migration.sh $$migration status >/dev/null 2>&1; then \
-			echo "Migration $$migration already applied, skipping"; \
-		else \
-			echo "Applying migration $$migration..."; \
-			./run_migration.sh $$migration apply; \
-		fi; \
+		./run_migration.sh $$migration apply || exit $$?; \
 	done; \
 	echo "All migrations completed!"
 
@@ -246,15 +244,30 @@ db-migrate-qa:
 	set -a && source .env.qa && set +a && \
 	cd database/migrations && \
 	for migration in $$(ls *.sql | grep -E '^[0-9]+_.*\.sql$$' | sed 's/_.*\.sql$$//' | sort -u); do \
-		echo "Checking migration $$migration..."; \
-		if ./run_migration.sh $$migration status >/dev/null 2>&1; then \
-			echo "Migration $$migration already applied, skipping"; \
-		else \
-			echo "Applying migration $$migration..."; \
-			./run_migration.sh $$migration apply; \
-		fi; \
+		./run_migration.sh $$migration apply || exit $$?; \
 	done; \
 	echo "All migrations completed!"
+
+# Repair schema_migrations when rows are missing but the schema is already
+# applied (see "schema_migrations is inconsistent" gap-check error).
+# Usage: make db-repair MIGRATIONS="010 012 013"
+#        make db-repair MIGRATIONS="010 012" ENV=qa
+.PHONY: db-repair
+db-repair:
+	@if [ -z "$(MIGRATIONS)" ]; then \
+		echo "Usage: make db-repair MIGRATIONS=\"<num> [<num>...]\" [ENV=qa]"; \
+		echo "Example: make db-repair MIGRATIONS=\"010 012 013 016\""; \
+		exit 1; \
+	fi; \
+	ENV_FILE=.env; \
+	if [ "$(ENV)" = "qa" ]; then ENV_FILE=.env.qa; fi; \
+	if [ ! -f $$ENV_FILE ]; then \
+		echo "Error: $$ENV_FILE not found."; \
+		exit 1; \
+	fi; \
+	set -a && source $$ENV_FILE && set +a && \
+	cd database/migrations && \
+	./run_migration.sh repair $(MIGRATIONS)
 
 # Individual migration management (for advanced users)
 .PHONY: db-migration
@@ -334,6 +347,7 @@ help:
 	@echo "  db-migrate    - Run all pending database migrations (uses .env)"
 	@echo "  db-migrate-qa - Run all pending database migrations (uses .env.qa)"
 	@echo "  db-migration  - Run specific migration (MIGRATION=001 ACTION=apply [ENV=qa])"
+	@echo "  db-repair     - Mark migrations as applied (MIGRATIONS=\"010 012\" [ENV=qa])"
 	@echo ""
 	@echo "Redis commands:"
 	@echo "  redis-up      - Start Redis container"

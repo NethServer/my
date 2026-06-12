@@ -5,6 +5,7 @@
 
 <script setup lang="ts">
 import { USERS_TABLE_ID, type User } from '@/lib/users/users'
+import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import {
   faCircleInfo,
   faUserGroup,
@@ -36,7 +37,6 @@ import {
   NeSortDropdown,
   sortByProperty,
   type NeDropdownItem,
-  NeTooltip,
   NeDropdownFilter,
   type FilterOption,
 } from '@nethesis/vue-components'
@@ -55,13 +55,14 @@ import ImpersonateUserModal from './ImpersonateUserModal.vue'
 import SuspendUserModal from './SuspendUserModal.vue'
 import ReactivateUserModal from './ReactivateUserModal.vue'
 import RestoreUserModal from './RestoreUserModal.vue'
-import OrganizationIcon from '../organizations/OrganizationIcon.vue'
+import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import UserRoleBadge from './UserRoleBadge.vue'
 import { useUserFilters } from '@/queries/users/userFilters'
 import { normalize } from '@/lib/common'
-import OrganizationLink from '../applications/OrganizationLink.vue'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import UserAvatar from './UserAvatar.vue'
+import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
+import { isUserCustomer } from '@/lib/organizations/organizations.ts'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -83,6 +84,7 @@ const {
   sortBy,
   sortDescending,
   resetFilters,
+  resetStatusFilter,
 } = useUsers()
 const loginStore = useLoginStore()
 const { state: userFiltersState } = useUserFilters()
@@ -149,16 +151,6 @@ const isNoMatchEmptyStateShown = computed(() => {
 
 const noEmptyStateShown = computed(() => {
   return !isNoDataEmptyStateShown.value && !isNoMatchEmptyStateShown.value
-})
-
-const organizationFilterOptions = computed(() => {
-  if (!userFiltersState.value.data?.organizations) {
-    return []
-  }
-  return userFiltersState.value.data.organizations.map((org) => ({
-    id: org.id,
-    label: org.name,
-  }))
 })
 
 const roleFilterOptions = computed(() => {
@@ -362,19 +354,7 @@ const onClosePasswordChangedModal = () => {
             class="max-w-48 sm:max-w-sm"
           />
           <!-- organization filter -->
-          <NeDropdownFilter
-            v-model="organizationFilter"
-            kind="checkbox"
-            :label="t('organizations.organization')"
-            :options="organizationFilterOptions"
-            :disabled="userFiltersState.status === 'pending'"
-            show-options-filter
-            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
-            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-            :no-options-label="t('ne_dropdown_filter.no_options')"
-            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-            :clear-search-label="t('ne_dropdown_filter.clear_search')"
-          />
+          <OrganizationDropdownFilter v-if="!isUserCustomer()" v-model="organizationFilter" />
           <!-- role filter -->
           <NeDropdownFilter
             v-model="roleFilter"
@@ -382,7 +362,7 @@ const onClosePasswordChangedModal = () => {
             :label="t('users.role')"
             :options="roleFilterOptions"
             :disabled="userFiltersState.status === 'pending'"
-            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -395,11 +375,13 @@ const onClosePasswordChangedModal = () => {
             :label="t('common.status')"
             :options="statusFilterOptions"
             :show-clear-filter="false"
-            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            :custom-action-label="t('ne_dropdown_filter.reset_selection')"
+            @custom-action="resetStatusFilter"
           />
           <!-- sort dropdown -->
           <NeSortDropdown
@@ -492,24 +474,13 @@ const onClosePasswordChangedModal = () => {
             {{ item.email }}
           </NeTableCell>
           <NeTableCell :data-label="$t('users.organization')">
-            <div class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
-              <NeTooltip
-                v-if="item.organization.type"
-                placement="top"
-                trigger-event="mouseenter focus"
-                class="shrink-0"
-              >
-                <template #trigger>
-                  <OrganizationIcon :org-type="item.organization.type" size="sm" />
-                </template>
-                <template #content>
-                  {{ t(`organizations.${item.organization.type}`) }}
-                </template>
-              </NeTooltip>
-              <OrganizationLink v-if="item.organization" :organization="item.organization" />
-              <span v-else class="font-medium">
-                {{ '-' }}
-              </span>
+            <div :class="{ 'opacity-50': item.deleted_at }">
+              <OrganizationIconAndLink
+                v-if="item.organization"
+                :organization="item.organization"
+                size="sm"
+              />
+              <span v-else>-</span>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('users.roles')">
@@ -579,7 +550,7 @@ const onClosePasswordChangedModal = () => {
           :current-page="pageNum"
           :total-rows="pagination?.total_count || 0"
           :page-size="pageSize"
-          :page-sizes="[5, 10, 25, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :nav-pagination-label="$t('ne_table.pagination')"
           :next-label="$t('ne_table.go_to_next_page')"
           :previous-label="$t('ne_table.go_to_previous_page')"

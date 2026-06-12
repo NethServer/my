@@ -21,9 +21,13 @@ import (
 	"github.com/nethesis/my/backend/services/local"
 )
 
-// GetApplicationFilters handles GET /api/filters/applications - aggregated filters endpoint
-// Returns types, versions, systems, and organizations in a single response.
-// Single RBAC resolution, parallel data fetching.
+// GetApplicationFilters handles GET /api/filters/applications - aggregated
+// filters endpoint for the applications views.
+//
+// Returns the catalog of application types and versions in the caller's scope.
+// Systems and organizations dropdowns are populated by /api/systems and
+// /api/organizations respectively, which support search + pagination and scale
+// to tenants with thousands of rows.
 func GetApplicationFilters(c *gin.Context) {
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 	if userID == "" {
@@ -35,7 +39,6 @@ func GetApplicationFilters(c *gin.Context) {
 
 	// Owner can access everything - pass nil to skip RBAC filtering in queries
 	var allowedSystemIDs []string
-	var allowedOrgIDs []string
 	if strings.ToLower(userOrgRole) != "owner" {
 		var err error
 		allowedSystemIDs, err = appsService.GetAllowedSystemIDs(userOrgRole, userOrgID)
@@ -44,27 +47,17 @@ func GetApplicationFilters(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve access", nil))
 			return
 		}
-
-		allowedOrgIDs, err = appsService.GetAllowedOrganizationIDs(userOrgRole, userOrgID)
-		if err != nil {
-			logger.Error().Err(err).Str("user_id", userID).Msg("Failed to get allowed orgs for filters")
-			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve access", nil))
-			return
-		}
 	}
 
-	// Run 4 queries in parallel
 	var (
 		types    []models.ApplicationType
 		versions map[string]entities.ApplicationVersionGroup
-		systems  []models.SystemSummary
-		orgs     []models.OrganizationSummary
 
-		errTypes, errVersions, errSystems, errOrgs error
-		wg                                         sync.WaitGroup
+		errTypes, errVersions error
+		wg                    sync.WaitGroup
 	)
 
-	wg.Add(4)
+	wg.Add(2)
 
 	go func() {
 		defer wg.Done()
@@ -76,20 +69,9 @@ func GetApplicationFilters(c *gin.Context) {
 		versions, errVersions = appsService.GetApplicationVersionsWithIDs(allowedSystemIDs)
 	}()
 
-	go func() {
-		defer wg.Done()
-		systems, errSystems = appsService.GetAvailableSystemsWithIDs(allowedSystemIDs)
-	}()
-
-	go func() {
-		defer wg.Done()
-		orgs, errOrgs = appsService.GetAvailableOrganizationsWithIDs(allowedOrgIDs)
-	}()
-
 	wg.Wait()
 
-	// Check for errors
-	for _, e := range []error{errTypes, errVersions, errSystems, errOrgs} {
+	for _, e := range []error{errTypes, errVersions} {
 		if e != nil {
 			logger.Error().Err(e).Str("user_id", userID).Msg("Failed in application filters")
 			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve application filters", nil))
@@ -97,7 +79,6 @@ func GetApplicationFilters(c *gin.Context) {
 		}
 	}
 
-	// Convert versions map to sorted array
 	type ApplicationVersions struct {
 		Application string   `json:"application"`
 		Name        string   `json:"name"`
@@ -117,9 +98,7 @@ func GetApplicationFilters(c *gin.Context) {
 	})
 
 	c.JSON(http.StatusOK, response.OK("application filters retrieved successfully", gin.H{
-		"types":         helpers.EnsureSlice(types),
-		"versions":      groupedVersions,
-		"systems":       helpers.EnsureSlice(systems),
-		"organizations": helpers.EnsureSlice(orgs),
+		"types":    helpers.EnsureSlice(types),
+		"versions": groupedVersions,
 	}))
 }

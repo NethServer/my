@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import AlertsCounterCard from '@/components/dashboard/AlertsCounterCard.vue'
 import ApplicationsCounterCard from '@/components/dashboard/ApplicationsCounterCard.vue'
 import CustomersCounterCard from '@/components/dashboard/CustomersCounterCard.vue'
 import DistributorsCounterCard from '@/components/dashboard/DistributorsCounterCard.vue'
@@ -58,6 +59,7 @@ const { state: thirdPartyApps } = useQuery({
         <UsersCounterCard v-if="canReadUsers()" />
         <SystemsCounterCard v-if="canReadSystems()" />
         <ApplicationsCounterCard v-if="canReadApplications()" />
+        <AlertsCounterCard v-if="canReadSystems()" />
       </template>
     </div>
     <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">

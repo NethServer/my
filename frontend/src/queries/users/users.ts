@@ -121,6 +121,10 @@ export const useUsers = defineQuery(() => {
     textFilter.value = ''
     organizationFilter.value = []
     roleFilter.value = []
+    resetStatusFilter()
+  }
+
+  const resetStatusFilter = () => {
     statusFilter.value = ['enabled', 'suspended']
   }
 
@@ -139,5 +143,6 @@ export const useUsers = defineQuery(() => {
     sortDescending,
     areDefaultFiltersApplied,
     resetFilters,
+    resetStatusFilter,
   }
 })

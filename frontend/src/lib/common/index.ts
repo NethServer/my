@@ -1,5 +1,7 @@
 export const MIN_SEARCH_LENGTH = 2
 
+export const COMBOBOX_PAGE_SIZE = 50
+
 export interface Pagination {
   has_next: boolean
   has_prev: boolean
@@ -8,6 +10,8 @@ export interface Pagination {
   total_count: number
   total_pages: number
 }
+
+export type Focusable = { focus(): void }
 
 // utility to build query string params for pagination, filtering and sorting
 export const getQueryStringParams = (

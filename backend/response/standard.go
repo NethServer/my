@@ -10,7 +10,7 @@
 package response
 
 import (
-	"reflect"
+	"fmt"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
@@ -199,10 +199,14 @@ func ParseValidationError(err error) ValidationError {
 			// Get the validation tag that failed
 			tag := ve.Tag()
 
-			// Get the actual value that failed validation
+			// Get the actual value that failed validation. reflect.Value.String()
+			// is documented to return "<TYPE Value>" for anything other than
+			// string Kind, which leaks "<int Value>" / "<bool Value>" into the
+			// response. Format via fmt.Sprintf so int/bool/float/etc. show the
+			// real value.
 			value := ""
-			if ve.Value() != nil {
-				value = strings.TrimSpace(reflect.ValueOf(ve.Value()).String())
+			if v := ve.Value(); v != nil {
+				value = strings.TrimSpace(fmt.Sprintf("%v", v))
 			}
 
 			return ValidationError{
@@ -232,10 +236,14 @@ func ParseValidationErrors(err error) []ValidationError {
 			// Get the validation tag that failed
 			tag := ve.Tag()
 
-			// Get the actual value that failed validation
+			// Get the actual value that failed validation. reflect.Value.String()
+			// is documented to return "<TYPE Value>" for anything other than
+			// string Kind, which leaks "<int Value>" / "<bool Value>" into the
+			// response. Format via fmt.Sprintf so int/bool/float/etc. show the
+			// real value.
 			value := ""
-			if ve.Value() != nil {
-				value = strings.TrimSpace(reflect.ValueOf(ve.Value()).String())
+			if v := ve.Value(); v != nil {
+				value = strings.TrimSpace(fmt.Sprintf("%v", v))
 			}
 
 			result = append(result, ValidationError{

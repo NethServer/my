@@ -3144,6 +3144,74 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
 
+    SilenceValidationFailed:
+      description: |
+        Validation failed. `data.type` is always `validation_error`.
+        `data.errors[]` lists per-field failures with stable `message`
+        codes the UI consumes for i18n: `required` (missing field),
+        `invalid_format` (bad fingerprint regex or non-RFC3339 end_at),
+        `must_be_future` (end_at in the past), `max` / `min` (out of
+        range duration_minutes).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            MissingFingerprint:
+              summary: fingerprint is required on create
+              value:
+                code: 400
+                message: "validation failed"
+                data:
+                  type: "validation_error"
+                  errors:
+                    - key: "fingerprint"
+                      message: "required"
+            InvalidFingerprint:
+              summary: fingerprint format rejected by the server-side regex
+              value:
+                code: 400
+                message: "validation failed"
+                data:
+                  type: "validation_error"
+                  errors:
+                    - key: "fingerprint"
+                      message: "invalid_format"
+                      value: "bad!fingerprint"
+            InvalidEndAtFormat:
+              summary: end_at is not RFC3339
+              value:
+                code: 400
+                message: "validation failed"
+                data:
+                  type: "validation_error"
+                  errors:
+                    - key: "end_at"
+                      message: "invalid_format"
+                      value: "not-a-date"
+            EndAtInThePast:
+              summary: end_at must be in the future
+              value:
+                code: 400
+                message: "validation failed"
+                data:
+                  type: "validation_error"
+                  errors:
+                    - key: "end_at"
+                      message: "must_be_future"
+                      value: "2020-01-01T00:00:00Z"
+            DurationOutOfRange:
+              summary: duration_minutes outside the allowed range
+              value:
+                code: 400
+                message: "validation failed"
+                data:
+                  type: "validation_error"
+                  errors:
+                    - key: "duration_minutes"
+                      message: "max"
+                      value: "999999"
+
     Unauthorized:
       description: Unauthorized - invalid or missing token
       content:
@@ -6840,12 +6908,17 @@ paths:
         - Backend - Filters
       summary: /filters/systems - Get aggregated system filters
       description: |
-        Aggregated endpoint that returns all system filter data in a single request.
-        Auth is checked once, then products, created_by, versions, and organizations are fetched in parallel.
-        Respects RBAC hierarchy - users only see data from systems they can access.
+        Aggregated endpoint that returns products, creators and versions
+        for the systems views. Auth is checked once, then the three datasets
+        are fetched in parallel. Respects RBAC hierarchy - users only see
+        data from systems they can access.
 
-        **Version Format**: Returns versions in prefixed format `product:version` (e.g., `"nsec:1.2.3"`, `"ns8:1.2.3"`)
-        to avoid ambiguity when the same version number exists for multiple products.
+        **Version Format**: Returns versions in prefixed format `product:version`
+        (e.g., `"nsec:1.2.3"`, `"ns8:1.2.3"`) to avoid ambiguity when the same
+        version number exists for multiple products.
+
+        Organizations dropdown is populated by the dedicated `/api/organizations`
+        endpoint, which supports search and pagination.
       responses:
         '200':
           description: System filters retrieved successfully
@@ -6902,20 +6975,6 @@ paths:
                               description: List of versions in prefixed format (product:version)
                               example: ["nsec:8.6.0", "nsec:8.5.2"]
                         description: Versions grouped by product type
-                      organizations:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            id:
-                              type: string
-                              description: Organization logto_id (not UUID)
-                              example: "ug9v4l0m6mwt"
-                            name:
-                              type: string
-                              description: Organization name
-                              example: "Customer Organization 3"
-                        description: List of organizations with systems
               example:
                 code: 200
                 message: "system filters retrieved successfully"
@@ -6930,11 +6989,6 @@ paths:
                       versions: ["nsec:8.6.0", "nsec:8.5.2"]
                     - product: "ns8"
                       versions: ["ns8:1.2.3", "ns8:1.1.0"]
-                  organizations:
-                    - id: "ug9v4l0m6mwt"
-                      name: "Cust3"
-                    - id: "guwy6opsll17"
-                      name: "Owner"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -6980,7 +7034,40 @@ paths:
       tags:
         - Backend - Metadata
       summary: /organizations - Get available organizations
-      description: Get organizations the current user can assign users to, filtered by business hierarchy
+      description: |
+        Paginated list of organizations across the caller's hierarchy
+        (distributors + resellers + customers). Supports text search and
+        per-field filters; intended for filter dropdowns and assignment
+        pickers.
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/SearchParam'
+        - name: name
+          in: query
+          required: false
+          description: Filter by organization name (exact match)
+          schema:
+            type: string
+        - name: description
+          in: query
+          required: false
+          description: Filter by organization description (exact match)
+          schema:
+            type: string
+        - name: type
+          in: query
+          required: false
+          description: Filter by organization type
+          schema:
+            type: string
+            enum: [distributor, reseller, customer]
+        - name: created_by
+          in: query
+          required: false
+          description: Filter by creator user ID
+          schema:
+            type: string
       responses:
         '200':
           description: Organizations retrieved successfully
@@ -9129,8 +9216,8 @@ paths:
         - Backend - Alerts
       summary: "/alerts/totals - Get alert totals by severity"
       description: |
-        Returns active alert counts by severity (from Mimir, per-tenant) and total resolved
-        alert history count (from DB). Requires `read:systems` permission.
+        Returns active alert counts by severity and total resolved alert history
+        count. Requires `read:systems` permission.
 
         **Scope modes** (selected by query params):
 
@@ -9141,14 +9228,23 @@ paths:
         | `X` (repeated for multi)     | omitted       | Union of all `organization_id` values passed. Each must be in the caller's hierarchy (Owner exempt). |
         | `X` (single or multi)        | `descendants` | Each org_id is expanded to itself + its sub-tree (deduplicated). Use this to drill into one or more sub-trees. |
 
-        Active counts are aggregated across the resolved scope by fanning out to Mimir,
-        one request per tenant, with bounded concurrency and a global timeout. Per-tenant
-        failures (timeout, 5xx, parse error) are non-fatal: their counts simply don't
-        contribute, and the failure is reported in the `warnings` array. The `history`
-        total comes from a single SQL query scoped to the same set of organization IDs.
+        Active counts come from `alerts_totals_by_org`, a per-organization
+        pre-aggregated table maintained by the `collect` service's
+        `AlertsTotalsRefresher` cron (one Mimir round-trip per tenant every 60s,
+        off the user request path). The endpoint resolves the response with a
+        single SQL `SUM` scoped to the caller's hierarchy, so latency is
+        independent of how many tenants are in scope. The `history` total comes
+        from a single SQL query against `alert_history` scoped to the same set
+        of organization IDs.
 
-        Customer callers are always pinned to their own organization regardless of
-        `organization_id`/`include` (Mimir tenant is fixed to `user.organization_id`).
+        When the freshest row in scope is older than 5 minutes (refresher
+        lagging or down), the response carries a `warnings[]` entry
+        (`totals: stale data, oldest refresh Xs ago`); counts are still served
+        as last known. DB errors on either table are likewise non-fatal and
+        surface as `warnings[]` entries.
+
+        Customer callers are always pinned to their own organization regardless
+        of `organization_id`/`include`.
       security:
         - BearerAuth: []
       parameters:
@@ -9213,10 +9309,12 @@ paths:
                       warnings:
                         type: array
                         description: |
-                          Per-tenant errors encountered during fan-out. Always present
-                          (empty array when every tenant responded OK). Each entry is a
-                          string in the form `org <logto_id>: <error>` or
-                          `history: <error>` for the DB lookup.
+                          Non-fatal degradation messages. Always present (empty
+                          array when the response is fully fresh). Possible
+                          entries: `totals: stale data, oldest refresh Xs ago`
+                          (refresher is lagging or down), `totals: <error>` (DB
+                          error reading `alerts_totals_by_org`), `history: <error>`
+                          (DB error reading `alert_history`).
                         items:
                           type: string
         '401':
@@ -9934,7 +10032,62 @@ paths:
                         items:
                           type: string
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: |
+            Validation failed. `data.type` is always `validation_error`.
+            `data.errors[]` lists per-field failures with `key` set to the
+            JSON path (with dotted array indices, e.g.
+            `email_recipients.2.address`), `message` to a stable machine
+            code (`required`, `invalid_format`, `invalid_value`,
+            `invalid_scheme`, `host_not_allowed`, `must_be_future`, ...)
+            and `value` to the offending input when not sensitive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                InvalidEmail:
+                  summary: Bad email format in a nested recipient
+                  value:
+                    code: 400
+                    message: "validation failed"
+                    data:
+                      type: "validation_error"
+                      errors:
+                        - key: "email_recipients.2.address"
+                          message: "invalid_format"
+                          value: "wwwwwww"
+                InvalidWebhookScheme:
+                  summary: Webhook URL without an http(s) scheme
+                  value:
+                    code: 400
+                    message: "validation failed"
+                    data:
+                      type: "validation_error"
+                      errors:
+                        - key: "webhook_recipients.0.url"
+                          message: "invalid_scheme"
+                          value: "asdf"
+                MissingRequired:
+                  summary: Missing required field
+                  value:
+                    code: 400
+                    message: "validation failed"
+                    data:
+                      type: "validation_error"
+                      errors:
+                        - key: "webhook_recipients.0.name"
+                          message: "required"
+                InvalidSeverity:
+                  summary: Severity not in the allowed enum
+                  value:
+                    code: 400
+                    message: "validation failed"
+                    data:
+                      type: "validation_error"
+                      errors:
+                        - key: "email_recipients.0.severities.0"
+                          message: "invalid_value"
+                          value: "fatal"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -10417,7 +10570,7 @@ paths:
                     data:
                       silence_id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
         '400':
-          $ref: '#/components/responses/BadRequest'
+          $ref: '#/components/responses/SilenceValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -10609,7 +10762,7 @@ paths:
                     data:
                       silence_id: "f1e1c2a4-7e57-4b1a-aaa0-2b96c8b5a3aa"
         '400':
-          $ref: '#/components/responses/BadRequest'
+          $ref: '#/components/responses/SilenceValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -11255,7 +11408,7 @@ paths:
                     data:
                       silence_id: "d9f91c6e-1b33-484e-befa-bfb41020e178"
         '400':
-          $ref: '#/components/responses/BadRequest'
+          $ref: '#/components/responses/SilenceValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -11425,7 +11578,7 @@ paths:
                     data:
                       silence_id: "f1e1c2a4-7e57-4b1a-aaa0-2b96c8b5a3aa"
         '400':
-          $ref: '#/components/responses/BadRequest'
+          $ref: '#/components/responses/SilenceValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -11911,13 +12064,16 @@ paths:
         - Backend - Filters
       summary: /filters/applications - Get aggregated application filters
       description: |
-        Aggregated endpoint that returns all application filter data in a single request.
-        RBAC is resolved once, then types, versions, systems, and organizations are fetched in parallel.
+        Returns the catalog of application types and versions available in the
+        caller's scope. RBAC is resolved once, then types and versions are
+        fetched in parallel.
 
-        **Version Format**: Returns versions in prefixed format `type:version` (e.g., `"nethvoice:1.5.3"`, `"mail:1.7.4"`)
+        **Version Format**: Returns versions in prefixed format `type:version`
+        (e.g., `"nethvoice:1.5.3"`, `"mail:1.7.4"`).
 
-        **Organizations special value**: If there are applications without an assigned organization, the response includes
-        a special "No organization" entry with `id: "no_org"` and `type: "unassigned"`.
+        Systems and organizations dropdowns are populated by the dedicated
+        `/api/systems` and `/api/organizations` endpoints, which support search
+        and pagination.
       responses:
         '200':
           description: Application filters retrieved successfully
@@ -11958,14 +12114,6 @@ paths:
                                 type: string
                               description: Prefixed versions (type:version)
                               example: ["nethvoice:1.5.4", "nethvoice:1.5.3"]
-                      systems:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/ApplicationSystemSummary'
-                      organizations:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/OrganizationSummary'
               example:
                 code: 200
                 message: "application filters retrieved successfully"
@@ -11984,22 +12132,6 @@ paths:
                     - application: "nethvoice"
                       name: "NethVoice"
                       versions: ["nethvoice:1.5.4", "nethvoice:1.5.3"]
-                  systems:
-                    - id: "abc123-system-uuid"
-                      name: "Production Server"
-                    - id: "def456-system-uuid"
-                      name: "Development Server"
-                  organizations:
-                    - id: "no_org"
-                      logto_id: "no_org"
-                      name: "No organization"
-                      description: ""
-                      type: "unassigned"
-                    - id: "8b04e253-d408-4218-a30e-b048196847e5"
-                      logto_id: "fso3biosnaqp"
-                      name: "Acme Corp"
-                      description: ""
-                      type: "customer"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -12010,11 +12142,13 @@ paths:
       operationId: getUserFilters
       tags:
         - Backend - Filters
-      summary: /filters/users - Get aggregated user filters
+      summary: /filters/users - Get the roles available in the caller's scope
       description: |
-        Aggregated endpoint that returns all user filter data in a single request.
-        Auth is checked once, then roles and organizations are fetched in parallel.
-        Respects RBAC hierarchy for both roles and organizations.
+        Returns the list of roles the caller can assign to users, respecting
+        RBAC hierarchy.
+
+        Organizations dropdown is populated by the dedicated
+        `/api/organizations` endpoint, which supports search and pagination.
       responses:
         '200':
           description: User filters retrieved successfully
@@ -12036,24 +12170,6 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/Role'
-                      organizations:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            id:
-                              type: string
-                              description: Organization Logto ID
-                              example: "org_abc123"
-                            name:
-                              type: string
-                              description: Organization name
-                              example: "ACME Corp"
-                            type:
-                              type: string
-                              enum: [distributor, reseller, customer]
-                              description: Organization type
-                              example: "customer"
               example:
                 code: 200
                 message: "user filters retrieved successfully"
@@ -12065,13 +12181,6 @@ paths:
                     - id: "role_def456"
                       name: "Support"
                       description: "Support operator"
-                  organizations:
-                    - id: "org_abc123"
-                      name: "ACME Corp"
-                      type: "customer"
-                    - id: "org_def456"
-                      name: "TechStart Inc"
-                      type: "reseller"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -12082,43 +12191,16 @@ paths:
       operationId: getAlertFilters
       tags:
         - Backend - Filters
-      summary: /filters/alerts - Get aggregated alert filters
+      summary: /filters/alerts - Get the static alert catalog
       description: |
-        Aggregated endpoint for the alerts views' filter dropdowns.
+        Returns the static catalog of every alert a NethServer (NS8) or
+        NethSecurity system can raise. Used to populate the "alert name"
+        dropdown in the alerts views.
 
-        `systems`, `severities` and `organizations` are data-driven: only
-        values that actually appear in alert history within the caller's scope
-        are returned. `alerts` is a static catalog of every alert a NethServer
-        (NS8) or NethSecurity system can raise — it is NOT scoped to the
-        caller's data, so the dropdown can filter on alerts not yet received.
-
-        Auth is checked once, then the data-driven datasets are fetched in
-        parallel.
-
-        Scope follows the same rules as the other alerts endpoints:
-        `organization_id` omitted = caller's full hierarchy; one or more
-        `organization_id` = those tenants (validated, Owner exempt);
-        Customer is always pinned to its own organization.
-      parameters:
-        - name: organization_id
-          in: query
-          required: false
-          description: |
-            Tenant scope. Omit for the caller's full hierarchy, or repeat to
-            target specific tenants (each validated against the caller's
-            hierarchy; Owner exempt).
-          schema:
-            type: array
-            items:
-              type: string
-          example: ["org_abc123"]
-        - name: include
-          in: query
-          required: false
-          description: When set to `descendants`, expand each organization_id to itself plus its sub-tree.
-          schema:
-            type: string
-            enum: [descendants]
+        Systems and organizations dropdowns are populated by the dedicated
+        `/api/systems` and `/api/organizations` endpoints; severities are a
+        fixed enum (`critical|warning|info`) the UI hardcodes. None of those
+        need a scope-aware aggregation here.
       responses:
         '200':
           description: Alert filters retrieved successfully
@@ -12136,34 +12218,11 @@ paths:
                   data:
                     type: object
                     properties:
-                      systems:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            id:
-                              type: string
-                              description: System local ID
-                              example: "sys_abc123"
-                            name:
-                              type: string
-                              description: System display name
-                              example: "Milan Office Server"
-                            type:
-                              type: string
-                              description: System type (empty string if unknown)
-                              example: "ns8"
-                            key:
-                              type: string
-                              description: Unique system key
-                              example: "ABCD1234"
                       alerts:
                         type: array
                         description: |
                           Static catalog of every alert a NethServer (NS8) or
-                          NethSecurity system can raise. Not scoped to the
-                          caller's data — returned in full regardless of what
-                          alert history exists.
+                          NethSecurity system can raise.
                         items:
                           type: object
                           properties:
@@ -12180,52 +12239,16 @@ paths:
                               type: string
                               description: Sub-service that raises the alert (omitted when not applicable)
                               example: "storage"
-                      severities:
-                        type: array
-                        items:
-                          type: string
-                        description: Distinct severities present in alert history
-                        example: ["critical", "warning"]
-                      organizations:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            logto_id:
-                              type: string
-                              description: Organization Logto ID
-                              example: "org_abc123"
-                            name:
-                              type: string
-                              description: Organization name
-                              example: "ACME Corp"
-                            type:
-                              type: string
-                              enum: [distributor, reseller, customer]
-                              description: Organization type
-                              example: "customer"
               example:
                 code: 200
                 message: "alert filters retrieved successfully"
                 data:
-                  systems:
-                    - id: "sys_abc123"
-                      name: "Milan Office Server"
-                      type: "ns8"
-                      key: "ABCD1234"
                   alerts:
                     - name: "DiskSpaceLow"
                       severity: "warning"
                       service: "storage"
                     - name: "ServiceDown"
                       severity: "critical"
-                  severities:
-                    - "critical"
-                    - "warning"
-                  organizations:
-                    - logto_id: "org_abc123"
-                      name: "ACME Corp"
-                      type: "customer"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

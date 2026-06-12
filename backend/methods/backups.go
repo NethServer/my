@@ -42,6 +42,89 @@ func isValidBackupID(id string) bool {
 	return backupIDPattern.MatchString(strings.ToLower(id))
 }
 
+// backupDateInName matches an ISO date (YYYY-MM-DD) anywhere in a filename.
+// A UUID's dash layout (8-4-4-4-12) never produces a -DD-DD run, so this
+// cannot false-positive on the storage key used as a fallback name.
+var backupDateInName = regexp.MustCompile(`\d{4}-\d{2}-\d{2}`)
+
+// backupDownloadName composes the filename presented to the browser when
+// downloading a backup. The upload time comes from LastModified in UTC,
+// matching the uploaded_at exposed in the list response, and is spliced in
+// before the extension so multiple backups taken close together stay
+// distinct and sortable.
+//
+//   - filename already carries a date (e.g. backup-2026-06-05.tar): add
+//     only the time      -> backup-2026-06-05_09-00-23.tar
+//   - filename has no date (e.g. backup.gz): add the full date and time so
+//     the download stays self-describing -> backup_2026-06-05_09-00-23.gz
+//
+// When the appliance did not send a filename at all, the ingest side stores
+// the fallback "backup-<uuid>" with no extension; in that case we borrow the
+// extension from the storage key (backupID, e.g. <uuid>.bin) so the download
+// is never left extensionless.
+func backupDownloadName(filename, backupID string, uploadedAt time.Time) string {
+	name := sanitizeFilename(filename)
+	if name == "" {
+		name = sanitizeFilename(backupID)
+	}
+	if name == "" {
+		return ""
+	}
+
+	// Split base / extension at the first dot so multi-part extensions like
+	// .tar.gz stay intact. With no extension on the friendly name, borrow
+	// one from the storage key.
+	base, ext := name, backupKeyExtension(backupID)
+	if i := strings.IndexByte(name, '.'); i > 0 {
+		base, ext = name[:i], name[i:]
+	}
+
+	t := uploadedAt.UTC()
+	stamp := t.Format("15-04-05")
+	if !backupDateInName.MatchString(base) {
+		stamp = t.Format("2006-01-02_15-04-05")
+	}
+	return base + "_" + stamp + ext
+}
+
+// backupKeyExtension returns the extension of a backup storage key
+// (everything from the first dot), including the leading dot. backupID is
+// already shape-validated by backupIDPattern, so its suffix is one of the
+// recognised backup extensions or empty.
+func backupKeyExtension(backupID string) string {
+	if i := strings.IndexByte(backupID, '.'); i >= 0 {
+		return backupID[i:]
+	}
+	return ""
+}
+
+// sanitizeFilename strips any byte outside the safe allowlist (mapping it
+// to '_') and truncates to 255 chars so the value is safe to ship inline
+// in a Content-Disposition header. Mirrors the ingest-side helper.
+func sanitizeFilename(raw string) string {
+	s := strings.Map(safeFilenameChar, raw)
+	if len(s) > 255 {
+		s = s[:255]
+	}
+	return s
+}
+
+// safeFilenameChar keeps filenames to a conservative subset so no header
+// reflection can escape its context via CR/LF, quote, wildcard, or
+// non-printable bytes. Violating bytes are replaced with '_' rather than
+// dropping the backup.
+func safeFilenameChar(r rune) rune {
+	switch {
+	case r >= 'A' && r <= 'Z':
+	case r >= 'a' && r <= 'z':
+	case r >= '0' && r <= '9':
+	case r == '.' || r == '-' || r == '_':
+	default:
+		return '_'
+	}
+	return r
+}
+
 // BackupMetadata is the JSON payload returned in list responses for a single
 // backup object. The uploader IP is intentionally not exposed: on traffic
 // that transits the translation proxy the stored value is the proxy's IP
@@ -145,8 +228,10 @@ func DownloadSystemBackup(c *gin.Context) {
 	// Verify the object exists before issuing a presigned URL. Otherwise
 	// the client gets a 200 with a URL that 404s on GET, which is
 	// confusing UX and leaks that the ID didn't exist only after an
-	// extra round-trip.
-	_, err = client.HeadObject(ctx, &s3.HeadObjectInput{
+	// extra round-trip. The same HeadObject also yields the appliance
+	// filename and upload time we splice into Content-Disposition below,
+	// so there is no extra round-trip for the friendly name.
+	head, err := client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(configuration.Config.BackupS3Bucket),
 		Key:    aws.String(key),
 	})
@@ -161,9 +246,21 @@ func DownloadSystemBackup(c *gin.Context) {
 		return
 	}
 
+	// The presigned URL is cross-origin (Spaces, not our domain), so the
+	// browser ignores the frontend's anchor[download] hint and would name
+	// the file after the S3 key (the bare UUID). Forcing
+	// ResponseContentDisposition makes Spaces echo a Content-Disposition
+	// header the browser honours regardless of origin, so the download
+	// lands as backup-<date>_<time>.tar instead.
+	filename := backupDownloadName(head.Metadata["filename"], backupID, aws.ToTime(head.LastModified))
+	if filename == "" {
+		filename = backupID
+	}
+
 	presigned, err := presigner.PresignGetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(configuration.Config.BackupS3Bucket),
-		Key:    aws.String(key),
+		Bucket:                     aws.String(configuration.Config.BackupS3Bucket),
+		Key:                        aws.String(key),
+		ResponseContentDisposition: aws.String(fmt.Sprintf("attachment; filename=%q", filename)),
 	}, s3.WithPresignExpires(configuration.Config.BackupPresignTTL))
 	if err != nil {
 		logger.Error().Err(err).Str("key", key).Msg("presign backup URL failed")
