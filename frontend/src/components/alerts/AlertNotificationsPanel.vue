@@ -27,9 +27,14 @@ const loadError = computed(() =>
   configState.value.status === 'error' ? (configState.value.error as Error)?.message : null,
 )
 
+type DrawerMode = 'edit' | 'configure'
+
 const showEmailDrawer = ref(false)
 const showWebhookDrawer = ref(false)
 const showTelegramDrawer = ref(false)
+const emailDrawerMode = ref<DrawerMode>('edit')
+const webhookDrawerMode = ref<DrawerMode>('edit')
+const telegramDrawerMode = ref<DrawerMode>('edit')
 
 const emailRecipientCount = computed(() => config.value?.email_recipients?.length ?? 0)
 const webhookEndpointCount = computed(() => config.value?.webhook_recipients?.length ?? 0)
@@ -42,6 +47,36 @@ const telegramEnabled = computed(() => config.value?.enabled?.telegram ?? false)
 const emailNotConfigured = computed(() => config.value?.enabled?.email == null)
 const webhookNotConfigured = computed(() => config.value?.enabled?.webhook == null)
 const telegramNotConfigured = computed(() => config.value?.enabled?.telegram == null)
+
+function openEmailDrawer(mode: DrawerMode) {
+  emailDrawerMode.value = mode
+  showEmailDrawer.value = true
+}
+
+function closeEmailDrawer() {
+  showEmailDrawer.value = false
+  emailDrawerMode.value = 'edit'
+}
+
+function openWebhookDrawer(mode: DrawerMode) {
+  webhookDrawerMode.value = mode
+  showWebhookDrawer.value = true
+}
+
+function closeWebhookDrawer() {
+  showWebhookDrawer.value = false
+  webhookDrawerMode.value = 'edit'
+}
+
+function openTelegramDrawer(mode: DrawerMode) {
+  telegramDrawerMode.value = mode
+  showTelegramDrawer.value = true
+}
+
+function closeTelegramDrawer() {
+  showTelegramDrawer.value = false
+  telegramDrawerMode.value = 'edit'
+}
 </script>
 
 <template>
@@ -81,7 +116,8 @@ const telegramNotConfigured = computed(() => config.value?.enabled?.telegram == 
         :enabled-text="t('alerts.notifications_enabled')"
         :disabled-text="t('alerts.notifications_disabled')"
         :loading="isLoading && !config"
-        @edit="showEmailDrawer = true"
+        @edit="openEmailDrawer('edit')"
+        @configure="openEmailDrawer('configure')"
       />
 
       <NotificationChannelCard
@@ -98,7 +134,8 @@ const telegramNotConfigured = computed(() => config.value?.enabled?.telegram == 
         :enabled-text="t('alerts.notifications_enabled')"
         :disabled-text="t('alerts.notifications_disabled')"
         :loading="isLoading && !config"
-        @edit="showWebhookDrawer = true"
+        @edit="openWebhookDrawer('edit')"
+        @configure="openWebhookDrawer('configure')"
       />
 
       <NotificationChannelCard
@@ -115,7 +152,8 @@ const telegramNotConfigured = computed(() => config.value?.enabled?.telegram == 
         :enabled-text="t('alerts.notifications_enabled')"
         :disabled-text="t('alerts.notifications_disabled')"
         :loading="isLoading && !config"
-        @edit="showTelegramDrawer = true"
+        @edit="openTelegramDrawer('edit')"
+        @configure="openTelegramDrawer('configure')"
       />
     </div>
 
@@ -123,17 +161,20 @@ const telegramNotConfigured = computed(() => config.value?.enabled?.telegram == 
     <EditEmailNotificationsDrawer
       :is-shown="showEmailDrawer"
       :config="config"
-      @close="showEmailDrawer = false"
+      :configure="emailDrawerMode === 'configure'"
+      @close="closeEmailDrawer"
     />
     <EditWebhookNotificationsDrawer
       :is-shown="showWebhookDrawer"
       :config="config"
-      @close="showWebhookDrawer = false"
+      :configure="webhookDrawerMode === 'configure'"
+      @close="closeWebhookDrawer"
     />
     <EditTelegramNotificationsDrawer
       :is-shown="showTelegramDrawer"
       :config="config"
-      @close="showTelegramDrawer = false"
+      :configure="telegramDrawerMode === 'configure'"
+      @close="closeTelegramDrawer"
     />
   </div>
 </template>

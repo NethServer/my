@@ -32,10 +32,18 @@ import {
 import { useNotificationsStore } from '@/stores/notifications'
 import capitalize from 'lodash/capitalize'
 
-const { isShown = false, config = null } = defineProps<{
-  isShown: boolean
-  config: AlertingConfigLayer | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    isShown: boolean
+    config: AlertingConfigLayer | null
+    configure?: boolean
+  }>(),
+  {
+    isShown: false,
+    config: null,
+    configure: false,
+  },
+)
 
 const emit = defineEmits(['close'])
 
@@ -62,14 +70,14 @@ function initForm() {
   expandedIndex.value = null
   validationIssues.value = {}
 
-  if (!config) {
+  if (!props.config) {
     emailEnabled.value = false
     recipients.value = []
     return
   }
 
-  emailEnabled.value = config.enabled?.email ?? false
-  recipients.value = (config.email_recipients ?? []).map((r) => ({
+  emailEnabled.value = props.config.enabled?.email ?? false
+  recipients.value = (props.config.email_recipients ?? []).map((r) => ({
     ...r,
     severities: r.severities ? [...r.severities] : [],
     _expanded: false,
@@ -77,9 +85,18 @@ function initForm() {
 }
 
 watch(
-  () => isShown,
-  (shown) => {
-    if (shown) initForm()
+  () => [props.isShown, props.configure] as const,
+  ([shown, shouldConfigure]) => {
+    if (!shown) return
+
+    initForm()
+
+    if (shouldConfigure) {
+      emailEnabled.value = true
+      if (!recipients.value.length) {
+        addRecipient()
+      }
+    }
   },
   { immediate: true },
 )
@@ -108,7 +125,7 @@ function hasSeverity(recipient: EmailRecipient & { _expanded: boolean }, severit
 
 // ── Add / Remove ──────────────────────────────────────────────────────────────
 
-function addRecipient() {
+function addRecipient(shouldFocus = true) {
   recipients.value.push({
     address: '',
     severities: [...SEVERITIES],
@@ -117,7 +134,9 @@ function addRecipient() {
     _expanded: true,
   })
   expandedIndex.value = recipients.value.length - 1
-  nextTick(() => expandedAddressRef.value?.[0]?.focus())
+  if (shouldFocus) {
+    nextTick(() => expandedAddressRef.value?.[0]?.focus())
+  }
 }
 
 function removeRecipient(index: number) {
@@ -137,7 +156,7 @@ const {
   mutation: () => {
     const payload: AlertingConfigLayer = {
       enabled: {
-        ...(config?.enabled ?? {}),
+        ...(props.config?.enabled ?? {}),
         email: emailEnabled.value,
       },
       email_recipients: recipients.value.map((r) => ({
@@ -146,8 +165,8 @@ const {
         language: r.language,
         format: r.format,
       })),
-      webhook_recipients: config?.webhook_recipients ?? [],
-      telegram_recipients: config?.telegram_recipients ?? [],
+      webhook_recipients: props.config?.webhook_recipients ?? [],
+      telegram_recipients: props.config?.telegram_recipients ?? [],
     }
     return postAlertsConfig(payload)
   },
@@ -204,19 +223,12 @@ function closeDrawer() {
 
 <template>
   <NeSideDrawer
-    :is-shown="isShown"
+    :is-shown="props.isShown"
     :title="t('alerts.edit_email_notifications')"
     :close-aria-label="$t('common.shell.close_side_drawer')"
     @close="closeDrawer"
   >
     <div class="space-y-6">
-      <!-- Notifications disabled warning -->
-      <NeInlineNotification
-        v-if="!emailEnabled"
-        kind="warning"
-        :description="t('alerts.notifications_disabled_warning')"
-      />
-
       <!-- Status toggle -->
       <NeToggle
         v-model="emailEnabled"
@@ -344,7 +356,7 @@ function closeDrawer() {
     <div class="flex justify-end gap-3">
       <NeButton kind="tertiary" @click="closeDrawer">{{ t('common.cancel') }}</NeButton>
       <NeButton kind="primary" :loading="isSaving" @click="onSave">
-        {{ config?.enabled?.email == null ? t('alerts.configure') : t('common.save') }}
+        {{ props.configure ? t('alerts.configure') : t('common.save') }}
       </NeButton>
     </div>
   </NeSideDrawer>

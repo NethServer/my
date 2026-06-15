@@ -30,10 +30,18 @@ import {
 import { useNotificationsStore } from '@/stores/notifications'
 import capitalize from 'lodash/capitalize'
 
-const { isShown = false, config = null } = defineProps<{
-  isShown: boolean
-  config: AlertingConfigLayer | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    isShown: boolean
+    config: AlertingConfigLayer | null
+    configure?: boolean
+  }>(),
+  {
+    isShown: false,
+    config: null,
+    configure: false,
+  },
+)
 
 const emit = defineEmits(['close'])
 
@@ -58,14 +66,14 @@ function initForm() {
   expandedIndex.value = null
   validationIssues.value = {}
 
-  if (!config) {
+  if (!props.config) {
     telegramEnabled.value = false
     channels.value = []
     return
   }
 
-  telegramEnabled.value = config.enabled?.telegram ?? false
-  channels.value = (config.telegram_recipients ?? []).map((r) => ({
+  telegramEnabled.value = props.config.enabled?.telegram ?? false
+  channels.value = (props.config.telegram_recipients ?? []).map((r) => ({
     ...r,
     severities: r.severities ? [...r.severities] : [],
     _expanded: false,
@@ -74,9 +82,18 @@ function initForm() {
 }
 
 watch(
-  () => isShown,
-  (shown) => {
-    if (shown) initForm()
+  () => [props.isShown, props.configure] as const,
+  ([shown, shouldConfigure]) => {
+    if (!shown) return
+
+    initForm()
+
+    if (shouldConfigure) {
+      telegramEnabled.value = true
+      if (!channels.value.length) {
+        addChannel()
+      }
+    }
   },
   { immediate: true },
 )
@@ -105,7 +122,7 @@ function hasSeverity(ch: TelegramFormEntry, severity: string) {
 
 // ── Add / Remove ──────────────────────────────────────────────────────────────
 
-function addChannel() {
+function addChannel(shouldFocus = true) {
   channels.value.push({
     chat_id: 0,
     bot_token: '',
@@ -114,7 +131,9 @@ function addChannel() {
     _chatIdInput: '',
   })
   expandedIndex.value = channels.value.length - 1
-  nextTick(() => expandedChatIdRef.value?.[0]?.focus())
+  if (shouldFocus) {
+    nextTick(() => expandedChatIdRef.value?.[0]?.focus())
+  }
 }
 
 function removeChannel(index: number) {
@@ -140,11 +159,11 @@ const {
   mutation: () => {
     const payload: AlertingConfigLayer = {
       enabled: {
-        ...(config?.enabled ?? {}),
+        ...(props.config?.enabled ?? {}),
         telegram: telegramEnabled.value,
       },
-      email_recipients: config?.email_recipients ?? [],
-      webhook_recipients: config?.webhook_recipients ?? [],
+      email_recipients: props.config?.email_recipients ?? [],
+      webhook_recipients: props.config?.webhook_recipients ?? [],
       telegram_recipients: channels.value.map((ch) => ({
         chat_id: ch.chat_id,
         bot_token: ch.bot_token,
@@ -212,19 +231,12 @@ function closeDrawer() {
 
 <template>
   <NeSideDrawer
-    :is-shown="isShown"
+    :is-shown="props.isShown"
     :title="t('alerts.configure_telegram_notifications')"
     :close-aria-label="$t('common.shell.close_side_drawer')"
     @close="closeDrawer"
   >
     <div class="space-y-6">
-      <!-- Notifications disabled warning -->
-      <NeInlineNotification
-        v-if="!telegramEnabled"
-        kind="warning"
-        :description="t('alerts.notifications_disabled_warning')"
-      />
-
       <!-- Status toggle -->
       <NeToggle
         v-model="telegramEnabled"
@@ -353,7 +365,7 @@ function closeDrawer() {
     <div class="flex justify-end gap-3">
       <NeButton kind="tertiary" @click="closeDrawer">{{ t('common.cancel') }}</NeButton>
       <NeButton kind="primary" :loading="isSaving" @click="onSave">
-        {{ config?.enabled?.telegram == null ? t('alerts.configure') : t('common.save') }}
+        {{ props.configure ? t('alerts.configure') : t('common.save') }}
       </NeButton>
     </div>
   </NeSideDrawer>

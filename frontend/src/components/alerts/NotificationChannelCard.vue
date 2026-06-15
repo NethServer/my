@@ -33,7 +33,7 @@ defineProps<{
   loading?: boolean
 }>()
 
-const emit = defineEmits<{ edit: [] }>()
+const emit = defineEmits<{ edit: []; configure: [] }>()
 </script>
 
 <template>
@@ -63,7 +63,7 @@ const emit = defineEmits<{ edit: [] }>()
     <div v-if="notConfigured" class="mt-4 rounded-md bg-gray-100 p-5 text-center dark:bg-gray-800">
       <p class="text-sm font-medium text-gray-700 dark:text-gray-200">{{ notConfiguredTitle }}</p>
       <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ notConfiguredDescription }}</p>
-      <NeButton v-if="canManage" kind="tertiary" size="sm" class="mt-3" @click="emit('edit')">
+      <NeButton v-if="canManage" kind="tertiary" size="sm" class="mt-3" @click="emit('configure')">
         <template #prefix>
           <FontAwesomeIcon :icon="faWrench" class="size-3.5" />
         </template>

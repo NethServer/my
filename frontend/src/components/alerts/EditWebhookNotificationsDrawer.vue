@@ -30,10 +30,18 @@ import {
 import { useNotificationsStore } from '@/stores/notifications'
 import capitalize from 'lodash/capitalize'
 
-const { isShown = false, config = null } = defineProps<{
-  isShown: boolean
-  config: AlertingConfigLayer | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    isShown: boolean
+    config: AlertingConfigLayer | null
+    configure?: boolean
+  }>(),
+  {
+    isShown: false,
+    config: null,
+    configure: false,
+  },
+)
 
 const emit = defineEmits(['close'])
 
@@ -55,14 +63,14 @@ function initForm() {
   expandedIndex.value = null
   validationIssues.value = {}
 
-  if (!config) {
+  if (!props.config) {
     webhookEnabled.value = false
     endpoints.value = []
     return
   }
 
-  webhookEnabled.value = config.enabled?.webhook ?? false
-  endpoints.value = (config.webhook_recipients ?? []).map((r) => ({
+  webhookEnabled.value = props.config.enabled?.webhook ?? false
+  endpoints.value = (props.config.webhook_recipients ?? []).map((r) => ({
     ...r,
     severities: r.severities ? [...r.severities] : [],
     _expanded: false,
@@ -70,9 +78,18 @@ function initForm() {
 }
 
 watch(
-  () => isShown,
-  (shown) => {
-    if (shown) initForm()
+  () => [props.isShown, props.configure] as const,
+  ([shown, shouldConfigure]) => {
+    if (!shown) return
+
+    initForm()
+
+    if (shouldConfigure) {
+      webhookEnabled.value = true
+      if (!endpoints.value.length) {
+        addEndpoint()
+      }
+    }
   },
   { immediate: true },
 )
@@ -101,7 +118,7 @@ function hasSeverity(endpoint: WebhookRecipient & { _expanded: boolean }, severi
 
 // ── Add / Remove ──────────────────────────────────────────────────────────────
 
-function addEndpoint() {
+function addEndpoint(shouldFocus = true) {
   endpoints.value.push({
     name: '',
     url: '',
@@ -109,7 +126,9 @@ function addEndpoint() {
     _expanded: true,
   })
   expandedIndex.value = endpoints.value.length - 1
-  nextTick(() => expandedUrlRef.value?.[0]?.focus())
+  if (shouldFocus) {
+    nextTick(() => expandedUrlRef.value?.[0]?.focus())
+  }
 }
 
 function removeEndpoint(index: number) {
@@ -129,16 +148,16 @@ const {
   mutation: () => {
     const payload: AlertingConfigLayer = {
       enabled: {
-        ...(config?.enabled ?? {}),
+        ...(props.config?.enabled ?? {}),
         webhook: webhookEnabled.value,
       },
-      email_recipients: config?.email_recipients ?? [],
+      email_recipients: props.config?.email_recipients ?? [],
       webhook_recipients: endpoints.value.map((r) => ({
         name: r.url,
         url: r.url,
         severities: r.severities?.length ? r.severities : undefined,
       })),
-      telegram_recipients: config?.telegram_recipients ?? [],
+      telegram_recipients: props.config?.telegram_recipients ?? [],
     }
     return postAlertsConfig(payload)
   },
@@ -194,19 +213,12 @@ function closeDrawer() {
 
 <template>
   <NeSideDrawer
-    :is-shown="isShown"
+    :is-shown="props.isShown"
     :title="t('alerts.configure_webhook_notifications')"
     :close-aria-label="$t('common.shell.close_side_drawer')"
     @close="closeDrawer"
   >
     <div class="space-y-6">
-      <!-- Notifications disabled warning -->
-      <NeInlineNotification
-        v-if="!webhookEnabled"
-        kind="warning"
-        :description="t('alerts.notifications_disabled_warning')"
-      />
-
       <!-- Status toggle -->
       <NeToggle
         v-model="webhookEnabled"
@@ -322,7 +334,7 @@ function closeDrawer() {
     <div class="flex justify-end gap-3">
       <NeButton kind="tertiary" @click="closeDrawer">{{ t('common.cancel') }}</NeButton>
       <NeButton kind="primary" :loading="isSaving" @click="onSave">
-        {{ config?.enabled?.webhook == null ? t('alerts.configure') : t('common.save') }}
+        {{ props.configure ? t('alerts.configure') : t('common.save') }}
       </NeButton>
     </div>
   </NeSideDrawer>
