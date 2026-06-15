@@ -9,7 +9,10 @@ import { NeBadgeV2 } from '@nethesis/vue-components'
 import { faTriangleExclamation } from '@fortawesome/free-solid-svg-icons'
 import { useAlertsTotals } from '@/queries/alerts/alertsTotals.ts'
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { abbreviateNumber } from '@/lib/common/index.ts'
 
+const { locale } = useI18n()
 const { state: totalsState } = useAlertsTotals()
 
 const totals = computed(() => totalsState.value?.data)
@@ -31,13 +34,13 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
   >
     <div class="mt-5 flex flex-wrap justify-center gap-2">
       <NeBadgeV2 v-if="criticalCount > 0" kind="rose">
-        {{ $t('alerts.count_critical', { count: criticalCount }) }}
+        {{ $t('alerts.count_critical', { count: abbreviateNumber(criticalCount, locale) }) }}
       </NeBadgeV2>
       <NeBadgeV2 v-if="warningCount > 0" kind="amber">
-        {{ $t('alerts.count_warning', { count: warningCount }) }}
+        {{ $t('alerts.count_warning', { count: abbreviateNumber(warningCount, locale) }) }}
       </NeBadgeV2>
       <NeBadgeV2 v-if="mutedCount > 0" kind="gray">
-        {{ $t('alerts.count_muted', { count: mutedCount }) }}
+        {{ $t('alerts.count_muted', { count: abbreviateNumber(mutedCount, locale) }) }}
       </NeBadgeV2>
     </div>
   </CounterCard>

@@ -9,8 +9,9 @@ import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import { NeBadgeV2 } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useApplicationsTotal } from '@/queries/applications/applicationsTotal'
+import { abbreviateNumber } from '@/lib/common/index.ts'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const { state: applicationsTotal } = useApplicationsTotal()
 </script>
@@ -25,7 +26,11 @@ const { state: applicationsTotal } = useApplicationsTotal()
   >
     <div v-if="applicationsTotal.data?.total ?? 0 > 0" class="flex justify-center">
       <NeBadgeV2 kind="blue">
-        {{ t('applications.num_unassigned', { count: applicationsTotal.data?.unassigned ?? 0 }) }}
+        {{
+          t('applications.num_unassigned', {
+            count: abbreviateNumber(applicationsTotal.data?.unassigned ?? 0, locale),
+          })
+        }}
       </NeBadgeV2>
     </div>
   </CounterCard>
