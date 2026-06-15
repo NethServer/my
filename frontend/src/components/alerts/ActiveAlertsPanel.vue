@@ -10,8 +10,7 @@ import CounterCard from '@/components/CounterCard.vue'
 import AlertsTable from '@/components/alerts/AlertsTable.vue'
 import { useAlertsTotals } from '@/queries/alerts/alertsTotals'
 import { useLoginStore } from '@/stores/login'
-
-const MIN_ESTIMATED_COUNT = 50
+import { MIN_ESTIMATED_COUNT } from '@/lib/alerts'
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
