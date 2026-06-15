@@ -603,7 +603,10 @@
     "system_destroyed": "System destroyed",
     "cannot_destroy_system": "Cannot destroy system",
     "total_systems": "Total Systems",
-    "organization_systems": "Company Systems"
+    "organization_systems": "Company Systems",
+    "count_active": "{count} active",
+    "count_inactive": "{count} inactive",
+    "count_pending": "{count} pending"
   },
   "system_detail": {
     "title": "System detail",

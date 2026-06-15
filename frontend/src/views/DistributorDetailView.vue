@@ -16,6 +16,7 @@ import { useDistributorSystems } from '@/queries/systems/distributorSystems'
 import { useApplicationsSummaryByCompany } from '@/queries/applications/applicationsSummaryByCompany'
 import OrganizationSystemsCard from '@/components/organizations/OrganizationSystemsCard.vue'
 import OrganizationApplicationsCard from '@/components/organizations/OrganizationApplicationsCard.vue'
+import { canReadDistributors } from '@/lib/permissions'
 
 const { state: distributorDetail } = useDistributorDetail()
 const { state: distributorStats } = useDistributorStats()
@@ -25,7 +26,7 @@ const { state: applicationsSummary } = useApplicationsSummaryByCompany()
 
 <template>
   <div>
-    <router-link to="/distributors">
+    <router-link v-if="canReadDistributors()" to="/distributors">
       <NeButton kind="tertiary" size="sm" class="mb-4 -ml-2">
         <template #prefix>
           <FontAwesomeIcon :icon="faArrowLeft" />
