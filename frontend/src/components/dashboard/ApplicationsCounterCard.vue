@@ -7,8 +7,6 @@
 import CounterCard from '../CounterCard.vue'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import { NeBadgeV2 } from '@nethesis/vue-components'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faCircleInfo } from '@fortawesome/free-solid-svg-icons'
 import { useI18n } from 'vue-i18n'
 import { useApplicationsTotal } from '@/queries/applications/applicationsTotal'
 
@@ -27,8 +25,6 @@ const { state: applicationsTotal } = useApplicationsTotal()
   >
     <div v-if="applicationsTotal.data?.total ?? 0 > 0" class="flex justify-center">
       <NeBadgeV2 kind="blue">
-        <FontAwesomeIcon :icon="faCircleInfo" class="size-4" />
-
         {{ t('applications.num_unassigned', { count: applicationsTotal.data?.unassigned ?? 0 }) }}
       </NeBadgeV2>
     </div>
