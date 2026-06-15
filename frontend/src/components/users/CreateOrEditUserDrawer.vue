@@ -40,6 +40,7 @@ import { normalize } from '@/lib/common'
 import { userRolesQuery } from '@/queries/users/userRoles'
 import { USER_FILTERS_KEY } from '@/lib/users/userFilters'
 import { combinePhoneParts, countryCodeComboOptions, parsePhoneForForm } from '@/lib/phone'
+import { isUserCustomer } from '@/lib/organizations/organizations'
 
 const { isShown = false, currentUser = undefined } = defineProps<{
   isShown: boolean
@@ -189,7 +190,7 @@ watch(
         // creating user, reset form to defaults
         email.value = ''
         name.value = ''
-        organizationId.value = ''
+        organizationId.value = isUserCustomer() ? loginStore.userInfo?.organization_id || '' : ''
         userRoles.value = []
         countryCode.value = 'it'
         phone.value = ''
@@ -360,6 +361,7 @@ function getEmailInvalidMessage(): string {
         />
         <!-- organization -->
         <OrganizationCombobox
+          v-if="!isUserCustomer()"
           ref="organizationIdRef"
           v-model="organizationId"
           :is-shown="isShown"
