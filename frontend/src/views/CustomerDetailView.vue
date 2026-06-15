@@ -13,6 +13,7 @@ import { useCustomerStats } from '@/queries/organizations/customerStats'
 import { useCustomerSystems } from '@/queries/systems/customerSystems'
 import OrganizationSystemsCard from '@/components/organizations/OrganizationSystemsCard.vue'
 import OrganizationApplicationsCard from '@/components/organizations/OrganizationApplicationsCard.vue'
+import { canReadCustomers } from '@/lib/permissions'
 
 const { state: customerDetail } = useCustomerDetail()
 const { state: customerStats } = useCustomerStats()
@@ -21,7 +22,7 @@ const { state: customerSystems } = useCustomerSystems()
 
 <template>
   <div>
-    <router-link to="/customers">
+    <router-link v-if="canReadCustomers()" to="/customers">
       <NeButton kind="tertiary" size="sm" class="mb-4 -ml-2">
         <template #prefix>
           <FontAwesomeIcon :icon="faArrowLeft" />

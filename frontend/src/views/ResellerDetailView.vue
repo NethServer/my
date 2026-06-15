@@ -16,6 +16,7 @@ import { useResellerSystems } from '@/queries/systems/resellerSystems'
 import { useApplicationsSummaryByCompany } from '@/queries/applications/applicationsSummaryByCompany'
 import OrganizationSystemsCard from '@/components/organizations/OrganizationSystemsCard.vue'
 import OrganizationApplicationsCard from '@/components/organizations/OrganizationApplicationsCard.vue'
+import { canReadResellers } from '@/lib/permissions'
 
 const { state: resellerDetail } = useResellerDetail()
 const { state: resellerStats } = useResellerStats()
@@ -25,7 +26,7 @@ const { state: applicationsSummary } = useApplicationsSummaryByCompany()
 
 <template>
   <div>
-    <router-link to="/resellers">
+    <router-link v-if="canReadResellers()" to="/resellers">
       <NeButton kind="tertiary" size="sm" class="mb-4 -ml-2">
         <template #prefix>
           <FontAwesomeIcon :icon="faArrowLeft" />

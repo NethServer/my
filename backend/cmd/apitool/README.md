@@ -62,7 +62,8 @@ apitool create-user --org=<name> --email=<email> --name='<name>'
 apitool delete-user <key>
 apitool cleanup-orphans --org=<name>                # purge users in org not in registry
 
-apitool create-system --org=<customer-name> <system-name>  [--as=<user-key>]
+apitool create-system --org=<customer-name> <system-name>  [--as=<user-key>] [--register]
+apitool register-system <system_secret>
 ```
 
 `--as=<user-key>` runs the call authenticated as a registered user (default:
@@ -165,13 +166,20 @@ above to get a system.
 **The system must be registered before `collect` will accept it.** `collect`
 rejects appliances that have a valid secret on file but never completed
 `POST /api/systems/register` (you'd get `401 invalid system credentials` on the
-push otherwise). Register once with the `system_secret`:
+push otherwise). Register it via apitool — two equivalent options:
 
 ```bash
-SYSTEM_KEY='NETH-...'
-SYSTEM_SECRET='my_....'
+# Option A (recommended): create + register in one step
+./apitool create-system --org=TestCust1 cust1-sys-A --register
 
-# Public, unauthenticated endpoint — the secret is the credential.
+# Option B: register an already-created system later (e.g. after a rotation)
+./apitool register-system 'my_<public>.<secret>'
+```
+
+Both wrap the public `POST /api/systems/register` endpoint (no Bearer required —
+the secret IS the credential). If you'd rather hit it directly with curl:
+
+```bash
 curl -s -X POST "http://localhost:8080/api/systems/register" \
   -H "Content-Type: application/json" \
   -d "{\"system_secret\":\"$SYSTEM_SECRET\"}"

@@ -14,6 +14,7 @@ import {
   type NeComboboxOption,
   NeFormItemLabel,
 } from '@nethesis/vue-components'
+import OrganizationCombobox from '@/components/organizations/OrganizationCombobox.vue'
 import { computed, ref, useTemplateRef, watch, type Ref, type ShallowRef } from 'vue'
 import {
   CreateUserSchema,
@@ -36,10 +37,10 @@ import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
 import { PRODUCT_NAME } from '@/lib/config'
 import { normalize } from '@/lib/common'
-import { organizationsQuery } from '@/queries/organizations/organizations'
 import { userRolesQuery } from '@/queries/users/userRoles'
 import { USER_FILTERS_KEY } from '@/lib/users/userFilters'
 import { combinePhoneParts, countryCodeComboOptions, parsePhoneForForm } from '@/lib/phone'
+import { isUserCustomer } from '@/lib/organizations/organizations'
 
 const { isShown = false, currentUser = undefined } = defineProps<{
   isShown: boolean
@@ -52,11 +53,6 @@ const { t } = useI18n()
 const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
 const loginStore = useLoginStore()
-
-const { state: organizations } = useQuery({
-  ...organizationsQuery,
-  enabled: () => !!loginStore.jwtToken && isShown,
-})
 
 const { state: allUserRoles } = useQuery({
   ...userRolesQuery,
@@ -155,18 +151,6 @@ const saving = computed(() => {
   return createUserLoading.value || editUserLoading.value
 })
 
-const organizationOptions = computed(() => {
-  if (!organizations.value.data) {
-    return []
-  }
-
-  return organizations.value.data?.map((org) => ({
-    id: org.logto_id,
-    label: org.name,
-    description: t(`organizations.${org.type}`),
-  }))
-})
-
 const userRoleOptions = computed(() => {
   if (!allUserRoles.value.data) {
     return []
@@ -206,7 +190,7 @@ watch(
         // creating user, reset form to defaults
         email.value = ''
         name.value = ''
-        organizationId.value = ''
+        organizationId.value = isUserCustomer() ? loginStore.userInfo?.organization_id || '' : ''
         userRoles.value = []
         countryCode.value = 'it'
         phone.value = ''
@@ -214,13 +198,6 @@ watch(
     }
   },
 )
-
-watch(organizations, () => {
-  if (isShown && currentUser && organizations.value.data && organizations.value.data.length > 0) {
-    // select the organization while editing a user
-    organizationId.value = currentUser.organization?.logto_id || ''
-  }
-})
 
 watch(allUserRoles, () => {
   if (isShown && currentUser && allUserRoles.value.data && allUserRoles.value.data.length > 0) {
@@ -383,24 +360,16 @@ function getEmailInvalidMessage(): string {
           :disabled="saving"
         />
         <!-- organization -->
-        <NeCombobox
+        <OrganizationCombobox
+          v-if="!isUserCustomer()"
           ref="organizationIdRef"
           v-model="organizationId"
-          :options="organizationOptions"
+          :is-shown="isShown"
           :label="$t('users.organization')"
-          :placeholder="
-            organizations.status === 'pending' ? $t('common.loading') : $t('ne_combobox.choose')
-          "
           :invalid-message="
             validationIssues.organization_id?.[0] ? $t(validationIssues.organization_id[0]) : ''
           "
-          :disabled="organizations.status === 'pending' || saving"
-          :no-results-label="$t('ne_combobox.no_results')"
-          :limited-options-label="$t('ne_combobox.limited_options_label')"
-          :no-options-label="$t('users.no_organizations')"
-          :selected-label="$t('ne_combobox.selected')"
-          :user-input-label="$t('ne_combobox.user_input_label')"
-          :optional-label="$t('common.optional')"
+          :disabled="saving"
         />
         <!-- user roles -->
         <NeCombobox

@@ -10,13 +10,13 @@ import {
   NeTextInput,
   NeInlineNotification,
   focusElement,
-  NeCombobox,
   NeBadgeV2,
   NeStepper,
   NeSkeleton,
   NeTextArea,
   NeFormItemLabel,
 } from '@nethesis/vue-components'
+import OrganizationCombobox from '@/components/organizations/OrganizationCombobox.vue'
 import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import {
   CreateSystemSchema,
@@ -35,12 +35,9 @@ import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import { getValidationIssues, isValidationError } from '../../lib/validation'
 import type { AxiosError } from 'axios'
-import { useQuery } from '@pinia/colada'
-import { useLoginStore } from '@/stores/login'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faCheck, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
 import { SYSTEM_FILTERS_KEY } from '@/lib/systems/systemFilters'
-import { organizationsQuery } from '@/queries/organizations/organizations'
 
 const { isShown = false, currentSystem = undefined } = defineProps<{
   isShown: boolean
@@ -52,12 +49,6 @@ const emit = defineEmits(['close'])
 const { t } = useI18n()
 const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
-const loginStore = useLoginStore()
-
-const { state: organizations } = useQuery({
-  ...organizationsQuery,
-  enabled: () => !!loginStore.jwtToken && isShown,
-})
 
 const {
   mutate: createSystemMutate,
@@ -139,27 +130,8 @@ const saving = computed(() => {
   return createSystemLoading.value || editSystemLoading.value
 })
 
-const organizationOptions = computed(() => {
-  if (!organizations.value.data) {
-    return []
-  }
-
-  return organizations.value.data?.map((org) => ({
-    id: org.logto_id,
-    label: org.name,
-    description: t(`organizations.${org.type}`),
-  }))
-})
-
 const stepNumber = computed(() => {
   return step.value === 'create' ? 1 : 2
-})
-
-watch(organizations, () => {
-  if (isShown && currentSystem && organizations.value.data && organizations.value.data.length) {
-    // select the organization while editing a system
-    organizationId.value = currentSystem.organization.logto_id || ''
-  }
 })
 
 watch(
@@ -190,10 +162,7 @@ function onShow() {
     // editing system
     name.value = currentSystem.name
     notes.value = currentSystem.notes || ''
-
-    if (organizations.value.data?.length) {
-      organizationId.value = currentSystem.organization.logto_id || ''
-    }
+    organizationId.value = currentSystem.organization.logto_id || ''
   } else {
     // creating system, reset form to defaults
     name.value = ''
@@ -342,25 +311,16 @@ function copySecretAndCloseDrawer() {
             :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
           />
           <!-- organization -->
-          <NeCombobox
+          <OrganizationCombobox
             ref="organizationIdRef"
             v-model="organizationId"
-            :options="organizationOptions"
+            :is-shown="isShown"
             :label="$t('systems.organization')"
-            :placeholder="
-              organizations.status === 'pending' ? $t('common.loading') : $t('ne_combobox.choose')
-            "
             :helper-text="$t('systems.organization_helper')"
             :invalid-message="
               validationIssues.organization_id?.[0] ? $t(validationIssues.organization_id[0]) : ''
             "
-            :disabled="organizations.status === 'pending' || saving"
-            :no-results-label="$t('ne_combobox.no_results')"
-            :limited-options-label="$t('ne_combobox.limited_options_label')"
-            :no-options-label="$t('systems.no_organizations')"
-            :selected-label="$t('ne_combobox.selected')"
-            :user-input-label="$t('ne_combobox.user_input_label')"
-            :optional-label="$t('common.optional')"
+            :disabled="saving"
           />
           <!-- notes -->
           <NeTextArea
@@ -396,7 +356,7 @@ function copySecretAndCloseDrawer() {
           <NeSkeleton v-if="!isSecretShown" :lines="4" />
           <div v-else class="animate-fade-in space-y-6">
             <div>
-              <NeFormItemLabel class="!mb-1">
+              <NeFormItemLabel class="mb-1!">
                 {{ t('systems.system_secret') }}
               </NeFormItemLabel>
               <div v-if="isSecretRevealed" class="break-all">

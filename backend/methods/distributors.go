@@ -115,8 +115,8 @@ func GetDistributor(c *gin.Context) {
 		return
 	}
 
-	// Only Owner can access distributors
-	if strings.ToLower(user.OrgRole) != "owner" {
+	// Only Owner can access distributors; a distributor can access itself
+	if strings.ToLower(user.OrgRole) != "owner" && distributorID != user.OrganizationID {
 		c.JSON(http.StatusForbidden, response.Forbidden("access denied: only owners can access distributors", nil))
 		return
 	}
@@ -453,8 +453,8 @@ func GetDistributorStats(c *gin.Context) {
 		return
 	}
 
-	// Only Owner can access distributors
-	if strings.ToLower(user.OrgRole) != "owner" {
+	// Only Owner can access distributors; a distributor can access itself
+	if strings.ToLower(user.OrgRole) != "owner" && distributorID != user.OrganizationID {
 		c.JSON(http.StatusForbidden, response.Forbidden("access denied: only owners can access distributors", nil))
 		return
 	}

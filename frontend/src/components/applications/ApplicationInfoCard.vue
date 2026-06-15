@@ -11,15 +11,13 @@ import {
   NeHeading,
   NeLink,
   NeSkeleton,
-  NeTooltip,
   type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { useApplicationDetail } from '@/queries/applications/applicationDetail'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import DataItem from '@/components/DataItem.vue'
 import NotesModal from '@/components/NotesModal.vue'
-import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
-import OrganizationLink from '@/components/applications/OrganizationLink.vue'
+import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import { getDisplayName } from '@/lib/applications/applications'
 import ApplicationLogo from '@/components/applications/ApplicationLogo.vue'
 import { computed, ref } from 'vue'
@@ -49,12 +47,6 @@ const rebrandingBadgeText = computed(() =>
 )
 const rebrandingBadgeKind = computed(() => (rebrandingEnabled.value ? 'green' : 'gray'))
 const rebrandingBadgeIcon = computed(() => (rebrandingEnabled.value ? faCheck : faXmark))
-
-const organizationTypeLabel = computed(() => {
-  const orgType = applicationDetail.value.data?.organization?.type
-  if (!orgType) return ''
-  return t(`organizations.${orgType.toLowerCase()}`)
-})
 
 function showAssignOrgDrawer() {
   isShownAssignOrgDrawer.value = true
@@ -142,28 +134,12 @@ function getKebabMenuItems() {
             {{ $t('organizations.organization') }}
           </template>
           <template #data>
-            <div class="flex items-center gap-2">
-              <NeTooltip
-                v-if="applicationDetail.data.organization?.type"
-                trigger-event="mouseenter focus"
-                placement="top"
-              >
-                <template #trigger>
-                  <OrganizationIcon
-                    :org-type="applicationDetail.data.organization.type"
-                    size="xs"
-                  />
-                </template>
-                <template #content>
-                  {{ organizationTypeLabel }}
-                </template>
-              </NeTooltip>
-              <OrganizationLink
-                v-if="applicationDetail.data.organization"
-                :organization="applicationDetail.data.organization"
-              />
-              <span v-else class="font-medium">-</span>
-            </div>
+            <OrganizationIconAndLink
+              v-if="applicationDetail.data.organization"
+              :organization="applicationDetail.data.organization"
+              icon-size="xs"
+            />
+            <span v-else class="font-medium">-</span>
           </template>
         </DataItem>
         <DataItem>

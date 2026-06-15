@@ -791,6 +791,73 @@ CREATE INDEX IF NOT EXISTS idx_system_org_transfers_to_org_id
   ON system_org_transfers(to_org_id);
 
 -- =============================================================================
+-- ALERT ACTIVITY (per-alert audit timeline)
+-- =============================================================================
+-- Append-only timeline of operator actions performed on a single alert
+-- (silence created/updated/deleted). See migration 023.
+
+CREATE TABLE IF NOT EXISTS alert_activity (
+    id              BIGSERIAL PRIMARY KEY,
+    organization_id VARCHAR(255) NOT NULL,
+    fingerprint     VARCHAR(255) NOT NULL,
+    action          VARCHAR(50)  NOT NULL,
+    actor_user_id   VARCHAR(255),
+    actor_name      VARCHAR(255),
+    silence_id      VARCHAR(255),
+    details         JSONB        NOT NULL DEFAULT '{}',
+    created_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE  alert_activity              IS 'Append-only audit timeline of operator actions on individual alerts';
+COMMENT ON COLUMN alert_activity.fingerprint  IS 'Alertmanager fingerprint (hex hash of labels) of the alert the action targets';
+COMMENT ON COLUMN alert_activity.action       IS 'Event kind: silenced | silence_updated | unsilenced. Note changes are silence_updated events.';
+COMMENT ON COLUMN alert_activity.silence_id   IS 'Silence ID associated with the event. Lets DELETE silence resolve the fingerprint.';
+
+CREATE INDEX IF NOT EXISTS idx_alert_activity_org_fp_created_at ON alert_activity(organization_id, fingerprint, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_alert_activity_silence_lookup    ON alert_activity(organization_id, silence_id) WHERE silence_id IS NOT NULL;
+
+-- =============================================================================
+-- ALERT CONFIG LAYERS (per-organization alerting configuration)
+-- =============================================================================
+-- One row per organization carrying that org's alerting configuration as a
+-- flat recipient-based JSON blob. The effective per-tenant Mimir YAML is the
+-- server-side merge of all rows walking up the org hierarchy. See migration 024.
+
+CREATE TABLE IF NOT EXISTS alert_config_layers (
+    organization_id    VARCHAR(255) PRIMARY KEY,
+    config_json        JSONB NOT NULL,
+    updated_by_user_id VARCHAR(255),
+    updated_by_name    VARCHAR(255),
+    updated_at         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    created_at         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE  alert_config_layers              IS 'Per-organization alerting config layer. Effective Mimir YAML for a tenant is the merge of all layers from Owner down to that tenant; merge is server-side only and never exposed via API.';
+COMMENT ON COLUMN alert_config_layers.config_json  IS 'Serialized AlertingConfigLayer: { enabled:{email,webhook,telegram}, email_recipients[], webhook_recipients[], telegram_recipients[] }. Each recipient carries its own severities[]; email recipients additionally carry language+format. Channel toggles are nullable tri-state.';
+
+-- =============================================================================
+-- ALERTS TOTALS BY ORG (pre-aggregated active alert counts)
+-- =============================================================================
+-- Per-organization counts of active alerts (severity + muted) maintained by
+-- the collect AlertsTotalsRefresher cron. Lets /api/alerts/totals answer with
+-- a single SUM query instead of fanning out to Mimir per tenant. See
+-- migration 025.
+
+CREATE TABLE IF NOT EXISTS alerts_totals_by_org (
+    organization_id VARCHAR(255) PRIMARY KEY,
+    active     INTEGER NOT NULL DEFAULT 0,
+    critical   INTEGER NOT NULL DEFAULT 0,
+    warning    INTEGER NOT NULL DEFAULT 0,
+    info       INTEGER NOT NULL DEFAULT 0,
+    muted      INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE alerts_totals_by_org IS 'Per-organization active alert counts, refreshed by collect''s AlertsTotalsRefresher cron';
+COMMENT ON COLUMN alerts_totals_by_org.muted IS 'Active alerts that have at least one matching Alertmanager silence';
+COMMENT ON COLUMN alerts_totals_by_org.updated_at IS 'Last successful refresh for this org; stale rows indicate the refresher is lagging';
+
+-- =============================================================================
 -- SCHEMA MIGRATIONS TABLE
 -- =============================================================================
 -- Tracks applied database migrations

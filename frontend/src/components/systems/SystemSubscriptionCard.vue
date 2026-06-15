@@ -10,10 +10,12 @@ import {
   NeHeading,
   NeInlineNotification,
   NeSkeleton,
+  type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faAward, faKey } from '@fortawesome/free-solid-svg-icons'
 import { formatDateTimeNoSeconds } from '@/lib/dateTime'
+import { canManageSystems } from '@/lib/permissions'
 import { useI18n } from 'vue-i18n'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import DataItem from '../DataItem.vue'
@@ -28,8 +30,17 @@ const isShownRegenerateSecretModal = ref(false)
 const isShownSecretRegeneratedModal = ref(false)
 const newSecret = ref<string>('')
 
+function canShowRegenerateSecret() {
+  const system = systemDetail.value.data
+  return canManageSystems() && system?.status !== 'deleted' && !system?.suspended_at
+}
+
 function getKebabMenuItems() {
-  const items = [
+  if (!canShowRegenerateSecret()) {
+    return []
+  }
+
+  const items: NeDropdownItem[] = [
     {
       id: 'regenerateSecret',
       label: t('systems.regenerate_secret'),
@@ -62,7 +73,11 @@ function onCloseSecretRegeneratedModal() {
         </NeHeading>
       </div>
       <!-- kebab menu -->
-      <NeDropdown :items="getKebabMenuItems()" :align-to-right="true" />
+      <NeDropdown
+        v-if="canShowRegenerateSecret()"
+        :items="getKebabMenuItems()"
+        :align-to-right="true"
+      />
     </div>
     <!-- get system detail error notification -->
     <NeInlineNotification

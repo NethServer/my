@@ -85,11 +85,11 @@ interface SystemsTotalResponse {
   code: number
   message: string
   data: {
-    alive: number
-    dead: number
-    timeout_minutes: number
     total: number
-    zombie: number
+    active: number
+    inactive: number
+    unknown: number
+    timeout_minutes: number
   }
 }
 

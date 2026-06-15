@@ -135,6 +135,74 @@ report_checksum_drift() {
     return 1
 }
 
+# baseline_if_schema_present: if schema_migrations is empty but the schema is
+# clearly already in place (any non-bookkeeping table exists in public), mark
+# every on-disk migration as applied without running it. This is how we keep
+# the runner idempotent against the backend's database.Init() boot-time
+# schema.sql apply — schema.sql already represents the cumulative head state,
+# so re-running migrations against it is both redundant and dangerous (some
+# migrations are not idempotent; e.g. 010 CREATE OR REPLACE VIEW fails when
+# 012's MATERIALIZED VIEW already sits on the same name).
+#
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ INVARIANT: schema.sql MUST contain every CREATE TABLE / INDEX / VIEW    │
+# │ that on-disk migrations produce. If you add a new migration without     │
+# │ folding its effect into schema.sql, a fresh-init flow                   │
+# │ (`make dev-up` → `make run` → `make db-migrate`) will silently mark     │
+# │ your new migration as applied without ever creating the table — and     │
+# │ the bug only shows up at runtime when a query hits the missing object.  │
+# │ See backend/database/migrations/README.md.                              │
+# └─────────────────────────────────────────────────────────────────────────┘
+#
+# Safe against partial migrations: only fires when schema_migrations has zero
+# rows. As soon as anything is recorded (including by this function itself)
+# subsequent calls no-op — adding a new migration to an existing DB runs it
+# normally.
+baseline_if_schema_present() {
+    create_migrations_table
+
+    local rowcount tablecount
+    rowcount=$($CONTAINER_ENGINE run --rm -i \
+        --network=host \
+        "$POSTGRES_IMAGE" \
+        psql "$DATABASE_URL" -t -A -c \
+        "SELECT COUNT(*) FROM schema_migrations;")
+    [ "$rowcount" = "0" ] || return 0
+
+    # Count tables in the public schema other than schema_migrations itself.
+    # >0 means schema.sql (or an earlier setup) already created the cumulative
+    # schema; <=0 means a truly empty database where every migration must run.
+    tablecount=$($CONTAINER_ENGINE run --rm -i \
+        --network=host \
+        "$POSTGRES_IMAGE" \
+        psql "$DATABASE_URL" -t -A -c \
+        "SELECT COUNT(*) FROM information_schema.tables
+         WHERE table_schema = 'public' AND table_name <> 'schema_migrations';")
+    [ "$tablecount" -gt 0 ] || return 0
+
+    log_info "Schema present but schema_migrations is empty — baselining from on-disk migrations"
+
+    # Redirect stdin to /dev/null inside the loop body: `podman run -i` (used
+    # by run_psql_raw) consumes the pipe's stdin, so without this redirect the
+    # loop reads only the first migration and the rest of the list is eaten by
+    # podman. The classic stdin-leak-in-subprocess-inside-while-read bug.
+    local mig file desc checksum
+    while read -r mig; do
+        [ -z "$mig" ] && continue
+        file=$(find_migration_file "$mig")
+        [ -z "$file" ] && continue
+        desc=$(basename "$file" .sql | sed "s/^${mig}_//")
+        checksum=$(get_file_checksum "$file")
+        run_psql_raw "
+            INSERT INTO schema_migrations (migration_number, description, checksum)
+            VALUES ('$mig', '$desc', '$checksum')
+            ON CONFLICT (migration_number) DO NOTHING;
+        " </dev/null >/dev/null
+    done < <(list_migration_files)
+
+    log_success "Baselined schema_migrations from existing schema"
+}
+
 apply_migration() {
     MIG="$1"
     FILE=$(find_migration_file "$MIG")
@@ -144,12 +212,28 @@ apply_migration() {
         exit 1
     fi
 
+    # Detect "fresh from schema.sql" — backend's database.Init() applies the
+    # baseline schema.sql which already contains every table in its
+    # post-migration form, but schema_migrations is left empty. Without this
+    # step we'd then try to replay 001..N against the already-populated schema
+    # and fail on non-idempotent statements (e.g. 010's CREATE OR REPLACE VIEW
+    # unified_organizations on top of 012's MATERIALIZED VIEW). Baseline the
+    # bookkeeping once; subsequent ticks see "already applied" and no-op.
+    baseline_if_schema_present
+
     if check_migration_status "$MIG"; then
         if ! report_checksum_drift "$MIG" "$FILE"; then
             exit 2
         fi
         log_warning "Migration $MIG already applied"
         return 0
+    fi
+
+    # Refuse to replay a migration when later siblings are already recorded.
+    # Replaying is what triggers errors like "X is not a view" when a follow-up
+    # migration has changed the underlying object's type.
+    if ! detect_gaps; then
+        exit 3
     fi
 
     CHECKSUM=$(get_file_checksum "$FILE" || true)
@@ -195,6 +279,103 @@ rollback_migration() {
     } | run_psql_file
 
     log_success "Migration $MIG rolled back"
+}
+
+list_applied_migrations() {
+    create_migrations_table
+    $CONTAINER_ENGINE run --rm -i \
+        --network=host \
+        "$POSTGRES_IMAGE" \
+        psql "$DATABASE_URL" -t -A \
+        -c "SELECT migration_number FROM schema_migrations ORDER BY migration_number;" \
+        | tr -d ' '
+}
+
+list_migration_files() {
+    find "$MIGRATION_DIR" -maxdepth 1 -type f -name '*.sql' ! -name '*_rollback.sql' \
+        | sed -E 's@.*/([0-9]+)_.*\.sql$@\1@' \
+        | sort -u
+}
+
+# Detect numbers that have a file on disk and a newer applied sibling but no
+# schema_migrations row. That state means apply will replay an already-applied
+# migration and fail (e.g. CREATE OR REPLACE VIEW over a now-MATERIALIZED view).
+detect_gaps() {
+    local applied_file gaps_file max_applied
+    applied_file=$(mktemp)
+    gaps_file=$(mktemp)
+
+    list_applied_migrations >"$applied_file"
+
+    if [ ! -s "$applied_file" ]; then
+        rm -f "$applied_file" "$gaps_file"
+        return 0
+    fi
+
+    max_applied=$(tail -n1 "$applied_file")
+
+    while read -r mig; do
+        [ -z "$mig" ] && continue
+        if [ "$(printf '%s\n' "$mig" "$max_applied" | sort | head -n1)" = "$mig" ] \
+           && [ "$mig" != "$max_applied" ] \
+           && ! grep -qx "$mig" "$applied_file"; then
+            echo "$mig" >>"$gaps_file"
+        fi
+    done < <(list_migration_files)
+
+    if [ -s "$gaps_file" ]; then
+        local gap_list
+        gap_list=$(tr '\n' ' ' <"$gaps_file" | sed 's/ $//')
+        log_error "schema_migrations is inconsistent — applied rows skip: $gap_list"
+        log_error "  but later migrations are recorded as applied (max=$max_applied)."
+        log_error ""
+        log_error "Either these were applied out-of-band (mark them) or never ran"
+        log_error "(investigate before doing anything)."
+        log_error ""
+        log_error "If the schema is actually up to date, mark them as applied:"
+        log_error "  ./run_migration.sh repair $gap_list"
+        log_error "  (or from the backend dir: make db-repair MIGRATIONS=\"$gap_list\")"
+        rm -f "$applied_file" "$gaps_file"
+        return 1
+    fi
+
+    rm -f "$applied_file" "$gaps_file"
+    return 0
+}
+
+repair_migrations() {
+    if [ $# -eq 0 ]; then
+        log_error "repair requires at least one migration number"
+        log_error "Usage: $0 repair <num> [<num>...]"
+        exit 1
+    fi
+
+    create_migrations_table
+
+    local mig file desc checksum
+    for mig in "$@"; do
+        file=$(find_migration_file "$mig")
+        if [ -z "$file" ]; then
+            log_error "Migration file for $mig not found — refusing to repair"
+            exit 1
+        fi
+
+        if check_migration_status "$mig"; then
+            log_warning "Migration $mig is already recorded — skipping"
+            continue
+        fi
+
+        desc=$(basename "$file" .sql | sed "s/^${mig}_//")
+        checksum=$(get_file_checksum "$file")
+
+        log_info "Marking migration $mig as applied (description=$desc)"
+        run_psql_raw "
+            INSERT INTO schema_migrations (migration_number, description, checksum)
+            VALUES ('$mig', '$desc', '$checksum')
+            ON CONFLICT (migration_number) DO UPDATE SET checksum = EXCLUDED.checksum;
+        " >/dev/null
+        log_success "Migration $mig marked as applied"
+    done
 }
 
 verify_all() {
@@ -243,14 +424,21 @@ verify_all() {
 show_usage() {
     echo "Usage: $0 <migration_number> {apply|rollback|status}"
     echo "       $0 verify"
+    echo "       $0 repair <num> [<num>...]"
 }
 
 main() {
     detect_container_engine
     check_database_url
 
-    if [ $# -eq 1 ] && [ "$1" = "verify" ]; then
+    if [ $# -ge 1 ] && [ "$1" = "verify" ]; then
         verify_all
+        exit $?
+    fi
+
+    if [ $# -ge 1 ] && [ "$1" = "repair" ]; then
+        shift
+        repair_migrations "$@"
         exit $?
     fi
 

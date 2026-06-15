@@ -122,7 +122,9 @@ db-up:
 	@echo "Starting shared PostgreSQL container with $(CONTAINER_NAME)..."
 	@if $(CONTAINER_CMD) ps --format "{{.Names}}" | grep -q "^my-postgres$$"; then \
 		echo "PostgreSQL container already running"; \
-		echo "DATABASE_URL=postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable"; \
+	elif $(CONTAINER_CMD) ps -a --format "{{.Names}}" | grep -q "^my-postgres$$"; then \
+		echo "PostgreSQL container exists but is stopped, starting it..."; \
+		$(CONTAINER_CMD) start my-postgres; \
 	else \
 		$(CONTAINER_CMD) run -d --name my-postgres \
 			-e POSTGRES_DB=noc \
@@ -130,8 +132,8 @@ db-up:
 			-e POSTGRES_PASSWORD=noc_password \
 			-p 5432:5432 \
 			postgres:15-alpine; \
-		echo "DATABASE_URL=postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable"; \
 	fi
+	@echo "DATABASE_URL=postgresql://noc_user:noc_password@localhost:5432/noc?sslmode=disable"
 
 .PHONY: db-down
 db-down:
@@ -150,11 +152,13 @@ redis-up:
 	@echo "Starting shared Redis container with $(CONTAINER_NAME)..."
 	@if $(CONTAINER_CMD) ps --format "{{.Names}}" | grep -q "^my-redis$$"; then \
 		echo "Redis container already running"; \
-		echo "REDIS_URL=redis://localhost:6379"; \
+	elif $(CONTAINER_CMD) ps -a --format "{{.Names}}" | grep -q "^my-redis$$"; then \
+		echo "Redis container exists but is stopped, starting it..."; \
+		$(CONTAINER_CMD) start my-redis; \
 	else \
 		$(CONTAINER_CMD) run -d --name my-redis -p 6379:6379 redis:7-alpine redis-server --save 60 1 --loglevel warning; \
-		echo "REDIS_URL=redis://localhost:6379"; \
 	fi
+	@echo "REDIS_URL=redis://localhost:6379"
 
 .PHONY: redis-down
 redis-down:

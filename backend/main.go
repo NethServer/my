@@ -343,7 +343,8 @@ func main() {
 		// ===========================================
 
 		// Distributors - resource-based permission validation (read:distributors for GET, manage:distributors for POST/PUT/DELETE)
-		distributorsGroup := customAuthWithAudit.Group("/distributors", middleware.RequireResourcePermission("distributors"))
+		// Self-access: GET on own organization ID is always allowed (object-level RBAC in handlers)
+		distributorsGroup := customAuthWithAudit.Group("/distributors", middleware.RequireResourcePermissionOrSelf("distributors"))
 		{
 			// CRUD operations
 			distributorsGroup.POST("", methods.CreateDistributor)       // Create distributor (manage:distributors required)
@@ -377,7 +378,8 @@ func main() {
 		}
 
 		// Resellers - resource-based permission validation (read:resellers for GET, manage:resellers for POST/PUT/DELETE)
-		resellersGroup := customAuthWithAudit.Group("/resellers", middleware.RequireResourcePermission("resellers"))
+		// Self-access: GET on own organization ID is always allowed (object-level RBAC in handlers)
+		resellersGroup := customAuthWithAudit.Group("/resellers", middleware.RequireResourcePermissionOrSelf("resellers"))
 		{
 			// CRUD operations
 			resellersGroup.POST("", methods.CreateReseller)       // Create reseller (manage:resellers required)
@@ -411,7 +413,8 @@ func main() {
 		}
 
 		// Customers - resource-based permission validation (read:customers for GET, manage:customers for POST/PUT/DELETE)
-		customersGroup := customAuthWithAudit.Group("/customers", middleware.RequireResourcePermission("customers"))
+		// Self-access: GET on own organization ID is always allowed (object-level RBAC in handlers)
+		customersGroup := customAuthWithAudit.Group("/customers", middleware.RequireResourcePermissionOrSelf("customers"))
 		{
 			// CRUD operations
 			customersGroup.POST("", methods.CreateCustomer)       // Create customer (manage:customers required)

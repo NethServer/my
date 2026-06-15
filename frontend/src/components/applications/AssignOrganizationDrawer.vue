@@ -4,15 +4,10 @@
 -->
 
 <script setup lang="ts">
-import {
-  NeButton,
-  NeSideDrawer,
-  NeTextInput,
-  NeInlineNotification,
-  NeCombobox,
-} from '@nethesis/vue-components'
-import { computed, ref } from 'vue'
-import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
+import { NeButton, NeSideDrawer, NeTextInput, NeInlineNotification } from '@nethesis/vue-components'
+import OrganizationCombobox from '@/components/organizations/OrganizationCombobox.vue'
+import { ref } from 'vue'
+import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import { getValidationIssues, isValidationError } from '@/lib/validation'
@@ -23,9 +18,7 @@ import {
   type Application,
 } from '@/lib/applications/applications'
 import { type Organization } from '@/lib/organizations/organizations'
-import { useLoginStore } from '@/stores/login'
 import type { AxiosError } from 'axios'
-import { organizationsQuery } from '@/queries/organizations/organizations'
 
 const { isShown = false, currentApplication = undefined } = defineProps<{
   isShown: boolean
@@ -35,7 +28,6 @@ const { isShown = false, currentApplication = undefined } = defineProps<{
 const emit = defineEmits(['close'])
 
 const { t } = useI18n()
-const loginStore = useLoginStore()
 const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
 
@@ -77,24 +69,7 @@ const {
   },
 })
 
-const { state: organizations } = useQuery({
-  ...organizationsQuery,
-  enabled: () => !!loginStore.jwtToken && isShown,
-})
-
 const validationIssues = ref<Record<string, string[]>>({})
-
-const organizationOptions = computed(() => {
-  if (!organizations.value.data) {
-    return []
-  }
-
-  return organizations.value.data?.map((org) => ({
-    id: org.logto_id,
-    label: org.name,
-    description: t(`organizations.${org.type}`),
-  }))
-})
 
 function onShow() {
   clearErrors()
@@ -149,26 +124,15 @@ async function saveApplication() {
           readonly
         />
         <!-- organization -->
-        <NeCombobox
+        <OrganizationCombobox
           ref="organizationIdRef"
           v-model="organizationId"
-          :options="organizationOptions"
           :label="$t('organizations.organization')"
-          :placeholder="
-            organizations.status === 'pending'
-              ? $t('common.loading')
-              : $t('organizations.choose_organization')
-          "
+          :placeholder="$t('organizations.choose_organization')"
           :invalid-message="
             validationIssues.organization_id?.[0] ? $t(validationIssues.organization_id[0]) : ''
           "
-          :disabled="organizations.status === 'pending' || assignOrganizationLoading"
-          :no-results-label="$t('ne_combobox.no_results')"
-          :limited-options-label="$t('ne_combobox.limited_options_label')"
-          :no-options-label="$t('organizations.no_organizations')"
-          :selected-label="$t('ne_combobox.selected')"
-          :user-input-label="$t('ne_combobox.user_input_label')"
-          :optional-label="$t('common.optional')"
+          :disabled="assignOrganizationLoading"
         />
         <!-- assign organization error notification -->
         <NeInlineNotification

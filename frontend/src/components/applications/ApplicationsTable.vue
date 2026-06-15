@@ -4,13 +4,7 @@
 -->
 
 <script setup lang="ts">
-import {
-  faBuilding,
-  faCircleInfo,
-  faEye,
-  faPenToSquare,
-  faServer,
-} from '@fortawesome/free-solid-svg-icons'
+import { faBuilding, faCircleInfo, faEye, faPenToSquare } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   NeTable,
@@ -26,28 +20,30 @@ import {
   NeTextInput,
   NeDropdown,
   type SortEvent,
-  NeTooltip,
   type NeDropdownItem,
   NeDropdownFilter,
   NeSortDropdown,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { savePageSizeToStorage } from '@/lib/tablePageSize'
+import { savePageSizeToStorage, PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import { canManageApplications } from '@/lib/permissions'
-import { SYSTEMS_TABLE_ID } from '@/lib/systems/systems'
-import OrganizationIcon from '../organizations/OrganizationIcon.vue'
+import { isUserCustomer } from '@/lib/organizations/organizations'
+import { APPLICATIONS_TABLE_ID } from '@/lib/applications/applications'
+import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import { useApplications } from '@/queries/applications/applications'
 import { getDisplayName, type Application } from '@/lib/applications/applications'
 import ApplicationLogo from './ApplicationLogo.vue'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import AssignOrganizationDrawer from './AssignOrganizationDrawer.vue'
 import SetNotesDrawer from './SetNotesDrawer.vue'
-import OrganizationLink from './OrganizationLink.vue'
 import { useApplicationFilters } from '@/queries/applications/applicationFilters'
 import { buildVersionFilterOptions } from '@/lib/applications/applicationFilters'
 import router from '@/router'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
+import SystemDropdownFilter from '@/components/systems/SystemDropdownFilter.vue'
+import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
+import SystemLogoAndLink from '../systems/SystemLogoAndLink.vue'
 
 const { t } = useI18n()
 const {
@@ -105,28 +101,6 @@ const versionFilterOptions = computed(() => {
       typeFilter.value.includes(el.application),
     )
     return buildVersionFilterOptions(applicationVersions)
-  }
-})
-
-const systemFilterOptions = computed(() => {
-  if (!applicationFiltersState.value.data?.systems) {
-    return []
-  } else {
-    return applicationFiltersState.value.data.systems.map((appSystem) => ({
-      id: appSystem.id,
-      label: appSystem.name,
-    }))
-  }
-})
-
-const organizationFilterOptions = computed(() => {
-  if (!applicationFiltersState.value.data?.organizations) {
-    return []
-  } else {
-    return applicationFiltersState.value.data.organizations.map((org) => ({
-      id: org.logto_id,
-      label: org.logto_id === 'no_org' ? t('applications.no_organization') : org.name,
-    }))
   }
 })
 
@@ -241,7 +215,7 @@ const goToApplicationDetails = (application: Application) => {
               :label="t('applications.type')"
               :options="typeFilterOptions"
               show-options-filter
-              :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+              :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
               :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
               :no-options-label="t('ne_dropdown_filter.no_options')"
               :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -254,38 +228,14 @@ const goToApplicationDetails = (application: Application) => {
               :label="t('applications.version')"
               :options="versionFilterOptions"
               show-options-filter
-              :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+              :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
               :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
               :no-options-label="t('ne_dropdown_filter.no_options')"
               :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
               :clear-search-label="t('ne_dropdown_filter.clear_search')"
             />
-            <NeDropdownFilter
-              v-model="systemFilter"
-              kind="checkbox"
-              :disabled="applicationFiltersState.status === 'pending'"
-              :label="t('systems.system')"
-              :options="systemFilterOptions"
-              show-options-filter
-              :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
-              :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-              :no-options-label="t('ne_dropdown_filter.no_options')"
-              :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-              :clear-search-label="t('ne_dropdown_filter.clear_search')"
-            />
-            <NeDropdownFilter
-              v-model="organizationFilter"
-              kind="checkbox"
-              :disabled="applicationFiltersState.status === 'pending'"
-              :label="t('organizations.organization')"
-              :options="organizationFilterOptions"
-              show-options-filter
-              :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
-              :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-              :no-options-label="t('ne_dropdown_filter.no_options')"
-              :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-              :clear-search-label="t('ne_dropdown_filter.clear_search')"
-            />
+            <SystemDropdownFilter v-model="systemFilter" id-field="id" />
+            <OrganizationDropdownFilter v-if="!isUserCustomer()" v-model="organizationFilter" />
             <!-- sort dropdown -->
             <NeSortDropdown
               v-model:sort-key="sortBy"
@@ -381,41 +331,15 @@ const goToApplicationDetails = (application: Application) => {
               </div>
             </NeTableCell>
             <NeTableCell :data-label="$t('systems.system')">
-              <div>
-                <div class="flex items-center gap-2">
-                  <FontAwesomeIcon :icon="faServer" class="h-4 w-4" aria-hidden="true" />
-                  <router-link
-                    :to="{ name: 'system_detail', params: { systemId: item.system.id } }"
-                  >
-                    <span class="cursor-pointer font-medium hover:underline">
-                      {{ item.system.name || '-' }}
-                    </span>
-                  </router-link>
-                </div>
-              </div>
+              <SystemLogoAndLink
+                :system-id="item.system.id"
+                :system-name="item.system.name"
+                system-type="ns8"
+              />
             </NeTableCell>
             <NeTableCell :data-label="$t('organizations.organization')">
-              <div>
-                <div class="flex items-center gap-2">
-                  <NeTooltip
-                    v-if="item.organization?.type"
-                    placement="top"
-                    trigger-event="mouseenter focus"
-                    class="shrink-0"
-                  >
-                    <template #trigger>
-                      <OrganizationIcon :org-type="item.organization.type" size="sm" />
-                    </template>
-                    <template #content>
-                      {{ t(`organizations.${item.organization.type}`) }}
-                    </template>
-                  </NeTooltip>
-                  <OrganizationLink v-if="item.organization" :organization="item.organization" />
-                  <span v-else class="font-medium">
-                    {{ '-' }}
-                  </span>
-                </div>
-              </div>
+              <OrganizationIconAndLink v-if="item.organization" :organization="item.organization" />
+              <span v-else>-</span>
             </NeTableCell>
             <NeTableCell :data-label="$t('common.actions')">
               <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
@@ -444,7 +368,7 @@ const goToApplicationDetails = (application: Application) => {
             :current-page="pageNum"
             :total-rows="pagination?.total_count || 0"
             :page-size="pageSize"
-            :page-sizes="[5, 10, 25, 50, 100]"
+            :page-sizes="PAGE_SIZE_OPTIONS"
             :nav-pagination-label="$t('ne_table.pagination')"
             :next-label="$t('ne_table.go_to_next_page')"
             :previous-label="$t('ne_table.go_to_previous_page')"
@@ -458,7 +382,7 @@ const goToApplicationDetails = (application: Application) => {
             @select-page-size="
               (size: number) => {
                 pageSize = size
-                savePageSizeToStorage(SYSTEMS_TABLE_ID, size)
+                savePageSizeToStorage(APPLICATIONS_TABLE_ID, size)
               }
             "
           />

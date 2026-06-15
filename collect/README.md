@@ -93,6 +93,13 @@ LOG_LEVEL=info
 - This can keep the alert visible for up to 10 minutes after heartbeat recovery
 - Reuses the same server-side label enrichment as the Mimir proxy so internal alerts carry the same authoritative system and organization labels
 
+**8. Active alerts totals refresh**
+- **Alerts Totals Refresher Cron** runs every 60 seconds
+- Fans out to Mimir Alertmanager (one `GET /alertmanager/api/v2/alerts` per tenant, bounded concurrency 50, 30s timeout) and tallies active alerts by severity and muted state for every organization in `unified_organizations`
+- Writes the result into `alerts_totals_by_org` via a single multi-VALUES `INSERT … ON CONFLICT DO UPDATE`, so the backend `/api/alerts/totals` endpoint serves the dashboard counters with a single SQL `SUM` (typically <10ms) instead of paying the per-tenant fan-out on every user request
+- Per-tenant failures are aggregated and surfaced as a single warn line per cycle with `failures`, `orgs_total`, and a `sample_error` (avoids flooding the log when Mimir is unreachable)
+- A tenant that fails this cycle keeps its previous counts in the table — its row is not refreshed until a subsequent cycle succeeds; the backend exposes `MIN(updated_at)` as a `stale data` warning to the caller when the freshest row is older than 5 minutes
+
 ### Queue Architecture
 - `collect:inventory` → Raw inventory data
 - `collect:processing` → Diff computation jobs
@@ -308,8 +315,9 @@ collect/
 ├── alerting/              # Shared Alertmanager helpers
 ├── configuration/          # Environment configuration
 ├── cron/                  # Scheduled jobs
-│   ├── heartbeat_monitor.go       # System status monitoring
-│   └── linkfailed_monitor.go      # LinkFailed alert synchronization
+│   ├── heartbeat_monitor.go         # System status monitoring
+│   ├── linkfailed_monitor.go        # LinkFailed alert synchronization
+│   └── alerts_totals_refresher.go   # Per-org active alert counts → alerts_totals_by_org
 ├── database/              # PostgreSQL connection and models
 ├── methods/               # HTTP request handlers
 ├── middleware/            # Authentication middleware

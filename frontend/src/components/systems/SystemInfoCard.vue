@@ -41,8 +41,7 @@ import DeleteSystemModal from './DeleteSystemModal.vue'
 import SuspendSystemModal from './SuspendSystemModal.vue'
 import ReactivateSystemModal from './ReactivateSystemModal.vue'
 import DestroySystemModal from './DestroySystemModal.vue'
-import OrganizationIcon from '../organizations/OrganizationIcon.vue'
-import OrganizationLink from '../applications/OrganizationLink.vue'
+import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import UserAvatar from '../users/UserAvatar.vue'
 import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
@@ -84,12 +83,6 @@ const isShownDeleteSystemModal = ref(false)
 const isShownSuspendSystemModal = ref(false)
 const isShownReactivateSystemModal = ref(false)
 const isShownDestroySystemModal = ref(false)
-
-const organizationTypeLabel = computed(() => {
-  const orgType = systemDetail.value.data?.organization.type
-  if (!orgType) return ''
-  return t(`organizations.${orgType.toLowerCase()}`)
-})
 
 function getKebabMenuItems() {
   const system = systemDetail.value.data
@@ -269,25 +262,12 @@ function getKebabMenuItems() {
             {{ $t('systems.organization') }}
           </template>
           <template #data>
-            <div class="flex items-center gap-2">
-              <NeTooltip
-                v-if="systemDetail.data.organization.type"
-                trigger-event="mouseenter focus"
-                placement="top"
-              >
-                <template #trigger>
-                  <OrganizationIcon :org-type="systemDetail.data.organization.type" size="xs" />
-                </template>
-                <template #content>
-                  {{ organizationTypeLabel }}
-                </template>
-              </NeTooltip>
-              <OrganizationLink
-                v-if="systemDetail.data.organization"
-                :organization="systemDetail.data.organization"
-              />
-              <span v-else class="font-medium">-</span>
-            </div>
+            <OrganizationIconAndLink
+              v-if="systemDetail.data.organization"
+              :organization="systemDetail.data.organization"
+              icon-size="xs"
+            />
+            <span v-else class="font-medium">-</span>
           </template>
         </DataItem>
         <!-- created by -->

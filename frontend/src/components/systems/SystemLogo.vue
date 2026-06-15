@@ -6,17 +6,31 @@
 <script setup lang="ts">
 import { getProductLogo, getProductName } from '@/lib/systems/systems'
 
-const props = defineProps<{
+export type SystemLogoSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl'
+
+const { system, size = 'sm' } = defineProps<{
   system?: string
+  size?: SystemLogoSize
 }>()
+
+const sizeClasses: Record<SystemLogoSize, string> = {
+  xs: 'size-6',
+  sm: 'size-8',
+  md: 'size-10',
+  lg: 'size-12',
+  xl: 'size-14',
+  '2xl': 'size-16',
+  '3xl': 'size-20',
+  '4xl': 'size-24',
+}
 </script>
 
 <template>
   <img
-    v-if="props.system"
-    :src="getProductLogo(props.system)"
-    :alt="getProductName(props.system)"
+    v-if="system"
+    :src="getProductLogo(system)"
+    :alt="getProductName(system)"
     aria-hidden="true"
-    class="size-8 rounded-md"
+    :class="`${sizeClasses[size]} rounded-md`"
   />
 </template>

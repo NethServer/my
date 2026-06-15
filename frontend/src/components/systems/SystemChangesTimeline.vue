@@ -45,6 +45,7 @@ import {
   faCodeCompare,
 } from '@fortawesome/free-solid-svg-icons'
 import { useThemeStore } from '@/stores/theme'
+import capitalize from 'lodash/capitalize'
 
 const { t, locale } = useI18n()
 const themeStore = useThemeStore()
@@ -95,7 +96,7 @@ watch(
 const severityFilterOptions = computed<FilterOption[]>(() =>
   (['critical', 'high', 'medium', 'low'] as const)
     .filter((s) => (inventoryChangesState.value.data?.changes_by_severity?.[s] ?? 0) > 0)
-    .map((s) => ({ id: s, label: t(`system_detail.severity_${s}`) })),
+    .map((s) => ({ id: s, label: capitalize(s) })),
 )
 
 const categoryFilterOptions = computed<FilterOption[]>(() => [
@@ -300,10 +301,6 @@ function getSeverityCustomKindClasses(severity: InventoryDiffSeverity): string |
   return undefined
 }
 
-function getSeverityLabel(severity: InventoryDiffSeverity): string {
-  return t(`system_detail.severity_${severity}`)
-}
-
 function getCategoryLabel(category: InventoryDiffCategory): string {
   return t(`system_detail.category_${category}`)
 }
@@ -401,7 +398,7 @@ const diffTypeFilterModel = computed<string[]>({
           kind="checkbox"
           :label="t('system_detail.severity')"
           :options="severityFilterOptions"
-          :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+          :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
           :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
           :no-options-label="t('ne_dropdown_filter.no_options')"
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -414,7 +411,7 @@ const diffTypeFilterModel = computed<string[]>({
           :label="t('system_detail.category')"
           :options="categoryFilterOptions"
           show-options-filter
-          :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+          :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
           :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
           :no-options-label="t('ne_dropdown_filter.no_options')"
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -426,7 +423,7 @@ const diffTypeFilterModel = computed<string[]>({
           kind="checkbox"
           :label="t('system_detail.change_type')"
           :options="diffTypeFilterOptions"
-          :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+          :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
           :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
           :no-options-label="t('ne_dropdown_filter.no_options')"
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -460,7 +457,7 @@ const diffTypeFilterModel = computed<string[]>({
           </template>
           <template #menu-header>
             <NeLink @click="clearDateRange" class="inline-block pt-3 pl-3">{{
-              t('ne_dropdown_filter.clear_filter')
+              t('ne_dropdown_filter.clear_selection')
             }}</NeLink>
           </template>
         </VueDatePicker>
@@ -611,7 +608,7 @@ const diffTypeFilterModel = computed<string[]>({
                         :custom-kind-classes="getSeverityCustomKindClasses(diff.severity)"
                         class="mr-2 min-w-[80px] justify-center"
                       >
-                        {{ getSeverityLabel(diff.severity) }}
+                        {{ capitalize(diff.severity) }}
                       </NeBadgeV2>
                       <!-- Field path -->
                       <span

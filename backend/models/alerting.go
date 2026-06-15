@@ -97,9 +97,40 @@ type TelegramRecipient struct {
 // performs the merge at render time only.
 type AlertingConfigLayer struct {
 	Enabled            ChannelToggles      `json:"enabled"`
-	EmailRecipients    []EmailRecipient    `json:"email_recipients" binding:"max=50"`
-	WebhookRecipients  []WebhookRecipient  `json:"webhook_recipients" binding:"max=20"`
-	TelegramRecipients []TelegramRecipient `json:"telegram_recipients" binding:"max=20"`
+	EmailRecipients    []EmailRecipient    `json:"email_recipients" binding:"max=50,dive"`
+	WebhookRecipients  []WebhookRecipient  `json:"webhook_recipients" binding:"max=20,dive"`
+	TelegramRecipients []TelegramRecipient `json:"telegram_recipients" binding:"max=20,dive"`
+}
+
+// AlertingFieldError is a structured validation failure on a single field
+// of an AlertingConfigLayer. Handlers translate it into the standard
+// validation_error response (key/message/value). Code is a stable machine
+// token (e.g. "invalid_format", "required") so the UI can drive i18n.
+type AlertingFieldError struct {
+	Key   string
+	Code  string
+	Value string
+}
+
+func (e *AlertingFieldError) Error() string {
+	if e.Value != "" {
+		return fmt.Sprintf("%s: %s (value=%q)", e.Key, e.Code, e.Value)
+	}
+	return fmt.Sprintf("%s: %s", e.Key, e.Code)
+}
+
+// newEmailFieldErr / newWebhookFieldErr / newTelegramFieldErr build a path
+// like `email_recipients.0.address` so the UI can point at the exact input.
+func newEmailFieldErr(idx int, field, code, value string) *AlertingFieldError {
+	return &AlertingFieldError{Key: fmt.Sprintf("email_recipients.%d.%s", idx, field), Code: code, Value: value}
+}
+
+func newWebhookFieldErr(idx int, field, code, value string) *AlertingFieldError {
+	return &AlertingFieldError{Key: fmt.Sprintf("webhook_recipients.%d.%s", idx, field), Code: code, Value: value}
+}
+
+func newTelegramFieldErr(idx int, field, code, value string) *AlertingFieldError {
+	return &AlertingFieldError{Key: fmt.Sprintf("telegram_recipients.%d.%s", idx, field), Code: code, Value: value}
 }
 
 // Validate runs stateless format/structure checks that must hold for every
@@ -110,83 +141,90 @@ type AlertingConfigLayer struct {
 // satisfy the contract.
 func (c *AlertingConfigLayer) Validate() error {
 	for i, r := range c.EmailRecipients {
-		if err := validateEmailFormat(r.Address); err != nil {
-			return fmt.Errorf("email_recipients[%d]: %w", i, err)
+		if code, ok := validateEmailFormat(r.Address); !ok {
+			return newEmailFieldErr(i, "address", code, r.Address)
 		}
-		if err := validateSeverities(r.Severities); err != nil {
-			return fmt.Errorf("email_recipients[%d]: %w", i, err)
+		if bad, code, ok := validateSeverities(r.Severities); !ok {
+			return newEmailFieldErr(i, "severities", code, bad)
 		}
 		if r.Language != "" {
 			if _, ok := validLanguages[r.Language]; !ok {
-				return fmt.Errorf("email_recipients[%d]: unknown language %q", i, r.Language)
+				return newEmailFieldErr(i, "language", "invalid_value", r.Language)
 			}
 		}
 		if r.Format != "" {
 			if _, ok := validFormats[r.Format]; !ok {
-				return fmt.Errorf("email_recipients[%d]: unknown format %q", i, r.Format)
+				return newEmailFieldErr(i, "format", "invalid_value", r.Format)
 			}
 		}
 	}
 	for i, r := range c.WebhookRecipients {
-		if err := validateStaticWebhookURL(r.URL); err != nil {
-			return fmt.Errorf("webhook_recipients[%d] %q: %w", i, r.Name, err)
+		if code, ok := validateStaticWebhookURL(r.URL); !ok {
+			return newWebhookFieldErr(i, "url", code, r.URL)
 		}
-		if err := validateSeverities(r.Severities); err != nil {
-			return fmt.Errorf("webhook_recipients[%d]: %w", i, err)
+		if bad, code, ok := validateSeverities(r.Severities); !ok {
+			return newWebhookFieldErr(i, "severities", code, bad)
 		}
 	}
 	for i, r := range c.TelegramRecipients {
 		if strings.TrimSpace(r.BotToken) == "" {
-			return fmt.Errorf("telegram_recipients[%d]: bot_token is empty", i)
+			return newTelegramFieldErr(i, "bot_token", "required", "")
 		}
-		if err := validateSeverities(r.Severities); err != nil {
-			return fmt.Errorf("telegram_recipients[%d]: %w", i, err)
+		if bad, code, ok := validateSeverities(r.Severities); !ok {
+			return newTelegramFieldErr(i, "severities", code, bad)
 		}
 	}
 	return nil
 }
 
-func validateSeverities(s []string) error {
+// validateSeverities returns (badValue, code, ok). On success ok is true and
+// the other fields are zero. On failure ok is false, badValue is the offending
+// entry, and code is a stable token for the UI ("invalid_value").
+func validateSeverities(s []string) (string, string, bool) {
 	for _, v := range s {
 		if _, ok := validSeverities[v]; !ok {
-			return fmt.Errorf("invalid severity %q", v)
+			return v, "invalid_value", false
 		}
 	}
-	return nil
+	return "", "", true
 }
 
 // validateStaticWebhookURL runs every check that does NOT require name
 // resolution: scheme is http/https, no userinfo, host is non-empty and
 // well-formed (IP literal or canonical FQDN). Network-aware checks
 // (denylist resolution, IP private/loopback rejection of resolved DNS
-// answers) are run by the handler.
-func validateStaticWebhookURL(raw string) error {
+// answers) are run by the handler. Returns (code, ok) — on success ok is
+// true; on failure ok is false and code is a stable token for the UI.
+func validateStaticWebhookURL(raw string) (string, bool) {
 	u, err := url.Parse(raw)
 	if err != nil {
-		return fmt.Errorf("invalid webhook url: %w", err)
+		return "invalid_format", false
 	}
 	scheme := strings.ToLower(u.Scheme)
 	if scheme != "http" && scheme != "https" {
-		return fmt.Errorf("webhook url must use http or https, got %q", u.Scheme)
+		return "invalid_scheme", false
 	}
 	if u.User != nil {
-		return fmt.Errorf("webhook url must not contain credentials")
+		return "credentials_not_allowed", false
 	}
 	if u.Hostname() == "" {
-		return fmt.Errorf("webhook url is missing a host")
+		return "missing_host", false
 	}
-	return nil
+	return "", true
 }
 
-func validateEmailFormat(s string) error {
+// validateEmailFormat returns (code, ok). On success ok is true; on failure
+// ok is false and code is a stable token for the UI ("required" for empty,
+// "invalid_format" for anything ParseAddress rejects).
+func validateEmailFormat(s string) (string, bool) {
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return fmt.Errorf("email is empty")
+		return "required", false
 	}
 	if _, err := mail.ParseAddress(s); err != nil {
-		return fmt.Errorf("invalid email %q: %w", s, err)
+		return "invalid_format", false
 	}
-	return nil
+	return "", true
 }
 
 // AlertStatus represents the status metadata for an active alert from Alertmanager.

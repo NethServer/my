@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import {
   faCircleInfo,
   faBoxArchive,
@@ -46,14 +47,12 @@ import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { canManageSystems, canDestroySystems } from '@/lib/permissions'
 import { useSystems } from '@/queries/systems/systems'
 import { exportSystem, getProductName, SYSTEMS_TABLE_ID, type System } from '@/lib/systems/systems'
-import SystemLogo from './SystemLogo.vue'
 import router from '@/router'
 import CreateOrEditSystemDrawer from './CreateOrEditSystemDrawer.vue'
 import DeleteSystemModal from './DeleteSystemModal.vue'
 import { useSystemFilters } from '@/queries/systems/systemFilters'
 import UserAvatar from '../users/UserAvatar.vue'
 import { buildVersionFilterOptions } from '@/lib/systems/systemFilters'
-import OrganizationIcon from '../organizations/OrganizationIcon.vue'
 import RegenerateSecretModal from './RegenerateSecretModal.vue'
 import SecretRegeneratedModal from './SecretRegeneratedModal.vue'
 import ClickToCopy from '../ClickToCopy.vue'
@@ -63,6 +62,10 @@ import ReactivateSystemModal from './ReactivateSystemModal.vue'
 import DestroySystemModal from './DestroySystemModal.vue'
 import SystemStatusIcon from './SystemStatusIcon.vue'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
+import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
+import { isUserCustomer } from '@/lib/organizations/organizations.ts'
+import OrganizationIconAndLink from '../organizations/OrganizationIconAndLink.vue'
+import SystemLogoAndLink from './SystemLogoAndLink.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -86,6 +89,7 @@ const {
   sortDescending,
   areDefaultFiltersApplied,
   resetFilters,
+  resetStatusFilter,
 } = useSystems()
 const { state: systemFiltersState } = useSystemFilters()
 
@@ -163,17 +167,6 @@ const createdByFilterOptions = computed(() => {
     return systemFiltersState.value.data.created_by.map((user) => ({
       id: user.user_id,
       label: user.name,
-    }))
-  }
-})
-
-const organizationFilterOptions = computed(() => {
-  if (!systemFiltersState.value.data || !systemFiltersState.value.data.organizations) {
-    return []
-  } else {
-    return systemFiltersState.value.data.organizations.map((org) => ({
-      id: org.id,
-      label: org.name,
     }))
   }
 })
@@ -400,7 +393,7 @@ function onCloseSecretRegeneratedModal() {
             :disabled="systemFiltersState.status === 'pending'"
             :label="t('systems.product')"
             :options="productFilterOptions"
-            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -413,7 +406,7 @@ function onCloseSecretRegeneratedModal() {
             :label="t('systems.version')"
             :options="versionFilterOptions"
             show-options-filter
-            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
@@ -426,25 +419,13 @@ function onCloseSecretRegeneratedModal() {
             :label="t('systems.created_by')"
             :options="createdByFilterOptions"
             show-options-filter
-            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
           />
-          <NeDropdownFilter
-            v-model="organizationFilter"
-            kind="checkbox"
-            :label="t('systems.organization')"
-            :options="organizationFilterOptions"
-            :disabled="systemFiltersState.status === 'pending'"
-            show-options-filter
-            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
-            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-            :no-options-label="t('ne_dropdown_filter.no_options')"
-            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-            :clear-search-label="t('ne_dropdown_filter.clear_search')"
-          />
+          <OrganizationDropdownFilter v-if="!isUserCustomer()" v-model="organizationFilter" />
           <!-- status filter -->
           <NeDropdownFilter
             v-model="statusFilter"
@@ -452,11 +433,13 @@ function onCloseSecretRegeneratedModal() {
             :label="t('common.status')"
             :options="statusFilterOptions"
             :show-clear-filter="false"
-            :clear-filter-label="t('ne_dropdown_filter.clear_filter')"
+            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            :custom-action-label="t('ne_dropdown_filter.reset_selection')"
+            @custom-action="resetStatusFilter"
           />
           <!-- sort dropdown -->
           <NeSortDropdown
@@ -542,24 +525,11 @@ function onCloseSecretRegeneratedModal() {
         <NeTableRow v-for="(item, index) in systemsPage" :key="index">
           <NeTableCell :data-label="$t('systems.name')">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
-              <router-link
-                v-if="item.status !== 'deleted'"
-                :to="{ name: 'system_detail', params: { systemId: item.id } }"
-                class="cursor-pointer font-medium hover:underline"
-              >
-                <div class="flex items-center gap-2">
-                  <SystemLogo :system="item.type" />
-                  <span>
-                    {{ item.name || '-' }}
-                  </span>
-                </div>
-              </router-link>
-              <div v-else class="flex items-center gap-2">
-                <SystemLogo :system="item.type" />
-                <span>
-                  {{ item.name || '-' }}
-                </span>
-              </div>
+              <SystemLogoAndLink
+                :system-id="item.status === 'deleted' ? '' : item.id"
+                :system-name="item.name"
+                :system-type="item.type"
+              />
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.version')" class="break-all 2xl:break-normal">
@@ -586,22 +556,8 @@ function onCloseSecretRegeneratedModal() {
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.organization')">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
-              <div class="flex items-center gap-2">
-                <NeTooltip
-                  v-if="item.organization.type"
-                  placement="top"
-                  trigger-event="mouseenter focus"
-                  class="shrink-0"
-                >
-                  <template #trigger>
-                    <OrganizationIcon :org-type="item.organization.type" size="sm" />
-                  </template>
-                  <template #content>
-                    {{ t(`organizations.${item.organization.type}`) }}
-                  </template>
-                </NeTooltip>
-                {{ item.organization.name || '-' }}
-              </div>
+              <OrganizationIconAndLink v-if="item.organization" :organization="item.organization" />
+              <span v-else>-</span>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.created_by')">
@@ -677,7 +633,7 @@ function onCloseSecretRegeneratedModal() {
           :current-page="pageNum"
           :total-rows="pagination?.total_count || 0"
           :page-size="pageSize"
-          :page-sizes="[5, 10, 25, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :nav-pagination-label="$t('ne_table.pagination')"
           :next-label="$t('ne_table.go_to_next_page')"
           :previous-label="$t('ne_table.go_to_previous_page')"

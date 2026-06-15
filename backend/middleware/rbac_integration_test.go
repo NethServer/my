@@ -314,6 +314,121 @@ func TestRequireAnyOrgRole(t *testing.T) {
 	}
 }
 
+func TestRequireResourcePermissionOrSelf(t *testing.T) {
+	setupTestEnvironment()
+
+	// Replicates the reported bug: a Backoffice user of a Reseller organization
+	// (org permissions only cover customers) calling GET /resellers/:id/stats
+	// on their own organization received 403 "insufficient permissions"
+	resellerBackofficeUser := &models.User{
+		ID:              "ccdbf86e-5a88-4922-a1fd-f3263a13cd0d",
+		Username:        "resuser1",
+		UserRoles:       []string{"Backoffice"},
+		UserPermissions: []string{"read:users", "read:systems", "manage:applications", "manage:users", "read:applications"},
+		OrgRole:         "Reseller",
+		OrgPermissions:  []string{"manage:customers", "read:customers"},
+		OrganizationID:  "hot86hewa5zw",
+	}
+
+	ownerUser := &models.User{
+		ID:             "owner-user",
+		Username:       "owner",
+		OrgRole:        "Owner",
+		OrgPermissions: []string{"read:resellers", "manage:resellers"},
+		OrganizationID: "owner-org",
+	}
+
+	tests := []struct {
+		name           string
+		user           *models.User
+		middleware     gin.HandlerFunc
+		method         string
+		path           string
+		expectedStatus int
+		expectMessage  string
+	}{
+		{
+			name:           "reseller user GET own organization stats passes (self-access)",
+			user:           resellerBackofficeUser,
+			middleware:     RequireResourcePermissionOrSelf("resellers"),
+			method:         "GET",
+			path:           "/resellers/hot86hewa5zw/stats",
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "reseller user GET own organization detail passes (self-access)",
+			user:           resellerBackofficeUser,
+			middleware:     RequireResourcePermissionOrSelf("resellers"),
+			method:         "GET",
+			path:           "/resellers/hot86hewa5zw",
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "reseller user GET another organization fails",
+			user:           resellerBackofficeUser,
+			middleware:     RequireResourcePermissionOrSelf("resellers"),
+			method:         "GET",
+			path:           "/resellers/another-org-id/stats",
+			expectedStatus: http.StatusForbidden,
+			expectMessage:  "insufficient permissions",
+		},
+		{
+			name:           "reseller user PUT own organization fails (self-access is read-only)",
+			user:           resellerBackofficeUser,
+			middleware:     RequireResourcePermissionOrSelf("resellers"),
+			method:         "PUT",
+			path:           "/resellers/hot86hewa5zw",
+			expectedStatus: http.StatusForbidden,
+			expectMessage:  "insufficient permissions",
+		},
+		{
+			name:           "owner with read permission GET any organization passes",
+			user:           ownerUser,
+			middleware:     RequireResourcePermissionOrSelf("resellers"),
+			method:         "GET",
+			path:           "/resellers/hot86hewa5zw/stats",
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "original bug: plain RequireResourcePermission denies own organization",
+			user:           resellerBackofficeUser,
+			middleware:     RequireResourcePermission("resellers"),
+			method:         "GET",
+			path:           "/resellers/hot86hewa5zw/stats",
+			expectedStatus: http.StatusForbidden,
+			expectMessage:  "insufficient permissions",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := testutils.SetupTestGin()
+			group := router.Group("/resellers", func(c *gin.Context) {
+				c.Set("user", tt.user)
+				c.Next()
+			}, tt.middleware)
+			group.GET("/:id", func(c *gin.Context) {
+				c.JSON(http.StatusOK, gin.H{"status": "authorized"})
+			})
+			group.GET("/:id/stats", func(c *gin.Context) {
+				c.JSON(http.StatusOK, gin.H{"status": "authorized"})
+			})
+			group.PUT("/:id", func(c *gin.Context) {
+				c.JSON(http.StatusOK, gin.H{"status": "authorized"})
+			})
+
+			w := testutils.MakeRequest(t, router, tt.method, tt.path, nil, nil)
+
+			assert.Equal(t, tt.expectedStatus, w.Code)
+
+			if tt.expectedStatus != http.StatusOK {
+				response := testutils.AssertJSONResponse(t, w, tt.expectedStatus)
+				assert.Contains(t, response["message"], tt.expectMessage)
+			}
+		})
+	}
+}
+
 func TestGetUserFromContext(t *testing.T) {
 	setupTestEnvironment()
 

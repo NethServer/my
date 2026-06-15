@@ -491,13 +491,66 @@ func TestValidateWebhookURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateWebhookURL(tt.url)
+			code, err := validateWebhookURL(tt.url)
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
+				assert.NotEmpty(t, code)
 			} else {
 				assert.NoError(t, err)
+				assert.Empty(t, code)
 			}
 		})
 	}
+}
+
+// TestAlertingFieldErrorPaths covers the paths that ConfigureAlerts uses to
+// translate validation failures into the standard validation_error envelope:
+// the model's Validate() returns *AlertingFieldError with a JSON-shaped key,
+// and validateWebhookRecipients does the same for the SSRF check.
+func TestAlertingFieldErrorPaths(t *testing.T) {
+	t.Run("invalid email at index 2 produces structured error", func(t *testing.T) {
+		cfg := models.AlertingConfigLayer{
+			EmailRecipients: []models.EmailRecipient{
+				{Address: "ok1@test.org"},
+				{Address: "ok2@test.org"},
+				{Address: "wwwwwww"},
+			},
+		}
+		err := cfg.Validate()
+		require.Error(t, err)
+		fe := asAlertingFieldError(err)
+		require.NotNil(t, fe)
+		assert.Equal(t, "email_recipients.2.address", fe.Key)
+		assert.Equal(t, "invalid_format", fe.Code)
+		assert.Equal(t, "wwwwwww", fe.Value)
+	})
+
+	t.Run("invalid webhook url produces structured error", func(t *testing.T) {
+		err := validateWebhookRecipients([]models.WebhookRecipient{
+			{Name: "ok", URL: "https://example.com/hook"},
+			{Name: "broken", URL: "asdf"},
+		})
+		require.Error(t, err)
+		fe := asAlertingFieldError(err)
+		require.NotNil(t, fe)
+		assert.Equal(t, "webhook_recipients.1.url", fe.Key)
+		assert.Equal(t, "invalid_scheme", fe.Code)
+		assert.Equal(t, "asdf", fe.Value)
+	})
+
+	t.Run("namespace to JSON path with array index", func(t *testing.T) {
+		assert.Equal(t,
+			"email_recipients.0.address",
+			alertingJSONPath("AlertingConfigLayer.EmailRecipients[0].Address"),
+		)
+		assert.Equal(t,
+			"webhook_recipients.3.url",
+			alertingJSONPath("AlertingConfigLayer.WebhookRecipients[3].URL"),
+		)
+		assert.Equal(t,
+			"telegram_recipients.0.bot_token",
+			alertingJSONPath("AlertingConfigLayer.TelegramRecipients[0].BotToken"),
+		)
+	})
 }

@@ -11,6 +11,7 @@ import { useApplicationDetail } from '@/queries/applications/applicationDetail'
 import DataItem from '@/components/DataItem.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import SystemLogoAndLink from '../systems/SystemLogoAndLink.vue'
 
 const { t } = useI18n()
 const { state: applicationDetail } = useApplicationDetail()
@@ -45,15 +46,12 @@ const installationNode = computed(() => {
             {{ $t('systems.system') }}
           </template>
           <template #data>
-            <router-link
-              :to="{
-                name: 'system_detail',
-                params: { systemId: applicationDetail.data.system.id },
-              }"
-              class="cursor-pointer font-medium hover:underline"
-            >
-              {{ applicationDetail.data.system.name || '-' }}
-            </router-link>
+            <SystemLogoAndLink
+              :system-id="applicationDetail.data.system.id"
+              :system-name="applicationDetail.data.system.name"
+              system-type="ns8"
+              size="xs"
+            />
           </template>
         </DataItem>
         <DataItem>

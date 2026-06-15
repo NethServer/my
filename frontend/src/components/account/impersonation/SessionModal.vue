@@ -25,7 +25,7 @@ import { formatDateTime, formatDateTimeNoSeconds, formatMinutes } from '@/lib/da
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { SESSION_AUDIT_TABLE_ID } from '@/lib/impersonationSessions'
-import { savePageSizeToStorage } from '@/lib/tablePageSize'
+import { savePageSizeToStorage, PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 
 const { visible = false } = defineProps<{
   visible: boolean
@@ -201,7 +201,7 @@ const copyRequestDataToClipboard = (jsonString: string) => {
           :current-page="pageNum"
           :total-rows="pagination?.total_count || 0"
           :page-size="pageSize"
-          :page-sizes="[5, 10, 25, 50, 100]"
+          :page-sizes="PAGE_SIZE_OPTIONS"
           :nav-pagination-label="$t('ne_table.pagination')"
           :next-label="$t('ne_table.go_to_next_page')"
           :previous-label="$t('ne_table.go_to_previous_page')"

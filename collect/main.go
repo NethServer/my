@@ -104,6 +104,12 @@ func main() {
 	linkFailedMonitor := cron.NewLinkFailedMonitor()
 	go linkFailedMonitor.Start(ctx)
 
+	// Start alerts totals refresher cron job: keeps alerts_totals_by_org in
+	// sync with Alertmanager so the backend /api/alerts/totals endpoint
+	// answers with a single SQL SUM instead of a per-tenant Mimir fan-out.
+	alertsTotalsRefresher := cron.NewAlertsTotalsRefresher()
+	go alertsTotalsRefresher.Start(ctx)
+
 	// Init router
 	router := gin.Default()
 
