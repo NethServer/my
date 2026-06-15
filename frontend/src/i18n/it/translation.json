@@ -112,8 +112,7 @@
     "no_distributor": "Nessun distributore",
     "export_distributors_to_pdf": "Esporta distributori in PDF",
     "export_distributors_to_csv": "Esporta distributori in CSV",
-    "total_customers": "Clienti totali",
-    "total_systems": "Sistemi totali"
+    "total_customers": "Clienti totali"
   },
   "distributor_detail": {
     "title": "Dettaglio distributore",
@@ -148,8 +147,7 @@
     "archive_reseller_confirmation": "Sei sicuro di voler archiviare il rivenditore {name}? Tutti gli utenti e i sistemi associati a questa azienda verranno archiviati.",
     "no_reseller": "Nessun rivenditore",
     "export_resellers_to_pdf": "Esporta rivenditori in PDF",
-    "export_resellers_to_csv": "Esporta rivenditori in CSV",
-    "total_systems": "Sistemi totali"
+    "export_resellers_to_csv": "Esporta rivenditori in CSV"
   },
   "customers": {
     "title": "Clienti",
@@ -622,24 +620,17 @@
   "backups": {
     "title": "Backup",
     "page_description": "Snapshot di configurazione caricati da questo sistema. Ogni file è cifrato end-to-end sull'appliance — solo il sistema che l'ha creato può decifrarne il contenuto.",
-    "uploaded_at": "Caricato il",
     "filename": "Nome file",
     "size": "Dimensione",
-    "sha256": "SHA-256",
     "actions": "Azioni",
     "download": "Scarica",
     "delete": "Elimina",
     "no_backups": "Nessun backup",
     "no_backups_description": "Questo sistema non ha ancora caricato alcun backup di configurazione. I backup vengono creati automaticamente dall'appliance con cadenza giornaliera.",
     "cannot_retrieve_backups": "Impossibile recuperare i backup",
-    "retention_policy": "Politica di retention",
-    "retention_policy_description": "Il servizio di ingest mantiene al massimo {slots} backup per sistema, fino a {size} di spazio totale. Superato uno dei due limiti, il backup più vecchio viene eliminato automaticamente al momento dell'upload.",
     "storage_usage": "Spazio utilizzato",
-    "slots_usage": "Backup conservati",
-    "slots_used_of_max": "{used} di {max}",
     "delete_backup": "Elimina backup",
     "delete_backup_confirmation": "Vuoi eliminare {filename}, caricato il {date}? L'operazione non è reversibile.",
-    "refresh": "Aggiorna",
     "cannot_delete_backup": "Impossibile eliminare il backup",
     "backup_deleted": "Backup eliminato",
     "backup_deleted_description": "{filename} è stato rimosso.",
