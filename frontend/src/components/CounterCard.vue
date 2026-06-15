@@ -4,11 +4,13 @@
 -->
 
 <script setup lang="ts">
-import { NeCard, NeHeading, NeSkeleton } from '@nethesis/vue-components'
+import { NeCard, NeHeading, NeSkeleton, NeTooltip } from '@nethesis/vue-components'
 import { type IconDefinition } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { computed, useSlots } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { RouterLink, type RouteRecordNameGeneric } from 'vue-router'
+import { abbreviateNumber } from '@/lib/common'
 
 const {
   title,
@@ -21,6 +23,7 @@ const {
   colorClasses = undefined,
   isEstimated = false,
   titleRouteName = undefined,
+  abbreviateCounter = true,
 } = defineProps<{
   title: string
   counter: number
@@ -32,7 +35,23 @@ const {
   colorClasses?: string
   isEstimated?: boolean
   titleRouteName?: RouteRecordNameGeneric
+  abbreviateCounter?: boolean
 }>()
+
+const ABBREVIATION_THRESHOLD = 10_000
+
+const { locale } = useI18n()
+
+const abbreviatedCounter = computed(() => {
+  if (abbreviateCounter) {
+    return abbreviateNumber(counter, locale.value, ABBREVIATION_THRESHOLD)
+  }
+  return counter
+})
+
+const formattedCounter = computed(() => {
+  return new Intl.NumberFormat(locale.value).format(counter)
+})
 
 const slots = useSlots()
 
@@ -65,15 +84,23 @@ const hasDefaultSlot = computed(() => !!slots.default)
     <NeSkeleton v-if="loading" :lines="skeletonLines" class="w-full" />
     <template v-else>
       <div :class="['flex', centeredCounter ? 'flex-col gap-4' : 'justify-between']">
-        <span
+        <div
           :class="[
             'self-center text-4xl font-medium',
             colorClasses ?? 'text-indigo-700 dark:text-indigo-500',
             { 'self-center': centeredCounter },
           ]"
         >
-          {{ isEstimated ? '~' : '' }}{{ counter }}
-        </span>
+          <NeTooltip v-if="counter >= ABBREVIATION_THRESHOLD" trigger-event="mouseenter focus">
+            <template #trigger>
+              <span> {{ isEstimated ? '~' : '' }}{{ abbreviatedCounter }} </span>
+            </template>
+            <template #content>
+              {{ formattedCounter }}
+            </template>
+          </NeTooltip>
+          <span v-else> {{ isEstimated ? '~' : '' }}{{ abbreviatedCounter }} </span>
+        </div>
       </div>
       <div v-if="hasDefaultSlot" class="mt-5">
         <slot></slot>

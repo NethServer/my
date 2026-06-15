@@ -39,6 +39,22 @@ export const normalize = (str: string) => {
   return str.toLowerCase().replace(/\s+/g, '_')
 }
 
+export const abbreviateNumber = (
+  value: number,
+  locale = navigator.language,
+  minValue = 10_000,
+  decimals = 1,
+): string => {
+  if (Math.abs(value) < minValue) {
+    return String(value)
+  }
+  return new Intl.NumberFormat(locale, {
+    notation: 'compact',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: decimals,
+  }).format(value)
+}
+
 export const downloadFile = (fileData: string, filename: string, type: 'pdf' | 'csv') => {
   const mimeType = type === 'pdf' ? 'application/pdf' : 'text/csv;charset=utf-8;'
 
