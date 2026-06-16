@@ -7,3 +7,15 @@
 #     ingestion_rate: 10000
 #     max_label_names_per_series: 30
 #     compactor_blocks_retention_period: 48h
+
+overrides:
+  # veg2rx4p6lmo is the migration load-test catch-all org ("Old My") that
+  # temporarily holds the whole imported fleet (~12k systems). collect's
+  # LinkFailed monitor synthesizes one alert per inactive system, far exceeding
+  # the global per-tenant default (2048) and making the dispatcher drop new
+  # (real) alerts. Production distributes systems across real orgs (distributor/
+  # reseller/customer), each a small tenant well under the default — so this is
+  # a temporary override scoped ONLY to the catch-all org.
+  veg2rx4p6lmo:
+    alertmanager_max_alerts_count: 20000
+    alertmanager_max_dispatcher_aggregation_groups: 20000
