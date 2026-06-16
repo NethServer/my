@@ -33,9 +33,9 @@
     "open_page": "Apri {page}",
     "actions": "Azioni",
     "object_created_successfully": "{name} creato con successo",
-    "object_saved_successfully": "{name} salvato con successo",
-    "object_destroyed_successfully": "{name} eliminato con successo",
-    "object_archived_successfully": "{name} archiviato con successo",
+    "object_saved_successfully": "{name} è stato aggiornato con successo",
+    "object_destroyed_successfully": "{name} è stato distrutto con successo",
+    "object_archived_successfully": "{name} è stato archiviato con successo",
     "updating": "Aggiornamento...",
     "loading": "Caricamento...",
     "show": "Mostra",
@@ -49,8 +49,12 @@
     "reactivate": "Riattiva",
     "notes": "Note",
     "show_notes": "Mostra note",
-    "plus_n_more": "+{num} altri",
-    "node_id": "Nodo {id}"
+    "plus_n_more": "+{count} altro | +{count} altri",
+    "node_id": "Nodo {id}",
+    "remove": "Rimuovi",
+    "add": "Aggiungi",
+    "eg_value": "Es. {value}",
+    "data_updated_every_seconds": "Dati aggiornati ogni {seconds} secondi"
   },
   "shell": {
     "open_sidebar": "Apri barra laterale",
@@ -63,7 +67,9 @@
     "switch_to_light_theme": "Passa al tema chiaro",
     "sign_out": "Esci",
     "close_side_drawer": "Chiudi pannello laterale",
-    "end_impersonation": "Termina l'impersonificazione e torna al tuo account"
+    "end_impersonation": "Termina l'impersonificazione e torna al tuo account",
+    "systems_management": "Gestione sistemi",
+    "companies_and_users": "Aziende e utenti"
   },
   "login": {
     "manual_redirect_to_dashboard": "Se non vieni reindirizzato automaticamente, {clickHereLink}",
@@ -112,7 +118,9 @@
     "no_distributor": "Nessun distributore",
     "export_distributors_to_pdf": "Esporta distributori in PDF",
     "export_distributors_to_csv": "Esporta distributori in CSV",
-    "total_customers": "Clienti totali"
+    "total_customers": "Clienti totali",
+    "import_distributors": "Importa distributori",
+    "distributors_imported": "Distributori importati"
   },
   "distributor_detail": {
     "title": "Dettaglio distributore",
@@ -147,7 +155,9 @@
     "archive_reseller_confirmation": "Sei sicuro di voler archiviare il rivenditore {name}? Tutti gli utenti e i sistemi associati a questa azienda verranno archiviati.",
     "no_reseller": "Nessun rivenditore",
     "export_resellers_to_pdf": "Esporta rivenditori in PDF",
-    "export_resellers_to_csv": "Esporta rivenditori in CSV"
+    "export_resellers_to_csv": "Esporta rivenditori in CSV",
+    "import_resellers": "Importa rivenditori",
+    "resellers_imported": "Rivenditori importati"
   },
   "customers": {
     "title": "Clienti",
@@ -170,7 +180,9 @@
     "archive_customer_confirmation": "Sei sicuro di voler archiviare il cliente {name}? Tutti gli utenti e i sistemi associati a questa azienda verranno archiviati.",
     "no_customer": "Nessun cliente",
     "export_customers_to_pdf": "Esporta clienti in PDF",
-    "export_customers_to_csv": "Esporta clienti in CSV"
+    "export_customers_to_csv": "Esporta clienti in CSV",
+    "import_customers": "Importa clienti",
+    "customers_imported": "Clienti importati"
   },
   "organizations": {
     "name": "Nome azienda",
@@ -210,7 +222,10 @@
     "cannot_restore_organization": "Impossibile ripristinare l'azienda",
     "organization_restored": "Azienda ripristinata",
     "organization_restored_successfully": "{name} ripristinata con successo",
-    "restore_organization_confirmation": "Sei sicuro di voler ripristinare {name}?"
+    "restore_organization_confirmation": "Sei sicuro di voler ripristinare {name}?",
+    "distributors_lc": "distributori |",
+    "resellers_lc": "rivenditore | rivenditori",
+    "customers_lc": "cliente | clienti"
   },
   "users": {
     "title": "Utenti",
@@ -635,5 +650,28 @@
     "backup_deleted": "Backup eliminato",
     "backup_deleted_description": "{filename} è stato rimosso.",
     "cannot_download_backup": "Impossibile scaricare il backup"
+  },
+  "import": {
+    "download_the_template": "Scarica il modello",
+    "download_the_template_lc": "Scarica il modello",
+    "import_to_get_started": "{link} per iniziare",
+    "import_file_label": "File CSV",
+    "import_no_file_selected": "Seleziona un file CSV",
+    "import_file_must_be_csv": "Il file deve essere un CSV",
+    "import_validation_failed": "Validazione fallita",
+    "import_confirm_failed": "Impossibile completare l'importazione",
+    "import_result_created": "creato: {count} | creati: {count}",
+    "import_result_updated": "aggiornato: {count} | aggiornati: {count}",
+    "import_result_skipped": "saltato: {count} | saltati: {count}",
+    "import_result_failed": "fallito: {count} | falliti: {count}",
+    "import_summary": "Riepilogo importazione",
+    "import_summary_valid": "{count} valido | {count} validi",
+    "import_summary_errors": "{count} con errori, verrà ignorato | {count} con errori, verranno ignorati",
+    "import_rows_with_errors": "{count} riga ha errori, verrà ignorata: | {count} righe hanno errori, verranno ignorate:",
+    "import_file_preview": "Anteprima file",
+    "import_file_preview_description": "Sono mostrate solo le prime {count} righe",
+    "import_validation_error_message": "Assicurarsi che il file CSV sia formattato correttamente o {link}.",
+    "import_row_and_name": "Riga {row_number}: {name}",
+    "import_row_and_message": "Riga {row_number} ({name}): {message}"
   }
 }
