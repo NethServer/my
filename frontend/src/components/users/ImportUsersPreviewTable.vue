@@ -56,7 +56,7 @@ function rowField(row: ImportRow, field: string): string {
         <NeTableHeadCell>{{ $t('users.name') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('users.phone_number') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('users.organization') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('users.roles') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('users.role') }}</NeTableHeadCell>
       </NeTableHead>
       <NeTableBody>
         <NeTableRow v-for="row in previewRows" :key="row.row_number">
@@ -72,7 +72,7 @@ function rowField(row: ImportRow, field: string): string {
           <NeTableCell :data-label="$t('users.organization')">
             {{ rowField(row, 'company_name') }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('users.roles')">
+          <NeTableCell :data-label="$t('users.role')">
             {{ rowField(row, 'roles') }}
           </NeTableCell>
         </NeTableRow>

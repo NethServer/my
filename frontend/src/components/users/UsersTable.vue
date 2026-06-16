@@ -483,7 +483,7 @@ const onClosePasswordChangedModal = () => {
               <span v-else>-</span>
             </div>
           </NeTableCell>
-          <NeTableCell :data-label="$t('users.roles')">
+          <NeTableCell :data-label="$t('users.role')">
             <span
               v-if="!item.roles || item.roles.length === 0"
               :class="{ 'opacity-50': item.deleted_at }"

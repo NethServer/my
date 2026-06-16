@@ -258,7 +258,7 @@ function getKebabMenuItems() {
       <!-- roles -->
       <div>
         <NeFormItemLabel>
-          {{ $t('users.roles') }}
+          {{ $t('users.role') }}
         </NeFormItemLabel>
         <div class="flex flex-wrap gap-1">
           <UserRoleBadge

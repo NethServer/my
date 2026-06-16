@@ -344,7 +344,6 @@
     "no_user": "No users",
     "phone_number": "Phone number",
     "no_organizations": "No companies",
-    "user_roles": "Roles",
     "reset_password": "Reset password",
     "impersonate_user": "Impersonate user",
     "impersonate_user_message_1": "You will temporarily act as user {user} and have their permissions.",
