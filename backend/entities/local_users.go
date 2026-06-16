@@ -35,8 +35,25 @@ func NewLocalUserRepository() *LocalUserRepository {
 	}
 }
 
+// dbExecer is satisfied by *sql.DB and *sql.Tx so an insert can run either
+// standalone or inside a caller's transaction.
+type dbExecer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
 // Create creates a new user in local database
 func (r *LocalUserRepository) Create(req *models.CreateLocalUserRequest) (*models.LocalUser, error) {
+	return r.create(r.db, req)
+}
+
+// CreateWithTx creates a new user inside the provided transaction so the row
+// participates in the caller's atomic create-and-sync flow; a later failure
+// rolls the insert back instead of leaving an orphaned user (logto_id IS NULL).
+func (r *LocalUserRepository) CreateWithTx(tx *sql.Tx, req *models.CreateLocalUserRequest) (*models.LocalUser, error) {
+	return r.create(tx, req)
+}
+
+func (r *LocalUserRepository) create(exec dbExecer, req *models.CreateLocalUserRequest) (*models.LocalUser, error) {
 	id := uuid.New().String()
 	now := time.Now()
 
@@ -56,7 +73,7 @@ func (r *LocalUserRepository) Create(req *models.CreateLocalUserRequest) (*model
 		return nil, fmt.Errorf("failed to marshal user_role_ids: %w", err)
 	}
 
-	_, err = r.db.Exec(query,
+	_, err = exec.Exec(query,
 		id,
 		nil, // logto_id
 		req.Username,

@@ -10,6 +10,7 @@
 package local
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -179,8 +180,8 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// 3. Create in local DB (after Logto validation passes)
-	user, err := s.userRepo.Create(req)
+	// 3. Create in local DB inside the transaction (after Logto validation passes)
+	user, err := s.userRepo.CreateWithTx(tx, req)
 	if err != nil {
 		// Cleanup the Logto user since local creation failed
 		if deleteErr := s.logtoClient.DeleteUser(logtoUser.ID); deleteErr != nil {
@@ -312,13 +313,19 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 		}
 	}
 
-	// 7. Mark as synced
-	err = s.markUserSynced(user.ID, logtoUser.ID)
+	// 7. Mark as synced (inside the transaction so logto_id commits atomically)
+	err = s.markUserSynced(tx, user.ID, logtoUser.ID)
 	if err != nil {
 		logger.Warn().
 			Err(err).
 			Str("user_id", user.ID).
 			Msg("Failed to mark user as synced")
+	} else {
+		// Reflect the sync on the in-memory object so the create response carries
+		// logto_id immediately, instead of forcing the client to issue a follow-up GET.
+		syncedAt := time.Now()
+		user.LogtoID = &logtoUser.ID
+		user.LogtoSyncedAt = &syncedAt
 	}
 
 	// 8. Commit transaction
@@ -898,7 +905,7 @@ func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequ
 	}
 
 	// 7. Mark as synced
-	err = s.markUserSynced(id, *user.LogtoID)
+	err = s.markUserSynced(database.DB, id, *user.LogtoID)
 	if err != nil {
 		logger.Warn().
 			Err(err).
@@ -1435,10 +1442,18 @@ func (s *LocalUserService) ReactivateUser(id, reactivatedByUserID, reactivatedBy
 // PRIVATE METHODS
 // =============================================================================
 
-// markUserSynced marks a user as synced with Logto
-func (s *LocalUserService) markUserSynced(id, logtoID string) error {
+// sqlExecer is satisfied by *sql.DB and *sql.Tx so a write can run either
+// standalone or inside a caller's transaction.
+type sqlExecer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
+// markUserSynced marks a user as synced with Logto. The executor lets the create
+// flow run this UPDATE inside its transaction so the logto_id is committed
+// atomically with the user row.
+func (s *LocalUserService) markUserSynced(exec sqlExecer, id, logtoID string) error {
 	query := `UPDATE users SET logto_id = $1, logto_synced_at = $2 WHERE id = $3`
-	_, err := database.DB.Exec(query, logtoID, time.Now(), id)
+	_, err := exec.Exec(query, logtoID, time.Now(), id)
 	return err
 }
 

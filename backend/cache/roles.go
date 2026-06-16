@@ -167,6 +167,19 @@ func (r *RoleNames) GetAllNames() []string {
 	return names
 }
 
+// HasRole reports whether a role with the given ID exists in the loaded role set.
+func (r *RoleNames) HasRole(roleID string) bool {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	if !r.loaded {
+		return false
+	}
+
+	_, exists := r.roles[roleID]
+	return exists
+}
+
 // GetAccessControl returns the access control information for a role
 func (r *RoleNames) GetAccessControl(roleID string) (RoleAccessControl, bool) {
 	r.mutex.RLock()
