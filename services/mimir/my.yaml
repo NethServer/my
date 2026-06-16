@@ -26,7 +26,12 @@ limits:
   alertmanager_max_silences_count: 200
   alertmanager_max_silence_size_bytes: 16384
   alertmanager_max_config_size_bytes: 1048576
-  alertmanager_max_dispatcher_aggregation_groups: 128
+  # An org bundles many systems, each able to fire several alerts, so the
+  # 128 default saturates quickly and the dispatcher starts dropping new
+  # alert groups. A group always holds >=1 alert, so groups can never exceed
+  # alertmanager_max_alerts_count (1000); keep this just above that (power of
+  # two, like the original 128) so the alert count stays the binding safeguard.
+  alertmanager_max_dispatcher_aggregation_groups: 1024
   alertmanager_notification_rate_limit: 50
 
 runtime_config:
