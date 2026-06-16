@@ -35,6 +35,17 @@ func NewLocalCustomerRepository() *LocalCustomerRepository {
 
 // Create creates a new customer in local database
 func (r *LocalCustomerRepository) Create(req *models.CreateLocalCustomerRequest) (*models.LocalCustomer, error) {
+	return r.create(r.db, req)
+}
+
+// CreateWithTx creates a new customer inside the provided transaction so the row
+// participates in the caller's atomic create-and-sync flow; a later failure rolls
+// the insert back instead of leaving an orphaned org (logto_id IS NULL).
+func (r *LocalCustomerRepository) CreateWithTx(tx *sql.Tx, req *models.CreateLocalCustomerRequest) (*models.LocalCustomer, error) {
+	return r.create(tx, req)
+}
+
+func (r *LocalCustomerRepository) create(exec dbExecer, req *models.CreateLocalCustomerRequest) (*models.LocalCustomer, error) {
 	id := uuid.New().String()
 	now := time.Now()
 
@@ -48,7 +59,7 @@ func (r *LocalCustomerRepository) Create(req *models.CreateLocalCustomerRequest)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 
-	_, err = r.db.Exec(query, id, nil, req.Name, req.Description, customDataJSON, now, now, nil)
+	_, err = exec.Exec(query, id, nil, req.Name, req.Description, customDataJSON, now, now, nil)
 	if err != nil {
 		// Check for global VAT constraint violation (from trigger function)
 		if strings.Contains(err.Error(), "VAT") && strings.Contains(err.Error(), "already exists") {

@@ -128,8 +128,8 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 	// Update the request with the properly managed customData
 	req.CustomData = customData
 
-	// 2. Create in local DB with CustomData
-	distributor, err := s.distributorRepo.Create(req)
+	// 2. Create in local DB with CustomData inside the transaction
+	distributor, err := s.distributorRepo.CreateWithTx(tx, req)
 	if err != nil {
 		// Check for VAT constraint violation (from entities/database)
 		if strings.Contains(err.Error(), "already exists") {
@@ -178,8 +178,8 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 			Msg("Failed to configure JIT roles for distributor organization")
 	}
 
-	// 5. Mark as synced
-	err = s.markDistributorSynced(distributor.ID, logtoOrg.ID)
+	// 5. Mark as synced (inside the transaction so logto_id commits atomically)
+	err = s.markDistributorSynced(tx, distributor.ID, logtoOrg.ID)
 	if err != nil {
 		// Log but don't fail - distributor is created in both places
 		logger.Warn().
@@ -290,8 +290,8 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 	// Update the request with the properly managed customData
 	req.CustomData = customData
 
-	// 2. Create in local DB with CustomData
-	reseller, err := s.resellerRepo.Create(req)
+	// 2. Create in local DB with CustomData inside the transaction
+	reseller, err := s.resellerRepo.CreateWithTx(tx, req)
 	if err != nil {
 		// Check for VAT constraint violation (from entities/database)
 		if strings.Contains(err.Error(), "already exists") {
@@ -340,8 +340,8 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 			Msg("Failed to configure JIT roles for reseller organization")
 	}
 
-	// 4. Mark as synced
-	err = s.markResellerSynced(reseller.ID, logtoOrg.ID)
+	// 4. Mark as synced (inside the transaction so logto_id commits atomically)
+	err = s.markResellerSynced(tx, reseller.ID, logtoOrg.ID)
 	if err != nil {
 		logger.Warn().
 			Err(err).
@@ -452,8 +452,8 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 	// Update the request with the properly managed customData
 	req.CustomData = customData
 
-	// 2. Create in local DB with CustomData
-	customer, err := s.customerRepo.Create(req)
+	// 2. Create in local DB with CustomData inside the transaction
+	customer, err := s.customerRepo.CreateWithTx(tx, req)
 	if err != nil {
 		// Check for VAT constraint violation (from entities/database)
 		if strings.Contains(err.Error(), "already exists") {
@@ -502,8 +502,8 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 			Msg("Failed to configure JIT roles for customer organization")
 	}
 
-	// 4. Mark as synced
-	err = s.markCustomerSynced(customer.ID, logtoOrg.ID)
+	// 4. Mark as synced (inside the transaction so logto_id commits atomically)
+	err = s.markCustomerSynced(tx, customer.ID, logtoOrg.ID)
 	if err != nil {
 		logger.Warn().
 			Err(err).
@@ -529,22 +529,23 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 	return customer, nil
 }
 
-// Helper methods to mark entities as synced
-func (s *LocalOrganizationService) markDistributorSynced(id, logtoID string) error {
+// Helper methods to mark entities as synced. The executor lets the create flow run
+// the UPDATE inside its transaction so logto_id commits atomically with the row.
+func (s *LocalOrganizationService) markDistributorSynced(exec sqlExecer, id, logtoID string) error {
 	query := `UPDATE distributors SET logto_id = $1, logto_synced_at = $2, logto_sync_error = NULL WHERE id = $3`
-	_, err := database.DB.Exec(query, logtoID, time.Now(), id)
+	_, err := exec.Exec(query, logtoID, time.Now(), id)
 	return err
 }
 
-func (s *LocalOrganizationService) markResellerSynced(id, logtoID string) error {
+func (s *LocalOrganizationService) markResellerSynced(exec sqlExecer, id, logtoID string) error {
 	query := `UPDATE resellers SET logto_id = $1, logto_synced_at = $2, logto_sync_error = NULL WHERE id = $3`
-	_, err := database.DB.Exec(query, logtoID, time.Now(), id)
+	_, err := exec.Exec(query, logtoID, time.Now(), id)
 	return err
 }
 
-func (s *LocalOrganizationService) markCustomerSynced(id, logtoID string) error {
+func (s *LocalOrganizationService) markCustomerSynced(exec sqlExecer, id, logtoID string) error {
 	query := `UPDATE customers SET logto_id = $1, logto_synced_at = $2, logto_sync_error = NULL WHERE id = $3`
-	_, err := database.DB.Exec(query, logtoID, time.Now(), id)
+	_, err := exec.Exec(query, logtoID, time.Now(), id)
 	return err
 }
 
@@ -807,7 +808,7 @@ func (s *LocalOrganizationService) UpdateDistributor(id string, req *models.Upda
 	}
 
 	// 6. Mark as synced
-	err = s.markDistributorSynced(id, *distributor.LogtoID)
+	err = s.markDistributorSynced(database.DB, id, *distributor.LogtoID)
 	if err != nil {
 		logger.Warn().
 			Err(err).
@@ -1018,7 +1019,7 @@ func (s *LocalOrganizationService) UpdateReseller(id string, req *models.UpdateL
 	}
 
 	// 6. Mark as synced
-	err = s.markResellerSynced(id, *reseller.LogtoID)
+	err = s.markResellerSynced(database.DB, id, *reseller.LogtoID)
 	if err != nil {
 		logger.Warn().
 			Err(err).
@@ -1229,7 +1230,7 @@ func (s *LocalOrganizationService) UpdateCustomer(id string, req *models.UpdateL
 	}
 
 	// 6. Mark as synced
-	err = s.markCustomerSynced(id, *customer.LogtoID)
+	err = s.markCustomerSynced(database.DB, id, *customer.LogtoID)
 	if err != nil {
 		logger.Warn().
 			Err(err).

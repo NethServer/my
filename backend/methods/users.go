@@ -81,6 +81,15 @@ func CreateUser(c *gin.Context) {
 
 		// Check each role being assigned
 		for _, roleID := range request.UserRoleIDs {
+			// Reject unknown roles up front so creation never starts with a role
+			// that does not exist (which would otherwise fail mid-sync in Logto).
+			if !roleCache.HasRole(roleID) {
+				c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+					{Key: "user_role_ids", Message: "role not found", Value: roleID},
+				}))
+				return
+			}
+
 			accessControl, exists := roleCache.GetAccessControl(roleID)
 			if exists && accessControl.HasAccessControl {
 				// This role has access control restrictions
