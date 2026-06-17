@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { faChevronDown, faChevronUp } from '@fortawesome/free-solid-svg-icons'
+import { faChevronRight } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { ref } from 'vue'
 import SystemActiveAlertsTable from '@/components/systems/SystemActiveAlertsTable.vue'
@@ -37,8 +37,9 @@ const isHistoryExpanded = ref(false)
         @click="isHistoryExpanded = !isHistoryExpanded"
       >
         <FontAwesomeIcon
-          :icon="isHistoryExpanded ? faChevronUp : faChevronDown"
-          class="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400"
+          :icon="faChevronRight"
+          class="h-4 w-4 shrink-0 text-gray-500 transition-transform duration-200 dark:text-gray-400"
+          :class="{ 'rotate-90': isHistoryExpanded }"
           aria-hidden="true"
         />
         <div>
@@ -52,9 +53,26 @@ const isHistoryExpanded = ref(false)
       </button>
 
       <!-- Expanded content -->
-      <div v-if="isHistoryExpanded" class="mt-6">
-        <SystemHistoryAlertsTable />
-      </div>
+      <Transition name="slide">
+        <div v-show="isHistoryExpanded" class="mt-6">
+          <SystemHistoryAlertsTable />
+        </div>
+      </Transition>
     </section>
   </div>
 </template>
+
+<style scoped>
+.slide-enter-active,
+.slide-leave-active {
+  overflow: hidden;
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+.slide-enter-from,
+.slide-leave-to {
+  opacity: 0;
+  transform: translateY(-25px);
+}
+</style>
