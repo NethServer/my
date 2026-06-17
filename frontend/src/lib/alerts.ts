@@ -127,6 +127,17 @@ export const TelegramNotificationsPayloadSchema = v.object({
 
 export type AlertState = 'active' | 'suppressed' | 'unprocessed'
 
+export interface AlertAnnotations {
+  summary_en?: string
+  summary_it?: string
+  description_en?: string
+  description_it?: string
+  summary?: string
+  description?: string
+}
+
+export type AlertAnnotationsWithExtensions = AlertAnnotations & Record<string, string | undefined>
+
 export interface AlertStatus {
   state: AlertState
   silencedBy: string[]
@@ -136,7 +147,7 @@ export interface AlertStatus {
 export interface ActiveAlert {
   fingerprint: string
   labels: Record<string, string>
-  annotations: Record<string, string>
+  annotations: AlertAnnotationsWithExtensions
   status: AlertStatus
   startsAt: string
   endsAt: string
@@ -179,7 +190,7 @@ export interface AlertHistoryRecord {
   ends_at: string | null
   summary: string | null
   labels: Record<string, string>
-  annotations: Record<string, string>
+  annotations: AlertAnnotationsWithExtensions
   receiver: string | null
   created_at: string
 }
@@ -459,7 +470,7 @@ export const createSystemAlertSilence = (
 
 type AlertAnnotationKey = 'summary' | 'description'
 type AlertWithAnnotations = {
-  annotations?: Record<string, string | null | undefined>
+  annotations?: AlertAnnotations | null | undefined
 }
 
 const DEFAULT_ALERT_LOCALE = 'en'
@@ -469,7 +480,7 @@ function getAlertAnnotation(
   annotationKey: AlertAnnotationKey,
   locale: string,
 ) {
-  const annotations = alert.annotations ?? {}
+  const annotations = (alert.annotations ?? {}) as Record<string, string | undefined>
   const normalizedLocale = locale.split('-')[0].toLowerCase() || DEFAULT_ALERT_LOCALE
   const candidateKeys = Array.from(
     new Set([

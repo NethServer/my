@@ -370,13 +370,7 @@ function getEmailInvalidMessage(): string {
           v-model="userRoles"
           :label="$t('users.role')"
           :options="userRoleOptions"
-          :placeholder="
-            allUserRoles.status === 'pending'
-              ? $t('common.loading')
-              : userRoles.length
-                ? t('ne_combobox.num_selected', { num: userRoles.length })
-                : t('ne_combobox.choose_multiple')
-          "
+          :placeholder="$t('ne_combobox.choose')"
           :invalid-message="
             validationIssues.user_role_ids?.[0] ? $t(validationIssues.user_role_ids[0]) : ''
           "

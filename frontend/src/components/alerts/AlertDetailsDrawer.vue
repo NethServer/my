@@ -19,7 +19,13 @@ import {
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAlertActivity } from '@/queries/alerts/alertActivity'
-import { getSeverityBadgeKind, isAlertSilenced, type Alert } from '@/lib/alerts'
+import {
+  getSeverityBadgeKind,
+  isAlertSilenced,
+  getAlertSummary,
+  getAlertDescription,
+  type Alert,
+} from '@/lib/alerts'
 import { isProcessing } from '@/lib/alertPendingStates'
 import ProcessingAlertBadge from '@/components/alerts/ProcessingAlertBadge.vue'
 import SystemLogoAndLink from '@/components/systems/SystemLogoAndLink.vue'
@@ -154,12 +160,9 @@ function closeDrawer() {
                 {{ t('alerts.muted') }}
               </NeBadgeV2>
             </div>
-            <!-- Summary/Description -->
-            <p
-              v-if="alert.annotations?.summary"
-              class="text-tertiary-neutral text-sm dark:text-gray-400"
-            >
-              {{ alert.annotations.summary }}
+            <!-- Summary -->
+            <p v-if="getAlertSummary(alert, locale)" class="text-tertiary-neutral">
+              {{ getAlertSummary(alert, locale) }}
             </p>
           </div>
         </div>
@@ -203,7 +206,7 @@ function closeDrawer() {
           {{ t('alerts.description') }}
         </NeFormItemLabel>
         <p class="text-tertiary-neutral text-sm dark:text-gray-400">
-          {{ alert.annotations?.description || '-' }}
+          {{ getAlertDescription(alert, locale) || '-' }}
         </p>
       </div>
 

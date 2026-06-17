@@ -886,7 +886,6 @@
     "processing_tooltip": "Mute and unmute actions might take a few minutes. While the system processes the request, the alert status will temporarily display as '@:{'alerts.processing'}'.",
     "system": "System",
     "organization": "Company",
-    "reload_alerts": "Reload alerts",
     "mute_alert": "Mute alert",
     "mute_alert_title": "Mute {alertname} alert",
     "mute_until_date": "Mute the alert until this date",
