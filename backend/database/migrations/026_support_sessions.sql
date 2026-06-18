@@ -1,4 +1,4 @@
--- Migration 017: Support sessions and access logs
+-- Migration 026: Support sessions and access logs
 -- Description: Tables for WebSocket tunnel-based support sessions
 
 -- Support sessions track active tunnel connections from client systems
@@ -36,6 +36,3 @@ CREATE TABLE IF NOT EXISTS support_access_logs (
 
 CREATE INDEX IF NOT EXISTS idx_support_access_logs_session_id ON support_access_logs(session_id);
 CREATE INDEX IF NOT EXISTS idx_support_access_logs_operator_id ON support_access_logs(operator_id);
-
--- Record migration
-INSERT INTO schema_migrations (migration_number, description) VALUES (17, 'Support sessions and access logs');
