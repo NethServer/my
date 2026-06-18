@@ -1043,7 +1043,6 @@
     "close": "Close",
     "filter_by_status": "Status:",
     "no_sessions": "No support sessions",
-    "no_sessions_description": "There are no support sessions to display.",
     "no_sessions_match": "No matching sessions",
     "no_sessions_match_description": "No support sessions match the selected filters.",
     "cannot_retrieve_sessions": "Cannot retrieve support sessions",

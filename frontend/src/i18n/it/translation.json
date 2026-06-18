@@ -1043,7 +1043,6 @@
     "close": "Chiudi",
     "filter_by_status": "Stato:",
     "no_sessions": "Nessuna sessione di supporto",
-    "no_sessions_description": "Non ci sono sessioni di supporto da visualizzare.",
     "no_sessions_match": "Nessuna sessione corrispondente",
     "no_sessions_match_description": "Nessuna sessione di supporto corrisponde ai filtri selezionati.",
     "cannot_retrieve_sessions": "Impossibile recuperare le sessioni di supporto",
