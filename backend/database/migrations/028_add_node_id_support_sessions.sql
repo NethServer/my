@@ -1,4 +1,4 @@
--- Migration 019: Add node_id to support_sessions for multi-node cluster support
+-- Migration 028: Add node_id to support_sessions for multi-node cluster support
 -- Each node in an NS8 cluster connects its own tunnel, identified by node_id.
 -- node_id is NULL for single-node (non-cluster) systems.
 
