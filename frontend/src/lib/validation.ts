@@ -50,6 +50,5 @@ export const getValidationIssues = (
       issues[key].push(`${i18nPrefix}.${key}_${normalizedMessage}`)
     })
   }
-  console.debug('backend validation issues', issues)
   return issues
 }
