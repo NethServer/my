@@ -454,7 +454,6 @@ async function handleAddService() {
       <NeEmptyState
         v-if="isNoDataEmptyStateShown"
         :title="$t('support.no_sessions')"
-        :description="$t('support.no_sessions_description')"
         :icon="faHeadset"
         class="bg-white dark:bg-gray-950"
       />
