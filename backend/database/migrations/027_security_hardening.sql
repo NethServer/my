@@ -1,4 +1,4 @@
--- Migration 018: Security hardening for support service
+-- Migration 027: Security hardening for support service
 -- Description: Adds support_enabled flag to systems and reconnect_token to sessions
 
 -- #2: Require explicit opt-in before a system can connect to the support tunnel
@@ -14,6 +14,3 @@ ALTER TABLE support_sessions ADD COLUMN IF NOT EXISTS reconnect_token VARCHAR(64
 COMMENT ON COLUMN support_sessions.reconnect_token IS 'Token required to reconnect to a session during grace period';
 
 CREATE INDEX IF NOT EXISTS idx_support_sessions_reconnect_token ON support_sessions(reconnect_token) WHERE reconnect_token IS NOT NULL;
-
--- Record migration
-INSERT INTO schema_migrations (migration_number, description) VALUES (18, 'Security hardening for support service');

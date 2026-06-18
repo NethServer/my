@@ -1,4 +1,4 @@
--- Migration 022: Add ephemeral support users to support_sessions
+-- Migration 030: Add ephemeral support users to support_sessions
 -- Stores the users report from tunnel-client (JSONB) alongside the session
 
 ALTER TABLE support_sessions ADD COLUMN IF NOT EXISTS users JSONB;
