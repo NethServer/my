@@ -230,6 +230,15 @@ differ:
       - "metrics\\.timestamp"
       - "performance\\.last_update"
       - "monitoring\\.heartbeat"
+      - "dynamic_leases"
+      - "static_leases"
+      - "dhcp_server\\.count"
+      - "dns_records_count"
+      - "memory_info"
+      - "package_updates_available"
+      - "update_available"
+      - "^facts\\.modules\\.[^.]+\\.id$"
+      - "^facts\\.modules\\.[^.]+\\.ui_name$"
 
     # Time-based significance
     time_filters:
