@@ -23,6 +23,11 @@ import (
 type Configuration struct {
 	ListenAddress string `json:"listen_address"`
 
+	// APIBaseURL is the public path prefix where collect's API is reachable
+	// behind the proxy ("/api" locally, "/collect/api" in qa/prod). Used to
+	// build asset URLs (e.g. rebranding) returned to systems.
+	APIBaseURL string `json:"api_base_url"`
+
 	// Database configuration
 	DatabaseURL      string `json:"database_url"`
 	DatabaseMaxConns int    `json:"database_max_conns"`
@@ -126,6 +131,10 @@ func Init() {
 	} else {
 		Config.ListenAddress = "127.0.0.1:8081"
 	}
+
+	// API_BASE_URL is the public path prefix where collect is reachable behind
+	// the proxy: "/api" when hit directly (local), "/collect/api" in qa/prod.
+	Config.APIBaseURL = getStringWithDefault("API_BASE_URL", "/api")
 
 	// Database configuration
 	if os.Getenv("DATABASE_URL") != "" {

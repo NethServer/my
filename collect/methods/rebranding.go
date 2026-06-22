@@ -16,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/database"
 	"github.com/nethesis/my/collect/logger"
 	"github.com/nethesis/my/collect/response"
@@ -108,22 +109,22 @@ func GetSystemRebranding(c *gin.Context) {
 
 		assets := make(map[string]string)
 		if hasLLR {
-			assets["logo_light_rect"] = fmt.Sprintf("/api/systems/rebranding/%s/logo_light_rect", productID)
+			assets["logo_light_rect"] = fmt.Sprintf("%s/systems/rebranding/%s/logo_light_rect", configuration.Config.APIBaseURL, productID)
 		}
 		if hasLDR {
-			assets["logo_dark_rect"] = fmt.Sprintf("/api/systems/rebranding/%s/logo_dark_rect", productID)
+			assets["logo_dark_rect"] = fmt.Sprintf("%s/systems/rebranding/%s/logo_dark_rect", configuration.Config.APIBaseURL, productID)
 		}
 		if hasLLS {
-			assets["logo_light_square"] = fmt.Sprintf("/api/systems/rebranding/%s/logo_light_square", productID)
+			assets["logo_light_square"] = fmt.Sprintf("%s/systems/rebranding/%s/logo_light_square", configuration.Config.APIBaseURL, productID)
 		}
 		if hasLDS {
-			assets["logo_dark_square"] = fmt.Sprintf("/api/systems/rebranding/%s/logo_dark_square", productID)
+			assets["logo_dark_square"] = fmt.Sprintf("%s/systems/rebranding/%s/logo_dark_square", configuration.Config.APIBaseURL, productID)
 		}
 		if hasFav {
-			assets["favicon"] = fmt.Sprintf("/api/systems/rebranding/%s/favicon", productID)
+			assets["favicon"] = fmt.Sprintf("%s/systems/rebranding/%s/favicon", configuration.Config.APIBaseURL, productID)
 		}
 		if hasBG {
-			assets["background_image"] = fmt.Sprintf("/api/systems/rebranding/%s/background_image", productID)
+			assets["background_image"] = fmt.Sprintf("%s/systems/rebranding/%s/background_image", configuration.Config.APIBaseURL, productID)
 		}
 
 		if len(assets) == 0 && productName == nil {

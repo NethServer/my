@@ -249,6 +249,10 @@ services:
       - fromGroup: spaces-prod
       - fromGroup: app-secrets-prod
 
+      # Public path prefix where the API is reachable behind the proxy
+      - key: API_BASE_URL
+        value: /collect/api
+
       # Server Configuration
       - key: GIN_MODE
         value: release
@@ -418,6 +422,10 @@ services:
       - fromGroup: infra-qa
       - fromGroup: spaces-qa
       - fromGroup: app-secrets-qa
+
+      # Public path prefix where the API is reachable behind the proxy
+      - key: API_BASE_URL
+        value: /collect/api
 
       # Server Configuration
       - key: GIN_MODE
