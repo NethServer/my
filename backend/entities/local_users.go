@@ -562,7 +562,7 @@ func (r *LocalUserRepository) UpdateLatestLogin(userID string) error {
 }
 
 // List returns paginated list of users based on hierarchical RBAC (matches other repository patterns)
-func (r *LocalUserRepository) List(userOrgRole, userOrgID, excludeUserID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
 	// Owner can access all users - pass nil to skip RBAC filtering in query
 	var allowedOrgIDs []string
 	if strings.ToLower(userOrgRole) != "owner" {
@@ -573,12 +573,12 @@ func (r *LocalUserRepository) List(userOrgRole, userOrgID, excludeUserID string,
 		}
 	}
 
-	return r.ListByOrganizations(allowedOrgIDs, excludeUserID, page, pageSize, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter)
+	return r.ListByOrganizations(allowedOrgIDs, page, pageSize, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter)
 }
 
-// ListByOrganizations returns paginated list of users in specified organizations (excluding specified user)
+// ListByOrganizations returns paginated list of users in specified organizations
 // nil allowedOrgIDs = owner (no RBAC filter), empty = no access
-func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, excludeUserID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
 	// nil = owner (no RBAC filter), empty = no access
 	if allowedOrgIDs != nil && len(allowedOrgIDs) == 0 {
 		return []*models.LocalUser{}, 0, nil
@@ -608,14 +608,14 @@ func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, exclud
 	offset := (page - 1) * pageSize
 
 	if search != "" {
-		return r.listUsersWithSearch(allowedOrgIDs, excludeUserID, pageSize, offset, search, sortBy, sortDirection, statuses, roleFilter)
+		return r.listUsersWithSearch(allowedOrgIDs, pageSize, offset, search, sortBy, sortDirection, statuses, roleFilter)
 	} else {
-		return r.listUsersWithoutSearch(allowedOrgIDs, excludeUserID, pageSize, offset, sortBy, sortDirection, statuses, roleFilter)
+		return r.listUsersWithoutSearch(allowedOrgIDs, pageSize, offset, sortBy, sortDirection, statuses, roleFilter)
 	}
 }
 
 // listUsersWithSearch handles user listing with search functionality
-func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, excludeUserID string, pageSize, offset int, search, sortBy, sortDirection string, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, pageSize, offset int, search, sortBy, sortDirection string, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY u.created_at DESC" // default sorting
 	if sortBy != "" {
@@ -672,9 +672,6 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, exclud
 		orgClause = fmt.Sprintf(" AND u.organization_id = ANY($%d::text[])", len(args))
 	}
 
-	args = append(args, excludeUserID)
-	excludeClause := fmt.Sprintf(" AND u.id != $%d", len(args))
-
 	args = append(args, search, search)
 	searchClause := fmt.Sprintf(" AND (LOWER(u.name) LIKE LOWER('%%%%' || $%d || '%%%%') OR LOWER(u.email) LIKE LOWER('%%%%' || $%d || '%%%%'))", len(args)-1, len(args))
 
@@ -689,7 +686,7 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, exclud
 		roleClause = " AND (" + strings.Join(roleConditions, " OR ") + ")"
 	}
 
-	whereClause := fmt.Sprintf("1=1%s%s%s%s%s%s", deletedClause, orgClause, excludeClause, searchClause, statusClause, roleClause)
+	whereClause := fmt.Sprintf("1=1%s%s%s%s%s", deletedClause, orgClause, searchClause, statusClause, roleClause)
 
 	// Single query with COUNT(*) OVER() for total count + paginated results
 	mainQuery := fmt.Sprintf(`
@@ -715,7 +712,7 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, exclud
 }
 
 // listUsersWithoutSearch handles user listing without search functionality
-func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, excludeUserID string, pageSize, offset int, sortBy, sortDirection string, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, pageSize, offset int, sortBy, sortDirection string, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY u.created_at DESC" // default sorting
 	if sortBy != "" {
@@ -772,9 +769,6 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, exc
 		orgClause = fmt.Sprintf(" AND u.organization_id = ANY($%d::text[])", len(args))
 	}
 
-	args = append(args, excludeUserID)
-	excludeClause := fmt.Sprintf(" AND u.id != $%d", len(args))
-
 	// Build role filter clause
 	roleClause := ""
 	if len(roleFilter) > 0 {
@@ -786,7 +780,7 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, exc
 		roleClause = " AND (" + strings.Join(roleConditions, " OR ") + ")"
 	}
 
-	whereClause := fmt.Sprintf("1=1%s%s%s%s%s", deletedClause, orgClause, excludeClause, statusClause, roleClause)
+	whereClause := fmt.Sprintf("1=1%s%s%s%s", deletedClause, orgClause, statusClause, roleClause)
 
 	// Single query with COUNT(*) OVER() for total count + paginated results
 	mainQuery := fmt.Sprintf(`

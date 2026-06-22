@@ -447,9 +447,9 @@ func (s *LocalUserService) UpdateLatestLogin(userID string) error {
 	return s.userRepo.UpdateLatestLogin(userID)
 }
 
-// ListUsers returns paginated list of users based on hierarchical RBAC (excluding specified user)
-func (s *LocalUserService) ListUsers(userOrgRole, userOrgID, excludeUserID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
-	return s.userRepo.List(userOrgRole, userOrgID, excludeUserID, page, pageSize, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter)
+// ListUsers returns paginated list of users based on hierarchical RBAC
+func (s *LocalUserService) ListUsers(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
+	return s.userRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter)
 }
 
 // GetTotals returns total count of users based on hierarchical RBAC

@@ -58,9 +58,9 @@ func ExportUsers(c *gin.Context) {
 	// Create service
 	service := local.NewUserService()
 
-	// Get users based on RBAC (exclude current user) without pagination limit (but with max export limit)
+	// Get users based on RBAC without pagination limit (but with max export limit)
 	userOrgRole := strings.ToLower(user.OrgRole)
-	users, totalCount, err := service.ListUsers(userOrgRole, user.OrganizationID, user.ID, 1, MaxUsersExportLimit, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter)
+	users, totalCount, err := service.ListUsers(userOrgRole, user.OrganizationID, 1, MaxUsersExportLimit, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter)
 	if err != nil {
 		logger.Error().
 			Err(err).

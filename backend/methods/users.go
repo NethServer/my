@@ -265,9 +265,9 @@ func GetUsers(c *gin.Context) {
 	// Create service
 	service := local.NewUserService()
 
-	// Get users based on RBAC (exclude current user)
+	// Get users based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	accounts, totalCount, err := service.ListUsers(userOrgRole, user.OrganizationID, user.ID, page, pageSize, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter)
+	accounts, totalCount, err := service.ListUsers(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter)
 	if err != nil {
 		logger.Error().
 			Err(err).
