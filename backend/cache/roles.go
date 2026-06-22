@@ -93,7 +93,29 @@ func (r *RoleNames) LoadRoles() error {
 		Int("role_count", len(roles)).
 		Msg("Roles loaded successfully")
 
+	// Reloading the authoritative role set invalidates the derived Redis caches
+	// (filtered user roles per org-role + org roles) so a restart refreshes them
+	// instead of serving a stale list until the TTL expires.
+	invalidateRoleListCaches()
+
 	return nil
+}
+
+// invalidateRoleListCaches drops the Redis caches derived from the role set so a
+// (re)load — e.g. on server restart — refreshes them instead of serving a stale
+// filtered list until its TTL expires. Keys mirror those written in
+// methods/roles.go. Best-effort: failures are logged, not fatal.
+func invalidateRoleListCaches() {
+	redisClient := GetRedisClient()
+	if redisClient == nil {
+		return
+	}
+	if err := redisClient.DeletePattern("logto_roles_filtered:*"); err != nil {
+		logger.ComponentLogger("roles").Warn().Err(err).Msg("Failed to invalidate filtered roles cache")
+	}
+	if err := redisClient.Delete("logto_org_roles"); err != nil {
+		logger.ComponentLogger("roles").Warn().Err(err).Msg("Failed to invalidate org roles cache")
+	}
 }
 
 // GetNames returns the names for the given role IDs
