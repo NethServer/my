@@ -2,7 +2,7 @@
 FROM docker.io/grafana/mimir:3.0.6 AS mimir
 
 # Final stage: alpine with shell for entrypoint script
-FROM alpine:3.23
+FROM alpine:3.24
 
 RUN apk add --no-cache gettext
 
