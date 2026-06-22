@@ -362,5 +362,5 @@ func resizeImage(img image.Image, maxWidth, maxHeight int) image.Image {
 
 // buildAvatarURL constructs the public URL for a user's avatar.
 func buildAvatarURL(logtoID string) string {
-	return fmt.Sprintf("%s/api/public/users/%s/avatar", configuration.Config.AppURL, logtoID)
+	return fmt.Sprintf("%s%s/public/users/%s/avatar", configuration.Config.AppURL, configuration.Config.APIBaseURL, logtoID)
 }

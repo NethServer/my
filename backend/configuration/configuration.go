@@ -27,6 +27,7 @@ type Configuration struct {
 	TenantID      string `json:"tenant_id"`
 	TenantDomain  string `json:"tenant_domain"`
 	AppURL        string `json:"app_url"`
+	APIBaseURL    string `json:"api_base_url"`
 	LogtoIssuer   string `json:"logto_issuer"`
 	LogtoAudience string `json:"logto_audience"`
 	JWKSEndpoint  string `json:"jwks_endpoint"`
@@ -141,6 +142,16 @@ func Init() {
 		Config.AppURL = os.Getenv("APP_URL")
 	} else {
 		logger.LogConfigLoad("env", "APP_URL", false, fmt.Errorf("APP_URL variable is empty"))
+	}
+
+	// API_BASE_URL is the public path prefix where the backend API is reachable
+	// behind the proxy: "/api" when hit directly (local), "/backend/api" in qa/prod.
+	// Used to build absolute public URLs (e.g. avatars) stored in Logto. Mirrors
+	// the frontend's VITE_API_BASE_URL.
+	if v := os.Getenv("API_BASE_URL"); v != "" {
+		Config.APIBaseURL = v
+	} else {
+		Config.APIBaseURL = "/api"
 	}
 
 	// LOGTO_AUDIENCE (auto-derived from LOGTO_TENANT_DOMAIN)

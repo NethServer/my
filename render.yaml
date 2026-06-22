@@ -213,6 +213,10 @@ services:
       - key: LOG_FORMAT
         value: json
 
+      # Public path prefix where the API is reachable behind the proxy
+      - key: API_BASE_URL
+        value: /backend/api
+
       # Redis Configuration
       - key: REDIS_URL
         fromService:
@@ -375,6 +379,10 @@ services:
         value: debug
       - key: LOG_FORMAT
         value: json
+
+      # Public path prefix where the API is reachable behind the proxy
+      - key: API_BASE_URL
+        value: /backend/api
 
       # Redis Configuration
       - key: REDIS_URL
