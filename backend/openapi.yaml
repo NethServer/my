@@ -3435,7 +3435,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: User Logto ID
+          description: User Logto ID (use the logto_id from user responses, not the internal id)
           schema:
             type: string
             example: "jf584cz36kce"
@@ -3472,7 +3472,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: User Logto ID
+          description: User Logto ID (use the logto_id from user responses, not the internal id)
           schema:
             type: string
             example: "jf584cz36kce"
@@ -3519,7 +3519,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: User Logto ID
+          description: User Logto ID (use the logto_id from user responses, not the internal id)
           schema:
             type: string
             example: "jf584cz36kce"
@@ -3560,7 +3560,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: User Logto ID
+          description: User Logto ID (use the logto_id from user responses, not the internal id)
           schema:
             type: string
             example: "jf584cz36kce"
@@ -3611,7 +3611,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: User Logto ID
+          description: User Logto ID (use the logto_id from user responses, not the internal id)
           schema:
             type: string
             example: "jf584cz36kce"
@@ -3672,7 +3672,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: User Logto ID
+          description: User Logto ID (use the logto_id from user responses, not the internal id)
           schema:
             type: string
             example: "jf584cz36kce"
@@ -3714,7 +3714,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: User Logto ID
+          description: User Logto ID (use the logto_id from user responses, not the internal id)
           schema:
             type: string
             example: "jf584cz36kce"
@@ -3755,7 +3755,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: User Logto ID
+          description: User Logto ID (use the logto_id from user responses, not the internal id)
           schema:
             type: string
             example: "jf584cz36kce"
@@ -3796,7 +3796,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: User Logto ID
+          description: User Logto ID (use the logto_id from user responses, not the internal id)
           schema:
             type: string
             example: "jf584cz36kce"
@@ -3851,7 +3851,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: User Logto ID
+          description: User Logto ID (use the logto_id from user responses, not the internal id)
           schema:
             type: string
             example: "jf584cz36kce"
@@ -4579,7 +4579,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: User Logto ID or local database ID
+          description: User Logto ID (use the logto_id from user responses, not the internal id) or local database ID
           schema:
             type: string
             example: "jf584cz36kce"
