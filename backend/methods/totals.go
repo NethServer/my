@@ -188,15 +188,19 @@ func GetUsersTotals(c *gin.Context) {
 	}
 
 	service := local.NewUserService()
-	count, err := service.GetTotals(strings.ToLower(userOrgRole), userOrgID)
+	totals, err := service.GetTotals(strings.ToLower(userOrgRole), userOrgID)
 	if err != nil {
 		logger.Error().Str("component", "totals").Str("operation", "get_users").Err(err).Msg("failed to retrieve users totals")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve users totals", nil))
 		return
 	}
 
-	result := map[string]interface{}{"total": count}
-	logger.Info().Str("component", "totals").Str("operation", "users_totals").Str("user_org_id", userOrgID).Str("user_org_role", userOrgRole).Int("total", count).Msg("users totals retrieved")
+	result := map[string]interface{}{
+		"total":     totals.Total,
+		"enabled":   totals.Enabled,
+		"suspended": totals.Suspended,
+	}
+	logger.Info().Str("component", "totals").Str("operation", "users_totals").Str("user_org_id", userOrgID).Str("user_org_role", userOrgRole).Int("total", totals.Total).Int("enabled", totals.Enabled).Int("suspended", totals.Suspended).Msg("users totals retrieved")
 	c.JSON(http.StatusOK, response.OK("users totals retrieved", result))
 }
 

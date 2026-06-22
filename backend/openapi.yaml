@@ -1526,6 +1526,22 @@ components:
           description: Timeout used for active/inactive determination
           example: 15
 
+    UserTotals:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: Total number of non-deleted users (enabled + suspended)
+          example: 125
+        enabled:
+          type: integer
+          description: Number of active (not suspended) users
+          example: 120
+        suspended:
+          type: integer
+          description: Number of suspended users
+          example: 5
+
     Totals:
       type: object
       properties:
@@ -3885,7 +3901,7 @@ paths:
                     type: string
                     example: "users totals retrieved"
                   data:
-                    $ref: '#/components/schemas/Totals'
+                    $ref: '#/components/schemas/UserTotals'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

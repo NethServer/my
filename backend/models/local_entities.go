@@ -156,6 +156,13 @@ type SystemTotals struct {
 	TimeoutMinutes int `json:"timeout_minutes"`
 }
 
+// UserTotals represents total counts and status breakdown for user accounts
+type UserTotals struct {
+	Total     int `json:"total"`
+	Enabled   int `json:"enabled"`
+	Suspended int `json:"suspended"`
+}
+
 // OrganizationStats represents statistics for an organization (users and systems count)
 type OrganizationStats struct {
 	UsersCount   int `json:"users_count"`

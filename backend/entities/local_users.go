@@ -862,41 +862,45 @@ func (r *LocalUserRepository) executeUserQuery(_ string, _ []interface{}, mainQu
 	return users, totalCount, nil
 }
 
-// GetTotals returns total count of users based on hierarchical RBAC (matches other repository patterns)
-func (r *LocalUserRepository) GetTotals(userOrgRole, userOrgID string) (int, error) {
+// GetTotals returns user totals (with enabled/suspended breakdown) based on hierarchical RBAC
+func (r *LocalUserRepository) GetTotals(userOrgRole, userOrgID string) (*models.UserTotals, error) {
 	// Owner can access all users - pass nil to skip RBAC filtering
 	var allowedOrgIDs []string
 	if strings.ToLower(userOrgRole) != "owner" {
 		var err error
 		allowedOrgIDs, err = r.GetHierarchicalOrganizationIDs(userOrgRole, userOrgID)
 		if err != nil {
-			return 0, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
+			return nil, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
 		}
 	}
 
 	return r.GetTotalsByOrganizations(allowedOrgIDs)
 }
 
-// GetTotalsByOrganizations returns total count of users in specified organizations
+// GetTotalsByOrganizations returns user totals in specified organizations: the
+// total of non-deleted users plus an enabled/suspended breakdown.
 // nil allowedOrgIDs = owner (no RBAC filter), empty = no access
-func (r *LocalUserRepository) GetTotalsByOrganizations(allowedOrgIDs []string) (int, error) {
+func (r *LocalUserRepository) GetTotalsByOrganizations(allowedOrgIDs []string) (*models.UserTotals, error) {
 	if allowedOrgIDs != nil && len(allowedOrgIDs) == 0 {
-		return 0, nil
+		return &models.UserTotals{}, nil
 	}
 
-	var count int
-	var query string
+	// total counts all non-deleted users; enabled/suspended split them by suspended_at.
+	query := `SELECT COUNT(*),
+	                 COUNT(*) FILTER (WHERE suspended_at IS NULL),
+	                 COUNT(*) FILTER (WHERE suspended_at IS NOT NULL)
+	          FROM users WHERE deleted_at IS NULL`
 	var args []interface{}
-
 	if allowedOrgIDs != nil {
-		query = `SELECT COUNT(*) FROM users WHERE deleted_at IS NULL AND organization_id = ANY($1::text[])`
+		query += ` AND organization_id = ANY($1::text[])`
 		args = []interface{}{pq.Array(allowedOrgIDs)}
-	} else {
-		query = `SELECT COUNT(*) FROM users WHERE deleted_at IS NULL`
 	}
 
-	err := r.db.QueryRow(query, args...).Scan(&count)
-	return count, err
+	var totals models.UserTotals
+	if err := r.db.QueryRow(query, args...).Scan(&totals.Total, &totals.Enabled, &totals.Suspended); err != nil {
+		return nil, err
+	}
+	return &totals, nil
 }
 
 // GetHierarchicalOrganizationIDs returns all organization IDs that the user can manage

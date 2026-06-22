@@ -452,8 +452,8 @@ func (s *LocalUserService) ListUsers(userOrgRole, userOrgID string, page, pageSi
 	return s.userRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter)
 }
 
-// GetTotals returns total count of users based on hierarchical RBAC
-func (s *LocalUserService) GetTotals(userOrgRole, userOrgID string) (int, error) {
+// GetTotals returns user totals (with enabled/suspended breakdown) based on hierarchical RBAC
+func (s *LocalUserService) GetTotals(userOrgRole, userOrgID string) (*models.UserTotals, error) {
 	return s.userRepo.GetTotals(userOrgRole, userOrgID)
 }
 
