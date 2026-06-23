@@ -163,7 +163,7 @@ func APIKeyRateLimit() gin.HandlerFunc {
 
 		if entry.tokens < 1 {
 			mu.Unlock()
-			go local.NewAPIKeysService().RecordAPIKeyEvent(models.APIKeyAuditRecord{
+			rec := models.APIKeyAuditRecord{
 				APIKeyID:       id,
 				UserID:         c.GetString("user_id"),
 				OrganizationID: c.GetString("organization_id"),
@@ -171,7 +171,8 @@ func APIKeyRateLimit() gin.HandlerFunc {
 				IP:             c.ClientIP(),
 				Method:         c.Request.Method,
 				Path:           c.Request.URL.Path,
-			})
+			}
+			go local.NewAPIKeysService().RecordAPIKeyEvent(rec)
 			logger.RequestLogger(c, "auth").Warn().
 				Str("operation", "api_key_rate_limited").
 				Str("api_key_id", id).

@@ -342,7 +342,7 @@ function confirmDelete() {
         <template #paginator>
           <NePaginator
             :current-page="pageNum"
-            :total-rows="apiKeys.length"
+            :total-rows="filteredKeys.length"
             :page-size="pageSize"
             :page-sizes="PAGE_SIZE_OPTIONS"
             :nav-pagination-label="$t('ne_table.pagination')"

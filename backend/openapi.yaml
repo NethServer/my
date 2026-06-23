@@ -4867,7 +4867,7 @@ paths:
           in: query
           schema:
             type: integer
-            default: 25
+            default: 20
         - name: event
           in: query
           description: Filter by event type

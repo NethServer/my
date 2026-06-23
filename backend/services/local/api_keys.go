@@ -106,14 +106,6 @@ func (s *APIKeysService) CreateAPIKey(userID, organizationID, name, mode string,
 		expiresInDays = apiKeyMaxTTLDays
 	}
 
-	active, err := s.countActiveKeys(userID)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to count active api keys: %w", err)
-	}
-	if active >= APIKeyMaxPerUser {
-		return nil, "", ErrAPIKeyLimitReached
-	}
-
 	fullToken, public, secret, err := helpers.GenerateAPIKey()
 	if err != nil {
 		return nil, "", err
@@ -134,15 +126,42 @@ func (s *APIKeysService) CreateAPIKey(userID, organizationID, name, mode string,
 		CreatedAt:      time.Now(),
 	}
 
-	query := `
+	// Enforce the per-user limit and insert atomically. Locking the owner row
+	// serializes concurrent creates for the same user, so the count-then-insert
+	// cannot race past the cap.
+	tx, err := database.DB.Begin()
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.Exec(`SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, userID); err != nil {
+		return nil, "", fmt.Errorf("failed to lock user: %w", err)
+	}
+
+	var active int
+	if err := tx.QueryRow(`
+		SELECT COUNT(*) FROM user_api_keys
+		WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > NOW()
+	`, userID).Scan(&active); err != nil {
+		return nil, "", fmt.Errorf("failed to count active api keys: %w", err)
+	}
+	if active >= APIKeyMaxPerUser {
+		return nil, "", ErrAPIKeyLimitReached
+	}
+
+	_, err = tx.Exec(`
 		INSERT INTO user_api_keys (id, user_id, organization_id, name, key_public, key_secret_sha256, mode, expires_at, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`
-	_, err = database.DB.Exec(query,
+	`,
 		key.ID, key.UserID, nullString(organizationID), key.Name,
 		key.KeyPublic, secretHash, key.Mode, key.ExpiresAt, key.CreatedAt)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create api key: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, "", fmt.Errorf("failed to commit api key: %w", err)
 	}
 
 	return key, fullToken, nil
@@ -296,15 +315,6 @@ func (s *APIKeysService) userExists(userID string) (bool, error) {
 		userID,
 	).Scan(&exists)
 	return exists, err
-}
-
-func (s *APIKeysService) countActiveKeys(userID string) (int, error) {
-	var n int
-	err := database.DB.QueryRow(`
-		SELECT COUNT(*) FROM user_api_keys
-		WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > NOW()
-	`, userID).Scan(&n)
-	return n, err
 }
 
 // maskAPIKeyPermissions keeps only the permissions a key of the given mode may
