@@ -20,7 +20,15 @@ import {
   type SortEvent,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faKey, faCirclePlus, faTrashCan, faCircleInfo } from '@fortawesome/free-solid-svg-icons'
+import {
+  faKey,
+  faCirclePlus,
+  faCircleInfo,
+  faCircleCheck,
+  faCircleXmark,
+  faClock,
+  faBan,
+} from '@fortawesome/free-solid-svg-icons'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
@@ -67,6 +75,19 @@ function keyStatus(key: ApiKey): 'revoked' | 'expired' | 'active' {
     return 'expired'
   }
   return 'active'
+}
+
+// Circle status icons, consistent with the Systems table (SystemStatusIcon).
+function statusIcon(status: 'revoked' | 'expired' | 'active') {
+  return status === 'active' ? faCircleCheck : status === 'expired' ? faClock : faCircleXmark
+}
+
+function statusIconClass(status: 'revoked' | 'expired' | 'active'): string {
+  return status === 'active'
+    ? 'text-green-600 dark:text-green-400'
+    : status === 'expired'
+      ? 'text-amber-600 dark:text-amber-400'
+      : 'text-gray-500 dark:text-gray-400'
 }
 
 const filteredKeys = computed(() => {
@@ -297,14 +318,12 @@ function confirmDelete() {
             </NeTableCell>
             <NeTableCell :data-label="$t('account.api_keys.status')">
               <div class="flex items-center gap-2">
-                <span
-                  class="size-2.5 rounded-full"
-                  :class="{
-                    'bg-green-600 dark:bg-green-400': keyStatus(key) === 'active',
-                    'bg-gray-400 dark:bg-gray-500': keyStatus(key) === 'revoked',
-                    'bg-amber-500 dark:bg-amber-400': keyStatus(key) === 'expired',
-                  }"
-                ></span>
+                <FontAwesomeIcon
+                  :icon="statusIcon(keyStatus(key))"
+                  class="size-4"
+                  :class="statusIconClass(keyStatus(key))"
+                  aria-hidden="true"
+                />
                 {{ $t(`account.api_keys.status_${keyStatus(key)}`) }}
               </div>
             </NeTableCell>
@@ -321,11 +340,10 @@ function confirmDelete() {
                   "
                 >
                   <template #prefix>
-                    <FontAwesomeIcon :icon="faTrashCan" class="h-4 w-4" aria-hidden="true" />
+                    <FontAwesomeIcon :icon="faBan" class="h-4 w-4" aria-hidden="true" />
                   </template>
                   {{ $t('account.api_keys.revoke') }}
                 </NeButton>
-                <span v-else class="text-gray-400 dark:text-gray-500">-</span>
               </div>
             </NeTableCell>
           </NeTableRow>

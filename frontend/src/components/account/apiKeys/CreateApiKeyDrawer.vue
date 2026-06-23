@@ -242,8 +242,8 @@ function copyKeyAndCloseDrawer() {
             v-model="password"
             is-password
             autocomplete="current-password"
-            :label="$t('account.api_keys.confirm_password')"
-            :helper-text="$t('account.api_keys.confirm_password_helper')"
+            :label="$t('account.api_keys.account_password')"
+            :helper-text="$t('account.api_keys.account_password_helper')"
             :invalid-message="
               validationIssues.password?.[0] ? $t(validationIssues.password[0]) : ''
             "
@@ -258,26 +258,26 @@ function copyKeyAndCloseDrawer() {
           />
         </template>
         <template v-else-if="step === 'secret'">
-          <NeSkeleton v-if="createLoading || !token" :lines="5" />
+          <NeBadgeV2 v-if="!createLoading && token" kind="green" class="animate-fade-in-relaxed">
+            <FontAwesomeIcon :icon="faCheck" class="size-4" />
+            {{ t('account.api_keys.key_created') }}
+          </NeBadgeV2>
+          <NeSkeleton v-if="createLoading || !token" :lines="4" />
           <div v-else class="animate-fade-in space-y-6">
-            <NeBadgeV2 kind="green" class="animate-fade-in-relaxed">
-              <FontAwesomeIcon :icon="faCheck" class="size-4" />
-              {{ t('account.api_keys.key_created') }}
-            </NeBadgeV2>
             <div>
               <NeFormItemLabel class="mb-1!">
                 {{ t('account.api_keys.your_api_key') }}
               </NeFormItemLabel>
-              <div v-if="isKeyRevealed" class="font-mono break-all">
+              <div v-if="isKeyRevealed" class="break-all">
                 {{ token }}
               </div>
               <div v-else class="break-all">************************</div>
               <NeButton
                 kind="tertiary"
                 size="sm"
-                class="mt-2 -ml-2"
-                :aria-label="isKeyRevealed ? t('common.hide') : t('common.show')"
                 @click="isKeyRevealed = !isKeyRevealed"
+                :aria-label="isKeyRevealed ? t('common.hide') : t('common.show')"
+                class="mt-2 -ml-2"
               >
                 <template #prefix>
                   <FontAwesomeIcon :icon="isKeyRevealed ? faEyeSlash : faEye" aria-hidden="true" />
