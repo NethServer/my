@@ -203,15 +203,6 @@ function confirmDelete() {
         :description="state.error.message"
         class="mb-6"
       />
-      <!-- revoke error -->
-      <NeInlineNotification
-        v-if="deleteError?.message"
-        kind="error"
-        :title="$t('account.api_keys.cannot_revoke')"
-        :description="deleteError.message"
-        class="mb-6"
-      />
-
       <!-- toolbar: filter + update indicator -->
       <div v-if="apiKeys.length" class="mb-6 flex w-full items-end justify-between gap-4">
         <NeTextInput
@@ -371,6 +362,8 @@ function confirmDelete() {
       :confirmation-message="
         $t('account.api_keys.revoke_confirmation', { name: keyToDelete?.name })
       "
+      :error-title="deleteError?.message ? $t('account.api_keys.cannot_revoke') : ''"
+      :error-description="deleteError?.message"
       @close="keyToDelete = null"
       @primary-click="confirmDelete"
     />

@@ -126,6 +126,9 @@ function onShow() {
 }
 
 function closeDrawer() {
+  // Clear the plaintext token from memory as soon as the drawer closes.
+  token.value = ''
+  isKeyRevealed.value = false
   emit('close')
 }
 
