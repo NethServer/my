@@ -1109,3 +1109,33 @@ COMMENT ON COLUMN user_api_keys.mode IS 'read = read:* only; write = read:* + ma
 CREATE UNIQUE INDEX IF NOT EXISTS idx_user_api_keys_public ON user_api_keys(key_public);
 CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_id ON user_api_keys(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_api_keys_active ON user_api_keys(user_id) WHERE revoked_at IS NULL;
+
+-- =============================================================================
+-- API KEY AUDIT
+-- =============================================================================
+-- Append-only audit of API key lifecycle (created, revoked) and security
+-- failures (revoked/expired key used, suspended owner, wrong secret, rate
+-- limit). Successful use is tracked via user_api_keys.last_used_at, not here.
+-- No foreign keys: the trail survives key/user deletion (forensics).
+
+CREATE TABLE IF NOT EXISTS api_key_audit (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    api_key_id      VARCHAR(255),
+    user_id         VARCHAR(255),
+    organization_id VARCHAR(255),
+    event           VARCHAR(32) NOT NULL,    -- created | revoked | auth_failed | rate_limited
+    reason          VARCHAR(32),             -- revoked | expired | user_inactive | invalid_secret
+    key_name        VARCHAR(255),
+    key_mode        VARCHAR(10),
+    ip              VARCHAR(64),
+    method          VARCHAR(10),
+    path            TEXT,
+    created_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE api_key_audit IS 'Append-only audit of API key lifecycle and security failures; successful use tracked via user_api_keys.last_used_at';
+
+CREATE INDEX IF NOT EXISTS idx_api_key_audit_user ON api_key_audit(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_api_key_audit_org ON api_key_audit(organization_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_api_key_audit_key ON api_key_audit(api_key_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_api_key_audit_event ON api_key_audit(event);

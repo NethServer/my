@@ -13,6 +13,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -48,7 +49,19 @@ func CreateAPIKey(c *gin.Context) {
 	}
 	if err := logto.NewManagementClient().VerifyUserPassword(*user.LogtoID, req.Password); err != nil {
 		logger.LogBusinessOperation(c, "api-keys", "create", "api_key", "", false, err)
-		c.JSON(http.StatusUnauthorized, response.Unauthorized("password verification failed", nil))
+		// Mirror the change-password flow: a wrong password is a field validation
+		// error (400), not a 401. A 401 would trip the client interceptor into
+		// logging the user out.
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "validation failed",
+			"data": gin.H{
+				"type": "validation_error",
+				"errors": []gin.H{
+					{"key": "password", "message": "incorrect_password", "value": ""},
+				},
+			},
+		})
 		return
 	}
 
@@ -57,8 +70,14 @@ func CreateAPIKey(c *gin.Context) {
 		switch {
 		case errors.Is(err, local.ErrAPIKeyNoLocalUser):
 			c.JSON(http.StatusForbidden, response.Forbidden(err.Error(), nil))
-		case strings.Contains(err.Error(), "maximum number"):
-			c.JSON(http.StatusConflict, response.Conflict(err.Error(), nil))
+		case errors.Is(err, local.ErrAPIKeyLimitReached):
+			logger.LogBusinessOperation(c, "api-keys", "create", "api_key", "", false, err)
+			c.JSON(http.StatusConflict, response.Error(http.StatusConflict, "validation failed", response.ErrorData{
+				Type: "validation_error",
+				Errors: []response.ValidationError{
+					{Key: "limit", Message: "max_keys_reached", Value: strconv.Itoa(local.APIKeyMaxPerUser)},
+				},
+			}))
 		case strings.Contains(err.Error(), "invalid mode"):
 			c.JSON(http.StatusBadRequest, response.BadRequest(err.Error(), nil))
 		default:
@@ -72,6 +91,17 @@ func CreateAPIKey(c *gin.Context) {
 		"name":       key.Name,
 		"mode":       key.Mode,
 		"expires_at": key.ExpiresAt,
+	})
+	local.NewAPIKeysService().RecordAPIKeyEvent(models.APIKeyAuditRecord{
+		APIKeyID:       key.ID,
+		UserID:         user.ID,
+		OrganizationID: user.OrganizationID,
+		Event:          models.APIKeyEventCreated,
+		KeyName:        key.Name,
+		KeyMode:        key.Mode,
+		IP:             c.ClientIP(),
+		Method:         c.Request.Method,
+		Path:           c.Request.URL.Path,
 	})
 	c.JSON(http.StatusCreated, response.Created("api key created successfully", models.CreateAPIKeyResponse{
 		APIKey: *key,
@@ -117,5 +147,38 @@ func RevokeAPIKey(c *gin.Context) {
 	}
 
 	logger.LogBusinessOperation(c, "api-keys", "revoke", "api_key", keyID, true, nil)
+	local.NewAPIKeysService().RecordAPIKeyEvent(models.APIKeyAuditRecord{
+		APIKeyID:       keyID,
+		UserID:         user.ID,
+		OrganizationID: user.OrganizationID,
+		Event:          models.APIKeyEventRevoked,
+		IP:             c.ClientIP(),
+		Method:         c.Request.Method,
+		Path:           c.Request.URL.Path,
+	})
 	c.JSON(http.StatusOK, response.OK("api key revoked successfully", nil))
+}
+
+// ListAPIKeyAudit returns the current user's API key audit trail (lifecycle
+// events and security failures), paginated. Optional filters: event, api_key_id.
+// GET /me/api-keys/audit
+func ListAPIKeyAudit(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	page, pageSize := helpers.GetPaginationFromQuery(c)
+	entries, total, err := local.NewAPIKeysService().ListAPIKeyAudit(
+		user.ID, c.Query("event"), c.Query("api_key_id"), page, pageSize,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve api key audit", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("api key audit retrieved successfully", gin.H{
+		"audit":      entries,
+		"pagination": helpers.BuildPaginationInfoWithSorting(page, pageSize, total, "created_at", "desc"),
+	}))
 }

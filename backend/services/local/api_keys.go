@@ -26,7 +26,9 @@ import (
 const (
 	apiKeyDefaultTTLDays = 90
 	apiKeyMaxTTLDays     = 365
-	apiKeyMaxPerUser     = 5
+	// APIKeyMaxPerUser is the maximum number of active keys a user may hold. It
+	// is surfaced in the limit-reached error so the UI can show the exact number.
+	APIKeyMaxPerUser = 5
 )
 
 // Sentinel errors returned by AuthenticateAPIKey. The middleware maps all of
@@ -42,6 +44,10 @@ var (
 	// users row so the live suspend check can resolve the owner, so such an
 	// account cannot hold keys.
 	ErrAPIKeyNoLocalUser = errors.New("api keys are not available for this account")
+
+	// ErrAPIKeyLimitReached is returned when the user already holds the maximum
+	// number of active keys.
+	ErrAPIKeyLimitReached = errors.New("api key limit reached")
 )
 
 // apiKeyDeniedPermissions are stripped from every key regardless of mode. The
@@ -65,12 +71,17 @@ func NewAPIKeysService() *APIKeysService {
 	return &APIKeysService{}
 }
 
-// APIKeyAuthResult is the outcome of a successful key authentication: the
-// resolved owner (with permissions already masked to the key's mode) and the
-// key id, used to update last_used.
+// APIKeyAuthResult is the outcome of a key authentication. On success User holds
+// the resolved owner (permissions masked to the key's mode). The attribution
+// fields are filled whenever the key row is found — even on failure — so the
+// caller can write an audit entry.
 type APIKeyAuthResult struct {
-	User  *models.User
-	KeyID string
+	User           *models.User
+	KeyID          string
+	UserID         string
+	OrganizationID string
+	Name           string
+	Mode           string
 }
 
 // CreateAPIKey mints a new key for the user and returns the full plaintext
@@ -99,8 +110,8 @@ func (s *APIKeysService) CreateAPIKey(userID, organizationID, name, mode string,
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to count active api keys: %w", err)
 	}
-	if active >= apiKeyMaxPerUser {
-		return nil, "", fmt.Errorf("maximum number of api keys reached (%d)", apiKeyMaxPerUser)
+	if active >= APIKeyMaxPerUser {
+		return nil, "", ErrAPIKeyLimitReached
 	}
 
 	fullToken, public, secret, err := helpers.GenerateAPIKey()
@@ -206,18 +217,18 @@ func (s *APIKeysService) AuthenticateAPIKey(token string) (*APIKeyAuthResult, er
 		return nil, ErrAPIKeyInvalid
 	}
 
-	var keyID, userLocalID, mode, secretHash string
-	var logtoID sql.NullString
+	var keyID, userLocalID, mode, name, secretHash string
+	var logtoID, orgID sql.NullString
 	var expiresAt time.Time
 	var revokedAt, suspendedAt, deletedAt sql.NullTime
 
 	err = database.DB.QueryRow(`
-		SELECT k.id, k.key_secret_sha256, k.mode, k.expires_at, k.revoked_at,
+		SELECT k.id, k.key_secret_sha256, k.mode, k.name, k.organization_id, k.expires_at, k.revoked_at,
 		       u.id, u.logto_id, u.suspended_at, u.deleted_at
 		FROM user_api_keys k
 		JOIN users u ON u.id = k.user_id
 		WHERE k.key_public = $1
-	`, public).Scan(&keyID, &secretHash, &mode, &expiresAt, &revokedAt,
+	`, public).Scan(&keyID, &secretHash, &mode, &name, &orgID, &expiresAt, &revokedAt,
 		&userLocalID, &logtoID, &suspendedAt, &deletedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrAPIKeyInvalid
@@ -226,21 +237,30 @@ func (s *APIKeysService) AuthenticateAPIKey(token string) (*APIKeyAuthResult, er
 		return nil, fmt.Errorf("failed to look up api key: %w", err)
 	}
 
+	// Attribution carried back even on failure so the caller can audit it.
+	res := &APIKeyAuthResult{
+		KeyID:          keyID,
+		UserID:         userLocalID,
+		OrganizationID: orgID.String,
+		Name:           name,
+		Mode:           mode,
+	}
+
 	valid, err := helpers.VerifySystemSecretSHA256(secret, secretHash)
 	if err != nil || !valid {
-		return nil, ErrAPIKeyInvalid
+		return res, ErrAPIKeyInvalid
 	}
 	if revokedAt.Valid {
-		return nil, ErrAPIKeyRevoked
+		return res, ErrAPIKeyRevoked
 	}
 	if time.Now().After(expiresAt) {
-		return nil, ErrAPIKeyExpired
+		return res, ErrAPIKeyExpired
 	}
 	if suspendedAt.Valid || deletedAt.Valid {
-		return nil, ErrAPIKeyUserInactive
+		return res, ErrAPIKeyUserInactive
 	}
 	if !logtoID.Valid || logtoID.String == "" {
-		return nil, ErrAPIKeyUserInactive
+		return res, ErrAPIKeyUserInactive
 	}
 
 	user, err := ResolveUserByLogtoID(logtoID.String)
@@ -250,8 +270,9 @@ func (s *APIKeysService) AuthenticateAPIKey(token string) (*APIKeyAuthResult, er
 	user.ID = userLocalID
 	user.UserPermissions = maskAPIKeyPermissions(user.UserPermissions, mode)
 	user.OrgPermissions = maskAPIKeyPermissions(user.OrgPermissions, mode)
+	res.User = user
 
-	return &APIKeyAuthResult{User: user, KeyID: keyID}, nil
+	return res, nil
 }
 
 // TouchLastUsed records the key's last usage. It is throttled to at most one

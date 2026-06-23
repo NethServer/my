@@ -10,6 +10,7 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"sync"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
+	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services/local"
 )
@@ -49,6 +51,24 @@ func AuthMiddleware() gin.HandlerFunc {
 func authenticateAPIKey(c *gin.Context, token string) {
 	result, err := local.NewAPIKeysService().AuthenticateAPIKey(token)
 	if err != nil {
+		// Audit attributable failures (the key row was found): revoked/expired
+		// key, suspended owner, wrong secret. Unknown/unparseable keys carry no
+		// attribution and are not audited.
+		if result != nil {
+			rec := models.APIKeyAuditRecord{
+				APIKeyID:       result.KeyID,
+				UserID:         result.UserID,
+				OrganizationID: result.OrganizationID,
+				Event:          models.APIKeyEventAuthFailed,
+				Reason:         apiKeyAuditReason(err),
+				KeyName:        result.Name,
+				KeyMode:        result.Mode,
+				IP:             c.ClientIP(),
+				Method:         c.Request.Method,
+				Path:           c.Request.URL.Path,
+			}
+			go local.NewAPIKeysService().RecordAPIKeyEvent(rec)
+		}
 		logger.RequestLogger(c, "auth").Warn().
 			Err(err).
 			Str("operation", "api_key_auth_failed").
@@ -79,6 +99,21 @@ func authenticateAPIKey(c *gin.Context, token string) {
 		Msg("API key authenticated successfully")
 
 	c.Next()
+}
+
+// apiKeyAuditReason maps an authentication error to an audit reason code. It is
+// only called for attributable failures (a key row was found).
+func apiKeyAuditReason(err error) string {
+	switch {
+	case errors.Is(err, local.ErrAPIKeyRevoked):
+		return models.APIKeyReasonRevoked
+	case errors.Is(err, local.ErrAPIKeyExpired):
+		return models.APIKeyReasonExpired
+	case errors.Is(err, local.ErrAPIKeyUserInactive):
+		return models.APIKeyReasonUserInactive
+	default:
+		return models.APIKeyReasonInvalidSecret
+	}
 }
 
 // APIKeyRateLimit throttles requests authenticated via an API key, keyed on the
@@ -128,6 +163,15 @@ func APIKeyRateLimit() gin.HandlerFunc {
 
 		if entry.tokens < 1 {
 			mu.Unlock()
+			go local.NewAPIKeysService().RecordAPIKeyEvent(models.APIKeyAuditRecord{
+				APIKeyID:       id,
+				UserID:         c.GetString("user_id"),
+				OrganizationID: c.GetString("organization_id"),
+				Event:          models.APIKeyEventRateLimited,
+				IP:             c.ClientIP(),
+				Method:         c.Request.Method,
+				Path:           c.Request.URL.Path,
+			})
 			logger.RequestLogger(c, "auth").Warn().
 				Str("operation", "api_key_rate_limited").
 				Str("api_key_id", id).

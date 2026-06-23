@@ -222,6 +222,7 @@ func main() {
 			{
 				apiKeysGroup.POST("", methods.CreateAPIKey)
 				apiKeysGroup.GET("", methods.ListAPIKeys)
+				apiKeysGroup.GET("/audit", methods.ListAPIKeyAudit)
 				apiKeysGroup.DELETE("/:id", methods.RevokeAPIKey)
 			}
 		}

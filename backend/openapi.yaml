@@ -1045,6 +1045,48 @@ components:
               description: The full plaintext token, shown exactly once. Store it now — it is never returned again.
               example: "myk_a1b2c3d4e5f60718293a4b5c.0011223344556677889900aabbccddeeff00112233445566"
 
+    APIKeyAuditEntry:
+      type: object
+      description: One API key audit event (lifecycle or security failure).
+      properties:
+        id:
+          type: string
+        api_key_id:
+          type: string
+          nullable: true
+        user_id:
+          type: string
+          nullable: true
+        organization_id:
+          type: string
+          nullable: true
+        event:
+          type: string
+          enum: [created, revoked, auth_failed, rate_limited]
+        reason:
+          type: string
+          nullable: true
+          enum: [revoked, expired, user_inactive, invalid_secret, null]
+          description: Present for auth_failed events
+        key_name:
+          type: string
+          nullable: true
+        key_mode:
+          type: string
+          nullable: true
+        ip:
+          type: string
+          nullable: true
+        method:
+          type: string
+          nullable: true
+        path:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
     UserProfile:
       type: object
       properties:
@@ -4725,7 +4767,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
-          description: Maximum number of active API keys reached
+          description: Maximum number of active API keys reached (translatable validation error)
           content:
             application/json:
               schema:
@@ -4736,11 +4778,26 @@ paths:
                     example: 409
                   message:
                     type: string
-                    example: "maximum number of api keys reached (5)"
+                    example: "validation failed"
                   data:
                     type: object
-                    nullable: true
-                    example: null
+                    properties:
+                      type:
+                        type: string
+                        enum: [validation_error]
+                        example: "validation_error"
+                      errors:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                              example: "limit"
+                            message:
+                              type: string
+                              description: Error code the UI maps to a localized message
+                              example: "max_keys_reached"
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -4786,6 +4843,69 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /me/api-keys/audit:
+    get:
+      operationId: listMyAPIKeyAudit
+      tags:
+        - Backend - Me
+      summary: /me/api-keys/audit - List current user's API key audit trail
+      description: |
+        Audit trail for the current user's API keys: lifecycle events (created,
+        revoked) and security failures (use of a revoked/expired key, suspended
+        owner, wrong secret, rate limiting). Successful per-request use is not
+        recorded here. Interactive-session only — cannot be called with an API key.
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 25
+        - name: event
+          in: query
+          description: Filter by event type
+          schema:
+            type: string
+            enum: [created, revoked, auth_failed, rate_limited]
+        - name: api_key_id
+          in: query
+          description: Filter by a specific key id
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Audit trail retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "api key audit retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      audit:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/APIKeyAuditEntry'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
