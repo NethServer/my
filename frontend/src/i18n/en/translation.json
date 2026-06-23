@@ -418,7 +418,7 @@
       "mode_read": "Read-only",
       "mode_read_description": "Can read data only.",
       "mode_write": "Read and write",
-      "mode_write_description": "Can read and modify data (no destructive or administrative actions).",
+      "mode_write_description": "Can read and modify data. Cannot permanently delete, impersonate users, or manage API keys/account settings.",
       "expires_in_days": "Expires in (days)",
       "expires_in_days_helper": "Defaults to 90 days, maximum 365.",
       "confirm_password": "Confirm your password",

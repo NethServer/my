@@ -34,7 +34,7 @@ A key can never do more than your own account, and regardless of access level a 
 - Manage API keys (create or revoke keys)
 - Change your profile, password, or other account settings
 - Impersonate other users
-- Perform destructive operations or change alerting configuration
+- Permanently delete data (destroy operations)
 
 If your account permissions change, your keys follow automatically.
 

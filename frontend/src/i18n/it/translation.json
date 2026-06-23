@@ -345,7 +345,7 @@
       "mode_read": "Sola lettura",
       "mode_read_description": "Può solo leggere i dati.",
       "mode_write": "Lettura e scrittura",
-      "mode_write_description": "Può leggere e modificare i dati (nessuna azione distruttiva o amministrativa).",
+      "mode_write_description": "Può leggere e modificare i dati. Non può eliminare definitivamente, impersonificare utenti o gestire API key/impostazioni account.",
       "expires_in_days": "Scadenza (giorni)",
       "expires_in_days_helper": "Predefinito 90 giorni, massimo 365.",
       "confirm_password": "Conferma la tua password",

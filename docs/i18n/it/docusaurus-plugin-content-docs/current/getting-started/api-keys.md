@@ -34,7 +34,7 @@ Una key non può mai fare più del tuo account e, indipendentemente dal livello 
 - Gestire le API key (creare o revocare key)
 - Modificare profilo, password o altre impostazioni dell'account
 - Impersonificare altri utenti
-- Eseguire operazioni distruttive o modificare la configurazione degli alert
+- Eliminare definitivamente i dati (operazioni destroy)
 
 Se i permessi del tuo account cambiano, le key si adeguano automaticamente.
 
