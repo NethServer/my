@@ -12,6 +12,8 @@ package middleware
 import (
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -19,6 +21,13 @@ import (
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services/local"
+)
+
+// Per-key request budget for API-key-authenticated traffic: sustained rate plus
+// a burst allowance, independent of the per-IP limit.
+const (
+	apiKeyRateLimitPerSecond = 10
+	apiKeyRateLimitBurst     = 20
 )
 
 // AuthMiddleware authenticates a request via a personal API key when the bearer
@@ -65,9 +74,74 @@ func authenticateAPIKey(c *gin.Context, token string) {
 		Str("user_id", result.User.ID).
 		Str("organization_id", result.User.OrganizationID).
 		Str("api_key_id", keyID).
+		Str("method", c.Request.Method).
+		Str("path", c.Request.URL.Path).
 		Msg("API key authenticated successfully")
 
 	c.Next()
+}
+
+// APIKeyRateLimit throttles requests authenticated via an API key, keyed on the
+// key id (not the IP) with a token bucket. Requests on any other credential pass
+// through untouched — they keep the per-IP limit applied elsewhere.
+func APIKeyRateLimit() gin.HandlerFunc {
+	var mu sync.Mutex
+	keys := make(map[string]*rateLimiterEntry)
+
+	go func() {
+		for {
+			time.Sleep(5 * time.Minute)
+			mu.Lock()
+			now := time.Now()
+			for id, entry := range keys {
+				if now.Sub(entry.lastCheck) > 10*time.Minute {
+					delete(keys, id)
+				}
+			}
+			mu.Unlock()
+		}
+	}()
+
+	return func(c *gin.Context) {
+		if !c.GetBool("is_api_key") {
+			c.Next()
+			return
+		}
+		id := c.GetString("api_key_id")
+		if id == "" {
+			c.Next()
+			return
+		}
+
+		mu.Lock()
+		entry, exists := keys[id]
+		now := time.Now()
+		if !exists {
+			entry = &rateLimiterEntry{tokens: float64(apiKeyRateLimitBurst), lastCheck: now}
+			keys[id] = entry
+		}
+		entry.tokens += now.Sub(entry.lastCheck).Seconds() * apiKeyRateLimitPerSecond
+		if entry.tokens > float64(apiKeyRateLimitBurst) {
+			entry.tokens = float64(apiKeyRateLimitBurst)
+		}
+		entry.lastCheck = now
+
+		if entry.tokens < 1 {
+			mu.Unlock()
+			logger.RequestLogger(c, "auth").Warn().
+				Str("operation", "api_key_rate_limited").
+				Str("api_key_id", id).
+				Str("client_ip", c.ClientIP()).
+				Msg("API key rate limit exceeded")
+			c.JSON(http.StatusTooManyRequests, response.TooManyRequests("rate limit exceeded", nil))
+			c.Abort()
+			return
+		}
+
+		entry.tokens--
+		mu.Unlock()
+		c.Next()
+	}
 }
 
 // RejectAPIKey blocks requests authenticated via an API key. Apply it to groups

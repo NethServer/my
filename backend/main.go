@@ -176,7 +176,7 @@ func main() {
 	// Uses our enriched JWT - works offline when Logto is down
 	// Resource-based permissions: read:resource for GET, manage:resource for POST/PUT/PATCH/DELETE
 	// ===========================================
-	customAuth := api.Group("/", middleware.AuthMiddleware())
+	customAuth := api.Group("/", middleware.AuthMiddleware(), middleware.APIKeyRateLimit())
 
 	// Apply impersonation audit middleware to all routes EXCEPT the impersonation management routes
 	customAuthWithAudit := customAuth.Group("/", middleware.ImpersonationAuditMiddleware())

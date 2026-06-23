@@ -68,7 +68,11 @@ func CreateAPIKey(c *gin.Context) {
 		return
 	}
 
-	logger.LogBusinessOperation(c, "api-keys", "create", "api_key", key.ID, true, nil)
+	logger.LogBusinessOperationDetails(c, "api-keys", "create", "api_key", key.ID, true, nil, map[string]interface{}{
+		"name":       key.Name,
+		"mode":       key.Mode,
+		"expires_at": key.ExpiresAt,
+	})
 	c.JSON(http.StatusCreated, response.Created("api key created successfully", models.CreateAPIKeyResponse{
 		APIKey: *key,
 		Token:  token,
