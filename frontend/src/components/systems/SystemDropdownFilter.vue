@@ -7,6 +7,7 @@
 import { NeDropdownFilter } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useSystemFilter } from '@/composables/useSystemFilter'
+import { COMBOBOX_PAGE_SIZE } from '@/lib/common'
 
 const {
   modelValue,
@@ -41,7 +42,7 @@ const { options, loading, onSearch } = useSystemFilter(idField)
     :no-options-label="t('systems.no_systems')"
     :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
     :clear-search-label="t('ne_dropdown_filter.clear_search')"
-    :max-options-shown="50"
+    :max-options-shown="COMBOBOX_PAGE_SIZE"
     @search="onSearch"
     @update:model-value="(val) => emit('update:modelValue', val ?? [])"
   />

@@ -5,12 +5,20 @@
 
 <script setup lang="ts">
 import { NeDropdownFilter } from '@nethesis/vue-components'
+import type { FilterOption } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useOrganizationFilter } from '@/composables/useOrganizationFilter'
+import { computed } from 'vue'
+import { COMBOBOX_PAGE_SIZE } from '@/lib/common'
 
-const { modelValue, label } = defineProps<{
+const {
+  modelValue,
+  label,
+  showNoCompanyOption = false,
+} = defineProps<{
   modelValue: string[]
   label?: string
+  showNoCompanyOption?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -19,7 +27,19 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const computedLabel = label ?? t('organizations.organization')
-const { options, loading, onSearch } = useOrganizationFilter()
+const { options, loading, onSearch, currentSearch } = useOrganizationFilter()
+
+const noCompanyLabel = computed(() => t('organizations.no_company'))
+
+const finalOptions = computed<FilterOption[]>(() => {
+  if (!showNoCompanyOption) return options.value
+  const search = currentSearch.value.toLowerCase()
+  const matches = !search || noCompanyLabel.value.toLowerCase().includes(search)
+  if (matches) {
+    return [{ id: 'no_org', label: noCompanyLabel.value }, ...options.value]
+  }
+  return options.value
+})
 </script>
 
 <template>
@@ -27,7 +47,7 @@ const { options, loading, onSearch } = useOrganizationFilter()
     :model-value="modelValue"
     kind="checkbox"
     :label="computedLabel"
-    :options="options"
+    :options="finalOptions"
     show-options-filter
     external-filter
     :loading-options="loading"
@@ -36,7 +56,7 @@ const { options, loading, onSearch } = useOrganizationFilter()
     :no-options-label="t('ne_dropdown_filter.no_options')"
     :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
     :clear-search-label="t('ne_dropdown_filter.clear_search')"
-    :max-options-shown="50"
+    :max-options-shown="COMBOBOX_PAGE_SIZE"
     @search="onSearch"
     @update:model-value="(val) => emit('update:modelValue', val ?? [])"
   />

@@ -43,5 +43,5 @@ export function useOrganizationFilter() {
     searchInput.value = query
   }
 
-  return { options, loading, onSearch }
+  return { options, loading, onSearch, currentSearch: searchInput }
 }

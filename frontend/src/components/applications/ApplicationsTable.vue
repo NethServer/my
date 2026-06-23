@@ -235,7 +235,11 @@ const goToApplicationDetails = (application: Application) => {
               :clear-search-label="t('ne_dropdown_filter.clear_search')"
             />
             <SystemDropdownFilter v-model="systemFilter" id-field="id" />
-            <OrganizationDropdownFilter v-if="!isUserCustomer()" v-model="organizationFilter" />
+            <OrganizationDropdownFilter
+              v-if="!isUserCustomer()"
+              v-model="organizationFilter"
+              show-no-company-option
+            />
             <!-- sort dropdown -->
             <NeSortDropdown
               v-model:sort-key="sortBy"

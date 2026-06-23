@@ -204,6 +204,7 @@
     "custom_data_email_invalid": "Invalid email address",
     "custom_data_phone_invalid_format": "Invalid phone number",
     "organization": "Company",
+    "no_company": "No company",
     "choose_organization": "Choose company",
     "no_organizations": "No companies",
     "email": "Email",
