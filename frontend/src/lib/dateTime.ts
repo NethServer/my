@@ -177,3 +177,45 @@ export function formatTimeAgo(
   const years = Math.floor(diffSeconds / (60 * 60 * 24 * 365))
   return formatElapsed(t('time.years', years))
 }
+
+/**
+ * Format an ISO date string as a relative time string in either direction:
+ * past dates read "3 days ago", future dates "in 3 days".
+ *
+ * @param isoDate - ISO 8601 date string
+ * @param t - vue-i18n translation function
+ */
+export function formatRelative(isoDate: string, t: ComposerTranslation): string {
+  const date = new Date(isoDate)
+
+  if (isNaN(date.getTime())) {
+    return '-'
+  }
+
+  const deltaMs = date.getTime() - Date.now()
+  const future = deltaMs > 0
+  const diffSeconds = Math.floor(Math.abs(deltaMs) / 1000)
+
+  if (diffSeconds < 60) {
+    return t('time.just_now')
+  }
+
+  const wrap = (time: string) => (future ? t('time.in', { time }) : t('time.ago', { time }))
+
+  if (diffSeconds < 60 * 60) {
+    return wrap(t('time.minutes', Math.floor(diffSeconds / 60)))
+  }
+  if (diffSeconds < 60 * 60 * 24) {
+    return wrap(t('time.hours', Math.floor(diffSeconds / (60 * 60))))
+  }
+  if (diffSeconds < 60 * 60 * 24 * 7) {
+    return wrap(t('time.days', Math.floor(diffSeconds / (60 * 60 * 24))))
+  }
+  if (diffSeconds < 60 * 60 * 24 * 30) {
+    return wrap(t('time.weeks', Math.floor(diffSeconds / (60 * 60 * 24 * 7))))
+  }
+  if (diffSeconds < 60 * 60 * 24 * 365) {
+    return wrap(t('time.months', Math.floor(diffSeconds / (60 * 60 * 24 * 30))))
+  }
+  return wrap(t('time.years', Math.floor(diffSeconds / (60 * 60 * 24 * 365))))
+}
