@@ -14,6 +14,7 @@ La pagina Account è accessibile dal menu utente in alto a destra e si compone d
 - **Gestione Profilo** - Informazioni personali
 - **Gestione Avatar** - Immagine del profilo
 - **Cambio Password** - Aggiornamento credenziali
+- **API Key** - Credenziali per l'accesso programmatico
 - **Consenso Impersonificazione** - Gestione del consenso
 
 ## Impostazioni Generali
@@ -101,6 +102,10 @@ Per cambiare la password:
 :::warning
 La nuova password deve soddisfare i requisiti minimi di sicurezza: almeno 8 caratteri, una maiuscola, una minuscola, un numero e un carattere speciale.
 :::
+
+## API Key
+
+La pagina Impostazioni Account include una sezione **API Key** dove puoi creare e revocare key personali per l'accesso programmatico da applicazioni e script esterni. Per i dettagli completi consulta la documentazione [API Key](api-keys).
 
 ## Consenso Impersonificazione
 

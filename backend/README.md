@@ -134,6 +134,20 @@ Owner-only feature: temporarily act as another user with 1-hour scoped JWT token
 - `POST /api/auth/impersonate` - Start impersonation
 - `POST /api/auth/exit-impersonation` - Exit impersonation
 
+### Personal API Keys
+Long-lived keys users issue for non-interactive integrations (CRM, ERP) that authenticate without the interactive Logto + 2FA login. Token format `myk_<public>.<secret>`: the public part is stored in clear (indexed for lookup), the secret as a salted SHA-256 hash (same scheme as system tokens). The plaintext is shown once at creation.
+
+A key carries no permissions of its own: on each request the owner's current effective permissions are resolved (10-min Redis cache, no per-request Logto call) and masked to the key's mode — `read` keeps `read:*`, `write` keeps `read:*` + `manage:*`. Destructive/sensitive permissions (`destroy:*`, `impersonate:users`, `config:alerts`) are always excluded. Suspending or deleting the owner disables every key instantly (authoritative DB check); reactivating restores them.
+
+Self-service under `/api/me/api-keys` (interactive session only — a key cannot manage keys, and the group is disabled while impersonating). Creation requires a password step-up. Max 5 active keys per user; TTL default 90d, max 365d. Per-key rate limit (token bucket, 10 req/s, burst 20).
+
+- `POST /api/me/api-keys` - Create a key (returns the plaintext token once)
+- `GET /api/me/api-keys` - List own keys (no secrets)
+- `DELETE /api/me/api-keys/{id}` - Revoke a key
+- `GET /api/me/api-keys/audit` - Own audit trail
+
+**Audit** (`api_key_audit`, append-only): lifecycle (`created`, `revoked`) and security failures (`auth_failed` with reason `revoked`/`expired`/`user_inactive`/`invalid_secret`, plus `rate_limited`). Successful per-request use is tracked via `user_api_keys.last_used_at`, not audited.
+
 ### Redis Caching
 Multiple cache layers with graceful degradation (system works without Redis):
 

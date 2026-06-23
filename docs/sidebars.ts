@@ -10,6 +10,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'getting-started/authentication',
         'getting-started/account',
+        'getting-started/api-keys',
       ],
     },
     {

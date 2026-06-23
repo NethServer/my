@@ -92,6 +92,10 @@ To change your password:
 Choose a strong password with at least 8 characters, including uppercase, lowercase, numbers, and special characters.
 :::
 
+## API Keys
+
+The Account Settings page includes an **API Keys** section where you can create and revoke personal keys for programmatic access from external applications and scripts. For full details, see the [API Keys](api-keys) documentation.
+
 ## Impersonation Consent
 
 The Account Settings page includes an **Impersonation** section where you can manage whether administrators can temporarily access the platform as you. For full details on how impersonation works, see the [Impersonation](../platform/impersonation) documentation.
