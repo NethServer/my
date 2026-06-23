@@ -32,7 +32,8 @@ type APIKey struct {
 type CreateAPIKeyRequest struct {
 	Name          string `json:"name" binding:"required"`
 	Mode          string `json:"mode" binding:"required,oneof=read write"`
-	ExpiresInDays int    `json:"expires_in_days"` // optional; default 90, capped at 365
+	ExpiresInDays int    `json:"expires_in_days"`             // optional; default 90, capped at 365
+	Password      string `json:"password" binding:"required"` // step-up: re-verified before the key is minted
 }
 
 // CreateAPIKeyResponse returns the freshly minted key. The plaintext token is

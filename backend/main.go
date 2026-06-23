@@ -215,9 +215,10 @@ func main() {
 			meGroup.PUT("/avatar", middleware.DisableOnImpersonate(), methods.UploadMyAvatar)
 			meGroup.DELETE("/avatar", middleware.DisableOnImpersonate(), methods.DeleteMyAvatar)
 
-			// Personal API keys (self-service). Generation gating (2FA step-up)
-			// is layered on top of this in a follow-up.
-			apiKeysGroup := meGroup.Group("/api-keys")
+			// Personal API keys (self-service). Disabled while impersonating so an
+			// impersonator can neither mint nor revoke a user's keys; creation also
+			// requires a password step-up (see CreateAPIKey).
+			apiKeysGroup := meGroup.Group("/api-keys", middleware.DisableOnImpersonate())
 			{
 				apiKeysGroup.POST("", methods.CreateAPIKey)
 				apiKeysGroup.GET("", methods.ListAPIKeys)

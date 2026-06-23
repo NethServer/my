@@ -22,6 +22,7 @@ import (
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services/local"
+	"github.com/nethesis/my/backend/services/logto"
 )
 
 // CreateAPIKey issues a personal API key for the current user.
@@ -35,6 +36,19 @@ func CreateAPIKey(c *gin.Context) {
 	var req models.CreateAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
+		return
+	}
+
+	// Step-up: re-verify the user's password before minting a long-lived
+	// credential. Issuing a key is more sensitive than a normal request, so a
+	// valid session alone is not enough.
+	if user.LogtoID == nil || *user.LogtoID == "" {
+		c.JSON(http.StatusForbidden, response.Forbidden(local.ErrAPIKeyNoLocalUser.Error(), nil))
+		return
+	}
+	if err := logto.NewManagementClient().VerifyUserPassword(*user.LogtoID, req.Password); err != nil {
+		logger.LogBusinessOperation(c, "api-keys", "create", "api_key", "", false, err)
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("password verification failed", nil))
 		return
 	}
 
