@@ -18,6 +18,7 @@ import {
   faCircleCheck,
   faRotateLeft,
   faBomb,
+  faArrowRight,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -50,6 +51,7 @@ import ResetPasswordModal from './ResetPasswordModal.vue'
 import PasswordChangedModal from './PasswordChangedModal.vue'
 import { useUsers } from '@/queries/users/users'
 import { canManageUsers, canImpersonateUsers, canDestroyUsers } from '@/lib/permissions'
+import { isCurrentUser } from '@/lib/users/users'
 import { useLoginStore } from '@/stores/login'
 import ImpersonateUserModal from './ImpersonateUserModal.vue'
 import SuspendUserModal from './SuspendUserModal.vue'
@@ -63,6 +65,7 @@ import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
 import UserAvatar from './UserAvatar.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 import { isUserCustomer } from '@/lib/organizations/organizations.ts'
+import router from '@/router/index.ts'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -329,6 +332,10 @@ const onClosePasswordChangedModal = () => {
   isShownPasswordChangedModal.value = false
   newPassword.value = ''
 }
+
+const goToAccount = () => {
+  router.push({ name: 'account' })
+}
 </script>
 
 <template>
@@ -464,6 +471,9 @@ const onClosePasswordChangedModal = () => {
                 :logto-id="item.logto_id || ''"
               />
               {{ item.name }}
+              <span v-if="isCurrentUser(item)" class="text-tertiary-neutral"
+                >({{ $t('users.me') }})</span
+              >
             </div>
           </NeTableCell>
           <NeTableCell
@@ -533,14 +543,24 @@ const onClosePasswordChangedModal = () => {
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
             <div v-if="canManageUsers()" class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
-              <NeButton v-if="!item.deleted_at" kind="tertiary" @click="showEditUserDrawer(item)">
-                <template #prefix>
-                  <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
-                </template>
-                {{ $t('common.edit') }}
-              </NeButton>
-              <!-- kebab menu -->
-              <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />
+              <template v-if="!isCurrentUser(item)">
+                <NeButton v-if="!item.deleted_at" kind="tertiary" @click="showEditUserDrawer(item)">
+                  <template #prefix>
+                    <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
+                  </template>
+                  {{ $t('common.edit') }}
+                </NeButton>
+                <!-- kebab menu -->
+                <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />
+              </template>
+              <template v-else>
+                <NeButton kind="tertiary" @click="goToAccount">
+                  <template #prefix>
+                    <FontAwesomeIcon :icon="faArrowRight" class="h-4 w-4" aria-hidden="true" />
+                  </template>
+                  {{ $t('account.title') }}
+                </NeButton>
+              </template>
             </div>
           </NeTableCell>
         </NeTableRow>

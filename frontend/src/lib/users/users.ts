@@ -223,6 +223,11 @@ export const reactivateUser = (user: User) => {
   )
 }
 
+export const isCurrentUser = (user: User) => {
+  const loginStore = useLoginStore()
+  return user.logto_id === loginStore.userInfo?.logto_id
+}
+
 export const restoreUser = (user: User) => {
   const loginStore = useLoginStore()
 
