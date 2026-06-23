@@ -42,6 +42,7 @@ import {
   canReadSystems,
   canReadUsers,
 } from '@/lib/permissions'
+import { isUserCustomer } from '@/lib/organizations/organizations'
 
 type MenuItem = {
   name: string
@@ -160,7 +161,7 @@ const menuSections = computed(() => {
 
   if (companiesAndUsersItems.length) {
     sections.push({
-      label: 'shell.companies_and_users',
+      label: isUserCustomer() ? 'shell.users' : 'shell.companies_and_users',
       items: companiesAndUsersItems,
     })
   }
