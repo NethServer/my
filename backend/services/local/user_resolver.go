@@ -31,7 +31,11 @@ func ResolveUserByLogtoID(logtoID string) (*models.User, error) {
 	if rc != nil {
 		var cached models.User
 		if err := rc.Get(cacheKey, &cached); err == nil {
-			if cached.Username != "" && cached.Email != "" {
+			// Require a resolved local ID: a cached entry with an empty ID
+			// (user not yet present in the local DB when it was cached) would
+			// otherwise mask the now-existing local row for the whole TTL and
+			// break anything keyed on user.ID (e.g. listing API keys).
+			if cached.Username != "" && cached.Email != "" && cached.ID != "" {
 				return &cached, nil
 			}
 			_ = rc.Delete(cacheKey)
@@ -77,8 +81,10 @@ func ResolveUserByLogtoID(logtoID string) (*models.User, error) {
 	user.OrganizationID = enriched.OrganizationID
 	user.OrganizationName = enriched.OrganizationName
 
-	// Cache only complete profiles to avoid persisting transient Logto failures.
-	if rc != nil && userProfile != nil && user.Username != "" {
+	// Cache only complete profiles with a resolved local ID, to avoid
+	// persisting transient Logto failures or a not-yet-synced user (empty ID)
+	// for the full TTL.
+	if rc != nil && userProfile != nil && user.Username != "" && user.ID != "" {
 		_ = rc.Set(cacheKey, user, 10*time.Minute)
 	}
 
