@@ -4,13 +4,22 @@
 -->
 
 <script setup lang="ts">
-import { faChevronRight } from '@fortawesome/free-solid-svg-icons'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { ref } from 'vue'
 import SystemActiveAlertsTable from '@/components/systems/SystemActiveAlertsTable.vue'
 import SystemHistoryAlertsTable from '@/components/systems/SystemHistoryAlertsTable.vue'
+import { useI18n } from 'vue-i18n'
+import { NeExpandable } from '@nethesis/vue-components'
+import { useSystemAlertHistory } from '@/queries/systemAlerts/systemAlertHistory'
+
+const { t } = useI18n()
+const { isHistoryEnabled } = useSystemAlertHistory()
 
 const isHistoryExpanded = ref(false)
+
+function onSetExpanded(ev: boolean) {
+  isHistoryExpanded.value = ev
+  isHistoryEnabled.value = ev
+}
 </script>
 
 <template>
@@ -29,50 +38,12 @@ const isHistoryExpanded = ref(false)
     </section>
 
     <!-- ── Alert history section (collapsible) ────────────────────────────── -->
-    <section>
-      <!-- Collapsible header -->
-      <button
-        class="hover:bg-elevation-2 flex w-full items-center gap-3 rounded-lg px-4 py-2 text-left"
-        :aria-expanded="isHistoryExpanded"
-        @click="isHistoryExpanded = !isHistoryExpanded"
-      >
-        <FontAwesomeIcon
-          :icon="faChevronRight"
-          class="h-4 w-4 shrink-0 text-gray-500 transition-transform duration-200 dark:text-gray-400"
-          :class="{ 'rotate-90': isHistoryExpanded }"
-          aria-hidden="true"
-        />
-        <div>
-          <h4 class="text-base font-medium text-gray-900 dark:text-gray-100">
-            {{ $t('system_detail.alert_history_title') }}
-          </h4>
-          <p class="text-sm text-gray-500 dark:text-gray-400">
-            {{ $t('system_detail.alert_history_description') }}
-          </p>
-        </div>
-      </button>
-
-      <!-- Expanded content -->
-      <Transition name="slide">
-        <div v-show="isHistoryExpanded" class="mt-6">
-          <SystemHistoryAlertsTable />
-        </div>
-      </Transition>
-    </section>
+    <NeExpandable
+      :label="t('system_detail.alert_history_title')"
+      :is-expanded="isHistoryExpanded"
+      @set-expanded="onSetExpanded"
+    >
+      <SystemHistoryAlertsTable class="mt-6" />
+    </NeExpandable>
   </div>
 </template>
-
-<style scoped>
-.slide-enter-active,
-.slide-leave-active {
-  overflow: hidden;
-  transition:
-    opacity 0.25s ease,
-    transform 0.25s ease;
-}
-.slide-enter-from,
-.slide-leave-to {
-  opacity: 0;
-  transform: translateY(-25px);
-}
-</style>

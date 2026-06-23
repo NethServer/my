@@ -17,6 +17,7 @@ export const useSystemAlertHistory = defineQuery(() => {
   const loginStore = useLoginStore()
   const route = useRoute()
 
+  const isHistoryEnabled = ref(false)
   const pageNum = ref(1)
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const sortBy = ref('starts_at')
@@ -35,7 +36,7 @@ export const useSystemAlertHistory = defineQuery(() => {
       severityFilters.value.join(','),
       alertnameFilters.value.join(','),
     ],
-    enabled: () => !!loginStore.jwtToken && !!route.params.systemId,
+    enabled: () => !!loginStore.jwtToken && !!route.params.systemId && isHistoryEnabled.value,
     query: () =>
       getSystemAlertHistory(
         route.params.systemId as string,
@@ -82,6 +83,7 @@ export const useSystemAlertHistory = defineQuery(() => {
     ...rest,
     state,
     asyncStatus,
+    isHistoryEnabled,
     pageNum,
     pageSize,
     sortBy,
