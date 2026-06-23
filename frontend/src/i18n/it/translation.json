@@ -758,8 +758,7 @@
     "months": "{count} mese | {count} mesi",
     "years": "{count} anno | {count} anni",
     "just_now": "Poco fa",
-    "ago": "{time} fa",
-    "in": "tra {time}"
+    "ago": "{time} fa"
   },
   "delete_object_modal": {
     "type_to_confirm": "Digita '{confirmationText}' per confermare",

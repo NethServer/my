@@ -831,8 +831,7 @@
     "months": "{count} month | {count} months",
     "years": "{count} year | {count} years",
     "just_now": "Just now",
-    "ago": "{time} ago",
-    "in": "in {time}"
+    "ago": "{time} ago"
   },
   "delete_object_modal": {
     "type_to_confirm": "Type '{confirmationText}' to confirm",

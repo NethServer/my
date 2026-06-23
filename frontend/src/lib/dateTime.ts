@@ -178,44 +178,40 @@ export function formatTimeAgo(
   return formatElapsed(t('time.years', years))
 }
 
+const RELATIVE_DIVISIONS: { amount: number; unit: Intl.RelativeTimeFormatUnit }[] = [
+  { amount: 60, unit: 'second' },
+  { amount: 60, unit: 'minute' },
+  { amount: 24, unit: 'hour' },
+  { amount: 7, unit: 'day' },
+  { amount: 4.34524, unit: 'week' },
+  { amount: 12, unit: 'month' },
+  { amount: Number.POSITIVE_INFINITY, unit: 'year' },
+]
+
 /**
- * Format an ISO date string as a relative time string in either direction:
- * past dates read "3 days ago", future dates "in 3 days".
+ * Format an ISO date as a localized relative time, like GitHub: "in 3 months",
+ * "3 days ago". Uses Intl.RelativeTimeFormat so the unit is picked and rounded
+ * the way people expect, and the locale is applied natively (no i18n keys).
  *
  * @param isoDate - ISO 8601 date string
- * @param t - vue-i18n translation function
+ * @param locale - BCP-47 locale (e.g. "en", "it")
  */
-export function formatRelative(isoDate: string, t: ComposerTranslation): string {
+export function formatRelative(isoDate: string, locale: string): string {
   const date = new Date(isoDate)
 
   if (isNaN(date.getTime())) {
     return '-'
   }
 
-  const deltaMs = date.getTime() - Date.now()
-  const future = deltaMs > 0
-  const diffSeconds = Math.floor(Math.abs(deltaMs) / 1000)
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
+  let duration = (date.getTime() - Date.now()) / 1000
 
-  if (diffSeconds < 60) {
-    return t('time.just_now')
+  for (const division of RELATIVE_DIVISIONS) {
+    if (Math.abs(duration) < division.amount) {
+      return rtf.format(Math.round(duration), division.unit)
+    }
+    duration /= division.amount
   }
 
-  const wrap = (time: string) => (future ? t('time.in', { time }) : t('time.ago', { time }))
-
-  if (diffSeconds < 60 * 60) {
-    return wrap(t('time.minutes', Math.floor(diffSeconds / 60)))
-  }
-  if (diffSeconds < 60 * 60 * 24) {
-    return wrap(t('time.hours', Math.floor(diffSeconds / (60 * 60))))
-  }
-  if (diffSeconds < 60 * 60 * 24 * 7) {
-    return wrap(t('time.days', Math.floor(diffSeconds / (60 * 60 * 24))))
-  }
-  if (diffSeconds < 60 * 60 * 24 * 30) {
-    return wrap(t('time.weeks', Math.floor(diffSeconds / (60 * 60 * 24 * 7))))
-  }
-  if (diffSeconds < 60 * 60 * 24 * 365) {
-    return wrap(t('time.months', Math.floor(diffSeconds / (60 * 60 * 24 * 30))))
-  }
-  return wrap(t('time.years', Math.floor(diffSeconds / (60 * 60 * 24 * 365))))
+  return rtf.format(Math.round(duration), 'year')
 }

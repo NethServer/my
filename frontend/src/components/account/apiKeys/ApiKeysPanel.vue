@@ -282,7 +282,7 @@ function confirmDelete() {
               <div v-if="key.last_used_at" class="flex flex-col">
                 <span>{{ formatDateTimeNoSeconds(new Date(key.last_used_at), locale) }}</span>
                 <span class="text-xs text-gray-500 dark:text-gray-400">
-                  {{ formatRelative(key.last_used_at, t) }}
+                  {{ formatRelative(key.last_used_at, locale) }}
                 </span>
               </div>
               <span v-else>{{ $t('account.api_keys.never_used') }}</span>
@@ -291,7 +291,7 @@ function confirmDelete() {
               <div class="flex flex-col">
                 <span>{{ formatDateTimeNoSeconds(new Date(key.expires_at), locale) }}</span>
                 <span class="text-xs text-gray-500 dark:text-gray-400">
-                  {{ formatRelative(key.expires_at, t) }}
+                  {{ formatRelative(key.expires_at, locale) }}
                 </span>
               </div>
             </NeTableCell>
