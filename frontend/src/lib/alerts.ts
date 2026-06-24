@@ -4,7 +4,7 @@
 import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
-import { type Pagination } from './common'
+import { OPTIONS_PAGE_SIZE, type Pagination } from './common'
 import type { NeBadgeV2Kind, FilterOption } from '@nethesis/vue-components'
 import * as v from 'valibot'
 
@@ -338,7 +338,7 @@ export const postAlertsConfig = (config: AlertingConfigLayer) => {
 export const getAlerts = (
   organizationIds?: string | string[],
   page: number = 1,
-  pageSize: number = 50,
+  pageSize: number = OPTIONS_PAGE_SIZE,
   sortBy: 'starts_at' | 'severity' | 'alertname' | 'status' = 'starts_at',
   sortDirection: 'asc' | 'desc' = 'desc',
   statusFilters?: string | string[],
@@ -403,7 +403,7 @@ export const getAlerts = (
 export const getSystemAlertHistory = (
   systemId: string,
   page: number = 1,
-  pageSize: number = 50,
+  pageSize: number = OPTIONS_PAGE_SIZE,
   sortBy: string = 'starts_at',
   sortDescending: boolean = true,
   severityFilters?: string | string[],
@@ -516,7 +516,7 @@ export const getAlertSilenceIds = (alert: Alert) => {
 export const getSystemActiveAlerts = (
   systemId: string,
   page: number = 1,
-  pageSize: number = 50,
+  pageSize: number = OPTIONS_PAGE_SIZE,
   sortBy: 'starts_at' | 'severity' | 'alertname' | 'status' = 'starts_at',
   sortDirection: 'asc' | 'desc' = 'desc',
   statusFilters?: string | string[],

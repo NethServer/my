@@ -7,7 +7,7 @@ import { useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
 import { computed, ref, watch } from 'vue'
 import type { FilterOption } from '@nethesis/vue-components'
-import { COMBOBOX_PAGE_SIZE } from '@/lib/common'
+import { OPTIONS_PAGE_SIZE } from '@/lib/common'
 
 const SYSTEMS_SEARCH_KEY = 'systemsSearch'
 
@@ -27,7 +27,7 @@ export function useSystemFilter(idField: 'system_key' | 'id' = 'system_key') {
     key: () => [SYSTEMS_SEARCH_KEY, idField, debouncedSearch.value],
     enabled: () => !!loginStore.jwtToken,
     query: () =>
-      getSystems(1, COMBOBOX_PAGE_SIZE, debouncedSearch.value, [], [], [], [], [], 'name', false),
+      getSystems(1, OPTIONS_PAGE_SIZE, debouncedSearch.value, [], [], [], [], [], 'name', false),
   })
 
   const options = computed<FilterOption[]>(() => {

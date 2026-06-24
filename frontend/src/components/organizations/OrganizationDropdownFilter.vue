@@ -9,7 +9,7 @@ import type { FilterOption } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useOrganizationFilter } from '@/composables/useOrganizationFilter'
 import { computed } from 'vue'
-import { COMBOBOX_PAGE_SIZE } from '@/lib/common'
+import { OPTIONS_PAGE_SIZE } from '@/lib/common'
 
 const {
   modelValue,
@@ -56,7 +56,7 @@ const finalOptions = computed<FilterOption[]>(() => {
     :no-options-label="t('ne_dropdown_filter.no_options')"
     :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
     :clear-search-label="t('ne_dropdown_filter.clear_search')"
-    :max-options-shown="COMBOBOX_PAGE_SIZE"
+    :max-options-shown="OPTIONS_PAGE_SIZE"
     @search="onSearch"
     @update:model-value="(val) => emit('update:modelValue', val ?? [])"
   />
