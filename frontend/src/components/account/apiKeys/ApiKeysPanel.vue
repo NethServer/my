@@ -287,7 +287,7 @@ function confirmDelete() {
             <NeTableCell :data-label="$t('account.api_keys.name')">
               <div class="flex flex-col">
                 <span>{{ key.name }}</span>
-                <span class="font-mono text-xs text-gray-500 dark:text-gray-400">
+                <span class="text-tertiary-neutral font-mono">
                   myk_{{ key.key_public.slice(0, 12) }}…
                 </span>
               </div>
@@ -301,18 +301,18 @@ function confirmDelete() {
             </NeTableCell>
             <NeTableCell :data-label="$t('account.api_keys.last_used')">
               <div v-if="key.last_used_at" class="flex flex-col">
-                <span>{{ formatDateTimeNoSeconds(new Date(key.last_used_at), locale) }}</span>
-                <span class="text-xs text-gray-500 dark:text-gray-400">
-                  {{ formatRelative(key.last_used_at, locale) }}
+                <span>{{ formatRelative(key.last_used_at, locale) }}</span>
+                <span class="text-tertiary-neutral">
+                  {{ formatDateTimeNoSeconds(new Date(key.last_used_at), locale) }}
                 </span>
               </div>
               <span v-else>{{ $t('account.api_keys.never_used') }}</span>
             </NeTableCell>
             <NeTableCell :data-label="$t('account.api_keys.expires')">
               <div class="flex flex-col">
-                <span>{{ formatDateTimeNoSeconds(new Date(key.expires_at), locale) }}</span>
-                <span class="text-xs text-gray-500 dark:text-gray-400">
-                  {{ formatRelative(key.expires_at, locale) }}
+                <span>{{ formatRelative(key.expires_at, locale) }}</span>
+                <span class="text-tertiary-neutral">
+                  {{ formatDateTimeNoSeconds(new Date(key.expires_at), locale) }}
                 </span>
               </div>
             </NeTableCell>

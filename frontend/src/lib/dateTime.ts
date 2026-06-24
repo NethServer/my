@@ -2,6 +2,7 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import type { ComposerTranslation } from 'vue-i18n'
+import capitalize from 'lodash/capitalize'
 
 function getTimeZoneOptions(timeZone?: string): Intl.DateTimeFormatOptions {
   if (!timeZone) {
@@ -208,10 +209,10 @@ export function formatRelative(isoDate: string, locale: string): string {
 
   for (const division of RELATIVE_DIVISIONS) {
     if (Math.abs(duration) < division.amount) {
-      return rtf.format(Math.round(duration), division.unit)
+      return capitalize(rtf.format(Math.round(duration), division.unit))
     }
     duration /= division.amount
   }
 
-  return rtf.format(Math.round(duration), 'year')
+  return capitalize(rtf.format(Math.round(duration), 'year'))
 }
