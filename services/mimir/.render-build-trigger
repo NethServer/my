@@ -2,7 +2,7 @@
 # This file is used to force Docker service rebuilds in PR previews
 # Modify LAST_UPDATE to trigger rebuilds
 
-LAST_UPDATE=2026-05-20T09:20:18Z
+LAST_UPDATE=2026-06-23T12:22:23Z
 
 # Instructions:
 # 1. To force rebuild of Docker services in a PR, update LAST_UPDATE

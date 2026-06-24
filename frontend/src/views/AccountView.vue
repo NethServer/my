@@ -9,12 +9,14 @@ import ImpersonationPanel from '@/components/account/impersonation/Impersonation
 import { useTabs } from '@/composables/useTabs'
 import { useI18n } from 'vue-i18n'
 import GeneralPanel from '@/components/account/GeneralPanel.vue'
+import ApiKeysPanel from '@/components/account/apiKeys/ApiKeysPanel.vue'
 
 const { t } = useI18n()
 
 const { tabs, selectedTab } = useTabs([
   { name: 'general', label: t('account.general') },
   { name: 'impersonation', label: t('account.impersonation.impersonation') },
+  { name: 'api-keys', label: t('account.api_keys.api_keys') },
 ])
 </script>
 
@@ -33,5 +35,6 @@ const { tabs, selectedTab } = useTabs([
     />
     <GeneralPanel v-if="selectedTab === 'general'" />
     <ImpersonationPanel v-else-if="selectedTab === 'impersonation'" />
+    <ApiKeysPanel v-else-if="selectedTab === 'api-keys'" />
   </div>
 </template>

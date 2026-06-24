@@ -34,7 +34,9 @@ export const getValidationIssues = (
 
   if (axiosError.status && isValidationErrorCode(axiosError.status)) {
     const backendError = axiosError.response?.data as BackendError
-    const validationErrors = backendError.data.errors || []
+    // Some validation-code responses (e.g. a 409 conflict) carry a plain message
+    // with `data: null` and no field errors — guard against that.
+    const validationErrors = backendError?.data?.errors || []
 
     validationErrors.forEach((err: { key: string; message: string }) => {
       // replace dots and spaces with underscores for i18n key

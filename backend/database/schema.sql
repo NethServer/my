@@ -1076,3 +1076,66 @@ CREATE INDEX IF NOT EXISTS idx_applications_org_id_certified
 ON applications(organization_id)
 WHERE deleted_at IS NULL AND is_user_facing = TRUE
   AND (inventory_data->>'certification_level')::int IN (4, 5);
+
+-- =============================================================================
+-- USER API KEYS
+-- =============================================================================
+-- Personal API keys for non-interactive integrations (CRM, ERP, ...). The key
+-- is an opaque token `myk_<public>.<secret>`: the public part is stored in clear
+-- for fast lookup, the secret part as a salted SHA-256 hash. A key carries no
+-- permissions of its own; on each request the owner's effective permissions are
+-- resolved live and masked to the key's mode (read / write).
+
+CREATE TABLE IF NOT EXISTS user_api_keys (
+    id                VARCHAR(255) PRIMARY KEY,
+    user_id           VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    organization_id   VARCHAR(255),
+    name              VARCHAR(255) NOT NULL,
+    key_public        VARCHAR(64)  NOT NULL,            -- public part of myk_<public>.<secret>
+    key_secret_sha256 VARCHAR(128) NOT NULL,            -- salted SHA-256 of secret part (hex_salt:hex_hash)
+    mode              VARCHAR(10)  NOT NULL CHECK (mode IN ('read', 'write')),
+    expires_at        TIMESTAMP WITH TIME ZONE NOT NULL,
+    last_used_at      TIMESTAMP WITH TIME ZONE,
+    last_used_ip      VARCHAR(64),
+    revoked_at        TIMESTAMP WITH TIME ZONE,
+    created_at        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE user_api_keys IS 'Personal API keys for non-interactive integrations; permissions resolved live and masked to mode';
+COMMENT ON COLUMN user_api_keys.key_public IS 'Public part of token myk_<public>.<secret> for fast DB lookup';
+COMMENT ON COLUMN user_api_keys.key_secret_sha256 IS 'Salted SHA-256 of the secret part (hex_salt:hex_hash)';
+COMMENT ON COLUMN user_api_keys.mode IS 'read = read:* only; write = read:* + manage:* (destroy/impersonate/config excluded)';
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_api_keys_public ON user_api_keys(key_public);
+CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_id ON user_api_keys(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_api_keys_active ON user_api_keys(user_id) WHERE revoked_at IS NULL;
+
+-- =============================================================================
+-- API KEY AUDIT
+-- =============================================================================
+-- Append-only audit of API key lifecycle (created, revoked) and security
+-- failures (revoked/expired key used, suspended owner, wrong secret, rate
+-- limit). Successful use is tracked via user_api_keys.last_used_at, not here.
+-- No foreign keys: the trail survives key/user deletion (forensics).
+
+CREATE TABLE IF NOT EXISTS api_key_audit (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    api_key_id      VARCHAR(255),
+    user_id         VARCHAR(255),
+    organization_id VARCHAR(255),
+    event           VARCHAR(32) NOT NULL,    -- created | revoked | auth_failed | rate_limited
+    reason          VARCHAR(32),             -- revoked | expired | user_inactive | invalid_secret
+    key_name        VARCHAR(255),
+    key_mode        VARCHAR(10),
+    ip              VARCHAR(64),
+    method          VARCHAR(10),
+    path            TEXT,
+    created_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+COMMENT ON TABLE api_key_audit IS 'Append-only audit of API key lifecycle and security failures; successful use tracked via user_api_keys.last_used_at';
+
+CREATE INDEX IF NOT EXISTS idx_api_key_audit_user ON api_key_audit(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_api_key_audit_org ON api_key_audit(organization_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_api_key_audit_key ON api_key_audit(api_key_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_api_key_audit_event ON api_key_audit(event);

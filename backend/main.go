@@ -176,17 +176,17 @@ func main() {
 	// Uses our enriched JWT - works offline when Logto is down
 	// Resource-based permissions: read:resource for GET, manage:resource for POST/PUT/PATCH/DELETE
 	// ===========================================
-	customAuth := api.Group("/", middleware.JWTAuthMiddleware())
+	customAuth := api.Group("/", middleware.AuthMiddleware(), middleware.APIKeyRateLimit())
 
 	// Apply impersonation audit middleware to all routes EXCEPT the impersonation management routes
 	customAuthWithAudit := customAuth.Group("/", middleware.ImpersonationAuditMiddleware())
 
 	{
 		// Authentication endpoints
-		customAuth.POST("/auth/logout", middleware.DisableOnImpersonate(), methods.Logout)
+		customAuth.POST("/auth/logout", middleware.RejectAPIKey(), middleware.DisableOnImpersonate(), methods.Logout)
 
 		// Consent-based impersonation endpoints (no audit to avoid recursion)
-		impersonateGroup := customAuth.Group("/impersonate")
+		impersonateGroup := customAuth.Group("/impersonate", middleware.RejectAPIKey())
 		{
 			// Consent management endpoints
 			impersonateGroup.POST("/consent", methods.EnableImpersonationConsent)
@@ -204,12 +204,28 @@ func main() {
 			impersonateGroup.GET("/sessions/:session_id/audit", methods.GetSessionAudit)
 		}
 
-		// User profile endpoints using custom JWT (with audit for impersonation)
-		customAuthWithAudit.GET("/me", methods.GetCurrentUser)
-		customAuthWithAudit.POST("/me/change-password", middleware.DisableOnImpersonate(), methods.ChangePassword)
-		customAuthWithAudit.POST("/me/change-info", middleware.DisableOnImpersonate(), methods.ChangeInfo)
-		customAuthWithAudit.PUT("/me/avatar", middleware.DisableOnImpersonate(), methods.UploadMyAvatar)
-		customAuthWithAudit.DELETE("/me/avatar", middleware.DisableOnImpersonate(), methods.DeleteMyAvatar)
+		// User profile endpoints using custom JWT (with audit for impersonation).
+		// The whole /me surface is interactive-session only: API keys are rejected,
+		// so a key can neither read/modify the owner's profile nor mint/revoke keys.
+		meGroup := customAuthWithAudit.Group("/me", middleware.RejectAPIKey())
+		{
+			meGroup.GET("", methods.GetCurrentUser)
+			meGroup.POST("/change-password", middleware.DisableOnImpersonate(), methods.ChangePassword)
+			meGroup.POST("/change-info", middleware.DisableOnImpersonate(), methods.ChangeInfo)
+			meGroup.PUT("/avatar", middleware.DisableOnImpersonate(), methods.UploadMyAvatar)
+			meGroup.DELETE("/avatar", middleware.DisableOnImpersonate(), methods.DeleteMyAvatar)
+
+			// Personal API keys (self-service). Disabled while impersonating so an
+			// impersonator can neither mint nor revoke a user's keys; creation also
+			// requires a password step-up (see CreateAPIKey).
+			apiKeysGroup := meGroup.Group("/api-keys", middleware.DisableOnImpersonate())
+			{
+				apiKeysGroup.POST("", methods.CreateAPIKey)
+				apiKeysGroup.GET("", methods.ListAPIKeys)
+				apiKeysGroup.GET("/audit", methods.ListAPIKeyAudit)
+				apiKeysGroup.DELETE("/:id", methods.RevokeAPIKey)
+			}
+		}
 
 		// ===========================================
 		// SYSTEMS - resource-based permission validation (read:systems for GET, manage:systems for POST/PUT/DELETE)

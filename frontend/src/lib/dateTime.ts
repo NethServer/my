@@ -2,6 +2,7 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import type { ComposerTranslation } from 'vue-i18n'
+import capitalize from 'lodash/capitalize'
 
 function getTimeZoneOptions(timeZone?: string): Intl.DateTimeFormatOptions {
   if (!timeZone) {
@@ -176,4 +177,42 @@ export function formatTimeAgo(
 
   const years = Math.floor(diffSeconds / (60 * 60 * 24 * 365))
   return formatElapsed(t('time.years', years))
+}
+
+const RELATIVE_DIVISIONS: { amount: number; unit: Intl.RelativeTimeFormatUnit }[] = [
+  { amount: 60, unit: 'second' },
+  { amount: 60, unit: 'minute' },
+  { amount: 24, unit: 'hour' },
+  { amount: 7, unit: 'day' },
+  { amount: 4.34524, unit: 'week' },
+  { amount: 12, unit: 'month' },
+  { amount: Number.POSITIVE_INFINITY, unit: 'year' },
+]
+
+/**
+ * Format an ISO date as a localized relative time, like GitHub: "in 3 months",
+ * "3 days ago". Uses Intl.RelativeTimeFormat so the unit is picked and rounded
+ * the way people expect, and the locale is applied natively (no i18n keys).
+ *
+ * @param isoDate - ISO 8601 date string
+ * @param locale - BCP-47 locale (e.g. "en", "it")
+ */
+export function formatRelative(isoDate: string, locale: string): string {
+  const date = new Date(isoDate)
+
+  if (isNaN(date.getTime())) {
+    return '-'
+  }
+
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
+  let duration = (date.getTime() - Date.now()) / 1000
+
+  for (const division of RELATIVE_DIVISIONS) {
+    if (Math.abs(duration) < division.amount) {
+      return capitalize(rtf.format(Math.round(duration), division.unit))
+    }
+    duration /= division.amount
+  }
+
+  return capitalize(rtf.format(Math.round(duration), 'year'))
 }

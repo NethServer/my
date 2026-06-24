@@ -49,92 +49,20 @@ type TokenExchangeResponse struct {
 	User         models.User `json:"user"`
 }
 
-// buildUserFromLogtoID constructs a complete User object from a Logto ID
-// This helper consolidates the logic for:
-// 1. Getting user profile from Logto
-// 2. Getting user from local database
-// 3. Constructing User object with all necessary fields
-// 4. Enriching user with roles and permissions
+// buildUserFromLogtoID constructs a complete User object (profile, roles,
+// permissions, organization) from a Logto ID, reusing the 10-minute Redis
+// profile cache. The resolution lives in the local service so API-key
+// authentication shares the exact same effective-permission logic.
 func buildUserFromLogtoID(c *gin.Context, logtoID string) (*models.User, error) {
-	// Check Redis cache first
-	cacheKey := "user_profile:" + logtoID
-	rc := cache.GetRedisClient()
-	if rc != nil {
-		var cachedUser models.User
-		if err := rc.Get(cacheKey, &cachedUser); err == nil {
-			// Validate cached data is complete before using it
-			if cachedUser.Username != "" && cachedUser.Email != "" {
-				return &cachedUser, nil
-			}
-			// Cached data is incomplete, discard it
-			_ = rc.Delete(cacheKey)
-		}
-	}
-
-	// Get complete user profile from Management API
-	userProfile, err := logto.GetUserProfileFromLogto(logtoID)
+	user, err := local.ResolveUserByLogtoID(logtoID)
 	if err != nil {
-		logger.RequestLogger(c, "auth").Warn().
-			Err(err).
-			Str("operation", "get_profile").
-			Msg("Failed to get user profile")
-		userProfile = nil
-	}
-
-	// Try to get user from local database first
-	userService := local.NewUserService()
-	var user models.User
-
-	if localUser, err := userService.GetUserByLogtoID(logtoID); err == nil {
-		// User exists in local DB, use local ID as primary ID
-		user = models.User{
-			ID:      localUser.ID,      // Local database ID as primary ID
-			LogtoID: localUser.LogtoID, // Logto ID for reference
-		}
-	} else {
-		// User not in local DB, create temporary user with empty local ID
-		user = models.User{
-			ID:      "",       // No local ID available
-			LogtoID: &logtoID, // Logto ID for reference
-		}
-	}
-
-	// Populate basic profile information
-	if userProfile != nil {
-		user.Username = userProfile.Username
-		user.Email = userProfile.PrimaryEmail
-		user.Name = userProfile.Name
-		if userProfile.PrimaryPhone != "" {
-			user.Phone = &userProfile.PrimaryPhone
-		}
-	}
-
-	// Enrich user with roles and permissions
-	enrichedUser, err := logto.EnrichUserWithRolesAndPermissions(logtoID)
-	if err != nil {
-		logger.RequestLogger(c, "auth").Warn().
+		logger.RequestLogger(c, "auth").Error().
 			Err(err).
 			Str("operation", "enrich_user").
-			Msg("Failed to enrich user with roles")
+			Msg("Failed to build user from Logto ID")
 		return nil, err
 	}
-
-	user.UserRoles = enrichedUser.UserRoles
-	user.UserRoleIDs = enrichedUser.UserRoleIDs
-	user.UserPermissions = enrichedUser.UserPermissions
-	user.OrgRole = enrichedUser.OrgRole
-	user.OrgRoleID = enrichedUser.OrgRoleID
-	user.OrgPermissions = enrichedUser.OrgPermissions
-	user.OrganizationID = enrichedUser.OrganizationID
-	user.OrganizationName = enrichedUser.OrganizationName
-
-	// Cache the user profile in Redis only if the profile is complete
-	// (avoid caching incomplete data from transient Logto API failures)
-	if rc != nil && userProfile != nil && user.Username != "" {
-		_ = rc.Set(cacheKey, user, 10*time.Minute)
-	}
-
-	return &user, nil
+	return user, nil
 }
 
 // ExchangeToken converts Logto access token to custom JWT
