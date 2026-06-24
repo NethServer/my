@@ -48,7 +48,11 @@ interface CreateApiKeyResponse {
 export const CreateApiKeySchema = v.object({
   name: v.pipe(v.string(), v.nonEmpty('account.api_keys.name_required')),
   mode: v.pipe(v.string(), v.nonEmpty('account.api_keys.mode_required')),
-  expires_in_days: v.number(),
+  expires_in_days: v.pipe(
+    v.number(),
+    v.minValue(1, 'account.api_keys.expires_in_days_invalid'),
+    v.maxValue(365, 'account.api_keys.expires_in_days_invalid'),
+  ),
   password: v.pipe(v.string(), v.nonEmpty('account.api_keys.password_required')),
 })
 

@@ -160,7 +160,7 @@ async function createKey() {
   const apiKey: CreateApiKey = {
     name: name.value.trim(),
     mode: mode.value,
-    expires_in_days: Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : 90,
+    expires_in_days: parsedDays,
     password: password.value,
   }
 

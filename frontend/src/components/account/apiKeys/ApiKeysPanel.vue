@@ -17,17 +17,18 @@ import {
   NeTableCell,
   NePaginator,
   NeTextInput,
+  NeSortDropdown,
   type SortEvent,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   faKey,
   faCirclePlus,
-  faCircleInfo,
   faCircleCheck,
   faCircleXmark,
   faClock,
   faBan,
+  faMagnifyingGlass,
 } from '@fortawesome/free-solid-svg-icons'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -59,9 +60,8 @@ const keyToDelete = ref<ApiKey | null>(null)
 const pageNum = ref(1)
 const pageSize = ref(loadPageSizeFromStorage(API_KEYS_TABLE_ID, DEFAULT_PAGE_SIZE))
 const textFilter = ref('')
-// null = default smart order (active first, then most-recently used);
-// a column key = explicit user sort.
-const sortKey = ref<keyof ApiKey | null>(null)
+// null = no explicit sort (smart order); 'status' = sort by status rank.
+const sortKey = ref<string | null>('status')
 const sortDescending = ref(false)
 
 const apiKeys = computed(() => state.value.data ?? [])
@@ -107,6 +107,10 @@ function statusRank(key: ApiKey): number {
 
 function columnValue(key: ApiKey): string | number {
   switch (sortKey.value) {
+    case 'mode':
+      return key.mode
+    case 'status':
+      return statusRank(key)
     case 'last_used_at':
       return key.last_used_at ? new Date(key.last_used_at).getTime() : 0
     case 'expires_at':
@@ -148,9 +152,16 @@ watch([pageSize, sortKey, sortDescending, textFilter], () => {
 })
 
 function onSort(payload: SortEvent) {
-  sortKey.value = payload.key as keyof ApiKey
+  sortKey.value = payload.key
   sortDescending.value = payload.descending
 }
+
+const sortKeyModel = computed({
+  get: () => sortKey.value ?? undefined,
+  set: (val: string | undefined) => {
+    sortKey.value = val ?? null
+  },
+})
 
 const {
   mutate: deleteMutate,
@@ -224,14 +235,36 @@ function confirmDelete() {
         :description="state.error.message"
         class="mb-6"
       />
-      <!-- toolbar: filter + update indicator -->
+      <!-- toolbar: filter + sort + update indicator -->
       <div v-if="apiKeys.length" class="mb-6 flex w-full items-end justify-between gap-4">
-        <NeTextInput
-          v-model.trim="textFilter"
-          is-search
-          :placeholder="$t('account.api_keys.filter_api_keys')"
-          class="max-w-48 sm:max-w-sm"
-        />
+        <div class="flex items-end gap-2">
+          <NeTextInput
+            v-model.trim="textFilter"
+            is-search
+            :placeholder="$t('account.api_keys.filter_api_keys')"
+            class="max-w-48 sm:max-w-sm"
+          />
+          <NeSortDropdown
+            v-model:sort-key="sortKeyModel"
+            v-model:sort-descending="sortDescending"
+            :label="$t('sort.sort')"
+            :options="[
+              { id: 'name', label: $t('account.api_keys.name') },
+              { id: 'mode', label: $t('account.api_keys.mode') },
+              { id: 'last_used_at', label: $t('account.api_keys.last_used') },
+              { id: 'expires_at', label: $t('account.api_keys.expires') },
+              { id: 'status', label: $t('account.api_keys.status') },
+            ]"
+            :open-menu-aria-label="$t('ne_dropdown.open_menu')"
+            :sort-by-label="$t('sort.sort_by')"
+            :sort-direction-label="$t('sort.direction')"
+            :ascending-label="$t('sort.ascending')"
+            :descending-label="$t('sort.descending')"
+          />
+          <NeButton kind="tertiary" @click="textFilter = ''">
+            {{ $t('common.clear_filters') }}
+          </NeButton>
+        </div>
         <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
       </div>
 
@@ -248,7 +281,7 @@ function confirmDelete() {
         v-else-if="!filteredKeys.length && state.status !== 'pending'"
         :title="$t('account.api_keys.no_keys_found')"
         :description="$t('common.try_changing_search_filters')"
-        :icon="faCircleInfo"
+        :icon="faMagnifyingGlass"
         class="bg-white dark:bg-gray-950"
       >
         <NeButton kind="tertiary" @click="textFilter = ''">
@@ -270,14 +303,18 @@ function confirmDelete() {
           <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
             $t('account.api_keys.name')
           }}</NeTableHeadCell>
-          <NeTableHeadCell>{{ $t('account.api_keys.mode') }}</NeTableHeadCell>
+          <NeTableHeadCell sortable column-key="mode" @sort="onSort">{{
+            $t('account.api_keys.mode')
+          }}</NeTableHeadCell>
           <NeTableHeadCell sortable column-key="last_used_at" @sort="onSort">{{
             $t('account.api_keys.last_used')
           }}</NeTableHeadCell>
           <NeTableHeadCell sortable column-key="expires_at" @sort="onSort">{{
             $t('account.api_keys.expires')
           }}</NeTableHeadCell>
-          <NeTableHeadCell>{{ $t('account.api_keys.status') }}</NeTableHeadCell>
+          <NeTableHeadCell sortable column-key="status" @sort="onSort">{{
+            $t('account.api_keys.status')
+          }}</NeTableHeadCell>
           <NeTableHeadCell>
             <!-- no header for actions -->
           </NeTableHeadCell>
