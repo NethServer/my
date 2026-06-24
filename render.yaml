@@ -176,7 +176,7 @@ services:
     plan: starter
     region: frankfurt
     image:
-      url: ghcr.io/nethserver/my/mimir:v0.7.1
+      url: ghcr.io/nethserver/my/mimir:v0.7.2
     envVars:
       - fromGroup: spaces-prod
       - key: PORT
@@ -195,7 +195,7 @@ services:
     plan: starter
     region: frankfurt
     image:
-      url: ghcr.io/nethserver/my/backend:v0.7.1
+      url: ghcr.io/nethserver/my/backend:v0.7.2
     envVars:
       - fromGroup: infra-prod
       - fromGroup: spaces-prod
@@ -243,7 +243,7 @@ services:
     plan: starter
     region: frankfurt
     image:
-      url: ghcr.io/nethserver/my/collect:v0.7.1
+      url: ghcr.io/nethserver/my/collect:v0.7.2
     envVars:
       - fromGroup: infra-prod
       - fromGroup: spaces-prod
@@ -292,7 +292,7 @@ services:
     plan: starter
     region: frankfurt
     image:
-      url: ghcr.io/nethserver/my/frontend:v0.7.1
+      url: ghcr.io/nethserver/my/frontend:v0.7.2
     envVars:
       - key: VITE_PRODUCT_NAME
         value: "My Nethesis"
@@ -314,7 +314,7 @@ services:
     plan: starter
     region: frankfurt
     image:
-      url: ghcr.io/nethserver/my/proxy:v0.7.1
+      url: ghcr.io/nethserver/my/proxy:v0.7.2
     domains:
       - my.nethesis.it
     envVars:
