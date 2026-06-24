@@ -277,6 +277,7 @@ func TestLocalUserRepository_Methods_Structure(t *testing.T) {
 	assert.NotNil(t, repo.GetByID)
 	assert.NotNil(t, repo.GetByLogtoID)
 	assert.NotNil(t, repo.Update)
+	assert.NotNil(t, repo.UpdateProfileInfo)
 	assert.NotNil(t, repo.Delete)
 	assert.NotNil(t, repo.SuspendUser)
 	assert.NotNil(t, repo.ReactivateUser)

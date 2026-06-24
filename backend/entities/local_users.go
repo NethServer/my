@@ -289,6 +289,59 @@ func (r *LocalUserRepository) Update(id string, req *models.UpdateLocalUserReque
 	return current, nil
 }
 
+// UpdateProfileInfo syncs the locally-cached self-service profile fields
+// (name/email/phone) into the users table after the caller has already pushed
+// the same change to Logto. Unlike Update it marks the row as synced
+// (logto_synced_at = now()) — Logto is now in agreement — and touches only the
+// columns editable from account settings, leaving roles, organization and
+// custom_data untouched.
+//
+// A nil pointer leaves the column unchanged; an empty phone pointer means the
+// user cleared their phone, so it is stored as NULL. Keyed by logto_id, the
+// stable identifier for a self-service user.
+func (r *LocalUserRepository) UpdateProfileInfo(logtoID string, name, email, phone *string) error {
+	setClauses := make([]string, 0, 5)
+	args := []any{logtoID}
+
+	add := func(expr string, val any) {
+		args = append(args, val)
+		setClauses = append(setClauses, fmt.Sprintf(expr, len(args)))
+	}
+
+	if name != nil {
+		add("name = $%d", *name)
+	}
+	if email != nil {
+		add("email = $%d", *email)
+	}
+	if phone != nil {
+		if *phone == "" {
+			setClauses = append(setClauses, "phone = NULL")
+		} else {
+			add("phone = $%d", *phone)
+		}
+	}
+
+	// Nothing user-facing changed; skip the write entirely.
+	if len(setClauses) == 0 {
+		return nil
+	}
+
+	now := time.Now()
+	add("updated_at = $%d", now)
+	add("logto_synced_at = $%d", now)
+
+	query := fmt.Sprintf(
+		"UPDATE users SET %s WHERE logto_id = $1 AND deleted_at IS NULL",
+		strings.Join(setClauses, ", "),
+	)
+
+	if _, err := r.db.Exec(query, args...); err != nil {
+		return fmt.Errorf("failed to update local profile info: %w", err)
+	}
+	return nil
+}
+
 // Delete soft-deletes a user in local database
 func (r *LocalUserRepository) Delete(id string) error {
 	now := time.Now()

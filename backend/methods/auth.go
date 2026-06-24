@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/configuration"
+	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/jwt"
 	"github.com/nethesis/my/backend/logger"
@@ -579,6 +580,23 @@ func ChangeInfo(c *gin.Context) {
 			},
 		))
 		return
+	}
+
+	// Mirror the change into the local users table so list endpoints (GET /users),
+	// which read name/email/phone from the local DB rather than Logto, stay in sync.
+	// We pass the exact values sent to Logto (normalized phone, empty string on
+	// removal) so both stores agree. A failure here is logged but not fatal: Logto
+	// is the identity source of truth and was already updated, so /me and the
+	// profile menu are correct; only the cached list copy would lag, and surfacing
+	// an error after the change has applied upstream would be worse for the user.
+	if err := entities.NewLocalUserRepository().UpdateProfileInfo(*user.LogtoID, updateData.Name, updateData.PrimaryEmail, updateData.PrimaryPhone); err != nil {
+		logger.RequestLogger(c, "auth").Warn().
+			Err(err).
+			Str("operation", "change_info").
+			Str("user_id", user.ID).
+			Str("logto_id", *user.LogtoID).
+			Strs("changed_fields", changedFields).
+			Msg("Profile updated in Logto but failed to sync to local database")
 	}
 
 	// Invalidate cached user profile so next refresh picks up the changes
