@@ -18,6 +18,7 @@ import (
 func TestNewHeartbeatMonitor(t *testing.T) {
 	// Initialize configuration for testing
 	configuration.Config.HeartbeatTimeoutMinutes = 10
+	configuration.Config.HeartbeatCheckIntervalSeconds = 120
 
 	monitor := NewHeartbeatMonitor()
 
@@ -29,12 +30,22 @@ func TestNewHeartbeatMonitor(t *testing.T) {
 		t.Errorf("Expected positive timeout, got %d", monitor.timeoutMinutes)
 	}
 
-	if monitor.checkIntervalSec != 60 {
-		t.Errorf("Expected check interval 60 seconds, got %d", monitor.checkIntervalSec)
+	if monitor.checkIntervalSec != 120 {
+		t.Errorf("Expected check interval 120 seconds (from config), got %d", monitor.checkIntervalSec)
 	}
 
 	if monitor.timeoutMinutes != configuration.Config.HeartbeatTimeoutMinutes {
 		t.Errorf("Expected timeout to match config value %d, got %d", configuration.Config.HeartbeatTimeoutMinutes, monitor.timeoutMinutes)
+	}
+}
+
+func TestNewHeartbeatMonitor_DefaultIntervalWhenUnset(t *testing.T) {
+	configuration.Config.HeartbeatCheckIntervalSeconds = 0 // unconfigured
+
+	monitor := NewHeartbeatMonitor()
+
+	if monitor.checkIntervalSec != defaultHeartbeatCheckIntervalSec {
+		t.Errorf("Expected fallback interval %d seconds, got %d", defaultHeartbeatCheckIntervalSec, monitor.checkIntervalSec)
 	}
 }
 

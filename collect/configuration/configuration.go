@@ -86,7 +86,8 @@ type Configuration struct {
 	NotificationRetryAttempts int `json:"notification_retry_attempts"`
 
 	// Heartbeat monitoring configuration
-	HeartbeatTimeoutMinutes int `json:"heartbeat_timeout_minutes"`
+	HeartbeatTimeoutMinutes       int `json:"heartbeat_timeout_minutes"`
+	HeartbeatCheckIntervalSeconds int `json:"heartbeat_check_interval_seconds"`
 
 	// Mimir configuration
 	MimirURL string `json:"mimir_url"`
@@ -210,6 +211,7 @@ func Init() {
 
 	// Heartbeat monitoring configuration
 	Config.HeartbeatTimeoutMinutes = parseIntWithDefault("HEARTBEAT_TIMEOUT_MINUTES", 10)
+	Config.HeartbeatCheckIntervalSeconds = parseIntWithDefault("HEARTBEAT_CHECK_INTERVAL_SECONDS", 300)
 
 	// Mimir configuration
 	if mimirURL := os.Getenv("MIMIR_URL"); mimirURL != "" {

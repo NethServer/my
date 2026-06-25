@@ -26,12 +26,21 @@ type HeartbeatMonitor struct {
 	checkIntervalSec int
 }
 
+// defaultHeartbeatCheckIntervalSec is used when the interval is unconfigured
+// (config not loaded, e.g. in tests) so the ticker never gets a non-positive
+// duration.
+const defaultHeartbeatCheckIntervalSec = 300
+
 // NewHeartbeatMonitor creates a new heartbeat monitor instance
 func NewHeartbeatMonitor() *HeartbeatMonitor {
+	interval := configuration.Config.HeartbeatCheckIntervalSeconds
+	if interval <= 0 {
+		interval = defaultHeartbeatCheckIntervalSec
+	}
 	return &HeartbeatMonitor{
 		db:               database.DB,
 		timeoutMinutes:   configuration.Config.HeartbeatTimeoutMinutes,
-		checkIntervalSec: 60, // Check every 60 seconds
+		checkIntervalSec: interval,
 	}
 }
 
@@ -64,9 +73,12 @@ func (h *HeartbeatMonitor) Start(ctx context.Context) {
 func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 	cutoff := time.Now().Add(-time.Duration(h.timeoutMinutes) * time.Minute)
 
+	// Note: updated_at is intentionally NOT touched here. Status is a
+	// system-driven liveness flag, not a user edit; bumping updated_at on every
+	// flip would churn idx_systems_updated_at each cycle for no benefit.
 	queryActive := `
 		UPDATE systems s
-		SET status = 'active', updated_at = NOW()
+		SET status = 'active'
 		FROM system_heartbeats h
 		WHERE s.id = h.system_id
 			AND h.last_heartbeat > $1
@@ -91,7 +103,7 @@ func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 	// Update systems to 'inactive' if they have old heartbeat and are currently 'active'
 	queryInactive := `
 		UPDATE systems s
-		SET status = 'inactive', updated_at = NOW()
+		SET status = 'inactive'
 		FROM system_heartbeats h
 		WHERE s.id = h.system_id
 			AND h.last_heartbeat <= $1
