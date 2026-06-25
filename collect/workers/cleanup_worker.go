@@ -331,7 +331,7 @@ func deleteRetentionTier(ctx context.Context, table, partitionKey string, tier r
 			WHERE rn > 1
 			LIMIT $%[4]d
 		)
-	`, table, partitionKey, strings.Join(conds, "\n\t\t\t\t\t"), limitIdx)
+	`, table, partitionKey, strings.Join(conds, "\n\t\t\t\t\t\tAND "), limitIdx)
 
 	totalDeleted := int64(0)
 	for {
