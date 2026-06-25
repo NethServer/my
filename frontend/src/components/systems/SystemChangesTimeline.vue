@@ -403,6 +403,7 @@ const diffTypeFilterModel = computed<string[]>({
           :no-options-label="t('ne_dropdown_filter.no_options')"
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
           :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
         />
         <!-- Category filter -->
         <NeDropdownFilter
@@ -416,6 +417,7 @@ const diffTypeFilterModel = computed<string[]>({
           :no-options-label="t('ne_dropdown_filter.no_options')"
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
           :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
         />
         <!-- Change type filter -->
         <NeDropdownFilter
@@ -428,6 +430,7 @@ const diffTypeFilterModel = computed<string[]>({
           :no-options-label="t('ne_dropdown_filter.no_options')"
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
           :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
         />
         <!-- Date range picker -->
         <VueDatePicker

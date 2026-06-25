@@ -220,6 +220,7 @@ const goToApplicationDetails = (application: Application) => {
               :no-options-label="t('ne_dropdown_filter.no_options')"
               :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
               :clear-search-label="t('ne_dropdown_filter.clear_search')"
+              :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             />
             <NeDropdownFilter
               v-model="versionFilter"
@@ -233,6 +234,7 @@ const goToApplicationDetails = (application: Application) => {
               :no-options-label="t('ne_dropdown_filter.no_options')"
               :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
               :clear-search-label="t('ne_dropdown_filter.clear_search')"
+              :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             />
             <SystemDropdownFilter v-model="systemFilter" id-field="id" />
             <OrganizationDropdownFilter

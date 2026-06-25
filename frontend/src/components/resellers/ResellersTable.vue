@@ -293,6 +293,7 @@ const goToResellerDetails = (reseller: Reseller) => {
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
             :custom-action-label="t('ne_dropdown_filter.reset_selection')"
+            :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             @custom-action="resetStatusFilter"
           />
           <NeSortDropdown
