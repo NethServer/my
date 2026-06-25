@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { NeDropdownFilter } from '@nethesis/vue-components'
+import { NeDropdownFilterV2, type NeDropdownFilterV2Option } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useSystemFilter } from '@/composables/useSystemFilter'
 import { OPTIONS_PAGE_SIZE } from '@/lib/common'
@@ -14,13 +14,13 @@ const {
   label,
   idField = 'system_key',
 } = defineProps<{
-  modelValue: string[]
+  modelValue: NeDropdownFilterV2Option[]
   label?: string
   idField?: 'system_key' | 'id'
 }>()
 
 const emit = defineEmits<{
-  'update:modelValue': [value: string[]]
+  'update:modelValue': [value: NeDropdownFilterV2Option[]]
 }>()
 
 const { t } = useI18n()
@@ -29,7 +29,7 @@ const { options, loading, onSearch } = useSystemFilter(idField)
 </script>
 
 <template>
-  <NeDropdownFilter
+  <NeDropdownFilterV2
     :model-value="modelValue"
     kind="checkbox"
     :label="computedLabel"
@@ -42,6 +42,7 @@ const { options, loading, onSearch } = useSystemFilter(idField)
     :no-options-label="t('systems.no_systems')"
     :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
     :clear-search-label="t('ne_dropdown_filter.clear_search')"
+    :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
     :max-options-shown="OPTIONS_PAGE_SIZE"
     @search="onSearch"
     @update:model-value="(val) => emit('update:modelValue', val ?? [])"

@@ -8,6 +8,7 @@ import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
 import { computed, ref, watch } from 'vue'
+import type { NeDropdownFilterV2Option } from '@nethesis/vue-components'
 
 export const useUsers = defineQuery(() => {
   const loginStore = useLoginStore()
@@ -15,7 +16,7 @@ export const useUsers = defineQuery(() => {
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
-  const organizationFilter = ref<string[]>([])
+  const organizationFilter = ref<NeDropdownFilterV2Option[]>([])
   const roleFilter = ref<string[]>([])
   const statusFilter = ref<UserStatus[]>(['enabled', 'suspended'])
   const sortBy = ref<keyof User>('name')
@@ -28,7 +29,7 @@ export const useUsers = defineQuery(() => {
         pageNum: pageNum.value,
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
-        organizationFilter: organizationFilter.value,
+        organizationFilter: organizationFilter.value.map((o) => o.id),
         roleFilter: roleFilter.value,
         statusFilter: statusFilter.value,
         sortBy: sortBy.value,
@@ -41,7 +42,7 @@ export const useUsers = defineQuery(() => {
         pageNum.value,
         pageSize.value,
         debouncedTextFilter.value,
-        organizationFilter.value,
+        organizationFilter.value.map((o) => o.id),
         roleFilter.value,
         statusFilter.value,
         sortBy.value,

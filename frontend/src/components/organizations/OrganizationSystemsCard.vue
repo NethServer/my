@@ -48,7 +48,7 @@ const moreSystems = computed(() => {
 
 const goToSystems = () => {
   const companyId = route.params.companyId as string
-  organizationFilterForSystems.value = companyId ? [companyId] : []
+  organizationFilterForSystems.value = companyId ? [{ id: companyId, label: companyId }] : []
   router.push({ name: 'systems' })
 }
 </script>

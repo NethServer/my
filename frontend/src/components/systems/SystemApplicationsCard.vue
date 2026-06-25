@@ -45,7 +45,7 @@ const moreApplications = computed(() => {
 const goToApplications = () => {
   const systemId = route.params.systemId as string
   clearApplicationsFilters()
-  systemFilterForApps.value = systemId ? [systemId] : []
+  systemFilterForApps.value = systemId ? [{ id: systemId, label: systemId }] : []
   router.push({ name: 'applications' })
 }
 </script>

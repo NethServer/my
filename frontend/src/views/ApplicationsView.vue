@@ -43,7 +43,7 @@ const showUnassignedAppsNotification = computed(() => {
 })
 
 const showUnassignedApps = () => {
-  organizationFilter.value = ['no_org']
+  organizationFilter.value = [{ id: 'no_org', label: t('organizations.no_company') }]
 }
 
 const dontShowUnassignedAppsNotificationAgain = () => {

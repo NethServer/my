@@ -45,7 +45,7 @@ const moreApplications = computed(() => {
 const goToApplications = () => {
   const companyId = route.params.companyId as string
   clearApplicationsFilters()
-  organizationFilterForApps.value = companyId ? [companyId] : []
+  organizationFilterForApps.value = companyId ? [{ id: companyId, label: companyId }] : []
   router.push({ name: 'applications' })
 }
 </script>

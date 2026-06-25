@@ -71,7 +71,7 @@ async function exportUsers(format: 'pdf' | 'csv') {
     const exportData = await getExport(
       format,
       debouncedTextFilter.value,
-      organizationFilter.value,
+      organizationFilter.value.map((o) => o.id),
       roleFilter.value,
       statusFilter.value,
       sortBy.value,

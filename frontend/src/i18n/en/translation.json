@@ -793,7 +793,7 @@
   },
   "ne_combobox": {
     "no_results": "No results",
-    "limited_options_label": "Continue typing to show more options",
+    "limited_options_label": "Keep typing to show more options",
     "no_options_label": "No options available",
     "selected": "Selected",
     "user_input_label": "User input",
@@ -807,7 +807,8 @@
     "clear_filter": "Clear filter",
     "open_filter": "Open filter",
     "no_options": "No options",
-    "more_options_hidden": "Continue typing to show more options",
+    "more_options_hidden": "Keep typing to show more options",
+    "options_filter_placeholder": "Filter options",
     "clear_selection": "Clear selection",
     "reset_selection": "Reset selection",
     "clear_search": "Clear search"

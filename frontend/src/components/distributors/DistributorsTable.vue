@@ -293,6 +293,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             :custom-action-label="t('ne_dropdown_filter.reset_selection')"
             @custom-action="resetStatusFilter"
           />

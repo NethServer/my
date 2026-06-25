@@ -6,7 +6,7 @@ import { useLoginStore } from '@/stores/login'
 import { useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
 import { computed, ref, watch } from 'vue'
-import type { FilterOption } from '@nethesis/vue-components'
+import type { NeDropdownFilterV2Option } from '@nethesis/vue-components'
 import { OPTIONS_PAGE_SIZE } from '@/lib/common'
 
 const SYSTEMS_SEARCH_KEY = 'systemsSearch'
@@ -30,7 +30,7 @@ export function useSystemFilter(idField: 'system_key' | 'id' = 'system_key') {
       getSystems(1, OPTIONS_PAGE_SIZE, debouncedSearch.value, [], [], [], [], [], 'name', false),
   })
 
-  const options = computed<FilterOption[]>(() => {
+  const options = computed<NeDropdownFilterV2Option[]>(() => {
     const systems = state.value.data?.systems ?? []
     return systems.map((sys: System) => ({
       id: sys[idField] ?? sys.id,

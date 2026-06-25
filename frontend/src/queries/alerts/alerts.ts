@@ -13,44 +13,45 @@ import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { ref, watch } from 'vue'
+import type { NeDropdownFilterV2Option } from '@nethesis/vue-components'
 
 export const useAlerts = defineQuery(() => {
   const loginStore = useLoginStore()
-  const organizationIds = ref<string[]>([])
+  const organizationIds = ref<NeDropdownFilterV2Option[]>([])
   const pageNum = ref(1)
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const sortBy = ref<'starts_at' | 'severity' | 'alertname' | 'status'>('starts_at')
   const sortDirection = ref<'asc' | 'desc'>('desc')
   const statusFilters = ref<AlertStatusEnum[]>([])
   const severityFilters = ref<string[]>([])
-  const systemKeyFilters = ref<string[]>([])
+  const systemKeyFilters = ref<NeDropdownFilterV2Option[]>([])
   const alertnameFilters = ref<string[]>([])
   const shouldAutoRefetch = () => document.visibilityState === 'visible'
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
       ALERTS_ALERTS_KEY,
-      organizationIds.value.join(','),
+      organizationIds.value.map((o) => o.id).join(','),
       pageNum.value,
       pageSize.value,
       sortBy.value,
       sortDirection.value,
       statusFilters.value.join(','),
       severityFilters.value.join(','),
-      systemKeyFilters.value.join(','),
+      systemKeyFilters.value.map((o) => o.id).join(','),
       alertnameFilters.value.join(','),
     ],
     enabled: () => !!loginStore.jwtToken,
     query: () =>
       getAlerts(
-        organizationIds.value.length > 0 ? organizationIds.value : undefined,
+        organizationIds.value.length > 0 ? organizationIds.value.map((o) => o.id) : undefined,
         pageNum.value,
         pageSize.value,
         sortBy.value,
         sortDirection.value,
         statusFilters.value.length > 0 ? statusFilters.value : undefined,
         severityFilters.value.length > 0 ? severityFilters.value : undefined,
-        systemKeyFilters.value.length > 0 ? systemKeyFilters.value : undefined,
+        systemKeyFilters.value.length > 0 ? systemKeyFilters.value.map((o) => o.id) : undefined,
         alertnameFilters.value.length > 0 ? alertnameFilters.value : undefined,
       ),
     staleTime: ALERTS_REFETCH_INTERVAL_SECONDS * 1000,

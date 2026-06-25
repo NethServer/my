@@ -15,6 +15,7 @@ import { defineQuery, useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
 import { ref, watch } from 'vue'
 import { computed } from 'vue'
+import type { NeDropdownFilterV2Option } from '@nethesis/vue-components'
 
 export const useSystems = defineQuery(() => {
   const loginStore = useLoginStore()
@@ -26,7 +27,7 @@ export const useSystems = defineQuery(() => {
   const createdByFilter = ref<string[]>([])
   const versionFilter = ref<string[]>([])
   const statusFilter = ref<SystemStatus[]>(['active', 'inactive', 'unknown', 'suspended'])
-  const organizationFilter = ref<string[]>([])
+  const organizationFilter = ref<NeDropdownFilterV2Option[]>([])
   const sortBy = ref<keyof System>('name')
   const sortDescending = ref(false)
 
@@ -41,7 +42,7 @@ export const useSystems = defineQuery(() => {
         createdByFilter: createdByFilter.value,
         versionFilter: versionFilter.value,
         statusFilter: statusFilter.value,
-        organizationFilter: organizationFilter.value,
+        organizationFilter: organizationFilter.value.map((o) => o.id),
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -56,7 +57,7 @@ export const useSystems = defineQuery(() => {
         createdByFilter.value,
         versionFilter.value,
         statusFilter.value,
-        organizationFilter.value,
+        organizationFilter.value.map((o) => o.id),
         sortBy.value,
         sortDescending.value,
       ),

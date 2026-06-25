@@ -4,8 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { NeDropdownFilter } from '@nethesis/vue-components'
-import type { FilterOption } from '@nethesis/vue-components'
+import { NeDropdownFilterV2, type NeDropdownFilterV2Option } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useOrganizationFilter } from '@/composables/useOrganizationFilter'
 import { computed } from 'vue'
@@ -16,13 +15,13 @@ const {
   label,
   showNoCompanyOption = false,
 } = defineProps<{
-  modelValue: string[]
+  modelValue: NeDropdownFilterV2Option[]
   label?: string
   showNoCompanyOption?: boolean
 }>()
 
 const emit = defineEmits<{
-  'update:modelValue': [value: string[]]
+  'update:modelValue': [value: NeDropdownFilterV2Option[]]
 }>()
 
 const { t } = useI18n()
@@ -31,7 +30,7 @@ const { options, loading, onSearch, currentSearch } = useOrganizationFilter()
 
 const noCompanyLabel = computed(() => t('organizations.no_company'))
 
-const finalOptions = computed<FilterOption[]>(() => {
+const finalOptions = computed<NeDropdownFilterV2Option[]>(() => {
   if (!showNoCompanyOption) return options.value
   const search = currentSearch.value.toLowerCase()
   const matches = !search || noCompanyLabel.value.toLowerCase().includes(search)
@@ -43,7 +42,7 @@ const finalOptions = computed<FilterOption[]>(() => {
 </script>
 
 <template>
-  <NeDropdownFilter
+  <NeDropdownFilterV2
     :model-value="modelValue"
     kind="checkbox"
     :label="computedLabel"
@@ -56,6 +55,7 @@ const finalOptions = computed<FilterOption[]>(() => {
     :no-options-label="t('ne_dropdown_filter.no_options')"
     :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
     :clear-search-label="t('ne_dropdown_filter.clear_search')"
+    :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
     :max-options-shown="OPTIONS_PAGE_SIZE"
     @search="onSearch"
     @update:model-value="(val) => emit('update:modelValue', val ?? [])"
