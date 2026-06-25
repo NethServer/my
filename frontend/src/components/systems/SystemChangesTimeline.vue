@@ -14,7 +14,11 @@ import {
   type InventoryDiffSeverity,
   type InventoryDiffType,
 } from '@/lib/systems/inventoryDiffs'
-import { formatDateTimeNoSeconds, formatTimeNoSeconds } from '@/lib/dateTime'
+import {
+  formatDateTimeNoSeconds,
+  formatTimeNoSeconds,
+  getDateTimeFormatPattern,
+} from '@/lib/dateTime'
 import { computed, onWatcherCleanup, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -29,6 +33,7 @@ import {
   NeLink,
   NeEmptyState,
   type NeBadgeV2Kind,
+  getDateFnsLocale,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
@@ -452,6 +457,8 @@ const localizedDateRange = computed(() => {
           :time-config="{ enableTimePicker: false }"
           :floating="{ arrow: false, placement: 'bottom-start' }"
           auto-apply
+          :locale="getDateFnsLocale(locale)"
+          :formats="{ input: getDateTimeFormatPattern(locale) }"
           :dark="!themeStore.isLight"
           class="vue-datepicker"
         >

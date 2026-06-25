@@ -3,7 +3,7 @@ import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
-  title: 'My',
+  title: 'My Nethesis',
   tagline: 'Centralized management platform by Nethesis',
   favicon: 'img/favicon.ico',
 

@@ -4,6 +4,16 @@
 import type { ComposerTranslation } from 'vue-i18n'
 import capitalize from 'lodash/capitalize'
 
+export const getDateTimeFormatPattern = (locale: string) => {
+  switch (locale) {
+    case 'it':
+      return 'dd/MM/yyyy, HH:mm'
+    case 'en':
+    default:
+      return 'MM/dd/yyyy, hh:mm a'
+  }
+}
+
 function getTimeZoneOptions(timeZone?: string): Intl.DateTimeFormatOptions {
   if (!timeZone) {
     return {}
