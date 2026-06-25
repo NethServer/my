@@ -105,7 +105,7 @@ const sortedServices = computed<ServiceItem[]>(() =>
             "
             aria-hidden="true"
           />
-          <span class="text-xs font-medium">
+          <span class="font-medium">
             {{ service.enabled ? $t('common.enabled') : $t('common.disabled') }}
           </span>
         </div>

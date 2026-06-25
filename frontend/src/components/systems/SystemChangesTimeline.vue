@@ -676,7 +676,7 @@ const diffTypeFilterModel = computed<string[]>({
                       </div>
                     </div>
                     <!-- Timestamp -->
-                    <p class="text-tertiary-neutral dark:text-tertiary-neutral mt-4 text-xs">
+                    <p class="text-tertiary-neutral mt-4">
                       {{ formatDateTimeNoSeconds(new Date(diff.created_at), locale, 'UTC') }}
                     </p>
                   </div>
@@ -745,7 +745,7 @@ const diffTypeFilterModel = computed<string[]>({
           <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
             {{ t('system_detail.system_registered') }}
           </span>
-          <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+          <p class="text-tertiary-neutral mt-0.5">
             {{ formatTimeNoSeconds(new Date(systemDetailState.data.registered_at), locale, 'UTC') }}
           </p>
         </div>
@@ -766,7 +766,7 @@ const diffTypeFilterModel = computed<string[]>({
           <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
             {{ t('system_detail.system_created') }}
           </span>
-          <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+          <p class="text-tertiary-neutral mt-0.5">
             {{ formatTimeNoSeconds(new Date(systemDetailState.data.created_at), locale, 'UTC') }}
           </p>
         </div>

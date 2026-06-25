@@ -48,7 +48,7 @@ const emit = defineEmits<{ edit: []; configure: [] }>()
         </div>
         <div>
           <p class="font-medium text-gray-900 dark:text-gray-100">{{ title }}</p>
-          <p class="text-xs text-gray-500 dark:text-gray-400">{{ description }}</p>
+          <p class="text-tertiary-neutral">{{ description }}</p>
         </div>
       </div>
       <NeButton v-if="canManage && !notConfigured" kind="tertiary" size="sm" @click="emit('edit')">
@@ -62,7 +62,7 @@ const emit = defineEmits<{ edit: []; configure: [] }>()
     <!-- Not configured: empty state -->
     <div v-if="notConfigured" class="mt-4 rounded-md bg-gray-100 p-5 text-center dark:bg-gray-800">
       <p class="text-sm font-medium text-gray-700 dark:text-gray-200">{{ notConfiguredTitle }}</p>
-      <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ notConfiguredDescription }}</p>
+      <p class="text-tertiary-neutral mt-1">{{ notConfiguredDescription }}</p>
       <NeButton v-if="canManage" kind="tertiary" size="sm" class="mt-3" @click="emit('configure')">
         <template #prefix>
           <FontAwesomeIcon :icon="faWrench" class="size-3.5" />
