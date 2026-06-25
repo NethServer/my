@@ -250,8 +250,8 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
 		validSortFields := map[string]string{
-			"name":         "name",
-			"description":  "description",
+			"name":         "LOWER(name)",
+			"description":  "LOWER(description)",
 			"created_at":   "created_at",
 			"updated_at":   "updated_at",
 			"suspended_at": "suspended_at",
@@ -337,8 +337,8 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
 		validSortFields := map[string]string{
-			"name":         "name",
-			"description":  "description",
+			"name":         "LOWER(name)",
+			"description":  "LOWER(description)",
 			"created_at":   "created_at",
 			"updated_at":   "updated_at",
 			"suspended_at": "suspended_at",
@@ -452,8 +452,8 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
 		validSortFields := map[string]string{
-			"name":         "name",
-			"description":  "description",
+			"name":         "LOWER(name)",
+			"description":  "LOWER(description)",
 			"created_at":   "created_at",
 			"updated_at":   "updated_at",
 			"suspended_at": "suspended_at",
@@ -543,8 +543,8 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
 		validSortFields := map[string]string{
-			"name":         "name",
-			"description":  "description",
+			"name":         "LOWER(name)",
+			"description":  "LOWER(description)",
 			"created_at":   "created_at",
 			"updated_at":   "updated_at",
 			"suspended_at": "suspended_at",

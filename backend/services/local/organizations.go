@@ -1813,7 +1813,7 @@ func (s *LocalOrganizationService) DestroyCustomer(id, destroyedByUserID, destro
 // (the allowed set is computed by GetAllowedOrganizationIDs, cached). Filters,
 // search, sort and LIMIT/OFFSET are pushed to the database in a single UNION ALL
 // + COUNT pair, so total_count is accurate even past the first page.
-func (s *LocalOrganizationService) GetAllOrganizationsPaginated(userOrgRole, userOrgID string, page, pageSize int, filters models.OrganizationFilters) (*models.PaginatedOrganizations, error) {
+func (s *LocalOrganizationService) GetAllOrganizationsPaginated(userOrgRole, userOrgID string, page, pageSize int, sortBy, sortDirection string, filters models.OrganizationFilters) (*models.PaginatedOrganizations, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -1908,8 +1908,26 @@ func (s *LocalOrganizationService) GetAllOrganizationsPaginated(userOrgRole, use
 		return nil, fmt.Errorf("failed to count organizations: %w", err)
 	}
 
+	// Whitelist sortable columns; string columns sort case-insensitively to
+	// match the other list endpoints (and the alphabetical default the UI wants).
+	orderClause := "ORDER BY LOWER(name) ASC"
+	if sortBy != "" {
+		validSortFields := map[string]string{
+			"name":        "LOWER(name)",
+			"description": "LOWER(description)",
+			"type":        "type",
+		}
+		if dbField, valid := validSortFields[sortBy]; valid {
+			direction := "ASC"
+			if strings.ToUpper(sortDirection) == "DESC" {
+				direction = "DESC"
+			}
+			orderClause = fmt.Sprintf("ORDER BY %s %s", dbField, direction)
+		}
+	}
+
 	offset := (page - 1) * pageSize
-	dataQuery := fmt.Sprintf(`SELECT id, logto_id, name, description, custom_data, type FROM (%s) AS all_orgs%s ORDER BY name ASC LIMIT $%d OFFSET $%d`, unionSQL, filterClause, nextIdx, nextIdx+1)
+	dataQuery := fmt.Sprintf(`SELECT id, logto_id, name, description, custom_data, type FROM (%s) AS all_orgs%s %s LIMIT $%d OFFSET $%d`, unionSQL, filterClause, orderClause, nextIdx, nextIdx+1)
 	dataArgs := append(queryArgs, pageSize, offset)
 
 	rows, err := database.DB.Query(dataQuery, dataArgs...)
@@ -1975,6 +1993,10 @@ func (s *LocalOrganizationService) GetAllOrganizationsPaginated(userOrgRole, use
 	if paginationInfo.HasPrev {
 		prevPage := page - 1
 		paginationInfo.PrevPage = &prevPage
+	}
+	if sortBy != "" {
+		paginationInfo.SortBy = &sortBy
+		paginationInfo.SortDirection = &sortDirection
 	}
 
 	return &models.PaginatedOrganizations{

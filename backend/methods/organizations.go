@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
@@ -49,6 +50,9 @@ func GetOrganizations(c *gin.Context) {
 		}
 	}
 
+	// Parse sorting parameters
+	sortBy, sortDirection := helpers.GetSortingFromQuery(c)
+
 	// Parse filters
 	filters := models.OrganizationFilters{
 		Search:      c.Query("search"),
@@ -62,7 +66,7 @@ func GetOrganizations(c *gin.Context) {
 	service := local.NewOrganizationService()
 
 	// Get organizations with pagination and filters from local database
-	result, err := service.GetAllOrganizationsPaginated(userOrgRole, userOrgID, page, pageSize, filters)
+	result, err := service.GetAllOrganizationsPaginated(userOrgRole, userOrgID, page, pageSize, sortBy, sortDirection, filters)
 	if err != nil {
 		httpLogger := logger.NewHTTPErrorLogger(c, "organizations")
 		httpLogger.LogError(err, "fetch_organizations", http.StatusInternalServerError, "Failed to fetch organizations")
@@ -97,6 +101,8 @@ func GetOrganizations(c *gin.Context) {
 		Int("returned_orgs", len(organizations)).
 		Int("page", page).
 		Int("page_size", pageSize).
+		Str("sort_by", sortBy).
+		Str("sort_direction", sortDirection).
 		Str("search", filters.Search).
 		Msg("Organizations retrieved from local database with pagination")
 

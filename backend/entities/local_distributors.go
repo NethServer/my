@@ -239,8 +239,8 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
 		validSortFields := map[string]string{
-			"name":         "name",
-			"description":  "description",
+			"name":         "LOWER(name)",
+			"description":  "LOWER(description)",
 			"created_at":   "created_at",
 			"updated_at":   "updated_at",
 			"suspended_at": "suspended_at",

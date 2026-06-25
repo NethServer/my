@@ -3017,6 +3017,16 @@ components:
         enum: ["name", "description", "created_at", "updated_at", "suspended_at"]
         example: "name"
 
+    OrganizationSortByParam:
+      name: sort_by
+      in: query
+      description: Field to sort organizations by
+      required: false
+      schema:
+        type: string
+        enum: ["name", "description", "type"]
+        example: "name"
+
     OrganizationStatusFilterParam:
       name: status
       in: query
@@ -7401,6 +7411,8 @@ paths:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
         - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/OrganizationSortByParam'
+        - $ref: '#/components/parameters/SortDirectionParam'
         - name: name
           in: query
           required: false
