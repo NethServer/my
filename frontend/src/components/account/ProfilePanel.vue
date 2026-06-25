@@ -222,7 +222,8 @@ function getKebabMenuItems() {
       <!-- name -->
       <NeTextInput
         ref="nameRef"
-        v-model.trim="name"
+        v-model="name"
+        @blur="name = name.trim()"
         :label="$t('users.name')"
         :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
         :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
@@ -230,7 +231,8 @@ function getKebabMenuItems() {
       <!-- email -->
       <NeTextInput
         ref="emailRef"
-        v-model.trim="email"
+        v-model="email"
+        @blur="email = email.trim()"
         :label="$t('users.email')"
         :invalid-message="validationIssues.email?.[0] ? $t(validationIssues.email[0]) : ''"
         :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
@@ -238,7 +240,8 @@ function getKebabMenuItems() {
       <!-- phone -->
       <NeTextInput
         ref="phoneRef"
-        v-model.trim="phone"
+        v-model="phone"
+        @blur="phone = phone.trim()"
         :label="$t('users.phone_number')"
         :invalid-message="validationIssues.phone?.[0] ? $t(validationIssues.phone[0]) : ''"
         :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"

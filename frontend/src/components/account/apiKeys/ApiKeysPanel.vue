@@ -239,7 +239,8 @@ function confirmDelete() {
       <div v-if="apiKeys.length" class="mb-6 flex w-full items-end justify-between gap-4">
         <div class="flex items-end gap-2">
           <NeTextInput
-            v-model.trim="textFilter"
+            v-model="textFilter"
+            @blur="textFilter = textFilter.trim()"
             is-search
             :placeholder="$t('account.api_keys.filter_api_keys')"
             class="max-w-48 sm:max-w-sm"

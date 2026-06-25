@@ -203,7 +203,8 @@ const goToApplicationDetails = (application: Application) => {
           <div class="flex flex-wrap items-center gap-4">
             <!-- text filter -->
             <NeTextInput
-              v-model.trim="textFilter"
+              v-model="textFilter"
+              @blur="textFilter = textFilter.trim()"
               is-search
               :placeholder="$t('applications.filter_applications')"
               class="max-w-48 sm:max-w-sm"

@@ -402,7 +402,8 @@ const localizedDateRange = computed(() => {
       <div class="flex flex-wrap items-center gap-4">
         <!-- Text filter -->
         <NeTextInput
-          v-model.trim="textFilter"
+          v-model="textFilter"
+          @blur="textFilter = textFilter.trim()"
           is-search
           :placeholder="$t('common.filter')"
           class="max-w-xs"

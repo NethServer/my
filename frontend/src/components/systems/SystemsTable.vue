@@ -382,7 +382,8 @@ function onCloseSecretRegeneratedModal() {
         <div class="flex flex-wrap items-center gap-4">
           <!-- text filter -->
           <NeTextInput
-            v-model.trim="textFilter"
+            v-model="textFilter"
+            @blur="textFilter = textFilter.trim()"
             is-search
             :placeholder="$t('systems.filter_systems')"
             class="max-w-48 sm:max-w-sm"
