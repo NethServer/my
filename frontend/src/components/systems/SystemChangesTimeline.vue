@@ -362,6 +362,16 @@ const diffTypeFilterModel = computed<string[]>({
     diffTypeFilter.value = val as InventoryDiffType[]
   },
 })
+
+const localizedDateRange = computed(() => {
+  if (fromDate.value && toDate.value) {
+    // format from/to dates in the user's locale
+    const from = new Date(fromDate.value).toLocaleDateString(locale.value)
+    const to = new Date(toDate.value).toLocaleDateString(locale.value)
+    return t('system_detail.date_range_from_to', { from, to })
+  }
+  return ''
+})
 </script>
 
 <template>
@@ -453,6 +463,10 @@ const diffTypeFilterModel = computed<string[]>({
               >
                 <span class="flex items-center justify-center">
                   {{ t('system_detail.date_range') }}
+                  <!-- show localized date range in a NeBadgeV2 -->
+                  <NeBadgeV2 v-if="localizedDateRange" size="xs" class="ml-2">
+                    {{ localizedDateRange }}
+                  </NeBadgeV2>
                   <FontAwesomeIcon :icon="faChevronDown" class="ml-2 h-3 w-3" aria-hidden="true" />
                 </span>
               </button>

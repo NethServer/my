@@ -735,7 +735,8 @@
     "active_alerts_title": "Active alerts",
     "active_alerts_description": "View active alerts and monitor ongoing issues for this system.",
     "alert_history_title": "Alert history",
-    "alert_history_description": "View resolved alerts for this system."
+    "alert_history_description": "View resolved alerts for this system.",
+    "date_range_from_to": "From {from} to {to}"
   },
   "application_detail": {
     "title": "Application detail",
