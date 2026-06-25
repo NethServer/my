@@ -12,6 +12,7 @@ package workers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -106,6 +107,12 @@ func (cw *CleanupWorker) runCleanup(ctx context.Context, workerLogger *zerolog.L
 		return
 	}
 
+	if err := cw.cleanupAlertHistory(ctx, workerLogger); err != nil {
+		workerLogger.Error().Err(err).Msg("Failed to cleanup alert history")
+		atomic.StoreInt32(&cw.isHealthy, 0)
+		return
+	}
+
 	if err := cw.cleanupResolvedAlerts(ctx, workerLogger); err != nil {
 		workerLogger.Error().Err(err).Msg("Failed to cleanup resolved alerts")
 		atomic.StoreInt32(&cw.isHealthy, 0)
@@ -126,9 +133,9 @@ func (cw *CleanupWorker) runCleanup(ctx context.Context, workerLogger *zerolog.L
 		Msg("Cleanup operations completed")
 }
 
-// retentionTier describes one age band of the exponential retention policy:
-// records older than minAge but younger than maxAge keep a single representative
-// per (system_id, bucket). maxAge="" means "no upper bound" (the oldest tier).
+// retentionTier describes one age band of an exponential retention policy:
+// rows older than minAge but younger than maxAge keep a single representative
+// per (partition key, bucket). maxAge="" means "no upper bound" (the oldest tier).
 type retentionTier struct {
 	name   string // for logging
 	minAge string // pg interval, e.g. "7 days"
@@ -148,13 +155,19 @@ var inventoryRetentionTiers = []retentionTier{
 	{name: "1y+", minAge: "1 year", maxAge: "", bucket: "quarter"},
 }
 
-// inventoryCleanupBatchSize bounds how many rows a single DELETE materializes,
-// keeping peak working memory bounded on small postgres tiers.
-const inventoryCleanupBatchSize = 1000
+// alertHistoryRetention is the flat time-based retention horizon for
+// alert_history: every row older than this is deleted outright. Unlike inventory
+// snapshots, alert rows are discrete events with no "current state" to preserve,
+// so a flat TTL — not exponential downsampling — is the right fit. Tune here.
+const alertHistoryRetention = "6 months"
 
-// inventoryCleanupStmtTimeout caps each cleanup statement so a slow plan
+// retentionCleanupBatchSize bounds how many rows a single DELETE materializes,
+// keeping peak working memory bounded on small postgres tiers.
+const retentionCleanupBatchSize = 1000
+
+// retentionCleanupStmtTimeout caps each cleanup statement so a slow plan
 // can't hold a connection indefinitely.
-const inventoryCleanupStmtTimeout = 60 * time.Second
+const retentionCleanupStmtTimeout = 60 * time.Second
 
 // cleanupInventoryRecordsExponential applies exponential retention to inventory_records.
 //
@@ -167,14 +180,12 @@ const inventoryCleanupStmtTimeout = 60 * time.Second
 //   - Older than 1 year: keep 1 per quarter
 //
 // inventory_diffs are never deleted — they are the timeline source of truth and
-// are self-contained (field_path, previous_value, current_value). The FK from
-// inventory_diffs to inventory_records uses ON DELETE SET NULL so diffs survive
-// when their referenced snapshot is pruned.
-//
-// Implementation: per-tier batched DELETEs with a precomputed edge set, so
-// peak working memory per statement stays bounded.
+// are self-contained (field_path, previous_value, current_value). Both FKs from
+// inventory_diffs to inventory_records use ON DELETE SET NULL (and both columns
+// are nullable as of migration 028), so diffs survive when a referenced snapshot
+// is pruned: their previous_id/current_id is simply set to NULL.
 func (cw *CleanupWorker) cleanupInventoryRecordsExponential(ctx context.Context, workerLogger *zerolog.Logger) error {
-	edges, err := loadInventoryEdgeIDs(ctx)
+	edges, err := loadEdgeIDs(ctx, "inventory_records", "system_id")
 	if err != nil {
 		return fmt.Errorf("load edge ids: %w", err)
 	}
@@ -184,7 +195,7 @@ func (cw *CleanupWorker) cleanupInventoryRecordsExponential(ctx context.Context,
 
 	totalDeleted := int64(0)
 	for _, tier := range inventoryRetentionTiers {
-		deleted, err := deleteInventoryTier(ctx, tier, edges, workerLogger)
+		deleted, err := deleteRetentionTier(ctx, "inventory_records", "system_id", tier, edges, workerLogger)
 		if err != nil {
 			return fmt.Errorf("tier %s: %w", tier.name, err)
 		}
@@ -199,16 +210,65 @@ func (cw *CleanupWorker) cleanupInventoryRecordsExponential(ctx context.Context,
 	return nil
 }
 
-// loadInventoryEdgeIDs returns the set of record ids that must always be
-// preserved: the first and last record per system. Computed once per cleanup
-// run and reused across all tier DELETEs. id is BIGSERIAL (monotonic), so
-// MIN/MAX(id) per system_id matches "first/last record" chronologically.
-func loadInventoryEdgeIDs(ctx context.Context) ([]int64, error) {
-	const q = `
-		SELECT MIN(id) AS edge_id FROM inventory_records GROUP BY system_id
-		UNION
-		SELECT MAX(id) FROM inventory_records GROUP BY system_id
+// cleanupAlertHistory enforces a flat time-based retention on alert_history:
+// every row older than alertHistoryRetention is deleted. Batched by
+// retentionCleanupBatchSize and bounded by retentionCleanupStmtTimeout per
+// statement so the job never holds a connection for long on small postgres tiers.
+func (cw *CleanupWorker) cleanupAlertHistory(ctx context.Context, workerLogger *zerolog.Logger) error {
+	const query = `
+		DELETE FROM alert_history
+		WHERE id IN (
+			SELECT id FROM alert_history
+			WHERE created_at < NOW() - $1::interval
+			LIMIT $2
+		)
 	`
+	totalDeleted := int64(0)
+	for {
+		stmtCtx, cancel := context.WithTimeout(ctx, retentionCleanupStmtTimeout)
+		result, err := database.DB.ExecContext(stmtCtx, query, alertHistoryRetention, retentionCleanupBatchSize)
+		cancel()
+		if err != nil {
+			return err
+		}
+		n, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		totalDeleted += n
+		if n < retentionCleanupBatchSize {
+			break
+		}
+		// Yield to the DB between batches so concurrent traffic gets connections back.
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+
+	if totalDeleted > 0 {
+		workerLogger.Info().
+			Int64("rows_deleted", totalDeleted).
+			Str("retention", alertHistoryRetention).
+			Msg("Cleaned up alert history (time-based retention)")
+	}
+	return nil
+}
+
+// loadEdgeIDs returns the set of row ids that must always be preserved: the
+// first and last row per partition key. Computed once per cleanup run and reused
+// across all tier DELETEs. id is BIGSERIAL (monotonic), so MIN/MAX(id) per
+// partition matches "first/last row" chronologically.
+//
+// partitionKey is a trusted, caller-supplied column list (never user input) and
+// is interpolated directly into the query.
+func loadEdgeIDs(ctx context.Context, table, partitionKey string) ([]int64, error) {
+	q := fmt.Sprintf(`
+		SELECT MIN(id) AS edge_id FROM %[1]s GROUP BY %[2]s
+		UNION
+		SELECT MAX(id) FROM %[1]s GROUP BY %[2]s
+	`, table, partitionKey)
 	rows, err := database.DB.QueryContext(ctx, q)
 	if err != nil {
 		return nil, err
@@ -226,51 +286,56 @@ func loadInventoryEdgeIDs(ctx context.Context) ([]int64, error) {
 	return ids, rows.Err()
 }
 
-// deleteInventoryTier removes records for a single age tier, batched by
-// inventoryCleanupBatchSize and bounded by inventoryCleanupStmtTimeout per
-// statement, looping until a batch returns fewer rows than the limit.
-func deleteInventoryTier(ctx context.Context, tier retentionTier, edges []int64, workerLogger *zerolog.Logger) (int64, error) {
-	// $1=bucket unit, $2=minAge interval, $3=excluded edge ids,
-	// $4=batch size, and (when present) $5=maxAge interval.
-	upperBound := ""
+// deleteRetentionTier removes rows for a single age tier of a table, keeping one
+// representative per (partitionKey, bucket). Batched by retentionCleanupBatchSize
+// and bounded by retentionCleanupStmtTimeout per statement, looping until a batch
+// returns fewer rows than the limit.
+//
+// table and partitionKey are trusted constants (never user input) and are
+// interpolated into the SQL; all values are passed as bind parameters.
+// edges (optional) is a set of row ids that must never be deleted; pass nil to
+// skip edge protection.
+func deleteRetentionTier(ctx context.Context, table, partitionKey string, tier retentionTier, edges []int64, workerLogger *zerolog.Logger) (int64, error) {
+	// $1=bucket unit, $2=minAge interval; optional maxAge / edges / and the
+	// batch-size limit follow, numbered dynamically.
+	conds := []string{"created_at < NOW() - $2::interval"}
+	args := []interface{}{tier.bucket, tier.minAge}
+	argN := 3
+
 	if tier.maxAge != "" {
-		upperBound = "AND created_at >= NOW() - $5::interval"
+		conds = append(conds, fmt.Sprintf("created_at >= NOW() - $%d::interval", argN))
+		args = append(args, tier.maxAge)
+		argN++
 	}
-	// inventory_diffs.current_id is NOT NULL; the FK declares ON DELETE SET NULL
-	// but the column constraint refuses NULLs, so deleting a record referenced
-	// as current_id raises a not-null violation. Skip such records here until
-	// the schema is reconciled (current_id should be made nullable).
+	if len(edges) > 0 {
+		conds = append(conds, fmt.Sprintf("id <> ALL($%d::bigint[])", argN))
+		args = append(args, pq.Array(edges))
+		argN++
+	}
+	limitIdx := argN
+	args = append(args, retentionCleanupBatchSize)
+
 	query := fmt.Sprintf(`
-		DELETE FROM inventory_records
+		DELETE FROM %[1]s
 		WHERE id IN (
 			SELECT id FROM (
 				SELECT
 					id,
 					ROW_NUMBER() OVER (
-						PARTITION BY system_id, DATE_TRUNC($1, created_at)
+						PARTITION BY %[2]s, DATE_TRUNC($1, created_at)
 						ORDER BY created_at DESC, id DESC
 					) AS rn
-				FROM inventory_records ir
-				WHERE created_at < NOW() - $2::interval
-					%s
-					AND id <> ALL($3::bigint[])
-					AND NOT EXISTS (
-						SELECT 1 FROM inventory_diffs d WHERE d.current_id = ir.id
-					)
+				FROM %[1]s
+				WHERE %[3]s
 			) ranked
 			WHERE rn > 1
-			LIMIT $4
+			LIMIT $%[4]d
 		)
-	`, upperBound)
-
-	args := []interface{}{tier.bucket, tier.minAge, pq.Array(edges), inventoryCleanupBatchSize}
-	if tier.maxAge != "" {
-		args = append(args, tier.maxAge)
-	}
+	`, table, partitionKey, strings.Join(conds, "\n\t\t\t\t\t"), limitIdx)
 
 	totalDeleted := int64(0)
 	for {
-		stmtCtx, cancel := context.WithTimeout(ctx, inventoryCleanupStmtTimeout)
+		stmtCtx, cancel := context.WithTimeout(ctx, retentionCleanupStmtTimeout)
 		result, err := database.DB.ExecContext(stmtCtx, query, args...)
 		cancel()
 		if err != nil {
@@ -281,7 +346,7 @@ func deleteInventoryTier(ctx context.Context, tier retentionTier, edges []int64,
 			return totalDeleted, err
 		}
 		totalDeleted += n
-		if n < inventoryCleanupBatchSize {
+		if n < retentionCleanupBatchSize {
 			break
 		}
 		// Yield to the DB between batches so concurrent traffic
@@ -295,6 +360,7 @@ func deleteInventoryTier(ctx context.Context, tier retentionTier, edges []int64,
 
 	if totalDeleted > 0 {
 		workerLogger.Debug().
+			Str("table", table).
 			Str("tier", tier.name).
 			Int64("rows_deleted", totalDeleted).
 			Msg("Tier cleanup completed")
@@ -335,6 +401,7 @@ func (cw *CleanupWorker) vacuumAnalyze(ctx context.Context, workerLogger *zerolo
 		"inventory_records",
 		"inventory_diffs",
 		"inventory_alerts",
+		"alert_history",
 	}
 
 	for _, table := range tables {
@@ -360,9 +427,10 @@ func (cw *CleanupWorker) GetStats() map[string]interface{} {
 	defer cw.mu.RUnlock()
 
 	return map[string]interface{}{
-		"last_activity":    cw.lastActivity,
-		"is_healthy":       cw.IsHealthy(),
-		"cleanup_interval": "1h",
-		"retention_policy": "exponential: 7d=all, 1m=daily, 3m=weekly, 1y=monthly, older=quarterly",
+		"last_activity":           cw.lastActivity,
+		"is_healthy":              cw.IsHealthy(),
+		"cleanup_interval":        "1h",
+		"inventory_retention":     "exponential: 7d=all, 1m=daily, 3m=weekly, 1y=monthly, older=quarterly",
+		"alert_history_retention": "time-based: delete older than " + alertHistoryRetention,
 	}
 }

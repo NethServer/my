@@ -548,6 +548,9 @@ COMMENT ON COLUMN inventory_records.change_count IS 'Number of significant chang
 -- Performance indexes
 CREATE INDEX IF NOT EXISTS idx_inventory_records_system_id_timestamp ON inventory_records(system_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_inventory_records_system_id_created_at ON inventory_records(system_id, created_at);
+-- Serves the retention "edge" query (MIN/MAX(id) GROUP BY system_id) as an
+-- index-only scan; (system_id, created_at) lacks id and forced heap fetches.
+CREATE INDEX IF NOT EXISTS idx_inventory_records_system_id_id ON inventory_records(system_id, id);
 CREATE INDEX IF NOT EXISTS idx_inventory_records_data_hash ON inventory_records(data_hash);
 CREATE INDEX IF NOT EXISTS idx_inventory_records_processed_at ON inventory_records(processed_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_inventory_records_system_data_hash ON inventory_records(system_id, data_hash);
@@ -564,7 +567,7 @@ CREATE TABLE IF NOT EXISTS inventory_diffs (
     -- References
     system_id VARCHAR(255) NOT NULL,        -- System this diff belongs to
     previous_id BIGINT,                     -- FK to inventory_records (previous snapshot, NULL for first)
-    current_id BIGINT NOT NULL,             -- FK to inventory_records (current snapshot)
+    current_id BIGINT,                      -- FK to inventory_records (current snapshot; NULL once pruned by retention)
 
     -- Change classification
     diff_type VARCHAR(20) NOT NULL,         -- create, update, delete
@@ -586,7 +589,7 @@ CREATE TABLE IF NOT EXISTS inventory_diffs (
 -- Table documentation
 COMMENT ON TABLE inventory_diffs IS 'Computed differences between inventory snapshots';
 COMMENT ON COLUMN inventory_diffs.previous_id IS 'Reference to previous inventory record (NULL for first inventory)';
-COMMENT ON COLUMN inventory_diffs.current_id IS 'Reference to current inventory record';
+COMMENT ON COLUMN inventory_diffs.current_id IS 'Reference to current inventory record; NULL once that snapshot is pruned by retention (FK ON DELETE SET NULL)';
 COMMENT ON COLUMN inventory_diffs.diff_type IS 'Type of change: create, update, delete';
 COMMENT ON COLUMN inventory_diffs.category IS 'Change category: os, hardware, network, features, security, performance, system, nodes, modules';
 COMMENT ON COLUMN inventory_diffs.severity IS 'Change severity: low, medium, high, critical';
@@ -755,6 +758,9 @@ COMMENT ON COLUMN alert_history.ends_at IS 'NULL when end time is the zero time 
 CREATE INDEX IF NOT EXISTS idx_alert_history_system_key_created_at ON alert_history(system_key, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_alert_history_starts_at ON alert_history(starts_at DESC);
 CREATE INDEX IF NOT EXISTS idx_alert_history_org_id_created_at ON alert_history(organization_id, created_at DESC);
+-- Serves the flat time-based retention DELETE (created_at < cutoff); the other
+-- indexes lead with system_key/organization_id and can't satisfy a bare scan.
+CREATE INDEX IF NOT EXISTS idx_alert_history_created_at ON alert_history(created_at);
 
 -- =============================================================================
 -- SYSTEM ORG TRANSFERS (audit log, append-only)

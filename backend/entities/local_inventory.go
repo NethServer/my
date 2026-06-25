@@ -247,12 +247,16 @@ func (r *LocalInventoryRepository) GetInventoryDiffs(systemID string, page, page
 
 	// Get paginated records
 	offset := (page - 1) * pageSize
+	// current_id may be NULL for old diffs whose referenced snapshot was pruned
+	// by inventory retention (FK is ON DELETE SET NULL since migration 028).
+	// COALESCE to 0 — BIGSERIAL ids start at 1, so 0 unambiguously means
+	// "snapshot pruned" and keeps the int64 scan / API shape unchanged.
 	query := fmt.Sprintf(`
-		SELECT id, system_id, previous_id, current_id, diff_type, field_path,
+		SELECT id, system_id, previous_id, COALESCE(current_id, 0) AS current_id, diff_type, field_path,
 		       previous_value, current_value, severity, category, notification_sent, created_at
-		FROM inventory_diffs 
+		FROM inventory_diffs
 		%s
-		ORDER BY created_at DESC 
+		ORDER BY created_at DESC
 		LIMIT $%d OFFSET $%d
 	`, whereClause, argIndex, argIndex+1)
 
