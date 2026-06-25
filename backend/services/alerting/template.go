@@ -87,7 +87,7 @@ type templateData struct {
 }
 
 const alertmanagerTemplate = `global:
-  resolve_timeout: 1h
+  resolve_timeout: 6h
   smtp_smarthost: '{{ yamlEscape .SmtpSmarthost }}'
   smtp_from: '{{ yamlEscape .SmtpFrom }}'
   smtp_auth_username: '{{ yamlEscape .SmtpAuthUsername }}'
