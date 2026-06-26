@@ -214,8 +214,12 @@ func Init() {
 	// Notification configuration
 	Config.NotificationRetryAttempts = parseIntWithDefault("NOTIFICATION_RETRY_ATTEMPTS", 3)
 
-	// Heartbeat monitoring configuration
-	Config.HeartbeatTimeoutMinutes = parseIntWithDefault("HEARTBEAT_TIMEOUT_MINUTES", 10)
+	// Heartbeat monitoring configuration.
+	// Timeout is 2x the ~10min client send interval: at 10min (== the interval)
+	// the synchronized heartbeat waves straddle the cutoff and the fleet flaps
+	// active<->inactive en masse, churning LinkFailed fire/resolve. 20min absorbs
+	// a late/missed beat; genuinely-down systems still alert within 20min.
+	Config.HeartbeatTimeoutMinutes = parseIntWithDefault("HEARTBEAT_TIMEOUT_MINUTES", 20)
 	Config.HeartbeatCheckIntervalSeconds = parseIntWithDefault("HEARTBEAT_CHECK_INTERVAL_SECONDS", 300)
 
 	// Mimir configuration
