@@ -1,4 +1,28 @@
-# GitHub Actions for Logto Redirect URI Management
+# GitHub Actions
+
+## PR Preview Environment — comment commands
+
+Comment one of these on a PR to control its Render preview environment (the 5 QA
+services with `pullRequestPreviewsEnabled: true` in `render.yaml`, named
+`my-{mimir,backend,collect,frontend,proxy}-qa-pr-<PR_NUMBER>`).
+
+| Comment | Workflow | Effect |
+|---------|----------|--------|
+| `update deploy` | `pr-build-trigger.yml` | Touches `.render-build-trigger` files and pushes, forcing a fresh rebuild of the latest commit. |
+| `down deploy` | `pr-preview-suspend.yml` | Suspends the preview services (`POST /v1/services/{id}/suspend`) to stop paying for compute while the PR stays open. |
+| `up deploy` | `pr-preview-resume.yml` | Resumes the preview services (`POST /v1/services/{id}/resume`), bringing back the last build. |
+
+All three are restricted to `OWNER` / `MEMBER` / `COLLABORATOR` comment authors.
+
+**Important:** a suspended service does **not** wake up on a push — Render ignores
+autodeploy while suspended. To bring a suspended env back:
+
+1. `up deploy` → resume (restores the last build).
+2. `update deploy` → rebuild the latest commit (optional, only if you pushed while suspended).
+
+`down deploy` / `up deploy` require the `RENDER_API_KEY` secret (see below).
+
+## Logto Redirect URI Management
 
 These GitHub Actions automatically manage redirect URIs in your Logto application configuration for Pull Request deployments on Render.
 
@@ -18,6 +42,7 @@ Add these secrets to your repository settings (`Settings > Secrets and variables
 
 | Secret Name | Description | Example Value |
 |-------------|-------------|---------------|
+| `RENDER_API_KEY` | Render API key (Account Settings → API Keys). Used by `down deploy` / `up deploy`. | `rnd_xxxxxxxxxxxx` |
 | `LOGTO_BASE_URL` | Your Logto instance base URL | `https://your-tenant-id.logto.app` |
 | `LOGTO_M2M_CLIENT_ID` | Machine-to-Machine application client ID | `abcd1234efgh5678ijkl` |
 | `LOGTO_M2M_CLIENT_SECRET` | Machine-to-Machine application secret | `your-secret-here` |

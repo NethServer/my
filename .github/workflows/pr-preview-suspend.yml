@@ -1,0 +1,109 @@
+name: PR - Suspend Preview Env on Comment
+
+# Comment "down deploy" on a PR to suspend its Render preview services and
+# stop paying for their compute. Bring them back with "up deploy" (resume),
+# then "update deploy" to rebuild the latest commit.
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  suspend-preview:
+    if: |
+      github.event.issue.pull_request &&
+      github.event.comment.body == 'down deploy' &&
+      contains(fromJson('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+    name: Suspend Preview Services
+    runs-on: ubuntu-latest
+
+    permissions:
+      pull-requests: write
+
+    env:
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      PR_NUMBER: ${{ github.event.issue.number }}
+      # QA services with pullRequestPreviewsEnabled: true in render.yaml.
+      # Render names each preview instance "<base>-pr-<PR_NUMBER>".
+      SERVICE_BASES: "my-mimir-qa my-backend-qa my-collect-qa my-frontend-qa my-proxy-qa"
+
+    steps:
+      - name: Suspend Render preview services
+        id: suspend
+        run: |
+          set -euo pipefail
+
+          if [ -z "${RENDER_API_KEY:-}" ]; then
+            echo "::error::RENDER_API_KEY secret is not set. Add it under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+          API="https://api.render.com/v1"
+          AUTH="Authorization: Bearer ${RENDER_API_KEY}"
+
+          SUSPENDED=()
+          NOT_FOUND=()
+
+          for base in $SERVICE_BASES; do
+            name="${base}-pr-${PR_NUMBER}"
+            echo "Looking up service: $name"
+
+            id=$(curl -s -H "$AUTH" "${API}/services?name=${name}&limit=20" \
+              | jq -r --arg n "$name" 'first(.[] | select(.service.name == $n) | .service.id) // empty')
+
+            if [ -z "$id" ] || [ "$id" = "null" ]; then
+              echo "  not found (already suspended/deleted or never created) — skipping"
+              NOT_FOUND+=("$name")
+              continue
+            fi
+
+            echo "  found $id — suspending"
+            code=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "$AUTH" "${API}/services/${id}/suspend")
+            if [ "$code" = "200" ] || [ "$code" = "202" ]; then
+              echo "  suspended (HTTP $code)"
+              SUSPENDED+=("$name")
+            else
+              echo "::error::Failed to suspend $name (HTTP $code)"
+              exit 1
+            fi
+          done
+
+          {
+            echo "suspended<<EOF"
+            printf '%s\n' "${SUSPENDED[@]:-}"
+            echo "EOF"
+            echo "not_found<<EOF"
+            printf '%s\n' "${NOT_FOUND[@]:-}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const suspended = `${{ steps.suspend.outputs.suspended }}`.split('\n').filter(Boolean);
+            const notFound = `${{ steps.suspend.outputs.not_found }}`.split('\n').filter(Boolean);
+
+            const lines = ['💤 **Preview environment suspended**', ''];
+            if (suspended.length) {
+              lines.push('Compute billing stopped for:');
+              suspended.forEach(s => lines.push(`- \`${s}\``));
+            } else {
+              lines.push('No running preview services were found to suspend.');
+            }
+            if (notFound.length) {
+              lines.push('', 'Skipped (not found):');
+              notFound.forEach(s => lines.push(`- \`${s}\``));
+            }
+            lines.push(
+              '',
+              '> A suspended service stays down on push. To bring it back, comment ' +
+              '`up deploy` to resume, then `update deploy` to rebuild the latest commit.'
+            );
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: lines.join('\n')
+            });
