@@ -13,7 +13,7 @@ import {
 import { expect, it, describe, vi, beforeEach, afterEach } from 'vitest'
 
 // Create a simple mock function for translation
-const mockT = vi.fn((key: string, countOrNamed?: number | Record<string, unknown>) => {
+const mockT = vi.fn((key: string, count?: number) => {
   const translations: Record<string, (count: number) => string> = {
     'time.seconds': (count: number) => `${count} second${count !== 1 ? 's' : ''}`,
     'time.minutes': (count: number) => `${count} minute${count !== 1 ? 's' : ''}`,
@@ -24,25 +24,9 @@ const mockT = vi.fn((key: string, countOrNamed?: number | Record<string, unknown
     'time.years': (count: number) => `${count} year${count !== 1 ? 's' : ''}`,
   }
 
-  // Handle named parameter form: t('time.ago', { time: '...' })
-  if (typeof countOrNamed === 'object' && countOrNamed !== null) {
-    if (key === 'time.ago') {
-      return `${countOrNamed.time} ago`
-    }
-    return key
-  }
-
   // Handle pluralization form: t('time.minutes', count)
-  if (typeof countOrNamed === 'number' && translations[key]) {
-    return translations[key](countOrNamed)
-  }
-
-  // Handle simple keys
-  const simpleKeys: Record<string, string> = {
-    'time.just_now': 'Just now',
-  }
-  if (simpleKeys[key]) {
-    return simpleKeys[key]
+  if (typeof count === 'number' && translations[key]) {
+    return translations[key](count)
   }
 
   return key
