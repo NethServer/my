@@ -13,7 +13,7 @@ import {
   type Customer,
 } from '@/lib/organizations/customers'
 import { useNotificationsStore } from '@/stores/notifications'
-import DeleteObjectModal from '../DeleteObjectModal.vue'
+import DeleteObjectModal from '../common/DeleteObjectModal.vue'
 
 const { visible = false, customer = undefined } = defineProps<{
   visible: boolean

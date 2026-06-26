@@ -7,7 +7,7 @@
 import { NeButton, NeLink } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faArrowRight, faServer } from '@fortawesome/free-solid-svg-icons'
-import CounterCard from '@/components/CounterCard.vue'
+import CounterCard from '@/components/common/CounterCard.vue'
 import SystemStatusIcon from '@/components/systems/SystemStatusIcon.vue'
 import { useI18n } from 'vue-i18n'
 import { computed } from 'vue'

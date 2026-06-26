@@ -12,7 +12,7 @@ import {
   type Distributor,
 } from '@/lib/organizations/distributors'
 import { useNotificationsStore } from '@/stores/notifications'
-import DeleteObjectModal from '../DeleteObjectModal.vue'
+import DeleteObjectModal from '../common/DeleteObjectModal.vue'
 
 const { visible = false, distributor = undefined } = defineProps<{
   visible: boolean

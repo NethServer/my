@@ -36,7 +36,7 @@ import {
   getDateFnsLocale,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
+import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import { VueDatePicker } from '@vuepic/vue-datepicker'
 import {
   faChevronDown,

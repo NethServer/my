@@ -8,7 +8,7 @@ import { faGlobe } from '@fortawesome/free-solid-svg-icons'
 import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
 import { DISTRIBUTORS_TOTAL_KEY, getDistributorsTotal } from '@/lib/organizations/distributors'
-import CounterCard from '../CounterCard.vue'
+import CounterCard from '../common/CounterCard.vue'
 
 const loginStore = useLoginStore()
 

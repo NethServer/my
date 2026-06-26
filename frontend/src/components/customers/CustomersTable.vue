@@ -51,7 +51,7 @@ import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useCustomers } from '@/queries/organizations/customers'
 import { canManageCustomers, canDestroyCustomers } from '@/lib/permissions'
 import router from '@/router'
-import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
+import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 
 const { isShownCreateCustomerDrawer = false } = defineProps<{
   isShownCreateCustomerDrawer: boolean

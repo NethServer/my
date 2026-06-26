@@ -18,11 +18,11 @@ import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 import { canManageSystems } from '@/lib/permissions'
 import { useI18n } from 'vue-i18n'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
-import DataItem from '../DataItem.vue'
+import DataItem from '../common/DataItem.vue'
 import { ref } from 'vue'
 import RegenerateSecretModal from './RegenerateSecretModal.vue'
 import SecretRegeneratedModal from './SecretRegeneratedModal.vue'
-import ClickToCopy from '../ClickToCopy.vue'
+import ClickToCopy from '../common/ClickToCopy.vue'
 
 const { t, locale } = useI18n()
 const { state: systemDetail, asyncStatus: systemDetailAsyncStatus } = useSystemDetail()

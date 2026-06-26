@@ -5,7 +5,7 @@
 
 <script setup lang="ts">
 import { useInventoryTimeline } from '@/queries/systems/inventoryTimeline'
-import UpdatingSpinner from '../UpdatingSpinner.vue'
+import UpdatingSpinner from '../common/UpdatingSpinner.vue'
 import SystemChangesTimeline from './SystemChangesTimeline.vue'
 
 // const { t } = useI18n()

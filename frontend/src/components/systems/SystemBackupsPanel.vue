@@ -40,8 +40,8 @@ import {
 import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 import { useSystemBackups } from '@/queries/systems/backups'
 import { useNotificationsStore } from '@/stores/notifications'
-import DeleteObjectModal from '@/components/DeleteObjectModal.vue'
-import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
+import DeleteObjectModal from '@/components/common/DeleteObjectModal.vue'
+import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 
 const { t, locale } = useI18n()
 const route = useRoute()

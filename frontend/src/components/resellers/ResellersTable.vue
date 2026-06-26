@@ -52,7 +52,7 @@ import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useResellers } from '@/queries/organizations/resellers'
 import { canManageResellers, canDestroyResellers } from '@/lib/permissions'
 import router from '@/router'
-import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
+import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 
 const { isShownCreateResellerDrawer = false } = defineProps<{
   isShownCreateResellerDrawer: boolean

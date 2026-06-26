@@ -53,7 +53,7 @@ import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useDistributors } from '@/queries/organizations/distributors'
 import { canDestroyDistributors, canManageDistributors } from '@/lib/permissions'
 import router from '@/router'
-import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
+import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 
 const { isShownCreateDistributorDrawer = false } = defineProps<{
   isShownCreateDistributorDrawer: boolean

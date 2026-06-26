@@ -44,8 +44,8 @@ import {
   loadPageSizeFromStorage,
   savePageSizeToStorage,
 } from '@/lib/tablePageSize'
-import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
-import DeleteObjectModal from '@/components/DeleteObjectModal.vue'
+import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
+import DeleteObjectModal from '@/components/common/DeleteObjectModal.vue'
 import CreateApiKeyDrawer from './CreateApiKeyDrawer.vue'
 
 const { t, locale } = useI18n()

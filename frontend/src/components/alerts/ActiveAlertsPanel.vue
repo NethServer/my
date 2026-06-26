@@ -6,7 +6,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import CounterCard from '@/components/CounterCard.vue'
+import CounterCard from '@/components/common/CounterCard.vue'
 import AlertsTable from '@/components/alerts/AlertsTable.vue'
 import { useAlertsTotals } from '@/queries/alerts/alertsTotals'
 import { useLoginStore } from '@/stores/login'
