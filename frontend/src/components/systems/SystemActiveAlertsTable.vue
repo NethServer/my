@@ -54,7 +54,7 @@ import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useSystemAlerts } from '@/queries/systemAlerts/systemAlerts'
 import { useAlertFilters } from '@/queries/alerts/alertFilters'
 import { type AlertFilterAlert } from '@/lib/alertFilters'
-import { formatDateTime, formatTimeAgo } from '@/lib/dateTime'
+import { formatDateTime, formatRelativeTime } from '@/lib/dateTime'
 import { canManageSystems } from '@/lib/permissions'
 import MuteAlertDrawer from '@/components/alerts/MuteAlertDrawer.vue'
 import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
@@ -413,7 +413,7 @@ function onMuteDrawerClose(): void {
           <!-- Started at -->
           <NeTableCell :data-label="$t('alerts.started')">
             <div>
-              <p>{{ formatTimeAgo(alert.startsAt, $t) }}</p>
+              <p>{{ formatRelativeTime(alert.startsAt, locale) }}</p>
               <p class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5">
                 {{ formatDateTime(new Date(alert.startsAt), locale) }}
               </p>

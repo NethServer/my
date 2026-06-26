@@ -30,7 +30,7 @@ import { isProcessing } from '@/lib/alertPendingStates'
 import ProcessingAlertBadge from '@/components/alerts/ProcessingAlertBadge.vue'
 import SystemLogoAndLink from '@/components/systems/SystemLogoAndLink.vue'
 import UserAvatar from '@/components/users/UserAvatar.vue'
-import { formatDateTimeNoSeconds, formatTimeAgo } from '@/lib/dateTime'
+import { formatDateTimeNoSeconds, formatRelativeTime } from '@/lib/dateTime'
 
 interface Props {
   isShown: boolean
@@ -258,7 +258,7 @@ function closeDrawer() {
             <NeTooltip placement="top" trigger-event="mouseenter focus">
               <template #trigger>
                 <span class="text-tertiary-neutral w-fit cursor-default">
-                  {{ formatTimeAgo(event.created_at, t) }}
+                  {{ formatRelativeTime(event.created_at, locale) }}
                 </span>
               </template>
               <template #content>

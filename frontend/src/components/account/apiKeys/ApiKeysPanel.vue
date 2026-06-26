@@ -37,7 +37,7 @@ import { useLoginStore } from '@/stores/login'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useApiKeys } from '@/queries/apiKeys'
 import { API_KEYS_KEY, API_KEYS_TABLE_ID, deleteApiKey, type ApiKey } from '@/lib/apiKeys'
-import { formatDateTimeNoSeconds, formatRelative } from '@/lib/dateTime'
+import { formatDateTimeNoSeconds, formatRelativeTime } from '@/lib/dateTime'
 import {
   DEFAULT_PAGE_SIZE,
   PAGE_SIZE_OPTIONS,
@@ -339,7 +339,7 @@ function confirmDelete() {
             </NeTableCell>
             <NeTableCell :data-label="$t('account.api_keys.last_used')">
               <div v-if="key.last_used_at" class="flex flex-col">
-                <span>{{ formatRelative(key.last_used_at, locale) }}</span>
+                <span>{{ formatRelativeTime(key.last_used_at, locale) }}</span>
                 <span class="text-tertiary-neutral">
                   {{ formatDateTimeNoSeconds(new Date(key.last_used_at), locale) }}
                 </span>
@@ -348,7 +348,7 @@ function confirmDelete() {
             </NeTableCell>
             <NeTableCell :data-label="$t('account.api_keys.expires')">
               <div class="flex flex-col">
-                <span>{{ formatRelative(key.expires_at, locale) }}</span>
+                <span>{{ formatRelativeTime(key.expires_at, locale) }}</span>
                 <span class="text-tertiary-neutral">
                   {{ formatDateTimeNoSeconds(new Date(key.expires_at), locale) }}
                 </span>
