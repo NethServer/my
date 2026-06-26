@@ -136,3 +136,41 @@ func TestEnrichAlerts(t *testing.T) {
 	assert.Equal(t, startsAt, alerts[0].StartsAt)
 	assert.Equal(t, endsAt, alerts[0].EndsAt)
 }
+
+func TestBuildResolvedLinkFailedAlert(t *testing.T) {
+	// SystemFQDN/IPv4/VAT left empty on purpose: EnrichAlerts must strip them so
+	// the resolve fingerprint matches the firing alert (which also strips empties).
+	systemContext := BuildSystemAlertContext(SystemAlertMetadata{
+		SystemID:         "sys-1",
+		OrganizationID:   "org-1",
+		SystemKey:        "SYS-001",
+		SystemName:       "web-01",
+		SystemType:       "ns8",
+		OrganizationName: "Reseller X",
+	})
+
+	alert, err := BuildResolvedLinkFailedAlert(systemContext)
+	require.NoError(t, err)
+
+	// Identity labels reproduced exactly -> same fingerprint as the firing alert.
+	assert.Equal(t, LinkFailedAlert, alert.Labels["alertname"])
+	assert.Equal(t, "critical", alert.Labels["severity"])
+	assert.Equal(t, ManagedByCollect, alert.Labels[ManagedByLabel])
+	assert.Equal(t, "sys-1", alert.Labels["system_id"])
+	assert.Equal(t, "SYS-001", alert.Labels["system_key"])
+	assert.Equal(t, "web-01", alert.Labels["system_name"])
+	assert.Equal(t, "ns8", alert.Labels["system_type"])
+	assert.Equal(t, "org-1", alert.Labels["organization_id"])
+	assert.Equal(t, "Reseller X", alert.Labels["organization_name"])
+
+	// Empty values must be stripped, exactly as the firing path does.
+	_, hasFQDN := alert.Labels["system_fqdn"]
+	assert.False(t, hasFQDN, "empty system_fqdn must be stripped to keep fingerprint parity")
+	_, hasVAT := alert.Labels["organization_vat"]
+	assert.False(t, hasVAT, "empty organization_vat must be stripped")
+
+	// Resolve semantics: EndsAt is in the past and after StartsAt.
+	now := time.Now().UTC()
+	assert.False(t, alert.EndsAt.After(now.Add(time.Second)), "EndsAt must be <= now to resolve")
+	assert.True(t, alert.StartsAt.Before(alert.EndsAt), "StartsAt must precede EndsAt")
+}

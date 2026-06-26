@@ -14,9 +14,11 @@ import (
 	"database/sql"
 	"time"
 
+	collectalerting "github.com/nethesis/my/collect/alerting"
 	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/database"
 	"github.com/nethesis/my/collect/logger"
+	"github.com/nethesis/my/collect/models"
 )
 
 // HeartbeatMonitor checks system heartbeats and updates status accordingly
@@ -24,6 +26,9 @@ type HeartbeatMonitor struct {
 	db               *sql.DB
 	timeoutMinutes   int
 	checkIntervalSec int
+	// postAlerts resolves LinkFailed alerts when a system recovers. Injectable
+	// for tests; defaults to the real Mimir client.
+	postAlerts postAlertsFunc
 }
 
 // defaultHeartbeatCheckIntervalSec is used when the interval is unconfigured
@@ -41,6 +46,7 @@ func NewHeartbeatMonitor() *HeartbeatMonitor {
 		db:               database.DB,
 		timeoutMinutes:   configuration.Config.HeartbeatTimeoutMinutes,
 		checkIntervalSec: interval,
+		postAlerts:       collectalerting.PostAlerts,
 	}
 }
 
@@ -76,29 +82,64 @@ func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 	// Note: updated_at is intentionally NOT touched here. Status is a
 	// system-driven liveness flag, not a user edit; bumping updated_at on every
 	// flip would churn idx_systems_updated_at each cycle for no benefit.
-	queryActive := `
+	//
+	// The "to active" transition is split in two so we can react to recoveries:
+	//   - inactive -> active is a RECOVERY: the system had a firing LinkFailed
+	//     alert that must be resolved, so we RETURN the recovered ids.
+	//   - unknown  -> active is a system reporting for the FIRST time (pending);
+	//     it never fired LinkFailed, so nothing to resolve.
+	// Together they cover the same rows the old `status != 'active'` update did.
+	queryRecover := `
 		UPDATE systems s
 		SET status = 'active'
 		FROM system_heartbeats h
 		WHERE s.id = h.system_id
 			AND h.last_heartbeat > $1
-			AND s.status != 'active'
+			AND s.status = 'inactive'
 			AND s.deleted_at IS NULL
+		RETURNING s.id::text
 	`
 
-	resultActive, err := h.db.ExecContext(ctx, queryActive, cutoff)
+	recoveredIDs := make([]string, 0)
+	rows, err := h.db.QueryContext(ctx, queryRecover, cutoff)
 	if err != nil {
-		logger.Error().
-			Err(err).
-			Msg("Failed to update systems to active status")
+		logger.Error().Err(err).Msg("Failed to update inactive systems to active status")
 	} else {
-		rowsAffected, _ := resultActive.RowsAffected()
-		if rowsAffected > 0 {
+		for rows.Next() {
+			var id string
+			if scanErr := rows.Scan(&id); scanErr != nil {
+				logger.Error().Err(scanErr).Msg("Failed to scan recovered system id")
+				continue
+			}
+			recoveredIDs = append(recoveredIDs, id)
+		}
+		_ = rows.Close()
+		if len(recoveredIDs) > 0 {
 			logger.Info().
-				Int64("systems_updated", rowsAffected).
-				Msg("Updated systems to active status")
+				Int("systems_recovered", len(recoveredIDs)).
+				Msg("Recovered systems to active status")
 		}
 	}
+
+	queryWake := `
+		UPDATE systems s
+		SET status = 'active'
+		FROM system_heartbeats h
+		WHERE s.id = h.system_id
+			AND h.last_heartbeat > $1
+			AND s.status = 'unknown'
+			AND s.deleted_at IS NULL
+	`
+	if resultWake, wakeErr := h.db.ExecContext(ctx, queryWake, cutoff); wakeErr != nil {
+		logger.Error().Err(wakeErr).Msg("Failed to update pending systems to active status")
+	} else if n, _ := resultWake.RowsAffected(); n > 0 {
+		logger.Info().Int64("systems_updated", n).Msg("Activated pending systems on first contact")
+	}
+
+	// Resolve LinkFailed alerts for the systems that just came back. Without this
+	// the alert lingers in Mimir until its TTL — and re-fires before expiry when
+	// the heartbeat interval flirts with the timeout, so it never clears.
+	h.resolveRecovered(ctx, recoveredIDs)
 
 	// Update systems to 'inactive' if they have old heartbeat and are currently 'active'
 	queryInactive := `
@@ -127,4 +168,54 @@ func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 	logger.Debug().
 		Time("cutoff", cutoff).
 		Msg("Heartbeat status check completed")
+}
+
+// resolveRecovered posts a resolved LinkFailed alert for each system that just
+// transitioned inactive -> active, batched per organization. The alert is built
+// from the system's current DB labels (same path as the firing alert) so its
+// fingerprint matches and Alertmanager clears the firing alert. Bounded by the
+// number of recoveries per cycle; on the rare mass-recovery it is a handful of
+// indexed lookups, not a fan-out over every alert.
+func (h *HeartbeatMonitor) resolveRecovered(ctx context.Context, ids []string) {
+	if len(ids) == 0 || h.postAlerts == nil {
+		return
+	}
+
+	byOrg := make(map[string][]models.AlertmanagerPostAlert)
+	for _, id := range ids {
+		systemContext, err := collectalerting.LookupSystemAlertContext(ctx, h.db, id)
+		if err != nil {
+			// System deleted between the status flip and this lookup, or a DB
+			// hiccup: skip. collect stops refreshing it anyway, so the TTL clears it.
+			logger.Warn().Err(err).Str("system_id", id).
+				Msg("heartbeat monitor: failed to load context for recovered system")
+			continue
+		}
+		if systemContext.OrganizationID == "" {
+			continue
+		}
+		alert, err := collectalerting.BuildResolvedLinkFailedAlert(systemContext)
+		if err != nil {
+			logger.Warn().Err(err).Str("system_key", systemContext.SystemKey).
+				Msg("heartbeat monitor: failed to build resolved alert")
+			continue
+		}
+		byOrg[systemContext.OrganizationID] = append(byOrg[systemContext.OrganizationID], alert)
+	}
+
+	resolved := 0
+	for orgID, alerts := range byOrg {
+		if err := h.postAlerts(orgID, alerts); err != nil {
+			logger.Warn().Err(err).
+				Str("organization_id", orgID).
+				Int("count", len(alerts)).
+				Msg("heartbeat monitor: failed to post resolved LinkFailed alerts")
+			continue
+		}
+		resolved += len(alerts)
+	}
+	if resolved > 0 {
+		logger.Info().Int("alerts_resolved", resolved).
+			Msg("heartbeat monitor: resolved LinkFailed alerts for recovered systems")
+	}
 }

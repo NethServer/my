@@ -113,6 +113,13 @@ func (m *LinkFailedMonitor) loadInactiveSystems(ctx context.Context) (map[string
 		LEFT JOIN customers c ON (s.organization_id = c.logto_id OR s.organization_id = c.id) AND c.deleted_at IS NULL
 		WHERE s.status = 'inactive'
 		  AND s.deleted_at IS NULL
+		  -- Never alert on suspended systems. s.suspended_at also covers org
+		  -- cascade suspension (SuspendSystemsByMultipleOrgIDs writes it down to
+		  -- the system); the COALESCE on the org row is a belt-and-suspenders
+		  -- guard for any system the cascade missed (e.g. created under an
+		  -- already-suspended org).
+		  AND s.suspended_at IS NULL
+		  AND COALESCE(d.suspended_at, r.suspended_at, c.suspended_at) IS NULL
 		  AND s.organization_id IS NOT NULL
 		  AND s.organization_id <> ''
 	`)

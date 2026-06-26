@@ -311,6 +311,30 @@ func PostAlerts(orgID string, alerts []models.AlertmanagerPostAlert) error {
 	return nil
 }
 
+// BuildResolvedLinkFailedAlert builds a resolved (EndsAt in the past) LinkFailed
+// alert for a recovered system. It reuses the exact firing label set — the same
+// three base labels plus EnrichAlerts(systemContext) — so Alertmanager recomputes
+// the identical fingerprint and clears the firing alert instead of opening a new
+// one. Annotations are omitted: they don't affect the fingerprint.
+func BuildResolvedLinkFailedAlert(systemContext *SystemAlertContext) (models.AlertmanagerPostAlert, error) {
+	now := time.Now().UTC()
+	enriched, err := EnrichAlerts([]models.AlertmanagerPostAlert{
+		{
+			Labels: map[string]string{
+				"alertname":    LinkFailedAlert,
+				"severity":     "critical",
+				ManagedByLabel: ManagedByCollect,
+			},
+			StartsAt: now.Add(-time.Minute),
+			EndsAt:   now,
+		},
+	}, systemContext)
+	if err != nil {
+		return models.AlertmanagerPostAlert{}, err
+	}
+	return enriched[0], nil
+}
+
 func nullStringValue(value sql.NullString) string {
 	if !value.Valid {
 		return ""

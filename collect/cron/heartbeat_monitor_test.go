@@ -10,9 +10,15 @@
 package cron
 
 import (
+	"context"
 	"testing"
+	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/nethesis/my/collect/configuration"
+	"github.com/nethesis/my/collect/models"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewHeartbeatMonitor(t *testing.T) {
@@ -64,4 +70,88 @@ func TestHeartbeatMonitor_Structure(t *testing.T) {
 		t.Errorf("Expected interval 60 seconds, got %d", monitor.checkIntervalSec)
 	}
 
+}
+
+// TestCheckAndUpdateStatuses_ResolvesRecoveredSystem verifies the recovery path:
+// inactive->active systems are returned, their context is looked up, and a
+// resolved LinkFailed alert is posted for them.
+func TestCheckAndUpdateStatuses_ResolvesRecoveredSystem(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	posted := map[string][]models.AlertmanagerPostAlert{}
+	monitor := &HeartbeatMonitor{
+		db:               db,
+		timeoutMinutes:   10,
+		checkIntervalSec: 60,
+		postAlerts: func(orgID string, alerts []models.AlertmanagerPostAlert) error {
+			posted[orgID] = append(posted[orgID], alerts...)
+			return nil
+		},
+	}
+
+	// 1. inactive -> active, returns one recovered id
+	mock.ExpectQuery(`RETURNING s\.id::text`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("sys-uuid-1"))
+	// 2. unknown -> active (no recoveries to resolve)
+	mock.ExpectExec(`s\.status = 'unknown'`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	// 3. resolveRecovered -> LookupSystemAlertContext for the recovered id
+	mock.ExpectQuery(`WHERE s\.id = \$1`).
+		WithArgs("sys-uuid-1").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "organization_id", "system_key", "name", "type", "fqdn", "ipv4",
+			"org_name", "org_vat", "org_type",
+		}).AddRow("sys-uuid-1", "org-1", "SYS-001", "web-01", "ns8", "", "", "Reseller X", "", "reseller"))
+	// 4. active -> inactive
+	mock.ExpectExec(`SET status = 'inactive'`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	monitor.checkAndUpdateStatuses(context.Background())
+
+	require.NoError(t, mock.ExpectationsWereMet())
+	require.Len(t, posted["org-1"], 1)
+	alert := posted["org-1"][0]
+	assert.Equal(t, "LinkFailed", alert.Labels["alertname"])
+	assert.Equal(t, "SYS-001", alert.Labels["system_key"])
+	assert.False(t, alert.EndsAt.After(time.Now().UTC().Add(time.Second)),
+		"resolve alert EndsAt must be <= now")
+}
+
+// TestCheckAndUpdateStatuses_NoRecovery_NoResolve verifies that when nothing
+// recovers, no context lookup and no resolve post happen.
+func TestCheckAndUpdateStatuses_NoRecovery_NoResolve(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	called := false
+	monitor := &HeartbeatMonitor{
+		db:               db,
+		timeoutMinutes:   10,
+		checkIntervalSec: 60,
+		postAlerts: func(string, []models.AlertmanagerPostAlert) error {
+			called = true
+			return nil
+		},
+	}
+
+	mock.ExpectQuery(`RETURNING s\.id::text`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"id"})) // none recovered
+	mock.ExpectExec(`s\.status = 'unknown'`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(`SET status = 'inactive'`).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	monitor.checkAndUpdateStatuses(context.Background())
+
+	require.NoError(t, mock.ExpectationsWereMet())
+	assert.False(t, called, "postAlerts must not be called when nothing recovered")
 }
