@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -19,6 +20,17 @@ import (
 var (
 	DB *sql.DB
 )
+
+// envInt reads a positive integer from the environment, falling back to def
+// when the variable is unset, unparseable, or non-positive.
+func envInt(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return def
+}
 
 // Init initializes the database connection
 func Init() error {
@@ -35,10 +47,15 @@ func Init() error {
 		return fmt.Errorf("failed to open database connection: %w", err)
 	}
 
-	// Configure connection pool
-	DB.SetMaxOpenConns(25)
-	DB.SetMaxIdleConns(25)
+	// Configure connection pool. Sized small on purpose and tunable via env: the
+	// managed Postgres tier runs on tight RAM (256MB) where every backend process
+	// costs a few MB, so an oversized pool is the fast path to OOM, not throughput.
+	// SetConnMaxIdleTime closes connections that go idle so the pool deflates
+	// between bursts instead of pinning MaxIdleConns backends open forever.
+	DB.SetMaxOpenConns(envInt("DATABASE_MAX_CONNS", 6))
+	DB.SetMaxIdleConns(envInt("DATABASE_MAX_IDLE", 2))
 	DB.SetConnMaxLifetime(5 * time.Minute)
+	DB.SetConnMaxIdleTime(90 * time.Second)
 
 	if err := pingWithRetry(); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)

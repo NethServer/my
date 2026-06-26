@@ -31,6 +31,7 @@ type Configuration struct {
 	// Database configuration
 	DatabaseURL      string `json:"database_url"`
 	DatabaseMaxConns int    `json:"database_max_conns"`
+	DatabaseMaxIdle  int    `json:"database_max_idle"`
 
 	// Redis configuration
 	RedisURL          string        `json:"redis_url"`
@@ -144,7 +145,11 @@ func Init() {
 		logger.LogConfigLoad("env", "DATABASE_URL", false, fmt.Errorf("DATABASE_URL variable is empty"))
 	}
 
+	// Pool kept small on purpose: the managed Postgres tier has 256MB RAM where
+	// each backend process costs a few MB, so an oversized pool OOMs the DB long
+	// before it adds throughput. Both values feed the live pool in database.go.
 	Config.DatabaseMaxConns = parseIntWithDefault("DATABASE_MAX_CONNS", 10)
+	Config.DatabaseMaxIdle = parseIntWithDefault("DATABASE_MAX_IDLE", 3)
 
 	// Redis configuration with defaults
 	if os.Getenv("REDIS_URL") != "" {

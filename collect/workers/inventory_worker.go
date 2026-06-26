@@ -547,73 +547,87 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 		}
 	}
 
-	// Build UPDATE query dynamically for non-null fields
-	updates := []string{}
+	// Build the systems update. Descriptive fields (name/fqdn/version/type/ip) are
+	// set when present, but `updated_at` is bumped only when one of them ACTUALLY
+	// changes (IS DISTINCT FROM). updated_at is indexed, so bumping it on every
+	// inventory would make every write non-HOT and bloat the index — which is what
+	// turned `systems` into a continuously-vacuumed table. last_inventory_at is
+	// refreshed every inventory but is unindexed, so on the common no-change path
+	// only it is modified and (with the table's fillfactor < 100) the update stays
+	// a HOT update that touches no index at all. Setting a descriptive column to
+	// its current value is not a real modification, so it does not break HOT either.
+	setClauses := []string{}
+	changeConds := []string{}
 	args := []interface{}{}
 	argPos := 1
 
 	if name != nil {
-		// Only update name if it's currently NULL (preserve user-modified names)
-		updates = append(updates, fmt.Sprintf("name = COALESCE(systems.name, $%d)", argPos))
+		// Only fill name when currently NULL (preserve user-modified names);
+		// that NULL check is also its change condition.
+		setClauses = append(setClauses, fmt.Sprintf("name = COALESCE(systems.name, $%d)", argPos))
+		changeConds = append(changeConds, "systems.name IS NULL")
 		args = append(args, *name)
 		argPos++
 	}
 	if fqdn != nil {
-		updates = append(updates, fmt.Sprintf("fqdn = $%d", argPos))
+		setClauses = append(setClauses, fmt.Sprintf("fqdn = $%d", argPos))
+		changeConds = append(changeConds, fmt.Sprintf("systems.fqdn IS DISTINCT FROM $%d", argPos))
 		args = append(args, *fqdn)
 		argPos++
 	}
 	if version != nil {
-		updates = append(updates, fmt.Sprintf("version = $%d", argPos))
+		setClauses = append(setClauses, fmt.Sprintf("version = $%d", argPos))
+		changeConds = append(changeConds, fmt.Sprintf("systems.version IS DISTINCT FROM $%d", argPos))
 		args = append(args, *version)
 		argPos++
 	}
 	if systemType != nil {
-		updates = append(updates, fmt.Sprintf("type = $%d", argPos))
+		setClauses = append(setClauses, fmt.Sprintf("type = $%d", argPos))
+		changeConds = append(changeConds, fmt.Sprintf("systems.type IS DISTINCT FROM $%d", argPos))
 		args = append(args, *systemType)
 		argPos++
 	}
 	if ipv4 != nil && net.ParseIP(*ipv4) != nil {
-		updates = append(updates, fmt.Sprintf("ipv4_address = $%d", argPos))
+		setClauses = append(setClauses, fmt.Sprintf("ipv4_address = $%d", argPos))
+		changeConds = append(changeConds, fmt.Sprintf("systems.ipv4_address IS DISTINCT FROM $%d", argPos))
 		args = append(args, *ipv4)
 		argPos++
 	}
 	if ipv6 != nil && net.ParseIP(*ipv6) != nil {
-		updates = append(updates, fmt.Sprintf("ipv6_address = $%d", argPos))
+		setClauses = append(setClauses, fmt.Sprintf("ipv6_address = $%d", argPos))
+		changeConds = append(changeConds, fmt.Sprintf("systems.ipv6_address IS DISTINCT FROM $%d", argPos))
 		args = append(args, *ipv6)
 		argPos++
 	}
 
-	// Always update timestamps
-	updates = append(updates, "updated_at = NOW()")
-	updates = append(updates, "last_inventory_at = NOW()")
-
-	// If no fields to update, skip
-	if len(updates) == 2 { // Only updated_at + last_inventory_at
-		return nil
+	// last_inventory_at is always refreshed; updated_at flips to NOW() only when a
+	// descriptive field genuinely changed, otherwise it keeps its current value.
+	setClauses = append(setClauses, "last_inventory_at = NOW()")
+	if len(changeConds) > 0 {
+		setClauses = append(setClauses, fmt.Sprintf(
+			"updated_at = CASE WHEN (%s) THEN NOW() ELSE systems.updated_at END",
+			strings.Join(changeConds, " OR ")))
 	}
 
 	// Add system_id as last argument
 	args = append(args, systemID)
 
-	// Execute UPDATE
 	query := fmt.Sprintf(`
 		UPDATE systems
 		SET %s
 		WHERE id = $%d AND deleted_at IS NULL
-	`, strings.Join(updates, ", "), argPos)
+	`, strings.Join(setClauses, ", "), argPos)
 
 	result, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("failed to update system fields: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected > 0 {
+	if rowsAffected, _ := result.RowsAffected(); rowsAffected > 0 {
 		logger.Debug().
 			Str("system_id", systemID).
-			Int("fields_updated", len(updates)-1).
-			Msg("System fields updated from inventory")
+			Int("fields_present", len(setClauses)-1).
+			Msg("System row refreshed from inventory")
 	}
 
 	return nil

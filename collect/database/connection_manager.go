@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/logger"
 )
 
@@ -191,8 +192,18 @@ func InitConnectionManager() {
 		return
 	}
 
-	// Use 80% of max connections for managed connections
-	maxManaged := int(float64(50) * 0.8) // 40 connections for managed operations
+	// Cap managed (inventory ingestion) connections at 80% of the pool so auth,
+	// heartbeat and ad-hoc queries always keep headroom. Derived from the
+	// configured pool size — not a hardcoded constant — so it tracks
+	// DATABASE_MAX_CONNS instead of silently over-subscribing a smaller pool.
+	poolSize := configuration.Config.DatabaseMaxConns
+	if poolSize <= 0 {
+		poolSize = 10
+	}
+	maxManaged := int(float64(poolSize) * 0.8)
+	if maxManaged < 1 {
+		maxManaged = 1
+	}
 	connectionManager = NewConnectionManager(DB, maxManaged)
 
 	logger.ComponentLogger("database").Info().

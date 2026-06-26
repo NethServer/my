@@ -13,11 +13,11 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
-	"strconv"
 	"time"
 
 	_ "github.com/lib/pq"
 
+	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/logger"
 )
 
@@ -47,19 +47,19 @@ func initPostgreSQL() error {
 		return fmt.Errorf("DATABASE_URL environment variable is required")
 	}
 
-	// Parse configuration with defaults - optimized for batch processing
-	maxConns := 50 // Optimized for batch processing and connection manager
-	if maxConnsStr := os.Getenv("DATABASE_MAX_CONNS"); maxConnsStr != "" {
-		if parsed, err := strconv.Atoi(maxConnsStr); err == nil {
-			maxConns = parsed
-		}
+	// Pool sizing comes straight from configuration (DATABASE_MAX_CONNS /
+	// DATABASE_MAX_IDLE) so the live pool can never silently disagree with the
+	// configured value. Kept small on purpose: the managed Postgres tier has
+	// 256MB RAM where each backend process costs a few MB, so an oversized pool
+	// is the fast path to OOM, not throughput. Guards keep a sane floor if
+	// configuration was not initialised (e.g. standalone tooling).
+	maxConns := configuration.Config.DatabaseMaxConns
+	if maxConns <= 0 {
+		maxConns = 10
 	}
-
-	maxIdle := 15 // Keep idle connections ready under concurrent load
-	if maxIdleStr := os.Getenv("DATABASE_MAX_IDLE"); maxIdleStr != "" {
-		if parsed, err := strconv.Atoi(maxIdleStr); err == nil {
-			maxIdle = parsed
-		}
+	maxIdle := configuration.Config.DatabaseMaxIdle
+	if maxIdle <= 0 {
+		maxIdle = 3
 	}
 
 	connMaxAge := 15 * time.Minute // Increased from 5 minutes for better connection efficiency

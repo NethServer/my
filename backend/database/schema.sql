@@ -271,6 +271,10 @@ CREATE TABLE IF NOT EXISTS systems (
     deleted_by_org_id VARCHAR(255)           -- Organization that caused cascade soft-deletion
 );
 
+-- fillfactor < 100 leaves in-page room so the frequent last_inventory_at refresh
+-- from inventory ingest lands as a HOT update (no index maintenance). See migration 032.
+ALTER TABLE systems SET (fillfactor = 85);
+
 -- Table documentation
 COMMENT ON TABLE systems IS 'NS8/NethSecurity systems registered for monitoring and inventory collection';
 COMMENT ON COLUMN systems.type IS 'System type from inventory: ns8 (NethServer 8), nsec (NethSecurity)';
