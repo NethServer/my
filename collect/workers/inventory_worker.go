@@ -556,6 +556,11 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 	// only it is modified and (with the table's fillfactor < 100) the update stays
 	// a HOT update that touches no index at all. Setting a descriptive column to
 	// its current value is not a real modification, so it does not break HOT either.
+	//
+	// Each parameter is reused in its SET clause and in the change check, so it
+	// must be cast to the column type there (::varchar/::inet): the SET deduces the
+	// column type while a bare IS DISTINCT FROM operand defaults to text, and the
+	// two would otherwise collide as "inconsistent types deduced for parameter".
 	setClauses := []string{}
 	changeConds := []string{}
 	args := []interface{}{}
@@ -571,31 +576,31 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 	}
 	if fqdn != nil {
 		setClauses = append(setClauses, fmt.Sprintf("fqdn = $%d", argPos))
-		changeConds = append(changeConds, fmt.Sprintf("systems.fqdn IS DISTINCT FROM $%d", argPos))
+		changeConds = append(changeConds, fmt.Sprintf("systems.fqdn IS DISTINCT FROM $%d::varchar", argPos))
 		args = append(args, *fqdn)
 		argPos++
 	}
 	if version != nil {
 		setClauses = append(setClauses, fmt.Sprintf("version = $%d", argPos))
-		changeConds = append(changeConds, fmt.Sprintf("systems.version IS DISTINCT FROM $%d", argPos))
+		changeConds = append(changeConds, fmt.Sprintf("systems.version IS DISTINCT FROM $%d::varchar", argPos))
 		args = append(args, *version)
 		argPos++
 	}
 	if systemType != nil {
 		setClauses = append(setClauses, fmt.Sprintf("type = $%d", argPos))
-		changeConds = append(changeConds, fmt.Sprintf("systems.type IS DISTINCT FROM $%d", argPos))
+		changeConds = append(changeConds, fmt.Sprintf("systems.type IS DISTINCT FROM $%d::varchar", argPos))
 		args = append(args, *systemType)
 		argPos++
 	}
 	if ipv4 != nil && net.ParseIP(*ipv4) != nil {
 		setClauses = append(setClauses, fmt.Sprintf("ipv4_address = $%d", argPos))
-		changeConds = append(changeConds, fmt.Sprintf("systems.ipv4_address IS DISTINCT FROM $%d", argPos))
+		changeConds = append(changeConds, fmt.Sprintf("systems.ipv4_address IS DISTINCT FROM $%d::inet", argPos))
 		args = append(args, *ipv4)
 		argPos++
 	}
 	if ipv6 != nil && net.ParseIP(*ipv6) != nil {
 		setClauses = append(setClauses, fmt.Sprintf("ipv6_address = $%d", argPos))
-		changeConds = append(changeConds, fmt.Sprintf("systems.ipv6_address IS DISTINCT FROM $%d", argPos))
+		changeConds = append(changeConds, fmt.Sprintf("systems.ipv6_address IS DISTINCT FROM $%d::inet", argPos))
 		args = append(args, *ipv6)
 		argPos++
 	}
