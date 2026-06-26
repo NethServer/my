@@ -2,9 +2,11 @@
 
 ## PR Preview Environment — comment commands
 
-Comment one of these on a PR to control its Render preview environment (the 5 QA
-services with `pullRequestPreviewsEnabled: true` in `render.yaml`, named
-`my-{mimir,backend,collect,frontend,proxy}-qa-pr-<PR_NUMBER>`).
+Comment one of these on a PR to control its Render preview environment (the QA
+services with `pullRequestPreviewsEnabled: true` in `render.yaml`). Render names
+each preview instance `my-<component>-qa PR #<PR_NUMBER>` (the
+`my-<component>-qa-pr-<N>` form is only the hostname). Services not created for a
+given PR are skipped.
 
 | Comment | Workflow | Effect |
 |---------|----------|--------|
