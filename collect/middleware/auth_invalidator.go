@@ -32,7 +32,12 @@ import (
 // otherwise expand to a SCAN pattern matching every cached credential and
 // produce a thundering-herd auth lookup against Postgres on the next request
 // from each appliance.
-var systemKeyFormat = regexp.MustCompile(`^NETH(-[A-F0-9]{4}){9}$`)
+//
+// generateSystemKey (backend) formats a UUID — 32 hex chars — as
+// "NETH-" + eight 4-char groups: NETH-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX.
+// The previous {9} required nine groups, so every real payload was dropped as
+// "bad shape" and the invalidation bus silently never purged anything.
+var systemKeyFormat = regexp.MustCompile(`^NETH(-[A-F0-9]{4}){8}$`)
 
 // systemAuthInvalidationChannelBase is the channel namespace; APP_ENV is
 // appended at runtime so a Redis instance shared across deployments stops
