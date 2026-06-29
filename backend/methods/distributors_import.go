@@ -286,7 +286,7 @@ func createOrganizationFromImportRow(c *gin.Context, service *local.LocalOrganiz
 
 	switch entityType {
 	case "distributors":
-		org, err := service.CreateDistributor(createReq, user.ID, user.OrganizationID)
+		org, err := service.CreateDistributor(createReq, models.NewOrgCreatorFromUser(*user), user.OrganizationID)
 		if err != nil {
 			createErr = err
 		} else {
@@ -298,7 +298,7 @@ func createOrganizationFromImportRow(c *gin.Context, service *local.LocalOrganiz
 			Description: createReq.Description,
 			CustomData:  createReq.CustomData,
 		}
-		org, err := service.CreateReseller(resellerReq, user.ID, user.OrganizationID)
+		org, err := service.CreateReseller(resellerReq, models.NewOrgCreatorFromUser(*user), user.OrganizationID)
 		if err != nil {
 			createErr = err
 		} else {
@@ -310,7 +310,7 @@ func createOrganizationFromImportRow(c *gin.Context, service *local.LocalOrganiz
 			Description: createReq.Description,
 			CustomData:  createReq.CustomData,
 		}
-		org, err := service.CreateCustomer(customerReq, user.ID, user.OrganizationID)
+		org, err := service.CreateCustomer(customerReq, models.NewOrgCreatorFromUser(*user), user.OrganizationID)
 		if err != nil {
 			createErr = err
 		} else {

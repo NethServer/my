@@ -1205,6 +1205,8 @@ components:
           nullable: true
           description: The organization ID that provides the rebranding (the org where rebranding is configured). Only present when rebranding_enabled is true.
           example: null
+        created_by:
+          $ref: '#/components/schemas/OrgCreator'
 
     OrganizationWithStats:
       description: Organization with inline count statistics, returned in list responses
@@ -1931,6 +1933,10 @@ components:
           type: string
           description: User ID who created the system
           example: "53h5zxpwu4vc"
+        username:
+          type: string
+          description: Username of the user who created the system
+          example: "edoardo.super"
         name:
           type: string
           description: Full name of the user who created the system
@@ -1947,6 +1953,58 @@ components:
           type: string
           description: Organization name of the creator
           example: "Nethesis Italia"
+
+    OrgCreator:
+      type: object
+      description: Point-in-time snapshot of the user who created an organization (distributor, reseller or customer)
+      properties:
+        user_id:
+          type: string
+          description: Logto ID of the user who created the organization
+          example: "aa15fcvgzw1y"
+        username:
+          type: string
+          description: Username of the creator
+          example: "owner"
+        name:
+          type: string
+          description: Full name of the creator
+          example: "Nethesis Owner"
+        email:
+          type: string
+          description: Email of the creator
+          example: "owner@nethesis.it"
+        organization_id:
+          type: string
+          description: Organization ID the creator belongs to
+          example: "2wl3iixbc8ua"
+        organization_name:
+          type: string
+          description: Organization name the creator belongs to
+          example: "Owner"
+
+    OrgFiltersData:
+      type: object
+      description: Aggregated filter options for organization list views
+      properties:
+        created_by:
+          type: array
+          description: Distinct creators of the organizations visible to the caller
+          items:
+            type: object
+            properties:
+              user_id:
+                type: string
+                description: Creator user logto_id
+                example: "kyfy0tlnlk3l"
+              name:
+                type: string
+                description: Creator full name
+                example: "Sviluppo - Integrazioni Esterne"
+              email:
+                type: string
+                description: Creator email
+                example: "sviluppo+integrazioni@nethesis.it"
 
     CreateSystemInput:
       type: object
@@ -3078,6 +3136,21 @@ components:
         enum: [7, 30, 180, 365]
         default: 7
         example: 7
+
+    OrgCreatedByFilterParam:
+      name: created_by
+      in: query
+      description: |
+        Filter organizations by creator. Repeat the parameter to pass multiple
+        values; each value matches either the creator user's logto_id or the
+        creator's organization logto_id (mirrors the systems created_by filter).
+        Allowed values come from GET /api/filters/{distributors|resellers|customers}.
+      required: false
+      schema:
+        type: array
+        items:
+          type: string
+        example: ["kyfy0tlnlk3l"]
 
     SystemNameFilterParam:
       name: name
@@ -5637,6 +5710,7 @@ paths:
         - $ref: '#/components/parameters/CustomerSortByParam'
         - $ref: '#/components/parameters/SortDirectionParam'
         - $ref: '#/components/parameters/OrganizationStatusFilterParam'
+        - $ref: '#/components/parameters/OrgCreatedByFilterParam'
       responses:
         '200':
           description: Customers retrieved successfully
@@ -6191,6 +6265,7 @@ paths:
         - $ref: '#/components/parameters/DistributorSortByParam'
         - $ref: '#/components/parameters/SortDirectionParam'
         - $ref: '#/components/parameters/OrganizationStatusFilterParam'
+        - $ref: '#/components/parameters/OrgCreatedByFilterParam'
       responses:
         '200':
           description: Distributors retrieved successfully
@@ -7481,6 +7556,7 @@ paths:
         - $ref: '#/components/parameters/ResellerSortByParam'
         - $ref: '#/components/parameters/SortDirectionParam'
         - $ref: '#/components/parameters/OrganizationStatusFilterParam'
+        - $ref: '#/components/parameters/OrgCreatedByFilterParam'
       responses:
         '200':
           description: Resellers retrieved successfully
@@ -12422,6 +12498,96 @@ paths:
                     example: "applications trend retrieved successfully"
                   data:
                     $ref: '#/components/schemas/TrendResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /filters/distributors:
+    get:
+      operationId: getDistributorFilters
+      tags:
+        - Backend - Filters
+      summary: /filters/distributors - Get aggregated distributor filters
+      description: |
+        Returns the distinct creators of the distributors visible to the caller,
+        for the created_by filter on GET /api/distributors. Respects RBAC.
+      responses:
+        '200':
+          description: Distributor filters retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "distributor filters retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/OrgFiltersData'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /filters/resellers:
+    get:
+      operationId: getResellerFilters
+      tags:
+        - Backend - Filters
+      summary: /filters/resellers - Get aggregated reseller filters
+      description: |
+        Returns the distinct creators of the resellers visible to the caller,
+        for the created_by filter on GET /api/resellers. Respects RBAC.
+      responses:
+        '200':
+          description: Reseller filters retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "reseller filters retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/OrgFiltersData'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /filters/customers:
+    get:
+      operationId: getCustomerFilters
+      tags:
+        - Backend - Filters
+      summary: /filters/customers - Get aggregated customer filters
+      description: |
+        Returns the distinct creators of the customers visible to the caller,
+        for the created_by filter on GET /api/customers. Respects RBAC.
+      responses:
+        '200':
+          description: Customer filters retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customer filters retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/OrgFiltersData'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

@@ -47,8 +47,16 @@ func NewOrganizationService() *LocalOrganizationService {
 	}
 }
 
+// orgCreatorUserID safely extracts the creator's user logto_id for logging.
+func orgCreatorUserID(creator *models.OrgCreator) string {
+	if creator == nil {
+		return ""
+	}
+	return creator.UserID
+}
+
 // CreateDistributor creates a distributor locally and syncs to Logto
-func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDistributorRequest, createdByUserID, createdByOrgID string) (*models.LocalDistributor, error) {
+func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDistributorRequest, creator *models.OrgCreator, createdByOrgID string) (*models.LocalDistributor, error) {
 	// Validate required fields
 	var validationErrors []response.ValidationError
 
@@ -126,6 +134,9 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 	customData["type"] = "distributor"
 	customData["createdBy"] = createdByOrgID
 	customData["createdAt"] = time.Now().Format(time.RFC3339)
+	if creator != nil {
+		customData["createdByUser"] = creator
+	}
 
 	// Update the request with the properly managed customData
 	req.CustomData = customData
@@ -200,15 +211,18 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 		Str("distributor_id", distributor.ID).
 		Str("distributor_name", distributor.Name).
 		Str("logto_org_id", logtoOrg.ID).
-		Str("created_by", createdByUserID).
+		Str("created_by", orgCreatorUserID(creator)).
 		Msg("Distributor created successfully with Logto sync")
 
 	refreshUnifiedOrganizationsAsync()
+
+	distributor.CreatedBy = creator
+	delete(distributor.CustomData, "createdByUser")
 	return distributor, nil
 }
 
 // CreateReseller creates a reseller locally and syncs to Logto
-func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalResellerRequest, createdByUserID, createdByOrgID string) (*models.LocalReseller, error) {
+func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalResellerRequest, creator *models.OrgCreator, createdByOrgID string) (*models.LocalReseller, error) {
 	// Validate required fields
 	var validationErrors []response.ValidationError
 
@@ -288,6 +302,9 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 	customData["type"] = "reseller"
 	customData["createdBy"] = createdByOrgID
 	customData["createdAt"] = time.Now().Format(time.RFC3339)
+	if creator != nil {
+		customData["createdByUser"] = creator
+	}
 
 	// Update the request with the properly managed customData
 	req.CustomData = customData
@@ -361,15 +378,18 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 		Str("reseller_id", reseller.ID).
 		Str("reseller_name", reseller.Name).
 		Str("logto_org_id", logtoOrg.ID).
-		Str("created_by", createdByUserID).
+		Str("created_by", orgCreatorUserID(creator)).
 		Msg("Reseller created successfully with Logto sync")
 
 	refreshUnifiedOrganizationsAsync()
+
+	reseller.CreatedBy = creator
+	delete(reseller.CustomData, "createdByUser")
 	return reseller, nil
 }
 
 // CreateCustomer creates a customer locally and syncs to Logto
-func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustomerRequest, createdByUserID, createdByOrgID string) (*models.LocalCustomer, error) {
+func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustomerRequest, creator *models.OrgCreator, createdByOrgID string) (*models.LocalCustomer, error) {
 	// Validate required fields
 	var validationErrors []response.ValidationError
 
@@ -450,6 +470,9 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 	customData["type"] = "customer"
 	customData["createdBy"] = createdByOrgID
 	customData["createdAt"] = time.Now().Format(time.RFC3339)
+	if creator != nil {
+		customData["createdByUser"] = creator
+	}
 
 	// Update the request with the properly managed customData
 	req.CustomData = customData
@@ -524,10 +547,13 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 		Str("customer_name", customer.Name).
 		Str("creator_type", creatorType).
 		Str("logto_org_id", logtoOrg.ID).
-		Str("created_by", createdByUserID).
+		Str("created_by", orgCreatorUserID(creator)).
 		Msg("Customer created successfully with Logto sync")
 
 	refreshUnifiedOrganizationsAsync()
+
+	customer.CreatedBy = creator
+	delete(customer.CustomData, "createdByUser")
 	return customer, nil
 }
 
@@ -604,18 +630,18 @@ func (s *LocalOrganizationService) GetCustomer(id string) (*models.LocalCustomer
 }
 
 // ListDistributors returns paginated distributors based on RBAC
-func (s *LocalOrganizationService) ListDistributors(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses []string) ([]*models.LocalDistributor, int, error) {
-	return s.distributorRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, statuses)
+func (s *LocalOrganizationService) ListDistributors(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy []string) ([]*models.LocalDistributor, int, error) {
+	return s.distributorRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy)
 }
 
 // ListResellers returns paginated resellers based on RBAC
-func (s *LocalOrganizationService) ListResellers(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses []string) ([]*models.LocalReseller, int, error) {
-	return s.resellerRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, statuses)
+func (s *LocalOrganizationService) ListResellers(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy []string) ([]*models.LocalReseller, int, error) {
+	return s.resellerRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy)
 }
 
 // ListCustomers returns paginated customers based on RBAC
-func (s *LocalOrganizationService) ListCustomers(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses []string) ([]*models.LocalCustomer, int, error) {
-	return s.customerRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, statuses)
+func (s *LocalOrganizationService) ListCustomers(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy []string) ([]*models.LocalCustomer, int, error) {
+	return s.customerRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy)
 }
 
 // ============================================
