@@ -124,9 +124,9 @@ function closeDrawer() {
     <div v-if="alert" class="space-y-7">
       <!-- Alert Header -->
       <div class="space-y-7">
-        <!-- Avatar + Alert Name + Badges -->
+        <!-- Icon + Alert Name + Badges -->
         <div class="flex gap-4">
-          <!-- Avatar -->
+          <!-- Icon -->
           <div class="flex shrink-0">
             <div
               class="flex size-12 items-center justify-center rounded-full bg-gray-400 dark:bg-gray-500"

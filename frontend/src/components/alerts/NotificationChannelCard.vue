@@ -11,7 +11,7 @@ import {
   faWrench,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { NeButton, NeCard } from '@nethesis/vue-components'
+import { NeButton, NeCard, NeRoundedIcon } from '@nethesis/vue-components'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import { useI18n } from 'vue-i18n'
 
@@ -41,11 +41,11 @@ const emit = defineEmits<{ edit: []; configure: [] }>()
     <!-- Header: icon + title/description + Edit button -->
     <div class="flex items-start justify-between">
       <div class="flex items-center gap-3">
-        <div
-          class="flex size-10 shrink-0 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/40"
-        >
-          <FontAwesomeIcon :icon="icon" class="size-5 text-sky-600 dark:text-sky-400" />
-        </div>
+        <NeRoundedIcon
+          :customIcon="icon"
+          customBackgroundClasses="bg-gray-100 dark:bg-gray-800"
+          customForegroundClasses="text-gray-700 dark:text-gray-50"
+        />
         <div>
           <p class="font-medium text-gray-900 dark:text-gray-100">{{ title }}</p>
           <p class="text-tertiary-neutral">{{ description }}</p>
