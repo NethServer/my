@@ -22,7 +22,7 @@ export const useApplications = defineQuery(() => {
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
   const typeFilter = ref<string[]>([])
-  const versionFilter = ref<string[]>([])
+  const versionFilter = ref<NeDropdownFilterV2Option[]>([])
   const systemFilter = ref<NeDropdownFilterV2Option[]>([])
   const organizationFilter = ref<NeDropdownFilterV2Option[]>([])
   const sortBy = ref<keyof Application>('display_name')
@@ -36,7 +36,7 @@ export const useApplications = defineQuery(() => {
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
         typeFilter: typeFilter.value,
-        versionFilter: versionFilter.value,
+        versionFilter: versionFilter.value.map((o) => o.id),
         systemFilter: systemFilter.value.map((o) => o.id),
         organizationFilter: organizationFilter.value.map((o) => o.id),
         sortBy: sortBy.value,
@@ -50,7 +50,7 @@ export const useApplications = defineQuery(() => {
         pageSize.value,
         debouncedTextFilter.value,
         typeFilter.value,
-        versionFilter.value,
+        versionFilter.value.map((o) => o.id),
         systemFilter.value.map((o) => o.id),
         organizationFilter.value.map((o) => o.id),
         sortBy.value,

@@ -22,6 +22,7 @@ import {
   type SortEvent,
   type NeDropdownItem,
   NeDropdownFilter,
+  NeDropdownFilterV2,
   NeSortDropdown,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
@@ -223,7 +224,7 @@ const goToApplicationDetails = (application: Application) => {
               :clear-search-label="t('ne_dropdown_filter.clear_search')"
               :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             />
-            <NeDropdownFilter
+            <NeDropdownFilterV2
               v-model="versionFilter"
               kind="checkbox"
               :disabled="applicationFiltersState.status === 'pending'"
