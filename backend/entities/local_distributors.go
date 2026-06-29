@@ -115,6 +115,8 @@ func (r *LocalDistributorRepository) GetByID(id string) (*models.LocalDistributo
 		distributor.CustomData = make(map[string]interface{})
 	}
 
+	distributor.CreatedBy = models.ExtractOrgCreator(distributor.CustomData)
+
 	return distributor, nil
 }
 
@@ -227,7 +229,7 @@ func (r *LocalDistributorRepository) Reactivate(id string) error {
 }
 
 // List returns paginated list of distributors visible to the user
-func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses []string) ([]*models.LocalDistributor, int, error) {
+func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy []string) ([]*models.LocalDistributor, int, error) {
 	// Only Owner can see distributors
 	if userOrgRole != "owner" {
 		return []*models.LocalDistributor{}, 0, nil
@@ -280,19 +282,36 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 		statusClause = " AND (" + strings.Join(statusConditions, " OR ") + ")"
 	}
 
+	// Restrict to the requested creators (matches the systems created_by filter:
+	// either the creating user or their organization). Flows into both queries
+	// via statusClause, so no positional-arg reshuffling is needed.
+	statusClause += createdByFilterClause(createdBy)
+
 	// Build queries with optional search and status filter
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
 	if search != "" {
 		// With search
-		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM distributors WHERE 1=1%s%s AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(custom_data) AS kv(key, value) WHERE kv.key != 'createdBy' AND LOWER(kv.value) LIKE LOWER('%%' || $1 || '%%')))`, deletedClause, statusClause)
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM distributors WHERE 1=1%s%s AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $1 || '%%')))`, deletedClause, statusClause)
 		countArgs = []interface{}{search}
 
 		query = fmt.Sprintf(`
 			SELECT d.id, d.logto_id, d.name, d.description, d.custom_data, d.created_at, d.updated_at,
 			       d.logto_synced_at, d.logto_sync_error, d.deleted_at, d.suspended_at,
-			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = d.logto_id AND s.deleted_at IS NULL) as systems_count,
+			       (SELECT COUNT(*) FROM systems s WHERE s.deleted_at IS NULL AND (
+			           s.organization_id = d.logto_id
+			           OR s.organization_id IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL)
+			           OR s.organization_id IN (
+			               SELECT c.logto_id FROM customers c
+			               WHERE c.deleted_at IS NULL AND EXISTS (
+			                   SELECT 1 FROM resellers r
+			                   WHERE r.logto_id = c.custom_data->>'createdBy'
+			                   AND r.custom_data->>'createdBy' = d.logto_id
+			                   AND r.deleted_at IS NULL
+			               )
+			           )
+			       )) as systems_count,
 			       (SELECT COUNT(*) FROM resellers r WHERE r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL) as resellers_count,
 			       (SELECT COUNT(*) FROM customers c WHERE c.deleted_at IS NULL AND EXISTS (
 			           SELECT 1 FROM resellers r WHERE r.logto_id = c.custom_data->>'createdBy' AND r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL
@@ -311,7 +330,7 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 			           )
 			       )) as applications_count
 			FROM distributors d
-			WHERE 1=1%s%s AND (LOWER(d.name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(d.description) LIKE LOWER('%%' || $1 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(d.custom_data) AS kv(key, value) WHERE kv.key != 'createdBy' AND LOWER(kv.value) LIKE LOWER('%%' || $1 || '%%')))
+			WHERE 1=1%s%s AND (LOWER(d.name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(d.description) LIKE LOWER('%%' || $1 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(d.custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $1 || '%%')))
 			%s
 			LIMIT $2 OFFSET $3
 		`, deletedClause, statusClause, orderClause)
@@ -324,7 +343,19 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 		query = fmt.Sprintf(`
 			SELECT d.id, d.logto_id, d.name, d.description, d.custom_data, d.created_at, d.updated_at,
 			       d.logto_synced_at, d.logto_sync_error, d.deleted_at, d.suspended_at,
-			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = d.logto_id AND s.deleted_at IS NULL) as systems_count,
+			       (SELECT COUNT(*) FROM systems s WHERE s.deleted_at IS NULL AND (
+			           s.organization_id = d.logto_id
+			           OR s.organization_id IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL)
+			           OR s.organization_id IN (
+			               SELECT c.logto_id FROM customers c
+			               WHERE c.deleted_at IS NULL AND EXISTS (
+			                   SELECT 1 FROM resellers r
+			                   WHERE r.logto_id = c.custom_data->>'createdBy'
+			                   AND r.custom_data->>'createdBy' = d.logto_id
+			                   AND r.deleted_at IS NULL
+			               )
+			           )
+			       )) as systems_count,
 			       (SELECT COUNT(*) FROM resellers r WHERE r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL) as resellers_count,
 			       (SELECT COUNT(*) FROM customers c WHERE c.deleted_at IS NULL AND EXISTS (
 			           SELECT 1 FROM resellers r WHERE r.logto_id = c.custom_data->>'createdBy' AND r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL
@@ -397,6 +428,7 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 			distributor.CustomData = make(map[string]interface{})
 		}
 
+		distributor.CreatedBy = models.ExtractOrgCreator(distributor.CustomData)
 		distributor.SystemsCount = &systemsCount
 		distributor.ResellersCount = &resellersCount
 		distributor.CustomersCount = &customersCount
@@ -548,6 +580,8 @@ func (r *LocalDistributorRepository) GetByIDIncludeDeleted(id string) (*models.L
 	} else {
 		distributor.CustomData = make(map[string]interface{})
 	}
+
+	distributor.CreatedBy = models.ExtractOrgCreator(distributor.CustomData)
 
 	return distributor, nil
 }

@@ -48,7 +48,7 @@ func CreateCustomer(c *gin.Context) {
 	}
 
 	// Create customer
-	customer, err := service.CreateCustomer(&request, user.ID, user.OrganizationID)
+	customer, err := service.CreateCustomer(&request, models.NewOrgCreatorFromUser(*user), user.OrganizationID)
 	if err != nil {
 		// Check if it's a validation error from service
 		if validationErr := getValidationError(err); validationErr != nil {
@@ -195,13 +195,14 @@ func GetCustomers(c *gin.Context) {
 	// Parse search and status parameters
 	search := c.Query("search")
 	statuses := c.QueryArray("status")
+	createdBy := c.QueryArray("created_by")
 
 	// Create service
 	service := local.NewOrganizationService()
 
 	// Get customers based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	customers, totalCount, err := service.ListCustomers(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, statuses)
+	customers, totalCount, err := service.ListCustomers(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy)
 	if err != nil {
 		logger.Error().
 			Err(err).

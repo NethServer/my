@@ -115,6 +115,8 @@ func (r *LocalCustomerRepository) GetByID(id string) (*models.LocalCustomer, err
 		customer.CustomData = make(map[string]interface{})
 	}
 
+	customer.CreatedBy = models.ExtractOrgCreator(customer.CustomData)
+
 	return customer, nil
 }
 
@@ -227,25 +229,25 @@ func (r *LocalCustomerRepository) Reactivate(id string) error {
 }
 
 // List returns paginated list of customers visible to the user
-func (r *LocalCustomerRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses []string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy []string) ([]*models.LocalCustomer, int, error) {
 	offset := (page - 1) * pageSize
 
 	switch userOrgRole {
 	case "owner":
-		return r.listForOwner(page, pageSize, offset, search, sortBy, sortDirection, statuses)
+		return r.listForOwner(page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy)
 	case "distributor":
-		return r.listForDistributor(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses)
+		return r.listForDistributor(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy)
 	case "reseller":
-		return r.listForReseller(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses)
+		return r.listForReseller(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy)
 	case "customer":
-		return r.listForCustomer(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses)
+		return r.listForCustomer(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy)
 	default:
 		return []*models.LocalCustomer{}, 0, nil
 	}
 }
 
 // listForOwner handles customer listing for owner role
-func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, search, sortBy, sortDirection string, statuses []string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy []string) ([]*models.LocalCustomer, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
@@ -291,12 +293,15 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 		statusClause = " AND (" + strings.Join(statusConditions, " OR ") + ")"
 	}
 
+	// Restrict to the requested creators (see createdByFilterClause).
+	statusClause += createdByFilterClause(createdBy)
+
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
 	if search != "" {
 		// With search
-		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE 1=1%s%s AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(custom_data) AS kv(key, value) WHERE kv.key != 'createdBy' AND LOWER(kv.value) LIKE LOWER('%%' || $1 || '%%')))`, deletedClause, statusClause)
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE 1=1%s%s AND (LOWER(name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(description) LIKE LOWER('%%' || $1 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $1 || '%%')))`, deletedClause, statusClause)
 		countArgs = []interface{}{search}
 
 		query = fmt.Sprintf(`
@@ -305,7 +310,7 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count,
 			       (SELECT COUNT(*) FROM applications a WHERE a.organization_id = c.logto_id AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5)) as applications_count
 			FROM customers c
-			WHERE 1=1%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $1 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(c.custom_data) AS kv(key, value) WHERE kv.key != 'createdBy' AND LOWER(kv.value) LIKE LOWER('%%' || $1 || '%%')))
+			WHERE 1=1%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $1 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(c.custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $1 || '%%')))
 			%s
 			LIMIT $2 OFFSET $3
 		`, deletedClause, statusClause, orderClause)
@@ -332,7 +337,7 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 }
 
 // listForDistributor handles customer listing for distributor role
-func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses []string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy []string) ([]*models.LocalCustomer, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
@@ -378,6 +383,9 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 		statusClause = " AND (" + strings.Join(statusConditions, " OR ") + ")"
 	}
 
+	// Restrict to the requested creators (see createdByFilterClause).
+	statusClause += createdByFilterClause(createdBy)
+
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
@@ -391,7 +399,7 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 					SELECT logto_id FROM resellers
 					WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 				)
-			)%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(c.custom_data) AS kv(key, value) WHERE kv.key != 'createdBy' AND LOWER(kv.value) LIKE LOWER('%%' || $2 || '%%')))`, deletedClause, statusClause)
+			)%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(c.custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $2 || '%%')))`, deletedClause, statusClause)
 		countArgs = []interface{}{userOrgID, search}
 
 		query = fmt.Sprintf(`
@@ -406,7 +414,7 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 					SELECT logto_id FROM resellers
 					WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 				)
-			)%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(c.custom_data) AS kv(key, value) WHERE kv.key != 'createdBy' AND LOWER(kv.value) LIKE LOWER('%%' || $2 || '%%')))
+			)%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(c.custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $2 || '%%')))
 			%s
 			LIMIT $3 OFFSET $4
 		`, deletedClause, statusClause, orderClause)
@@ -447,7 +455,7 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 }
 
 // listForReseller handles customer listing for reseller role
-func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses []string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy []string) ([]*models.LocalCustomer, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
@@ -493,12 +501,15 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 		statusClause = " AND (" + strings.Join(statusConditions, " OR ") + ")"
 	}
 
+	// Restrict to the requested creators (see createdByFilterClause).
+	statusClause += createdByFilterClause(createdBy)
+
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
 	if search != "" {
 		// With search
-		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE custom_data->>'createdBy' = $1%s%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(custom_data) AS kv(key, value) WHERE kv.key != 'createdBy' AND LOWER(kv.value) LIKE LOWER('%%' || $2 || '%%')))`, deletedClause, statusClause)
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE custom_data->>'createdBy' = $1%s%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $2 || '%%')))`, deletedClause, statusClause)
 		countArgs = []interface{}{userOrgID, search}
 
 		query = fmt.Sprintf(`
@@ -507,7 +518,7 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count,
 			       (SELECT COUNT(*) FROM applications a WHERE a.organization_id = c.logto_id AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5)) as applications_count
 			FROM customers c
-			WHERE c.custom_data->>'createdBy' = $1%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(c.custom_data) AS kv(key, value) WHERE kv.key != 'createdBy' AND LOWER(kv.value) LIKE LOWER('%%' || $2 || '%%')))
+			WHERE c.custom_data->>'createdBy' = $1%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(c.custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $2 || '%%')))
 			%s
 			LIMIT $3 OFFSET $4
 		`, deletedClause, statusClause, orderClause)
@@ -534,7 +545,7 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 }
 
 // listForCustomer handles customer listing for customer role
-func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses []string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy []string) ([]*models.LocalCustomer, int, error) {
 	if userOrgID == "" {
 		return []*models.LocalCustomer{}, 0, nil
 	}
@@ -584,12 +595,15 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 		statusClause = " AND (" + strings.Join(statusConditions, " OR ") + ")"
 	}
 
+	// Restrict to the requested creators (see createdByFilterClause).
+	statusClause += createdByFilterClause(createdBy)
+
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
 	if search != "" {
 		// With search
-		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE id = $1%s%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(custom_data) AS kv(key, value) WHERE kv.key != 'createdBy' AND LOWER(kv.value) LIKE LOWER('%%' || $2 || '%%')))`, deletedClause, statusClause)
+		countQuery = fmt.Sprintf(`SELECT COUNT(*) FROM customers WHERE id = $1%s%s AND (LOWER(name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(description) LIKE LOWER('%%' || $2 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $2 || '%%')))`, deletedClause, statusClause)
 		countArgs = []interface{}{userOrgID, search}
 
 		query = fmt.Sprintf(`
@@ -598,7 +612,7 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count,
 			       (SELECT COUNT(*) FROM applications a WHERE a.organization_id = c.logto_id AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5)) as applications_count
 			FROM customers c
-			WHERE c.id = $1%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(c.custom_data) AS kv(key, value) WHERE kv.key != 'createdBy' AND LOWER(kv.value) LIKE LOWER('%%' || $2 || '%%')))
+			WHERE c.id = $1%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(c.custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $2 || '%%')))
 			%s
 			LIMIT $3 OFFSET $4
 		`, deletedClause, statusClause, orderClause)
@@ -673,6 +687,7 @@ func (r *LocalCustomerRepository) executeCustomerQuery(countQuery string, countA
 			customer.CustomData = make(map[string]interface{})
 		}
 
+		customer.CreatedBy = models.ExtractOrgCreator(customer.CustomData)
 		customer.SystemsCount = &systemsCount
 		customer.ApplicationsCount = &applicationsCount
 
@@ -935,6 +950,8 @@ func (r *LocalCustomerRepository) GetByIDIncludeDeleted(id string) (*models.Loca
 	} else {
 		customer.CustomData = make(map[string]interface{})
 	}
+
+	customer.CreatedBy = models.ExtractOrgCreator(customer.CustomData)
 
 	return customer, nil
 }

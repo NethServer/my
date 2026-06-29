@@ -48,7 +48,7 @@ func CreateDistributor(c *gin.Context) {
 	}
 
 	// Create distributor
-	distributor, err := service.CreateDistributor(&request, user.ID, user.OrganizationID)
+	distributor, err := service.CreateDistributor(&request, models.NewOrgCreatorFromUser(*user), user.OrganizationID)
 	if err != nil {
 		// Check if it's a validation error from service
 		if validationErr := getValidationError(err); validationErr != nil {
@@ -169,13 +169,14 @@ func GetDistributors(c *gin.Context) {
 	// Parse search and status parameters
 	search := c.Query("search")
 	statuses := c.QueryArray("status")
+	createdBy := c.QueryArray("created_by")
 
 	// Create service
 	service := local.NewOrganizationService()
 
 	// Get distributors based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	distributors, totalCount, err := service.ListDistributors(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, statuses)
+	distributors, totalCount, err := service.ListDistributors(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy)
 	if err != nil {
 		logger.Error().
 			Err(err).

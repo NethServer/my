@@ -351,6 +351,24 @@ func main() {
 			{
 				alertsFiltersGroup.GET("", methods.GetAlertFilters) // Aggregated filters: systems, alerts, severities, organizations
 			}
+
+			// Distributors filters (read:distributors required)
+			distributorsFiltersGroup := filtersGroup.Group("/distributors", middleware.RequireResourcePermission("distributors"))
+			{
+				distributorsFiltersGroup.GET("", methods.GetDistributorFilters) // Aggregated filters: created_by
+			}
+
+			// Resellers filters (read:resellers required)
+			resellersFiltersGroup := filtersGroup.Group("/resellers", middleware.RequireResourcePermission("resellers"))
+			{
+				resellersFiltersGroup.GET("", methods.GetResellerFilters) // Aggregated filters: created_by
+			}
+
+			// Customers filters (read:customers required)
+			customersFiltersGroup := filtersGroup.Group("/customers", middleware.RequireResourcePermission("customers"))
+			{
+				customersFiltersGroup.GET("", methods.GetCustomerFilters) // Aggregated filters: created_by
+			}
 		}
 
 		// ===========================================

@@ -10,6 +10,7 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -36,6 +37,61 @@ type LocalDistributor struct {
 	ResellersCount    *int `json:"resellers_count,omitempty"`
 	CustomersCount    *int `json:"customers_count,omitempty"`
 	ApplicationsCount *int `json:"applications_count,omitempty"`
+
+	// Creator snapshot (resolved from custom_data.createdByUser at read time)
+	CreatedBy *OrgCreator `json:"created_by,omitempty"`
+}
+
+// OrgCreator is a point-in-time snapshot of the user who created an organization.
+// It is stored in custom_data.createdByUser at creation and surfaced as the
+// top-level created_by field on the organization, mirroring SystemCreator.
+type OrgCreator struct {
+	UserID           string `json:"user_id"`
+	Username         string `json:"username"`
+	Name             string `json:"name"`
+	Email            string `json:"email"`
+	OrganizationID   string `json:"organization_id"`
+	OrganizationName string `json:"organization_name"`
+}
+
+// NewOrgCreatorFromUser builds an OrgCreator snapshot from the authenticated user.
+func NewOrgCreatorFromUser(u User) *OrgCreator {
+	logtoID := ""
+	if u.LogtoID != nil {
+		logtoID = *u.LogtoID
+	}
+	return &OrgCreator{
+		UserID:           logtoID,
+		Username:         u.Username,
+		Name:             u.Name,
+		Email:            u.Email,
+		OrganizationID:   u.OrganizationID,
+		OrganizationName: u.OrganizationName,
+	}
+}
+
+// ExtractOrgCreator pulls the createdByUser snapshot out of an organization's
+// custom_data (populated at creation time), returning it as a typed value and
+// removing the raw key from the map so it is exposed only as the top-level
+// created_by field. Returns nil when no creator snapshot is present.
+func ExtractOrgCreator(customData map[string]interface{}) *OrgCreator {
+	if customData == nil {
+		return nil
+	}
+	raw, ok := customData["createdByUser"]
+	if !ok || raw == nil {
+		return nil
+	}
+	encoded, err := json.Marshal(raw)
+	if err != nil {
+		return nil
+	}
+	var creator OrgCreator
+	if err := json.Unmarshal(encoded, &creator); err != nil {
+		return nil
+	}
+	delete(customData, "createdByUser")
+	return &creator
 }
 
 // LocalReseller represents a reseller stored in local database
@@ -61,6 +117,9 @@ type LocalReseller struct {
 	SystemsCount      *int `json:"systems_count,omitempty"`
 	CustomersCount    *int `json:"customers_count,omitempty"`
 	ApplicationsCount *int `json:"applications_count,omitempty"`
+
+	// Creator snapshot (resolved from custom_data.createdByUser at read time)
+	CreatedBy *OrgCreator `json:"created_by,omitempty"`
 }
 
 // LocalCustomer represents a customer stored in local database
@@ -85,6 +144,9 @@ type LocalCustomer struct {
 	// Inline stats (populated by List queries only, omitted in other responses)
 	SystemsCount      *int `json:"systems_count,omitempty"`
 	ApplicationsCount *int `json:"applications_count,omitempty"`
+
+	// Creator snapshot (resolved from custom_data.createdByUser at read time)
+	CreatedBy *OrgCreator `json:"created_by,omitempty"`
 }
 
 // CustomerFilters represents filters for customer queries
