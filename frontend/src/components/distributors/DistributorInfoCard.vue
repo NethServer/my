@@ -19,9 +19,17 @@ import DataItem from '../common/DataItem.vue'
 import { ref } from 'vue'
 import NotesModal from '../common/NotesModal.vue'
 import { canManageDistributors } from '@/lib/permissions'
-import { faPenToSquare } from '@fortawesome/free-solid-svg-icons'
+import {
+  faPenToSquare,
+  faCirclePause,
+  faCirclePlay,
+  faCircleCheck,
+  faBoxArchive,
+} from '@fortawesome/free-solid-svg-icons'
 import { useI18n } from 'vue-i18n'
 import CreateOrEditDistributorDrawer from './CreateOrEditDistributorDrawer.vue'
+import SuspendDistributorModal from './SuspendDistributorModal.vue'
+import ReactivateDistributorModal from './ReactivateDistributorModal.vue'
 import { getLanguageLabel } from '@/lib/locale'
 import { formatPhoneForDisplay } from '@/lib/phone'
 
@@ -29,19 +37,43 @@ const { t } = useI18n()
 const { state: distributorDetail, asyncStatus } = useDistributorDetail()
 const isNotesModalShown = ref(false)
 const isShownCreateOrEditDistributorDrawer = ref(false)
+const isShownSuspendDistributorModal = ref(false)
+const isShownReactivateDistributorModal = ref(false)
 
 function getKebabMenuItems() {
   const items: NeDropdownItem[] = []
+  const distributor = distributorDetail.value.data
 
-  if (canManageDistributors()) {
-    items.push({
-      id: 'editDistributor',
-      label: t('common.edit'),
-      icon: faPenToSquare,
-      action: () => (isShownCreateOrEditDistributorDrawer.value = true),
-      disabled: asyncStatus.value === 'loading',
-    })
+  if (canManageDistributors() && distributor) {
+    if (!distributor.deleted_at) {
+      items.push({
+        id: 'editDistributor',
+        label: t('common.edit'),
+        icon: faPenToSquare,
+        action: () => (isShownCreateOrEditDistributorDrawer.value = true),
+        disabled: asyncStatus.value === 'loading',
+      })
+    }
+
+    if (distributor.suspended_at) {
+      items.push({
+        id: 'reactivateDistributor',
+        label: t('common.reactivate'),
+        icon: faCirclePlay,
+        action: () => (isShownReactivateDistributorModal.value = true),
+        disabled: asyncStatus.value === 'loading',
+      })
+    } else if (!distributor.deleted_at) {
+      items.push({
+        id: 'suspendDistributor',
+        label: t('common.suspend'),
+        icon: faCirclePause,
+        action: () => (isShownSuspendDistributorModal.value = true),
+        disabled: asyncStatus.value === 'loading',
+      })
+    }
   }
+
   return items
 }
 </script>
@@ -67,6 +99,40 @@ function getKebabMenuItems() {
       </div>
       <!-- distributor information -->
       <div class="divide-y divide-gray-200 dark:divide-gray-700">
+        <!-- status -->
+        <DataItem>
+          <template #label>
+            {{ $t('common.status') }}
+          </template>
+          <template #data>
+            <div class="flex items-center gap-2">
+              <template v-if="distributorDetail.data.deleted_at">
+                <FontAwesomeIcon
+                  :icon="faBoxArchive"
+                  class="size-4 text-gray-700 dark:text-gray-400"
+                  aria-hidden="true"
+                />
+                <span>{{ $t('common.archived') }}</span>
+              </template>
+              <template v-else-if="distributorDetail.data.suspended_at">
+                <FontAwesomeIcon
+                  :icon="faCirclePause"
+                  class="size-4 text-gray-700 dark:text-gray-400"
+                  aria-hidden="true"
+                />
+                <span>{{ $t('common.suspended') }}</span>
+              </template>
+              <template v-else>
+                <FontAwesomeIcon
+                  :icon="faCircleCheck"
+                  class="size-4 text-green-600 dark:text-green-400"
+                  aria-hidden="true"
+                />
+                <span>{{ $t('common.enabled') }}</span>
+              </template>
+            </div>
+          </template>
+        </DataItem>
         <!-- vat number -->
         <DataItem>
           <template #label>
@@ -176,6 +242,18 @@ function getKebabMenuItems() {
       :is-shown="isShownCreateOrEditDistributorDrawer"
       :current-distributor="distributorDetail.data ?? undefined"
       @close="isShownCreateOrEditDistributorDrawer = false"
+    />
+    <!-- suspend distributor modal -->
+    <SuspendDistributorModal
+      :visible="isShownSuspendDistributorModal"
+      :distributor="distributorDetail.data ?? undefined"
+      @close="isShownSuspendDistributorModal = false"
+    />
+    <!-- reactivate distributor modal -->
+    <ReactivateDistributorModal
+      :visible="isShownReactivateDistributorModal"
+      :distributor="distributorDetail.data ?? undefined"
+      @close="isShownReactivateDistributorModal = false"
     />
   </NeCard>
 </template>
