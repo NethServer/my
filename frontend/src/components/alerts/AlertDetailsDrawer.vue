@@ -15,6 +15,7 @@ import {
   NeTextArea,
   NeTooltip,
   NeFormItemLabel,
+  NeRoundedIcon,
 } from '@nethesis/vue-components'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -128,21 +129,17 @@ function closeDrawer() {
         <div class="flex gap-4">
           <!-- Icon -->
           <div class="flex shrink-0">
-            <div
-              class="flex size-12 items-center justify-center rounded-full bg-gray-400 dark:bg-gray-500"
-            >
-              <FontAwesomeIcon
-                :icon="faTriangleExclamation"
-                class="size-6 text-white dark:text-gray-100"
-                aria-hidden="true"
-              />
-            </div>
+            <NeRoundedIcon
+              :customIcon="faTriangleExclamation"
+              customBackgroundClasses="bg-gray-100 dark:bg-gray-800"
+              customForegroundClasses="text-gray-700 dark:text-gray-50"
+            />
           </div>
 
           <!-- Alert Name + Badges -->
-          <div class="flex flex-col gap-2">
+          <div class="flex flex-col gap-1">
             <div class="flex flex-wrap items-center gap-2">
-              <h3 class="text-primary-neutral text-lg font-medium dark:text-gray-100">
+              <h3 class="text-primary-neutral text-base font-medium dark:text-gray-100">
                 {{ alert.labels?.alertname || '-' }}
               </h3>
               <!-- Severity Badge -->
