@@ -1016,8 +1016,10 @@ func (s *LocalSystemsService) applyUnifiedStatus(system *models.System) {
 	// DB status is already unknown/active/inactive - keep as is
 }
 
-// generateSystemKey generates a unique UUID-based system key with prefix
-// Format: NETH-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX
+// generateSystemKey generates a unique UUID-based system key with prefix.
+// A UUID is 32 hex chars, so the format is NETH- followed by eight 4-char
+// groups: NETH-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX. Keep collect's
+// systemKeyFormat regex (auth_invalidator.go) in sync with this shape.
 func (s *LocalSystemsService) generateSystemKey() (string, error) {
 	// Generate a new UUID
 	id := uuid.New()
@@ -1431,7 +1433,14 @@ func (s *LocalSystemsService) SuspendSystem(systemID, userOrgRole, userOrgID str
 		return fmt.Errorf("access denied: %s", reason)
 	}
 
-	return systemRepo.SuspendSystem(systemID)
+	if err := systemRepo.SuspendSystem(systemID); err != nil {
+		return err
+	}
+
+	// Drop collect's cached credentials so the suspended system stops
+	// authenticating immediately, the same way DeleteSystem revokes access.
+	cache.InvalidateSystemAuth(context.Background(), system.SystemKey)
+	return nil
 }
 
 // ReactivateSystem reactivates a suspended system
@@ -1453,5 +1462,12 @@ func (s *LocalSystemsService) ReactivateSystem(systemID, userOrgRole, userOrgID 
 		}
 	}
 
-	return systemRepo.ReactivateSystem(systemID)
+	if err := systemRepo.ReactivateSystem(systemID); err != nil {
+		return err
+	}
+
+	// Refresh collect's auth cache so the reactivated system can authenticate
+	// again without waiting for the negative cache entry to expire.
+	cache.InvalidateSystemAuth(context.Background(), system.SystemKey)
+	return nil
 }

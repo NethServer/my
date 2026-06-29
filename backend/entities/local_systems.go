@@ -535,35 +535,48 @@ func (r *LocalSystemRepository) ReactivateSystem(id string) error {
 	return nil
 }
 
+// scanSystemKeys collects the system_key column from a RETURNING/SELECT result set.
+func scanSystemKeys(rows *sql.Rows) ([]string, error) {
+	var keys []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, fmt.Errorf("failed to scan system_key: %w", err)
+		}
+		keys = append(keys, key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate system_keys: %w", err)
+	}
+	return keys, nil
+}
+
 // SuspendSystemsByOrgID suspends all active systems belonging to an organization (cascade suspension)
-// Returns the count of suspended systems
-func (r *LocalSystemRepository) SuspendSystemsByOrgID(orgID string) (int, error) {
+// Returns the system_keys of the suspended systems so the caller can invalidate their cached credentials.
+func (r *LocalSystemRepository) SuspendSystemsByOrgID(orgID string) ([]string, error) {
 	now := time.Now()
 
 	query := `
 		UPDATE systems
 		SET suspended_at = $2, suspended_by_org_id = $1, updated_at = $2
 		WHERE organization_id = $1 AND deleted_at IS NULL AND suspended_at IS NULL
+		RETURNING system_key
 	`
 
-	result, err := r.db.Exec(query, orgID, now)
+	rows, err := r.db.Query(query, orgID, now)
 	if err != nil {
-		return 0, fmt.Errorf("failed to cascade suspend systems: %w", err)
+		return nil, fmt.Errorf("failed to cascade suspend systems: %w", err)
 	}
+	defer func() { _ = rows.Close() }()
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("failed to get rows affected: %w", err)
-	}
-
-	return int(rowsAffected), nil
+	return scanSystemKeys(rows)
 }
 
 // SuspendSystemsByMultipleOrgIDs suspends all active systems belonging to any of the given organizations
 // The suspendedByOrgID is the org that initiated the cascade
-func (r *LocalSystemRepository) SuspendSystemsByMultipleOrgIDs(orgIDs []string, suspendedByOrgID string) (int, error) {
+func (r *LocalSystemRepository) SuspendSystemsByMultipleOrgIDs(orgIDs []string, suspendedByOrgID string) ([]string, error) {
 	if len(orgIDs) == 0 {
-		return 0, nil
+		return nil, nil
 	}
 
 	now := time.Now()
@@ -582,47 +595,41 @@ func (r *LocalSystemRepository) SuspendSystemsByMultipleOrgIDs(orgIDs []string, 
 		UPDATE systems
 		SET suspended_at = $%d, suspended_by_org_id = $%d, updated_at = $%d
 		WHERE organization_id IN (%s) AND deleted_at IS NULL AND suspended_at IS NULL
+		RETURNING system_key
 	`, nowIdx, suspendedByIdx, nowIdx, inClause)
 
 	updateArgs := make([]interface{}, 0, len(orgIDs)+2)
 	updateArgs = append(updateArgs, args...)
 	updateArgs = append(updateArgs, suspendedByOrgID, now)
 
-	result, err := r.db.Exec(query, updateArgs...)
+	rows, err := r.db.Query(query, updateArgs...)
 	if err != nil {
-		return 0, fmt.Errorf("failed to cascade suspend systems: %w", err)
+		return nil, fmt.Errorf("failed to cascade suspend systems: %w", err)
 	}
+	defer func() { _ = rows.Close() }()
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("failed to get rows affected: %w", err)
-	}
-
-	return int(rowsAffected), nil
+	return scanSystemKeys(rows)
 }
 
 // ReactivateSystemsByOrgID reactivates systems that were cascade-suspended by this organization
-// Returns the count of reactivated systems
-func (r *LocalSystemRepository) ReactivateSystemsByOrgID(orgID string) (int, error) {
+// Returns the system_keys of the reactivated systems so the caller can invalidate their cached credentials.
+func (r *LocalSystemRepository) ReactivateSystemsByOrgID(orgID string) ([]string, error) {
 	now := time.Now()
 
 	query := `
 		UPDATE systems
 		SET suspended_at = NULL, suspended_by_org_id = NULL, updated_at = $2
 		WHERE suspended_by_org_id = $1 AND deleted_at IS NULL AND suspended_at IS NOT NULL
+		RETURNING system_key
 	`
 
-	result, err := r.db.Exec(query, orgID, now)
+	rows, err := r.db.Query(query, orgID, now)
 	if err != nil {
-		return 0, fmt.Errorf("failed to cascade reactivate systems: %w", err)
+		return nil, fmt.Errorf("failed to cascade reactivate systems: %w", err)
 	}
+	defer func() { _ = rows.Close() }()
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("failed to get rows affected: %w", err)
-	}
-
-	return int(rowsAffected), nil
+	return scanSystemKeys(rows)
 }
 
 // SoftDeleteSystemsByOrgID soft-deletes all active systems belonging to an organization (cascade deletion)

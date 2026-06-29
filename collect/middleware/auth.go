@@ -256,11 +256,18 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 	// unregistered system could push backups into S3 that the admin UI then
 	// cannot see (the backend hides `system_key` for non-registered systems
 	// in GetSystem, breaking the S3 prefix used by the listing endpoint).
+	// suspended_at is filtered too: a suspended system — directly, or via org
+	// cascade (SuspendSystemsBy* writes suspended_at down to every affected
+	// system) — must not authenticate, so no data is persisted on its behalf
+	// (heartbeat, inventory, backups, alerts/silences). Suspending publishes an
+	// auth-cache invalidation (cache.InvalidateSystemAuth) so this takes effect
+	// immediately instead of after SystemAuthCacheTTL, the same way DeleteSystem
+	// handles credential revocation.
 	var creds systemCredentialsRow
 	query := `
 		SELECT id, system_secret_public, system_secret_sha256, registered_at
 		FROM systems
-		WHERE system_key = $1 AND deleted_at IS NULL
+		WHERE system_key = $1 AND deleted_at IS NULL AND suspended_at IS NULL
 	`
 
 	queryCtx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)

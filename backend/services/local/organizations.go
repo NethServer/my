@@ -10,11 +10,13 @@
 package local
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/logger"
@@ -2117,11 +2119,12 @@ func (s *LocalOrganizationService) SuspendDistributor(id, suspendedByUserID, sus
 		}
 
 		// 5. Cascade suspend systems across all orgs
-		systemsCount, err := s.systemRepo.SuspendSystemsByMultipleOrgIDs(allOrgIDs, distLogtoID)
+		systemKeys, err := s.systemRepo.SuspendSystemsByMultipleOrgIDs(allOrgIDs, distLogtoID)
 		if err != nil {
 			logger.Warn().Err(err).Str("distributor_id", id).Msg("Failed to cascade suspend systems")
 		}
-		suspendedSystemsCount = systemsCount
+		invalidateSystemAuthKeys(systemKeys)
+		suspendedSystemsCount = len(systemKeys)
 	}
 
 	logger.Info().
@@ -2257,11 +2260,12 @@ func (s *LocalOrganizationService) SuspendReseller(id, suspendedByUserID, suspen
 		}
 
 		// 4. Cascade suspend systems across all orgs
-		systemsCount, err := s.systemRepo.SuspendSystemsByMultipleOrgIDs(allOrgIDs, resLogtoID)
+		systemKeys, err := s.systemRepo.SuspendSystemsByMultipleOrgIDs(allOrgIDs, resLogtoID)
 		if err != nil {
 			logger.Warn().Err(err).Str("reseller_id", id).Msg("Failed to cascade suspend systems")
 		}
-		suspendedSystemsCount = systemsCount
+		invalidateSystemAuthKeys(systemKeys)
+		suspendedSystemsCount = len(systemKeys)
 	}
 
 	logger.Info().
@@ -2533,36 +2537,48 @@ func (s *LocalOrganizationService) cascadeReactivateUsers(orgLogtoID, orgType, o
 
 // cascadeSuspendSystems suspends all active systems of an organization
 func (s *LocalOrganizationService) cascadeSuspendSystems(orgLogtoID, orgType, orgName string) (int, error) {
-	count, err := s.systemRepo.SuspendSystemsByOrgID(orgLogtoID)
+	systemKeys, err := s.systemRepo.SuspendSystemsByOrgID(orgLogtoID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to suspend systems locally: %w", err)
 	}
+	invalidateSystemAuthKeys(systemKeys)
 
 	logger.Info().
-		Int("suspended_systems", count).
+		Int("suspended_systems", len(systemKeys)).
 		Str("organization_logto_id", orgLogtoID).
 		Str("org_type", orgType).
 		Str("org_name", orgName).
 		Msg("Completed cascade system suspension for organization")
 
-	return count, nil
+	return len(systemKeys), nil
 }
 
 // cascadeReactivateSystems reactivates all cascade-suspended systems of an organization
 func (s *LocalOrganizationService) cascadeReactivateSystems(orgLogtoID, orgType, orgName string) (int, error) {
-	count, err := s.systemRepo.ReactivateSystemsByOrgID(orgLogtoID)
+	systemKeys, err := s.systemRepo.ReactivateSystemsByOrgID(orgLogtoID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to reactivate systems locally: %w", err)
 	}
+	invalidateSystemAuthKeys(systemKeys)
 
 	logger.Info().
-		Int("reactivated_systems", count).
+		Int("reactivated_systems", len(systemKeys)).
 		Str("organization_logto_id", orgLogtoID).
 		Str("org_type", orgType).
 		Str("org_name", orgName).
 		Msg("Completed cascade system reactivation for organization")
 
-	return count, nil
+	return len(systemKeys), nil
+}
+
+// invalidateSystemAuthKeys purges collect's cached credentials for each system so a
+// suspension or reactivation takes effect immediately instead of waiting for the
+// auth-cache TTL. Best effort: InvalidateSystemAuth never blocks (entries also
+// expire on their own within SystemAuthCacheTTL).
+func invalidateSystemAuthKeys(systemKeys []string) {
+	for _, key := range systemKeys {
+		cache.InvalidateSystemAuth(context.Background(), key)
+	}
 }
 
 // refreshUnifiedOrganizationsAsync refreshes the unified_organizations materialized
