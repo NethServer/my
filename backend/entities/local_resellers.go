@@ -254,6 +254,7 @@ func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, searc
 			"created_at":   "created_at",
 			"updated_at":   "updated_at",
 			"suspended_at": "suspended_at",
+			"creator_name": "LOWER(custom_data->'createdByUser'->>'name')",
 		}
 
 		if dbField, valid := validSortFields[sortBy]; valid {
@@ -358,6 +359,7 @@ func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pag
 			"created_at":   "created_at",
 			"updated_at":   "updated_at",
 			"suspended_at": "suspended_at",
+			"creator_name": "LOWER(custom_data->'createdByUser'->>'name')",
 		}
 
 		if dbField, valid := validSortFields[sortBy]; valid {

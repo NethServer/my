@@ -3052,7 +3052,7 @@ components:
       required: false
       schema:
         type: string
-        enum: ["name", "description", "created_at", "updated_at", "suspended_at"]
+        enum: ["name", "description", "created_at", "updated_at", "suspended_at", "creator_name"]
         example: "name"
 
     ResellerSortByParam:
@@ -3062,7 +3062,7 @@ components:
       required: false
       schema:
         type: string
-        enum: ["name", "description", "created_at", "updated_at", "suspended_at"]
+        enum: ["name", "description", "created_at", "updated_at", "suspended_at", "creator_name"]
         example: "name"
 
     CustomerSortByParam:
@@ -3072,7 +3072,7 @@ components:
       required: false
       schema:
         type: string
-        enum: ["name", "description", "created_at", "updated_at", "suspended_at"]
+        enum: ["name", "description", "created_at", "updated_at", "suspended_at", "creator_name"]
         example: "name"
 
     OrganizationSortByParam:
@@ -3141,16 +3141,22 @@ components:
       name: created_by
       in: query
       description: |
-        Filter organizations by creator. Repeat the parameter to pass multiple
-        values; each value matches either the creator user's logto_id or the
-        creator's organization logto_id (mirrors the systems created_by filter).
-        Allowed values come from GET /api/filters/{distributors|resellers|customers}.
+        Filter organizations by creator user ID or creator organization ID (exact match).
+        Each provided ID is checked against both the user_id and organization_id fields of the organization creator (custom_data.createdByUser).
+        Supports multiple values for checkbox filtering. Allowed values come from GET /api/filters/{distributors|resellers|customers}.
+
+        Examples:
+        - `?created_by=kyfy0tlnlk3l` - matches organizations created by user with ID kyfy0tlnlk3l
+        - `?created_by=obhdyclbfx4t` - matches organizations created by users in organization obhdyclbfx4t
+        - `?created_by=kyfy0tlnlk3l&created_by=obhdyclbfx4t` - matches organizations created by the user OR by users in the organization
       required: false
       schema:
         type: array
         items:
           type: string
-        example: ["kyfy0tlnlk3l"]
+        example: ["kyfy0tlnlk3l", "obhdyclbfx4t"]
+      style: form
+      explode: true
 
     SystemNameFilterParam:
       name: name
