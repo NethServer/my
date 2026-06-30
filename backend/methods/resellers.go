@@ -47,8 +47,18 @@ func CreateReseller(c *gin.Context) {
 		return
 	}
 
+	// Resolve the owning organization (custom_data.createdBy). By default the
+	// reseller is owned by the caller's org; an owner may attribute it to a
+	// distributor in their hierarchy via created_by_organization_id, preserving
+	// hierarchical visibility.
+	createdByOrgID, allowed, reason := service.ResolveCreatedByOrg(userOrgRole, user.OrganizationID, request.CreatedByOrganizationID, "reseller")
+	if !allowed {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied: "+reason, nil))
+		return
+	}
+
 	// Create reseller
-	reseller, err := service.CreateReseller(&request, models.NewOrgCreatorFromUser(*user), user.OrganizationID)
+	reseller, err := service.CreateReseller(&request, models.NewOrgCreatorFromUser(*user), createdByOrgID)
 	if err != nil {
 		// Check if it's a validation error from service
 		if validationErr := getValidationError(err); validationErr != nil {

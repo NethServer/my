@@ -272,12 +272,24 @@ type CreateLocalResellerRequest struct {
 	Name        string                 `json:"name" validate:"required,min=1,max=255"`
 	Description string                 `json:"description,omitempty"`
 	CustomData  map[string]interface{} `json:"custom_data,omitempty"`
+	// CreatedByOrganizationID, when set by an owner, attributes the new reseller
+	// to that ancestor distributor (its custom_data.createdBy) instead of the
+	// caller's own org. Empty = owned by the caller's org. See
+	// LocalOrganizationService.ResolveCreatedByOrg.
+	CreatedByOrganizationID string `json:"created_by_organization_id,omitempty"`
 }
 
 type CreateLocalCustomerRequest struct {
 	Name        string                 `json:"name" validate:"required,min=1,max=255"`
 	Description string                 `json:"description,omitempty"`
 	CustomData  map[string]interface{} `json:"custom_data,omitempty"`
+	// CreatedByOrganizationID, when set by an owner or distributor, attributes
+	// the new customer to that ancestor org (its custom_data.createdBy) instead
+	// of the caller's own org — used to preserve hierarchical ownership when an
+	// upper tier creates a customer on behalf of a reseller (e.g. the migration
+	// import). Empty = owned by the caller's org. See
+	// LocalOrganizationService.ResolveCreatedByOrg.
+	CreatedByOrganizationID string `json:"created_by_organization_id,omitempty"`
 }
 
 // Update requests

@@ -47,8 +47,18 @@ func CreateCustomer(c *gin.Context) {
 		return
 	}
 
+	// Resolve the owning organization (custom_data.createdBy). By default the
+	// customer is owned by the caller's org; an owner/distributor may attribute
+	// it to a reseller (or distributor) in their hierarchy via
+	// created_by_organization_id, preserving hierarchical visibility.
+	createdByOrgID, allowed, reason := service.ResolveCreatedByOrg(userOrgRole, user.OrganizationID, request.CreatedByOrganizationID, "customer")
+	if !allowed {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied: "+reason, nil))
+		return
+	}
+
 	// Create customer
-	customer, err := service.CreateCustomer(&request, models.NewOrgCreatorFromUser(*user), user.OrganizationID)
+	customer, err := service.CreateCustomer(&request, models.NewOrgCreatorFromUser(*user), createdByOrgID)
 	if err != nil {
 		// Check if it's a validation error from service
 		if validationErr := getValidationError(err); validationErr != nil {
