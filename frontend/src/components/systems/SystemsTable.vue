@@ -36,8 +36,8 @@ import {
   NeDropdown,
   type SortEvent,
   NeSortDropdown,
-  type FilterOption,
-  NeDropdownFilter,
+  type NeDropdownFilterV2Option,
+  NeDropdownFilterV2,
   NeTooltip,
   type NeDropdownItem,
 } from '@nethesis/vue-components'
@@ -104,7 +104,7 @@ const isShownReactivateSystemModal = ref(false)
 const isShownDestroySystemModal = ref(false)
 const newSecret = ref<string>('')
 
-const statusFilterOptions = ref<FilterOption[]>([
+const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
   {
     id: 'active',
     label: t('systems.status_active'),
@@ -153,8 +153,9 @@ const versionFilterOptions = computed(() => {
     }
 
     // filter versions based on selected products
+    const selectedProductIds = productFilter.value.map((o) => o.id)
     const productVersions = systemFiltersState.value.data.versions.filter((el) =>
-      productFilter.value.includes(el.product),
+      selectedProductIds.includes(el.product),
     )
     return buildVersionFilterOptions(productVersions)
   }
@@ -388,7 +389,7 @@ function onCloseSecretRegeneratedModal() {
             :placeholder="$t('systems.filter_systems')"
             class="max-w-48 sm:max-w-sm"
           />
-          <NeDropdownFilter
+          <NeDropdownFilterV2
             v-model="productFilter"
             kind="checkbox"
             :disabled="systemFiltersState.status === 'pending'"
@@ -401,7 +402,7 @@ function onCloseSecretRegeneratedModal() {
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
           />
-          <NeDropdownFilter
+          <NeDropdownFilterV2
             v-model="versionFilter"
             kind="checkbox"
             :disabled="systemFiltersState.status === 'pending'"
@@ -415,7 +416,7 @@ function onCloseSecretRegeneratedModal() {
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
           />
-          <NeDropdownFilter
+          <NeDropdownFilterV2
             v-model="createdByFilter"
             kind="checkbox"
             :disabled="systemFiltersState.status === 'pending'"
@@ -431,7 +432,7 @@ function onCloseSecretRegeneratedModal() {
           />
           <OrganizationDropdownFilter v-if="!isUserCustomer()" v-model="organizationFilter" />
           <!-- status filter -->
-          <NeDropdownFilter
+          <NeDropdownFilterV2
             v-model="statusFilter"
             kind="checkbox"
             :label="t('common.status')"

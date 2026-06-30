@@ -11,7 +11,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   NeBadgeV2,
   NeButton,
-  NeDropdownFilter,
+  NeDropdownFilterV2,
   NeEmptyState,
   NeInlineNotification,
   NePaginator,
@@ -23,7 +23,7 @@ import {
   NeTableHead,
   NeTableHeadCell,
   NeTableRow,
-  type FilterOption,
+  type NeDropdownFilterV2Option,
 } from '@nethesis/vue-components'
 import capitalize from 'lodash/capitalize'
 import { computed, ref } from 'vue'
@@ -70,7 +70,7 @@ const historyPagination = computed(() => historyState.value.data?.pagination)
 
 // ── Filter options ────────────────────────────────────────────────────────────
 
-const historyAlertNameOptions = computed<FilterOption[]>(() => {
+const historyAlertNameOptions = computed<NeDropdownFilterV2Option[]>(() => {
   const filterAlerts = (alertFiltersState.value.data?.alerts ?? []) as AlertFilterAlert[]
   const names = new Set<string>()
   filterAlerts.forEach((a: AlertFilterAlert) => {
@@ -141,7 +141,7 @@ function showDetails(alert: Alert): void {
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex flex-wrap items-center gap-3">
         <!-- Severity filter -->
-        <NeDropdownFilter
+        <NeDropdownFilterV2
           v-model="historySeverityFilters"
           kind="checkbox"
           :label="t('alerts.severity')"
@@ -155,7 +155,7 @@ function showDetails(alert: Alert): void {
           @update:model-value="() => (historyPageNum = 1)"
         />
         <!-- Alert name filter -->
-        <NeDropdownFilter
+        <NeDropdownFilterV2
           v-model="historyAlertNameFilters"
           kind="checkbox"
           :label="t('alerts.alert')"

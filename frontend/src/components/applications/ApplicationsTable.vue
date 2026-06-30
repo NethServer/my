@@ -21,7 +21,6 @@ import {
   NeDropdown,
   type SortEvent,
   type NeDropdownItem,
-  NeDropdownFilter,
   NeDropdownFilterV2,
   NeSortDropdown,
 } from '@nethesis/vue-components'
@@ -98,8 +97,9 @@ const versionFilterOptions = computed(() => {
     }
 
     // filter versions based on selected applications
+    const selectedTypeIds = typeFilter.value.map((o) => o.id)
     const applicationVersions = applicationFiltersState.value.data.versions.filter((el) =>
-      typeFilter.value.includes(el.application),
+      selectedTypeIds.includes(el.application),
     )
     return buildVersionFilterOptions(applicationVersions)
   }
@@ -210,7 +210,7 @@ const goToApplicationDetails = (application: Application) => {
               :placeholder="$t('applications.filter_applications')"
               class="max-w-48 sm:max-w-sm"
             />
-            <NeDropdownFilter
+            <NeDropdownFilterV2
               v-model="typeFilter"
               kind="checkbox"
               :disabled="applicationFiltersState.status === 'pending'"

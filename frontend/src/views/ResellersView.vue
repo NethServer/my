@@ -26,6 +26,7 @@ import {
   confirmResellersImport,
   RESELLERS_KEY,
   RESELLERS_TOTAL_KEY,
+  type ResellerStatus,
 } from '@/lib/organizations/resellers'
 import { downloadFile } from '@/lib/common'
 
@@ -69,7 +70,7 @@ async function exportResellers(format: 'pdf' | 'csv') {
     const exportData = await getExport(
       format,
       debouncedTextFilter.value,
-      statusFilter.value,
+      statusFilter.value.map((o) => o.id) as ResellerStatus[],
       sortBy.value,
       sortDescending.value,
     )

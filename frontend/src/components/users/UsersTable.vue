@@ -38,8 +38,8 @@ import {
   NeSortDropdown,
   sortByProperty,
   type NeDropdownItem,
-  NeDropdownFilter,
-  type FilterOption,
+  NeDropdownFilterV2,
+  type NeDropdownFilterV2Option,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import CreateOrEditUserDrawer from './CreateOrEditUserDrawer.vue'
@@ -105,7 +105,7 @@ const isShownDestroyUserModal = ref(false)
 const newPassword = ref<string>('')
 const isImpersonating = ref(false)
 
-const statusFilterOptions = ref<FilterOption[]>([
+const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
   {
     id: 'enabled',
     label: t('common.enabled'),
@@ -134,9 +134,9 @@ const areDefaultFiltersApplied = computed(() => {
     organizationFilter.value.length === 0 &&
     roleFilter.value.length === 0 &&
     statusFilter.value.length === 2 &&
-    statusFilter.value.includes('enabled') &&
-    statusFilter.value.includes('suspended') &&
-    !statusFilter.value.includes('deleted')
+    statusFilter.value.some((o) => o.id === 'enabled') &&
+    statusFilter.value.some((o) => o.id === 'suspended') &&
+    !statusFilter.value.some((o) => o.id === 'deleted')
   )
 })
 
@@ -156,7 +156,7 @@ const noEmptyStateShown = computed(() => {
   return !isNoDataEmptyStateShown.value && !isNoMatchEmptyStateShown.value
 })
 
-const roleFilterOptions = computed(() => {
+const roleFilterOptions = computed<NeDropdownFilterV2Option[]>(() => {
   if (!userFiltersState.value.data?.roles) {
     return []
   }
@@ -364,7 +364,7 @@ const goToAccount = () => {
           <!-- organization filter -->
           <OrganizationDropdownFilter v-if="!isUserCustomer()" v-model="organizationFilter" />
           <!-- role filter -->
-          <NeDropdownFilter
+          <NeDropdownFilterV2
             v-model="roleFilter"
             kind="checkbox"
             :label="t('users.role')"
@@ -378,7 +378,7 @@ const goToAccount = () => {
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
           />
           <!-- status filter -->
-          <NeDropdownFilter
+          <NeDropdownFilterV2
             v-model="statusFilter"
             kind="checkbox"
             :label="t('common.status')"

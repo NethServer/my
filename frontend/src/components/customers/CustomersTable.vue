@@ -36,8 +36,8 @@ import {
   NeDropdown,
   type SortEvent,
   NeSortDropdown,
-  NeDropdownFilter,
-  type FilterOption,
+  NeDropdownFilterV2,
+  type NeDropdownFilterV2Option,
   type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
@@ -86,7 +86,7 @@ const isShownReactivateCustomerModal = ref(false)
 const isShownRestoreCustomerModal = ref(false)
 const isShownDestroyCustomerModal = ref(false)
 
-const statusFilterOptions = ref<FilterOption[]>([
+const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
   {
     id: 'enabled',
     label: t('common.enabled'),
@@ -296,7 +296,7 @@ const goToCustomerDetails = (customer: Customer) => {
             class="max-w-48 sm:max-w-sm"
           />
           <!-- status filter -->
-          <NeDropdownFilter
+          <NeDropdownFilterV2
             v-model="statusFilter"
             kind="checkbox"
             :label="t('common.status')"
@@ -312,7 +312,7 @@ const goToCustomerDetails = (customer: Customer) => {
             @custom-action="resetStatusFilter"
           />
           <!-- created by filter -->
-          <NeDropdownFilter
+          <NeDropdownFilterV2
             v-model="createdByFilter"
             kind="checkbox"
             :disabled="customerFiltersState.status === 'pending'"

@@ -17,8 +17,11 @@ export const useUsers = defineQuery(() => {
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
   const organizationFilter = ref<NeDropdownFilterV2Option[]>([])
-  const roleFilter = ref<string[]>([])
-  const statusFilter = ref<UserStatus[]>(['enabled', 'suspended'])
+  const roleFilter = ref<NeDropdownFilterV2Option[]>([])
+  const statusFilter = ref<NeDropdownFilterV2Option[]>([
+    { id: 'enabled', label: 'enabled' },
+    { id: 'suspended', label: 'suspended' },
+  ])
   const sortBy = ref<keyof User>('name')
   const sortDescending = ref(false)
 
@@ -30,8 +33,8 @@ export const useUsers = defineQuery(() => {
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
         organizationFilter: organizationFilter.value.map((o) => o.id),
-        roleFilter: roleFilter.value,
-        statusFilter: statusFilter.value,
+        roleFilter: roleFilter.value.map((o) => o.id),
+        statusFilter: statusFilter.value.map((o) => o.id),
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -43,8 +46,8 @@ export const useUsers = defineQuery(() => {
         pageSize.value,
         debouncedTextFilter.value,
         organizationFilter.value.map((o) => o.id),
-        roleFilter.value,
-        statusFilter.value,
+        roleFilter.value.map((o) => o.id),
+        statusFilter.value.map((o) => o.id) as UserStatus[],
         sortBy.value,
         sortDescending.value,
       ),
@@ -56,9 +59,9 @@ export const useUsers = defineQuery(() => {
       organizationFilter.value.length === 0 &&
       roleFilter.value.length === 0 &&
       statusFilter.value.length === 2 &&
-      statusFilter.value.includes('enabled') &&
-      statusFilter.value.includes('suspended') &&
-      !statusFilter.value.includes('deleted')
+      statusFilter.value.some((o) => o.id === 'enabled') &&
+      statusFilter.value.some((o) => o.id === 'suspended') &&
+      !statusFilter.value.some((o) => o.id === 'deleted')
     )
   })
 
@@ -126,7 +129,10 @@ export const useUsers = defineQuery(() => {
   }
 
   const resetStatusFilter = () => {
-    statusFilter.value = ['enabled', 'suspended']
+    statusFilter.value = [
+      { id: 'enabled', label: 'enabled' },
+      { id: 'suspended', label: 'suspended' },
+    ]
   }
 
   return {

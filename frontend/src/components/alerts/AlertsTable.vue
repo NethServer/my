@@ -18,7 +18,7 @@ import {
   NeBadgeV2,
   NeButton,
   NeDropdown,
-  NeDropdownFilter,
+  NeDropdownFilterV2,
   NeEmptyState,
   NeInlineNotification,
   NePaginator,
@@ -30,7 +30,7 @@ import {
   NeTableHead,
   NeTableHeadCell,
   NeTableRow,
-  type FilterOption,
+  type NeDropdownFilterV2Option,
   type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
@@ -121,12 +121,12 @@ const noEmptyStateShown = computed(
 
 // ── Filter options ─────────────────────────────────────────────────────────────
 
-const alertNameFilterOptions = computed<FilterOption[]>(() => {
+const alertNameFilterOptions = computed<NeDropdownFilterV2Option[]>(() => {
   const alerts = alertFiltersState.value.data?.alerts ?? []
   return alerts.map((a: AlertFilterAlert) => ({ id: a.name, label: a.name }))
 })
 
-const statusFilterOptions: FilterOption[] = [
+const statusFilterOptions: NeDropdownFilterV2Option[] = [
   { id: 'active', label: t('alerts.unmuted') },
   { id: 'suppressed', label: t('alerts.muted') },
 ]
@@ -268,7 +268,7 @@ function goToSystems() {
         <!-- Filters -->
         <div class="flex flex-wrap items-center gap-4">
           <!-- Severity filter -->
-          <NeDropdownFilter
+          <NeDropdownFilterV2
             v-model="severityFilters"
             kind="checkbox"
             :label="t('alerts.severity')"
@@ -282,7 +282,7 @@ function goToSystems() {
             @update:model-value="() => (pageNum = 1)"
           />
           <!-- Alert name filter -->
-          <NeDropdownFilter
+          <NeDropdownFilterV2
             v-model="alertnameFilters"
             kind="checkbox"
             :label="t('alerts.alert')"
@@ -309,7 +309,7 @@ function goToSystems() {
             @update:model-value="() => (pageNum = 1)"
           />
           <!-- Status filter -->
-          <NeDropdownFilter
+          <NeDropdownFilterV2
             v-model="statusFilters"
             kind="checkbox"
             :label="t('common.status')"

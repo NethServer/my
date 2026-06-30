@@ -21,7 +21,7 @@ export const useApplications = defineQuery(() => {
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
-  const typeFilter = ref<string[]>([])
+  const typeFilter = ref<NeDropdownFilterV2Option[]>([])
   const versionFilter = ref<NeDropdownFilterV2Option[]>([])
   const systemFilter = ref<NeDropdownFilterV2Option[]>([])
   const organizationFilter = ref<NeDropdownFilterV2Option[]>([])
@@ -35,7 +35,7 @@ export const useApplications = defineQuery(() => {
         pageNum: pageNum.value,
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
-        typeFilter: typeFilter.value,
+        typeFilter: typeFilter.value.map((o) => o.id),
         versionFilter: versionFilter.value.map((o) => o.id),
         systemFilter: systemFilter.value.map((o) => o.id),
         organizationFilter: organizationFilter.value.map((o) => o.id),
@@ -49,7 +49,7 @@ export const useApplications = defineQuery(() => {
         pageNum.value,
         pageSize.value,
         debouncedTextFilter.value,
-        typeFilter.value,
+        typeFilter.value.map((o) => o.id),
         versionFilter.value.map((o) => o.id),
         systemFilter.value.map((o) => o.id),
         organizationFilter.value.map((o) => o.id),

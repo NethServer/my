@@ -24,11 +24,11 @@ import { useI18n } from 'vue-i18n'
 import {
   NeButton,
   NeBadgeV2,
-  NeDropdownFilter,
+  NeDropdownFilterV2,
   NeInlineNotification,
   NeSkeleton,
   NeTextInput,
-  type FilterOption,
+  type NeDropdownFilterV2Option,
   NeSpinner,
   NeLink,
   NeEmptyState,
@@ -98,13 +98,13 @@ watch(
 )
 
 // ── Filter options ────────────────────────────────────────────────────────────
-const severityFilterOptions = computed<FilterOption[]>(() =>
+const severityFilterOptions = computed<NeDropdownFilterV2Option[]>(() =>
   (['critical', 'high', 'medium', 'low'] as const)
     .filter((s) => (inventoryChangesState.value.data?.changes_by_severity?.[s] ?? 0) > 0)
     .map((s) => ({ id: s, label: capitalize(s) })),
 )
 
-const categoryFilterOptions = computed<FilterOption[]>(() => [
+const categoryFilterOptions = computed<NeDropdownFilterV2Option[]>(() => [
   { id: 'os', label: t('system_detail.category_os') },
   { id: 'hardware', label: t('system_detail.category_hardware') },
   { id: 'network', label: t('system_detail.category_network') },
@@ -117,7 +117,7 @@ const categoryFilterOptions = computed<FilterOption[]>(() => [
   { id: 'system', label: t('system_detail.category_system') },
 ])
 
-const diffTypeFilterOptions = computed<FilterOption[]>(() => [
+const diffTypeFilterOptions = computed<NeDropdownFilterV2Option[]>(() => [
   { id: 'create', label: t('system_detail.diff_type_create') },
   { id: 'update', label: t('system_detail.diff_type_update') },
   { id: 'delete', label: t('system_detail.diff_type_delete') },
@@ -346,25 +346,28 @@ watch(loadMoreTrigger, (el) => {
   onWatcherCleanup(() => observer.disconnect())
 })
 
-// ── Computed filter state for NeDropdownFilter (need arrays of string IDs) ───
-const severityFilterModel = computed<string[]>({
-  get: () => severityFilter.value as string[],
+// ── Computed filter state for NeDropdownFilterV2 (option arrays bridged to ID arrays) ───
+const severityFilterModel = computed<NeDropdownFilterV2Option[]>({
+  get: () =>
+    severityFilterOptions.value.filter((o) => (severityFilter.value as string[]).includes(o.id)),
   set: (val) => {
-    severityFilter.value = val as InventoryDiffSeverity[]
+    severityFilter.value = val.map((o) => o.id) as InventoryDiffSeverity[]
   },
 })
 
-const categoryFilterModel = computed<string[]>({
-  get: () => categoryFilter.value as string[],
+const categoryFilterModel = computed<NeDropdownFilterV2Option[]>({
+  get: () =>
+    categoryFilterOptions.value.filter((o) => (categoryFilter.value as string[]).includes(o.id)),
   set: (val) => {
-    categoryFilter.value = val as InventoryDiffCategory[]
+    categoryFilter.value = val.map((o) => o.id) as InventoryDiffCategory[]
   },
 })
 
-const diffTypeFilterModel = computed<string[]>({
-  get: () => diffTypeFilter.value as string[],
+const diffTypeFilterModel = computed<NeDropdownFilterV2Option[]>({
+  get: () =>
+    diffTypeFilterOptions.value.filter((o) => (diffTypeFilter.value as string[]).includes(o.id)),
   set: (val) => {
-    diffTypeFilter.value = val as InventoryDiffType[]
+    diffTypeFilter.value = val.map((o) => o.id) as InventoryDiffType[]
   },
 })
 
@@ -409,7 +412,7 @@ const localizedDateRange = computed(() => {
           class="max-w-xs"
         />
         <!-- Severity filter -->
-        <NeDropdownFilter
+        <NeDropdownFilterV2
           v-model="severityFilterModel"
           kind="checkbox"
           :label="t('system_detail.severity')"
@@ -422,7 +425,7 @@ const localizedDateRange = computed(() => {
           :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
         />
         <!-- Category filter -->
-        <NeDropdownFilter
+        <NeDropdownFilterV2
           v-model="categoryFilterModel"
           kind="checkbox"
           :label="t('system_detail.category')"
@@ -436,7 +439,7 @@ const localizedDateRange = computed(() => {
           :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
         />
         <!-- Change type filter -->
-        <NeDropdownFilter
+        <NeDropdownFilterV2
           v-model="diffTypeFilterModel"
           kind="checkbox"
           :label="t('system_detail.change_type')"

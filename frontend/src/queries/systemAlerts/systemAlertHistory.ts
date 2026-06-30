@@ -12,6 +12,7 @@ import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import type { NeDropdownFilterV2Option } from '@nethesis/vue-components'
 
 export const useSystemAlertHistory = defineQuery(() => {
   const loginStore = useLoginStore()
@@ -22,8 +23,8 @@ export const useSystemAlertHistory = defineQuery(() => {
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const sortBy = ref('starts_at')
   const sortDescending = ref(true)
-  const severityFilters = ref<string[]>([])
-  const alertnameFilters = ref<string[]>([])
+  const severityFilters = ref<NeDropdownFilterV2Option[]>([])
+  const alertnameFilters = ref<NeDropdownFilterV2Option[]>([])
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
@@ -33,8 +34,8 @@ export const useSystemAlertHistory = defineQuery(() => {
       pageSize.value,
       sortBy.value,
       sortDescending.value,
-      severityFilters.value.join(','),
-      alertnameFilters.value.join(','),
+      severityFilters.value.map((o) => o.id).join(','),
+      alertnameFilters.value.map((o) => o.id).join(','),
     ],
     enabled: () => !!loginStore.jwtToken && !!route.params.systemId && isHistoryEnabled.value,
     query: () =>
@@ -44,8 +45,8 @@ export const useSystemAlertHistory = defineQuery(() => {
         pageSize.value,
         sortBy.value,
         sortDescending.value,
-        severityFilters.value.length > 0 ? severityFilters.value : undefined,
-        alertnameFilters.value.length > 0 ? alertnameFilters.value : undefined,
+        severityFilters.value.length > 0 ? severityFilters.value.map((o) => o.id) : undefined,
+        alertnameFilters.value.length > 0 ? alertnameFilters.value.map((o) => o.id) : undefined,
       ),
     staleTime: ALERTS_REFETCH_INTERVAL_SECONDS * 1000,
     autoRefetch: true,

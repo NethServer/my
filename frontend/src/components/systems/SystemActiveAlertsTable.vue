@@ -16,7 +16,7 @@ import {
   NeBadgeV2,
   NeButton,
   NeDropdown,
-  NeDropdownFilter,
+  NeDropdownFilterV2,
   NeEmptyState,
   NeInlineNotification,
   NePaginator,
@@ -28,7 +28,7 @@ import {
   NeTableHead,
   NeTableHeadCell,
   NeTableRow,
-  type FilterOption,
+  type NeDropdownFilterV2Option,
   type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
@@ -110,7 +110,7 @@ const alertsSortDescending = computed({
 
 // ── Filter options ────────────────────────────────────────────────────────────
 
-const alertsAlertNameOptions = computed<FilterOption[]>(() => {
+const alertsAlertNameOptions = computed<NeDropdownFilterV2Option[]>(() => {
   const filterAlerts = (alertFiltersState.value.data?.alerts ?? []) as AlertFilterAlert[]
   const names = new Set<string>()
   filterAlerts.forEach((a: AlertFilterAlert) => {
@@ -262,7 +262,7 @@ function onMuteDrawerClose(): void {
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex flex-wrap items-center gap-3">
         <!-- Severity filter -->
-        <NeDropdownFilter
+        <NeDropdownFilterV2
           v-model="alertsSeverityFilters"
           kind="checkbox"
           :label="t('alerts.severity')"
@@ -276,7 +276,7 @@ function onMuteDrawerClose(): void {
           @update:model-value="() => (alertsPageNum = 1)"
         />
         <!-- Alert name filter -->
-        <NeDropdownFilter
+        <NeDropdownFilterV2
           v-model="alertsAlertNameFilters"
           kind="checkbox"
           :label="t('alerts.alert')"
@@ -291,7 +291,7 @@ function onMuteDrawerClose(): void {
           @update:model-value="() => (alertsPageNum = 1)"
         />
         <!-- Status filter -->
-        <NeDropdownFilter
+        <NeDropdownFilterV2
           v-model="alertsStatusFilters"
           kind="checkbox"
           :label="t('common.status')"

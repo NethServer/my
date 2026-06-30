@@ -26,6 +26,7 @@ import {
   confirmCustomersImport,
   CUSTOMERS_KEY,
   CUSTOMERS_TOTAL_KEY,
+  type CustomerStatus,
 } from '@/lib/organizations/customers'
 import { downloadFile } from '@/lib/common'
 
@@ -69,7 +70,7 @@ async function exportCustomers(format: 'pdf' | 'csv') {
     const exportData = await getExport(
       format,
       debouncedTextFilter.value,
-      statusFilter.value,
+      statusFilter.value.map((o) => o.id) as CustomerStatus[],
       sortBy.value,
       sortDescending.value,
     )
