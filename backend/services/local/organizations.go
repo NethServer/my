@@ -610,6 +610,61 @@ func (s *LocalOrganizationService) CanCreateCustomer(userOrgRole, userOrgID stri
 	}
 }
 
+// ResolveCreatedByOrg determines the owning organization (custom_data.createdBy)
+// for a newly created reseller or customer.
+//
+// Visibility in this system keys ENTIRELY on custom_data.createdBy: a reseller
+// sees customers whose createdBy is the reseller, a distributor sees resellers
+// (and their customers) whose createdBy chains up to it. So an entity created by
+// an upper tier on behalf of a lower one (e.g. the distributor-token migration
+// import creating customers that belong to a reseller) must be stamped with the
+// lower tier's org id, otherwise it stays invisible to that tier.
+//
+// By default the entity is owned by the caller's own org (current behaviour).
+// An owner or distributor may instead pass created_by_organization_id to
+// attribute it to an ancestor org, subject to:
+//   - only owner/distributor may override;
+//   - the target must sit within the caller's manageable hierarchy;
+//   - the target must be a valid parent type for childType — a "reseller" must
+//     be attributed to a distributor, a "customer" to a reseller or distributor.
+//
+// It returns the effective createdBy org id, whether the request is allowed, and
+// a human-readable reason when it is not.
+func (s *LocalOrganizationService) ResolveCreatedByOrg(userOrgRole, userOrgID, targetOrgID, childType string) (string, bool, string) {
+	// Default: own org (unchanged behaviour).
+	if targetOrgID == "" || targetOrgID == userOrgID {
+		return userOrgID, true, ""
+	}
+
+	role := strings.ToLower(userOrgRole)
+	if role != "owner" && role != "distributor" {
+		return "", false, "only owner or distributor can set created_by_organization_id"
+	}
+
+	// The target must sit within the caller's manageable hierarchy.
+	if !NewUserService().IsOrganizationInHierarchy(role, userOrgID, targetOrgID) {
+		return "", false, "created_by_organization_id is not within your hierarchy"
+	}
+
+	// The target must be a valid parent type for the entity being created.
+	switch strings.ToLower(childType) {
+	case "reseller":
+		if _, err := s.distributorRepo.GetByID(targetOrgID); err != nil {
+			return "", false, "a reseller can only be attributed to a distributor"
+		}
+	case "customer":
+		_, rErr := s.resellerRepo.GetByID(targetOrgID)
+		_, dErr := s.distributorRepo.GetByID(targetOrgID)
+		if rErr != nil && dErr != nil {
+			return "", false, "a customer can only be attributed to a reseller or distributor"
+		}
+	default:
+		return "", false, "unsupported entity type for created_by_organization_id"
+	}
+
+	return targetOrgID, true, ""
+}
+
 // ============================================
 // READ OPERATIONS (GetByID and List)
 // ============================================

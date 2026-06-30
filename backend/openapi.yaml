@@ -1246,6 +1246,17 @@ components:
           type: string
           description: Organization description
           example: "Main distributor for Italian and Swiss markets"
+        created_by_organization_id:
+          type: string
+          description: >-
+            Optional. Attributes the new organization to an ancestor org (its
+            custom_data.createdBy) instead of the caller's own org — used to
+            preserve hierarchical ownership when an upper tier creates an entity
+            on behalf of a lower one. Honored only for reseller creation (owner
+            only; target must be a distributor) and customer creation (owner or
+            distributor; target must be a reseller or distributor) within the
+            caller's hierarchy. Empty = owned by the caller's organization.
+          example: "eeex9cffzsd7"
         custom_data:
           type: object
           description: Custom organization data (vat field is required)
