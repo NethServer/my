@@ -54,6 +54,16 @@ export const DistributorSchema = v.object({
   systems_count: v.number(),
   resellers_count: v.number(),
   customers_count: v.number(),
+  created_by: v.optional(
+    v.object({
+      user_id: v.string(),
+      username: v.string(),
+      name: v.string(),
+      email: v.string(),
+      organization_id: v.string(),
+      organization_name: v.string(),
+    }),
+  ),
 })
 
 export type CreateDistributor = v.InferOutput<typeof CreateDistributorSchema>
@@ -74,6 +84,7 @@ export const getQueryStringParams = (
   pageSize: number,
   textFilter: string | null,
   statusFilter: DistributorStatus[],
+  createdByFilter: string[],
   sortBy: string | null,
   sortDescending: boolean,
 ) => {
@@ -91,6 +102,11 @@ export const getQueryStringParams = (
   statusFilter.forEach((status) => {
     searchParams.append('status', status)
   })
+
+  createdByFilter.forEach((userId) => {
+    searchParams.append('created_by', userId)
+  })
+
   return searchParams.toString()
 }
 
@@ -99,6 +115,7 @@ export const getDistributors = (
   pageSize: number,
   textFilter: string,
   statusFilter: DistributorStatus[],
+  createdByFilter: string[],
   sortBy: string,
   sortDescending: boolean,
 ) => {
@@ -108,6 +125,7 @@ export const getDistributors = (
     pageSize,
     textFilter,
     statusFilter,
+    createdByFilter,
     sortBy,
     sortDescending,
   )

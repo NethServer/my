@@ -22,6 +22,7 @@ export const useDistributors = defineQuery(() => {
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
   const statusFilter = ref<DistributorStatus[]>(['enabled', 'suspended'])
+  const createdByFilter = ref<string[]>([])
   const sortBy = ref<keyof Distributor>('name')
   const sortDescending = ref(false)
 
@@ -33,6 +34,7 @@ export const useDistributors = defineQuery(() => {
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
         statusFilter: statusFilter.value,
+        createdByFilter: createdByFilter.value,
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -44,6 +46,7 @@ export const useDistributors = defineQuery(() => {
         pageSize.value,
         debouncedTextFilter.value,
         statusFilter.value,
+        createdByFilter.value,
         sortBy.value,
         sortDescending.value,
       ),
@@ -55,7 +58,8 @@ export const useDistributors = defineQuery(() => {
       statusFilter.value.length === 2 &&
       statusFilter.value.includes('enabled') &&
       statusFilter.value.includes('suspended') &&
-      !statusFilter.value.includes('deleted')
+      !statusFilter.value.includes('deleted') &&
+      createdByFilter.value.length === 0
     )
   })
 
@@ -100,8 +104,18 @@ export const useDistributors = defineQuery(() => {
     { deep: true },
   )
 
+  // reset to first page when createdBy filter changes
+  watch(
+    () => createdByFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+    { deep: true },
+  )
+
   const resetFilters = () => {
     textFilter.value = ''
+    createdByFilter.value = []
     resetStatusFilter()
   }
 
@@ -118,6 +132,7 @@ export const useDistributors = defineQuery(() => {
     textFilter,
     debouncedTextFilter,
     statusFilter,
+    createdByFilter,
     sortBy,
     sortDescending,
     areDefaultFiltersApplied,

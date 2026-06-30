@@ -6,6 +6,7 @@
 <script setup lang="ts">
 import { CUSTOMERS_TABLE_ID, type Customer } from '@/lib/organizations/customers'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
+import { useCustomerFilters } from '@/queries/organizations/customerFilters'
 import {
   faCircleInfo,
   faPenToSquare,
@@ -40,6 +41,7 @@ import {
   type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
+import UserAvatar from '@/components/users/UserAvatar.vue'
 import CreateOrEditCustomerDrawer from './CreateOrEditCustomerDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteCustomerModal from './DeleteCustomerModal.vue'
@@ -67,12 +69,14 @@ const {
   pageSize,
   textFilter,
   statusFilter,
+  createdByFilter,
   sortBy,
   sortDescending,
   areDefaultFiltersApplied,
   resetFilters,
   resetStatusFilter,
 } = useCustomers()
+const { state: customerFiltersState } = useCustomerFilters()
 
 const currentCustomer = ref<Customer | undefined>()
 const isShownCreateOrEditCustomerDrawer = ref(false)
@@ -96,6 +100,17 @@ const statusFilterOptions = ref<FilterOption[]>([
     label: t('common.archived'),
   },
 ])
+
+const createdByFilterOptions = computed(() => {
+  if (!customerFiltersState.value.data || !customerFiltersState.value.data.created_by) {
+    return []
+  } else {
+    return customerFiltersState.value.data.created_by.map((user) => ({
+      id: user.user_id,
+      label: user.name,
+    }))
+  }
+})
 
 const customersPage = computed(() => {
   return state.value.data?.customers
@@ -296,12 +311,27 @@ const goToCustomerDetails = (customer: Customer) => {
             :custom-action-label="t('ne_dropdown_filter.reset_selection')"
             @custom-action="resetStatusFilter"
           />
+          <!-- created by filter -->
+          <NeDropdownFilter
+            v-model="createdByFilter"
+            kind="checkbox"
+            :disabled="customerFiltersState.status === 'pending'"
+            :label="t('systems.created_by')"
+            :options="createdByFilterOptions"
+            show-options-filter
+            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          />
           <NeSortDropdown
             v-model:sort-key="sortBy"
             v-model:sort-descending="sortDescending"
             :label="t('sort.sort')"
             :options="[
               { id: 'name', label: t('organizations.name') },
+              { id: 'creator_name', label: t('systems.created_by') },
               { id: 'suspended_at', label: t('common.status') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
@@ -340,7 +370,7 @@ const goToCustomerDetails = (customer: Customer) => {
       :sort-key="sortBy"
       :sort-descending="sortDescending"
       :aria-label="$t('customers.title')"
-      card-breakpoint="xl"
+      card-breakpoint="2xl"
       :loading="state.status === 'pending'"
       :skeleton-columns="5"
       :skeleton-rows="7"
@@ -353,6 +383,9 @@ const goToCustomerDetails = (customer: Customer) => {
         <NeTableHeadCell>
           {{ $t('systems.title') }}
         </NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="creator_name" @sort="onSort">{{
+          $t('systems.created_by')
+        }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
           $t('common.status')
         }}</NeTableHeadCell>
@@ -390,6 +423,30 @@ const goToCustomerDetails = (customer: Customer) => {
               {{ item.systems_count }}
             </div>
           </NeTableCell>
+          <NeTableCell :data-label="$t('systems.created_by')">
+            <div :class="{ 'opacity-50': item.deleted_at }">
+              <template v-if="item.created_by">
+                <div class="flex items-center gap-2">
+                  <UserAvatar
+                    size="sm"
+                    :is-owner="item.created_by.username === 'owner'"
+                    :name="item.created_by.name"
+                    :logto-id="item.created_by.user_id"
+                  />
+                  <div class="space-y-0.5">
+                    <div>{{ item.created_by.name || '-' }}</div>
+                    <div
+                      v-if="item.created_by.organization_name"
+                      class="text-gray-500 dark:text-gray-400"
+                    >
+                      {{ item.created_by.organization_name }}
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <template v-else>-</template>
+            </div>
+          </NeTableCell>
           <NeTableCell :data-label="$t('common.status')">
             <div class="flex items-center gap-2">
               <template v-if="item.deleted_at">
@@ -425,7 +482,7 @@ const goToCustomerDetails = (customer: Customer) => {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+            <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
               <NeButton v-if="!item.deleted_at" kind="tertiary" @click="goToCustomerDetails(item)">
                 <template #prefix>
                   <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />

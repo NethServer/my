@@ -53,6 +53,16 @@ export const ResellerSchema = v.object({
   deleted_at: v.optional(v.string()),
   systems_count: v.number(),
   customers_count: v.number(),
+  created_by: v.optional(
+    v.object({
+      user_id: v.string(),
+      username: v.string(),
+      name: v.string(),
+      email: v.string(),
+      organization_id: v.string(),
+      organization_name: v.string(),
+    }),
+  ),
 })
 
 export type CreateReseller = v.InferOutput<typeof CreateResellerSchema>
@@ -73,6 +83,7 @@ export const getQueryStringParams = (
   pageSize: number,
   textFilter: string | null,
   statusFilter: ResellerStatus[],
+  createdByFilter: string[],
   sortBy: string | null,
   sortDescending: boolean,
 ) => {
@@ -91,6 +102,10 @@ export const getQueryStringParams = (
     searchParams.append('status', status)
   })
 
+  createdByFilter.forEach((userId) => {
+    searchParams.append('created_by', userId)
+  })
+
   return searchParams.toString()
 }
 
@@ -99,6 +114,7 @@ export const getResellers = (
   pageSize: number,
   textFilter: string,
   statusFilter: ResellerStatus[],
+  createdByFilter: string[],
   sortBy: string,
   sortDescending: boolean,
 ) => {
@@ -108,6 +124,7 @@ export const getResellers = (
     pageSize,
     textFilter,
     statusFilter,
+    createdByFilter,
     sortBy,
     sortDescending,
   )
