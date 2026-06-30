@@ -246,6 +246,7 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 			"created_at":   "created_at",
 			"updated_at":   "updated_at",
 			"suspended_at": "suspended_at",
+			"creator_name": "LOWER(custom_data->'createdByUser'->>'name')",
 		}
 
 		if dbField, valid := validSortFields[sortBy]; valid {
