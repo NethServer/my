@@ -28,17 +28,23 @@ import (
 // single generous page captures every distinct creator the user can see.
 const orgFiltersScanLimit = 100000
 
-// creatorFilterOption is one selectable creator in the filters dropdown,
-// mirroring the systems created_by filter shape (user_id, name, email).
+// creatorFilterOption is one selectable creator in the filters dropdown. It
+// carries the creator's org (name + id) alongside the user so the UI can
+// disambiguate homonyms — two different people with the same name but in
+// different organizations — mirroring the "Created by" table column.
 type creatorFilterOption struct {
-	UserID string `json:"user_id"`
-	Name   string `json:"name"`
-	Email  string `json:"email"`
+	UserID           string `json:"user_id"`
+	Name             string `json:"name"`
+	Email            string `json:"email"`
+	OrganizationID   string `json:"organization_id"`
+	OrganizationName string `json:"organization_name"`
 }
 
 // distinctCreators collects the unique creators from a page of organizations,
-// deduplicated by user_id and sorted by name. Organizations without a creator
-// snapshot are skipped.
+// deduplicated by user_id and sorted by name. This keeps the option list shape
+// unchanged (one entry per user); the creator's org (from the first record seen
+// for that user) is attached purely so the UI can label homonyms. Organizations
+// without a creator snapshot are skipped.
 func distinctCreators[T any](items []T, get func(T) *models.OrgCreator) []creatorFilterOption {
 	seen := make(map[string]bool)
 	out := make([]creatorFilterOption, 0)
@@ -48,7 +54,13 @@ func distinctCreators[T any](items []T, get func(T) *models.OrgCreator) []creato
 			continue
 		}
 		seen[cb.UserID] = true
-		out = append(out, creatorFilterOption{UserID: cb.UserID, Name: cb.Name, Email: cb.Email})
+		out = append(out, creatorFilterOption{
+			UserID:           cb.UserID,
+			Name:             cb.Name,
+			Email:            cb.Email,
+			OrganizationID:   cb.OrganizationID,
+			OrganizationName: cb.OrganizationName,
+		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out

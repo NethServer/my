@@ -58,6 +58,21 @@ func CreateSystem(c *gin.Context) {
 		OrganizationName: user.OrganizationName,
 	}
 
+	// When an owner/distributor creates a system on behalf of an ancestor org via
+	// created_by_organization_id, stamp that org on the creator snapshot so the
+	// displayed "created by" matches the owning reseller/distributor (parity with
+	// customers). Display/audit only: system ownership stays organization_id-based;
+	// the user identity stays the actual actor.
+	if request.CreatedByOrganizationID != "" {
+		orgService := local.NewOrganizationService()
+		createdByOrgID, createdByOrgName, allowed, reason := orgService.ResolveCreatedByOrg(user.OrgRole, user.OrganizationID, request.CreatedByOrganizationID, "system")
+		if !allowed {
+			c.JSON(http.StatusForbidden, response.Forbidden("access denied: "+reason, nil))
+			return
+		}
+		creatorInfo.AttributeToOrg(createdByOrgID, createdByOrgName)
+	}
+
 	// Create system with automatic secret generation
 	system, err := systemsService.CreateSystem(&request, creatorInfo, user.OrgRole, user.OrganizationID)
 	if err != nil {

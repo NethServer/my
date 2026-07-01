@@ -25,6 +25,19 @@ type SystemCreator struct {
 	OrganizationName string `json:"organization_name" structs:"organization_name"`
 }
 
+// AttributeToOrg re-points the system creator snapshot's organization to an
+// attributed owner org (resolved from created_by_organization_id) while keeping
+// the user identity that actually performed the action. The system's ownership
+// and RBAC are governed by its organization_id, not by this snapshot, so this is
+// display/audit only. No-op when orgID/orgName are empty or already match.
+func (c *SystemCreator) AttributeToOrg(orgID, orgName string) {
+	if c == nil || orgID == "" || orgName == "" || orgID == c.OrganizationID {
+		return
+	}
+	c.OrganizationID = orgID
+	c.OrganizationName = orgName
+}
+
 // System represents a managed system in the infrastructure
 type System struct {
 	ID               string            `json:"id" structs:"id"`
@@ -67,6 +80,13 @@ type CreateSystemRequest struct {
 	OrganizationID string            `json:"organization_id" binding:"required" structs:"organization_id"`
 	CustomData     map[string]string `json:"custom_data" structs:"custom_data"`
 	Notes          string            `json:"notes" structs:"notes"`
+	// CreatedByOrganizationID, when set by an owner or distributor, attributes the
+	// new system's created_by display org to an ancestor org in their hierarchy
+	// (e.g. a bulk import creating systems on behalf of a reseller) instead of the
+	// caller's own org. Display/audit only — system ownership and visibility stay
+	// governed by OrganizationID. Resolved via
+	// LocalOrganizationService.ResolveCreatedByOrg.
+	CreatedByOrganizationID string `json:"created_by_organization_id,omitempty" structs:"-"`
 }
 
 // UpdateSystemRequest represents the request payload for updating an existing system

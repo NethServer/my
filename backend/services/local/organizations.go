@@ -626,7 +626,8 @@ func (s *LocalOrganizationService) CanCreateCustomer(userOrgRole, userOrgID stri
 //   - only owner/distributor may override;
 //   - the target must sit within the caller's manageable hierarchy;
 //   - the target must be a valid parent type for childType — a "reseller" must
-//     be attributed to a distributor, a "customer" to a reseller or distributor.
+//     be attributed to a distributor, a "customer" or "system" to a reseller or
+//     distributor.
 //
 // It returns the effective createdBy org id, the attributed org's display name
 // (empty when the entity stays owned by the caller's own org), whether the request
@@ -657,13 +658,13 @@ func (s *LocalOrganizationService) ResolveCreatedByOrg(userOrgRole, userOrgID, t
 			return "", "", false, "a reseller can only be attributed to a distributor"
 		}
 		orgName = distributor.Name
-	case "customer":
+	case "customer", "system":
 		if reseller, err := s.resellerRepo.GetByID(targetOrgID); err == nil {
 			orgName = reseller.Name
 		} else if distributor, err := s.distributorRepo.GetByID(targetOrgID); err == nil {
 			orgName = distributor.Name
 		} else {
-			return "", "", false, "a customer can only be attributed to a reseller or distributor"
+			return "", "", false, "created_by_organization_id must be a reseller or distributor"
 		}
 	default:
 		return "", "", false, "unsupported entity type for created_by_organization_id"

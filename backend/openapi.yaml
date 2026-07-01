@@ -2016,6 +2016,14 @@ components:
                 type: string
                 description: Creator email
                 example: "sviluppo+integrazioni@nethesis.it"
+              organization_id:
+                type: string
+                description: Logto ID of the creator's organization, to disambiguate homonyms in the filter UI
+                example: "eeex9cffzsd7"
+              organization_name:
+                type: string
+                description: Display name of the creator's organization
+                example: "Nethesis Diretta"
 
     CreateSystemInput:
       type: object
@@ -2045,6 +2053,17 @@ components:
           type: string
           description: Additional notes or description for the system (optional)
           example: "Production web server for EU region"
+        created_by_organization_id:
+          type: string
+          description: >-
+            Optional. Attributes the new system's created_by display org to an
+            ancestor org (a reseller or distributor) instead of the caller's own
+            org — used when an upper tier creates a system on behalf of a lower
+            one (e.g. bulk import). Honored only for owner or distributor callers,
+            with the target within the caller's hierarchy. Display/audit only:
+            system ownership and visibility stay governed by organization_id.
+            Empty = attributed to the caller's organization.
+          example: "0lomt7qqpbue"
 
     UpdateSystemInput:
       type: object
