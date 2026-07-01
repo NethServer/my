@@ -70,6 +70,21 @@ func NewOrgCreatorFromUser(u User) *OrgCreator {
 	}
 }
 
+// AttributeToOrg re-points the creator snapshot's organization to an attributed
+// owner org (the one resolved from created_by_organization_id) while preserving
+// the user identity that actually performed the action. This mirrors the system
+// creator behaviour: the top-level created_by shows the owning reseller/distributor
+// rather than the API/distributor account that made the call. It is a no-op when
+// orgID/orgName are empty or already match the creator's org, so the default
+// "own org" path is unaffected.
+func (c *OrgCreator) AttributeToOrg(orgID, orgName string) {
+	if c == nil || orgID == "" || orgName == "" || orgID == c.OrganizationID {
+		return
+	}
+	c.OrganizationID = orgID
+	c.OrganizationName = orgName
+}
+
 // ExtractOrgCreator pulls the createdByUser snapshot out of an organization's
 // custom_data (populated at creation time), returning it as a typed value and
 // removing the raw key from the map so it is exposed only as the top-level

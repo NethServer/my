@@ -51,14 +51,21 @@ func CreateReseller(c *gin.Context) {
 	// reseller is owned by the caller's org; an owner may attribute it to a
 	// distributor in their hierarchy via created_by_organization_id, preserving
 	// hierarchical visibility.
-	createdByOrgID, allowed, reason := service.ResolveCreatedByOrg(userOrgRole, user.OrganizationID, request.CreatedByOrganizationID, "reseller")
+	createdByOrgID, createdByOrgName, allowed, reason := service.ResolveCreatedByOrg(userOrgRole, user.OrganizationID, request.CreatedByOrganizationID, "reseller")
 	if !allowed {
 		c.JSON(http.StatusForbidden, response.Forbidden("access denied: "+reason, nil))
 		return
 	}
 
+	// Build the creator snapshot. When the reseller is attributed to a distributor
+	// via created_by_organization_id, stamp that org on the snapshot so the display
+	// "created by" matches the owning distributor (mirroring systems); the user
+	// identity stays the actual actor.
+	creator := models.NewOrgCreatorFromUser(*user)
+	creator.AttributeToOrg(createdByOrgID, createdByOrgName)
+
 	// Create reseller
-	reseller, err := service.CreateReseller(&request, models.NewOrgCreatorFromUser(*user), createdByOrgID)
+	reseller, err := service.CreateReseller(&request, creator, createdByOrgID)
 	if err != nil {
 		// Check if it's a validation error from service
 		if validationErr := getValidationError(err); validationErr != nil {

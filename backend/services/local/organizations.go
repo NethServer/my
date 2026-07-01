@@ -628,41 +628,48 @@ func (s *LocalOrganizationService) CanCreateCustomer(userOrgRole, userOrgID stri
 //   - the target must be a valid parent type for childType — a "reseller" must
 //     be attributed to a distributor, a "customer" to a reseller or distributor.
 //
-// It returns the effective createdBy org id, whether the request is allowed, and
-// a human-readable reason when it is not.
-func (s *LocalOrganizationService) ResolveCreatedByOrg(userOrgRole, userOrgID, targetOrgID, childType string) (string, bool, string) {
+// It returns the effective createdBy org id, the attributed org's display name
+// (empty when the entity stays owned by the caller's own org), whether the request
+// is allowed, and a human-readable reason when it is not.
+func (s *LocalOrganizationService) ResolveCreatedByOrg(userOrgRole, userOrgID, targetOrgID, childType string) (string, string, bool, string) {
 	// Default: own org (unchanged behaviour).
 	if targetOrgID == "" || targetOrgID == userOrgID {
-		return userOrgID, true, ""
+		return userOrgID, "", true, ""
 	}
 
 	role := strings.ToLower(userOrgRole)
 	if role != "owner" && role != "distributor" {
-		return "", false, "only owner or distributor can set created_by_organization_id"
+		return "", "", false, "only owner or distributor can set created_by_organization_id"
 	}
 
 	// The target must sit within the caller's manageable hierarchy.
 	if !NewUserService().IsOrganizationInHierarchy(role, userOrgID, targetOrgID) {
-		return "", false, "created_by_organization_id is not within your hierarchy"
+		return "", "", false, "created_by_organization_id is not within your hierarchy"
 	}
 
-	// The target must be a valid parent type for the entity being created.
+	// The target must be a valid parent type for the entity being created; capture
+	// its name so the caller can stamp the creator snapshot's org.
+	var orgName string
 	switch strings.ToLower(childType) {
 	case "reseller":
-		if _, err := s.distributorRepo.GetByID(targetOrgID); err != nil {
-			return "", false, "a reseller can only be attributed to a distributor"
+		distributor, err := s.distributorRepo.GetByID(targetOrgID)
+		if err != nil {
+			return "", "", false, "a reseller can only be attributed to a distributor"
 		}
+		orgName = distributor.Name
 	case "customer":
-		_, rErr := s.resellerRepo.GetByID(targetOrgID)
-		_, dErr := s.distributorRepo.GetByID(targetOrgID)
-		if rErr != nil && dErr != nil {
-			return "", false, "a customer can only be attributed to a reseller or distributor"
+		if reseller, err := s.resellerRepo.GetByID(targetOrgID); err == nil {
+			orgName = reseller.Name
+		} else if distributor, err := s.distributorRepo.GetByID(targetOrgID); err == nil {
+			orgName = distributor.Name
+		} else {
+			return "", "", false, "a customer can only be attributed to a reseller or distributor"
 		}
 	default:
-		return "", false, "unsupported entity type for created_by_organization_id"
+		return "", "", false, "unsupported entity type for created_by_organization_id"
 	}
 
-	return targetOrgID, true, ""
+	return targetOrgID, orgName, true, ""
 }
 
 // ============================================

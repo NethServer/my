@@ -51,14 +51,21 @@ func CreateCustomer(c *gin.Context) {
 	// customer is owned by the caller's org; an owner/distributor may attribute
 	// it to a reseller (or distributor) in their hierarchy via
 	// created_by_organization_id, preserving hierarchical visibility.
-	createdByOrgID, allowed, reason := service.ResolveCreatedByOrg(userOrgRole, user.OrganizationID, request.CreatedByOrganizationID, "customer")
+	createdByOrgID, createdByOrgName, allowed, reason := service.ResolveCreatedByOrg(userOrgRole, user.OrganizationID, request.CreatedByOrganizationID, "customer")
 	if !allowed {
 		c.JSON(http.StatusForbidden, response.Forbidden("access denied: "+reason, nil))
 		return
 	}
 
+	// Build the creator snapshot. When the customer is attributed to an ancestor
+	// org via created_by_organization_id, stamp that org on the snapshot so the
+	// display "created by" matches the owning reseller/distributor (mirroring
+	// systems); the user identity stays the actual actor.
+	creator := models.NewOrgCreatorFromUser(*user)
+	creator.AttributeToOrg(createdByOrgID, createdByOrgName)
+
 	// Create customer
-	customer, err := service.CreateCustomer(&request, models.NewOrgCreatorFromUser(*user), createdByOrgID)
+	customer, err := service.CreateCustomer(&request, creator, createdByOrgID)
 	if err != nil {
 		// Check if it's a validation error from service
 		if validationErr := getValidationError(err); validationErr != nil {
