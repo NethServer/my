@@ -8,6 +8,7 @@ import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
 import { computed, ref, watch } from 'vue'
+import type { NeDropdownFilterV2Option } from '@nethesis/vue-components'
 
 export const useUsers = defineQuery(() => {
   const loginStore = useLoginStore()
@@ -15,9 +16,12 @@ export const useUsers = defineQuery(() => {
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
-  const organizationFilter = ref<string[]>([])
-  const roleFilter = ref<string[]>([])
-  const statusFilter = ref<UserStatus[]>(['enabled', 'suspended'])
+  const organizationFilter = ref<NeDropdownFilterV2Option[]>([])
+  const roleFilter = ref<NeDropdownFilterV2Option[]>([])
+  const statusFilter = ref<NeDropdownFilterV2Option[]>([
+    { id: 'enabled', label: 'enabled' },
+    { id: 'suspended', label: 'suspended' },
+  ])
   const sortBy = ref<keyof User>('name')
   const sortDescending = ref(false)
 
@@ -28,9 +32,9 @@ export const useUsers = defineQuery(() => {
         pageNum: pageNum.value,
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
-        organizationFilter: organizationFilter.value,
-        roleFilter: roleFilter.value,
-        statusFilter: statusFilter.value,
+        organizationFilter: organizationFilter.value.map((o) => o.id),
+        roleFilter: roleFilter.value.map((o) => o.id),
+        statusFilter: statusFilter.value.map((o) => o.id),
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -41,9 +45,9 @@ export const useUsers = defineQuery(() => {
         pageNum.value,
         pageSize.value,
         debouncedTextFilter.value,
-        organizationFilter.value,
-        roleFilter.value,
-        statusFilter.value,
+        organizationFilter.value.map((o) => o.id),
+        roleFilter.value.map((o) => o.id),
+        statusFilter.value.map((o) => o.id) as UserStatus[],
         sortBy.value,
         sortDescending.value,
       ),
@@ -55,9 +59,9 @@ export const useUsers = defineQuery(() => {
       organizationFilter.value.length === 0 &&
       roleFilter.value.length === 0 &&
       statusFilter.value.length === 2 &&
-      statusFilter.value.includes('enabled') &&
-      statusFilter.value.includes('suspended') &&
-      !statusFilter.value.includes('deleted')
+      statusFilter.value.some((o) => o.id === 'enabled') &&
+      statusFilter.value.some((o) => o.id === 'suspended') &&
+      !statusFilter.value.some((o) => o.id === 'deleted')
     )
   })
 
@@ -125,7 +129,10 @@ export const useUsers = defineQuery(() => {
   }
 
   const resetStatusFilter = () => {
-    statusFilter.value = ['enabled', 'suspended']
+    statusFilter.value = [
+      { id: 'enabled', label: 'enabled' },
+      { id: 'suspended', label: 'suspended' },
+    ]
   }
 
   return {

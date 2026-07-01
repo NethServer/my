@@ -7,6 +7,7 @@ import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
 import { ref, watch } from 'vue'
+import type { NeDropdownFilterV2Option } from '@nethesis/vue-components'
 import {
   APPLICATIONS_KEY,
   APPLICATIONS_TABLE_ID,
@@ -20,10 +21,10 @@ export const useApplications = defineQuery(() => {
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
-  const typeFilter = ref<string[]>([])
-  const versionFilter = ref<string[]>([])
-  const systemFilter = ref<string[]>([])
-  const organizationFilter = ref<string[]>([])
+  const typeFilter = ref<NeDropdownFilterV2Option[]>([])
+  const versionFilter = ref<NeDropdownFilterV2Option[]>([])
+  const systemFilter = ref<NeDropdownFilterV2Option[]>([])
+  const organizationFilter = ref<NeDropdownFilterV2Option[]>([])
   const sortBy = ref<keyof Application>('display_name')
   const sortDescending = ref(false)
 
@@ -34,10 +35,10 @@ export const useApplications = defineQuery(() => {
         pageNum: pageNum.value,
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
-        typeFilter: typeFilter.value,
-        versionFilter: versionFilter.value,
-        systemFilter: systemFilter.value,
-        organizationFilter: organizationFilter.value,
+        typeFilter: typeFilter.value.map((o) => o.id),
+        versionFilter: versionFilter.value.map((o) => o.id),
+        systemFilter: systemFilter.value.map((o) => o.id),
+        organizationFilter: organizationFilter.value.map((o) => o.id),
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -48,10 +49,10 @@ export const useApplications = defineQuery(() => {
         pageNum.value,
         pageSize.value,
         debouncedTextFilter.value,
-        typeFilter.value,
-        versionFilter.value,
-        systemFilter.value,
-        organizationFilter.value,
+        typeFilter.value.map((o) => o.id),
+        versionFilter.value.map((o) => o.id),
+        systemFilter.value.map((o) => o.id),
+        organizationFilter.value.map((o) => o.id),
         sortBy.value,
         sortDescending.value,
       ),

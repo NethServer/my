@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import CounterCard from '../CounterCard.vue'
+import CounterCard from '../common/CounterCard.vue'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import { NeBadgeV2 } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'

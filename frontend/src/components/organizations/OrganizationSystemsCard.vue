@@ -7,7 +7,7 @@
 import { NeButton, NeLink } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faArrowRight, faServer } from '@fortawesome/free-solid-svg-icons'
-import CounterCard from '@/components/CounterCard.vue'
+import CounterCard from '@/components/common/CounterCard.vue'
 import SystemStatusIcon from '@/components/systems/SystemStatusIcon.vue'
 import { useI18n } from 'vue-i18n'
 import { computed } from 'vue'
@@ -48,7 +48,7 @@ const moreSystems = computed(() => {
 
 const goToSystems = () => {
   const companyId = route.params.companyId as string
-  organizationFilterForSystems.value = companyId ? [companyId] : []
+  organizationFilterForSystems.value = companyId ? [{ id: companyId, label: companyId }] : []
   router.push({ name: 'systems' })
 }
 </script>

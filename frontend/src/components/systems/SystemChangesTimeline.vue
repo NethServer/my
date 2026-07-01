@@ -14,24 +14,29 @@ import {
   type InventoryDiffSeverity,
   type InventoryDiffType,
 } from '@/lib/systems/inventoryDiffs'
-import { formatDateTimeNoSeconds, formatTimeNoSeconds } from '@/lib/dateTime'
+import {
+  formatDateTimeNoSeconds,
+  formatTimeNoSeconds,
+  getDateTimeFormatPattern,
+} from '@/lib/dateTime'
 import { computed, onWatcherCleanup, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   NeButton,
   NeBadgeV2,
-  NeDropdownFilter,
+  NeDropdownFilterV2,
   NeInlineNotification,
   NeSkeleton,
   NeTextInput,
-  type FilterOption,
+  type NeDropdownFilterV2Option,
   NeSpinner,
   NeLink,
   NeEmptyState,
   type NeBadgeV2Kind,
+  getDateFnsLocale,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
+import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import { VueDatePicker } from '@vuepic/vue-datepicker'
 import {
   faChevronDown,
@@ -93,13 +98,13 @@ watch(
 )
 
 // ── Filter options ────────────────────────────────────────────────────────────
-const severityFilterOptions = computed<FilterOption[]>(() =>
+const severityFilterOptions = computed<NeDropdownFilterV2Option[]>(() =>
   (['critical', 'high', 'medium', 'low'] as const)
     .filter((s) => (inventoryChangesState.value.data?.changes_by_severity?.[s] ?? 0) > 0)
     .map((s) => ({ id: s, label: capitalize(s) })),
 )
 
-const categoryFilterOptions = computed<FilterOption[]>(() => [
+const categoryFilterOptions = computed<NeDropdownFilterV2Option[]>(() => [
   { id: 'os', label: t('system_detail.category_os') },
   { id: 'hardware', label: t('system_detail.category_hardware') },
   { id: 'network', label: t('system_detail.category_network') },
@@ -112,7 +117,7 @@ const categoryFilterOptions = computed<FilterOption[]>(() => [
   { id: 'system', label: t('system_detail.category_system') },
 ])
 
-const diffTypeFilterOptions = computed<FilterOption[]>(() => [
+const diffTypeFilterOptions = computed<NeDropdownFilterV2Option[]>(() => [
   { id: 'create', label: t('system_detail.diff_type_create') },
   { id: 'update', label: t('system_detail.diff_type_update') },
   { id: 'delete', label: t('system_detail.diff_type_delete') },
@@ -341,26 +346,39 @@ watch(loadMoreTrigger, (el) => {
   onWatcherCleanup(() => observer.disconnect())
 })
 
-// ── Computed filter state for NeDropdownFilter (need arrays of string IDs) ───
-const severityFilterModel = computed<string[]>({
-  get: () => severityFilter.value as string[],
+// ── Computed filter state for NeDropdownFilterV2 (option arrays bridged to ID arrays) ───
+const severityFilterModel = computed<NeDropdownFilterV2Option[]>({
+  get: () =>
+    severityFilterOptions.value.filter((o) => (severityFilter.value as string[]).includes(o.id)),
   set: (val) => {
-    severityFilter.value = val as InventoryDiffSeverity[]
+    severityFilter.value = val.map((o) => o.id) as InventoryDiffSeverity[]
   },
 })
 
-const categoryFilterModel = computed<string[]>({
-  get: () => categoryFilter.value as string[],
+const categoryFilterModel = computed<NeDropdownFilterV2Option[]>({
+  get: () =>
+    categoryFilterOptions.value.filter((o) => (categoryFilter.value as string[]).includes(o.id)),
   set: (val) => {
-    categoryFilter.value = val as InventoryDiffCategory[]
+    categoryFilter.value = val.map((o) => o.id) as InventoryDiffCategory[]
   },
 })
 
-const diffTypeFilterModel = computed<string[]>({
-  get: () => diffTypeFilter.value as string[],
+const diffTypeFilterModel = computed<NeDropdownFilterV2Option[]>({
+  get: () =>
+    diffTypeFilterOptions.value.filter((o) => (diffTypeFilter.value as string[]).includes(o.id)),
   set: (val) => {
-    diffTypeFilter.value = val as InventoryDiffType[]
+    diffTypeFilter.value = val.map((o) => o.id) as InventoryDiffType[]
   },
+})
+
+const localizedDateRange = computed(() => {
+  if (fromDate.value && toDate.value) {
+    // format from/to dates in the user's locale
+    const from = new Date(fromDate.value).toLocaleDateString(locale.value)
+    const to = new Date(toDate.value).toLocaleDateString(locale.value)
+    return t('system_detail.date_range_from_to', { from, to })
+  }
+  return ''
 })
 </script>
 
@@ -387,13 +405,14 @@ const diffTypeFilterModel = computed<string[]>({
       <div class="flex flex-wrap items-center gap-4">
         <!-- Text filter -->
         <NeTextInput
-          v-model.trim="textFilter"
+          v-model="textFilter"
+          @blur="textFilter = textFilter.trim()"
           is-search
           :placeholder="$t('common.filter')"
           class="max-w-xs"
         />
         <!-- Severity filter -->
-        <NeDropdownFilter
+        <NeDropdownFilterV2
           v-model="severityFilterModel"
           kind="checkbox"
           :label="t('system_detail.severity')"
@@ -403,9 +422,10 @@ const diffTypeFilterModel = computed<string[]>({
           :no-options-label="t('ne_dropdown_filter.no_options')"
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
           :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
         />
         <!-- Category filter -->
-        <NeDropdownFilter
+        <NeDropdownFilterV2
           v-model="categoryFilterModel"
           kind="checkbox"
           :label="t('system_detail.category')"
@@ -416,9 +436,10 @@ const diffTypeFilterModel = computed<string[]>({
           :no-options-label="t('ne_dropdown_filter.no_options')"
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
           :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
         />
         <!-- Change type filter -->
-        <NeDropdownFilter
+        <NeDropdownFilterV2
           v-model="diffTypeFilterModel"
           kind="checkbox"
           :label="t('system_detail.change_type')"
@@ -428,6 +449,7 @@ const diffTypeFilterModel = computed<string[]>({
           :no-options-label="t('ne_dropdown_filter.no_options')"
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
           :clear-search-label="t('ne_dropdown_filter.clear_search')"
+          :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
         />
         <!-- Date range picker -->
         <VueDatePicker
@@ -439,6 +461,8 @@ const diffTypeFilterModel = computed<string[]>({
           :time-config="{ enableTimePicker: false }"
           :floating="{ arrow: false, placement: 'bottom-start' }"
           auto-apply
+          :locale="getDateFnsLocale(locale)"
+          :formats="{ input: getDateTimeFormatPattern(locale) }"
           :dark="!themeStore.isLight"
           class="vue-datepicker"
         >
@@ -450,6 +474,10 @@ const diffTypeFilterModel = computed<string[]>({
               >
                 <span class="flex items-center justify-center">
                   {{ t('system_detail.date_range') }}
+                  <!-- show localized date range in a NeBadgeV2 -->
+                  <NeBadgeV2 v-if="localizedDateRange" size="xs" class="ml-2">
+                    {{ localizedDateRange }}
+                  </NeBadgeV2>
                   <FontAwesomeIcon :icon="faChevronDown" class="ml-2 h-3 w-3" aria-hidden="true" />
                 </span>
               </button>
@@ -676,7 +704,7 @@ const diffTypeFilterModel = computed<string[]>({
                       </div>
                     </div>
                     <!-- Timestamp -->
-                    <p class="text-tertiary-neutral dark:text-tertiary-neutral mt-4 text-xs">
+                    <p class="text-tertiary-neutral mt-4">
                       {{ formatDateTimeNoSeconds(new Date(diff.created_at), locale, 'UTC') }}
                     </p>
                   </div>
@@ -745,7 +773,7 @@ const diffTypeFilterModel = computed<string[]>({
           <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
             {{ t('system_detail.system_registered') }}
           </span>
-          <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+          <p class="text-tertiary-neutral mt-0.5">
             {{ formatTimeNoSeconds(new Date(systemDetailState.data.registered_at), locale, 'UTC') }}
           </p>
         </div>
@@ -766,7 +794,7 @@ const diffTypeFilterModel = computed<string[]>({
           <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
             {{ t('system_detail.system_created') }}
           </span>
-          <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+          <p class="text-tertiary-neutral mt-0.5">
             {{ formatTimeNoSeconds(new Date(systemDetailState.data.created_at), locale, 'UTC') }}
           </p>
         </div>

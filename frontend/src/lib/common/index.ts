@@ -1,6 +1,6 @@
 export const MIN_SEARCH_LENGTH = 2
 
-export const COMBOBOX_PAGE_SIZE = 50
+export const OPTIONS_PAGE_SIZE = 50
 
 export interface Pagination {
   has_next: boolean

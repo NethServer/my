@@ -5,6 +5,7 @@
 
 <script setup lang="ts">
 import {
+  getDateFnsLocale,
   NeButton,
   NeInlineNotification,
   NeSideDrawer,
@@ -24,6 +25,7 @@ import {
 import { setPendingAlertState } from '@/lib/alertPendingStates'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useThemeStore } from '@/stores/theme'
+import { getDateTimeFormatPattern } from '@/lib/dateTime'
 
 const { isShown = false, alert = undefined } = defineProps<{
   isShown: boolean
@@ -32,7 +34,7 @@ const { isShown = false, alert = undefined } = defineProps<{
 
 const emit = defineEmits(['close'])
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
 const themeStore = useThemeStore()
@@ -176,6 +178,8 @@ onBeforeUnmount(() => {
             :time-config="{ timePickerInline: true }"
             :input-attrs="{ id: 'muteUntilDate' }"
             auto-apply
+            :locale="getDateFnsLocale(locale)"
+            :formats="{ input: getDateTimeFormatPattern(locale) }"
             @update:model-value="endsAtError = ''"
           />
           <NeSkeleton v-else :lines="1" size="lg" class="mb-8 w-full" />

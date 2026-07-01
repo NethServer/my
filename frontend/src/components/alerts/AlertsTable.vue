@@ -18,7 +18,7 @@ import {
   NeBadgeV2,
   NeButton,
   NeDropdown,
-  NeDropdownFilter,
+  NeDropdownFilterV2,
   NeEmptyState,
   NeInlineNotification,
   NePaginator,
@@ -30,7 +30,7 @@ import {
   NeTableHead,
   NeTableHeadCell,
   NeTableRow,
-  type FilterOption,
+  type NeDropdownFilterV2Option,
   type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
@@ -53,7 +53,7 @@ import {
 import { setPendingAlertState, isProcessing } from '@/lib/alertPendingStates'
 import { type AlertFilterAlert } from '@/lib/alertFilters'
 import { useNotificationsStore } from '@/stores/notifications'
-import { formatDateTime, formatTimeAgo } from '@/lib/dateTime'
+import { formatDateTime, formatRelativeTime } from '@/lib/dateTime'
 import { canManageSystems } from '@/lib/permissions'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import MuteAlertDrawer from '@/components/alerts/MuteAlertDrawer.vue'
@@ -121,12 +121,12 @@ const noEmptyStateShown = computed(
 
 // ── Filter options ─────────────────────────────────────────────────────────────
 
-const alertNameFilterOptions = computed<FilterOption[]>(() => {
+const alertNameFilterOptions = computed<NeDropdownFilterV2Option[]>(() => {
   const alerts = alertFiltersState.value.data?.alerts ?? []
   return alerts.map((a: AlertFilterAlert) => ({ id: a.name, label: a.name }))
 })
 
-const statusFilterOptions: FilterOption[] = [
+const statusFilterOptions: NeDropdownFilterV2Option[] = [
   { id: 'active', label: t('alerts.unmuted') },
   { id: 'suppressed', label: t('alerts.muted') },
 ]
@@ -268,7 +268,7 @@ function goToSystems() {
         <!-- Filters -->
         <div class="flex flex-wrap items-center gap-4">
           <!-- Severity filter -->
-          <NeDropdownFilter
+          <NeDropdownFilterV2
             v-model="severityFilters"
             kind="checkbox"
             :label="t('alerts.severity')"
@@ -278,10 +278,11 @@ function goToSystems() {
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             @update:model-value="() => (pageNum = 1)"
           />
           <!-- Alert name filter -->
-          <NeDropdownFilter
+          <NeDropdownFilterV2
             v-model="alertnameFilters"
             kind="checkbox"
             :label="t('alerts.alert')"
@@ -292,6 +293,7 @@ function goToSystems() {
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             @update:model-value="() => (pageNum = 1)"
           />
           <!-- System filter -->
@@ -307,7 +309,7 @@ function goToSystems() {
             @update:model-value="() => (pageNum = 1)"
           />
           <!-- Status filter -->
-          <NeDropdownFilter
+          <NeDropdownFilterV2
             v-model="statusFilters"
             kind="checkbox"
             :label="t('common.status')"
@@ -318,6 +320,7 @@ function goToSystems() {
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             @update:model-value="() => (pageNum = 1)"
           />
           <!-- Sort -->
@@ -466,7 +469,7 @@ function goToSystems() {
           <!-- Started at -->
           <NeTableCell :data-label="$t('alerts.started')">
             <div>
-              <p>{{ formatTimeAgo(alert.startsAt, $t) }}</p>
+              <p>{{ formatRelativeTime(alert.startsAt, locale) }}</p>
               <p class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5">
                 {{ formatDateTime(new Date(alert.startsAt), locale) }}
               </p>

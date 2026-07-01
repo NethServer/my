@@ -37,15 +37,15 @@ import { useLoginStore } from '@/stores/login'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useApiKeys } from '@/queries/apiKeys'
 import { API_KEYS_KEY, API_KEYS_TABLE_ID, deleteApiKey, type ApiKey } from '@/lib/apiKeys'
-import { formatDateTimeNoSeconds, formatRelative } from '@/lib/dateTime'
+import { formatDateTimeNoSeconds, formatRelativeTime } from '@/lib/dateTime'
 import {
   DEFAULT_PAGE_SIZE,
   PAGE_SIZE_OPTIONS,
   loadPageSizeFromStorage,
   savePageSizeToStorage,
 } from '@/lib/tablePageSize'
-import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
-import DeleteObjectModal from '@/components/DeleteObjectModal.vue'
+import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
+import DeleteObjectModal from '@/components/common/DeleteObjectModal.vue'
 import CreateApiKeyDrawer from './CreateApiKeyDrawer.vue'
 
 const { t, locale } = useI18n()
@@ -239,7 +239,8 @@ function confirmDelete() {
       <div v-if="apiKeys.length" class="mb-6 flex w-full items-end justify-between gap-4">
         <div class="flex items-end gap-2">
           <NeTextInput
-            v-model.trim="textFilter"
+            v-model="textFilter"
+            @blur="textFilter = textFilter.trim()"
             is-search
             :placeholder="$t('account.api_keys.filter_api_keys')"
             class="max-w-48 sm:max-w-sm"
@@ -338,7 +339,7 @@ function confirmDelete() {
             </NeTableCell>
             <NeTableCell :data-label="$t('account.api_keys.last_used')">
               <div v-if="key.last_used_at" class="flex flex-col">
-                <span>{{ formatRelative(key.last_used_at, locale) }}</span>
+                <span>{{ formatRelativeTime(key.last_used_at, locale) }}</span>
                 <span class="text-tertiary-neutral">
                   {{ formatDateTimeNoSeconds(new Date(key.last_used_at), locale) }}
                 </span>
@@ -347,7 +348,7 @@ function confirmDelete() {
             </NeTableCell>
             <NeTableCell :data-label="$t('account.api_keys.expires')">
               <div class="flex flex-col">
-                <span>{{ formatRelative(key.expires_at, locale) }}</span>
+                <span>{{ formatRelativeTime(key.expires_at, locale) }}</span>
                 <span class="text-tertiary-neutral">
                   {{ formatDateTimeNoSeconds(new Date(key.expires_at), locale) }}
                 </span>

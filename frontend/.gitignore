@@ -35,3 +35,6 @@ coverage
 # Development config
 .env*
 !.env.example
+
+# Vite cache
+.vite/

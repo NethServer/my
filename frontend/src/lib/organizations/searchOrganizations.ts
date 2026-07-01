@@ -4,7 +4,7 @@
 import axios from 'axios'
 import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
-import { COMBOBOX_PAGE_SIZE, type Pagination } from '../common'
+import { OPTIONS_PAGE_SIZE, type Pagination } from '../common'
 
 export const ORGANIZATIONS_SEARCH_KEY = 'organizationsSearch'
 
@@ -27,7 +27,7 @@ export const searchOrganizations = (search: string) => {
   const loginStore = useLoginStore()
   const params = new URLSearchParams({
     page: '1',
-    page_size: COMBOBOX_PAGE_SIZE.toString(),
+    page_size: OPTIONS_PAGE_SIZE.toString(),
   })
 
   if (search.trim()) {

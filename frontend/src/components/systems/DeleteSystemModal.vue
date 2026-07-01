@@ -9,7 +9,7 @@ import { useMutation, useQueryCache } from '@pinia/colada'
 import { deleteSystem, SYSTEMS_KEY, SYSTEMS_TOTAL_KEY, type System } from '@/lib/systems/systems'
 import { useNotificationsStore } from '@/stores/notifications'
 import { SYSTEM_FILTERS_KEY } from '@/lib/systems/systemFilters'
-import DeleteObjectModal from '../DeleteObjectModal.vue'
+import DeleteObjectModal from '../common/DeleteObjectModal.vue'
 
 const { visible = false, system = undefined } = defineProps<{
   visible: boolean

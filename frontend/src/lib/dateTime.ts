@@ -4,6 +4,16 @@
 import type { ComposerTranslation } from 'vue-i18n'
 import capitalize from 'lodash/capitalize'
 
+export const getDateTimeFormatPattern = (locale: string) => {
+  switch (locale) {
+    case 'it':
+      return 'dd/MM/yyyy, HH:mm'
+    case 'en':
+    default:
+      return 'MM/dd/yyyy, hh:mm a'
+  }
+}
+
 function getTimeZoneOptions(timeZone?: string): Intl.DateTimeFormatOptions {
   if (!timeZone) {
     return {}
@@ -122,63 +132,6 @@ export function formatUptime(uptimeSeconds: number, t: ComposerTranslation): str
   return `${t('time.days', days)}, ${t('time.hours', hours)}`
 }
 
-/**
- * Format an ISO date string as a human-readable relative time string
- * (e.g. "3 hours ago", "Just now")
- *
- * @param isoDate - ISO 8601 date string
- * @param t - vue-i18n translation function
- * @param options.suffix - whether to wrap the duration with the "ago" suffix (default: true)
- */
-export function formatTimeAgo(
-  isoDate: string,
-  t: ComposerTranslation,
-  options: { suffix?: boolean } = {},
-): string {
-  const { suffix = true } = options
-  const date = new Date(isoDate)
-
-  if (isNaN(date.getTime())) {
-    return '-'
-  }
-
-  const diffSeconds = Math.floor((Date.now() - date.getTime()) / 1000)
-
-  if (diffSeconds < 60) {
-    return t('time.just_now')
-  }
-
-  const formatElapsed = (time: string) => (suffix ? t('time.ago', { time }) : time)
-
-  if (diffSeconds < 60 * 60) {
-    const minutes = Math.floor(diffSeconds / 60)
-    return formatElapsed(t('time.minutes', minutes))
-  }
-
-  if (diffSeconds < 60 * 60 * 24) {
-    const hours = Math.floor(diffSeconds / (60 * 60))
-    return formatElapsed(t('time.hours', hours))
-  }
-
-  if (diffSeconds < 60 * 60 * 24 * 7) {
-    const days = Math.floor(diffSeconds / (60 * 60 * 24))
-    return formatElapsed(t('time.days', days))
-  }
-
-  if (diffSeconds < 60 * 60 * 24 * 30) {
-    const weeks = Math.floor(diffSeconds / (60 * 60 * 24 * 7))
-    return formatElapsed(t('time.weeks', weeks))
-  }
-
-  if (diffSeconds < 60 * 60 * 24 * 365) {
-    const months = Math.floor(diffSeconds / (60 * 60 * 24 * 30))
-    return formatElapsed(t('time.months', months))
-  }
-
-  const years = Math.floor(diffSeconds / (60 * 60 * 24 * 365))
-  return formatElapsed(t('time.years', years))
-}
-
 const RELATIVE_DIVISIONS: { amount: number; unit: Intl.RelativeTimeFormatUnit }[] = [
   { amount: 60, unit: 'second' },
   { amount: 60, unit: 'minute' },
@@ -197,7 +150,7 @@ const RELATIVE_DIVISIONS: { amount: number; unit: Intl.RelativeTimeFormatUnit }[
  * @param isoDate - ISO 8601 date string
  * @param locale - BCP-47 locale (e.g. "en", "it")
  */
-export function formatRelative(isoDate: string, locale: string): string {
+export function formatRelativeTime(isoDate: string, locale: string): string {
   const date = new Date(isoDate)
 
   if (isNaN(date.getTime())) {

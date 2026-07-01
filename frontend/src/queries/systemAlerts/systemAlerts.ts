@@ -8,6 +8,7 @@ import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import type { NeDropdownFilterV2Option } from '@nethesis/vue-components'
 import { getSystemActiveAlerts, SYSTEM_ALERTS_KEY, SYSTEM_ALERTS_TABLE_ID } from '@/lib/alerts'
 
 export const useSystemAlerts = defineQuery(() => {
@@ -18,9 +19,9 @@ export const useSystemAlerts = defineQuery(() => {
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const sortBy = ref<'starts_at' | 'severity' | 'alertname' | 'status'>('starts_at')
   const sortDirection = ref<'asc' | 'desc'>('desc')
-  const severityFilters = ref<string[]>([])
-  const alertnameFilters = ref<string[]>([])
-  const statusFilters = ref<AlertStatusEnum[]>([])
+  const severityFilters = ref<NeDropdownFilterV2Option[]>([])
+  const alertnameFilters = ref<NeDropdownFilterV2Option[]>([])
+  const statusFilters = ref<NeDropdownFilterV2Option[]>([])
   const shouldAutoRefetch = () => document.visibilityState === 'visible'
 
   const { state, asyncStatus, ...rest } = useQuery({
@@ -31,9 +32,9 @@ export const useSystemAlerts = defineQuery(() => {
       pageSize.value,
       sortBy.value,
       sortDirection.value,
-      severityFilters.value.join(','),
-      alertnameFilters.value.join(','),
-      statusFilters.value.join(','),
+      severityFilters.value.map((o) => o.id).join(','),
+      alertnameFilters.value.map((o) => o.id).join(','),
+      statusFilters.value.map((o) => o.id).join(','),
     ],
     enabled: () => !!loginStore.jwtToken && !!route.params.systemId,
     query: () =>
@@ -43,9 +44,11 @@ export const useSystemAlerts = defineQuery(() => {
         pageSize.value,
         sortBy.value,
         sortDirection.value,
-        statusFilters.value.length > 0 ? statusFilters.value : undefined,
-        severityFilters.value.length > 0 ? severityFilters.value : undefined,
-        alertnameFilters.value.length > 0 ? alertnameFilters.value : undefined,
+        statusFilters.value.length > 0
+          ? (statusFilters.value.map((o) => o.id) as AlertStatusEnum[])
+          : undefined,
+        severityFilters.value.length > 0 ? severityFilters.value.map((o) => o.id) : undefined,
+        alertnameFilters.value.length > 0 ? alertnameFilters.value.map((o) => o.id) : undefined,
       ),
     staleTime: ALERTS_REFETCH_INTERVAL_SECONDS * 1000,
     autoRefetch: shouldAutoRefetch,

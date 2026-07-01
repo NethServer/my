@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import CounterCard from '../CounterCard.vue'
+import CounterCard from '../common/CounterCard.vue'
 import { NeBadgeV2 } from '@nethesis/vue-components'
 import { faTriangleExclamation } from '@fortawesome/free-solid-svg-icons'
 import { useAlertsTotals } from '@/queries/alerts/alertsTotals.ts'

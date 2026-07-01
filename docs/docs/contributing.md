@@ -2,9 +2,9 @@
 sidebar_position: 99
 ---
 
-# Contributing to My Documentation
+# Contributing to My Nethesis Documentation
 
-Thank you for your interest in improving the My documentation!
+Thank you for your interest in improving the My Nethesis documentation!
 
 ## Documentation Structure
 

@@ -141,7 +141,8 @@ async function enableConsent() {
       </p>
       <NeTextInput
         ref="durationRef"
-        v-model.trim="duration"
+        v-model="duration"
+        @blur="duration = duration.trim()"
         :label="$t('account.impersonation.impersonation_max_duration')"
         :helper-text="$t('account.impersonation.impersonation_max_duration_helper')"
         :invalid-message="

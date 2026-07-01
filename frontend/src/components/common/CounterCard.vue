@@ -81,14 +81,28 @@ const hasDefaultSlot = computed(() => !!slots.default)
         </NeHeading>
       </div>
     </template>
+    <template v-if="!centeredCounter" #topRight>
+      <div
+        :class="['text-4xl font-medium', colorClasses ?? 'text-indigo-700 dark:text-indigo-500']"
+      >
+        <NeTooltip v-if="counter >= ABBREVIATION_THRESHOLD" trigger-event="mouseenter focus">
+          <template #trigger>
+            <span> {{ isEstimated ? '~' : '' }}{{ abbreviatedCounter }} </span>
+          </template>
+          <template #content>
+            {{ formattedCounter }}
+          </template>
+        </NeTooltip>
+        <span v-else> {{ isEstimated ? '~' : '' }}{{ abbreviatedCounter }} </span>
+      </div>
+    </template>
     <NeSkeleton v-if="loading" :lines="skeletonLines" class="w-full" />
     <template v-else>
-      <div :class="['flex', centeredCounter ? 'flex-col gap-4' : 'justify-between']">
+      <div v-if="centeredCounter" class="flex flex-col gap-4">
         <div
           :class="[
             'self-center text-4xl font-medium',
             colorClasses ?? 'text-indigo-700 dark:text-indigo-500',
-            { 'self-center': centeredCounter },
           ]"
         >
           <NeTooltip v-if="counter >= ABBREVIATION_THRESHOLD" trigger-event="mouseenter focus">

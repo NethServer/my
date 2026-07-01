@@ -11,11 +11,10 @@ import {
   NeInlineNotification,
   focusElement,
   NeCombobox,
-  type NeComboboxOption,
   NeFormItemLabel,
 } from '@nethesis/vue-components'
 import OrganizationCombobox from '@/components/organizations/OrganizationCombobox.vue'
-import { computed, ref, useTemplateRef, watch, type Ref, type ShallowRef } from 'vue'
+import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import {
   CreateUserSchema,
   EditUserSchema,
@@ -132,7 +131,7 @@ const name = ref('')
 const nameRef = useTemplateRef<HTMLInputElement>('nameRef')
 const organizationId = ref('')
 const organizationIdRef = useTemplateRef<HTMLInputElement>('organizationIdRef')
-const userRoles: Ref<NeComboboxOption[]> = ref([])
+const userRoles = ref<string>('')
 const userRoleIdsRef = useTemplateRef<HTMLInputElement>('userRoleIdsRef')
 const phone = ref('')
 const phoneRef = useTemplateRef<HTMLInputElement>('phoneRef')
@@ -191,7 +190,7 @@ watch(
         email.value = ''
         name.value = ''
         organizationId.value = isUserCustomer() ? loginStore.userInfo?.organization_id || '' : ''
-        userRoles.value = []
+        userRoles.value = ''
         countryCode.value = 'it'
         phone.value = ''
       }
@@ -205,21 +204,15 @@ watch(allUserRoles, () => {
   }
 })
 
-function mapUserRoles() {
-  const userRoles: NeComboboxOption[] = []
-
+function mapUserRoles(): string {
   for (const userRole of currentUser?.roles || []) {
     const roleFound = allUserRoles.value.data?.find((r) => r.id === userRole.id)
 
     if (roleFound) {
-      userRoles.push({
-        id: roleFound.id,
-        label: roleFound.name,
-        description: roleFound.description,
-      })
+      return roleFound.id
     }
   }
-  return userRoles
+  return ''
 }
 
 function closeDrawer() {
@@ -245,8 +238,6 @@ function validateCreate(user: CreateUser): boolean {
     if (issues.nested) {
       validationIssues.value = issues.nested as Record<string, string[]>
 
-      console.debug('frontend validation issues', validationIssues.value)
-
       // focus the first field with error
 
       const firstErrorFieldName = Object.keys(validationIssues.value)[0]
@@ -269,8 +260,6 @@ function validateEdit(user: EditUser): boolean {
     if (issues.nested) {
       validationIssues.value = issues.nested as Record<string, string[]>
 
-      console.debug('frontend validation issues', validationIssues.value)
-
       // focus the first field with error
 
       const firstErrorFieldName = Object.keys(validationIssues.value)[0]
@@ -286,7 +275,7 @@ async function saveUser() {
   const user = {
     email: email.value,
     name: name.value,
-    user_role_ids: userRoles.value.map((role) => role.id),
+    user_role_ids: userRoles.value ? [userRoles.value] : [],
     organization_id: organizationId.value,
     phone: combinePhoneParts(countryCode.value, phone.value),
     custom_data: {},
@@ -375,16 +364,9 @@ function getEmailInvalidMessage(): string {
         <NeCombobox
           ref="userRoleIdsRef"
           v-model="userRoles"
-          :label="$t('users.user_roles')"
+          :label="$t('users.role')"
           :options="userRoleOptions"
-          :placeholder="
-            allUserRoles.status === 'pending'
-              ? $t('common.loading')
-              : userRoles.length
-                ? t('ne_combobox.num_selected', { num: userRoles.length })
-                : t('ne_combobox.choose_multiple')
-          "
-          multiple
+          :placeholder="$t('ne_combobox.choose')"
           :invalid-message="
             validationIssues.user_role_ids?.[0] ? $t(validationIssues.user_role_ids[0]) : ''
           "

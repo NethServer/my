@@ -61,6 +61,7 @@
     "close_sidebar": "Close sidebar",
     "systems_management": "Systems management",
     "companies_and_users": "Companies and users",
+    "users": "Users",
     "show_notifications": "Show notifications",
     "open_account_menu": "Open account menu",
     "account": "Account",
@@ -204,6 +205,7 @@
     "custom_data_email_invalid": "Invalid email address",
     "custom_data_phone_invalid_format": "Invalid phone number",
     "organization": "Company",
+    "no_company": "No company",
     "choose_organization": "Choose company",
     "no_organizations": "No companies",
     "email": "Email",
@@ -344,7 +346,6 @@
     "no_user": "No users",
     "phone_number": "Phone number",
     "no_organizations": "No companies",
-    "user_roles": "Roles",
     "reset_password": "Reset password",
     "impersonate_user": "Impersonate user",
     "impersonate_user_message_1": "You will temporarily act as user {user} and have their permissions.",
@@ -391,7 +392,8 @@
     "restore_user_confirmation": "Are you sure you want to restore {name}?",
     "export_users_to_pdf": "Export users to PDF",
     "export_users_to_csv": "Export users to CSV",
-    "user_role_ids_at_least_one_role_is_required": "At least one role is required"
+    "user_role_ids_at_least_one_role_is_required": "At least one role is required",
+    "me": "me"
   },
   "third_party_apps": {
     "description_nethshop_nethesis_it": "Browse and order Nethesis products and services.",
@@ -733,7 +735,8 @@
     "active_alerts_title": "Active alerts",
     "active_alerts_description": "View active alerts and monitor ongoing issues for this system.",
     "alert_history_title": "Alert history",
-    "alert_history_description": "View resolved alerts for this system."
+    "alert_history_description": "View resolved alerts for this system.",
+    "date_range_from_to": "From {from} to {to}"
   },
   "application_detail": {
     "title": "Application detail",
@@ -791,7 +794,7 @@
   },
   "ne_combobox": {
     "no_results": "No results",
-    "limited_options_label": "Continue typing to show more options",
+    "limited_options_label": "Keep typing to show more options",
     "no_options_label": "No options available",
     "selected": "Selected",
     "user_input_label": "User input",
@@ -805,7 +808,8 @@
     "clear_filter": "Clear filter",
     "open_filter": "Open filter",
     "no_options": "No options",
-    "more_options_hidden": "Continue typing to show more options",
+    "more_options_hidden": "Keep typing to show more options",
+    "options_filter_placeholder": "Filter options",
     "clear_selection": "Clear selection",
     "reset_selection": "Reset selection",
     "clear_search": "Clear search"
@@ -830,9 +834,7 @@
     "days": "{count} day | {count} days",
     "weeks": "{count} week | {count} weeks",
     "months": "{count} month | {count} months",
-    "years": "{count} year | {count} years",
-    "just_now": "Just now",
-    "ago": "{time} ago"
+    "years": "{count} year | {count} years"
   },
   "delete_object_modal": {
     "type_to_confirm": "Type '{confirmationText}' to confirm",
@@ -867,7 +869,7 @@
     "alertname": "Alert",
     "severity": "Severity",
     "started": "Started",
-    "ends_at": "Ended at",
+    "ends_at": "Ended",
     "description": "Description",
     "cannot_retrieve_alert_history": "Cannot retrieve alert history",
     "no_alert_history": "No alert history",
@@ -887,7 +889,6 @@
     "processing_tooltip": "Mute and unmute actions might take a few minutes. While the system processes the request, the alert status will temporarily display as '@:{'alerts.processing'}'.",
     "system": "System",
     "organization": "Company",
-    "reload_alerts": "Reload alerts",
     "mute_alert": "Mute alert",
     "mute_alert_title": "Mute {alertname} alert",
     "mute_until_date": "Mute the alert until this date",

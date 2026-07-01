@@ -18,10 +18,10 @@ import {
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { exportSystem, getProductName } from '@/lib/systems/systems'
 import SystemLogo from './SystemLogo.vue'
-import DataItem from '../DataItem.vue'
-import ClickToCopy from '../ClickToCopy.vue'
+import DataItem from '../common/DataItem.vue'
+import ClickToCopy from '../common/ClickToCopy.vue'
 import { computed, ref } from 'vue'
-import NotesModal from '../NotesModal.vue'
+import NotesModal from '../common/NotesModal.vue'
 import { canManageSystems, canDestroySystems } from '@/lib/permissions'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {

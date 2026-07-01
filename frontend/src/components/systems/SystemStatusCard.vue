@@ -18,12 +18,12 @@ import {
   faCircleInfo,
   faTriangleExclamation,
 } from '@fortawesome/free-solid-svg-icons'
-import { formatDateTimeNoSeconds, formatTimeAgo, formatUptime } from '@/lib/dateTime'
+import { formatDateTimeNoSeconds, formatRelativeTime, formatUptime } from '@/lib/dateTime'
 import { useI18n } from 'vue-i18n'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { useSystemActiveAlerts } from '@/queries/systems/activeAlerts'
 import { useSystemBackups } from '@/queries/systems/backups'
-import DataItem from '../DataItem.vue'
+import DataItem from '../common/DataItem.vue'
 import { computed } from 'vue'
 import SystemStatusIcon from './SystemStatusIcon.vue'
 import type { Ns8Facts } from '@/lib/systems/ns8Facts'
@@ -160,7 +160,7 @@ const timezone = computed(() => {
         <template #data>
           <NeTooltip trigger-event="mouseenter focus" placement="left">
             <template #trigger>
-              {{ formatTimeAgo(latestInventory.data?.timestamp, $t) }}
+              {{ formatRelativeTime(latestInventory.data?.timestamp, locale) }}
             </template>
             <template #content>
               {{

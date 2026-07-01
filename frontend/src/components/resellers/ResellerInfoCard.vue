@@ -15,13 +15,21 @@ import {
 import { useResellerDetail } from '@/queries/organizations/resellerDetail'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { getOrganizationIcon } from '@/lib/organizations/organizations'
-import DataItem from '../DataItem.vue'
+import DataItem from '../common/DataItem.vue'
 import { ref } from 'vue'
-import NotesModal from '../NotesModal.vue'
+import NotesModal from '../common/NotesModal.vue'
 import { canManageResellers } from '@/lib/permissions'
-import { faPenToSquare } from '@fortawesome/free-solid-svg-icons'
+import {
+  faPenToSquare,
+  faCirclePause,
+  faCirclePlay,
+  faCircleCheck,
+  faBoxArchive,
+} from '@fortawesome/free-solid-svg-icons'
 import { useI18n } from 'vue-i18n'
 import CreateOrEditResellerDrawer from './CreateOrEditResellerDrawer.vue'
+import SuspendResellerModal from './SuspendResellerModal.vue'
+import ReactivateResellerModal from './ReactivateResellerModal.vue'
 import { getLanguageLabel } from '@/lib/locale'
 import { formatPhoneForDisplay } from '@/lib/phone'
 
@@ -29,19 +37,43 @@ const { t } = useI18n()
 const { state: resellerDetail, asyncStatus } = useResellerDetail()
 const isNotesModalShown = ref(false)
 const isShownCreateOrEditResellerDrawer = ref(false)
+const isShownSuspendResellerModal = ref(false)
+const isShownReactivateResellerModal = ref(false)
 
 function getKebabMenuItems() {
   const items: NeDropdownItem[] = []
+  const reseller = resellerDetail.value.data
 
-  if (canManageResellers()) {
-    items.push({
-      id: 'editReseller',
-      label: t('common.edit'),
-      icon: faPenToSquare,
-      action: () => (isShownCreateOrEditResellerDrawer.value = true),
-      disabled: asyncStatus.value === 'loading',
-    })
+  if (canManageResellers() && reseller) {
+    if (!reseller.deleted_at) {
+      items.push({
+        id: 'editReseller',
+        label: t('common.edit'),
+        icon: faPenToSquare,
+        action: () => (isShownCreateOrEditResellerDrawer.value = true),
+        disabled: asyncStatus.value === 'loading',
+      })
+    }
+
+    if (reseller.suspended_at) {
+      items.push({
+        id: 'reactivateReseller',
+        label: t('common.reactivate'),
+        icon: faCirclePlay,
+        action: () => (isShownReactivateResellerModal.value = true),
+        disabled: asyncStatus.value === 'loading',
+      })
+    } else if (!reseller.deleted_at) {
+      items.push({
+        id: 'suspendReseller',
+        label: t('common.suspend'),
+        icon: faCirclePause,
+        action: () => (isShownSuspendResellerModal.value = true),
+        disabled: asyncStatus.value === 'loading',
+      })
+    }
   }
+
   return items
 }
 </script>
@@ -67,6 +99,40 @@ function getKebabMenuItems() {
       </div>
       <!-- reseller information -->
       <div class="divide-y divide-gray-200 dark:divide-gray-700">
+        <!-- status -->
+        <DataItem>
+          <template #label>
+            {{ $t('common.status') }}
+          </template>
+          <template #data>
+            <div class="flex items-center gap-2">
+              <template v-if="resellerDetail.data.deleted_at">
+                <FontAwesomeIcon
+                  :icon="faBoxArchive"
+                  class="size-4 text-gray-700 dark:text-gray-400"
+                  aria-hidden="true"
+                />
+                <span>{{ $t('common.archived') }}</span>
+              </template>
+              <template v-else-if="resellerDetail.data.suspended_at">
+                <FontAwesomeIcon
+                  :icon="faCirclePause"
+                  class="size-4 text-gray-700 dark:text-gray-400"
+                  aria-hidden="true"
+                />
+                <span>{{ $t('common.suspended') }}</span>
+              </template>
+              <template v-else>
+                <FontAwesomeIcon
+                  :icon="faCircleCheck"
+                  class="size-4 text-green-600 dark:text-green-400"
+                  aria-hidden="true"
+                />
+                <span>{{ $t('common.enabled') }}</span>
+              </template>
+            </div>
+          </template>
+        </DataItem>
         <!-- vat number -->
         <DataItem>
           <template #label>
@@ -176,6 +242,18 @@ function getKebabMenuItems() {
       :is-shown="isShownCreateOrEditResellerDrawer"
       :current-reseller="resellerDetail.data ?? undefined"
       @close="isShownCreateOrEditResellerDrawer = false"
+    />
+    <!-- suspend reseller modal -->
+    <SuspendResellerModal
+      :visible="isShownSuspendResellerModal"
+      :reseller="resellerDetail.data ?? undefined"
+      @close="isShownSuspendResellerModal = false"
+    />
+    <!-- reactivate reseller modal -->
+    <ReactivateResellerModal
+      :visible="isShownReactivateResellerModal"
+      :reseller="resellerDetail.data ?? undefined"
+      @close="isShownReactivateResellerModal = false"
     />
   </NeCard>
 </template>

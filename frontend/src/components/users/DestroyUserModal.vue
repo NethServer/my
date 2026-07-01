@@ -8,7 +8,7 @@ import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { destroyUser, USERS_KEY, USERS_TOTAL_KEY, type User } from '@/lib/users/users'
 import { useNotificationsStore } from '@/stores/notifications'
-import DeleteObjectModal from '../DeleteObjectModal.vue'
+import DeleteObjectModal from '../common/DeleteObjectModal.vue'
 
 const { visible = false, user = undefined } = defineProps<{
   visible: boolean

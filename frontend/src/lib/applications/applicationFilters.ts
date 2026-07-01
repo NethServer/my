@@ -4,7 +4,10 @@
 import axios from 'axios'
 import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
-import type { FilterOption, FilterOptionGroup } from '@nethesis/vue-components'
+import type {
+  NeDropdownFilterV2Option,
+  NeDropdownFilterV2OptionGroup,
+} from '@nethesis/vue-components'
 
 export const APPLICATION_FILTERS_KEY = 'applicationFilters'
 
@@ -62,13 +65,15 @@ export const getApplicationFilters = () => {
  * Builds version filter options from ApplicationVersions array
  * Used by components to format version data for dropdown display
  */
-export const buildVersionFilterOptions = (applicationVersions: ApplicationVersions[]) => {
-  const optionGroups: FilterOptionGroup[] = []
+export const buildVersionFilterOptions = (
+  applicationVersions: ApplicationVersions[],
+): NeDropdownFilterV2OptionGroup[] => {
+  const optionGroups: NeDropdownFilterV2OptionGroup[] = []
   const seen = new Set<string>()
 
   applicationVersions.forEach((av) => {
     const appName = av.name
-    const options: FilterOption[] = []
+    const options: NeDropdownFilterV2Option[] = []
 
     optionGroups.push({
       group: appName,

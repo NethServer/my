@@ -8,7 +8,7 @@ import { useI18n } from 'vue-i18n'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { destroySystem, SYSTEMS_KEY, SYSTEMS_TOTAL_KEY, type System } from '@/lib/systems/systems'
 import { useNotificationsStore } from '@/stores/notifications'
-import DeleteObjectModal from '../DeleteObjectModal.vue'
+import DeleteObjectModal from '../common/DeleteObjectModal.vue'
 
 const { visible = false, system = undefined } = defineProps<{
   visible: boolean

@@ -4,7 +4,7 @@
 import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
-import { type Pagination } from './common'
+import { OPTIONS_PAGE_SIZE, type Pagination } from './common'
 import type { NeBadgeV2Kind, FilterOption } from '@nethesis/vue-components'
 import * as v from 'valibot'
 
@@ -127,6 +127,17 @@ export const TelegramNotificationsPayloadSchema = v.object({
 
 export type AlertState = 'active' | 'suppressed' | 'unprocessed'
 
+export interface AlertAnnotations {
+  summary_en?: string
+  summary_it?: string
+  description_en?: string
+  description_it?: string
+  summary?: string
+  description?: string
+}
+
+export type AlertAnnotationsWithExtensions = AlertAnnotations & Record<string, string | undefined>
+
 export interface AlertStatus {
   state: AlertState
   silencedBy: string[]
@@ -136,7 +147,7 @@ export interface AlertStatus {
 export interface ActiveAlert {
   fingerprint: string
   labels: Record<string, string>
-  annotations: Record<string, string>
+  annotations: AlertAnnotationsWithExtensions
   status: AlertStatus
   startsAt: string
   endsAt: string
@@ -179,7 +190,7 @@ export interface AlertHistoryRecord {
   ends_at: string | null
   summary: string | null
   labels: Record<string, string>
-  annotations: Record<string, string>
+  annotations: AlertAnnotationsWithExtensions
   receiver: string | null
   created_at: string
 }
@@ -327,7 +338,7 @@ export const postAlertsConfig = (config: AlertingConfigLayer) => {
 export const getAlerts = (
   organizationIds?: string | string[],
   page: number = 1,
-  pageSize: number = 50,
+  pageSize: number = OPTIONS_PAGE_SIZE,
   sortBy: 'starts_at' | 'severity' | 'alertname' | 'status' = 'starts_at',
   sortDirection: 'asc' | 'desc' = 'desc',
   statusFilters?: string | string[],
@@ -392,7 +403,7 @@ export const getAlerts = (
 export const getSystemAlertHistory = (
   systemId: string,
   page: number = 1,
-  pageSize: number = 50,
+  pageSize: number = OPTIONS_PAGE_SIZE,
   sortBy: string = 'starts_at',
   sortDescending: boolean = true,
   severityFilters?: string | string[],
@@ -459,7 +470,7 @@ export const createSystemAlertSilence = (
 
 type AlertAnnotationKey = 'summary' | 'description'
 type AlertWithAnnotations = {
-  annotations?: Record<string, string | null | undefined>
+  annotations?: AlertAnnotations | null | undefined
 }
 
 const DEFAULT_ALERT_LOCALE = 'en'
@@ -469,7 +480,7 @@ function getAlertAnnotation(
   annotationKey: AlertAnnotationKey,
   locale: string,
 ) {
-  const annotations = alert.annotations ?? {}
+  const annotations = (alert.annotations ?? {}) as Record<string, string | undefined>
   const normalizedLocale = locale.split('-')[0].toLowerCase() || DEFAULT_ALERT_LOCALE
   const candidateKeys = Array.from(
     new Set([
@@ -505,7 +516,7 @@ export const getAlertSilenceIds = (alert: Alert) => {
 export const getSystemActiveAlerts = (
   systemId: string,
   page: number = 1,
-  pageSize: number = 50,
+  pageSize: number = OPTIONS_PAGE_SIZE,
   sortBy: 'starts_at' | 'severity' | 'alertname' | 'status' = 'starts_at',
   sortDirection: 'asc' | 'desc' = 'desc',
   statusFilters?: string | string[],

@@ -3,9 +3,9 @@ sidebar_position: 1
 slug: /intro
 ---
 
-# Welcome to My
+# Welcome to My Nethesis
 
-**My** is a centralized management platform by Nethesis that provides authentication, hierarchical organization management, system monitoring, and role-based access control.
+**My Nethesis** is a centralized management platform that provides authentication, hierarchical organization management, system monitoring, and role-based access control.
 
 ## Key Features
 

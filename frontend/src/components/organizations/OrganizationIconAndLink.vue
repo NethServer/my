@@ -10,7 +10,7 @@ import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
 import OrganizationLink from '@/components/organizations/OrganizationLink.vue'
 import { type OrganizationIconSize } from '@/components/organizations/OrganizationIcon.vue'
 
-const { organization, iconSize = 'md' } = defineProps<{
+const { organization, iconSize = 'sm' } = defineProps<{
   organization: {
     logto_id?: string
     name: string

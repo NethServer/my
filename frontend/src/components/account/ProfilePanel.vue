@@ -14,12 +14,14 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   NeButton,
   NeCard,
+  NeCombobox,
   NeDropdown,
   NeFormItemLabel,
   NeInlineNotification,
   NeSkeleton,
   NeTextInput,
 } from '@nethesis/vue-components'
+import { combinePhoneParts, countryCodeComboOptions, parsePhoneForForm } from '@/lib/phone'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import axios, { type AxiosError } from 'axios'
 import { ref, useTemplateRef, watch, type ShallowRef } from 'vue'
@@ -71,6 +73,7 @@ const email = ref('')
 const emailRef = useTemplateRef<HTMLInputElement>('emailRef')
 const phone = ref('')
 const phoneRef = useTemplateRef<HTMLInputElement>('phoneRef')
+const countryCode = ref('it')
 const validationIssues = ref<Record<string, string[]>>({})
 const queryCache = useQueryCache()
 
@@ -86,7 +89,14 @@ watch(
     if (userInfo) {
       name.value = userInfo.name || ''
       email.value = userInfo.email || ''
-      phone.value = userInfo.phone || ''
+      if (userInfo.phone) {
+        const parsed = parsePhoneForForm(userInfo.phone)
+        countryCode.value = parsed.countryCode
+        phone.value = parsed.phone
+      } else {
+        countryCode.value = 'it'
+        phone.value = ''
+      }
     }
   },
   { immediate: true },
@@ -129,7 +139,7 @@ async function saveProfile() {
     const profile = {
       name: name.value,
       email: email.value,
-      phone: phone.value,
+      phone: combinePhoneParts(countryCode.value, phone.value),
     }
 
     const isValidationOk = validate(profile)
@@ -222,7 +232,8 @@ function getKebabMenuItems() {
       <!-- name -->
       <NeTextInput
         ref="nameRef"
-        v-model.trim="name"
+        v-model="name"
+        @blur="name = name.trim()"
         :label="$t('users.name')"
         :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
         :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
@@ -230,21 +241,44 @@ function getKebabMenuItems() {
       <!-- email -->
       <NeTextInput
         ref="emailRef"
-        v-model.trim="email"
+        v-model="email"
+        @blur="email = email.trim()"
         :label="$t('users.email')"
         :invalid-message="validationIssues.email?.[0] ? $t(validationIssues.email[0]) : ''"
         :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
       />
       <!-- phone -->
-      <NeTextInput
-        ref="phoneRef"
-        v-model.trim="phone"
-        :label="$t('users.phone_number')"
-        :invalid-message="validationIssues.phone?.[0] ? $t(validationIssues.phone[0]) : ''"
-        :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
-        :optional="true"
-        :optional-label="t('common.optional')"
-      />
+      <div>
+        <div class="flex items-center justify-between gap-4">
+          <NeFormItemLabel>{{ $t('users.phone_number') }}</NeFormItemLabel>
+          <NeFormItemLabel>{{ $t('common.optional') }}</NeFormItemLabel>
+        </div>
+        <div class="flex gap-4">
+          <!-- country code -->
+          <NeCombobox
+            v-model="countryCode"
+            :options="countryCodeComboOptions"
+            :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
+            :no-results-label="$t('ne_combobox.no_results')"
+            :limited-options-label="$t('ne_combobox.limited_options_label')"
+            :no-options-label="$t('ne_combobox.no_options_label')"
+            :selected-label="$t('ne_combobox.selected')"
+            :user-input-label="$t('ne_combobox.user_input_label')"
+            :optional-label="$t('common.optional')"
+            custom-options-width="20rem"
+          />
+          <!-- local part -->
+          <NeTextInput
+            ref="phoneRef"
+            v-model="phone"
+            @blur="phone = phone.trim()"
+            :invalid-message="validationIssues.phone?.[0] ? $t(validationIssues.phone[0]) : ''"
+            :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
+            :optional="true"
+            :optional-label="t('common.optional')"
+          />
+        </div>
+      </div>
       <!-- organization -->
       <div>
         <NeFormItemLabel>
@@ -258,7 +292,7 @@ function getKebabMenuItems() {
       <!-- roles -->
       <div>
         <NeFormItemLabel>
-          {{ $t('users.roles') }}
+          {{ $t('users.role') }}
         </NeFormItemLabel>
         <div class="flex flex-wrap gap-1">
           <UserRoleBadge

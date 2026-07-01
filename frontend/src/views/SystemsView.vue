@@ -17,7 +17,7 @@ import { canManageSystems } from '@/lib/permissions'
 import SystemsTable from '@/components/systems/SystemsTable.vue'
 import { useSystems } from '@/queries/systems/systems'
 import { useI18n } from 'vue-i18n'
-import { getExport } from '@/lib/systems/systems'
+import { getExport, type SystemStatus } from '@/lib/systems/systems'
 import { downloadFile } from '@/lib/common'
 
 const { t } = useI18n()
@@ -60,10 +60,10 @@ async function exportSystems(format: 'pdf' | 'csv') {
       format,
       undefined,
       debouncedTextFilter.value,
-      productFilter.value,
-      createdByFilter.value,
-      versionFilter.value,
-      statusFilter.value,
+      productFilter.value.map((o) => o.id),
+      createdByFilter.value.map((o) => o.id),
+      versionFilter.value.map((o) => o.id),
+      statusFilter.value.map((o) => o.id) as SystemStatus[],
       sortBy.value,
       sortDescending.value,
     )

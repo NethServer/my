@@ -21,7 +21,7 @@ import {
   NeDropdown,
   type SortEvent,
   type NeDropdownItem,
-  NeDropdownFilter,
+  NeDropdownFilterV2,
   NeSortDropdown,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
@@ -40,7 +40,7 @@ import SetNotesDrawer from './SetNotesDrawer.vue'
 import { useApplicationFilters } from '@/queries/applications/applicationFilters'
 import { buildVersionFilterOptions } from '@/lib/applications/applicationFilters'
 import router from '@/router'
-import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
+import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import SystemDropdownFilter from '@/components/systems/SystemDropdownFilter.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 import SystemLogoAndLink from '../systems/SystemLogoAndLink.vue'
@@ -97,8 +97,9 @@ const versionFilterOptions = computed(() => {
     }
 
     // filter versions based on selected applications
+    const selectedTypeIds = typeFilter.value.map((o) => o.id)
     const applicationVersions = applicationFiltersState.value.data.versions.filter((el) =>
-      typeFilter.value.includes(el.application),
+      selectedTypeIds.includes(el.application),
     )
     return buildVersionFilterOptions(applicationVersions)
   }
@@ -203,12 +204,13 @@ const goToApplicationDetails = (application: Application) => {
           <div class="flex flex-wrap items-center gap-4">
             <!-- text filter -->
             <NeTextInput
-              v-model.trim="textFilter"
+              v-model="textFilter"
+              @blur="textFilter = textFilter.trim()"
               is-search
               :placeholder="$t('applications.filter_applications')"
               class="max-w-48 sm:max-w-sm"
             />
-            <NeDropdownFilter
+            <NeDropdownFilterV2
               v-model="typeFilter"
               kind="checkbox"
               :disabled="applicationFiltersState.status === 'pending'"
@@ -220,8 +222,9 @@ const goToApplicationDetails = (application: Application) => {
               :no-options-label="t('ne_dropdown_filter.no_options')"
               :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
               :clear-search-label="t('ne_dropdown_filter.clear_search')"
+              :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             />
-            <NeDropdownFilter
+            <NeDropdownFilterV2
               v-model="versionFilter"
               kind="checkbox"
               :disabled="applicationFiltersState.status === 'pending'"
@@ -233,9 +236,14 @@ const goToApplicationDetails = (application: Application) => {
               :no-options-label="t('ne_dropdown_filter.no_options')"
               :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
               :clear-search-label="t('ne_dropdown_filter.clear_search')"
+              :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             />
             <SystemDropdownFilter v-model="systemFilter" id-field="id" />
-            <OrganizationDropdownFilter v-if="!isUserCustomer()" v-model="organizationFilter" />
+            <OrganizationDropdownFilter
+              v-if="!isUserCustomer()"
+              v-model="organizationFilter"
+              show-no-company-option
+            />
             <!-- sort dropdown -->
             <NeSortDropdown
               v-model:sort-key="sortBy"

@@ -45,23 +45,27 @@ const { state: thirdPartyApps } = useQuery({
 <template>
   <div>
     <NeHeading tag="h3" class="mb-7">{{ $t('dashboard.title') }}</NeHeading>
-    <div class="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
-      <!-- organizations and users counters -->
-      <template v-if="!loginStore.userInfo">
-        <NeCard v-for="i in 2" :key="i">
-          <NeSkeleton :lines="2" class="w-full" />
+    <!-- organizations and users counters -->
+    <template v-if="!loginStore.userInfo">
+      <div class="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
+        <NeCard v-for="i in 6" :key="i">
+          <NeSkeleton :lines="3" class="w-full" />
         </NeCard>
-      </template>
-      <template v-else>
+      </div>
+    </template>
+    <template v-else>
+      <div class="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
+        <AlertsCounterCard v-if="canReadSystems()" />
+        <SystemsCounterCard v-if="canReadSystems()" />
+        <ApplicationsCounterCard v-if="canReadApplications()" />
+      </div>
+      <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
         <DistributorsCounterCard v-if="canReadDistributors()" />
         <ResellersCounterCard v-if="canReadResellers()" />
         <CustomersCounterCard v-if="canReadCustomers()" />
         <UsersCounterCard v-if="canReadUsers()" />
-        <SystemsCounterCard v-if="canReadSystems()" />
-        <ApplicationsCounterCard v-if="canReadApplications()" />
-        <AlertsCounterCard v-if="canReadSystems()" />
-      </template>
-    </div>
+      </div>
+    </template>
     <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
       <!-- loading third party apps -->
       <template v-if="thirdPartyApps.status === 'pending'">
@@ -78,7 +82,7 @@ const { state: thirdPartyApps } = useQuery({
             <div class="flex items-center gap-3">
               <NeRoundedIcon
                 :customIcon="getThirdPartyAppIcon(thirdPartyApp)"
-                customBackgroundClasses="bg-gray-100 dark:bg-gray-500"
+                customBackgroundClasses="bg-gray-100 dark:bg-gray-800"
                 customForegroundClasses="text-gray-700 dark:text-gray-50"
               />
               <NeHeading tag="h6">

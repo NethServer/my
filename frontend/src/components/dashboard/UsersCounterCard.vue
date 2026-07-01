@@ -7,7 +7,7 @@
 import { faUserGroup } from '@fortawesome/free-solid-svg-icons'
 import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
-import CounterCard from '../CounterCard.vue'
+import CounterCard from '../common/CounterCard.vue'
 import { getUsersTotal, USERS_TOTAL_KEY } from '@/lib/users/users'
 
 const loginStore = useLoginStore()

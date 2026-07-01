@@ -18,6 +18,7 @@ import {
   faCircleCheck,
   faRotateLeft,
   faBomb,
+  faArrowRight,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -37,8 +38,8 @@ import {
   NeSortDropdown,
   sortByProperty,
   type NeDropdownItem,
-  NeDropdownFilter,
-  type FilterOption,
+  NeDropdownFilterV2,
+  type NeDropdownFilterV2Option,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import CreateOrEditUserDrawer from './CreateOrEditUserDrawer.vue'
@@ -50,6 +51,7 @@ import ResetPasswordModal from './ResetPasswordModal.vue'
 import PasswordChangedModal from './PasswordChangedModal.vue'
 import { useUsers } from '@/queries/users/users'
 import { canManageUsers, canImpersonateUsers, canDestroyUsers } from '@/lib/permissions'
+import { isCurrentUser } from '@/lib/users/users'
 import { useLoginStore } from '@/stores/login'
 import ImpersonateUserModal from './ImpersonateUserModal.vue'
 import SuspendUserModal from './SuspendUserModal.vue'
@@ -59,10 +61,11 @@ import OrganizationIconAndLink from '@/components/organizations/OrganizationIcon
 import UserRoleBadge from './UserRoleBadge.vue'
 import { useUserFilters } from '@/queries/users/userFilters'
 import { normalize } from '@/lib/common'
-import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
+import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import UserAvatar from './UserAvatar.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 import { isUserCustomer } from '@/lib/organizations/organizations.ts'
+import router from '@/router/index.ts'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -102,7 +105,7 @@ const isShownDestroyUserModal = ref(false)
 const newPassword = ref<string>('')
 const isImpersonating = ref(false)
 
-const statusFilterOptions = ref<FilterOption[]>([
+const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
   {
     id: 'enabled',
     label: t('common.enabled'),
@@ -131,9 +134,9 @@ const areDefaultFiltersApplied = computed(() => {
     organizationFilter.value.length === 0 &&
     roleFilter.value.length === 0 &&
     statusFilter.value.length === 2 &&
-    statusFilter.value.includes('enabled') &&
-    statusFilter.value.includes('suspended') &&
-    !statusFilter.value.includes('deleted')
+    statusFilter.value.some((o) => o.id === 'enabled') &&
+    statusFilter.value.some((o) => o.id === 'suspended') &&
+    !statusFilter.value.some((o) => o.id === 'deleted')
   )
 })
 
@@ -153,7 +156,7 @@ const noEmptyStateShown = computed(() => {
   return !isNoDataEmptyStateShown.value && !isNoMatchEmptyStateShown.value
 })
 
-const roleFilterOptions = computed(() => {
+const roleFilterOptions = computed<NeDropdownFilterV2Option[]>(() => {
   if (!userFiltersState.value.data?.roles) {
     return []
   }
@@ -329,6 +332,10 @@ const onClosePasswordChangedModal = () => {
   isShownPasswordChangedModal.value = false
   newPassword.value = ''
 }
+
+const goToAccount = () => {
+  router.push({ name: 'account' })
+}
 </script>
 
 <template>
@@ -348,7 +355,8 @@ const onClosePasswordChangedModal = () => {
         <div class="flex flex-wrap items-center gap-4">
           <!-- text filter -->
           <NeTextInput
-            v-model.trim="textFilter"
+            v-model="textFilter"
+            @blur="textFilter = textFilter.trim()"
             is-search
             :placeholder="$t('users.filter_users')"
             class="max-w-48 sm:max-w-sm"
@@ -356,7 +364,7 @@ const onClosePasswordChangedModal = () => {
           <!-- organization filter -->
           <OrganizationDropdownFilter v-if="!isUserCustomer()" v-model="organizationFilter" />
           <!-- role filter -->
-          <NeDropdownFilter
+          <NeDropdownFilterV2
             v-model="roleFilter"
             kind="checkbox"
             :label="t('users.role')"
@@ -367,9 +375,10 @@ const onClosePasswordChangedModal = () => {
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
           />
           <!-- status filter -->
-          <NeDropdownFilter
+          <NeDropdownFilterV2
             v-model="statusFilter"
             kind="checkbox"
             :label="t('common.status')"
@@ -380,6 +389,7 @@ const onClosePasswordChangedModal = () => {
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             :custom-action-label="t('ne_dropdown_filter.reset_selection')"
             @custom-action="resetStatusFilter"
           />
@@ -464,6 +474,9 @@ const onClosePasswordChangedModal = () => {
                 :logto-id="item.logto_id || ''"
               />
               {{ item.name }}
+              <span v-if="isCurrentUser(item)" class="text-tertiary-neutral"
+                >({{ $t('users.me') }})</span
+              >
             </div>
           </NeTableCell>
           <NeTableCell
@@ -483,7 +496,7 @@ const onClosePasswordChangedModal = () => {
               <span v-else>-</span>
             </div>
           </NeTableCell>
-          <NeTableCell :data-label="$t('users.roles')">
+          <NeTableCell :data-label="$t('users.role')">
             <span
               v-if="!item.roles || item.roles.length === 0"
               :class="{ 'opacity-50': item.deleted_at }"
@@ -533,14 +546,24 @@ const onClosePasswordChangedModal = () => {
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
             <div v-if="canManageUsers()" class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
-              <NeButton v-if="!item.deleted_at" kind="tertiary" @click="showEditUserDrawer(item)">
-                <template #prefix>
-                  <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
-                </template>
-                {{ $t('common.edit') }}
-              </NeButton>
-              <!-- kebab menu -->
-              <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />
+              <template v-if="!isCurrentUser(item)">
+                <NeButton v-if="!item.deleted_at" kind="tertiary" @click="showEditUserDrawer(item)">
+                  <template #prefix>
+                    <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
+                  </template>
+                  {{ $t('common.edit') }}
+                </NeButton>
+                <!-- kebab menu -->
+                <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />
+              </template>
+              <template v-else>
+                <NeButton kind="tertiary" @click="goToAccount">
+                  <template #prefix>
+                    <FontAwesomeIcon :icon="faArrowRight" class="h-4 w-4" aria-hidden="true" />
+                  </template>
+                  {{ $t('account.title') }}
+                </NeButton>
+              </template>
             </div>
           </NeTableCell>
         </NeTableRow>

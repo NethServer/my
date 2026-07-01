@@ -120,8 +120,6 @@ function validate(changePasswordData: ChangePassword): boolean {
     if (issues.nested) {
       validationIssues.value = issues.nested as Record<string, string[]>
 
-      console.debug('frontend validation issues', validationIssues.value)
-
       // focus the first field with error
 
       const firstErrorFieldName = Object.keys(validationIssues.value)[0]

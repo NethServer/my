@@ -15,16 +15,23 @@ import {
   NeTextArea,
   NeTooltip,
   NeFormItemLabel,
+  NeRoundedIcon,
 } from '@nethesis/vue-components'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAlertActivity } from '@/queries/alerts/alertActivity'
-import { getSeverityBadgeKind, isAlertSilenced, type Alert } from '@/lib/alerts'
+import {
+  getSeverityBadgeKind,
+  isAlertSilenced,
+  getAlertSummary,
+  getAlertDescription,
+  type Alert,
+} from '@/lib/alerts'
 import { isProcessing } from '@/lib/alertPendingStates'
 import ProcessingAlertBadge from '@/components/alerts/ProcessingAlertBadge.vue'
 import SystemLogoAndLink from '@/components/systems/SystemLogoAndLink.vue'
 import UserAvatar from '@/components/users/UserAvatar.vue'
-import { formatDateTimeNoSeconds, formatTimeAgo } from '@/lib/dateTime'
+import { formatDateTimeNoSeconds, formatRelativeTime } from '@/lib/dateTime'
 
 interface Props {
   isShown: boolean
@@ -118,25 +125,21 @@ function closeDrawer() {
     <div v-if="alert" class="space-y-7">
       <!-- Alert Header -->
       <div class="space-y-7">
-        <!-- Avatar + Alert Name + Badges -->
+        <!-- Icon + Alert Name + Badges -->
         <div class="flex gap-4">
-          <!-- Avatar -->
+          <!-- Icon -->
           <div class="flex shrink-0">
-            <div
-              class="flex size-12 items-center justify-center rounded-full bg-gray-400 dark:bg-gray-500"
-            >
-              <FontAwesomeIcon
-                :icon="faTriangleExclamation"
-                class="size-6 text-white dark:text-gray-100"
-                aria-hidden="true"
-              />
-            </div>
+            <NeRoundedIcon
+              :customIcon="faTriangleExclamation"
+              customBackgroundClasses="bg-gray-100 dark:bg-gray-800"
+              customForegroundClasses="text-gray-700 dark:text-gray-50"
+            />
           </div>
 
           <!-- Alert Name + Badges -->
-          <div class="flex flex-col gap-2">
+          <div class="flex flex-col gap-1">
             <div class="flex flex-wrap items-center gap-2">
-              <h3 class="text-primary-neutral text-lg font-medium dark:text-gray-100">
+              <h3 class="text-primary-neutral text-base font-medium dark:text-gray-100">
                 {{ alert.labels?.alertname || '-' }}
               </h3>
               <!-- Severity Badge -->
@@ -154,12 +157,9 @@ function closeDrawer() {
                 {{ t('alerts.muted') }}
               </NeBadgeV2>
             </div>
-            <!-- Summary/Description -->
-            <p
-              v-if="alert.annotations?.summary"
-              class="text-tertiary-neutral text-sm dark:text-gray-400"
-            >
-              {{ alert.annotations.summary }}
+            <!-- Summary -->
+            <p v-if="getAlertSummary(alert, locale)" class="text-tertiary-neutral">
+              {{ getAlertSummary(alert, locale) }}
             </p>
           </div>
         </div>
@@ -203,7 +203,7 @@ function closeDrawer() {
           {{ t('alerts.description') }}
         </NeFormItemLabel>
         <p class="text-tertiary-neutral text-sm dark:text-gray-400">
-          {{ alert.annotations?.description || '-' }}
+          {{ getAlertDescription(alert, locale) || '-' }}
         </p>
       </div>
 
@@ -255,7 +255,7 @@ function closeDrawer() {
             <NeTooltip placement="top" trigger-event="mouseenter focus">
               <template #trigger>
                 <span class="text-tertiary-neutral w-fit cursor-default">
-                  {{ formatTimeAgo(event.created_at, t) }}
+                  {{ formatRelativeTime(event.created_at, locale) }}
                 </span>
               </template>
               <template #content>

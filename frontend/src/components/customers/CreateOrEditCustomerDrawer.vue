@@ -229,8 +229,6 @@ function validateCreate(customer: CreateCustomer): boolean {
       }
       validationIssues.value = issues
 
-      console.debug('frontend validation issues', validationIssues.value)
-
       // focus the first field with error
 
       const firstErrorFieldName = Object.keys(validationIssues.value)[0]
@@ -259,8 +257,6 @@ function validateEdit(customer: EditCustomer): boolean {
         issues[newKey] = flattenedIssues.nested[key] ?? []
       }
       validationIssues.value = issues
-
-      console.debug('frontend validation issues', validationIssues.value)
 
       // focus the first field with error
 

@@ -20,7 +20,7 @@ import { PRODUCT_NAME } from '@/lib/config'
 import { canManageUsers } from '@/lib/permissions'
 import { useUsers } from '@/queries/users/users'
 import { useI18n } from 'vue-i18n'
-import { getExport } from '@/lib/users/users'
+import { getExport, type UserStatus } from '@/lib/users/users'
 import { downloadFile } from '@/lib/common'
 
 const { t } = useI18n()
@@ -71,9 +71,9 @@ async function exportUsers(format: 'pdf' | 'csv') {
     const exportData = await getExport(
       format,
       debouncedTextFilter.value,
-      organizationFilter.value,
-      roleFilter.value,
-      statusFilter.value,
+      organizationFilter.value.map((o) => o.id),
+      roleFilter.value.map((o) => o.id),
+      statusFilter.value.map((o) => o.id) as UserStatus[],
       sortBy.value,
       sortDescending.value,
     )

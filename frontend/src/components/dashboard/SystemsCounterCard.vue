@@ -7,7 +7,7 @@
 import { faCircleCheck, faCircleXmark, faClock, faServer } from '@fortawesome/free-solid-svg-icons'
 import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
-import CounterCard from '../CounterCard.vue'
+import CounterCard from '../common/CounterCard.vue'
 import { NeBadgeV2 } from '@nethesis/vue-components'
 import { getSystemsTotal, SYSTEMS_TOTAL_KEY } from '@/lib/systems/systems'
 import { computed } from 'vue'

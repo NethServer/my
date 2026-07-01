@@ -8,7 +8,7 @@ import { NeButton, NeLink } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faArrowRight } from '@fortawesome/free-solid-svg-icons'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
-import CounterCard from '@/components/CounterCard.vue'
+import CounterCard from '@/components/common/CounterCard.vue'
 import ApplicationLogo from '@/components/applications/ApplicationLogo.vue'
 import { useI18n } from 'vue-i18n'
 import { computed } from 'vue'
@@ -45,7 +45,7 @@ const moreApplications = computed(() => {
 const goToApplications = () => {
   const systemId = route.params.systemId as string
   clearApplicationsFilters()
-  systemFilterForApps.value = systemId ? [systemId] : []
+  systemFilterForApps.value = systemId ? [{ id: systemId, label: systemId }] : []
   router.push({ name: 'applications' })
 }
 </script>

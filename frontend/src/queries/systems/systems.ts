@@ -15,6 +15,7 @@ import { defineQuery, useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
 import { ref, watch } from 'vue'
 import { computed } from 'vue'
+import type { NeDropdownFilterV2Option } from '@nethesis/vue-components'
 
 export const useSystems = defineQuery(() => {
   const loginStore = useLoginStore()
@@ -22,11 +23,16 @@ export const useSystems = defineQuery(() => {
   const pageSize = ref(DEFAULT_PAGE_SIZE)
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
-  const productFilter = ref<string[]>([])
-  const createdByFilter = ref<string[]>([])
-  const versionFilter = ref<string[]>([])
-  const statusFilter = ref<SystemStatus[]>(['active', 'inactive', 'unknown', 'suspended'])
-  const organizationFilter = ref<string[]>([])
+  const productFilter = ref<NeDropdownFilterV2Option[]>([])
+  const createdByFilter = ref<NeDropdownFilterV2Option[]>([])
+  const versionFilter = ref<NeDropdownFilterV2Option[]>([])
+  const statusFilter = ref<NeDropdownFilterV2Option[]>([
+    { id: 'active', label: 'active' },
+    { id: 'inactive', label: 'inactive' },
+    { id: 'unknown', label: 'unknown' },
+    { id: 'suspended', label: 'suspended' },
+  ])
+  const organizationFilter = ref<NeDropdownFilterV2Option[]>([])
   const sortBy = ref<keyof System>('name')
   const sortDescending = ref(false)
 
@@ -37,11 +43,11 @@ export const useSystems = defineQuery(() => {
         pageNum: pageNum.value,
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
-        productFilter: productFilter.value,
-        createdByFilter: createdByFilter.value,
-        versionFilter: versionFilter.value,
-        statusFilter: statusFilter.value,
-        organizationFilter: organizationFilter.value,
+        productFilter: productFilter.value.map((o) => o.id),
+        createdByFilter: createdByFilter.value.map((o) => o.id),
+        versionFilter: versionFilter.value.map((o) => o.id),
+        statusFilter: statusFilter.value.map((o) => o.id),
+        organizationFilter: organizationFilter.value.map((o) => o.id),
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -52,11 +58,11 @@ export const useSystems = defineQuery(() => {
         pageNum.value,
         pageSize.value,
         debouncedTextFilter.value,
-        productFilter.value,
-        createdByFilter.value,
-        versionFilter.value,
-        statusFilter.value,
-        organizationFilter.value,
+        productFilter.value.map((o) => o.id),
+        createdByFilter.value.map((o) => o.id),
+        versionFilter.value.map((o) => o.id),
+        statusFilter.value.map((o) => o.id) as SystemStatus[],
+        organizationFilter.value.map((o) => o.id),
         sortBy.value,
         sortDescending.value,
       ),
@@ -70,11 +76,11 @@ export const useSystems = defineQuery(() => {
       createdByFilter.value.length === 0 &&
       organizationFilter.value.length === 0 &&
       statusFilter.value.length === 4 &&
-      statusFilter.value.includes('active') &&
-      statusFilter.value.includes('inactive') &&
-      statusFilter.value.includes('unknown') &&
-      statusFilter.value.includes('suspended') &&
-      !statusFilter.value.includes('deleted')
+      statusFilter.value.some((o) => o.id === 'active') &&
+      statusFilter.value.some((o) => o.id === 'inactive') &&
+      statusFilter.value.some((o) => o.id === 'unknown') &&
+      statusFilter.value.some((o) => o.id === 'suspended') &&
+      !statusFilter.value.some((o) => o.id === 'deleted')
     )
   })
 
@@ -160,7 +166,12 @@ export const useSystems = defineQuery(() => {
   }
 
   const resetStatusFilter = () => {
-    statusFilter.value = ['active', 'inactive', 'unknown', 'suspended']
+    statusFilter.value = [
+      { id: 'active', label: 'active' },
+      { id: 'inactive', label: 'inactive' },
+      { id: 'unknown', label: 'unknown' },
+      { id: 'suspended', label: 'suspended' },
+    ]
   }
 
   return {
