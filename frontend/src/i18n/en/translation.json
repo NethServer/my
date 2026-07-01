@@ -869,7 +869,7 @@
     "alertname": "Alert",
     "severity": "Severity",
     "started": "Started",
-    "ends_at": "Ended at",
+    "ends_at": "Ended",
     "description": "Description",
     "cannot_retrieve_alert_history": "Cannot retrieve alert history",
     "no_alert_history": "No alert history",

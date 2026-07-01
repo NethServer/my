@@ -69,7 +69,8 @@
     "close_side_drawer": "Chiudi pannello laterale",
     "end_impersonation": "Termina l'impersonificazione e torna al tuo account",
     "systems_management": "Gestione sistemi",
-    "companies_and_users": "Aziende e utenti"
+    "companies_and_users": "Aziende e utenti",
+    "users": "Utenti"
   },
   "login": {
     "manual_redirect_to_dashboard": "Se non vieni reindirizzato automaticamente, {clickHereLink}",
@@ -223,6 +224,7 @@
     "organization_restored": "Azienda ripristinata",
     "organization_restored_successfully": "{name} ripristinata con successo",
     "restore_organization_confirmation": "Sei sicuro di voler ripristinare {name}?",
+    "no_company": "Nessuna azienda",
     "distributors_lc": "distributori |",
     "resellers_lc": "rivenditore | rivenditori",
     "customers_lc": "cliente | clienti"
@@ -271,7 +273,6 @@
     "no_user": "Nessun utente",
     "phone_number": "Numero di telefono",
     "no_organizations": "Nessuna azienda",
-    "user_roles": "Ruoli",
     "reset_password": "Reimposta password",
     "impersonate_user": "Impersona utente",
     "impersonate_user_message_1": "Agirai temporaneamente come l'utente {user} e avrai i suoi permessi.",
@@ -318,7 +319,8 @@
     "restore_user_confirmation": "Sei sicuro di voler ripristinare {name}?",
     "export_users_to_pdf": "Esporta utenti in PDF",
     "export_users_to_csv": "Esporta utenti in CSV",
-    "user_role_ids_at_least_one_role_is_required": "È richiesto almeno un ruolo"
+    "user_role_ids_at_least_one_role_is_required": "È richiesto almeno un ruolo",
+    "me": "io"
   },
   "third_party_apps": {
     "description_nethshop_nethesis_it": "Sfoglia e ordina prodotti e servizi Nethesis.",
@@ -342,6 +344,7 @@
       "name_required": "Il nome è obbligatorio",
       "mode": "Accesso",
       "mode_required": "L'accesso è obbligatorio",
+      "expires_in_days_invalid": "Il campo scadenza (giorni) deve essere compreso tra 1 e 365",
       "mode_read": "Sola lettura",
       "mode_read_description": "Può visualizzare i dati, ma non può apportare modifiche.",
       "mode_write": "Lettura e scrittura",
@@ -659,7 +662,8 @@
     "active_alerts_title": "Allarmi attivi",
     "active_alerts_description": "Visualizza gli allarmi attivi e monitora i problemi in corso per questo sistema.",
     "alert_history_title": "Cronologia allarmi",
-    "alert_history_description": "Visualizza gli allarmi risolti per questo sistema."
+    "alert_history_description": "Visualizza gli allarmi risolti per questo sistema.",
+    "date_range_from_to": "Da {from} a {to}"
   },
   "application_detail": {
     "title": "Dettaglio applicazione",
@@ -732,6 +736,7 @@
     "open_filter": "Apri filtro",
     "no_options": "Nessuna opzione",
     "more_options_hidden": "Continua a digitare per visualizzare altre opzioni",
+    "options_filter_placeholder": "Filtra opzioni",
     "clear_selection": "Cancella selezione",
     "reset_selection": "Reimposta selezione",
     "clear_search": "Azzera ricerca"
@@ -756,9 +761,7 @@
     "days": "{count} giorno | {count} giorni",
     "weeks": "{count} settimana | {count} settimane",
     "months": "{count} mese | {count} mesi",
-    "years": "{count} anno | {count} anni",
-    "just_now": "Poco fa",
-    "ago": "{time} fa"
+    "years": "{count} anno | {count} anni"
   },
   "delete_object_modal": {
     "type_to_confirm": "Digita '{confirmationText}' per confermare",
@@ -865,8 +868,8 @@
     "alert": "Allarme",
     "alertname": "Allarme",
     "severity": "Gravità",
-    "started": "Avviato",
-    "ends_at": "Terminato alle",
+    "started": "Iniziato",
+    "ends_at": "Terminato",
     "description": "Descrizione",
     "cannot_retrieve_alert_history": "Impossibile recuperare la cronologia degli allarmi",
     "no_alert_history": "Nessuna cronologia allarmi",
@@ -886,7 +889,6 @@
     "processing_tooltip": "Le azioni di silenziamento e riattivazione potrebbero richiedere alcuni minuti. Mentre il sistema elabora la richiesta, lo stato dell'allarme verrà temporaneamente visualizzato come '@:{'alerts.processing'}'.",
     "system": "Sistema",
     "organization": "Azienda",
-    "reload_alerts": "Ricarica allarmi",
     "mute_alert": "Silenzia allarme",
     "mute_alert_title": "Silenzia allarme {alertname}",
     "mute_until_date": "Silenzia l'allarme fino a questa data",
