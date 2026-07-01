@@ -49,7 +49,7 @@
     "ws": "^8.21.0"
   },
   "devDependencies": {
-    "@pinia/colada-devtools": "^0.4.5",
+    "@pinia/colada-devtools": "^1.1.0",
     "@tsconfig/node22": "^22.0.1",
     "@types/lodash": "^4.17.18",
     "@types/node": "^22.14.0",
