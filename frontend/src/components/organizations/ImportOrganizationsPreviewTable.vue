@@ -40,7 +40,7 @@ function rowField(row: ImportRow, field: string): string {
         {{ $t('import.import_file_preview_description', { count: PREVIEW_ROWS }) }}
       </div>
     </div>
-    <NeTable :aria-label="$t('import.import_file_preview')" card-breakpoint="md">
+    <NeTable :aria-label="$t('import.import_file_preview')" card-breakpoint="xl">
       <NeTableHead>
         <NeTableHeadCell>{{ $t('organizations.name') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('organizations.vat_number') }}</NeTableHeadCell>
@@ -56,7 +56,7 @@ function rowField(row: ImportRow, field: string): string {
           <NeTableCell :data-label="$t('organizations.name')">
             {{ rowField(row, 'company_name') }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('organizations.vat_number')">
+          <NeTableCell :data-label="$t('organizations.vat_number')" class="break-all">
             {{ rowField(row, 'vat_number') }}
           </NeTableCell>
           <NeTableCell :data-label="$t('organizations.description')">
@@ -71,10 +71,10 @@ function rowField(row: ImportRow, field: string): string {
           <NeTableCell :data-label="$t('organizations.main_contact')">
             {{ rowField(row, 'main_contact') }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('organizations.email')">
+          <NeTableCell :data-label="$t('organizations.email')" class="break-all">
             {{ rowField(row, 'email') }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('organizations.phone_number')">
+          <NeTableCell :data-label="$t('organizations.phone_number')" class="break-all">
             {{ rowField(row, 'phone') }}
           </NeTableCell>
         </NeTableRow>
