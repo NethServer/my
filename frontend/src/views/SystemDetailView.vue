@@ -9,12 +9,10 @@ import {
   NeHeading,
   NeInlineNotification,
   NeSkeleton,
-  NeSpinner,
   NeTabs,
-  NeTooltip,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faArrowLeft, faArrowUpRightFromSquare } from '@fortawesome/free-solid-svg-icons'
+import { faArrowLeft /*, faArrowUpRightFromSquare*/ } from '@fortawesome/free-solid-svg-icons'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { useTabs } from '@/composables/useTabs'
 import { useI18n } from 'vue-i18n'
@@ -23,13 +21,11 @@ import SystemChangeHistoryPanel from '@/components/systems/SystemChangeHistoryPa
 import SystemBackupsPanel from '@/components/systems/SystemBackupsPanel.vue'
 import SystemAlertsPanel from '@/components/systems/SystemAlertsPanel.vue'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
-import { useSystemReachability } from '@/queries/systems/systemReachability'
-import { computed } from 'vue'
 
 const { t } = useI18n()
 const { state: systemDetail } = useSystemDetail()
 const { state: latestInventory } = useLatestInventory()
-const { state: reachabilityState, asyncStatus: reachabilityAsyncStatus } = useSystemReachability()
+// const { state: reachabilityState, asyncStatus: reachabilityAsyncStatus } = useSystemReachability() ////
 const { tabs, selectedTab } = useTabs([
   { name: 'overview', label: t('system_detail.overview') },
   { name: 'change_history', label: t('system_detail.change_history') },
@@ -37,18 +33,19 @@ const { tabs, selectedTab } = useTabs([
   { name: 'backups', label: t('backups.title') },
 ])
 
-const isSystemReachable = computed(() => !!reachabilityState.value.data?.reachable)
-const isCheckingReachability = computed(() => reachabilityAsyncStatus.value === 'loading')
-const isGoToSystemDisabled = computed(
-  () => isCheckingReachability.value || !isSystemReachable.value,
-)
+////
+// const isSystemReachable = computed(() => !!reachabilityState.value.data?.reachable)
+// const isCheckingReachability = computed(() => reachabilityAsyncStatus.value === 'loading')
+// const isGoToSystemDisabled = computed(
+//   () => isCheckingReachability.value || !isSystemReachable.value,
+// )
 
-const openSystem = () => {
-  const url = reachabilityState.value.data?.url
-  if (url) {
-    window.open(url, '_blank')
-  }
-}
+// const openSystem = () => {
+//   const url = reachabilityState.value.data?.url
+//   if (url) {
+//     window.open(url, '_blank')
+//   }
+// }
 </script>
 
 <template>
@@ -75,8 +72,8 @@ const openSystem = () => {
         {{ systemDetail.data?.name }}
       </NeHeading>
       <div class="flex shrink-0 items-center gap-2">
+        <!-- go to system button ////
         <NeSpinner v-if="reachabilityState.status === 'pending'" color="white" />
-        <!-- open system (with tooltip only when not reachable) -->
         <NeTooltip
           v-if="!isSystemReachable"
           placement="left"
@@ -111,6 +108,7 @@ const openSystem = () => {
           </template>
           {{ $t('system_detail.go_to_system') }}
         </NeButton>
+        -->
       </div>
     </div>
     <!-- no inventory notification -->
