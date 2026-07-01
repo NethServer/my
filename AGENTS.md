@@ -1,5 +1,7 @@
 # MY (my.nethesis.it)
 
+`AGENTS.md` is source of truth. `CLAUDE.md` is symlink to it.
+
 Centralized authentication and management platform. Logto as IdP, RBAC with business hierarchy (Owner > Distributor > Reseller > Customer) and technical user roles (Super Admin, Admin, Support).
 
 **Version**: v0.5.0 (pre-production). Canonical source: `version.json`.
@@ -28,6 +30,10 @@ cd frontend && npm run pre-commit  # format + lint + type-check + test + build
 ```
 
 Security updates: handled automatically by Dependabot/Renovate — do not chase them manually.
+
+### 1.3 Skills
+
+`.agents/skills/` holds task-specific skills (e.g. `frontend-conventions`, `frontend-a11y-audit`). Before touching matching files, read the skill's `SKILL.md` and follow it for the task's duration.
 
 ---
 

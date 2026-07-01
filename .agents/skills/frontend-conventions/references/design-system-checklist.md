@@ -38,5 +38,4 @@ Check every item; fix all deviations in place; summarise grouped by category.
 - [ ] `satisfies` operator used in place of `as` where the value must also pass a type constraint
 - [ ] No `@ts-ignore` / `@ts-expect-error` without an explanatory comment on the same line
 
-See [frontend-conventions/typescript-safety](../../frontend-conventions/references/typescript-safety.md)
-for bad→good examples.
+See [typescript-safety](./typescript-safety.md) for bad→good examples.

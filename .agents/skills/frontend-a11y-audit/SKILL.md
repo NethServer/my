@@ -1,10 +1,9 @@
 ---
 name: frontend-a11y-audit
-description: 'Audit and fix Vue 3 frontend components for WCAG 2.1/2.2 AA accessibility compliance. Use when the task mentions accessibility, a11y, WCAG, ARIA, screen reader, keyboard navigation, focus management, focus trap, color contrast, semantic HTML, alt text, aria-label, aria-live, or auditing a component for accessibility issues. Invoke explicitly as /a11y-fix on target file(s).'
-argument-hint: 'path to the .vue file(s) to audit'
+description: 'Audit and fix Vue 3 frontend components for WCAG 2.1/2.2 AA accessibility compliance. Use when the task mentions accessibility, a11y, WCAG, ARIA, screen reader, keyboard navigation, focus management, focus trap, color contrast, semantic HTML, alt text, aria-label, aria-live, or auditing a component for accessibility issues.'
 ---
 
-# Frontend Accessibility Audit (/a11y-fix)
+# Frontend Accessibility Audit
 
 Audit the specified frontend file(s) for WCAG 2.1/2.2 AA violations and apply fixes.
 Follow [frontend-conventions](../frontend-conventions/SKILL.md) for all code style and i18n rules.

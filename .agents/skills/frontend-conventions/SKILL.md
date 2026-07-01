@@ -1,19 +1,18 @@
 ---
 name: frontend-conventions
-description: 'Baseline conventions for the Vue 3 + TypeScript frontend (frontend/). Use when writing, editing, or reviewing any frontend code: components, views, Pinia Colada queries, useMutation flows, Pinia stores, lib modules, valibot schemas, permissions, i18n, Tailwind styling, @nethesis/vue-components usage, tests, license headers, and TypeScript type-safety. Load this whenever a task touches files under frontend/.'
+description: 'Baseline conventions for the Vue 3 + TypeScript frontend (frontend/), including design-system drift and type-safety auditing. Use when writing, editing, or reviewing any frontend code: components, views, Pinia Colada queries, useMutation flows, Pinia stores, lib modules, valibot schemas, permissions, i18n, Tailwind styling, @nethesis/vue-components usage, tests, license headers, and TypeScript type-safety. Also use when auditing a component for design-system compliance (raw HTML vs Ne* components, hard-coded colours, missing dark variants, whole-library icon imports, hardcoded strings, any/non-null assertions). Load this whenever a task touches files under frontend/.'
 ---
 
 # Frontend Conventions
 
 Baseline, always-applicable conventions for the Vue 3 + TypeScript SPA under `frontend/`.
-Other frontend skills (`frontend-a11y-audit`, `frontend-design-system-check`,
-`frontend-ux-review`, `figma-design-review`) build on these rules — follow this skill first.
+Other frontend skills (`frontend-a11y-audit`) build on these rules — follow this skill first.
 
 ## When to Use
 
 - Writing or editing any `.vue` / `.ts` file under `frontend/`.
 - Adding components, views, queries, mutations, stores, lib modules, or tests.
-- Reviewing frontend code for convention and type-safety compliance.
+- Reviewing frontend code for convention, design-system, and type-safety compliance.
 
 ## Core Rules (always apply)
 
@@ -21,7 +20,8 @@ Other frontend skills (`frontend-a11y-audit`, `frontend-design-system-check`,
 - **License header** on every `.vue` and `.ts` file (see [styling-i18n-testing](./references/styling-i18n-testing.md)).
 - **Path alias `@/`** maps to `frontend/src/`. Never traverse upward with `../../`.
 - **No hardcoded user-visible strings** — always i18n keys, even for buttons, errors, toast titles.
-- **`@nethesis/vue-components` first** — prefer `Ne*` primitives over raw HTML elements.
+- **`@nethesis/vue-components` first** — prefer `Ne*` primitives over raw HTML elements. Check the
+  [Storybook](https://nethesis.github.io/vue-components/) for correct prop usage when unsure.
 - **Type-safe always** — no `any`, no non-null assertions; annotate signatures.
   See [typescript-safety](./references/typescript-safety.md).
 
@@ -37,6 +37,27 @@ Load the reference that matches the task:
   bad→good examples (`any`, assertions, non-null, generics, `satisfies`, `as const`).
 - [styling-i18n-testing.md](./references/styling-i18n-testing.md) — license header, Tailwind v4 +
   dark mode, FontAwesome icons, i18n key rules, vitest testing, path alias.
+- [design-system-checklist.md](./references/design-system-checklist.md) — full audit checklist
+  for design-system drift and type-safety (component library, Tailwind, icons, i18n, TypeScript).
+
+## Auditing for Design-System Drift
+
+When asked to audit or review a file for design-system compliance:
+
+1. **Read** the target file(s).
+2. **Check** every item in the [design-system checklist](./references/design-system-checklist.md).
+3. **Fix** all deviations in place.
+4. **Summarise** the changes, grouped by category (component library / Tailwind / icons / i18n /
+   TypeScript).
+
+Optionally classify findings by severity before fixing:
+
+```
+[CRITICAL] <category> — <element/symbol> — <fix>
+[HIGH]     <category> — <element/symbol> — <fix>
+[MEDIUM]   <category> — <element/symbol> — <fix>
+[LOW]      <category> — <element/symbol> — <fix>
+```
 
 ## Global Constraints
 
