@@ -120,6 +120,67 @@ func GetOrganizationIDByVAT(vat, entityType string) (string, error) {
 	return logtoID, nil
 }
 
+// isPlaceholderVAT reports whether a VAT is the "no real VAT" placeholder used
+// for customers that have none: empty, or all zeros (e.g. "00000000000"). Such
+// customers can't be de-duplicated by VAT and must stay creatable, so import
+// dedup treats them as if they carried no VAT at all.
+func isPlaceholderVAT(vat string) bool {
+	trimmed := strings.TrimSpace(vat)
+	if trimmed == "" {
+		return true
+	}
+	for _, r := range trimmed {
+		if r != '0' {
+			return false
+		}
+	}
+	return true
+}
+
+// CustomerVATExistsForOwner reports whether an ACTIVE customer with the given VAT
+// already exists under the owner org (custom_data.createdBy). Customers carry no
+// DB-level VAT uniqueness, so import dedup is scoped to the importing org and
+// skips placeholder VATs. The scope is per-owner (not global) because two
+// resellers may legitimately serve the same end company, hence share a VAT.
+func CustomerVATExistsForOwner(vat, ownerOrgID string) (bool, error) {
+	if isPlaceholderVAT(vat) || strings.TrimSpace(ownerOrgID) == "" {
+		return false, nil
+	}
+	query := `SELECT EXISTS (
+		SELECT 1 FROM customers
+		WHERE TRIM(custom_data->>'vat') = $1
+		  AND custom_data->>'createdBy' = $2
+		  AND deleted_at IS NULL)`
+	var exists bool
+	if err := database.DB.QueryRow(query, strings.TrimSpace(vat), ownerOrgID).Scan(&exists); err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
+// GetCustomerIDByVATForOwner returns the Logto ID of the active customer with the
+// given VAT under the owner org, or "" if none. Mirrors CustomerVATExistsForOwner
+// so the override-driven UPDATE path targets the same row that was flagged.
+func GetCustomerIDByVATForOwner(vat, ownerOrgID string) (string, error) {
+	if isPlaceholderVAT(vat) || strings.TrimSpace(ownerOrgID) == "" {
+		return "", nil
+	}
+	query := `SELECT logto_id FROM customers
+		WHERE TRIM(custom_data->>'vat') = $1
+		  AND custom_data->>'createdBy' = $2
+		  AND deleted_at IS NULL AND logto_id IS NOT NULL
+		LIMIT 1`
+	var logtoID string
+	err := database.DB.QueryRow(query, strings.TrimSpace(vat), ownerOrgID).Scan(&logtoID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil
+		}
+		return "", err
+	}
+	return logtoID, nil
+}
+
 // OrganizationRowToData converts a validated CSV row map into the data map stored
 // in ImportRow. Keys mirror the CSV column names so the validate response (which
 // echoes `data` back to the frontend) lines up 1:1 with what the user typed.

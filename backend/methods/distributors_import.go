@@ -113,31 +113,46 @@ func validateOrganizationImport(c *gin.Context, entityType string) {
 			errs = append(errs, *dupErr)
 		}
 
-		// Database VAT check — DB triggers enforce VAT uniqueness for
-		// distributors and resellers; customers carry no uniqueness so the
-		// check is skipped entirely for them (every customer row imports as a
-		// fresh CREATE).
-		//   - active org with same VAT  → WARNING (override=true turns it into UPDATE)
-		//   - soft-deleted org same VAT → ERROR (admin must restore or destroy first)
+		// Database VAT check.
+		//   - distributors/resellers: DB triggers enforce global VAT uniqueness.
+		//       active org same VAT  → WARNING (override=true turns it into UPDATE)
+		//       soft-deleted same VAT → ERROR (admin must restore or destroy first)
+		//   - customers: no DB uniqueness, so we de-duplicate at import time,
+		//       scoped to the importing org (custom_data.createdBy) and skipping
+		//       placeholder VATs. An existing active customer with the same VAT
+		//       under this org → WARNING (skipped on confirm unless override).
 		var warns []models.ImportFieldError
-		if entityType != "customers" && rowMap["vat_number"] != "" && !hasFieldError(errs, "vat_number") {
-			state, dbErr := csvimport.CheckOrganizationExistenceStateByVAT(rowMap["vat_number"], entityType)
-			if dbErr != nil {
-				logger.Error().Err(dbErr).Str("vat_number", rowMap["vat_number"]).Msg("Failed to check organization duplicate")
-			} else {
-				switch state {
-				case csvimport.OrgExistsActive:
+		if rowMap["vat_number"] != "" && !hasFieldError(errs, "vat_number") {
+			if entityType == "customers" {
+				exists, dbErr := csvimport.CustomerVATExistsForOwner(rowMap["vat_number"], user.OrganizationID)
+				if dbErr != nil {
+					logger.Error().Err(dbErr).Str("vat_number", rowMap["vat_number"]).Msg("Failed to check customer duplicate")
+				} else if exists {
 					warns = append(warns, models.ImportFieldError{
 						Field:   "vat_number",
 						Message: "already_exists",
 						Values:  []string{rowMap["vat_number"]},
 					})
-				case csvimport.OrgSoftDeleted:
-					errs = append(errs, models.ImportFieldError{
-						Field:   "vat_number",
-						Message: "archived",
-						Values:  []string{rowMap["vat_number"]},
-					})
+				}
+			} else {
+				state, dbErr := csvimport.CheckOrganizationExistenceStateByVAT(rowMap["vat_number"], entityType)
+				if dbErr != nil {
+					logger.Error().Err(dbErr).Str("vat_number", rowMap["vat_number"]).Msg("Failed to check organization duplicate")
+				} else {
+					switch state {
+					case csvimport.OrgExistsActive:
+						warns = append(warns, models.ImportFieldError{
+							Field:   "vat_number",
+							Message: "already_exists",
+							Values:  []string{rowMap["vat_number"]},
+						})
+					case csvimport.OrgSoftDeleted:
+						errs = append(errs, models.ImportFieldError{
+							Field:   "vat_number",
+							Message: "archived",
+							Values:  []string{rowMap["vat_number"]},
+						})
+					}
 				}
 			}
 		}
@@ -347,14 +362,21 @@ func createOrganizationFromImportRow(c *gin.Context, service *local.LocalOrganiz
 // validate time (CanCreateDistributor/Reseller/Customer for the caller); the
 // underlying Update*  service performs additional checks.
 //
-// Only ever called for distributors and resellers (the validate path skips
-// the warning state entirely for customers, since they have no DB-level
-// uniqueness on VAT or name).
+// Reached for any entity whose row was flagged as a duplicate WARNING and then
+// confirmed with override=true. For distributors/resellers the match is global
+// by VAT; for customers it is scoped to the importing org (custom_data.createdBy),
+// mirroring the validate-time dedup.
 func updateOrganizationFromImportRow(c *gin.Context, service *local.LocalOrganizationService, user *models.User, entityType string, row models.ImportRow, result *models.ImportConfirmResult) {
 	createReq := csvimport.OrganizationDataToCreateRequest(row.Data)
 
 	vat, _ := createReq.CustomData["vat"].(string)
-	existingID, err := csvimport.GetOrganizationIDByVAT(vat, entityType)
+	var existingID string
+	var err error
+	if entityType == "customers" {
+		existingID, err = csvimport.GetCustomerIDByVATForOwner(vat, user.OrganizationID)
+	} else {
+		existingID, err = csvimport.GetOrganizationIDByVAT(vat, entityType)
+	}
 	if err != nil || existingID == "" {
 		result.Failed++
 		errMsg := "organization not found in database"

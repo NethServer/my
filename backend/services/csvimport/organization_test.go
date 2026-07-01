@@ -90,6 +90,28 @@ func TestValidateOrganizationRow_InvalidOptionalFields(t *testing.T) {
 	}
 }
 
+func TestIsPlaceholderVAT(t *testing.T) {
+	tests := []struct {
+		vat  string
+		want bool
+	}{
+		{"", true},
+		{"   ", true},
+		{"0", true},
+		{"00000000000", true},
+		{" 00000000000 ", true},
+		{"IT12345678901", false},
+		{"00112200415", false},
+		{"BRTMRC84E29D612C", false},
+		{"01000000000", false},
+	}
+	for _, tt := range tests {
+		if got := isPlaceholderVAT(tt.vat); got != tt.want {
+			t.Errorf("isPlaceholderVAT(%q) = %v, want %v", tt.vat, got, tt.want)
+		}
+	}
+}
+
 func TestOrganizationRowToData(t *testing.T) {
 	row := map[string]string{
 		"company_name": "Test Corp",
