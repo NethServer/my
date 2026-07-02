@@ -35,6 +35,11 @@ Security updates: handled automatically by Dependabot/Renovate — do not chase 
 
 `.agents/skills/` holds task-specific skills (e.g. `frontend-conventions`, `frontend-a11y-audit`). Before touching matching files, read the skill's `SKILL.md` and follow it for the task's duration.
 
+### 1.4 Git commit messages
+
+- **Wrap the commit body at 72 columns — hard limit, always.** Keep the subject line ≤72 too.
+- Short and direct: summarize by theme, not a bullet list per fix.
+
 ---
 
 ## 2. Architecture
