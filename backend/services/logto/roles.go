@@ -14,6 +14,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
@@ -105,14 +107,45 @@ func (c *LogtoManagementClient) GetRoleByID(roleID string) (*models.LogtoRole, e
 	return nil, fmt.Errorf("role with ID '%s' not found", roleID)
 }
 
-// GetAllOrganizationRoles fetches all organization roles from Logto Management API
+// Organization roles are effectively static (created once at setup), so cache the
+// full list for a short TTL. This turns the per-row GetOrganizationRoleByName
+// lookup during bulk import (and elsewhere) into a cache hit instead of an HTTP
+// round-trip to Logto.
+var (
+	orgRolesCacheMu     sync.RWMutex
+	orgRolesCache       []models.LogtoOrganizationRole
+	orgRolesCacheExpiry time.Time
+)
+
+const orgRolesCacheTTL = 5 * time.Minute
+
+// GetAllOrganizationRoles fetches all organization roles from Logto Management
+// API, served from a short-lived in-memory cache when warm.
 func (c *LogtoManagementClient) GetAllOrganizationRoles() ([]models.LogtoOrganizationRole, error) {
+	orgRolesCacheMu.RLock()
+	if orgRolesCache != nil && time.Now().Before(orgRolesCacheExpiry) {
+		cached := orgRolesCache
+		orgRolesCacheMu.RUnlock()
+		return cached, nil
+	}
+	orgRolesCacheMu.RUnlock()
+
 	resp, err := c.makeRequest("GET", "/organization-roles", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch organization roles: %w", err)
 	}
 
-	return decodeSliceResponse[models.LogtoOrganizationRole](resp, []int{http.StatusOK}, "fetch organization roles")
+	roles, err := decodeSliceResponse[models.LogtoOrganizationRole](resp, []int{http.StatusOK}, "fetch organization roles")
+	if err != nil {
+		return nil, err
+	}
+
+	orgRolesCacheMu.Lock()
+	orgRolesCache = roles
+	orgRolesCacheExpiry = time.Now().Add(orgRolesCacheTTL)
+	orgRolesCacheMu.Unlock()
+
+	return roles, nil
 }
 
 // GetOrganizationRoleByName finds an organization role by name

@@ -12,6 +12,7 @@ package methods
 import (
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 
@@ -243,34 +244,75 @@ func confirmOrganizationImport(c *gin.Context, entityType string) {
 
 	service := local.NewOrganizationService()
 	result := models.ImportConfirmResult{
-		Results: make([]models.ImportResultRow, 0),
+		Results: make([]models.ImportResultRow, 0, len(session.Rows)),
 	}
 
-	for _, row := range session.Rows {
+	// Each valid/override row is created (or updated) against Logto — a few
+	// hundred sequential round-trips easily blow past a minute. Process rows
+	// concurrently with a bounded pool. The cap is kept at the DB connection
+	// pool size because each create holds one connection through its Logto
+	// calls (see CreateCustomer); going higher just queues on the pool and
+	// starves other requests.
+	const importConfirmConcurrency = 6
+
+	results := make([]models.ImportResultRow, len(session.Rows))
+	sem := make(chan struct{}, importConfirmConcurrency)
+	var wg sync.WaitGroup
+
+	for i, row := range session.Rows {
 		switch row.Status {
 		case models.ImportRowInvalid:
-			result.Skipped++
-			result.Results = append(result.Results, models.ImportResultRow{
+			results[i] = models.ImportResultRow{
 				RowNumber: row.RowNumber,
 				Status:    models.ImportResultSkipped,
 				Reason:    models.ImportSkipError,
-			})
+			}
 
 		case models.ImportRowWarning:
 			if !req.Override {
-				result.Skipped++
-				result.Results = append(result.Results, models.ImportResultRow{
+				results[i] = models.ImportResultRow{
 					RowNumber: row.RowNumber,
 					Status:    models.ImportResultSkipped,
 					Reason:    models.ImportSkipWarningNotOverride,
-				})
+				}
 				continue
 			}
-			updateOrganizationFromImportRow(c, service, user, entityType, row, &result)
+			wg.Add(1)
+			sem <- struct{}{}
+			go func(i int, row models.ImportRow) {
+				defer wg.Done()
+				defer func() { <-sem }()
+				results[i] = updateOrganizationFromImportRow(service, user, entityType, row)
+			}(i, row)
 
 		case models.ImportRowValid:
-			createOrganizationFromImportRow(c, service, user, entityType, row, &result)
+			wg.Add(1)
+			sem <- struct{}{}
+			go func(i int, row models.ImportRow) {
+				defer wg.Done()
+				defer func() { <-sem }()
+				results[i] = createOrganizationFromImportRow(service, user, entityType, row)
+			}(i, row)
 		}
+	}
+	wg.Wait()
+
+	// Tally single-threaded so the per-row audit log can safely touch the
+	// (non-concurrency-safe) gin.Context.
+	for _, r := range results {
+		switch r.Status {
+		case models.ImportResultCreated:
+			result.Created++
+			logger.LogBusinessOperation(c, entityType, "create", entityType, r.ID, true, nil)
+		case models.ImportResultUpdated:
+			result.Updated++
+			logger.LogBusinessOperation(c, entityType, "update", entityType, r.ID, true, nil)
+		case models.ImportResultFailed:
+			result.Failed++
+		case models.ImportResultSkipped:
+			result.Skipped++
+		}
+		result.Results = append(result.Results, r)
 	}
 
 	// Clean up the import session
@@ -292,8 +334,11 @@ func confirmOrganizationImport(c *gin.Context, entityType string) {
 	c.JSON(http.StatusOK, response.OK(entityType+" imported successfully", result))
 }
 
-// createOrganizationFromImportRow creates a distributor/reseller/customer from a validated row.
-func createOrganizationFromImportRow(c *gin.Context, service *local.LocalOrganizationService, user *models.User, entityType string, row models.ImportRow, result *models.ImportConfirmResult) {
+// createOrganizationFromImportRow creates a distributor/reseller/customer from a
+// validated row and returns the per-row result. Safe for concurrent use: it
+// touches neither the shared accumulator nor the gin.Context (audit logging is
+// done single-threaded by the caller).
+func createOrganizationFromImportRow(service *local.LocalOrganizationService, user *models.User, entityType string, row models.ImportRow) models.ImportResultRow {
 	createReq := csvimport.OrganizationDataToCreateRequest(row.Data)
 
 	var createdID string
@@ -334,26 +379,22 @@ func createOrganizationFromImportRow(c *gin.Context, service *local.LocalOrganiz
 	}
 
 	if createErr != nil {
-		result.Failed++
-		result.Results = append(result.Results, models.ImportResultRow{
-			RowNumber: row.RowNumber,
-			Status:    models.ImportResultFailed,
-			Error:     formatImportError(createErr),
-		})
 		logger.Error().
 			Err(createErr).
 			Int("row_number", row.RowNumber).
 			Str("entity_type", entityType).
 			Msg("Failed to create organization from import")
-		return
+		return models.ImportResultRow{
+			RowNumber: row.RowNumber,
+			Status:    models.ImportResultFailed,
+			Error:     formatImportError(createErr),
+		}
 	}
-	result.Created++
-	result.Results = append(result.Results, models.ImportResultRow{
+	return models.ImportResultRow{
 		RowNumber: row.RowNumber,
 		Status:    models.ImportResultCreated,
 		ID:        createdID,
-	})
-	logger.LogBusinessOperation(c, entityType, "create", entityType, createdID, true, nil)
+	}
 }
 
 // updateOrganizationFromImportRow looks up the existing org by VAT (matching
@@ -366,7 +407,7 @@ func createOrganizationFromImportRow(c *gin.Context, service *local.LocalOrganiz
 // confirmed with override=true. For distributors/resellers the match is global
 // by VAT; for customers it is scoped to the importing org (custom_data.createdBy),
 // mirroring the validate-time dedup.
-func updateOrganizationFromImportRow(c *gin.Context, service *local.LocalOrganizationService, user *models.User, entityType string, row models.ImportRow, result *models.ImportConfirmResult) {
+func updateOrganizationFromImportRow(service *local.LocalOrganizationService, user *models.User, entityType string, row models.ImportRow) models.ImportResultRow {
 	createReq := csvimport.OrganizationDataToCreateRequest(row.Data)
 
 	vat, _ := createReq.CustomData["vat"].(string)
@@ -378,17 +419,15 @@ func updateOrganizationFromImportRow(c *gin.Context, service *local.LocalOrganiz
 		existingID, err = csvimport.GetOrganizationIDByVAT(vat, entityType)
 	}
 	if err != nil || existingID == "" {
-		result.Failed++
 		errMsg := "organization not found in database"
 		if err != nil {
 			errMsg = err.Error()
 		}
-		result.Results = append(result.Results, models.ImportResultRow{
+		return models.ImportResultRow{
 			RowNumber: row.RowNumber,
 			Status:    models.ImportResultFailed,
 			Error:     errMsg,
-		})
-		return
+		}
 	}
 
 	customDataPtr := &createReq.CustomData
@@ -437,26 +476,22 @@ func updateOrganizationFromImportRow(c *gin.Context, service *local.LocalOrganiz
 	}
 
 	if updateErr != nil {
-		result.Failed++
-		result.Results = append(result.Results, models.ImportResultRow{
-			RowNumber: row.RowNumber,
-			Status:    models.ImportResultFailed,
-			Error:     formatImportError(updateErr),
-		})
 		logger.Error().
 			Err(updateErr).
 			Int("row_number", row.RowNumber).
 			Str("entity_type", entityType).
 			Msg("Failed to update organization from import")
-		return
+		return models.ImportResultRow{
+			RowNumber: row.RowNumber,
+			Status:    models.ImportResultFailed,
+			Error:     formatImportError(updateErr),
+		}
 	}
-	result.Updated++
-	result.Results = append(result.Results, models.ImportResultRow{
+	return models.ImportResultRow{
 		RowNumber: row.RowNumber,
 		Status:    models.ImportResultUpdated,
 		ID:        updatedID,
-	})
-	logger.LogBusinessOperation(c, entityType, "update", entityType, updatedID, true, nil)
+	}
 }
 
 // hasFieldError checks if there's already an error for the given field

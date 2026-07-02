@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nethesis/my/backend/cache"
@@ -2672,8 +2673,32 @@ func invalidateSystemAuthKeys(systemKeys []string) {
 
 // refreshUnifiedOrganizationsAsync refreshes the unified_organizations materialized
 // view in a background goroutine. Called after organization CRUD operations.
+var (
+	refreshUnifiedMu      sync.Mutex
+	refreshUnifiedPending bool
+)
+
+// refreshUnifiedOrganizationsAsync refreshes the unified_organizations
+// materialized view in the background. Calls are coalesced: a burst of writes
+// (e.g. a bulk CSV import creating hundreds of orgs) collapses into roughly one
+// refresh instead of one expensive REFRESH per row, which would otherwise
+// starve the small DB connection pool.
 func refreshUnifiedOrganizationsAsync() {
+	refreshUnifiedMu.Lock()
+	if refreshUnifiedPending {
+		refreshUnifiedMu.Unlock()
+		return
+	}
+	refreshUnifiedPending = true
+	refreshUnifiedMu.Unlock()
+
 	go func() {
+		// Small window so a burst of writes settles into a single refresh.
+		time.Sleep(2 * time.Second)
+		refreshUnifiedMu.Lock()
+		refreshUnifiedPending = false
+		refreshUnifiedMu.Unlock()
+
 		if err := database.RefreshUnifiedOrganizations(); err != nil {
 			logger.Warn().Err(err).Msg("Failed to refresh unified_organizations materialized view")
 		}

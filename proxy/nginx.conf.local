@@ -62,6 +62,22 @@ http {
             return 301 /backend/api/;
         }
 
+        # Bulk-import confirm creates one org per row in Logto and can run for
+        # tens of seconds; give just these endpoints a longer read timeout.
+        location ~ ^/backend/api/[^/]+/import/confirm$ {
+            rewrite ^/backend/api/(.*)$ /api/$1 break;
+            proxy_pass http://backend-full:8080;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
+
+            proxy_connect_timeout 30s;
+            proxy_send_timeout 180s;
+            proxy_read_timeout 180s;
+        }
+
         location /backend/api/ {
             rewrite ^/backend/api/(.*)$ /api/$1 break;
             proxy_pass http://backend-full:8080;

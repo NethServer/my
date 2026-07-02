@@ -14,7 +14,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -153,121 +155,140 @@ func invalidateToken() {
 	globalTokenCache.tokenExpiry = time.Time{}
 }
 
-// makeRequestWithRetry makes an authenticated request with optional retry for token refresh
+// makeRequestWithRetry makes an authenticated request. It transparently retries
+// on 401 (refreshing the token once) and on 429 (rate limited) with capped
+// exponential backoff + jitter, honoring Retry-After. The body is buffered so
+// POST/PUT requests can be safely replayed across retries (a 429 means the
+// request was rejected, so replaying creates no duplicates).
 func (c *LogtoManagementClient) makeRequestWithRetry(method, endpoint string, body io.Reader, isRetry bool) (*http.Response, error) {
-	start := time.Now()
-
-	// Ensure we have a valid token
-	accessToken, err := c.getAccessToken()
-	if err != nil {
-		logger.ComponentLogger("logto").Error().
-			Err(err).
-			Str("operation", "api_call_token_failed").
-			Str("method", method).
-			Str("endpoint", endpoint).
-			Bool("is_retry", isRetry).
-			Msg("Failed to get access token for Logto API call")
-		return nil, fmt.Errorf("failed to get access token: %w", err)
-	}
-
 	url := strings.TrimSuffix(c.baseURL, "/") + endpoint
-	req, err := http.NewRequest(method, url, body)
-	if err != nil {
-		logger.ComponentLogger("logto").Error().
-			Err(err).
-			Str("operation", "api_call_request_failed").
-			Str("method", method).
-			Str("endpoint", endpoint).
-			Str("url", url).
-			Bool("is_retry", isRetry).
-			Msg("Failed to create HTTP request for Logto API")
-		return nil, fmt.Errorf("failed to create request: %w", err)
+
+	// Buffer the body once so each attempt gets a fresh reader (io.Reader is single-use).
+	var bodyBytes []byte
+	if body != nil {
+		b, readErr := io.ReadAll(body)
+		if readErr != nil {
+			return nil, fmt.Errorf("failed to read request body: %w", readErr)
+		}
+		bodyBytes = b
 	}
 
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Content-Type", "application/json")
+	const maxRateLimitRetries = 5
+	tokenRefreshed := isRetry
 
-	logger.ComponentLogger("logto").Debug().
-		Str("operation", "api_call_start").
-		Str("method", method).
-		Str("endpoint", endpoint).
-		Str("url", url).
-		Bool("is_retry", isRetry).
-		Msg("Starting Logto Management API call")
+	for attempt := 0; ; attempt++ {
+		start := time.Now()
 
-	resp, err := sharedHTTPClient.Do(req)
-
-	duration := time.Since(start)
-
-	if err != nil {
-		logger.ComponentLogger("logto").Error().
-			Err(err).
-			Str("operation", "api_call_failed").
-			Str("method", method).
-			Str("endpoint", endpoint).
-			Str("url", url).
-			Bool("is_retry", isRetry).
-			Dur("duration", duration).
-			Msg("Logto Management API call failed")
-		return nil, err
-	}
-
-	// Log successful API calls
-	logger.ComponentLogger("logto").Info().
-		Str("operation", "api_call_success").
-		Str("method", method).
-		Str("endpoint", endpoint).
-		Int("status_code", resp.StatusCode).
-		Bool("is_retry", isRetry).
-		Dur("duration", duration).
-		Msg("Logto Management API call completed")
-
-	// Handle 401 Unauthorized - token might be expired
-	if resp.StatusCode == 401 && !isRetry {
-		logger.ComponentLogger("logto").Warn().
-			Str("operation", "api_call_token_expired").
-			Str("method", method).
-			Str("endpoint", endpoint).
-			Int("status_code", resp.StatusCode).
-			Dur("duration", duration).
-			Msg("Received 401, invalidating token and retrying")
-
-		// Close the response body before retry
-		_ = resp.Body.Close()
-
-		// Invalidate current token to force refresh
-		invalidateToken()
-
-		// For retry, we need to recreate the request body since io.Reader can only be read once
-		var retryBody io.Reader
-		if body != nil {
-			// For POST/PUT requests, we need to recreate the body
-			// This is a limitation - for now we'll only retry GET requests
-			if method != "GET" {
-				logger.ComponentLogger("logto").Warn().
-					Str("operation", "api_call_retry_skipped").
-					Str("method", method).
-					Str("endpoint", endpoint).
-					Msg("Skipping retry for non-GET request with body")
-				return resp, nil
-			}
+		// Ensure we have a valid token
+		accessToken, err := c.getAccessToken()
+		if err != nil {
+			logger.ComponentLogger("logto").Error().
+				Err(err).
+				Str("operation", "api_call_token_failed").
+				Str("method", method).
+				Str("endpoint", endpoint).
+				Msg("Failed to get access token for Logto API call")
+			return nil, fmt.Errorf("failed to get access token: %w", err)
 		}
 
-		// Retry once with fresh token
-		return c.makeRequestWithRetry(method, endpoint, retryBody, true)
-	}
+		var reqBody io.Reader
+		if bodyBytes != nil {
+			reqBody = bytes.NewReader(bodyBytes)
+		}
+		req, err := http.NewRequest(method, url, reqBody)
+		if err != nil {
+			logger.ComponentLogger("logto").Error().
+				Err(err).
+				Str("operation", "api_call_request_failed").
+				Str("method", method).
+				Str("endpoint", endpoint).
+				Str("url", url).
+				Msg("Failed to create HTTP request for Logto API")
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+accessToken)
+		req.Header.Set("Content-Type", "application/json")
 
-	// Log non-2xx status codes as warnings
-	if resp.StatusCode >= 400 {
-		logger.ComponentLogger("logto").Warn().
-			Str("operation", "api_call_error_status").
-			Str("method", method).
-			Str("endpoint", endpoint).
-			Int("status_code", resp.StatusCode).
-			Bool("is_retry", isRetry).
-			Dur("duration", duration).
-			Msg("Logto Management API returned error status")
-	}
+		resp, err := sharedHTTPClient.Do(req)
+		duration := time.Since(start)
+		if err != nil {
+			logger.ComponentLogger("logto").Error().
+				Err(err).
+				Str("operation", "api_call_failed").
+				Str("method", method).
+				Str("endpoint", endpoint).
+				Str("url", url).
+				Dur("duration", duration).
+				Msg("Logto Management API call failed")
+			return nil, err
+		}
 
-	return resp, nil
+		// 401 Unauthorized - token might be expired; refresh once and retry.
+		if resp.StatusCode == 401 && !tokenRefreshed {
+			logger.ComponentLogger("logto").Warn().
+				Str("operation", "api_call_token_expired").
+				Str("method", method).
+				Str("endpoint", endpoint).
+				Msg("Received 401, invalidating token and retrying")
+			_ = resp.Body.Close()
+			invalidateToken()
+			tokenRefreshed = true
+			continue
+		}
+
+		// 429 Too Many Requests - back off and retry.
+		if resp.StatusCode == http.StatusTooManyRequests && attempt < maxRateLimitRetries {
+			wait := rateLimitBackoff(resp, attempt)
+			_ = resp.Body.Close()
+			logger.ComponentLogger("logto").Warn().
+				Str("operation", "api_call_rate_limited").
+				Str("method", method).
+				Str("endpoint", endpoint).
+				Int("attempt", attempt+1).
+				Dur("backoff", wait).
+				Msg("Received 429 from Logto, backing off and retrying")
+			time.Sleep(wait)
+			continue
+		}
+
+		if resp.StatusCode >= 400 {
+			logger.ComponentLogger("logto").Warn().
+				Str("operation", "api_call_error_status").
+				Str("method", method).
+				Str("endpoint", endpoint).
+				Int("status_code", resp.StatusCode).
+				Dur("duration", duration).
+				Msg("Logto Management API returned error status")
+		} else {
+			logger.ComponentLogger("logto").Info().
+				Str("operation", "api_call_success").
+				Str("method", method).
+				Str("endpoint", endpoint).
+				Int("status_code", resp.StatusCode).
+				Dur("duration", duration).
+				Msg("Logto Management API call completed")
+		}
+
+		return resp, nil
+	}
+}
+
+// rateLimitBackoff computes how long to wait before retrying a 429, honoring the
+// Retry-After header when present, otherwise capped exponential backoff. Jitter
+// avoids concurrent workers retrying in lockstep.
+func rateLimitBackoff(resp *http.Response, attempt int) time.Duration {
+	base := 500 * time.Millisecond * (1 << attempt)
+	if base > 8*time.Second {
+		base = 8 * time.Second
+	}
+	if ra := strings.TrimSpace(resp.Header.Get("Retry-After")); ra != "" {
+		if secs, err := strconv.Atoi(ra); err == nil && secs > 0 {
+			base = time.Duration(secs) * time.Second
+		} else if t, err := http.ParseTime(ra); err == nil {
+			if d := time.Until(t); d > 0 {
+				base = d
+			}
+		}
+	}
+	return base + rand.N(500*time.Millisecond)
 }
