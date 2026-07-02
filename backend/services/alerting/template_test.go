@@ -14,10 +14,14 @@ import (
 
 func renderForTest(t *testing.T, cfg *models.AlertingConfigLayer) string {
 	t.Helper()
+	var customers []CustomerConfig
+	if cfg != nil {
+		customers = []CustomerConfig{{OrgID: "cust-test", Layer: cfg}}
+	}
 	out, err := RenderConfig(
 		"smtp.example", 587, "u", "p", "from@example", true,
 		"", "",
-		cfg,
+		customers,
 	)
 	if err != nil {
 		t.Fatalf("RenderConfig error: %v", err)
@@ -54,9 +58,9 @@ func TestRenderConfig_PerSeverityFanout(t *testing.T) {
 	// Locate the *receiver definition* (not the route match) by the
 	// `name: '…-receiver'` line — the first occurrence is inside `routes:`
 	// which only references the name, not the email_configs.
-	criticalIdx := strings.Index(out, "name: 'severity-critical-receiver'")
-	warningIdx := strings.Index(out, "name: 'severity-warning-receiver'")
-	infoIdx := strings.Index(out, "name: 'severity-info-receiver'")
+	criticalIdx := strings.Index(out, "name: 'cust-test-severity-critical-receiver'")
+	warningIdx := strings.Index(out, "name: 'cust-test-severity-warning-receiver'")
+	infoIdx := strings.Index(out, "name: 'cust-test-severity-info-receiver'")
 	if criticalIdx < 0 {
 		t.Fatalf("missing critical receiver definition; got:\n%s", out)
 	}

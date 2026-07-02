@@ -200,14 +200,16 @@ func (h *HeartbeatMonitor) resolveRecovered(ctx context.Context, ids []string) {
 				Msg("heartbeat monitor: failed to build resolved alert")
 			continue
 		}
-		byOrg[systemContext.OrganizationID] = append(byOrg[systemContext.OrganizationID], alert)
+		// Group by the reseller/managing org (the Mimir tenant); the resolved
+		// alert keeps organization_id = customer via BuildResolvedLinkFailedAlert.
+		byOrg[systemContext.ResellerOrgID] = append(byOrg[systemContext.ResellerOrgID], alert)
 	}
 
 	resolved := 0
-	for orgID, alerts := range byOrg {
-		if err := h.postAlerts(orgID, alerts); err != nil {
+	for tenantOrgID, alerts := range byOrg {
+		if err := h.postAlerts(tenantOrgID, alerts); err != nil {
 			logger.Warn().Err(err).
-				Str("organization_id", orgID).
+				Str("tenant_org_id", tenantOrgID).
 				Int("count", len(alerts)).
 				Msg("heartbeat monitor: failed to post resolved LinkFailed alerts")
 			continue

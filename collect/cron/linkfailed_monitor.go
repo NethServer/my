@@ -81,9 +81,9 @@ func (m *LinkFailedMonitor) sync(ctx context.Context) {
 		return
 	}
 
-	for orgID, systems := range desiredByOrg {
-		if err := m.syncOrganization(orgID, systems); err != nil {
-			logger.Error().Err(err).Str("organization_id", orgID).Msg("LinkFailed monitor: sync failed")
+	for tenantOrgID, systems := range desiredByOrg {
+		if err := m.syncOrganization(tenantOrgID, systems); err != nil {
+			logger.Error().Err(err).Str("tenant_org_id", tenantOrgID).Msg("LinkFailed monitor: sync failed")
 		}
 	}
 }
@@ -105,6 +105,7 @@ func (m *LinkFailedMonitor) loadInactiveSystems(ctx context.Context) (map[string
 		           WHEN c.logto_id IS NOT NULL THEN 'customer'
 		           ELSE NULL
 		       END,
+		       COALESCE(NULLIF(c.custom_data->>'createdBy', ''), s.organization_id),
 		       h.last_heartbeat
 		FROM systems s
 		INNER JOIN system_heartbeats h ON s.id = h.system_id
@@ -152,6 +153,7 @@ func (m *LinkFailedMonitor) loadInactiveSystems(ctx context.Context) (map[string
 			&organizationName,
 			&organizationVAT,
 			&organizationType,
+			&metadata.ResellerOrgID,
 			&lastHeartbeat,
 		); err != nil {
 			return nil, fmt.Errorf("scan inactive system: %w", err)
@@ -164,10 +166,14 @@ func (m *LinkFailedMonitor) loadInactiveSystems(ctx context.Context) (map[string
 		metadata.OrganizationVAT = nullStringValue(organizationVAT)
 		metadata.OrganizationType = nullStringValue(organizationType)
 
-		if systemsByOrg[metadata.OrganizationID] == nil {
-			systemsByOrg[metadata.OrganizationID] = make(map[string]linkFailedSystem)
+		// Group by the reseller/managing org: that is the Mimir tenant
+		// (X-Scope-OrgID). The alert's organization_id label stays the customer
+		// org (set in BuildSystemAlertContext), so per-customer routing/filtering
+		// still works inside the shared reseller tenant.
+		if systemsByOrg[metadata.ResellerOrgID] == nil {
+			systemsByOrg[metadata.ResellerOrgID] = make(map[string]linkFailedSystem)
 		}
-		systemsByOrg[metadata.OrganizationID][metadata.SystemKey] = linkFailedSystem{
+		systemsByOrg[metadata.ResellerOrgID][metadata.SystemKey] = linkFailedSystem{
 			Context:       collectalerting.BuildSystemAlertContext(metadata),
 			LastHeartbeat: lastHeartbeat.UTC(),
 		}
@@ -179,7 +185,11 @@ func (m *LinkFailedMonitor) loadInactiveSystems(ctx context.Context) (map[string
 	return systemsByOrg, nil
 }
 
-func (m *LinkFailedMonitor) syncOrganization(orgID string, inactive map[string]linkFailedSystem) error {
+// syncOrganization pushes the firing alerts for one Mimir tenant. tenantOrgID
+// is the reseller/managing org (X-Scope-OrgID); the systems it carries may
+// belong to several customer orgs, each identified by the organization_id
+// label on its alerts.
+func (m *LinkFailedMonitor) syncOrganization(tenantOrgID string, inactive map[string]linkFailedSystem) error {
 	if len(inactive) == 0 {
 		return nil
 	}
@@ -193,17 +203,17 @@ func (m *LinkFailedMonitor) syncOrganization(orgID string, inactive map[string]l
 		alerts = append(alerts, firingAlert)
 
 		logger.Debug().
-			Str("organization_id", orgID).
+			Str("tenant_org_id", tenantOrgID).
 			Str("system_key", systemKey).
 			Msg("LinkFailed monitor: refreshing alert for inactive system")
 	}
 
-	if err := m.postAlerts(orgID, alerts); err != nil {
+	if err := m.postAlerts(tenantOrgID, alerts); err != nil {
 		return fmt.Errorf("post alerts: %w", err)
 	}
 
 	logger.Info().
-		Str("organization_id", orgID).
+		Str("tenant_org_id", tenantOrgID).
 		Int("alerts_refreshed", len(alerts)).
 		Msg("LinkFailed monitor: refreshed alerts for inactive systems")
 

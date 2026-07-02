@@ -356,18 +356,21 @@ func ConfigureAlerts(c *gin.Context) {
 		return
 	}
 
-	warnings := propagateAlertingConfigToTenants(c.Request.Context(), descendants)
+	// Map each affected org to its reseller tenant and dedupe: one nested config
+	// per reseller covers all its customers, so push once per distinct tenant.
+	tenants := distinctTenants(descendants)
+	warnings := propagateAlertingConfigToTenants(c.Request.Context(), tenants)
 	auditDetails := map[string]interface{}{
 		"before":               snapshotLayerForAudit(prevLayer),
 		"after":                snapshotLayerBodyForAudit(user.OrganizationID, req),
-		"affected_tenants":     len(descendants),
+		"affected_tenants":     len(tenants),
 		"propagation_warnings": len(warnings),
 	}
 	logger.LogBusinessOperationDetails(c, "alerts", "save_layer", "alert_config_layer", user.OrganizationID, true, nil, auditDetails)
 	c.JSON(http.StatusOK, response.OK("alerting configuration updated successfully", gin.H{
 		"warnings":         warnings,
-		"propagated_to":    len(descendants) - len(warnings),
-		"affected_tenants": len(descendants),
+		"propagated_to":    len(tenants) - len(warnings),
+		"affected_tenants": len(tenants),
 	}))
 }
 
@@ -460,18 +463,20 @@ func DisableAlerts(c *gin.Context) {
 		return
 	}
 
-	warnings := propagateAlertingConfigToTenants(c.Request.Context(), descendants)
+	// Map each affected org to its reseller tenant and dedupe (see ConfigureAlerts).
+	tenants := distinctTenants(descendants)
+	warnings := propagateAlertingConfigToTenants(c.Request.Context(), tenants)
 	auditDetails := map[string]interface{}{
 		"before":               snapshotLayerForAudit(prevLayer),
 		"after":                nil,
-		"affected_tenants":     len(descendants),
+		"affected_tenants":     len(tenants),
 		"propagation_warnings": len(warnings),
 	}
 	logger.LogBusinessOperationDetails(c, "alerts", "delete_layer", "alert_config_layer", user.OrganizationID, true, nil, auditDetails)
 	c.JSON(http.StatusOK, response.OK("alerting layer removed successfully", gin.H{
 		"warnings":         warnings,
-		"propagated_to":    len(descendants) - len(warnings),
-		"affected_tenants": len(descendants),
+		"propagated_to":    len(tenants) - len(warnings),
+		"affected_tenants": len(tenants),
 	}))
 }
 
@@ -543,7 +548,14 @@ func GetAlerts(c *gin.Context) {
 		sortDirection = "desc"
 	}
 
-	all, warnings := fanOutMimirAlerts(c.Request.Context(), orgIDs)
+	// orgIDs is the authorized customer/org set (the security gate from
+	// resolveOrgScope). Alerts for those orgs live in their reseller tenants, so
+	// query the distinct tenants, then keep only alerts whose organization_id
+	// label is in scope — the isolation boundary now that many customers share
+	// one tenant.
+	tenants := distinctTenants(orgIDs)
+	all, warnings := fanOutMimirAlerts(c.Request.Context(), tenants)
+	all = filterByOrgScope(all, orgIDs)
 
 	all = filterAlerts(all, alertFilter{
 		statuses:   c.QueryArray("status"),
@@ -1019,10 +1031,57 @@ func filterAlerts(alerts []map[string]interface{}, f alertFilter) []map[string]i
 }
 
 func getSystemAlertOrgID(system *models.System) string {
-	if system.Organization.LogtoID != "" {
-		return system.Organization.LogtoID
+	orgID := system.Organization.LogtoID
+	if orgID == "" {
+		orgID = system.Organization.ID
 	}
-	return system.Organization.ID
+	// The Mimir tenant is the managing reseller, not the customer org: systems
+	// of many customers share one reseller tenant. Fall back to the owning org
+	// on resolution failure so a transient DB error never breaks the alert path.
+	tenant, err := alerting.TenantForOrg(orgID)
+	if err != nil || tenant == "" {
+		return orgID
+	}
+	return tenant
+}
+
+// distinctTenants maps each authorized customer/org id to its Mimir tenant
+// (reseller) via alerting.TenantForOrg and deduplicates. On resolution error it
+// falls back to the org id itself so the caller still sees its own tenant.
+func distinctTenants(orgIDs []string) []string {
+	seen := make(map[string]struct{}, len(orgIDs))
+	tenants := make([]string, 0, len(orgIDs))
+	for _, oid := range orgIDs {
+		t, err := alerting.TenantForOrg(oid)
+		if err != nil || t == "" {
+			t = oid
+		}
+		if _, ok := seen[t]; !ok {
+			seen[t] = struct{}{}
+			tenants = append(tenants, t)
+		}
+	}
+	return tenants
+}
+
+// filterByOrgScope keeps only alerts whose organization_id label is in the
+// authorized set. Reseller tenants hold many customers' alerts together, so
+// this application-level filter is the isolation boundary — security-critical
+// when a customer logs in directly and must see only its own systems.
+func filterByOrgScope(alerts []map[string]interface{}, allowed []string) []map[string]interface{} {
+	allow := make(map[string]struct{}, len(allowed))
+	for _, o := range allowed {
+		allow[o] = struct{}{}
+	}
+	filtered := make([]map[string]interface{}, 0, len(alerts))
+	for _, alert := range alerts {
+		labels, _ := alert["labels"].(map[string]interface{})
+		orgID, _ := labels["organization_id"].(string)
+		if _, ok := allow[orgID]; ok {
+			filtered = append(filtered, alert)
+		}
+	}
+	return filtered
 }
 
 func findSystemAlertByFingerprint(alerts []models.ActiveAlert, fingerprint, systemKey string) *models.ActiveAlert {
@@ -1629,6 +1688,22 @@ func systemKeyFromSilence(s *models.AlertmanagerSilence) string {
 	return ""
 }
 
+// orgIDFromSilence returns the `organization_id` matcher value of a silence, or
+// "" if absent. In the reseller-tenant model a silence's owning customer is
+// identified by this matcher (buildSystemAlertSilenceRequest always sets it),
+// so cross-hierarchy reads can attribute and scope each silence to a customer.
+func orgIDFromSilence(s *models.AlertmanagerSilence) string {
+	if s == nil {
+		return ""
+	}
+	for _, m := range s.Matchers {
+		if m.Name == "organization_id" && !m.IsRegex {
+			return m.Value
+		}
+	}
+	return ""
+}
+
 // resolveAlertSilenceContext looks up an active alert by fingerprint inside
 // a single tenant's Mimir and returns the alert plus the `system_key` label
 // the cross-system silence handler needs to attach as a matcher. Used by
@@ -1774,6 +1849,15 @@ func GetAlertSilences(c *gin.Context) {
 
 	systemKeyFilter := c.QueryArray("system_key")
 
+	// Silences for the authorized customer orgs live in their reseller tenants;
+	// query the distinct tenants and attribute each silence back to its owning
+	// customer via the organization_id matcher, dropping any outside scope.
+	allow := make(map[string]struct{}, len(orgIDs))
+	for _, o := range orgIDs {
+		allow[o] = struct{}{}
+	}
+	tenants := distinctTenants(orgIDs)
+
 	var (
 		out      []alertSilenceWithOrg
 		warnings []string
@@ -1784,7 +1868,7 @@ func GetAlertSilences(c *gin.Context) {
 	defer cancel()
 	sem := make(chan struct{}, mimirFanoutConcurrency)
 
-	for _, orgID := range orgIDs {
+	for _, orgID := range tenants {
 		wg.Add(1)
 		go func(orgID string) {
 			defer wg.Done()
@@ -1819,9 +1903,18 @@ func GetAlertSilences(c *gin.Context) {
 				if len(systemKeyFilter) > 0 && !slices.Contains(systemKeyFilter, sk) {
 					continue
 				}
+				// Attribute to the owning customer and drop out-of-scope silences:
+				// the reseller tenant holds every customer's silences together.
+				ownerOrg := orgIDFromSilence(&silences[i])
+				if ownerOrg == "" {
+					ownerOrg = orgID
+				}
+				if _, allowed := allow[ownerOrg]; !allowed {
+					continue
+				}
 				local = append(local, alertSilenceWithOrg{
 					AlertmanagerSilence: silences[i],
-					OrganizationID:      orgID,
+					OrganizationID:      ownerOrg,
 					SystemKey:           sk,
 				})
 			}

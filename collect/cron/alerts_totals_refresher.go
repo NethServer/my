@@ -152,6 +152,12 @@ type orgCounts struct {
 	muted    int
 }
 
+// TODO(per-reseller): with the per-reseller tenant model, customer/distributor/
+// owner tenants no longer hold their own active alerts — they live in the
+// reseller tenant. This must query the reseller tenants and bucket the returned
+// alerts by the organization_id label to keep per-customer counts in
+// alerts_totals_by_org (schema unchanged). Kept as-is for now.
+//
 // loadOrgIDs returns every active organization ID from the unified view.
 // Soft-deleted orgs are excluded by the view definition.
 func (r *AlertsTotalsRefresher) loadOrgIDs(ctx context.Context) ([]string, error) {

@@ -43,11 +43,16 @@ type SystemAlertMetadata struct {
 	OrganizationName string
 	OrganizationVAT  string
 	OrganizationType string
+	// ResellerOrgID is the Mimir tenant that owns this system's alerting: the
+	// managing reseller/distributor for a customer-owned system, else the
+	// owning org itself. Resolved server-side; never trusted from the client.
+	ResellerOrgID string
 }
 
 // SystemAlertContext contains the resolved tenant and authoritative labels for an alert.
 type SystemAlertContext struct {
 	OrganizationID string
+	ResellerOrgID  string
 	SystemID       string
 	SystemKey      string
 	Labels         map[string]string
@@ -80,7 +85,8 @@ func LookupSystemAlertContext(ctx context.Context, db *sql.DB, systemID string) 
 		           WHEN r.logto_id IS NOT NULL THEN 'reseller'
 		           WHEN c.logto_id IS NOT NULL THEN 'customer'
 		           ELSE NULL
-		       END
+		       END,
+		       COALESCE(NULLIF(c.custom_data->>'createdBy', ''), s.organization_id)
 		FROM systems s
 		LEFT JOIN distributors d ON (s.organization_id = d.logto_id OR s.organization_id = d.id) AND d.deleted_at IS NULL
 		LEFT JOIN resellers r ON (s.organization_id = r.logto_id OR s.organization_id = r.id) AND r.deleted_at IS NULL
@@ -97,6 +103,7 @@ func LookupSystemAlertContext(ctx context.Context, db *sql.DB, systemID string) 
 		&organizationName,
 		&organizationVAT,
 		&organizationType,
+		&metadata.ResellerOrgID,
 	)
 	if err != nil {
 		return nil, err
@@ -132,6 +139,7 @@ func BuildSystemAlertContext(metadata SystemAlertMetadata) *SystemAlertContext {
 
 	return &SystemAlertContext{
 		OrganizationID: metadata.OrganizationID,
+		ResellerOrgID:  metadata.ResellerOrgID,
 		SystemID:       metadata.SystemID,
 		SystemKey:      metadata.SystemKey,
 		Labels:         labels,
@@ -273,6 +281,44 @@ func ProcessAnnotationTemplates(body []byte) []byte {
 	return out
 }
 
+// maxLazyInitAttempts bounds retries for the 406 "Not initializing the
+// Alertmanager" window: after a tenant's config is first pushed, Mimir
+// instantiates that tenant's Alertmanager lazily (~config poll interval), and
+// POSTs during that window return 406. We retry with backoff instead of
+// dropping the alert.
+const maxLazyInitAttempts = 4
+
+// DoWithLazyInitRetry issues the request produced by newReq, retrying with
+// exponential backoff on a 406 ("not initializing the Alertmanager") or a
+// transient network error. Any other response — including other >=300 codes —
+// is returned to the caller unchanged. newReq is called once per attempt so the
+// request body can be replayed.
+func DoWithLazyInitRetry(newReq func() (*http.Request, error)) (*http.Response, error) {
+	backoff := time.Second
+	var lastErr error
+	for attempt := 0; attempt < maxLazyInitAttempts; attempt++ {
+		req, err := newReq()
+		if err != nil {
+			return nil, err
+		}
+		resp, err := MimirHTTPClient.Do(req)
+		switch {
+		case err != nil:
+			lastErr = err
+		case resp.StatusCode == http.StatusNotAcceptable:
+			_ = resp.Body.Close()
+			lastErr = fmt.Errorf("mimir tenant alertmanager not initialized (406)")
+		default:
+			return resp, nil
+		}
+		if attempt < maxLazyInitAttempts-1 {
+			time.Sleep(backoff)
+			backoff *= 2
+		}
+	}
+	return nil, lastErr
+}
+
 // PostAlerts sends a batch of alerts to Alertmanager for the given tenant.
 func PostAlerts(orgID string, alerts []models.AlertmanagerPostAlert) error {
 	if len(alerts) == 0 {
@@ -284,15 +330,16 @@ func PostAlerts(orgID string, alerts []models.AlertmanagerPostAlert) error {
 		return fmt.Errorf("marshal alerts: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s%s", configuration.Config.MimirURL, MimirAlertsPath), bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("create alert post request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("X-Scope-OrgID", orgID)
-
-	resp, err := MimirHTTPClient.Do(req)
+	resp, err := DoWithLazyInitRetry(func() (*http.Request, error) {
+		req, reqErr := http.NewRequest(http.MethodPost, fmt.Sprintf("%s%s", configuration.Config.MimirURL, MimirAlertsPath), bytes.NewReader(body))
+		if reqErr != nil {
+			return nil, reqErr
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("X-Scope-OrgID", orgID)
+		return req, nil
+	})
 	if err != nil {
 		return fmt.Errorf("post alerts to mimir: %w", err)
 	}

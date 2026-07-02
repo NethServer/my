@@ -98,6 +98,49 @@ func lookupCreatedBy(orgID string) (string, error) {
 	return *parent, nil
 }
 
+// TenantForOrg returns the Mimir alertmanager tenant that owns an org's
+// alerting. A customer maps to its managing parent (the reseller/distributor
+// recorded in custom_data.createdBy); any non-customer org (reseller,
+// distributor, owner) — and a customer with no recorded parent — maps to
+// itself. This bounds the tenant count by the number of resellers instead of
+// customers; per-customer routing/filtering uses the organization_id label
+// carried on every alert.
+func TenantForOrg(orgID string) (string, error) {
+	if orgID == "" {
+		return "", fmt.Errorf("orgID is required")
+	}
+	parent, isCustomer, err := lookupCustomerParent(orgID)
+	if err != nil {
+		return "", err
+	}
+	if isCustomer && parent != "" {
+		return parent, nil
+	}
+	return orgID, nil
+}
+
+// lookupCustomerParent reports whether orgID is a (non-deleted) customer and,
+// if so, its createdBy parent. isCustomer is false when orgID is not a
+// customer row (reseller/distributor/owner) — the caller then treats orgID as
+// its own tenant.
+func lookupCustomerParent(orgID string) (parent string, isCustomer bool, err error) {
+	row := database.DB.QueryRow(
+		`SELECT custom_data->>'createdBy' FROM customers WHERE logto_id = $1 AND deleted_at IS NULL LIMIT 1`,
+		orgID,
+	)
+	var p *string
+	if scanErr := row.Scan(&p); scanErr != nil {
+		if scanErr.Error() == "sql: no rows in result set" {
+			return "", false, nil
+		}
+		return "", false, scanErr
+	}
+	if p == nil {
+		return "", true, nil
+	}
+	return *p, true, nil
+}
+
 // computeEffectiveLayer walks the tenant's ancestor chain and merges every layer Owner→tenant (orgs with no row contribute nothing); used by RenderAndPushEffective for the Mimir push.
 func computeEffectiveLayer(tenantOrgID string) (models.AlertingConfigLayer, error) {
 	chain, err := ResolveAncestorChain(tenantOrgID)
@@ -122,27 +165,75 @@ func computeEffectiveLayer(tenantOrgID string) (models.AlertingConfigLayer, erro
 	return MergeLayers(ordered), nil
 }
 
-// RenderAndPushEffective re-computes and pushes the effective Mimir
-// alertmanager config for one tenant. Used by the propagation path: when
-// any layer in a tenant's chain is saved, RenderAndPushEffective is invoked
-// for every affected tenant to keep Mimir in sync.
-func RenderAndPushEffective(ctx context.Context, tenantOrgID string) error {
-	effective, err := computeEffectiveLayer(tenantOrgID)
+// customerOrgsForTenant returns the org ids whose systems live in tenantOrgID's
+// Mimir tenant: the tenant org itself (systems it owns directly) plus every
+// customer whose createdBy is the tenant. Customers resolve to their parent as
+// tenant (see TenantForOrg), so these are exactly the orgs routed inside the
+// reseller config.
+func customerOrgsForTenant(tenantOrgID string) ([]string, error) {
+	rows, err := database.DB.Query(
+		`SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL`,
+		tenantOrgID,
+	)
 	if err != nil {
-		return fmt.Errorf("compute effective for %s: %w", tenantOrgID, err)
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	orgIDs := []string{tenantOrgID}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		orgIDs = append(orgIDs, id)
+	}
+	return orgIDs, rows.Err()
+}
+
+// renderTenantConfig builds the full nested Alertmanager YAML for a reseller
+// tenant: one route per org (the reseller itself + each of its customers),
+// each carrying its own effective merged layer. Returns the YAML and the
+// template files to push alongside it.
+func renderTenantConfig(tenantOrgID string) (string, map[string]string, error) {
+	orgIDs, err := customerOrgsForTenant(tenantOrgID)
+	if err != nil {
+		return "", nil, fmt.Errorf("enumerate customers for %s: %w", tenantOrgID, err)
+	}
+	customers := make([]CustomerConfig, 0, len(orgIDs))
+	for _, oid := range orgIDs {
+		eff, err := computeEffectiveLayer(oid)
+		if err != nil {
+			return "", nil, fmt.Errorf("compute effective for %s: %w", oid, err)
+		}
+		layer := eff
+		customers = append(customers, CustomerConfig{OrgID: oid, Layer: &layer})
 	}
 	cfg := configuration.Config
 	yamlConfig, err := RenderConfig(
 		cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.SMTPTLS,
 		cfg.AlertingHistoryWebhookURL, cfg.AlertingHistoryWebhookSecret,
-		&effective,
+		customers,
 	)
 	if err != nil {
-		return fmt.Errorf("render YAML for %s: %w", tenantOrgID, err)
+		return "", nil, fmt.Errorf("render YAML for %s: %w", tenantOrgID, err)
 	}
 	templateFiles, err := BuildTemplateFiles(cfg.AppURL)
 	if err != nil {
-		return fmt.Errorf("build templates for %s: %w", tenantOrgID, err)
+		return "", nil, fmt.Errorf("build templates for %s: %w", tenantOrgID, err)
+	}
+	return yamlConfig, templateFiles, nil
+}
+
+// RenderAndPushEffective re-computes and pushes the effective Mimir
+// alertmanager config for one RESELLER tenant. tenantOrgID must be a tenant
+// (reseller/distributor/owner) as returned by TenantForOrg; the pushed config
+// carries a nested route per customer of that tenant. Used by the propagation
+// path: when any layer in a chain is saved, this runs once per affected tenant.
+func RenderAndPushEffective(ctx context.Context, tenantOrgID string) error {
+	yamlConfig, templateFiles, err := renderTenantConfig(tenantOrgID)
+	if err != nil {
+		return err
 	}
 	if err := PushConfig(tenantOrgID, yamlConfig, templateFiles); err != nil {
 		return fmt.Errorf("push config for %s: %w", tenantOrgID, err)
@@ -211,7 +302,7 @@ func BuildEffectiveConfigReport(tenantOrgID string) (EffectiveConfigReport, erro
 	yamlConfig, err := RenderConfig(
 		cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.SMTPTLS,
 		cfg.AlertingHistoryWebhookURL, cfg.AlertingHistoryWebhookSecret,
-		&effective,
+		[]CustomerConfig{{OrgID: tenantOrgID, Layer: &effective}},
 	)
 	if err != nil {
 		return EffectiveConfigReport{}, fmt.Errorf("render YAML for %s: %w", tenantOrgID, err)

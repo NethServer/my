@@ -6,10 +6,12 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package alerting
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/nethesis/my/collect/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,6 +47,45 @@ func TestBuildSystemAlertContext(t *testing.T) {
 		"organization_vat":  "IT00000000001",
 		"organization_type": "customer",
 	}, context.Labels)
+}
+
+// BuildSystemAlertContext must carry the resolved reseller tenant while keeping
+// the organization_id label pointed at the customer org.
+func TestBuildSystemAlertContext_CopiesResellerOrgID(t *testing.T) {
+	context := BuildSystemAlertContext(SystemAlertMetadata{
+		SystemID:       "system-1",
+		OrganizationID: "cust-1",
+		ResellerOrgID:  "reseller-1",
+	})
+
+	require.NotNil(t, context)
+	assert.Equal(t, "reseller-1", context.ResellerOrgID)
+	assert.Equal(t, "cust-1", context.OrganizationID)
+	assert.Equal(t, "cust-1", context.Labels["organization_id"])
+}
+
+// LookupSystemAlertContext must map the reseller_org_id column into the context
+// (Mimir tenant) while the organization_id label stays the customer.
+func TestLookupSystemAlertContext_ResolvesResellerTenant(t *testing.T) {
+	mockDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = mockDB.Close() }()
+
+	mock.ExpectQuery(`SELECT s.id::text`).WithArgs("system-1").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "organization_id", "system_key", "name", "type",
+			"fqdn", "ipv4", "org_name", "org_vat", "org_type", "reseller_org_id",
+		}).AddRow(
+			"system-1", "cust-1", "SYS-001", "web-01", "ns8",
+			"web-01.example.com", "192.0.2.10", "Fox Petrolio", "IT00000000001", "customer", "reseller-1",
+		))
+
+	ctx, err := LookupSystemAlertContext(context.Background(), mockDB, "system-1")
+	require.NoError(t, err)
+	assert.Equal(t, "reseller-1", ctx.ResellerOrgID)
+	assert.Equal(t, "cust-1", ctx.OrganizationID)
+	assert.Equal(t, "cust-1", ctx.Labels["organization_id"])
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestBuildSystemAlertContext_EmptyFields(t *testing.T) {

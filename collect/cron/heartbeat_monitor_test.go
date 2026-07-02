@@ -104,8 +104,8 @@ func TestCheckAndUpdateStatuses_ResolvesRecoveredSystem(t *testing.T) {
 		WithArgs("sys-uuid-1").
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "organization_id", "system_key", "name", "type", "fqdn", "ipv4",
-			"org_name", "org_vat", "org_type",
-		}).AddRow("sys-uuid-1", "org-1", "SYS-001", "web-01", "ns8", "", "", "Reseller X", "", "reseller"))
+			"org_name", "org_vat", "org_type", "reseller_org_id",
+		}).AddRow("sys-uuid-1", "org-1", "SYS-001", "web-01", "ns8", "", "", "Reseller X", "", "reseller", "reseller-1"))
 	// 4. active -> inactive
 	mock.ExpectExec(`SET status = 'inactive'`).
 		WithArgs(sqlmock.AnyArg()).
@@ -114,10 +114,13 @@ func TestCheckAndUpdateStatuses_ResolvesRecoveredSystem(t *testing.T) {
 	monitor.checkAndUpdateStatuses(context.Background())
 
 	require.NoError(t, mock.ExpectationsWereMet())
-	require.Len(t, posted["org-1"], 1)
-	alert := posted["org-1"][0]
+	// Resolved alert is posted to the RESELLER tenant, but its organization_id
+	// label stays the customer org.
+	require.Len(t, posted["reseller-1"], 1)
+	alert := posted["reseller-1"][0]
 	assert.Equal(t, "LinkFailed", alert.Labels["alertname"])
 	assert.Equal(t, "SYS-001", alert.Labels["system_key"])
+	assert.Equal(t, "org-1", alert.Labels["organization_id"])
 	assert.False(t, alert.EndsAt.After(time.Now().UTC().Add(time.Second)),
 		"resolve alert EndsAt must be <= now")
 }

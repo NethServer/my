@@ -33,6 +33,23 @@ type routeEntry struct {
 	ReceiverName string
 }
 
+// customerRoute is one customer's sub-tree inside a reseller tenant's routing:
+// a parent route matched on organization_id="<OrgID>" wrapping per-severity
+// child routes. Receiver names are namespaced by OrgID so customers sharing a
+// tenant never collide.
+type customerRoute struct {
+	OrgID          string
+	SeverityRoutes []routeEntry
+}
+
+// CustomerConfig pairs a customer org id with its effective (merged) alerting
+// layer. RenderConfig turns each into a nested route + namespaced receivers
+// inside a single reseller-tenant config.
+type CustomerConfig struct {
+	OrgID string
+	Layer *models.AlertingConfigLayer
+}
+
 // emailEntry is a single email destination with its own per-recipient
 // template overrides driven by the recipient's language and format
 // preferences. format="" or "html" emits our html template plus our text
@@ -77,7 +94,7 @@ type templateData struct {
 	SmtpRequireTLS      bool
 	HistoryWebhookURL   string
 	HistoryWebhookToken string
-	Routes              []routeEntry
+	Customers           []customerRoute
 	Receivers           []receiverEntry
 	// HasEmailReceivers is true when at least one receiver carries email
 	// destinations. The Alertmanager `templates:` block is emitted only
@@ -96,7 +113,7 @@ const alertmanagerTemplate = `global:
 
 route:
   receiver: 'blackhole'
-  group_by: ['alertname', 'system_key']
+  group_by: ['organization_id', 'alertname', 'system_key']
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 12h
@@ -105,15 +122,16 @@ route:
     - receiver: 'builtin-history'
       continue: true
 {{- end }}
-{{- range .Routes }}
-{{- if .MatcherKey }}
+{{- range .Customers }}
     - matchers:
-        - {{ .MatcherKey }}="{{ yamlEscape .MatcherValue }}"
-      receiver: '{{ yamlEscape .ReceiverName }}'
-      continue: false
-{{- else }}
-    - receiver: '{{ yamlEscape .ReceiverName }}'
-      continue: false
+        - organization_id="{{ yamlEscape .OrgID }}"
+      receiver: 'blackhole'
+      routes:
+{{- range .SeverityRoutes }}
+        - matchers:
+            - {{ .MatcherKey }}="{{ yamlEscape .MatcherValue }}"
+          receiver: '{{ yamlEscape .ReceiverName }}'
+          continue: false
 {{- end }}
 {{- end }}
 
@@ -291,7 +309,7 @@ func RenderConfig(
 	smtpUser, smtpPass, smtpFrom string,
 	smtpTLS bool,
 	historyWebhookURL, historyWebhookToken string,
-	cfg *models.AlertingConfigLayer,
+	customers []CustomerConfig,
 ) (string, error) {
 	smarthost := smtpHost
 	if smtpPort > 0 {
@@ -308,34 +326,40 @@ func RenderConfig(
 		HistoryWebhookToken: historyWebhookToken,
 	}
 
-	if cfg != nil {
+	// One nested route per customer, matched on the organization_id label the
+	// alerts carry. Within each customer, the same per-severity fan-out as
+	// before, but with receiver names namespaced by org id. Unmatched
+	// severities fall to the customer route's own receiver (blackhole).
+	for _, cust := range customers {
+		if cust.Layer == nil || cust.OrgID == "" {
+			continue
+		}
+		cr := customerRoute{OrgID: cust.OrgID}
+		hasReal := false
 		for _, severity := range []string{"critical", "warning", "info"} {
-			recv := buildReceiver("severity-"+severity+"-receiver", severity, cfg)
-			recvName := recv.Name
-			if len(recv.Emails) == 0 && len(recv.Webhooks) == 0 && len(recv.Telegrams) == 0 {
-				recvName = "blackhole"
-			}
-			data.Routes = append(data.Routes, routeEntry{
-				MatcherKey:   "severity",
-				MatcherValue: severity,
-				ReceiverName: recvName,
-			})
-			if recvName != "blackhole" {
+			recv := buildReceiver(cust.OrgID+"-severity-"+severity+"-receiver", severity, cust.Layer)
+			recvName := "blackhole"
+			if len(recv.Emails) > 0 || len(recv.Webhooks) > 0 || len(recv.Telegrams) > 0 {
+				recvName = recv.Name
+				hasReal = true
 				if len(recv.Emails) > 0 {
 					data.HasEmailReceivers = true
 				}
 				data.Receivers = append(data.Receivers, recv)
 			}
+			cr.SeverityRoutes = append(cr.SeverityRoutes, routeEntry{
+				MatcherKey:   "severity",
+				MatcherValue: severity,
+				ReceiverName: recvName,
+			})
 		}
-
-		// Catch-all fallback: alerts that escape the three per-severity
-		// matchers (missing/unknown severity label) go to blackhole rather
-		// than leaking to an undefined receiver.
-		data.Routes = append(data.Routes, routeEntry{
-			MatcherKey:   "",
-			MatcherValue: "",
-			ReceiverName: "blackhole",
-		})
+		// A customer with no active recipient at any severity would only emit
+		// an all-blackhole sub-tree; its alerts fall to the tenant root
+		// receiver (blackhole) anyway, so skip it to keep the config lean.
+		if !hasReal {
+			continue
+		}
+		data.Customers = append(data.Customers, cr)
 	}
 
 	funcMap := template.FuncMap{"yamlEscape": yamlEscape}

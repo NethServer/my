@@ -61,7 +61,8 @@ func ProxyMimir(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("internal server error", nil))
 		return
 	}
-	orgID := systemAlertContext.OrganizationID
+	orgID := systemAlertContext.OrganizationID      // customer org (alert label)
+	tenantOrgID := systemAlertContext.ResellerOrgID // Mimir tenant (X-Scope-OrgID)
 	systemKey := systemAlertContext.SystemKey
 
 	// Enforce request body size limit (same ceiling as the inventory endpoint).
@@ -94,7 +95,7 @@ func ProxyMimir(c *gin.Context) {
 
 	case isSilenceByID:
 		// Verify the silence belongs to this machine before allowing GET or DELETE.
-		owned, checkErr := fetchAndCheckSilenceOwnership(orgID, subPath, systemKey)
+		owned, checkErr := fetchAndCheckSilenceOwnership(tenantOrgID, subPath, systemKey)
 		if checkErr != nil {
 			logger.Error().Err(checkErr).Str("system_id", systemID).Str("path", subPath).Msg("mimir proxy: silence ownership check failed")
 			c.JSON(http.StatusInternalServerError, response.InternalServerError("internal server error", nil))
@@ -119,25 +120,26 @@ func ProxyMimir(c *gin.Context) {
 		targetURL += "?" + rawQuery
 	}
 
-	logger.Info().Str("target", targetURL).Str("org_id", orgID).Msg("mimir proxy: forwarding request")
+	logger.Info().Str("target", targetURL).Str("tenant_org_id", tenantOrgID).Str("customer_org_id", orgID).Msg("mimir proxy: forwarding request")
 
-	req, err := http.NewRequest(method, targetURL, bytes.NewReader(bodyBytes))
-	if err != nil {
-		logger.Error().Err(err).Str("target", targetURL).Msg("mimir proxy: failed to create upstream request")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("internal server error", nil))
-		return
-	}
-
-	for _, header := range []string{"Content-Type", "Content-Encoding", "Accept", "User-Agent"} {
-		if val := c.GetHeader(header); val != "" {
-			req.Header.Set(header, val)
+	// Forward with lazy-init retry: a system's first push after its reseller
+	// tenant config is (re)created can hit 406 until Mimir instantiates the
+	// tenant Alertmanager. The body is already buffered so it can be replayed.
+	resp, err := collectalerting.DoWithLazyInitRetry(func() (*http.Request, error) {
+		req, reqErr := http.NewRequest(method, targetURL, bytes.NewReader(bodyBytes))
+		if reqErr != nil {
+			return nil, reqErr
 		}
-	}
-	// Remove Accept-Encoding so Mimir sends plain JSON, not gzip
-	req.Header.Del("Accept-Encoding")
-	req.Header.Set("X-Scope-OrgID", orgID)
-
-	resp, err := collectalerting.MimirHTTPClient.Do(req)
+		for _, header := range []string{"Content-Type", "Content-Encoding", "Accept", "User-Agent"} {
+			if val := c.GetHeader(header); val != "" {
+				req.Header.Set(header, val)
+			}
+		}
+		// Remove Accept-Encoding so Mimir sends plain JSON, not gzip
+		req.Header.Del("Accept-Encoding")
+		req.Header.Set("X-Scope-OrgID", tenantOrgID)
+		return req, nil
+	})
 	if err != nil {
 		logger.Error().Err(err).Str("target", targetURL).Msg("mimir proxy: network error")
 		c.JSON(http.StatusBadGateway, response.InternalServerError("mimir is unavailable", nil))

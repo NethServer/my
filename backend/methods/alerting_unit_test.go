@@ -14,6 +14,34 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// filterByOrgScope is the read-side isolation gate for the shared per-reseller
+// tenant: only alerts whose organization_id label is in the caller's authorized
+// customer set are returned. Regression guard for the "soft isolation" model —
+// a customer must never see a sibling customer's alerts in the same tenant.
+func TestFilterByOrgScope_Isolation(t *testing.T) {
+	mk := func(org string) map[string]interface{} {
+		return map[string]interface{}{
+			"labels": map[string]interface{}{"organization_id": org, "system_key": "SYS-" + org},
+		}
+	}
+	alerts := []map[string]interface{}{mk("cust-A"), mk("cust-B"), mk("reseller-R")}
+
+	// Customer A: only its own alert survives (siblings dropped).
+	got := filterByOrgScope(alerts, []string{"cust-A"})
+	require.Len(t, got, 1)
+	assert.Equal(t, "cust-A", got[0]["labels"].(map[string]interface{})["organization_id"])
+
+	// Reseller scope (self + both customers): sees all three.
+	assert.Len(t, filterByOrgScope(alerts, []string{"reseller-R", "cust-A", "cust-B"}), 3)
+
+	// Empty scope: nothing leaks.
+	assert.Len(t, filterByOrgScope(alerts, nil), 0)
+
+	// An alert without an organization_id label is dropped (never leaks).
+	noOrg := []map[string]interface{}{{"labels": map[string]interface{}{"system_key": "SYS-X"}}}
+	assert.Len(t, filterByOrgScope(noOrg, []string{"cust-A"}), 0)
+}
+
 func TestFilterAlerts(t *testing.T) {
 	alerts := []map[string]interface{}{
 		{
