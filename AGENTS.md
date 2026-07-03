@@ -311,6 +311,32 @@ go test -v ./<package>                 # focused
 
 Backend integration tests use `testutils/` for mock users/tokens/JWT. SQL mocks via `github.com/DATA-DOG/go-sqlmock`.
 
+### 7.3 apitool — live end-to-end testing against a running backend
+
+`backend/apitool` (compiled binary, run from `backend/`) manages **real** OIDC test users, orgs and tokens via Logto login + token exchange — unlike §7.1 mock tokens, these exercise the full auth/RBAC path. State lives in `backend/.api-registry.json` (gitignored, 0600). Run `./apitool list` first: it shows the registered owner, orgs (name/type/logto_id) and users (key/email/role/org) already available, so you rarely need to create anything.
+
+```bash
+./apitool list                          # what's already registered: orgs + users + config
+./apitool token <user-key>              # fresh JWT for a registered user ("owner" for the owner)
+./apitool create-org <type> <name> --vat=<12 digits> [--data-<k>=<v>...] [--as=<user-key>]
+                                        # type: distributor|reseller|customer;
+                                        # --as makes the new org a child of that user's org
+./apitool create-user --org=<name> --email=<email> --name=<name> [--role=Admin] [--key=<alias>] [--as=<user-key>]
+./apitool create-system --org=<customer-name> <system-name> [--register]   # prints system_key + system_secret
+./apitool register-system <system_secret>   # public registration handshake (if --register was not used)
+./apitool delete-user <key> / delete-org <name>   # soft-delete + remove from registry
+./apitool cleanup-orphans --org=<name>
+```
+
+Typical e2e pattern (backend on `localhost:8080`, see §8.2):
+
+```bash
+TOKEN=$(./apitool token r1admin | tail -1)   # token prints last; user-key from `apitool list`
+curl -s http://localhost:8080/api/customers/<logto_id> -H "Authorization: Bearer $TOKEN"
+```
+
+Conventions: org endpoints take the **logto_id** (from `apitool list` or API responses), not the internal UUID. To test hierarchy/RBAC behavior, act as users of different orgs (e.g. a reseller admin vs. a sibling reseller vs. a distributor admin) and assert both the allowed (2xx) and denied (403) paths. For test emails use plus sub-addressing on a real inbox you own (`<name>+<tag>@nethesis.it`) so messages actually arrive and stay sortable.
+
 ---
 
 ## 8. Development Workflow
