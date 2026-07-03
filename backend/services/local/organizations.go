@@ -768,6 +768,13 @@ func (s *LocalOrganizationService) UpdateDistributor(id string, req *models.Upda
 		// Fallback if somehow missing (should not happen)
 		finalCustomData["createdBy"] = updatedByOrgID
 	}
+	// GetByID strips createdByUser out of CustomData (ExtractOrgCreator exposes
+	// it as the top-level created_by and deletes the key), so it must be
+	// re-injected here or every update would silently wipe the creator snapshot
+	// from Postgres and Logto.
+	if currentDistributor.CreatedBy != nil {
+		finalCustomData["createdByUser"] = currentDistributor.CreatedBy
+	}
 
 	// Add update tracking (these are additional fields, not replacements)
 	finalCustomData["updatedBy"] = updatedByOrgID
@@ -979,6 +986,13 @@ func (s *LocalOrganizationService) UpdateReseller(id string, req *models.UpdateL
 		// Fallback if somehow missing (should not happen)
 		finalCustomData["createdBy"] = updatedByOrgID
 	}
+	// GetByID strips createdByUser out of CustomData (ExtractOrgCreator exposes
+	// it as the top-level created_by and deletes the key), so it must be
+	// re-injected here or every update would silently wipe the creator snapshot
+	// from Postgres and Logto.
+	if currentReseller.CreatedBy != nil {
+		finalCustomData["createdByUser"] = currentReseller.CreatedBy
+	}
 
 	// Add update tracking (these are additional fields, not replacements)
 	finalCustomData["updatedBy"] = updatedByOrgID
@@ -1189,6 +1203,13 @@ func (s *LocalOrganizationService) UpdateCustomer(id string, req *models.UpdateL
 	} else {
 		// Fallback if somehow missing (should not happen)
 		finalCustomData["createdBy"] = updatedByOrgID
+	}
+	// GetByID strips createdByUser out of CustomData (ExtractOrgCreator exposes
+	// it as the top-level created_by and deletes the key), so it must be
+	// re-injected here or every update would silently wipe the creator snapshot
+	// from Postgres and Logto.
+	if currentCustomer.CreatedBy != nil {
+		finalCustomData["createdByUser"] = currentCustomer.CreatedBy
 	}
 
 	// Add update tracking (these are additional fields, not replacements)
