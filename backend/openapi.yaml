@@ -4061,7 +4061,7 @@ paths:
                     type: object
                     nullable: true
         '400':
-          description: Bad request - User is not deleted
+          description: Bad request - User is not deleted, or its organization is still deleted (restore the organization first)
           content:
             application/json:
               schema:

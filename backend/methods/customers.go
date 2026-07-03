@@ -484,7 +484,7 @@ func RestoreCustomer(c *gin.Context) {
 	case "distributor", "reseller":
 		if customer.LogtoID != nil {
 			userService := local.NewUserService()
-			canRestore = userService.IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, *customer.LogtoID)
+			canRestore = userService.IsOrganizationInHierarchyIncludeDeleted(userOrgRole, user.OrganizationID, *customer.LogtoID)
 		}
 	}
 
@@ -555,7 +555,7 @@ func DestroyCustomer(c *gin.Context) {
 	case "distributor", "reseller":
 		if customer.LogtoID != nil {
 			userService := local.NewUserService()
-			canDestroy = userService.IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, *customer.LogtoID)
+			canDestroy = userService.IsOrganizationInHierarchyIncludeDeleted(userOrgRole, user.OrganizationID, *customer.LogtoID)
 		}
 	}
 

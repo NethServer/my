@@ -673,6 +673,11 @@ func RestoreUser(c *gin.Context) {
 			return
 		}
 
+		if strings.Contains(errMsg, "organization is deleted") {
+			c.JSON(http.StatusBadRequest, response.BadRequest("user's organization is deleted and must be restored first", nil))
+			return
+		}
+
 		if strings.Contains(errMsg, "access denied") {
 			c.JSON(http.StatusForbidden, response.Forbidden("access denied to restore user", nil))
 			return

@@ -972,10 +972,32 @@ func (s *LocalUserService) RestoreUser(id, restoredByUserID, restoredByOrgID, re
 		return fmt.Errorf("user is not deleted")
 	}
 
-	// Verify RBAC permissions (hierarchy check)
+	// Verify RBAC permissions (hierarchy check). The user's organization may
+	// itself be soft-deleted (org deletion cascades to its users), so archived
+	// orgs must still count as part of the hierarchy here.
 	if user.OrganizationID != nil {
-		if !s.IsOrganizationInHierarchy(restoredByOrgRole, restoredByOrgID, *user.OrganizationID) {
+		if !s.IsOrganizationInHierarchyIncludeDeleted(restoredByOrgRole, restoredByOrgID, *user.OrganizationID) {
 			return fmt.Errorf("access denied: insufficient permissions to restore this user")
+		}
+
+		// Guard: never restore a user into an org that is still archived — it
+		// would leave an active user referencing a deleted org. Restoring the
+		// org already brings its users back via cascade.
+		var orgArchived bool
+		query := `
+			SELECT EXISTS(
+				SELECT 1 FROM distributors WHERE logto_id = $1 AND deleted_at IS NOT NULL
+				UNION ALL
+				SELECT 1 FROM resellers WHERE logto_id = $1 AND deleted_at IS NOT NULL
+				UNION ALL
+				SELECT 1 FROM customers WHERE logto_id = $1 AND deleted_at IS NOT NULL
+			)
+		`
+		if err := database.DB.QueryRow(query, *user.OrganizationID).Scan(&orgArchived); err != nil {
+			return fmt.Errorf("failed to check organization status: %w", err)
+		}
+		if orgArchived {
+			return fmt.Errorf("organization is deleted and must be restored first")
 		}
 	}
 
@@ -1006,9 +1028,10 @@ func (s *LocalUserService) DestroyUser(id, destroyedByUserID, destroyedByOrgID, 
 		return fmt.Errorf("failed to get user: %w", err)
 	}
 
-	// Verify RBAC permissions (hierarchy check)
+	// Verify RBAC permissions (hierarchy check, including soft-deleted orgs —
+	// see RestoreUser)
 	if user.OrganizationID != nil {
-		if !s.IsOrganizationInHierarchy(destroyedByOrgRole, destroyedByOrgID, *user.OrganizationID) {
+		if !s.IsOrganizationInHierarchyIncludeDeleted(destroyedByOrgRole, destroyedByOrgID, *user.OrganizationID) {
 			return fmt.Errorf("access denied: insufficient permissions to destroy this user")
 		}
 	}
@@ -1211,10 +1234,31 @@ func (s *LocalUserService) CanAccessUser(userOrgRole, userOrgID, targetUserOrgID
 	}
 }
 
-// IsOrganizationInHierarchy checks if targetOrgID is in the hierarchy under userOrgID
+// IsOrganizationInHierarchy checks if targetOrgID is in the hierarchy under userOrgID.
+// Soft-deleted organizations are excluded from the hierarchy.
 func (s *LocalUserService) IsOrganizationInHierarchy(userOrgRole, userOrgID, targetOrgID string) bool {
+	return s.isOrganizationInHierarchy(userOrgRole, userOrgID, targetOrgID, false)
+}
+
+// IsOrganizationInHierarchyIncludeDeleted checks hierarchy membership including
+// soft-deleted organizations. Restore/destroy flows must use this variant: their
+// target is deleted by definition, so the default check would always deny it.
+func (s *LocalUserService) IsOrganizationInHierarchyIncludeDeleted(userOrgRole, userOrgID, targetOrgID string) bool {
+	return s.isOrganizationInHierarchy(userOrgRole, userOrgID, targetOrgID, true)
+}
+
+func (s *LocalUserService) isOrganizationInHierarchy(userOrgRole, userOrgID, targetOrgID string, includeDeleted bool) bool {
 	if userOrgID == targetOrgID {
 		return true // Direct match
+	}
+
+	// Ownership (custom_data->>'createdBy') is unaffected by soft-delete; the
+	// deleted_at filters only decide whether archived orgs count as reachable.
+	delFilter := " AND deleted_at IS NULL"
+	joinDelFilter := " AND c.deleted_at IS NULL AND r.deleted_at IS NULL"
+	if includeDeleted {
+		delFilter = ""
+		joinDelFilter = ""
 	}
 
 	switch userOrgRole {
@@ -1226,11 +1270,11 @@ func (s *LocalUserService) IsOrganizationInHierarchy(userOrgRole, userOrgID, tar
 		var count int
 		query := `
 			SELECT COUNT(*) FROM (
-				SELECT 1 FROM distributors WHERE logto_id = $1 AND deleted_at IS NULL
+				SELECT 1 FROM distributors WHERE logto_id = $1` + delFilter + `
 				UNION ALL
-				SELECT 1 FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL
+				SELECT 1 FROM resellers WHERE logto_id = $1` + delFilter + `
 				UNION ALL
-				SELECT 1 FROM customers WHERE logto_id = $1 AND deleted_at IS NULL
+				SELECT 1 FROM customers WHERE logto_id = $1` + delFilter + `
 			) orgs
 		`
 		err := database.DB.QueryRow(query, targetOrgID).Scan(&count)
@@ -1249,12 +1293,12 @@ func (s *LocalUserService) IsOrganizationInHierarchy(userOrgRole, userOrgID, tar
 		var exists bool
 		query := `
 			SELECT EXISTS(
-				SELECT 1 FROM resellers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2 AND deleted_at IS NULL
+				SELECT 1 FROM resellers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2` + delFilter + `
 				UNION ALL
-				SELECT 1 FROM customers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2 AND deleted_at IS NULL
+				SELECT 1 FROM customers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2` + delFilter + `
 				UNION ALL
 				SELECT 1 FROM customers c JOIN resellers r ON c.custom_data->>'createdBy' = r.logto_id
-				WHERE c.logto_id = $1 AND r.custom_data->>'createdBy' = $2 AND c.deleted_at IS NULL AND r.deleted_at IS NULL
+				WHERE c.logto_id = $1 AND r.custom_data->>'createdBy' = $2` + joinDelFilter + `
 			)
 		`
 		err := database.DB.QueryRow(query, targetOrgID, userOrgID).Scan(&exists)
@@ -1269,7 +1313,7 @@ func (s *LocalUserService) IsOrganizationInHierarchy(userOrgRole, userOrgID, tar
 
 		// Check if target is a customer created by this reseller
 		var count int
-		query := `SELECT COUNT(*) FROM customers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2 AND deleted_at IS NULL`
+		query := `SELECT COUNT(*) FROM customers WHERE logto_id = $1 AND custom_data->>'createdBy' = $2` + delFilter
 		err := database.DB.QueryRow(query, targetOrgID, userOrgID).Scan(&count)
 		if err == nil && count > 0 {
 			return true
