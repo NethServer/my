@@ -239,7 +239,7 @@ function closeDrawer() {
       <!-- Recipients list -->
       <div
         v-if="recipients.length"
-        class="divide-y divide-gray-700 rounded-lg border border-gray-700"
+        class="bg-elevation-2 divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700"
       >
         <div v-for="(recipient, index) in recipients" :key="index">
           <!-- Collapsed header -->
@@ -248,7 +248,9 @@ function closeDrawer() {
             @click="toggleExpand(index)"
           >
             <div class="min-w-0 flex-1">
-              <p class="truncate text-sm font-medium text-gray-100">{{ recipient.address }}</p>
+              <p class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+                {{ recipient.address }}
+              </p>
               <div v-if="expandedIndex !== index" class="mt-4 flex flex-wrap gap-1">
                 <NeBadgeV2
                   v-for="sev in SEVERITIES"
@@ -262,7 +264,7 @@ function closeDrawer() {
             </div>
             <FontAwesomeIcon
               :icon="faChevronDown"
-              class="ml-3 size-4 shrink-0 text-gray-400 transition-transform duration-200"
+              class="ml-3 size-4 shrink-0 text-gray-500 transition-transform duration-200 dark:text-gray-400"
               :style="{ transform: expandedIndex === index ? 'rotate(180deg)' : 'rotate(0deg)' }"
             />
           </button>
@@ -285,16 +287,18 @@ function closeDrawer() {
 
               <!-- Severity multi-select -->
               <div class="space-y-2">
-                <p class="text-sm font-medium text-gray-200">{{ t('alerts.severity') }}</p>
+                <p class="font-medium text-gray-700 dark:text-gray-200">
+                  {{ t('alerts.severity') }}
+                </p>
                 <div class="flex gap-2">
                   <button
                     v-for="sev in SEVERITIES"
                     :key="sev"
                     :class="[
-                      'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors',
+                      'bg-elevation-1 flex items-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors',
                       hasSeverity(recipient, sev)
-                        ? 'border-primary-500 bg-primary-900/30 text-primary-300'
-                        : 'border-gray-600 text-gray-400 hover:border-gray-500',
+                        ? 'border-primary-700 bg-primary-50 text-primary-800 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-300'
+                        : 'text-secondary-neutral border-gray-300 hover:border-gray-400 dark:border-gray-600 dark:hover:border-gray-500',
                     ]"
                     type="button"
                     @click="toggleSeverity(recipient, sev)"
@@ -302,7 +306,7 @@ function closeDrawer() {
                     <FontAwesomeIcon
                       v-if="hasSeverity(recipient, sev)"
                       :icon="faCircleCheck"
-                      class="text-primary-400 size-3.5"
+                      class="text-primary-700 dark:text-primary-400 size-3.5"
                     />
                     {{ capitalize(sev) }}
                   </button>
