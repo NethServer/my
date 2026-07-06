@@ -123,6 +123,7 @@ function closeTelegramDrawer() {
       <NotificationChannelCard
         :icon="faLink"
         :title="t('alerts.webhook_channel_title')"
+        :title-tooltip="t('alerts.webhook_channel_title_tooltip')"
         :description="t('alerts.webhook_channel_description')"
         :can-manage="canManageAlerts()"
         :not-configured="webhookNotConfigured"

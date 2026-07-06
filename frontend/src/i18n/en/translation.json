@@ -917,6 +917,7 @@
     "email_channel_description": "SMTP delivery",
     "webhook_channel_title": "Webhook",
     "webhook_channel_description": "Webhook delivery",
+    "webhook_channel_title_tooltip": "Automatically notify an external service managed by you. When an alert is triggered, My Nethesis will send an HTTP request with the alert details to your specified URL, allowing you to centralize and manage alerts in your own tools.",
     "telegram_channel_title": "Telegram",
     "telegram_channel_description": "Bot messaging",
     "recipients_count": "Recipients",
