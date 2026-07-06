@@ -55,7 +55,7 @@ import {
   removeSupportSessionService,
   getSupportSessionUsers,
 } from '@/lib/support/support'
-import UpdatingSpinner from '@/components/UpdatingSpinner.vue'
+import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 import { canConnectSystems } from '@/lib/permissions'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
