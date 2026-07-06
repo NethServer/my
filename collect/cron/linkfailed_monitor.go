@@ -240,8 +240,8 @@ func (m *LinkFailedMonitor) buildFiringAlert(system linkFailedSystem) (models.Al
 			Annotations: map[string]string{
 				"summary_en":     "No heartbeat received from system",
 				"summary_it":     "Nessun heartbeat ricevuto dal sistema",
-				"description_en": fmt.Sprintf("The system has not communicated with the server since %s. Check the service connection.", system.LastHeartbeat.Format(time.RFC3339)),
-				"description_it": fmt.Sprintf("Il sistema non ha comunicato con il server dal %s. Verificare la connessione al servizio.", system.LastHeartbeat.Format(time.RFC3339)),
+				"description_en": fmt.Sprintf("The system has not communicated with My Nethesis since %s. The alert is raised after %d minutes without a heartbeat. Check the system connection.", system.LastHeartbeat.Format(time.RFC3339), m.timeoutMinutes),
+				"description_it": fmt.Sprintf("Il sistema non ha comunicato con My Nethesis dal %s. L'allarme viene generato dopo %d minuti senza heartbeat. Verificare la connessione del sistema.", system.LastHeartbeat.Format(time.RFC3339), m.timeoutMinutes),
 			},
 			StartsAt: startsAt,
 			EndsAt:   time.Now().UTC().Add(linkFailedAlertTTL),
