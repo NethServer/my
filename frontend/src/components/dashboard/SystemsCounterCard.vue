@@ -41,15 +41,29 @@ const pendingCount = computed(() => systemsTotal.value.data?.unknown ?? 0)
     <div class="mt-5 flex flex-wrap justify-center gap-2">
       <NeBadgeV2 v-if="activeCount > 0" kind="green">
         <FontAwesomeIcon :icon="faCircleCheck" class="size-4" />
-        {{ $t('systems.count_active', { count: abbreviateNumber(activeCount, locale) }) }}
+        {{
+          $t('systems.count_active', { count: abbreviateNumber(activeCount, locale) }, activeCount)
+        }}
       </NeBadgeV2>
       <NeBadgeV2 v-if="inactiveCount > 0" kind="rose">
         <FontAwesomeIcon :icon="faCircleXmark" class="size-4" />
-        {{ $t('systems.count_inactive', { count: abbreviateNumber(inactiveCount, locale) }) }}
+        {{
+          $t(
+            'systems.count_inactive',
+            { count: abbreviateNumber(inactiveCount, locale) },
+            inactiveCount,
+          )
+        }}
       </NeBadgeV2>
       <NeBadgeV2 v-if="pendingCount > 0" kind="gray">
         <FontAwesomeIcon :icon="faClock" class="size-4" />
-        {{ $t('systems.count_pending', { count: abbreviateNumber(pendingCount, locale) }) }}
+        {{
+          $t(
+            'systems.count_pending',
+            { count: abbreviateNumber(pendingCount, locale) },
+            pendingCount,
+          )
+        }}
       </NeBadgeV2>
     </div>
   </CounterCard>

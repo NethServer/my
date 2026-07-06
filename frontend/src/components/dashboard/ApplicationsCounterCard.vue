@@ -27,9 +27,13 @@ const { state: applicationsTotal } = useApplicationsTotal()
     <div v-if="applicationsTotal.data?.total ?? 0 > 0" class="flex justify-center">
       <NeBadgeV2 kind="blue">
         {{
-          t('applications.num_unassigned', {
-            count: abbreviateNumber(applicationsTotal.data?.unassigned ?? 0, locale),
-          })
+          t(
+            'applications.num_unassigned',
+            {
+              count: abbreviateNumber(applicationsTotal.data?.unassigned ?? 0, locale),
+            },
+            applicationsTotal.data?.unassigned ?? 0,
+          )
         }}
       </NeBadgeV2>
     </div>

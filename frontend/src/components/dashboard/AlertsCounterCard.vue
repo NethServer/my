@@ -39,29 +39,41 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
     <div class="mt-5 flex flex-wrap justify-center gap-2">
       <NeBadgeV2 v-if="criticalCount > 0" kind="rose">
         {{
-          $t('alerts.count_critical', {
-            count:
-              (loginStore.isOwner && criticalCount > MIN_ESTIMATED_COUNT ? '~' : '') +
-              abbreviateNumber(criticalCount, locale),
-          })
+          $t(
+            'alerts.count_critical',
+            {
+              count:
+                (loginStore.isOwner && criticalCount > MIN_ESTIMATED_COUNT ? '~' : '') +
+                abbreviateNumber(criticalCount, locale),
+            },
+            criticalCount,
+          )
         }}
       </NeBadgeV2>
       <NeBadgeV2 v-if="warningCount > 0" kind="amber">
         {{
-          $t('alerts.count_warning', {
-            count:
-              (loginStore.isOwner && warningCount > MIN_ESTIMATED_COUNT ? '~' : '') +
-              abbreviateNumber(warningCount, locale),
-          })
+          $t(
+            'alerts.count_warning',
+            {
+              count:
+                (loginStore.isOwner && warningCount > MIN_ESTIMATED_COUNT ? '~' : '') +
+                abbreviateNumber(warningCount, locale),
+            },
+            warningCount,
+          )
         }}
       </NeBadgeV2>
       <NeBadgeV2 v-if="mutedCount > 0" kind="gray">
         {{
-          $t('alerts.count_muted', {
-            count:
-              (loginStore.isOwner && mutedCount > MIN_ESTIMATED_COUNT ? '~' : '') +
-              abbreviateNumber(mutedCount, locale),
-          })
+          $t(
+            'alerts.count_muted',
+            {
+              count:
+                (loginStore.isOwner && mutedCount > MIN_ESTIMATED_COUNT ? '~' : '') +
+                abbreviateNumber(mutedCount, locale),
+            },
+            mutedCount,
+          )
         }}
       </NeBadgeV2>
     </div>
