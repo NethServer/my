@@ -151,29 +151,20 @@ func GetCustomer(c *gin.Context) {
 		return
 	}
 
-	// Apply RBAC validation
+	// Apply hierarchical RBAC validation
+	userService := local.NewUserService()
 	userOrgRole := strings.ToLower(user.OrgRole)
 	canAccess := false
 	switch userOrgRole {
 	case "owner":
 		canAccess = true
-	case "distributor":
-		// Check if customer was created by this distributor (via CustomData)
-		if customer.CustomData != nil {
-			if createdBy, ok := customer.CustomData["createdBy"].(string); ok && createdBy == user.OrganizationID {
-				canAccess = true
-			}
-		}
-	case "reseller":
-		// Check if customer was created by this reseller (via CustomData)
-		if customer.CustomData != nil {
-			if createdBy, ok := customer.CustomData["createdBy"].(string); ok && createdBy == user.OrganizationID {
-				canAccess = true
-			}
+	case "distributor", "reseller":
+		if customer.LogtoID != nil {
+			canAccess = userService.IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, *customer.LogtoID)
 		}
 	case "customer":
 		// Customer can only access themselves
-		if customerID == user.OrganizationID {
+		if customer.LogtoID != nil && *customer.LogtoID == user.OrganizationID {
 			canAccess = true
 		}
 	}

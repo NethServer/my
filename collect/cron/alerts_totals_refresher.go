@@ -25,10 +25,12 @@ import (
 )
 
 // AlertsTotalsRefresher periodically fans out to Mimir's Alertmanager API
-// across every active tenant and writes per-organization severity/muted counts
-// into alerts_totals_by_org. The /api/alerts/totals endpoint on the backend
-// reads from that table with a single SUM query instead of paying the fan-out
-// cost on every user request.
+// across every distinct tenant (per-reseller model: a customer's alerts live
+// in its managing reseller's tenant), buckets the alerts per organization via
+// the organization_id label, and writes severity/muted counts into
+// alerts_totals_by_org. The /api/alerts/totals endpoint on the backend reads
+// from that table with a single SUM query instead of paying the fan-out cost
+// on every user request.
 type AlertsTotalsRefresher struct {
 	db               *sql.DB
 	mimirURL         string
@@ -98,12 +100,12 @@ func (r *AlertsTotalsRefresher) Start(ctx context.Context) {
 func (r *AlertsTotalsRefresher) refresh(parent context.Context) {
 	start := time.Now()
 
-	orgIDs, err := r.loadOrgIDs(parent)
+	orgTenants, err := r.loadOrgTenants(parent)
 	if err != nil {
 		logger.Error().Err(err).Msg("alerts totals refresher: failed to load organization IDs")
 		return
 	}
-	if len(orgIDs) == 0 {
+	if len(orgTenants) == 0 {
 		logger.Debug().Msg("alerts totals refresher: no organizations to refresh")
 		return
 	}
@@ -111,7 +113,7 @@ func (r *AlertsTotalsRefresher) refresh(parent context.Context) {
 	ctx, cancel := context.WithTimeout(parent, r.fanoutTimeout)
 	defer cancel()
 
-	counts, failures, sampleErr := r.fanOut(ctx, orgIDs)
+	counts, failures, sampleErr := r.fanOut(ctx, orgTenants)
 
 	if err := r.upsertCounts(parent, counts); err != nil {
 		logger.Error().Err(err).Msg("alerts totals refresher: failed to upsert counts")
@@ -124,12 +126,12 @@ func (r *AlertsTotalsRefresher) refresh(parent context.Context) {
 
 	// One aggregate warn per cycle when there were per-tenant failures; the
 	// sample error carries the root cause. Operators can correlate the failure
-	// count against the org total to tell "Mimir down" (failures == len(orgIDs))
-	// from "isolated tenant trouble" (failures << len(orgIDs)).
+	// count against the org total to tell "Mimir down" (failures == all tenants)
+	// from "isolated tenant trouble" (failures << tenants).
 	if failures > 0 {
 		logger.Warn().
-			Int("failures", failures).
-			Int("orgs_total", len(orgIDs)).
+			Int("tenant_failures", failures).
+			Int("orgs_total", len(orgTenants)).
 			Int("orgs_refreshed", len(counts)).
 			Str("sample_error", sampleErr).
 			Dur("elapsed", time.Since(start)).
@@ -152,50 +154,61 @@ type orgCounts struct {
 	muted    int
 }
 
-// TODO(per-reseller): with the per-reseller tenant model, customer/distributor/
-// owner tenants no longer hold their own active alerts — they live in the
-// reseller tenant. This must query the reseller tenants and bucket the returned
-// alerts by the organization_id label to keep per-customer counts in
-// alerts_totals_by_org (schema unchanged). Kept as-is for now.
-//
-// loadOrgIDs returns every active organization ID from the unified view.
-// Soft-deleted orgs are excluded by the view definition.
-func (r *AlertsTotalsRefresher) loadOrgIDs(ctx context.Context) ([]string, error) {
-	rows, err := r.db.QueryContext(ctx,
-		`SELECT logto_id FROM unified_organizations WHERE logto_id IS NOT NULL`)
+// loadOrgTenants returns every active organization ID mapped to the Mimir
+// tenant that holds its active alerts. With the per-reseller tenant model a
+// customer's alerts live in the tenant of its managing parent (the
+// reseller/distributor in custom_data.createdBy); resellers and distributors
+// are their own tenant. Mirrors alerting.TenantForOrg on the backend.
+// Soft-deleted orgs are excluded.
+func (r *AlertsTotalsRefresher) loadOrgTenants(ctx context.Context) (map[string]string, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT logto_id, logto_id AS tenant_id
+		FROM distributors WHERE logto_id IS NOT NULL AND deleted_at IS NULL
+		UNION ALL
+		SELECT logto_id, logto_id
+		FROM resellers WHERE logto_id IS NOT NULL AND deleted_at IS NULL
+		UNION ALL
+		SELECT logto_id, COALESCE(NULLIF(custom_data->>'createdBy', ''), logto_id)
+		FROM customers WHERE logto_id IS NOT NULL AND deleted_at IS NULL
+	`)
 	if err != nil {
-		return nil, fmt.Errorf("query unified_organizations: %w", err)
+		return nil, fmt.Errorf("query organization tenants: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	var ids []string
+	orgTenants := make(map[string]string)
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("scan logto_id: %w", err)
+		var orgID, tenantID string
+		if err := rows.Scan(&orgID, &tenantID); err != nil {
+			return nil, fmt.Errorf("scan org tenant row: %w", err)
 		}
-		ids = append(ids, id)
+		orgTenants[orgID] = tenantID
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate logto_id rows: %w", err)
+		return nil, fmt.Errorf("iterate org tenant rows: %w", err)
 	}
-	return ids, nil
+	return orgTenants, nil
 }
 
-// fanOut queries Mimir's Alertmanager once per tenant with bounded concurrency.
-// Every input org gets an entry in the output, including those with no alerts
-// (counts all zero) — so the upsert can refresh rows that just dropped to zero
-// instead of leaving them stale.
+// fanOut queries Mimir's Alertmanager once per distinct tenant with bounded
+// concurrency and buckets the returned alerts into per-organization counts via
+// the organization_id label (the same label the backend's list endpoint uses
+// as its isolation boundary). Every input org gets an entry in the output,
+// including those with no alerts (counts all zero) — so the upsert can refresh
+// rows that just dropped to zero instead of leaving them stale.
 //
 // Per-tenant errors are surfaced to the caller as an aggregate count plus a
 // sample message; individual failures are NOT logged here to avoid flooding
 // the log when Mimir is down (the caller's single per-cycle warn covers it).
-// On failure, the tenant is dropped from `result` so its previous successful
-// counts in the table aren't overwritten by a zero placeholder.
-func (r *AlertsTotalsRefresher) fanOut(ctx context.Context, orgIDs []string) (map[string]orgCounts, int, string) {
-	result := make(map[string]orgCounts, len(orgIDs))
-	for _, id := range orgIDs {
-		result[id] = orgCounts{}
+// On failure, every org belonging to the failed tenant is dropped from
+// `result` so its previous successful counts in the table aren't overwritten
+// by a zero placeholder.
+func (r *AlertsTotalsRefresher) fanOut(ctx context.Context, orgTenants map[string]string) (map[string]orgCounts, int, string) {
+	result := make(map[string]orgCounts, len(orgTenants))
+	tenantOrgs := make(map[string][]string)
+	for orgID, tenantID := range orgTenants {
+		result[orgID] = orgCounts{}
+		tenantOrgs[tenantID] = append(tenantOrgs[tenantID], orgID)
 	}
 
 	var (
@@ -206,93 +219,123 @@ func (r *AlertsTotalsRefresher) fanOut(ctx context.Context, orgIDs []string) (ma
 		sem       = make(chan struct{}, r.concurrency)
 	)
 
-	for _, orgID := range orgIDs {
+	for tenantID, orgIDs := range tenantOrgs {
 		wg.Add(1)
-		go func(orgID string) {
+		go func(tenantID string, orgIDs []string) {
 			defer wg.Done()
 
-			select {
-			case sem <- struct{}{}:
-				defer func() { <-sem }()
-			case <-ctx.Done():
-				return
-			}
-
-			counts, err := r.fetchOrgCounts(ctx, orgID)
-			if err != nil {
+			dropOrgs := func(err error) {
 				mu.Lock()
 				failures++
 				if sampleErr == "" {
 					sampleErr = err.Error()
 				}
-				delete(result, orgID)
+				for _, orgID := range orgIDs {
+					delete(result, orgID)
+				}
 				mu.Unlock()
+			}
+
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				dropOrgs(ctx.Err())
 				return
 			}
 
+			alerts, err := r.fetchTenantAlerts(ctx, tenantID)
+			if err != nil {
+				dropOrgs(err)
+				return
+			}
+
+			counts := bucketAlertsByOrg(alerts)
 			mu.Lock()
-			result[orgID] = counts
+			// A tenant may only write rows for its own orgs: an alert whose
+			// organization_id label points outside the tenant (stale routing,
+			// deleted org, label mismatch) must not overwrite counts that
+			// another tenant's fetch is authoritative for.
+			for _, orgID := range orgIDs {
+				if c, ok := counts[orgID]; ok {
+					result[orgID] = c
+				}
+			}
 			mu.Unlock()
-		}(orgID)
+		}(tenantID, orgIDs)
 	}
 	wg.Wait()
 	return result, failures, sampleErr
 }
 
-// fetchOrgCounts pulls the active+silenced+inhibited alert list for one tenant
-// from Mimir's Alertmanager and tallies it by severity and muted state.
-// Returns an error on HTTP or parse failure; the caller aggregates these and
-// skips writing the tenant for the cycle.
-func (r *AlertsTotalsRefresher) fetchOrgCounts(ctx context.Context, orgID string) (orgCounts, error) {
-	url := r.mimirURL + "/alertmanager/api/v2/alerts?active=true&silenced=true&inhibited=true"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return orgCounts{}, fmt.Errorf("build request: %w", err)
-	}
-	req.Header.Set("X-Scope-OrgID", orgID)
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return orgCounts{}, fmt.Errorf("mimir request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	// Mimir returns 200 with empty array for unknown tenants; non-2xx is a real failure.
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return orgCounts{}, fmt.Errorf("mimir returned status %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
-	if err != nil {
-		return orgCounts{}, fmt.Errorf("read body: %w", err)
-	}
-
-	var alerts []map[string]interface{}
-	if err := json.Unmarshal(body, &alerts); err != nil {
-		return orgCounts{}, fmt.Errorf("parse response: %w", err)
-	}
-
-	counts := orgCounts{active: len(alerts)}
+// bucketAlertsByOrg tallies a tenant's alert list per organization_id label,
+// by severity and muted state. Alerts without the label are skipped: the
+// backend's list endpoint drops them too (filterByOrgScope), so counting them
+// would make /totals disagree with the visible list.
+func bucketAlertsByOrg(alerts []map[string]interface{}) map[string]orgCounts {
+	counts := make(map[string]orgCounts)
 	for _, alert := range alerts {
 		labels, _ := alert["labels"].(map[string]interface{})
+		orgID, _ := labels["organization_id"].(string)
+		if orgID == "" {
+			continue
+		}
+
+		c := counts[orgID]
+		c.active++
 		switch sev, _ := labels["severity"].(string); sev {
 		case "critical":
-			counts.critical++
+			c.critical++
 		case "warning":
-			counts.warning++
+			c.warning++
 		case "info":
-			counts.info++
+			c.info++
 		}
 		// An alert is muted when Alertmanager has at least one active silence
 		// matching it (status.silencedBy non-empty).
 		if status, ok := alert["status"].(map[string]interface{}); ok {
 			if sb, ok := status["silencedBy"].([]interface{}); ok && len(sb) > 0 {
-				counts.muted++
+				c.muted++
 			}
 		}
+		counts[orgID] = c
 	}
-	return counts, nil
+	return counts
+}
+
+// fetchTenantAlerts pulls the active+silenced+inhibited alert list for one
+// tenant from Mimir's Alertmanager. Returns an error on HTTP or parse failure;
+// the caller aggregates these and skips writing the tenant's orgs for the cycle.
+func (r *AlertsTotalsRefresher) fetchTenantAlerts(ctx context.Context, tenantID string) ([]map[string]interface{}, error) {
+	url := r.mimirURL + "/alertmanager/api/v2/alerts?active=true&silenced=true&inhibited=true"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("X-Scope-OrgID", tenantID)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("mimir request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// Mimir returns 200 with empty array for unknown tenants; non-2xx is a real failure.
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("mimir returned status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+	if err != nil {
+		return nil, fmt.Errorf("read body: %w", err)
+	}
+
+	var alerts []map[string]interface{}
+	if err := json.Unmarshal(body, &alerts); err != nil {
+		return nil, fmt.Errorf("parse response: %w", err)
+	}
+	return alerts, nil
 }
 
 // upsertCounts writes the fan-out result in a single multi-VALUES INSERT with
