@@ -35,7 +35,7 @@ import {
 } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import { useAlerts } from '@/queries/alerts/alerts'
 import { useAlertFilters } from '@/queries/alerts/alertFilters'
@@ -67,6 +67,7 @@ import { isUserCustomer } from '@/lib/organizations/organizations'
 import SystemLogoAndLink from '../systems/SystemLogoAndLink.vue'
 
 const { t, locale } = useI18n()
+const route = useRoute()
 const router = useRouter()
 const notificationsStore = useNotificationsStore()
 
@@ -88,6 +89,15 @@ const {
   clearFilters,
   refetch,
 } = useAlerts()
+
+// apply the system filter requested via query params, then clean the URL
+const { system_key: sysKey, system_name: sysName } = route.query
+
+if (typeof sysKey === 'string' && sysKey && typeof sysName === 'string' && sysName) {
+  clearFilters()
+  systemKeyFilters.value = [{ id: sysKey, label: sysName }]
+  router.replace({ query: {} })
+}
 
 const { state: alertFiltersState } = useAlertFilters()
 

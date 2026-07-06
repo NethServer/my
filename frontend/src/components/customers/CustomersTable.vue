@@ -430,7 +430,7 @@ const goToCustomerDetails = (customer: Customer) => {
               />
               {{ item.systems_count }}
             </router-link>
-            <div v-else class="flex items-center gap-2 opacity-50">
+            <div v-else class="flex items-center gap-2">
               <FontAwesomeIcon
                 :icon="faServer"
                 class="size-4 text-gray-700 dark:text-gray-400"

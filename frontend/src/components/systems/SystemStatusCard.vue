@@ -25,11 +25,13 @@ import { useSystemActiveAlerts } from '@/queries/systems/activeAlerts'
 import { useSystemBackups } from '@/queries/systems/backups'
 import DataItem from '../common/DataItem.vue'
 import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import SystemStatusIcon from './SystemStatusIcon.vue'
 import type { Ns8Facts } from '@/lib/systems/ns8Facts'
 import type { NsecFacts } from '@/lib/systems/nsecFacts'
 
 const { t, locale } = useI18n()
+const route = useRoute()
 const { state: systemDetail } = useSystemDetail()
 const { state: latestInventory } = useLatestInventory()
 const { state: activeAlerts } = useSystemActiveAlerts()
@@ -204,12 +206,28 @@ const timezone = computed(() => {
               <span>-</span>
             </template>
             <template v-else-if="hasActiveAlerts">
-              <FontAwesomeIcon
-                :icon="faTriangleExclamation"
-                class="size-4 text-amber-700 dark:text-amber-500"
-                aria-hidden="true"
-              />
-              {{ $t('system_detail.n_active_alerts', { n: activeAlertsCount }, activeAlertsCount) }}
+              <router-link
+                :to="{
+                  name: 'alerts',
+                  query: {
+                    system_key: systemDetail.data?.system_key,
+                    system_name: systemDetail.data?.name,
+                  },
+                }"
+                class="flex items-center gap-2 hover:underline"
+                :aria-label="
+                  $t('system_detail.show_system_alerts', { name: systemDetail.data?.name })
+                "
+              >
+                <FontAwesomeIcon
+                  :icon="faTriangleExclamation"
+                  class="size-4 text-amber-700 dark:text-amber-500"
+                  aria-hidden="true"
+                />
+                {{
+                  $t('system_detail.n_active_alerts', { n: activeAlertsCount }, activeAlertsCount)
+                }}
+              </router-link>
             </template>
             <template v-else>
               <FontAwesomeIcon
@@ -235,21 +253,35 @@ const timezone = computed(() => {
             <template v-else-if="systemBackups.status === 'error'">
               <span>-</span>
             </template>
-            <template v-else-if="hasBackups">
-              <FontAwesomeIcon
-                :icon="faCircleCheck"
-                class="size-4 text-green-700 dark:text-green-500"
-                aria-hidden="true"
-              />
-              {{ $t('system_detail.n_backups_stored', { n: backupsCount }, backupsCount) }}
-            </template>
             <template v-else>
-              <FontAwesomeIcon
-                :icon="faTriangleExclamation"
-                class="size-4 text-amber-700 dark:text-amber-500"
-                aria-hidden="true"
-              />
-              {{ $t('system_detail.no_backups_stored') }}
+              <router-link
+                :to="{
+                  name: 'system_detail',
+                  params: { systemId: route.params.systemId },
+                  query: { tab: 'backups' },
+                }"
+                class="flex items-center gap-2 hover:underline"
+                :aria-label="
+                  $t('system_detail.show_system_backups', { name: systemDetail.data?.name })
+                "
+              >
+                <template v-if="hasBackups">
+                  <FontAwesomeIcon
+                    :icon="faCircleCheck"
+                    class="size-4 text-green-700 dark:text-green-500"
+                    aria-hidden="true"
+                  />
+                  {{ $t('system_detail.n_backups_stored', { n: backupsCount }, backupsCount) }}
+                </template>
+                <template v-else>
+                  <FontAwesomeIcon
+                    :icon="faTriangleExclamation"
+                    class="size-4 text-amber-700 dark:text-amber-500"
+                    aria-hidden="true"
+                  />
+                  {{ $t('system_detail.no_backups_stored') }}
+                </template>
+              </router-link>
             </template>
           </div>
         </template>

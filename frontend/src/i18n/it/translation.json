@@ -610,6 +610,7 @@
     "n_active_alerts": "{n} allarme attivo | {n} allarmi attivi",
     "no_backups_stored": "Nessun backup caricato",
     "n_backups_stored": "{n} backup conservato | {n} backup conservati",
+    "show_system_backups": "Mostra i backup di {name}",
     "total_changes": "Modifiche totali",
     "critical_changes": "Critical",
     "high_changes": "High",

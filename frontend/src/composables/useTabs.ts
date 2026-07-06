@@ -40,7 +40,7 @@ export function useTabs(
   )
 
   watch(selectedTab, () => {
-    router.push({ path: route.path, query: { tab: selectedTab.value } })
+    router.push({ path: route.path, query: { ...route.query, tab: selectedTab.value } })
   })
 
   return { tabs, selectedTab }
