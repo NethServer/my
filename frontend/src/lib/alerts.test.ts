@@ -9,6 +9,7 @@ import {
   isAlertSilenced,
   type Alert,
 } from './alerts'
+import { formatDateTimeNoSeconds } from './dateTime'
 
 const baseAlert: Alert = {
   labels: {},
@@ -71,6 +72,39 @@ describe('getAlertDescription', () => {
 
   it('returns an empty string when no description is available', () => {
     expect(getAlertDescription(baseAlert, 'en')).toBe('')
+  })
+
+  it('localizes ISO timestamps embedded in the description', () => {
+    const description = getAlertDescription(
+      {
+        ...baseAlert,
+        annotations: {
+          description_en:
+            'The system has not communicated with the server since 2026-07-06T05:40:04Z. Check the service connection.',
+        },
+      },
+      'en',
+    )
+
+    const localized = formatDateTimeNoSeconds(new Date('2026-07-06T05:40:04Z'), 'en')
+    expect(description).toBe(
+      `The system has not communicated with the server since ${localized}. Check the service connection.`,
+    )
+    expect(description).not.toContain('2026-07-06T05:40:04Z')
+  })
+
+  it('leaves descriptions without timestamps unchanged', () => {
+    const description = getAlertDescription(
+      {
+        ...baseAlert,
+        annotations: {
+          description_en: 'Disk space is filling up on mount point /boot of node 1.',
+        },
+      },
+      'en',
+    )
+
+    expect(description).toBe('Disk space is filling up on mount point /boot of node 1.')
   })
 })
 

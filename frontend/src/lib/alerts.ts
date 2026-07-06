@@ -5,6 +5,7 @@ import axios from 'axios'
 import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import { OPTIONS_PAGE_SIZE, type Pagination } from './common'
+import { localizeIsoTimestamps } from './dateTime'
 import type { NeBadgeV2Kind, FilterOption } from '@nethesis/vue-components'
 import * as v from 'valibot'
 
@@ -493,7 +494,9 @@ function getAlertAnnotation(
   for (const key of candidateKeys) {
     const value = annotations[key]
     if (typeof value === 'string' && value.trim()) {
-      return value.trim()
+      // Server-generated annotations embed raw UTC timestamps (RFC3339);
+      // show them in the browser timezone like every other date in the UI.
+      return localizeIsoTimestamps(value.trim(), locale)
     }
   }
 

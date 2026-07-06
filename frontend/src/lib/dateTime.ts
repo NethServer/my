@@ -132,6 +132,22 @@ export function formatUptime(uptimeSeconds: number, t: ComposerTranslation): str
   return `${t('time.days', days)}, ${t('time.hours', hours)}`
 }
 
+// ISO 8601 timestamps with an explicit UTC ("Z") or numeric offset, e.g.
+// "2026-07-06T05:40:04Z" or "2026-07-06T05:40:04.668+02:00"
+const ISO_TIMESTAMP_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})/g
+
+/**
+ * Replace every ISO 8601 timestamp embedded in a text (e.g. alert descriptions
+ * generated server-side in UTC) with its localized date-time in the browser
+ * timezone, using the same format as the rest of the UI.
+ */
+export function localizeIsoTimestamps(text: string, locale: string): string {
+  return text.replace(ISO_TIMESTAMP_REGEX, (match) => {
+    const date = new Date(match)
+    return isNaN(date.getTime()) ? match : formatDateTimeNoSeconds(date, locale)
+  })
+}
+
 const RELATIVE_DIVISIONS: { amount: number; unit: Intl.RelativeTimeFormatUnit }[] = [
   { amount: 60, unit: 'second' },
   { amount: 60, unit: 'minute' },
