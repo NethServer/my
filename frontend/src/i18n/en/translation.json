@@ -163,6 +163,7 @@
   "customers": {
     "title": "Customers",
     "page_description": "List of end customers, including company details.",
+    "show_customer_systems": "Show systems of {name}",
     "cannot_retrieve_customers": "Cannot retrieve customers",
     "no_customer_found": "No customers found",
     "filter_customers": "Filter customers",

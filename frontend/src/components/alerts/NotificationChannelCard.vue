@@ -6,7 +6,6 @@
 <script setup lang="ts">
 import {
   faCircleCheck,
-  faCircleInfo,
   faCircleXmark,
   faPenToSquare,
   faWrench,

@@ -17,10 +17,13 @@ import { canManageSystems } from '@/lib/permissions'
 import SystemsTable from '@/components/systems/SystemsTable.vue'
 import { useSystems } from '@/queries/systems/systems'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
 import { getExport, type SystemStatus } from '@/lib/systems/systems'
 import { downloadFile } from '@/lib/common'
 
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 
 const {
   state,
@@ -29,9 +32,20 @@ const {
   createdByFilter,
   versionFilter,
   statusFilter,
+  organizationFilter,
   sortBy,
   sortDescending,
+  resetFilters,
 } = useSystems()
+
+// apply the organization filter requested via query params, then clean the URL
+const { organization_id: orgId, organization_name: orgName } = route.query
+
+if (typeof orgId === 'string' && orgId && typeof orgName === 'string' && orgName) {
+  resetFilters()
+  organizationFilter.value = [{ id: orgId, label: orgName }]
+  router.replace({ query: {} })
+}
 
 const isShownCreateSystemDrawer = ref(false)
 
