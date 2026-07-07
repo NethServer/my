@@ -86,10 +86,7 @@ const hasDefaultSlot = computed(() => !!slots.default)
         :is="titleRouteName ? RouterLink : 'div'"
         :to="titleRouteName ? { name: titleRouteName } : undefined"
         :aria-label="titleRouteName ? title : undefined"
-        :class="[
-          'text-4xl font-medium',
-          colorClasses ?? 'text-indigo-700 dark:text-indigo-500',
-        ]"
+        :class="['text-4xl font-medium', colorClasses ?? 'text-indigo-700 dark:text-indigo-500']"
       >
         <NeTooltip v-if="counter >= ABBREVIATION_THRESHOLD" trigger-event="mouseenter focus">
           <template #trigger>

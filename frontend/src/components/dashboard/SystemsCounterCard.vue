@@ -8,10 +8,9 @@ import { faCircleCheck, faCircleXmark, faClock, faServer } from '@fortawesome/fr
 import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
 import CounterCard from '../common/CounterCard.vue'
-import { NeBadgeV2 } from '@nethesis/vue-components'
+import BadgeLink from '../common/BadgeLink.vue'
 import { getSystemsTotal, SYSTEMS_TOTAL_KEY } from '@/lib/systems/systems'
 import { computed } from 'vue'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { abbreviateNumber } from '@/lib/common/index.ts'
 import { useI18n } from 'vue-i18n'
 
@@ -39,57 +38,47 @@ const pendingCount = computed(() => systemsTotal.value.data?.unknown ?? 0)
     title-route-name="systems"
   >
     <div class="mt-5 flex flex-wrap justify-center gap-2">
-      <router-link
+      <BadgeLink
         v-if="activeCount > 0"
         :to="{ name: 'systems', query: { status: 'active' } }"
-        class="group"
+        kind="green"
+        :icon="faCircleCheck"
         :aria-label="$t('systems.show_active_systems')"
       >
-        <NeBadgeV2 kind="green" class="group-hover:underline">
-          <FontAwesomeIcon :icon="faCircleCheck" class="size-4" />
-          {{
-            $t(
-              'systems.count_active',
-              { count: abbreviateNumber(activeCount, locale) },
-              activeCount,
-            )
-          }}
-        </NeBadgeV2>
-      </router-link>
-      <router-link
+        {{
+          $t('systems.count_active', { count: abbreviateNumber(activeCount, locale) }, activeCount)
+        }}
+      </BadgeLink>
+      <BadgeLink
         v-if="inactiveCount > 0"
         :to="{ name: 'systems', query: { status: 'inactive' } }"
-        class="group"
+        kind="rose"
+        :icon="faCircleXmark"
         :aria-label="$t('systems.show_inactive_systems')"
       >
-        <NeBadgeV2 kind="rose" class="group-hover:underline">
-          <FontAwesomeIcon :icon="faCircleXmark" class="size-4" />
-          {{
-            $t(
-              'systems.count_inactive',
-              { count: abbreviateNumber(inactiveCount, locale) },
-              inactiveCount,
-            )
-          }}
-        </NeBadgeV2>
-      </router-link>
-      <router-link
+        {{
+          $t(
+            'systems.count_inactive',
+            { count: abbreviateNumber(inactiveCount, locale) },
+            inactiveCount,
+          )
+        }}
+      </BadgeLink>
+      <BadgeLink
         v-if="pendingCount > 0"
         :to="{ name: 'systems', query: { status: 'unknown' } }"
-        class="group"
+        kind="gray"
+        :icon="faClock"
         :aria-label="$t('systems.show_pending_systems')"
       >
-        <NeBadgeV2 kind="gray" class="group-hover:underline">
-          <FontAwesomeIcon :icon="faClock" class="size-4" />
-          {{
-            $t(
-              'systems.count_pending',
-              { count: abbreviateNumber(pendingCount, locale) },
-              pendingCount,
-            )
-          }}
-        </NeBadgeV2>
-      </router-link>
+        {{
+          $t(
+            'systems.count_pending',
+            { count: abbreviateNumber(pendingCount, locale) },
+            pendingCount,
+          )
+        }}
+      </BadgeLink>
     </div>
   </CounterCard>
 </template>
