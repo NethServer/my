@@ -19,14 +19,16 @@ const { size = 'sm' } = defineProps<{
 
 <template>
   <div class="flex items-center gap-2">
-    <NeTooltip v-if="systemType" trigger-event="mouseenter focus">
-      <template #trigger>
-        <SystemLogo :system="systemType" :size="size" />
-      </template>
-      <template #content>
-        {{ getProductName(systemType) }}
-      </template>
-    </NeTooltip>
+    <span v-if="systemType" class="shrink-0">
+      <NeTooltip trigger-event="mouseenter focus">
+        <template #trigger>
+          <SystemLogo :system="systemType" :size="size" />
+        </template>
+        <template #content>
+          {{ getProductName(systemType) }}
+        </template>
+      </NeTooltip>
+    </span>
     <RouterLink
       v-if="systemId"
       :to="{ name: 'system_detail', params: { systemId } }"

@@ -529,7 +529,7 @@ function onCloseSecretRegeneratedModal() {
       </NeTableHead>
       <NeTableBody>
         <NeTableRow v-for="(item, index) in systemsPage" :key="index">
-          <NeTableCell :data-label="$t('systems.name')">
+          <NeTableCell :data-label="$t('systems.name')" class="break-all">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
               <SystemLogoAndLink
                 :system-id="item.status === 'deleted' ? '' : item.id"
