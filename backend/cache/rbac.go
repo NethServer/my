@@ -16,11 +16,16 @@ import (
 
 const rbacCacheTTL = 5 * time.Minute
 
-// RBACCacheEntry holds cached RBAC data for a role+org combination
+// RBACCacheEntry holds cached RBAC data for a role+org combination.
+// OrgIDs and SystemIDs carry independent timestamps: they are computed by
+// different code paths at different times, and sharing a single CachedAt
+// would let a refresh of one list silently extend the lifetime of a stale
+// copy of the other.
 type RBACCacheEntry struct {
-	OrgIDs    []string  `json:"org_ids"`
-	SystemIDs []string  `json:"system_ids"`
-	CachedAt  time.Time `json:"cached_at"`
+	OrgIDs            []string  `json:"org_ids"`
+	SystemIDs         []string  `json:"system_ids"`
+	OrgIDsCachedAt    time.Time `json:"org_ids_cached_at"`
+	SystemIDsCachedAt time.Time `json:"system_ids_cached_at"`
 }
 
 // RBACCache provides two-tier caching (in-memory + Redis) for RBAC org/system ID lookups
@@ -57,7 +62,7 @@ func (c *RBACCache) GetOrgIDs(role, orgID string) ([]string, bool) {
 	entry, ok := c.memCache[key]
 	c.mutex.RUnlock()
 
-	if ok && time.Since(entry.CachedAt) < rbacCacheTTL {
+	if ok && entry.OrgIDs != nil && time.Since(entry.OrgIDsCachedAt) < rbacCacheTTL {
 		return entry.OrgIDs, true
 	}
 
@@ -66,7 +71,7 @@ func (c *RBACCache) GetOrgIDs(role, orgID string) ([]string, bool) {
 	if rc != nil {
 		var redisEntry RBACCacheEntry
 		err := rc.Get(key, &redisEntry)
-		if err == nil && time.Since(redisEntry.CachedAt) < rbacCacheTTL {
+		if err == nil && redisEntry.OrgIDs != nil && time.Since(redisEntry.OrgIDsCachedAt) < rbacCacheTTL {
 			// Populate in-memory cache from Redis
 			c.mutex.Lock()
 			c.memCache[key] = &redisEntry
@@ -87,7 +92,7 @@ func (c *RBACCache) GetSystemIDs(role, orgID string) ([]string, bool) {
 	entry, ok := c.memCache[key]
 	c.mutex.RUnlock()
 
-	if ok && entry.SystemIDs != nil && time.Since(entry.CachedAt) < rbacCacheTTL {
+	if ok && entry.SystemIDs != nil && time.Since(entry.SystemIDsCachedAt) < rbacCacheTTL {
 		return entry.SystemIDs, true
 	}
 
@@ -96,7 +101,7 @@ func (c *RBACCache) GetSystemIDs(role, orgID string) ([]string, bool) {
 	if rc != nil {
 		var redisEntry RBACCacheEntry
 		err := rc.Get(key, &redisEntry)
-		if err == nil && redisEntry.SystemIDs != nil && time.Since(redisEntry.CachedAt) < rbacCacheTTL {
+		if err == nil && redisEntry.SystemIDs != nil && time.Since(redisEntry.SystemIDsCachedAt) < rbacCacheTTL {
 			c.mutex.Lock()
 			c.memCache[key] = &redisEntry
 			c.mutex.Unlock()
@@ -119,13 +124,15 @@ func (c *RBACCache) SetOrgIDs(role, orgID string, orgIDs []string) {
 		c.memCache[key] = entry
 	}
 	entry.OrgIDs = orgIDs
-	entry.CachedAt = now
+	entry.OrgIDsCachedAt = now
+	snapshot := *entry
 	c.mutex.Unlock()
 
-	// Store in Redis
+	// Store in Redis (a copy taken under the lock, so concurrent setters
+	// can't mutate the entry while it is being serialized)
 	rc := GetRedisClient()
 	if rc != nil {
-		if err := rc.Set(key, entry, rbacCacheTTL); err != nil {
+		if err := rc.Set(key, &snapshot, rbacCacheTTL); err != nil {
 			logger.ComponentLogger("rbac_cache").Debug().Err(err).Msg("Failed to set RBAC cache in Redis")
 		}
 	}
@@ -143,13 +150,15 @@ func (c *RBACCache) SetSystemIDs(role, orgID string, systemIDs []string) {
 		c.memCache[key] = entry
 	}
 	entry.SystemIDs = systemIDs
-	entry.CachedAt = now
+	entry.SystemIDsCachedAt = now
+	snapshot := *entry
 	c.mutex.Unlock()
 
-	// Store in Redis
+	// Store in Redis (a copy taken under the lock, so concurrent setters
+	// can't mutate the entry while it is being serialized)
 	rc := GetRedisClient()
 	if rc != nil {
-		if err := rc.Set(key, entry, rbacCacheTTL); err != nil {
+		if err := rc.Set(key, &snapshot, rbacCacheTTL); err != nil {
 			logger.ComponentLogger("rbac_cache").Debug().Err(err).Msg("Failed to set RBAC cache in Redis")
 		}
 	}

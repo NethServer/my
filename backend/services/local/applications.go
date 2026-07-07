@@ -335,9 +335,13 @@ func (s *LocalApplicationsService) GetAllowedSystemIDs(userOrgRole, userOrgID st
 		return []string{}, nil
 	}
 
+	// Filter on the current owning organization (systems.organization_id),
+	// not on the creator org (created_by ->> 'organization_id'): a
+	// reassigned system must follow the new owner's RBAC scope. Same rule
+	// as the systems list in entities/local_systems.go.
 	query := `
 		SELECT id FROM systems
-		WHERE deleted_at IS NULL AND created_by ->> 'organization_id' = ANY($1::text[])
+		WHERE deleted_at IS NULL AND organization_id = ANY($1::text[])
 	`
 
 	rows, err := database.DB.Query(query, pq.Array(allowedOrgIDs))
@@ -530,16 +534,17 @@ func (s *LocalApplicationsService) computeAllowedOrganizationIDs(normalizedRole,
 
 // canAccessSystem checks if user can access a specific system
 func (s *LocalApplicationsService) canAccessSystem(systemID, userOrgRole, userOrgID string) bool {
-	// Get the system's created_by organization
-	var creatorOrgID string
+	// Get the system's current owning organization (not the creator org:
+	// a reassigned system must follow the new owner's RBAC scope)
+	var systemOrgID string
 	err := database.DB.QueryRow(`
-		SELECT created_by->>'organization_id' FROM systems WHERE id = $1 AND deleted_at IS NULL
-	`, systemID).Scan(&creatorOrgID)
+		SELECT organization_id FROM systems WHERE id = $1 AND deleted_at IS NULL
+	`, systemID).Scan(&systemOrgID)
 	if err != nil {
 		return false
 	}
 
-	// Check if creator org is in user's allowed orgs
+	// Check if the owning org is in user's allowed orgs
 	allowedOrgIDs, err := s.getAllowedOrganizationIDs(userOrgRole, userOrgID)
 	if err != nil {
 		return false
@@ -549,7 +554,7 @@ func (s *LocalApplicationsService) canAccessSystem(systemID, userOrgRole, userOr
 	for _, id := range allowedOrgIDs {
 		allowedMap[id] = true
 	}
-	return allowedMap[creatorOrgID]
+	return allowedMap[systemOrgID]
 }
 
 // canAssignToOrganization checks if user can assign application to target organization

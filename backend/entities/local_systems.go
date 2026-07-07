@@ -462,7 +462,9 @@ func (r *LocalSystemRepository) GetTotalsByCreatedByOrganizations(allowedOrgIDs 
 	orgClause := ""
 	if allowedOrgIDs != nil {
 		args = append(args, pq.Array(allowedOrgIDs))
-		orgClause = " AND s.created_by ->> 'organization_id' = ANY($2::text[])"
+		// Filter on current owning organization, not creator: a reassigned
+		// system must contribute to the new owner's totals.
+		orgClause = " AND s.organization_id = ANY($2::text[])"
 	}
 
 	query := fmt.Sprintf(`

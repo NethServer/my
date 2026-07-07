@@ -103,6 +103,11 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 		return nil, fmt.Errorf("failed to create system: %w", err)
 	}
 
+	// The RBAC cache's allowed-system lists were computed before this row
+	// existed; without invalidation the new system gets 403 on applications
+	// endpoints until the cache TTL expires.
+	cache.GetRBACCache().InvalidateAll()
+
 	// Fetch organization info (name and type)
 	organization := s.getOrganizationInfo(request.OrganizationID)
 
@@ -450,6 +455,13 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 		return nil, fmt.Errorf("failed to update system: %w", err)
 	}
 
+	// A reassigned system belongs to a different RBAC subtree: drop the
+	// cached allowed-system lists so both donor and recipient hierarchies
+	// see the change immediately.
+	if orgChanging {
+		cache.GetRBACCache().InvalidateAll()
+	}
+
 	// After the row has flipped, drop the source-org backups, prune silences
 	// targeting this system in the donor tenant, follow alert history into
 	// the new tenant, and clear app-to-org assignments scoped to the donor's
@@ -584,6 +596,8 @@ func (s *LocalSystemsService) DeleteSystem(systemID, userID, userOrgID, userOrgR
 	}
 
 	cache.InvalidateSystemAuth(context.Background(), system.SystemKey)
+	// Deleted systems leave the allowed-system lists (deleted_at IS NULL filter)
+	cache.GetRBACCache().InvalidateAll()
 
 	logger.Info().
 		Str("system_id", systemID).
@@ -693,6 +707,9 @@ func (s *LocalSystemsService) RestoreSystem(systemID, userID, userOrgID, userOrg
 		return fmt.Errorf("system not found or already restored")
 	}
 
+	// The restored system must re-enter the cached allowed-system lists
+	cache.GetRBACCache().InvalidateAll()
+
 	logger.Info().
 		Str("system_id", systemID).
 		Str("restored_by", userID).
@@ -762,6 +779,7 @@ func (s *LocalSystemsService) DestroySystem(systemID, userID, userOrgID, userOrg
 	}
 
 	cache.InvalidateSystemAuth(context.Background(), system.SystemKey)
+	cache.GetRBACCache().InvalidateAll()
 
 	logger.Info().
 		Str("system_id", systemID).
