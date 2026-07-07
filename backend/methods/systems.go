@@ -492,6 +492,10 @@ func RegenerateSystemSecret(c *gin.Context) {
 
 	// Regenerate system secret
 	system, err := systemsService.RegenerateSystemSecret(systemID, user.ID, user.OrganizationID, user.OrgRole)
+	if err != nil && strings.Contains(err.Error(), "system is already registered") {
+		c.JSON(http.StatusConflict, response.Conflict("system is already registered", nil))
+		return
+	}
 	if helpers.HandleAccessError(c, err, "system", systemID) {
 		return
 	}

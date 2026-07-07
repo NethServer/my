@@ -802,6 +802,13 @@ func (s *LocalSystemsService) RegenerateSystemSecret(systemID, userID, userOrgID
 		return nil, fmt.Errorf("access denied: %s", reason)
 	}
 
+	// The secret can only be regenerated before registration: once registered,
+	// the machine authenticates with the secret it registered with and there is
+	// no path to install a new one on the appliance
+	if system.RegisteredAt != nil {
+		return nil, fmt.Errorf("system is already registered")
+	}
+
 	// Generate new token (format: my_<public>.<secret>)
 	fullToken, publicPart, secretPart, err := s.generateSystemSecretToken()
 	if err != nil {
