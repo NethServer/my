@@ -23,12 +23,12 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <div class="flex items-center gap-2">
+  <div class="inline">
     <NeTooltip
       v-if="organization.type"
       placement="top"
       trigger-event="mouseenter focus"
-      class="shrink-0"
+      class="mr-2 inline-block align-middle"
     >
       <template #trigger>
         <OrganizationIcon :org-type="organization.type" :size="iconSize" />
