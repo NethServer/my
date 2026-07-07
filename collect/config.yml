@@ -239,6 +239,12 @@ differ:
       - "update_available"
       - "^facts\\.modules\\.[^.]+\\.id$"
       - "^facts\\.modules\\.[^.]+\\.ui_name$"
+      # NethVoice usage/derived statistics (counts, call stats, device maps):
+      # they change on nearly every inventory run. Module config (version,
+      # node, fqdns, user_domains) is not nethvoice_-prefixed and stays visible
+      - "\\.nethvoice_"
+      # Traefik bookkeeping counters that appear/disappear between inventories
+      - "^facts\\.modules\\.[^.]+\\.(acme_auto_certificates|acme_manual_certificates|acme_failed_certificates|custom_certificates|custom_host_routes|custom_path_routes|name_module_map)$"
 
     # Time-based significance
     time_filters:
