@@ -82,8 +82,14 @@ const hasDefaultSlot = computed(() => !!slots.default)
       </div>
     </template>
     <template v-if="!centeredCounter" #topRight>
-      <div
-        :class="['text-4xl font-medium', colorClasses ?? 'text-indigo-700 dark:text-indigo-500']"
+      <component
+        :is="titleRouteName ? RouterLink : 'div'"
+        :to="titleRouteName ? { name: titleRouteName } : undefined"
+        :aria-label="titleRouteName ? title : undefined"
+        :class="[
+          'text-4xl font-medium',
+          colorClasses ?? 'text-indigo-700 dark:text-indigo-500',
+        ]"
       >
         <NeTooltip v-if="counter >= ABBREVIATION_THRESHOLD" trigger-event="mouseenter focus">
           <template #trigger>
@@ -94,12 +100,15 @@ const hasDefaultSlot = computed(() => !!slots.default)
           </template>
         </NeTooltip>
         <span v-else> {{ isEstimated ? '~' : '' }}{{ abbreviatedCounter }} </span>
-      </div>
+      </component>
     </template>
     <NeSkeleton v-if="loading" :lines="skeletonLines" class="w-full" />
     <template v-else>
       <div v-if="centeredCounter" class="flex flex-col gap-4">
-        <div
+        <component
+          :is="titleRouteName ? RouterLink : 'div'"
+          :to="titleRouteName ? { name: titleRouteName } : undefined"
+          :aria-label="titleRouteName ? title : undefined"
           :class="[
             'self-center text-4xl font-medium',
             colorClasses ?? 'text-indigo-700 dark:text-indigo-500',
@@ -114,7 +123,7 @@ const hasDefaultSlot = computed(() => !!slots.default)
             </template>
           </NeTooltip>
           <span v-else> {{ isEstimated ? '~' : '' }}{{ abbreviatedCounter }} </span>
-        </div>
+        </component>
       </div>
       <div v-if="hasDefaultSlot" class="mt-5">
         <slot></slot>

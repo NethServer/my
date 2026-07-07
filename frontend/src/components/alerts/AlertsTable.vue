@@ -90,12 +90,26 @@ const {
   refetch,
 } = useAlerts()
 
-// apply the system filter requested via query params, then clean the URL
-const { system_key: sysKey, system_name: sysName } = route.query
+// apply the filters requested via query params, then clean the URL
+const { system_key: sysKey, system_name: sysName, severity, status } = route.query
 
 if (typeof sysKey === 'string' && sysKey && typeof sysName === 'string' && sysName) {
   clearFilters()
   systemKeyFilters.value = [{ id: sysKey, label: sysName }]
+  router.replace({ query: {} })
+}
+
+const severityOption = SEVERITY_FILTER_OPTIONS.find((option) => option.id === severity)
+
+if (severityOption) {
+  clearFilters()
+  severityFilters.value = [severityOption]
+  router.replace({ query: {} })
+}
+
+if (status === 'suppressed') {
+  clearFilters()
+  statusFilters.value = [{ id: 'suppressed', label: t('alerts.muted') }]
   router.replace({ query: {} })
 }
 

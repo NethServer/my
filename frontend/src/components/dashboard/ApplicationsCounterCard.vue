@@ -25,17 +25,23 @@ const { state: applicationsTotal } = useApplicationsTotal()
     title-route-name="applications"
   >
     <div v-if="applicationsTotal.data?.total ?? 0 > 0" class="flex justify-center">
-      <NeBadgeV2 kind="blue">
-        {{
-          t(
-            'applications.num_unassigned',
-            {
-              count: abbreviateNumber(applicationsTotal.data?.unassigned ?? 0, locale),
-            },
-            applicationsTotal.data?.unassigned ?? 0,
-          )
-        }}
-      </NeBadgeV2>
+      <router-link
+        :to="{ name: 'applications', query: { unassigned: 'true' } }"
+        class="group"
+        :aria-label="$t('applications.show_unassigned')"
+      >
+        <NeBadgeV2 kind="blue" class="group-hover:underline">
+          {{
+            t(
+              'applications.num_unassigned',
+              {
+                count: abbreviateNumber(applicationsTotal.data?.unassigned ?? 0, locale),
+              },
+              applicationsTotal.data?.unassigned ?? 0,
+            )
+          }}
+        </NeBadgeV2>
+      </router-link>
     </div>
   </CounterCard>
 </template>

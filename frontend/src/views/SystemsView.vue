@@ -38,12 +38,18 @@ const {
   resetFilters,
 } = useSystems()
 
-// apply the organization filter requested via query params, then clean the URL
-const { organization_id: orgId, organization_name: orgName } = route.query
+// apply the filters requested via query params, then clean the URL
+const { organization_id: orgId, organization_name: orgName, status } = route.query
 
 if (typeof orgId === 'string' && orgId && typeof orgName === 'string' && orgName) {
   resetFilters()
   organizationFilter.value = [{ id: orgId, label: orgName }]
+  router.replace({ query: {} })
+}
+
+if (typeof status === 'string' && ['active', 'inactive', 'unknown', 'suspended'].includes(status)) {
+  resetFilters()
+  statusFilter.value = [{ id: status, label: status }]
   router.replace({ query: {} })
 }
 

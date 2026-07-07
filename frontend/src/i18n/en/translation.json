@@ -660,7 +660,10 @@
     "organization_systems": "Company Systems",
     "count_active": "{count} active",
     "count_inactive": "{count} inactive",
-    "count_pending": "{count} pending"
+    "count_pending": "{count} pending",
+    "show_active_systems": "Show active systems",
+    "show_inactive_systems": "Show inactive systems",
+    "show_pending_systems": "Show pending systems"
   },
   "system_detail": {
     "title": "System detail",
@@ -973,7 +976,10 @@
     "no_systems_configured": "No systems configured",
     "count_critical": "{count} critical",
     "count_warning": "{count} warning",
-    "count_muted": "{count} muted"
+    "count_muted": "{count} muted",
+    "show_critical_alerts": "Show critical alerts",
+    "show_warning_alerts": "Show warning alerts",
+    "show_muted_alerts": "Show muted alerts"
   },
   "ne_tabs": {
     "tabs": "Tabs",

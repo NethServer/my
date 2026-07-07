@@ -15,8 +15,11 @@ import { useLoginStore } from '@/stores/login'
 import { getPreference, NeHeading, NeInlineNotification } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
 
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 const loginStore = useLoginStore()
 
 const { state: applicationsTotal } = useApplicationsTotal()
@@ -44,6 +47,12 @@ const showUnassignedAppsNotification = computed(() => {
 
 const showUnassignedApps = () => {
   organizationFilter.value = [{ id: 'no_org', label: t('organizations.no_company') }]
+}
+
+// apply the unassigned filter requested via query params, then clean the URL
+if (route.query.unassigned === 'true') {
+  showUnassignedApps()
+  router.replace({ query: {} })
 }
 
 const dontShowUnassignedAppsNotificationAgain = () => {
