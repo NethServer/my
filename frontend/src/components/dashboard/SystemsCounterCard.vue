@@ -35,7 +35,7 @@ const pendingCount = computed(() => systemsTotal.value.data?.unknown ?? 0)
     :counter="totalCount"
     :icon="faServer"
     :loading="systemsTotal.status === 'pending'"
-    title-route-name="systems"
+    :to="{ name: 'systems' }"
   >
     <div class="mt-5 flex flex-wrap justify-center gap-2">
       <BadgeLink

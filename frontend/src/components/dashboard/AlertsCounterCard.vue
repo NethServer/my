@@ -33,7 +33,7 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
     :counter="totalCount"
     :icon="faTriangleExclamation"
     :loading="isLoading"
-    title-route-name="alerts"
+    :to="{ name: 'alerts' }"
     :is-estimated="loginStore.isOwner && totalCount > MIN_ESTIMATED_COUNT"
   >
     <div class="mt-5 flex flex-wrap justify-center gap-2">

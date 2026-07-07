@@ -22,7 +22,7 @@ const { state: applicationsTotal } = useApplicationsTotal()
     :counter="applicationsTotal.data?.total ?? 0"
     :icon="faGridOne"
     :loading="applicationsTotal.status === 'pending'"
-    title-route-name="applications"
+    :to="{ name: 'applications' }"
   >
     <div v-if="applicationsTotal.data?.total ?? 0 > 0" class="flex justify-center">
       <BadgeLink

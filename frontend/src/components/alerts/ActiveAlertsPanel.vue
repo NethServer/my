@@ -9,12 +9,29 @@ import { useI18n } from 'vue-i18n'
 import CounterCard from '@/components/common/CounterCard.vue'
 import AlertsTable from '@/components/alerts/AlertsTable.vue'
 import { useAlertsTotals } from '@/queries/alerts/alertsTotals'
+import { useAlerts } from '@/queries/alerts/alerts'
 import { useLoginStore } from '@/stores/login'
-import { MIN_ESTIMATED_COUNT } from '@/lib/alerts'
+import { MIN_ESTIMATED_COUNT, SEVERITY_FILTER_OPTIONS } from '@/lib/alerts'
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
 const { state: totalsState } = useAlertsTotals()
+const { clearFilters, severityFilters, statusFilters, pageNum } = useAlerts()
+
+function filterBySeverity(id: string) {
+  clearFilters()
+  const option = SEVERITY_FILTER_OPTIONS.find((o) => o.id === id)
+  if (option) {
+    severityFilters.value = [option]
+  }
+  pageNum.value = 1
+}
+
+function filterByMuted() {
+  clearFilters()
+  statusFilters.value = [{ id: 'suppressed', label: t('alerts.muted') }]
+  pageNum.value = 1
+}
 
 const totals = computed(() => totalsState.value?.data)
 const isLoading = computed(() => totalsState.value?.status === 'pending')
@@ -37,6 +54,7 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
         colorClasses="text-secondary-neutral dark:text-secondary-neutral"
         :is-estimated="loginStore.isOwner && totalCount > MIN_ESTIMATED_COUNT"
         class="sm:col-span-3 xl:col-span-1"
+        @counter-click="clearFilters"
       />
       <CounterCard
         :title="t('alerts.muted')"
@@ -45,6 +63,7 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
         color-classes="text-secondary-neutral dark:text-secondary-neutral"
         :is-estimated="loginStore.isOwner && mutedCount > MIN_ESTIMATED_COUNT"
         class="sm:col-span-3 xl:col-span-1"
+        @counter-click="filterByMuted"
       />
       <CounterCard
         title="Critical"
@@ -53,6 +72,7 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
         color-classes="text-rose-600 dark:text-rose-400"
         :is-estimated="loginStore.isOwner && criticalCount > MIN_ESTIMATED_COUNT"
         class="sm:col-span-2 xl:col-span-1"
+        @counter-click="filterBySeverity('critical')"
       />
       <CounterCard
         title="Warning"
@@ -61,6 +81,7 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
         color-classes="text-amber-600 dark:text-amber-400"
         :is-estimated="loginStore.isOwner && warningCount > MIN_ESTIMATED_COUNT"
         class="sm:col-span-2 xl:col-span-1"
+        @counter-click="filterBySeverity('warning')"
       />
       <CounterCard
         title="Info"
@@ -69,6 +90,7 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
         color-classes="text-blue-600 dark:text-blue-400"
         :is-estimated="loginStore.isOwner && infoCount > MIN_ESTIMATED_COUNT"
         class="sm:col-span-2 xl:col-span-1"
+        @counter-click="filterBySeverity('info')"
       />
     </div>
 

@@ -25,6 +25,6 @@ const { state: usersTotal } = useQuery({
     :counter="usersTotal.data ?? 0"
     :icon="faUserGroup"
     :loading="usersTotal.status === 'pending'"
-    title-route-name="users"
+    :to="{ name: 'users' }"
   />
 </template>

@@ -7,10 +7,16 @@
 import { NeCard, NeHeading, NeSkeleton, NeTooltip } from '@nethesis/vue-components'
 import { type IconDefinition } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { computed, useSlots } from 'vue'
+import { computed, useAttrs, useSlots } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterLink, type RouteRecordNameGeneric } from 'vue-router'
+import { RouterLink, type RouteLocationRaw } from 'vue-router'
 import { abbreviateNumber } from '@/lib/common'
+
+// The counter number carries the interactivity, not the card: `to` renders it
+// as a RouterLink, and a `@counter-click` listener renders it as a button.
+// inheritAttrs is off so that listener lands on the number, while layout attrs
+// (class, etc.) are forwarded to NeCard via containerAttrs.
+defineOptions({ inheritAttrs: false })
 
 const {
   title,
@@ -22,7 +28,7 @@ const {
   centeredCounter = true,
   colorClasses = undefined,
   isEstimated = false,
-  titleRouteName = undefined,
+  to = undefined,
   abbreviateCounter = true,
 } = defineProps<{
   title: string
@@ -34,9 +40,32 @@ const {
   centeredCounter?: boolean
   colorClasses?: string
   isEstimated?: boolean
-  titleRouteName?: RouteRecordNameGeneric
+  to?: RouteLocationRaw
   abbreviateCounter?: boolean
 }>()
+
+const attrs = useAttrs()
+
+const isClickable = computed(() => typeof attrs.onCounterClick === 'function')
+const isInteractive = computed(() => to != null || isClickable.value)
+
+const containerAttrs = computed(() => {
+  const rest: Record<string, unknown> = { ...attrs }
+  delete rest.onCounterClick
+  return rest
+})
+
+const counterTag = computed(() => (to != null ? RouterLink : isClickable.value ? 'button' : 'div'))
+
+const counterAttrs = computed(() => {
+  if (to != null) {
+    return { to, 'aria-label': title }
+  }
+  if (isClickable.value) {
+    return { type: 'button', 'aria-label': title, onClick: attrs.onCounterClick }
+  }
+  return {}
+})
 
 const ABBREVIATION_THRESHOLD = 10_000
 
@@ -59,7 +88,7 @@ const hasDefaultSlot = computed(() => !!slots.default)
 </script>
 
 <template>
-  <NeCard>
+  <NeCard v-bind="containerAttrs">
     <template #title>
       <div class="flex items-center gap-3">
         <FontAwesomeIcon
@@ -68,8 +97,8 @@ const hasDefaultSlot = computed(() => !!slots.default)
           class="text-tertiary-neutral dark:text-tertiary-neutral size-5"
         />
         <RouterLink
-          v-if="titleRouteName"
-          :to="{ name: titleRouteName }"
+          v-if="to != null"
+          :to="to"
           class="text-tertiary-neutral dark:text-tertiary-neutral cursor-pointer hover:underline"
         >
           <NeHeading tag="h6" class="text-inherit">
@@ -83,10 +112,13 @@ const hasDefaultSlot = computed(() => !!slots.default)
     </template>
     <template v-if="!centeredCounter" #topRight>
       <component
-        :is="titleRouteName ? RouterLink : 'div'"
-        :to="titleRouteName ? { name: titleRouteName } : undefined"
-        :aria-label="titleRouteName ? title : undefined"
-        :class="['text-4xl font-medium', colorClasses ?? 'text-indigo-700 dark:text-indigo-500']"
+        :is="counterTag"
+        v-bind="counterAttrs"
+        :class="[
+          'text-4xl font-medium',
+          isInteractive && 'cursor-pointer',
+          colorClasses ?? 'text-indigo-700 dark:text-indigo-500',
+        ]"
       >
         <NeTooltip v-if="counter >= ABBREVIATION_THRESHOLD" trigger-event="mouseenter focus">
           <template #trigger>
@@ -103,11 +135,11 @@ const hasDefaultSlot = computed(() => !!slots.default)
     <template v-else>
       <div v-if="centeredCounter" class="flex flex-col gap-4">
         <component
-          :is="titleRouteName ? RouterLink : 'div'"
-          :to="titleRouteName ? { name: titleRouteName } : undefined"
-          :aria-label="titleRouteName ? title : undefined"
+          :is="counterTag"
+          v-bind="counterAttrs"
           :class="[
             'self-center text-4xl font-medium',
+            isInteractive && 'cursor-pointer',
             colorClasses ?? 'text-indigo-700 dark:text-indigo-500',
           ]"
         >
