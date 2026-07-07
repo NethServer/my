@@ -770,7 +770,7 @@
   },
   "backups": {
     "title": "Backup",
-    "page_description": "Snapshot di configurazione caricati da questo sistema. Ogni file è cifrato end-to-end sull'appliance — solo il sistema che l'ha creato può decifrarne il contenuto.",
+    "page_description": "Snapshot di configurazione caricati da questo sistema. Ogni file è cifrato end-to-end sull'appliance; per decifrarne il contenuto, è necessario conoscere la password di cifratura configurata sul sistema. Viene conservato un massimo di 10 backup, fino a un limite di 500 MB di spazio di archiviazione totale; al raggiungimento di tali limiti, le voci più vecchie vengono eliminate automaticamente.",
     "date": "Data",
     "filename": "Nome file",
     "size": "Dimensione",

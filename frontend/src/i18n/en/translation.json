@@ -848,7 +848,7 @@
   },
   "backups": {
     "title": "Backups",
-    "page_description": "Configuration snapshots uploaded by this system, end-to-end encrypted so only the system that created them can decrypt the contents. At most 10 backups are retained, with up to 500 MB total storage; older entries are automatically deleted when these limits are reached.",
+    "page_description": "Configuration snapshots uploaded from this system. Each file is end-to-end encrypted on the appliance; to decrypt the content, the encryption password configured on the system must be known. A maximum of 10 backups are retained, with up to 500 MB of total storage; older entries are automatically deleted when these limits are reached.",
     "date": "Date",
     "filename": "Filename",
     "size": "Size",
