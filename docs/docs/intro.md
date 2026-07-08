@@ -104,4 +104,4 @@ Technical documentation for developers and integrators:
 
 ## Version Information
 
-Current version: **0.7.7** (Pre-production)
+Current version: **0.7.8** (Pre-production)
