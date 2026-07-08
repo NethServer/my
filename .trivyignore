@@ -21,5 +21,13 @@ CVE-2023-45142  # OpenTelemetry, if using minimal telemetry
 CVE-2026-55602  # http-proxy-middleware: runs only inside webpack-dev-server during local `docusaurus start`. Patched in v3+, which webpack-dev-server 5 is not API-compatible with. Absent from the static build.
 CVE-2026-53550  # js-yaml: build-time frontmatter parsing via gray-matter@4 (latest, pins js-yaml v3). Input is repo-authored docs, not attacker-controlled. No js-yaml v3 patch exists; top-level js-yaml already bumped to 4.2.0.
 
+# golang.org/x/crypto/openpgp flagged as unmaintained (GO-2026-5932). The
+# advisory has no fixed version by design (the package is deprecated forever).
+# We never import the openpgp subpackage: x/crypto enters the graph only via
+# go-playground/validator/v10 -> x/crypto/sha3, and `go mod why` reports
+# "not needed" for openpgp in every module. Module-level false positive.
+# Added 2026-07-08.
+GO-2026-5932
+
 # Note: Review this file regularly and update as needed
 # Always verify that ignored CVEs are truly not applicable to your use case
