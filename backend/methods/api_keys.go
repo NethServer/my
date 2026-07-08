@@ -65,7 +65,7 @@ func CreateAPIKey(c *gin.Context) {
 		return
 	}
 
-	key, token, err := local.NewAPIKeysService().CreateAPIKey(user.ID, user.OrganizationID, req.Name, req.Mode, req.ExpiresInDays)
+	key, token, err := local.NewAPIKeysService().CreateAPIKey(user, req.Name, req.Mode, req.ExpiresInDays)
 	if err != nil {
 		switch {
 		case errors.Is(err, local.ErrAPIKeyNoLocalUser):
@@ -94,7 +94,7 @@ func CreateAPIKey(c *gin.Context) {
 	})
 	local.NewAPIKeysService().RecordAPIKeyEvent(models.APIKeyAuditRecord{
 		APIKeyID:       key.ID,
-		UserID:         user.ID,
+		UserID:         local.NewAPIKeysService().APIKeyAnchor(user),
 		OrganizationID: user.OrganizationID,
 		Event:          models.APIKeyEventCreated,
 		KeyName:        key.Name,
@@ -117,7 +117,7 @@ func ListAPIKeys(c *gin.Context) {
 		return
 	}
 
-	keys, err := local.NewAPIKeysService().ListAPIKeys(user.ID)
+	keys, err := local.NewAPIKeysService().ListAPIKeys(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to list api keys", nil))
 		return
@@ -135,7 +135,7 @@ func RevokeAPIKey(c *gin.Context) {
 	}
 
 	keyID := c.Param("id")
-	err := local.NewAPIKeysService().RevokeAPIKey(user.ID, keyID)
+	err := local.NewAPIKeysService().RevokeAPIKey(user, keyID)
 	if errors.Is(err, sql.ErrNoRows) {
 		c.JSON(http.StatusNotFound, response.NotFound("api key not found", nil))
 		return
@@ -149,7 +149,7 @@ func RevokeAPIKey(c *gin.Context) {
 	logger.LogBusinessOperation(c, "api-keys", "revoke", "api_key", keyID, true, nil)
 	local.NewAPIKeysService().RecordAPIKeyEvent(models.APIKeyAuditRecord{
 		APIKeyID:       keyID,
-		UserID:         user.ID,
+		UserID:         local.NewAPIKeysService().APIKeyAnchor(user),
 		OrganizationID: user.OrganizationID,
 		Event:          models.APIKeyEventRevoked,
 		IP:             c.ClientIP(),
@@ -170,7 +170,7 @@ func ListAPIKeyAudit(c *gin.Context) {
 
 	page, pageSize := helpers.GetPaginationFromQuery(c)
 	entries, total, err := local.NewAPIKeysService().ListAPIKeyAudit(
-		user.ID, c.Query("event"), c.Query("api_key_id"), page, pageSize,
+		local.NewAPIKeysService().APIKeyAnchor(user), c.Query("event"), c.Query("api_key_id"), page, pageSize,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve api key audit", nil))

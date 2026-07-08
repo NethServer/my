@@ -10,6 +10,7 @@
 package local
 
 import (
+	"strings"
 	"time"
 
 	"github.com/nethesis/my/backend/cache"
@@ -35,7 +36,11 @@ func ResolveUserByLogtoID(logtoID string) (*models.User, error) {
 			// (user not yet present in the local DB when it was cached) would
 			// otherwise mask the now-existing local row for the whole TTL and
 			// break anything keyed on user.ID (e.g. listing API keys).
-			if cached.Username != "" && cached.Email != "" && cached.ID != "" {
+			// Owner accounts are the exception: the Owner organization can
+			// never gain local users rows, so their empty ID is permanent and
+			// caching them is safe (and needed — owner API keys resolve here
+			// on every request).
+			if cached.Username != "" && cached.Email != "" && (cached.ID != "" || strings.EqualFold(cached.OrgRole, "owner")) {
 				return &cached, nil
 			}
 			_ = rc.Delete(cacheKey)
@@ -83,9 +88,17 @@ func ResolveUserByLogtoID(logtoID string) (*models.User, error) {
 
 	// Cache only complete profiles with a resolved local ID, to avoid
 	// persisting transient Logto failures or a not-yet-synced user (empty ID)
-	// for the full TTL.
-	if rc != nil && userProfile != nil && user.Username != "" && user.ID != "" {
-		_ = rc.Set(cacheKey, user, 10*time.Minute)
+	// for the full TTL. Owner accounts never get a local ID and are cached
+	// anyway (see the read-side guard above), but with a shorter TTL: an owner
+	// API key rechecks the org role from this entry, and the owner is managed
+	// directly in Logto with no lifecycle hook to invalidate it, so a role
+	// downgrade must not linger the full window.
+	if rc != nil && userProfile != nil && user.Username != "" && (user.ID != "" || strings.EqualFold(user.OrgRole, "owner")) {
+		ttl := 10 * time.Minute
+		if strings.EqualFold(user.OrgRole, "owner") {
+			ttl = 1 * time.Minute
+		}
+		_ = rc.Set(cacheKey, user, ttl)
 	}
 
 	return &user, nil

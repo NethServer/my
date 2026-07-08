@@ -22,8 +22,9 @@ func TestGenerateAPIKey_RoundTrip(t *testing.T) {
 	assert.True(t, strings.HasPrefix(full, APIKeyPrefix))
 	assert.Equal(t, APIKeyPrefix+public+"."+secret, full)
 
-	gotPublic, gotSecret, err := ParseAPIKey(full)
+	gotPublic, gotSecret, owner, err := ParseAPIKey(full)
 	assert.NoError(t, err)
+	assert.False(t, owner)
 	assert.Equal(t, public, gotPublic)
 	assert.Equal(t, secret, gotSecret)
 
@@ -33,6 +34,19 @@ func TestGenerateAPIKey_RoundTrip(t *testing.T) {
 	ok, err := VerifySystemSecretSHA256(gotSecret, hash)
 	assert.NoError(t, err)
 	assert.True(t, ok)
+}
+
+func TestGenerateOwnerAPIKey_RoundTrip(t *testing.T) {
+	full, public, secret, err := GenerateOwnerAPIKey()
+	assert.NoError(t, err)
+	assert.True(t, strings.HasPrefix(full, APIKeyOwnerPrefix))
+	assert.Equal(t, APIKeyOwnerPrefix+public+"."+secret, full)
+
+	gotPublic, gotSecret, owner, err := ParseAPIKey(full)
+	assert.NoError(t, err)
+	assert.True(t, owner)
+	assert.Equal(t, public, gotPublic)
+	assert.Equal(t, secret, gotSecret)
 }
 
 func TestGenerateAPIKey_Unique(t *testing.T) {
@@ -55,11 +69,15 @@ func TestParseAPIKey_Invalid(t *testing.T) {
 		"myk_onlypublic",     // missing separator
 		"myk_.secret",        // empty public
 		"myk_public.",        // empty secret
+		"myo_",               // owner prefix, missing body
+		"myo_onlypublic",     // owner prefix, missing separator
+		"myo_.secret",        // owner prefix, empty public
+		"myo_public.",        // owner prefix, empty secret
 		"Bearer myk_pub.sec", // prefix not at start
 		"my_public.secret",   // systems prefix, not api key
 	}
 	for _, tc := range cases {
-		_, _, err := ParseAPIKey(tc)
+		_, _, _, err := ParseAPIKey(tc)
 		assert.Error(t, err, "expected error for %q", tc)
 	}
 }

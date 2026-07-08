@@ -40,7 +40,7 @@ func AuthMiddleware() gin.HandlerFunc {
 	jwtAuth := JWTAuthMiddleware()
 	return func(c *gin.Context) {
 		token := strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer ")
-		if strings.HasPrefix(token, helpers.APIKeyPrefix) {
+		if strings.HasPrefix(token, helpers.APIKeyPrefix) || strings.HasPrefix(token, helpers.APIKeyOwnerPrefix) {
 			authenticateAPIKey(c, token)
 			return
 		}
@@ -83,6 +83,11 @@ func authenticateAPIKey(c *gin.Context, token string) {
 	setUserContext(c, result.User, false, nil, "")
 	c.Set("is_api_key", true)
 	c.Set("api_key_id", result.KeyID)
+	// Anchor for audit attribution: the local user id for regular keys, the
+	// Logto ID for owner keys (whose resolved User has an empty local id). The
+	// user_id context set above is empty for owner accounts, so audit paths
+	// that must attribute the event to the key's owner use this instead.
+	c.Set("api_key_anchor", result.UserID)
 
 	// Record usage out of band so it never adds latency to the request.
 	ip := c.ClientIP()
@@ -165,7 +170,7 @@ func APIKeyRateLimit() gin.HandlerFunc {
 			mu.Unlock()
 			rec := models.APIKeyAuditRecord{
 				APIKeyID:       id,
-				UserID:         c.GetString("user_id"),
+				UserID:         c.GetString("api_key_anchor"),
 				OrganizationID: c.GetString("organization_id"),
 				Event:          models.APIKeyEventRateLimited,
 				IP:             c.ClientIP(),

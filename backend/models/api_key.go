@@ -40,5 +40,5 @@ type CreateAPIKeyRequest struct {
 // shown exactly once and never stored or returned again.
 type CreateAPIKeyResponse struct {
 	APIKey
-	Token string `json:"token"` // myk_<public>.<secret> — shown once, store it now
+	Token string `json:"token"` // myk_<public>.<secret> (myo_ for owner keys) — shown once, store it now
 }
