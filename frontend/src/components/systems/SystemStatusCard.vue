@@ -126,31 +126,40 @@ const timezone = computed(() => {
         <template #data>
           <div class="flex items-center gap-2">
             <template v-if="systemDetail.data?.status">
-              <SystemStatusIcon :status="systemDetail.data?.status" />
-              {{ t(`systems.status_${systemDetail.data?.status}`) }}
+              <NeTooltip
+                v-if="
+                  systemDetail.data?.status === 'active' ||
+                  systemDetail.data?.status === 'inactive' ||
+                  systemDetail.data?.status === 'unknown'
+                "
+                trigger-event="mouseenter focus"
+                placement="left"
+              >
+                <template #trigger>
+                  <div class="flex items-center gap-2">
+                    <SystemStatusIcon :status="systemDetail.data?.status" />
+                    {{ t(`systems.status_${systemDetail.data?.status}`) }}
+                  </div>
+                </template>
+                <template #content>
+                  <template v-if="systemDetail.data?.status === 'unknown'">
+                    {{ $t('system_detail.no_heartbeat_yet') }}
+                  </template>
+                  <template v-else>
+                    {{
+                      $t('system_detail.last_heartbeat_time', {
+                        time: formatRelativeTime(systemDetail.data?.last_heartbeat ?? '', locale),
+                      })
+                    }}
+                  </template>
+                </template>
+              </NeTooltip>
+              <template v-else>
+                <SystemStatusIcon :status="systemDetail.data?.status" />
+                {{ t(`systems.status_${systemDetail.data?.status}`) }}
+              </template>
             </template>
             <span v-else>-</span>
-            <!-- no inventory warning (do not show for pending/unknown status) -->
-            <NeTooltip
-              v-if="
-                latestInventory.status === 'success' &&
-                !latestInventory.data &&
-                systemDetail.data?.status !== 'unknown'
-              "
-              trigger-event="mouseenter focus"
-              placement="top"
-            >
-              <template #trigger>
-                <FontAwesomeIcon
-                  :icon="faTriangleExclamation"
-                  class="size-4 text-amber-700 dark:text-amber-500"
-                  aria-hidden="true"
-                />
-              </template>
-              <template #content>
-                {{ $t('system_detail.no_inventory_available') }}
-              </template>
-            </NeTooltip>
           </div>
         </template>
       </DataItem>
@@ -160,16 +169,21 @@ const timezone = computed(() => {
           {{ $t('system_detail.last_inventory') }}
         </template>
         <template #data>
-          <NeTooltip trigger-event="mouseenter focus" placement="left">
+          <div v-if="!latestInventory.data?.timestamp" class="flex items-center gap-2">
+            <!-- no inventory warning -->
+            <FontAwesomeIcon
+              :icon="faTriangleExclamation"
+              class="size-4 text-amber-700 dark:text-amber-500"
+              aria-hidden="true"
+            />
+            {{ $t('system_detail.no_inventory_yet') }}
+          </div>
+          <NeTooltip v-else trigger-event="mouseenter focus" placement="left">
             <template #trigger>
               {{ formatRelativeTime(latestInventory.data?.timestamp, locale) }}
             </template>
             <template #content>
-              {{
-                latestInventory.data?.timestamp
-                  ? formatDateTimeNoSeconds(new Date(latestInventory.data?.timestamp), locale)
-                  : '-'
-              }}
+              {{ formatDateTimeNoSeconds(new Date(latestInventory.data?.timestamp), locale) }}
             </template>
           </NeTooltip>
         </template>

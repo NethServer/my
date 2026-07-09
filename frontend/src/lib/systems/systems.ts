@@ -43,6 +43,7 @@ export const SystemSchema = v.object({
   system_key: v.optional(v.string()),
   system_secret: v.string(),
   suspended_at: v.optional(v.string()),
+  last_heartbeat: v.optional(v.string()),
   last_inventory: v.optional(v.string()),
   rebranding_enabled: v.optional(v.boolean()),
   organization: v.object({

@@ -205,13 +205,17 @@ function getKebabMenuItems() {
             {{ $t('systems.name') }}
           </template>
           <template #data>
-            {{ systemDetail.data.name }}
+            <span class="break-all">
+              {{ systemDetail.data.name }}
+            </span>
           </template>
         </DataItem>
         <!-- fqdn -->
         <DataItem>
           <template #label>
-            {{ $t('systems.fqdn') }}
+            <span class="break-all">
+              {{ $t('systems.fqdn') }}
+            </span>
           </template>
           <template #data>
             <ClickToCopy
