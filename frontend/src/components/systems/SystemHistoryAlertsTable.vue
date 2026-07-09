@@ -34,6 +34,7 @@ import {
   type AlertHistoryRecord,
   SYSTEM_ALERT_HISTORY_TABLE_ID,
   SEVERITY_FILTER_OPTIONS,
+  ALERTS_REFETCH_INTERVAL_SECONDS,
 } from '@/lib/alerts'
 import { useSystemAlertHistory } from '@/queries/systemAlerts/systemAlertHistory'
 import { useAlertFilters } from '@/queries/alerts/alertFilters'
@@ -198,7 +199,7 @@ function showDetails(alert: Alert): void {
           v-if="historyAsyncStatus === 'loading' && historyState.status !== 'pending'"
         />
         <div class="text-tertiary-neutral">
-          {{ t('common.data_updated_every_seconds', { seconds: 10 }) }}
+          {{ t('common.data_updated_every_seconds', { seconds: ALERTS_REFETCH_INTERVAL_SECONDS }) }}
         </div>
       </div>
     </div>

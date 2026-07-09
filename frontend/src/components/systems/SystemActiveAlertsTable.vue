@@ -48,6 +48,7 @@ import {
   SYSTEM_ALERTS_TABLE_ID,
   SEVERITY_FILTER_OPTIONS,
   type Alert,
+  ALERTS_REFETCH_INTERVAL_SECONDS,
 } from '@/lib/alerts'
 import { setPendingAlertState, isProcessing } from '@/lib/alertPendingStates'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
@@ -333,7 +334,7 @@ function onMuteDrawerClose(): void {
           v-if="alertsAsyncStatus === 'loading' && alertsState.status !== 'pending'"
         />
         <div class="text-tertiary-neutral">
-          {{ t('common.data_updated_every_seconds', { seconds: 10 }) }}
+          {{ t('common.data_updated_every_seconds', { seconds: ALERTS_REFETCH_INTERVAL_SECONDS }) }}
         </div>
       </div>
     </div>

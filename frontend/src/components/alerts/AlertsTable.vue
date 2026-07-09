@@ -41,6 +41,7 @@ import { useAlerts } from '@/queries/alerts/alerts'
 import { useAlertFilters } from '@/queries/alerts/alertFilters'
 import { useSystems } from '@/queries/systems/systems'
 import {
+  ALERTS_REFETCH_INTERVAL_SECONDS,
   ALERTS_TABLE_ID,
   deleteAlertSilence,
   getAlertSilenceIds,
@@ -288,7 +289,7 @@ function goToSystems() {
 
     <!-- Toolbar -->
     <div class="mb-6 flex items-center gap-4">
-      <div class="flex w-full items-start justify-between gap-4">
+      <div class="flex w-full items-end justify-between gap-4">
         <!-- Filters -->
         <div class="flex flex-wrap items-center gap-4">
           <!-- Severity filter -->
@@ -375,7 +376,9 @@ function goToSystems() {
             v-if="alertsAsyncStatus === 'loading' && alertsState.status !== 'pending'"
           />
           <div class="text-tertiary-neutral">
-            {{ t('common.data_updated_every_seconds', { seconds: 10 }) }}
+            {{
+              t('common.data_updated_every_seconds', { seconds: ALERTS_REFETCH_INTERVAL_SECONDS })
+            }}
           </div>
         </div>
       </div>
