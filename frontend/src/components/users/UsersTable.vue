@@ -63,6 +63,7 @@ import { useUserFilters } from '@/queries/users/userFilters'
 import { normalize } from '@/lib/common'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import UserAvatar from './UserAvatar.vue'
+import ClickToCopy from '@/components/common/ClickToCopy.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 import { isUserCustomer } from '@/lib/organizations/organizations.ts'
 import router from '@/router/index.ts'
@@ -442,15 +443,12 @@ const goToAccount = () => {
       :aria-label="$t('users.title')"
       card-breakpoint="2xl"
       :loading="state.status === 'pending'"
-      :skeleton-columns="5"
+      :skeleton-columns="4"
       :skeleton-rows="7"
     >
       <NeTableHead>
         <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
           $t('users.name')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="email" @sort="onSort">{{
-          $t('users.email')
         }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="organization" @sort="onSort">{{
           $t('users.organization')
@@ -473,18 +471,21 @@ const goToAccount = () => {
                 :name="item.name"
                 :logto-id="item.logto_id || ''"
               />
-              {{ item.name }}
-              <span v-if="isCurrentUser(item)" class="text-tertiary-neutral"
-                >({{ $t('users.me') }})</span
-              >
+              <div class="flex flex-col">
+                <div class="flex items-center gap-2">
+                  {{ item.name }}
+                  <span v-if="isCurrentUser(item)" class="text-tertiary-neutral"
+                    >({{ $t('users.me') }})</span
+                  >
+                </div>
+                <ClickToCopy
+                  v-if="item.email"
+                  :text="item.email"
+                  tooltip-placement="right"
+                  class="text-tertiary-neutral break-all 2xl:break-normal"
+                />
+              </div>
             </div>
-          </NeTableCell>
-          <NeTableCell
-            :data-label="$t('users.email')"
-            class="break-all 2xl:break-normal"
-            :class="{ 'opacity-50': item.deleted_at }"
-          >
-            {{ item.email }}
           </NeTableCell>
           <NeTableCell :data-label="$t('users.organization')">
             <div :class="{ 'opacity-50': item.deleted_at }">
