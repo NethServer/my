@@ -103,13 +103,14 @@ const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
   },
 ])
 
-const createdByFilterOptions = computed(() => {
+const createdByFilterOptions = computed<NeDropdownFilterV2Option[]>(() => {
   if (!distributorFiltersState.value.data || !distributorFiltersState.value.data.created_by) {
     return []
   } else {
-    return distributorFiltersState.value.data.created_by.map((user) => ({
-      id: user.user_id,
-      label: user.name,
+    return distributorFiltersState.value.data.created_by.map((createdBy) => ({
+      id: createdBy.user_id,
+      label: createdBy.name,
+      description: createdBy.organization_name,
     }))
   }
 })

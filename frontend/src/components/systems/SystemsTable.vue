@@ -66,6 +66,7 @@ import OrganizationDropdownFilter from '@/components/organizations/OrganizationD
 import { isUserCustomer } from '@/lib/organizations/organizations.ts'
 import OrganizationIconAndLink from '../organizations/OrganizationIconAndLink.vue'
 import SystemLogoAndLink from './SystemLogoAndLink.vue'
+import { formatRelativeTime } from '@/lib/dateTime'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -73,7 +74,7 @@ const { isShownCreateSystemDrawer = false } = defineProps<{
 
 const emit = defineEmits(['close-drawer'])
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const {
   state,
   asyncStatus,
@@ -161,13 +162,14 @@ const versionFilterOptions = computed(() => {
   }
 })
 
-const createdByFilterOptions = computed(() => {
+const createdByFilterOptions = computed<NeDropdownFilterV2Option[]>(() => {
   if (!systemFiltersState.value.data || !systemFiltersState.value.data.created_by) {
     return []
   } else {
-    return systemFiltersState.value.data.created_by.map((user) => ({
-      id: user.user_id,
-      label: user.name,
+    return systemFiltersState.value.data.created_by.map((createdBy) => ({
+      id: createdBy.user_id,
+      label: createdBy.name,
+      description: createdBy.organization_name,
     }))
   }
 })
@@ -593,8 +595,38 @@ function onCloseSecretRegeneratedModal() {
           <NeTableCell :data-label="$t('systems.status')">
             <div class="flex items-center gap-2">
               <template v-if="item.status">
-                <SystemStatusIcon :status="item.status" />
-                {{ t(`systems.status_${item.status}`) }}
+                <NeTooltip
+                  v-if="
+                    item.status === 'active' ||
+                    item.status === 'inactive' ||
+                    item.status === 'unknown'
+                  "
+                  trigger-event="mouseenter focus"
+                  placement="top"
+                >
+                  <template #trigger>
+                    <div class="flex items-center gap-2">
+                      <SystemStatusIcon :status="item.status" />
+                      {{ t(`systems.status_${item.status}`) }}
+                    </div>
+                  </template>
+                  <template #content>
+                    <template v-if="item.status === 'unknown'">
+                      {{ $t('system_detail.no_heartbeat_yet') }}
+                    </template>
+                    <template v-else>
+                      {{
+                        $t('system_detail.last_heartbeat_time', {
+                          time: formatRelativeTime(item.last_heartbeat ?? '', locale),
+                        })
+                      }}
+                    </template>
+                  </template>
+                </NeTooltip>
+                <template v-else>
+                  <SystemStatusIcon :status="item.status" />
+                  {{ t(`systems.status_${item.status}`) }}
+                </template>
               </template>
               <span v-else>-</span>
               <!-- no inventory warning (do not show for pending/unknown status) -->

@@ -19,6 +19,7 @@ export interface ProductVersions {
 export interface CreatedByItem {
   user_id: string
   name: string
+  organization_name: string
 }
 
 export interface OrganizationItem {
