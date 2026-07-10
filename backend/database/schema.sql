@@ -185,6 +185,9 @@ CREATE TABLE IF NOT EXISTS users (
     -- Flexible metadata
     custom_data JSONB,                      -- Additional user metadata
 
+    -- Creator snapshot (display/filter only, not used for RBAC)
+    created_by JSONB,                       -- Who created the user (user_id, username, name, email, organization_id, organization_name)
+
     -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -206,6 +209,7 @@ COMMENT ON COLUMN users.deleted_at IS 'Soft delete timestamp. NULL means active,
 COMMENT ON COLUMN users.suspended_at IS 'Suspension timestamp. NULL means active, non-NULL means blocked';
 COMMENT ON COLUMN users.suspended_by_org_id IS 'Organization ID that caused cascade suspension (for automatic reactivation)';
 COMMENT ON COLUMN users.deleted_by_org_id IS 'Organization that caused cascade soft-deletion (for tracking cascade source)';
+COMMENT ON COLUMN users.created_by IS 'Creator snapshot (user_id, username, name, email, organization_id, organization_name), set at creation; display/filter only, not used for RBAC';
 
 -- Performance indexes
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_logto_id ON users(logto_id) WHERE logto_id IS NOT NULL AND deleted_at IS NULL;

@@ -305,7 +305,7 @@ func TestLocalUserRepository_ListOperations_Structure(t *testing.T) {
 		{
 			name: "List with pagination",
 			testFunc: func() error {
-				_, _, err := repo.List("", "", 1, 10, "", "", "", nil, nil, nil)
+				_, _, err := repo.List("", "", 1, 10, "", "", "", nil, nil, nil, nil)
 				return err
 			},
 			description: "Should accept pagination parameters",
@@ -313,7 +313,7 @@ func TestLocalUserRepository_ListOperations_Structure(t *testing.T) {
 		{
 			name: "ListByOrganizations with filtering",
 			testFunc: func() error {
-				_, _, err := repo.ListByOrganizations([]string{"org1", "org2"}, 1, 10, "", "", "", nil, nil, nil)
+				_, _, err := repo.ListByOrganizations([]string{"org1", "org2"}, 1, 10, "", "", "", nil, nil, nil, nil)
 				return err
 			},
 			description: "Should accept organization filtering",

@@ -55,8 +55,11 @@ func NewUserService() *LocalUserService {
 // PUBLIC METHODS
 // =============================================================================
 
-// CreateUser creates a user locally and syncs to Logto
-func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, createdByUserID, createdByOrgID string) (*models.LocalUser, error) {
+// CreateUser creates a user locally and syncs to Logto. creator is the
+// snapshot of the authenticated user performing the action, stored in the
+// dedicated users.created_by column (display/filter only - RBAC stays on
+// organization_id / custom_data.createdBy).
+func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, creator *models.OrgCreator, createdByOrgID string) (*models.LocalUser, error) {
 	// Normalize phone to digits-only at the entry point so both the local DB write
 	// and the Logto call see the same shape — avoids drift where the local DB ends
 	// up with formatted values (e.g. "+39 333 1234567") while Logto stores the
@@ -181,6 +184,7 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 	defer func() { _ = tx.Rollback() }()
 
 	// 3. Create in local DB inside the transaction (after Logto validation passes)
+	req.CreatedBy = creator
 	user, err := s.userRepo.CreateWithTx(tx, req)
 	if err != nil {
 		// Cleanup the Logto user since local creation failed
@@ -333,6 +337,10 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, create
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
+	createdByUserID := ""
+	if creator != nil {
+		createdByUserID = creator.UserID
+	}
 	logger.Info().
 		Str("user_id", user.ID).
 		Str("username", user.Username).
@@ -448,8 +456,8 @@ func (s *LocalUserService) UpdateLatestLogin(userID string) error {
 }
 
 // ListUsers returns paginated list of users based on hierarchical RBAC
-func (s *LocalUserService) ListUsers(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
-	return s.userRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter)
+func (s *LocalUserService) ListUsers(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses, roleFilter, createdByFilter []string) ([]*models.LocalUser, int, error) {
+	return s.userRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter, createdByFilter)
 }
 
 // GetTotals returns user totals (with enabled/suspended breakdown) based on hierarchical RBAC

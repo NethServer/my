@@ -1356,6 +1356,10 @@ components:
           nullable: true
           description: Suspension timestamp (null if not suspended)
           example: null
+        created_by:
+          description: Point-in-time snapshot of the user who created this user (omitted on accounts created before the snapshot was introduced). Display/filter only - RBAC is by organization.
+          allOf:
+            - $ref: '#/components/schemas/OrgCreator'
         can_be_impersonated:
           type: boolean
           description: Whether this user can currently be impersonated (only shown for users with impersonation permissions, based on active consent)
@@ -3143,7 +3147,7 @@ components:
       required: false
       schema:
         type: string
-        enum: ["name", "email", "username", "created_at", "updated_at", "latest_login_at", "organization", "status"]
+        enum: ["name", "email", "username", "created_at", "updated_at", "latest_login_at", "organization", "creator_name", "status"]
         example: "name"
 
     SystemSortByParam:
@@ -3600,6 +3604,20 @@ paths:
             items:
               type: string
             example: ["role_abc123"]
+          style: form
+          explode: true
+        - name: created_by
+          in: query
+          required: false
+          description: |
+            Filter users by creator user ID or creator organization ID (exact match).
+            Each provided ID is checked against both the user_id and organization_id fields of the user creator snapshot.
+            Supports multiple values for checkbox filtering. Allowed values come from GET /api/filters/users.
+          schema:
+            type: array
+            items:
+              type: string
+            example: ["kyfy0tlnlk3l"]
           style: form
           explode: true
       responses:
@@ -7437,7 +7455,15 @@ paths:
                               type: string
                               description: User email from created_by JSONB field
                               example: "owner@example.com"
-                        description: List of users who created systems
+                            organization_id:
+                              type: string
+                              description: Creator organization logto_id from created_by JSONB field
+                              example: "2wl3iixbc8ua"
+                            organization_name:
+                              type: string
+                              description: Creator organization name from created_by JSONB field
+                              example: "Nethesis Italia"
+                        description: List of users who created systems (one entry per user; organization attached to disambiguate homonyms)
                       versions:
                         type: array
                         items:
@@ -7463,6 +7489,8 @@ paths:
                     - user_id: "pnqjmgmk937x"
                       name: "Company Owner"
                       email: "owner@example.com"
+                      organization_id: "2wl3iixbc8ua"
+                      organization_name: "Nethesis Italia"
                   versions:
                     - product: "nsec"
                       versions: ["nsec:8.6.0", "nsec:8.5.2"]
@@ -12714,10 +12742,11 @@ paths:
       operationId: getUserFilters
       tags:
         - Backend - Filters
-      summary: /filters/users - Get the roles available in the caller's scope
+      summary: /filters/users - Get aggregated user filters
       description: |
-        Returns the list of roles the caller can assign to users, respecting
-        RBAC hierarchy.
+        Returns the list of roles the caller can assign to users and the
+        distinct creators of the users visible to the caller (for the
+        created_by filter on GET /api/users), respecting RBAC hierarchy.
 
         Organizations dropdown is populated by the dedicated
         `/api/organizations` endpoint, which supports search and pagination.
@@ -12742,6 +12771,32 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/Role'
+                      created_by:
+                        type: array
+                        description: Distinct creators of the users visible to the caller (one entry per user; organization attached to disambiguate homonyms)
+                        items:
+                          type: object
+                          properties:
+                            user_id:
+                              type: string
+                              description: Creator user logto_id
+                              example: "kyfy0tlnlk3l"
+                            name:
+                              type: string
+                              description: Creator full name
+                              example: "Sviluppo - Integrazioni Esterne"
+                            email:
+                              type: string
+                              description: Creator email
+                              example: "sviluppo+integrazioni@nethesis.it"
+                            organization_id:
+                              type: string
+                              description: Logto ID of the creator's organization
+                              example: "eeex9cffzsd7"
+                            organization_name:
+                              type: string
+                              description: Display name of the creator's organization
+                              example: "Nethesis Diretta"
               example:
                 code: 200
                 message: "user filters retrieved successfully"
@@ -12753,6 +12808,12 @@ paths:
                     - id: "role_def456"
                       name: "Support"
                       description: "Support operator"
+                  created_by:
+                    - user_id: "kyfy0tlnlk3l"
+                      name: "Sviluppo - Integrazioni Esterne"
+                      email: "sviluppo+integrazioni@nethesis.it"
+                      organization_id: "eeex9cffzsd7"
+                      organization_name: "Nethesis Diretta"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

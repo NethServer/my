@@ -58,8 +58,8 @@ func (r *LocalUserRepository) create(exec dbExecer, req *models.CreateLocalUserR
 	now := time.Now()
 
 	query := `
-		INSERT INTO users (id, logto_id, username, email, name, phone, organization_id, user_role_ids, custom_data, created_at, updated_at, deleted_at, suspended_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		INSERT INTO users (id, logto_id, username, email, name, phone, organization_id, user_role_ids, custom_data, created_by, created_at, updated_at, deleted_at, suspended_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	`
 
 	// Serialize JSON fields
@@ -73,6 +73,14 @@ func (r *LocalUserRepository) create(exec dbExecer, req *models.CreateLocalUserR
 		return nil, fmt.Errorf("failed to marshal user_role_ids: %w", err)
 	}
 
+	var createdByJSON []byte
+	if req.CreatedBy != nil {
+		createdByJSON, err = json.Marshal(req.CreatedBy)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal created_by: %w", err)
+		}
+	}
+
 	_, err = exec.Exec(query,
 		id,
 		nil, // logto_id
@@ -83,6 +91,7 @@ func (r *LocalUserRepository) create(exec dbExecer, req *models.CreateLocalUserR
 		req.OrganizationID,
 		userRoleIDsJSON,
 		customDataJSON,
+		createdByJSON,
 		now,
 		now,
 		nil, // deleted_at
@@ -102,6 +111,7 @@ func (r *LocalUserRepository) create(exec dbExecer, req *models.CreateLocalUserR
 		UserRoleIDs:    req.UserRoleIDs,
 		OrganizationID: req.OrganizationID,
 		CustomData:     req.CustomData,
+		CreatedBy:      req.CreatedBy,
 		CreatedAt:      now,
 		UpdatedAt:      now,
 		DeletedAt:      nil,
@@ -112,7 +122,7 @@ func (r *LocalUserRepository) create(exec dbExecer, req *models.CreateLocalUserR
 // GetByID retrieves a user by ID from local database
 func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 	query := `
-		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
+		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data, u.created_by,
 		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at, u.suspended_by_org_id,
 		       uo.name as organization_name,
 		       COALESCE(uo.db_id, '') as organization_local_id,
@@ -125,10 +135,11 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 	user := &models.LocalUser{}
 	var customDataJSON []byte
 	var userRoleIDsJSON []byte
+	var createdByJSON []byte
 
 	err := r.db.QueryRow(query, id).Scan(
 		&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name, &user.Phone,
-		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
+		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON, &createdByJSON,
 		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt, &user.SuspendedByOrgID,
 		&user.OrganizationName, &user.OrganizationLocalID, &user.OrganizationType,
 	)
@@ -156,6 +167,14 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 		}
 	} else {
 		user.CustomData = make(map[string]interface{})
+	}
+
+	// Parse created_by JSON (creator snapshot; may be NULL on pre-backfill rows)
+	if len(createdByJSON) > 0 {
+		var creator models.OrgCreator
+		if err := json.Unmarshal(createdByJSON, &creator); err == nil {
+			user.CreatedBy = &creator
+		}
 	}
 
 	// Enrich with organization and role data
@@ -167,7 +186,7 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 // GetByLogtoID retrieves a user by Logto ID from local database
 func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, error) {
 	query := `
-		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
+		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data, u.created_by,
 		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at, u.suspended_by_org_id,
 		       uo.name as organization_name,
 		       COALESCE(uo.db_id, '') as organization_local_id,
@@ -180,10 +199,11 @@ func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, e
 	user := &models.LocalUser{}
 	var customDataJSON []byte
 	var userRoleIDsJSON []byte
+	var createdByJSON []byte
 
 	err := r.db.QueryRow(query, logtoID).Scan(
 		&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name, &user.Phone,
-		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
+		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON, &createdByJSON,
 		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt, &user.SuspendedByOrgID,
 		&user.OrganizationName, &user.OrganizationLocalID, &user.OrganizationType,
 	)
@@ -211,6 +231,14 @@ func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, e
 		}
 	} else {
 		user.CustomData = make(map[string]interface{})
+	}
+
+	// Parse created_by JSON (creator snapshot; may be NULL on pre-backfill rows)
+	if len(createdByJSON) > 0 {
+		var creator models.OrgCreator
+		if err := json.Unmarshal(createdByJSON, &creator); err == nil {
+			user.CreatedBy = &creator
+		}
 	}
 
 	// Enrich with organization and role data
@@ -615,7 +643,7 @@ func (r *LocalUserRepository) UpdateLatestLogin(userID string) error {
 }
 
 // List returns paginated list of users based on hierarchical RBAC (matches other repository patterns)
-func (r *LocalUserRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses, roleFilter, createdByFilter []string) ([]*models.LocalUser, int, error) {
 	// Owner can access all users - pass nil to skip RBAC filtering in query
 	var allowedOrgIDs []string
 	if strings.ToLower(userOrgRole) != "owner" {
@@ -626,12 +654,12 @@ func (r *LocalUserRepository) List(userOrgRole, userOrgID string, page, pageSize
 		}
 	}
 
-	return r.ListByOrganizations(allowedOrgIDs, page, pageSize, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter)
+	return r.ListByOrganizations(allowedOrgIDs, page, pageSize, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter, createdByFilter)
 }
 
 // ListByOrganizations returns paginated list of users in specified organizations
 // nil allowedOrgIDs = owner (no RBAC filter), empty = no access
-func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses, roleFilter, createdByFilter []string) ([]*models.LocalUser, int, error) {
 	// nil = owner (no RBAC filter), empty = no access
 	if allowedOrgIDs != nil && len(allowedOrgIDs) == 0 {
 		return []*models.LocalUser{}, 0, nil
@@ -661,14 +689,30 @@ func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, page, 
 	offset := (page - 1) * pageSize
 
 	if search != "" {
-		return r.listUsersWithSearch(allowedOrgIDs, pageSize, offset, search, sortBy, sortDirection, statuses, roleFilter)
+		return r.listUsersWithSearch(allowedOrgIDs, pageSize, offset, search, sortBy, sortDirection, statuses, roleFilter, createdByFilter)
 	} else {
-		return r.listUsersWithoutSearch(allowedOrgIDs, pageSize, offset, sortBy, sortDirection, statuses, roleFilter)
+		return r.listUsersWithoutSearch(allowedOrgIDs, pageSize, offset, sortBy, sortDirection, statuses, roleFilter, createdByFilter)
 	}
 }
 
+// buildUsersCreatedByClause builds the created_by filter fragment: each value
+// matches either the creating user or their organization, mirroring the
+// systems created_by filter. Placeholders are appended to args.
+func buildUsersCreatedByClause(createdByFilter []string, args *[]interface{}) string {
+	if len(createdByFilter) == 0 {
+		return ""
+	}
+	var conditions []string
+	for _, cb := range createdByFilter {
+		*args = append(*args, cb)
+		placeholder := fmt.Sprintf("$%d", len(*args))
+		conditions = append(conditions, fmt.Sprintf("(u.created_by ->> 'user_id' = %s OR u.created_by ->> 'organization_id' = %s)", placeholder, placeholder))
+	}
+	return " AND (" + strings.Join(conditions, " OR ") + ")"
+}
+
 // listUsersWithSearch handles user listing with search functionality
-func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, pageSize, offset int, search, sortBy, sortDirection string, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, pageSize, offset int, search, sortBy, sortDirection string, statuses, roleFilter, createdByFilter []string) ([]*models.LocalUser, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY u.created_at DESC" // default sorting
 	if sortBy != "" {
@@ -680,6 +724,7 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, pageSi
 			"updated_at":      "u.updated_at",
 			"latest_login_at": "u.latest_login_at",
 			"organization":    "LOWER(uo.name)",
+			"creator_name":    "LOWER(u.created_by ->> 'name')",
 			"status":          "u.suspended_at",
 		}
 
@@ -739,11 +784,13 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, pageSi
 		roleClause = " AND (" + strings.Join(roleConditions, " OR ") + ")"
 	}
 
-	whereClause := fmt.Sprintf("1=1%s%s%s%s%s", deletedClause, orgClause, searchClause, statusClause, roleClause)
+	createdByClause := buildUsersCreatedByClause(createdByFilter, &args)
+
+	whereClause := fmt.Sprintf("1=1%s%s%s%s%s%s", deletedClause, orgClause, searchClause, statusClause, roleClause, createdByClause)
 
 	// Single query with COUNT(*) OVER() for total count + paginated results
 	mainQuery := fmt.Sprintf(`
-		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
+		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data, u.created_by,
 		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at, u.suspended_by_org_id,
 		       uo.name as organization_name,
 		       uo.db_id as organization_local_id,
@@ -765,7 +812,7 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, pageSi
 }
 
 // listUsersWithoutSearch handles user listing without search functionality
-func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, pageSize, offset int, sortBy, sortDirection string, statuses, roleFilter []string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, pageSize, offset int, sortBy, sortDirection string, statuses, roleFilter, createdByFilter []string) ([]*models.LocalUser, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY u.created_at DESC" // default sorting
 	if sortBy != "" {
@@ -777,6 +824,7 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, pag
 			"updated_at":      "u.updated_at",
 			"latest_login_at": "u.latest_login_at",
 			"organization":    "LOWER(uo.name)",
+			"creator_name":    "LOWER(u.created_by ->> 'name')",
 			"status":          "u.suspended_at",
 		}
 
@@ -833,11 +881,13 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, pag
 		roleClause = " AND (" + strings.Join(roleConditions, " OR ") + ")"
 	}
 
-	whereClause := fmt.Sprintf("1=1%s%s%s%s", deletedClause, orgClause, statusClause, roleClause)
+	createdByClause := buildUsersCreatedByClause(createdByFilter, &args)
+
+	whereClause := fmt.Sprintf("1=1%s%s%s%s%s", deletedClause, orgClause, statusClause, roleClause, createdByClause)
 
 	// Single query with COUNT(*) OVER() for total count + paginated results
 	mainQuery := fmt.Sprintf(`
-		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
+		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data, u.created_by,
 		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at, u.suspended_by_org_id,
 		       uo.name as organization_name,
 		       uo.db_id as organization_local_id,
@@ -871,11 +921,11 @@ func (r *LocalUserRepository) executeUserQuery(_ string, _ []interface{}, mainQu
 	var users []*models.LocalUser
 	for rows.Next() {
 		user := &models.LocalUser{}
-		var userRoleIDsJSON, customDataJSON []byte
+		var userRoleIDsJSON, customDataJSON, createdByJSON []byte
 
 		err := rows.Scan(
 			&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name,
-			&user.Phone, &user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
+			&user.Phone, &user.OrganizationID, &userRoleIDsJSON, &customDataJSON, &createdByJSON,
 			&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt, &user.SuspendedByOrgID,
 			&user.OrganizationName, &user.OrganizationLocalID, &user.OrganizationType,
 			&totalCount,
@@ -902,6 +952,14 @@ func (r *LocalUserRepository) executeUserQuery(_ string, _ []interface{}, mainQu
 			user.CustomData = make(map[string]interface{})
 		}
 
+		// Parse created_by JSON (creator snapshot; may be NULL on pre-backfill rows)
+		if len(createdByJSON) > 0 {
+			var creator models.OrgCreator
+			if err := json.Unmarshal(createdByJSON, &creator); err == nil {
+				user.CreatedBy = &creator
+			}
+		}
+
 		// Enrich with organization and role data
 		_ = r.enrichUserWithRelations(user) // Relations are nice-to-have, don't fail request on error
 
@@ -913,6 +971,70 @@ func (r *LocalUserRepository) executeUserQuery(_ string, _ []interface{}, mainQu
 	}
 
 	return users, totalCount, nil
+}
+
+// ListCreators returns the distinct creator snapshots of the users visible to
+// the caller, for the created_by filter on GET /api/users. One entry per
+// user_id (first row seen wins), sorted by name.
+func (r *LocalUserRepository) ListCreators(userOrgRole, userOrgID string) ([]models.OrgCreator, error) {
+	// Owner sees all users - skip RBAC filtering
+	var allowedOrgIDs []string
+	if strings.ToLower(userOrgRole) != "owner" {
+		var err error
+		allowedOrgIDs, err = r.GetHierarchicalOrganizationIDs(userOrgRole, userOrgID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get hierarchical organization IDs: %w", err)
+		}
+		if len(allowedOrgIDs) == 0 {
+			return []models.OrgCreator{}, nil
+		}
+	}
+
+	query := `
+		SELECT DISTINCT
+			created_by->>'user_id' as user_id,
+			created_by->>'name' as name,
+			COALESCE(created_by->>'email', '') as email,
+			COALESCE(created_by->>'organization_id', '') as organization_id,
+			COALESCE(created_by->>'organization_name', '') as organization_name
+		FROM users
+		WHERE deleted_at IS NULL
+			AND created_by->>'user_id' IS NOT NULL
+			AND created_by->>'user_id' != ''
+			AND created_by->>'name' IS NOT NULL
+			AND created_by->>'name' != ''
+	`
+	var args []interface{}
+	if allowedOrgIDs != nil {
+		args = append(args, pq.Array(allowedOrgIDs))
+		query += ` AND organization_id = ANY($1::text[])`
+	}
+	query += ` ORDER BY name ASC`
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query user creators: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	creators := make([]models.OrgCreator, 0)
+	seen := make(map[string]bool)
+	for rows.Next() {
+		var c models.OrgCreator
+		if err := rows.Scan(&c.UserID, &c.Name, &c.Email, &c.OrganizationID, &c.OrganizationName); err != nil {
+			continue
+		}
+		if seen[c.UserID] {
+			continue
+		}
+		seen[c.UserID] = true
+		creators = append(creators, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating user creators: %w", err)
+	}
+
+	return creators, nil
 }
 
 // GetTotals returns user totals (with enabled/suspended breakdown) based on hierarchical RBAC
@@ -1334,7 +1456,7 @@ func (r *LocalUserRepository) HardDeleteByOrgID(orgLogtoID string) ([]string, er
 // GetByIDIncludeDeleted retrieves a user by logto_id including soft-deleted users
 func (r *LocalUserRepository) GetByIDIncludeDeleted(id string) (*models.LocalUser, error) {
 	query := `
-		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data,
+		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data, u.created_by,
 		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at, u.suspended_by_org_id,
 		       COALESCE(d.name, r.name, c.name) as organization_name,
 		       COALESCE(d.id, r.id, c.id) as organization_local_id,
@@ -1354,10 +1476,11 @@ func (r *LocalUserRepository) GetByIDIncludeDeleted(id string) (*models.LocalUse
 	user := &models.LocalUser{}
 	var customDataJSON []byte
 	var userRoleIDsJSON []byte
+	var createdByJSON []byte
 
 	err := r.db.QueryRow(query, id).Scan(
 		&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name, &user.Phone,
-		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON,
+		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON, &createdByJSON,
 		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt, &user.SuspendedByOrgID,
 		&user.OrganizationName, &user.OrganizationLocalID, &user.OrganizationType,
 	)
@@ -1383,6 +1506,14 @@ func (r *LocalUserRepository) GetByIDIncludeDeleted(id string) (*models.LocalUse
 		}
 	} else {
 		user.CustomData = make(map[string]interface{})
+	}
+
+	// Parse created_by JSON (creator snapshot; may be NULL on pre-backfill rows)
+	if len(createdByJSON) > 0 {
+		var creator models.OrgCreator
+		if err := json.Unmarshal(createdByJSON, &creator); err == nil {
+			user.CreatedBy = &creator
+		}
 	}
 
 	_ = r.enrichUserWithRelations(user)

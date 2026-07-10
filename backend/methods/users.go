@@ -123,7 +123,7 @@ func CreateUser(c *gin.Context) {
 	}
 
 	// Create user
-	account, err := service.CreateUser(&request, user.ID, user.OrganizationID)
+	account, err := service.CreateUser(&request, models.NewOrgCreatorFromUser(*user), user.OrganizationID)
 	if err != nil {
 		// Check if it's a validation error from service
 		if validationErr := getValidationError(err); validationErr != nil {
@@ -261,13 +261,14 @@ func GetUsers(c *gin.Context) {
 	organizationFilter := c.QueryArray("organization_id")
 	statuses := c.QueryArray("status")
 	roleFilter := c.QueryArray("role")
+	createdByFilter := c.QueryArray("created_by")
 
 	// Create service
 	service := local.NewUserService()
 
 	// Get users based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	accounts, totalCount, err := service.ListUsers(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter)
+	accounts, totalCount, err := service.ListUsers(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter, createdByFilter)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -326,6 +327,7 @@ func GetUsers(c *gin.Context) {
 				"deleted_at":          account.DeletedAt,
 				"suspended_at":        account.SuspendedAt,
 				"suspended_by_org_id": account.SuspendedByOrgID,
+				"created_by":          account.CreatedBy,
 				"can_be_impersonated": canBeImpersonated,
 			}
 			enrichedUsers = append(enrichedUsers, userMap)
@@ -350,6 +352,7 @@ func GetUsers(c *gin.Context) {
 				"deleted_at":          account.DeletedAt,
 				"suspended_at":        account.SuspendedAt,
 				"suspended_by_org_id": account.SuspendedByOrgID,
+				"created_by":          account.CreatedBy,
 			}
 			enrichedUsers = append(enrichedUsers, userMap)
 		}

@@ -216,6 +216,9 @@ type LocalUser struct {
 	SuspendedByOrgID *string                `json:"suspended_by_org_id" db:"suspended_by_org_id"` // Organization that caused cascade suspension
 	DeletedByOrgID   *string                `json:"deleted_by_org_id" db:"deleted_by_org_id"`     // Organization that caused cascade soft-deletion
 
+	// Creator snapshot (set at creation, display/filter only - RBAC is by organization_id)
+	CreatedBy *OrgCreator `json:"created_by,omitempty" db:"created_by"`
+
 	// Internal fields for database operations (not serialized to JSON)
 	UserRoleIDs         []string `json:"-" db:"user_role_ids"`
 	OrganizationID      *string  `json:"-" db:"organization_id"`
@@ -335,6 +338,10 @@ type CreateLocalUserRequest struct {
 	UserRoleIDs    []string               `json:"user_role_ids,omitempty"`
 	OrganizationID *string                `json:"organization_id,omitempty"`
 	CustomData     map[string]interface{} `json:"custom_data,omitempty"`
+
+	// CreatedBy is the creator snapshot, set by the service from the
+	// authenticated user - never bound from the request body.
+	CreatedBy *OrgCreator `json:"-"`
 }
 
 type UpdateLocalUserRequest struct {

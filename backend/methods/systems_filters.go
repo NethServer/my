@@ -32,9 +32,11 @@ func GetSystemFilters(c *gin.Context) {
 	}
 
 	type Creator struct {
-		UserID string `json:"user_id"`
-		Name   string `json:"name"`
-		Email  string `json:"email"`
+		UserID           string `json:"user_id"`
+		Name             string `json:"name"`
+		Email            string `json:"email"`
+		OrganizationID   string `json:"organization_id"`
+		OrganizationName string `json:"organization_name"`
 	}
 
 	type ProductVersions struct {
@@ -93,7 +95,9 @@ func GetSystemFilters(c *gin.Context) {
 			SELECT DISTINCT
 				created_by->>'user_id' as user_id,
 				created_by->>'name' as name,
-				created_by->>'email' as email
+				created_by->>'email' as email,
+				created_by->>'organization_id' as organization_id,
+				created_by->>'organization_name' as organization_name
 			FROM systems
 			WHERE deleted_at IS NULL
 				AND created_by IS NOT NULL
@@ -113,21 +117,30 @@ func GetSystemFilters(c *gin.Context) {
 		}
 		defer func() { _ = rows.Close() }()
 
+		// Dedupe by user_id: the same user can appear with different creator orgs
+		// (created_by_organization_id attribution), but the option list carries one
+		// entry per user — the org is attached only to label homonyms in the UI.
 		creators = make([]Creator, 0)
+		seen := make(map[string]bool)
 		for rows.Next() {
-			var uid, name, email *string
-			if err := rows.Scan(&uid, &name, &email); err != nil {
+			var uid, name, email, orgID, orgName *string
+			if err := rows.Scan(&uid, &name, &email, &orgID, &orgName); err != nil {
 				continue
 			}
-			if uid != nil && name != nil {
-				emailValue := ""
-				if email != nil {
-					emailValue = *email
+			if uid != nil && name != nil && !seen[*uid] {
+				seen[*uid] = true
+				deref := func(s *string) string {
+					if s != nil {
+						return *s
+					}
+					return ""
 				}
 				creators = append(creators, Creator{
-					UserID: *uid,
-					Name:   *name,
-					Email:  emailValue,
+					UserID:           *uid,
+					Name:             *name,
+					Email:            deref(email),
+					OrganizationID:   deref(orgID),
+					OrganizationName: deref(orgName),
 				})
 			}
 		}

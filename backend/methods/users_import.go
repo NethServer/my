@@ -416,7 +416,7 @@ func ConfirmUsersImport(c *gin.Context) {
 // createUserFromImportRow creates a new user from an import row and appends the result.
 func createUserFromImportRow(c *gin.Context, userService *local.LocalUserService, user *models.User, row models.ImportRow, result *models.ImportConfirmResult) {
 	createReq := csvimport.UserDataToCreateRequest(row.Data)
-	account, createErr := userService.CreateUser(createReq, user.ID, user.OrganizationID)
+	account, createErr := userService.CreateUser(createReq, models.NewOrgCreatorFromUser(*user), user.OrganizationID)
 	if createErr != nil {
 		result.Failed++
 		result.Results = append(result.Results, models.ImportResultRow{
