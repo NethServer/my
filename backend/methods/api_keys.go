@@ -36,7 +36,7 @@ func CreateAPIKey(c *gin.Context) {
 
 	var req models.CreateAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
 		return
 	}
 
@@ -79,7 +79,9 @@ func CreateAPIKey(c *gin.Context) {
 				},
 			}))
 		case strings.Contains(err.Error(), "invalid mode"):
-			c.JSON(http.StatusBadRequest, response.BadRequest(err.Error(), nil))
+			c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+				{Key: "mode", Message: "invalid_mode", Value: req.Mode},
+			}))
 		default:
 			logger.LogBusinessOperation(c, "api-keys", "create", "api_key", "", false, err)
 			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to create api key", nil))

@@ -83,13 +83,24 @@ func CreateSystem(c *gin.Context) {
 			return
 		}
 		now := time.Now()
-		if (request.CreatedAt != nil && request.CreatedAt.After(now)) ||
-			(request.RegisteredAt != nil && request.RegisteredAt.After(now)) {
-			c.JSON(http.StatusBadRequest, response.BadRequest("created_at/registered_at cannot be in the future", nil))
-			return
+		var validationErrors []response.ValidationError
+		if request.CreatedAt != nil && request.CreatedAt.After(now) {
+			validationErrors = append(validationErrors, response.ValidationError{
+				Key: "created_at", Message: "cannot_be_in_future", Value: request.CreatedAt.Format(time.RFC3339),
+			})
+		}
+		if request.RegisteredAt != nil && request.RegisteredAt.After(now) {
+			validationErrors = append(validationErrors, response.ValidationError{
+				Key: "registered_at", Message: "cannot_be_in_future", Value: request.RegisteredAt.Format(time.RFC3339),
+			})
 		}
 		if request.CreatedAt != nil && request.RegisteredAt != nil && request.RegisteredAt.Before(*request.CreatedAt) {
-			c.JSON(http.StatusBadRequest, response.BadRequest("registered_at cannot precede created_at", nil))
+			validationErrors = append(validationErrors, response.ValidationError{
+				Key: "registered_at", Message: "cannot_precede_created_at", Value: request.RegisteredAt.Format(time.RFC3339),
+			})
+		}
+		if len(validationErrors) > 0 {
+			c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", validationErrors))
 			return
 		}
 	}
@@ -303,10 +314,12 @@ func UpdateSystem(c *gin.Context) {
 	}
 	// Reassignment requires the system to be registered (per-system resources
 	// are keyed by system_key, which is only assigned at registration). Map
-	// the precondition error to 400 instead of letting HandleAccessError fall
-	// through to 500.
+	// the precondition error to a structured 400 instead of letting
+	// HandleAccessError fall through to 500.
 	if err != nil && strings.Contains(err.Error(), "cannot reassign organization") {
-		c.JSON(http.StatusBadRequest, response.BadRequest(err.Error(), nil))
+		c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+			{Key: "organization_id", Message: "system_not_registered", Value: request.OrganizationID},
+		}))
 		return
 	}
 	if helpers.HandleAccessError(c, err, "system", systemID) {

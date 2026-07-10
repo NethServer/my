@@ -977,7 +977,7 @@ func ResetUserPassword(c *gin.Context) {
 		Password string `json:"password"`
 	}
 	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
-		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body", nil))
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
 		return
 	}
 
