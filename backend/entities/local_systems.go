@@ -341,12 +341,13 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	// Single query with COUNT(*) OVER() to get total count + paginated results
 	query := fmt.Sprintf(`
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
-		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.deleted_at, s.registered_at, s.suspended_at, s.suspended_by_org_id, s.created_by, s.last_inventory_at,
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.deleted_at, s.registered_at, s.suspended_at, s.suspended_by_org_id, s.created_by, h.last_heartbeat, s.last_inventory_at,
 		       COALESCE(uo.name, 'Owner') as organization_name,
 		       COALESCE(uo.org_type, 'owner') as organization_type,
 		       COALESCE(uo.db_id, '') as organization_db_id,
 		       COUNT(*) OVER() as total_count
 		FROM systems s
+		LEFT JOIN system_heartbeats h ON s.id = h.system_id
 		LEFT JOIN unified_organizations uo ON s.organization_id = uo.logto_id
 		WHERE %s
 		ORDER BY %s
@@ -370,14 +371,14 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		system := &models.System{}
 		var customDataJSON, createdByJSON []byte
 		var fqdn, ipv4Address, ipv6Address, version sql.NullString
-		var deletedAt, registeredAt, suspendedAt, lastInventory sql.NullTime
+		var deletedAt, registeredAt, suspendedAt, lastHeartbeat, lastInventory sql.NullTime
 		var suspendedByOrgID sql.NullString
 		var organizationName, organizationType, organizationDBID sql.NullString
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.LogtoID,
-			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &deletedAt, &registeredAt, &suspendedAt, &suspendedByOrgID, &createdByJSON, &lastInventory,
+			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &deletedAt, &registeredAt, &suspendedAt, &suspendedByOrgID, &createdByJSON, &lastHeartbeat, &lastInventory,
 			&organizationName, &organizationType, &organizationDBID,
 			&totalCount,
 		)
@@ -412,7 +413,10 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 			system.SuspendedByOrgID = &suspendedByOrgID.String
 		}
 
-		// Set last_inventory_at if present
+		// Set heartbeat and inventory timestamps if present
+		if lastHeartbeat.Valid {
+			system.LastHeartbeat = &lastHeartbeat.Time
+		}
 		if lastInventory.Valid {
 			system.LastInventory = &lastInventory.Time
 		}
