@@ -2068,6 +2068,25 @@ components:
             system ownership and visibility stay governed by organization_id.
             Empty = attributed to the caller's organization.
           example: "0lomt7qqpbue"
+        created_at:
+          type: string
+          format: date-time
+          description: >-
+            Optional. Creation timestamp the system already has in an external
+            source of record (e.g. a bulk import), used instead of the API call
+            time. Honored only for owner or distributor callers; cannot be in
+            the future.
+          example: "2019-03-18T12:20:53Z"
+        registered_at:
+          type: string
+          format: date-time
+          description: >-
+            Optional. Registration timestamp the system already has in an
+            external source of record. The system is created already registered,
+            so POST /api/systems/register is not needed (and would return 409).
+            Honored only for owner or distributor callers; cannot be in the
+            future or precede created_at.
+          example: "2021-01-21T17:24:10Z"
 
     UpdateSystemInput:
       type: object

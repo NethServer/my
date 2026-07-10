@@ -87,6 +87,13 @@ type CreateSystemRequest struct {
 	// governed by OrganizationID. Resolved via
 	// LocalOrganizationService.ResolveCreatedByOrg.
 	CreatedByOrganizationID string `json:"created_by_organization_id,omitempty" structs:"-"`
+	// CreatedAt/RegisteredAt, when set by an owner or distributor, carry the
+	// timestamps a system already has in an external source of record (e.g. a bulk
+	// import), instead of stamping the API call time. RegisteredAt makes the system
+	// born registered: /api/systems/register is not needed and would return 409.
+	// Neither may be in the future.
+	CreatedAt    *time.Time `json:"created_at,omitempty" structs:"-"`
+	RegisteredAt *time.Time `json:"registered_at,omitempty" structs:"-"`
 }
 
 // UpdateSystemRequest represents the request payload for updating an existing system

@@ -73,6 +73,27 @@ func CreateSystem(c *gin.Context) {
 		creatorInfo.AttributeToOrg(createdByOrgID, createdByOrgName)
 	}
 
+	// created_at/registered_at overrides carry the timestamps a system already has
+	// in an external source of record (e.g. a bulk import). Owner/distributor only,
+	// never in the future.
+	if request.CreatedAt != nil || request.RegisteredAt != nil {
+		role := strings.ToLower(user.OrgRole)
+		if role != "owner" && role != "distributor" {
+			c.JSON(http.StatusForbidden, response.Forbidden("access denied: only owner or distributor can set created_at/registered_at", nil))
+			return
+		}
+		now := time.Now()
+		if (request.CreatedAt != nil && request.CreatedAt.After(now)) ||
+			(request.RegisteredAt != nil && request.RegisteredAt.After(now)) {
+			c.JSON(http.StatusBadRequest, response.BadRequest("created_at/registered_at cannot be in the future", nil))
+			return
+		}
+		if request.CreatedAt != nil && request.RegisteredAt != nil && request.RegisteredAt.Before(*request.CreatedAt) {
+			c.JSON(http.StatusBadRequest, response.BadRequest("registered_at cannot precede created_at", nil))
+			return
+		}
+	}
+
 	// Create system with automatic secret generation
 	system, err := systemsService.CreateSystem(&request, creatorInfo, user.OrgRole, user.OrganizationID)
 	if err != nil {

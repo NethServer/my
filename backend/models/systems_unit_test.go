@@ -136,6 +136,8 @@ func TestCreateSystemRequestStructure(t *testing.T) {
 }
 
 func TestCreateSystemRequestJSONSerialization(t *testing.T) {
+	createdAt := time.Date(2019, 3, 18, 12, 20, 53, 0, time.UTC)
+	registeredAt := time.Date(2021, 1, 21, 17, 24, 10, 0, time.UTC)
 	req := CreateSystemRequest{
 		Name:           "JSON Create System",
 		OrganizationID: "org-789",
@@ -145,6 +147,8 @@ func TestCreateSystemRequestJSONSerialization(t *testing.T) {
 			"backup":      "enabled",
 			"monitoring":  "prometheus",
 		},
+		CreatedAt:    &createdAt,
+		RegisteredAt: &registeredAt,
 	}
 
 	jsonData, err := json.Marshal(req)
@@ -158,6 +162,8 @@ func TestCreateSystemRequestJSONSerialization(t *testing.T) {
 	assert.Equal(t, req.Name, unmarshaledReq.Name)
 	assert.Equal(t, req.OrganizationID, unmarshaledReq.OrganizationID)
 	assert.Equal(t, req.CustomData, unmarshaledReq.CustomData)
+	assert.Equal(t, createdAt.Unix(), unmarshaledReq.CreatedAt.Unix())
+	assert.Equal(t, registeredAt.Unix(), unmarshaledReq.RegisteredAt.Unix())
 }
 
 func TestUpdateSystemRequestStructure(t *testing.T) {

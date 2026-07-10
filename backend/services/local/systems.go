@@ -79,6 +79,13 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 
 	now := time.Now()
 
+	// Honor the created_at override (validated by the handler: owner/distributor
+	// only, not in the future); default to the API call time.
+	createdAt := now
+	if request.CreatedAt != nil {
+		createdAt = *request.CreatedAt
+	}
+
 	// Convert custom_data to JSON for storage
 	customDataJSON, err := json.Marshal(request.CustomData)
 	if err != nil {
@@ -93,12 +100,12 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 
 	// Insert system into database (type starts as NULL, status defaults to 'unknown' until first inventory)
 	query := `
-		INSERT INTO systems (id, name, type, status, system_key, system_secret_public, system_secret_sha256, organization_id, custom_data, notes, created_at, updated_at, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		INSERT INTO systems (id, name, type, status, system_key, system_secret_public, system_secret_sha256, organization_id, custom_data, notes, created_at, updated_at, created_by, registered_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	`
 
 	_, err = database.DB.Exec(query, systemID, request.Name, nil, "unknown", systemKey, publicPart, hashedSecretSHA256, request.OrganizationID,
-		customDataJSON, request.Notes, now, now, createdByJSON)
+		customDataJSON, request.Notes, createdAt, now, createdByJSON, request.RegisteredAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create system: %w", err)
 	}
@@ -123,8 +130,9 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 		CustomData:   request.CustomData,
 		SystemSecret: fullToken, // Return full token only during creation (my_<public>.<secret>)
 		Notes:        request.Notes,
-		CreatedAt:    now,
+		CreatedAt:    createdAt,
 		UpdatedAt:    now,
+		RegisteredAt: request.RegisteredAt,
 		CreatedBy:    *creatorInfo,
 	}
 
