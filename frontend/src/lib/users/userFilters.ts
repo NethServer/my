@@ -16,9 +16,17 @@ export interface OrganizationItem {
   type: string
 }
 
+export interface CreatedByItem {
+  user_id: string
+  name: string
+  email: string
+  organization_name: string
+}
+
 export interface UserFiltersData {
   roles: UserRole[]
   organizations: OrganizationItem[]
+  created_by: CreatedByItem[]
 }
 
 interface UserFiltersResponse {

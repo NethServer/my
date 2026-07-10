@@ -85,6 +85,7 @@ const {
   organizationFilter,
   roleFilter,
   statusFilter,
+  createdByFilter,
   sortBy,
   sortDescending,
   resetFilters,
@@ -137,7 +138,8 @@ const areDefaultFiltersApplied = computed(() => {
     statusFilter.value.length === 2 &&
     statusFilter.value.some((o) => o.id === 'enabled') &&
     statusFilter.value.some((o) => o.id === 'suspended') &&
-    !statusFilter.value.some((o) => o.id === 'deleted')
+    !statusFilter.value.some((o) => o.id === 'deleted') &&
+    createdByFilter.value.length === 0
   )
 })
 
@@ -165,6 +167,17 @@ const roleFilterOptions = computed<NeDropdownFilterV2Option[]>(() => {
     id: role.id,
     label: t(`user_roles.${normalize(role.name)}`),
     description: t(`user_roles.${normalize(role.name)}_description`),
+  }))
+})
+
+const createdByFilterOptions = computed<NeDropdownFilterV2Option[]>(() => {
+  if (!userFiltersState.value.data?.created_by) {
+    return []
+  }
+  return userFiltersState.value.data.created_by.map((createdBy) => ({
+    id: createdBy.user_id,
+    label: createdBy.name,
+    description: createdBy.organization_name,
   }))
 })
 
@@ -378,6 +391,21 @@ const goToAccount = () => {
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
           />
+          <!-- created by filter -->
+          <NeDropdownFilterV2
+            v-model="createdByFilter"
+            kind="checkbox"
+            :disabled="userFiltersState.status === 'pending'"
+            :label="t('systems.created_by')"
+            :options="createdByFilterOptions"
+            show-options-filter
+            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
+          />
           <!-- status filter -->
           <NeDropdownFilterV2
             v-model="statusFilter"
@@ -403,6 +431,7 @@ const goToAccount = () => {
               { id: 'name', label: t('users.name') },
               { id: 'email', label: t('users.email') },
               { id: 'organization', label: t('users.organization') },
+              { id: 'creator_name', label: t('systems.created_by') },
               { id: 'status', label: t('common.status') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
@@ -443,7 +472,7 @@ const goToAccount = () => {
       :aria-label="$t('users.title')"
       card-breakpoint="2xl"
       :loading="state.status === 'pending'"
-      :skeleton-columns="4"
+      :skeleton-columns="5"
       :skeleton-rows="7"
     >
       <NeTableHead>
@@ -453,7 +482,10 @@ const goToAccount = () => {
         <NeTableHeadCell sortable column-key="organization" @sort="onSort">{{
           $t('users.organization')
         }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('users.roles') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('users.role') }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="creator_name" @sort="onSort">{{
+          $t('systems.created_by')
+        }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="status" @sort="onSort">{{
           $t('common.status')
         }}</NeTableHeadCell>
@@ -509,6 +541,30 @@ const goToAccount = () => {
                 :key="role.id"
                 :role="role.name"
               />
+            </div>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('systems.created_by')">
+            <div :class="{ 'opacity-50': item.deleted_at }">
+              <template v-if="item.created_by">
+                <div class="flex items-center gap-2">
+                  <UserAvatar
+                    size="sm"
+                    :is-owner="item.created_by.username === 'owner'"
+                    :name="item.created_by.name"
+                    :logto-id="item.created_by.user_id"
+                  />
+                  <div class="space-y-0.5">
+                    <div>{{ item.created_by.name || '-' }}</div>
+                    <div
+                      v-if="item.created_by.organization_name"
+                      class="text-gray-500 dark:text-gray-400"
+                    >
+                      {{ item.created_by.organization_name }}
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <template v-else>-</template>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.status')">
