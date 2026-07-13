@@ -15,7 +15,9 @@ type Organization struct {
 	Type    string `json:"type" structs:"type"` // owner, distributor, reseller, customer
 }
 
-// SystemCreator represents the user who created the system
+// SystemCreator represents the user who created the system. The user identity
+// fields are point-in-time; OrganizationName is kept in sync on org renames by
+// propagateCreatorOrgRename.
 type SystemCreator struct {
 	UserID           string `json:"user_id" structs:"user_id"`
 	Username         string `json:"username" structs:"username"`

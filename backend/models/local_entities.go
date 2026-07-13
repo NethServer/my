@@ -42,9 +42,11 @@ type LocalDistributor struct {
 	CreatedBy *OrgCreator `json:"created_by,omitempty"`
 }
 
-// OrgCreator is a point-in-time snapshot of the user who created an organization.
+// OrgCreator is a snapshot of the user who created an organization.
 // It is stored in custom_data.createdByUser at creation and surfaced as the
 // top-level created_by field on the organization, mirroring SystemCreator.
+// The user identity fields are point-in-time; OrganizationName is kept in
+// sync on org renames by propagateCreatorOrgRename.
 type OrgCreator struct {
 	UserID           string `json:"user_id"`
 	Username         string `json:"username"`

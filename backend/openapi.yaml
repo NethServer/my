@@ -1256,6 +1256,8 @@ components:
             only; target must be a distributor) and customer creation (owner or
             distributor; target must be a reseller or distributor) within the
             caller's hierarchy. Empty = owned by the caller's organization.
+            When set, the created_by snapshot in responses shows the attributed
+            org and carries on_behalf_of: true.
           example: "eeex9cffzsd7"
         custom_data:
           type: object
@@ -1975,7 +1977,7 @@ components:
 
     OrgCreator:
       type: object
-      description: Point-in-time snapshot of the user who created an organization (distributor, reseller or customer)
+      description: Snapshot of the user who created an organization (distributor, reseller or customer). The user identity fields are point-in-time; organization_name is kept in sync when the referenced organization is renamed.
       properties:
         user_id:
           type: string
@@ -2075,6 +2077,8 @@ components:
             with the target within the caller's hierarchy. Display/audit only:
             system ownership and visibility stay governed by organization_id.
             Empty = attributed to the caller's organization.
+            When set, the created_by snapshot in responses shows the attributed
+            org and carries on_behalf_of: true.
           example: "0lomt7qqpbue"
         created_at:
           type: string
