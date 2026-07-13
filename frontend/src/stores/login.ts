@@ -16,6 +16,10 @@ import { canImpersonateUsers } from '@/lib/permissions'
 
 export const TOKEN_REFRESH_INTERVAL = 20 * 60 * 1000 // 20 minutes
 
+// refresh ahead of the real expiry so an in-flight request never carries an
+// expired token (which would trigger the 401 logout in the interceptor)
+const TOKEN_EXPIRY_MARGIN = 60 * 1000 // 1 minute
+
 export type UserInfo = {
   email: string
   id: string
@@ -39,6 +43,10 @@ export const useLoginStore = defineStore('login', () => {
   const accessToken = ref<string>('')
   const jwtToken = ref<string>('')
   const refreshToken = ref<string>('')
+  // per-tab bookkeeping: each tab exchanges its own token pair, so refresh
+  // timing must not be shared across tabs (e.g. via localStorage)
+  const tokenRefreshedAt = ref<number>(0)
+  const tokenExpiresAt = ref<number>(0)
   const userInfo = ref<UserInfo | undefined>()
   const loadingUserInfo = ref<boolean>(true)
   const avatarVersion = ref<number>(0)
@@ -117,6 +125,8 @@ export const useLoginStore = defineStore('login', () => {
       })
       jwtToken.value = res.data.data.token
       refreshToken.value = res.data.data.refresh_token
+      tokenRefreshedAt.value = Date.now()
+      tokenExpiresAt.value = Date.now() + res.data.data.expires_in * 1000
       const user = res.data.data.user as UserInfo
       userInfo.value = user
 
@@ -126,10 +136,6 @@ export const useLoginStore = defineStore('login', () => {
       // Load locale from user preference
       const locale = getPreference('locale', user.email) || getBrowserLocale()
       setLocale(locale)
-
-      // write last token refresh time to local storage
-      const tokenRefreshedTime = useStorage(`tokenRefreshed-${user.email}`, 0)
-      tokenRefreshedTime.value = Date.now()
 
       // save last user to local storage: this is used to load the theme and locale before user info is fetched
       const lastUser = useStorage('lastUser', '')
@@ -164,19 +170,49 @@ export const useLoginStore = defineStore('login', () => {
     }
   }
 
-  const doRefreshToken = async () => {
+  const shouldRefreshToken = () => {
+    // impersonation tokens have their own lifecycle and cannot be refreshed
+    if (!jwtToken.value || isImpersonating.value) {
+      return false
+    }
+    const now = Date.now()
+
+    if (tokenExpiresAt.value && now > tokenExpiresAt.value - TOKEN_EXPIRY_MARGIN) {
+      return true
+    }
+    return now - tokenRefreshedAt.value > TOKEN_REFRESH_INTERVAL
+  }
+
+  // deduplicate concurrent refreshes: the backend rotates the refresh token on
+  // every use, so two parallel calls with the same token would look like theft
+  let refreshPromise: Promise<void> | null = null
+
+  const doRefreshToken = () => {
     // don't refresh if we are impersonating
     if (isImpersonating.value) {
-      return
+      return Promise.resolve()
     }
 
-    try {
-      const res = await axios.post(`${API_URL}/auth/refresh`, { refresh_token: refreshToken.value })
-      jwtToken.value = res.data.data.token
-      refreshToken.value = res.data.data.refresh_token
-    } catch (error) {
-      console.error('Cannot refresh token:', error)
+    if (refreshPromise) {
+      return refreshPromise
     }
+
+    refreshPromise = (async () => {
+      try {
+        const res = await axios.post(`${API_URL}/auth/refresh`, {
+          refresh_token: refreshToken.value,
+        })
+        jwtToken.value = res.data.data.token
+        refreshToken.value = res.data.data.refresh_token
+        tokenRefreshedAt.value = Date.now()
+        tokenExpiresAt.value = Date.now() + res.data.data.expires_in * 1000
+      } catch (error) {
+        console.error('Cannot refresh token:', error)
+      } finally {
+        refreshPromise = null
+      }
+    })()
+    return refreshPromise
   }
 
   const impersonateUser = async (userId: string) => {
@@ -213,6 +249,8 @@ export const useLoginStore = defineStore('login', () => {
       // Restore original user info
       jwtToken.value = res.token
       refreshToken.value = res.refresh_token
+      tokenRefreshedAt.value = Date.now()
+      tokenExpiresAt.value = Date.now() + res.expires_in * 1000
       userInfo.value = res.user as UserInfo
       isImpersonating.value = false
       impersonatedUser.value = undefined
@@ -244,6 +282,7 @@ export const useLoginStore = defineStore('login', () => {
     impersonateExpiration,
     refreshAvatar,
     fetchTokenAndUserInfo,
+    shouldRefreshToken,
     doRefreshToken,
     impersonateUser,
     exitImpersonation,

@@ -319,15 +319,15 @@ export const useNotificationsStore = defineStore('notifications', () => {
 
   const copyCommandToClipboard = (notification: NeNotificationV2) => {
     const payload = getAxiosErrorNotificationPayload(notification)
-    const jwtToken = loginStore.jwtToken
     const url = payload?.axiosError?.config?.url ?? ''
     const method = payload?.axiosError?.config?.method?.toUpperCase() ?? 'GET'
-    const tokenChunk = jwtToken ? `-H 'Authorization: Bearer ${jwtToken}'` : ''
+    // never embed the live JWT: the copied command can end up in tickets or chats
+    const tokenChunk = `-H 'Authorization: Bearer <YOUR_TOKEN>'`
     const data = payload?.axiosError?.config?.data
     const dataChunk = data ? `-d ${JSON.stringify(data)}` : ''
 
     const curlCommand =
-      `curl -X ${method} '${url}' --insecure -H 'Content-Type: application/json' ${tokenChunk} ${dataChunk}`.trim()
+      `curl -X ${method} '${url}' -H 'Content-Type: application/json' ${tokenChunk} ${dataChunk}`.trim()
     navigator.clipboard.writeText(curlCommand)
   }
 

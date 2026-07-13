@@ -1,10 +1,9 @@
 //  Copyright (C) 2025 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { TOKEN_REFRESH_INTERVAL, useLoginStore } from '@/stores/login'
+import { useLoginStore } from '@/stores/login'
 import axios, { type InternalAxiosRequestConfig } from 'axios'
 import { API_URL } from './config'
-import { useStorage } from '@vueuse/core'
 import { isValidationErrorCode } from './validation'
 import { useNotificationsStore } from '@/stores/notifications'
 import router from '@/router'
@@ -16,20 +15,22 @@ export const configureAxios = () => {
 
   // request interceptor
   axios.interceptors.request.use(
-    function (config: InternalAxiosRequestConfig) {
+    async function (config: InternalAxiosRequestConfig) {
       // check if token needs to be refreshed
       if (
         config.url &&
         loginStore.userInfo?.email &&
-        ![`${API_URL}/auth/exchange`, `${API_URL}/auth/refresh`].includes(config.url)
+        ![`${API_URL}/auth/exchange`, `${API_URL}/auth/refresh`].includes(config.url) &&
+        loginStore.shouldRefreshToken()
       ) {
-        const tokenRefreshedTime = useStorage(`tokenRefreshed-${loginStore.userInfo.email}`, 0)
-        const now = Date.now()
-        const tokenAge = now - tokenRefreshedTime.value
+        // wait for the refresh: the access token is short-lived, so sending
+        // the request with a stale one would hit the 401 logout below
+        await loginStore.doRefreshToken()
 
-        if (tokenAge > TOKEN_REFRESH_INTERVAL) {
-          tokenRefreshedTime.value = now
-          loginStore.doRefreshToken()
+        // the Authorization header was built by the caller with the old
+        // token, swap in the fresh one
+        if (config.headers?.Authorization && loginStore.jwtToken) {
+          config.headers.Authorization = `Bearer ${loginStore.jwtToken}`
         }
       }
       return config
