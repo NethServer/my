@@ -45,7 +45,12 @@ func ValidateVAT(c *gin.Context) {
 
 	excludeID := c.Query("exclude_id") // Optional parameter for updates
 
-	exists, err := helpers.CheckVATExists(vat, entityType, excludeID)
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	exists, err := helpers.CheckVATExists(vat, entityType, excludeID, user.OrgRole, user.OrganizationID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(err.Error(), nil))
 		return

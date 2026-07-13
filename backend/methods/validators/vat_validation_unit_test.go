@@ -50,6 +50,15 @@ func setupGinTest() (*gin.Engine, sqlmock.Sqlmock, *sql.DB, func()) {
 	return router, mock, mockDB, cleanup
 }
 
+// testUserMiddleware injects an authenticated user into the context, standing
+// in for the real auth middleware.
+func testUserMiddleware(orgRole, orgID string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set("user", &models.User{OrgRole: orgRole, OrganizationID: orgID})
+		c.Next()
+	}
+}
+
 func TestValidateVAT_Success(t *testing.T) {
 	_, mock, _, cleanup := setupGinTest()
 	defer cleanup()
@@ -59,6 +68,8 @@ func TestValidateVAT_Success(t *testing.T) {
 		entityType     string
 		vatParam       string
 		excludeIDParam string
+		orgRole        string
+		orgID          string
 		mockSetup      func()
 		expectedExists bool
 	}{
@@ -67,6 +78,7 @@ func TestValidateVAT_Success(t *testing.T) {
 			entityType:     "customers",
 			vatParam:       "12345678901",
 			excludeIDParam: "",
+			orgRole:        "Owner",
 			mockSetup: func() {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM customers`).
 					WithArgs("12345678901", "").
@@ -79,6 +91,7 @@ func TestValidateVAT_Success(t *testing.T) {
 			entityType:     "distributors",
 			vatParam:       "98765432109",
 			excludeIDParam: "",
+			orgRole:        "Owner",
 			mockSetup: func() {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM distributors`).
 					WithArgs("98765432109", "").
@@ -91,11 +104,36 @@ func TestValidateVAT_Success(t *testing.T) {
 			entityType:     "resellers",
 			vatParam:       "11111111111",
 			excludeIDParam: "reseller-123",
+			orgRole:        "Owner",
 			mockSetup: func() {
 				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM resellers`).
 					WithArgs("11111111111", "reseller-123").
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 			},
+			expectedExists: false,
+		},
+		{
+			name:           "Reseller check on customers is scoped to its own creations",
+			entityType:     "customers",
+			vatParam:       "12345678901",
+			excludeIDParam: "",
+			orgRole:        "Reseller",
+			orgID:          "reseller-org-1",
+			mockSetup: func() {
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM customers`).
+					WithArgs("12345678901", "", "reseller-org-1").
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+			},
+			expectedExists: false,
+		},
+		{
+			name:           "Reseller has no visibility on resellers",
+			entityType:     "resellers",
+			vatParam:       "12345678901",
+			excludeIDParam: "",
+			orgRole:        "Reseller",
+			orgID:          "reseller-org-1",
+			mockSetup:      func() {}, // No query: caller has no visibility
 			expectedExists: false,
 		},
 	}
@@ -109,7 +147,7 @@ func TestValidateVAT_Success(t *testing.T) {
 			tt.mockSetup()
 
 			// Setup route
-			testRouter.GET("/validators/vat/:entity_type", ValidateVAT)
+			testRouter.GET("/validators/vat/:entity_type", testUserMiddleware(tt.orgRole, tt.orgID), ValidateVAT)
 
 			// Create request
 			url := "/validators/vat/" + tt.entityType + "?vat=" + tt.vatParam
@@ -189,7 +227,7 @@ func TestValidateVAT_ValidationErrors(t *testing.T) {
 			testRouter := gin.New()
 
 			// Setup route
-			testRouter.GET("/validators/vat/:entity_type", ValidateVAT)
+			testRouter.GET("/validators/vat/:entity_type", testUserMiddleware("Owner", ""), ValidateVAT)
 
 			// Create request
 			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
@@ -228,7 +266,7 @@ func TestValidateVAT_DatabaseError(t *testing.T) {
 		WillReturnError(sql.ErrConnDone)
 
 	// Setup route
-	testRouter.GET("/validators/vat/:entity_type", ValidateVAT)
+	testRouter.GET("/validators/vat/:entity_type", testUserMiddleware("Owner", ""), ValidateVAT)
 
 	// Create request
 	req := httptest.NewRequest(http.MethodGet, "/validators/vat/customers?vat=12345678901", nil)
@@ -267,7 +305,7 @@ func TestValidateVAT_AllEntityTypes(t *testing.T) {
 				WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
 			// Setup route
-			testRouter.GET("/validators/vat/:entity_type", ValidateVAT)
+			testRouter.GET("/validators/vat/:entity_type", testUserMiddleware("Owner", ""), ValidateVAT)
 
 			// Create request
 			req := httptest.NewRequest(http.MethodGet, "/validators/vat/"+entityType+"?vat=12345678901", nil)
@@ -303,7 +341,7 @@ func TestValidateVAT_ResponseFormat(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
 	// Setup route
-	testRouter.GET("/validators/vat/:entity_type", ValidateVAT)
+	testRouter.GET("/validators/vat/:entity_type", testUserMiddleware("Owner", ""), ValidateVAT)
 
 	// Create request
 	req := httptest.NewRequest(http.MethodGet, "/validators/vat/customers?vat=12345678901", nil)
