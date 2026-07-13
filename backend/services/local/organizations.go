@@ -926,6 +926,10 @@ func (s *LocalOrganizationService) UpdateDistributor(id string, req *models.Upda
 		Str("updated_by", updatedByUserID).
 		Msg("Distributor updated successfully with Logto sync")
 
+	if distributor.Name != currentDistributor.Name && distributor.LogtoID != nil {
+		s.propagateCreatorOrgRename(*distributor.LogtoID, distributor.Name)
+	}
+
 	refreshUnifiedOrganizationsAsync()
 	return distributor, nil
 }
@@ -1143,6 +1147,10 @@ func (s *LocalOrganizationService) UpdateReseller(id string, req *models.UpdateL
 		Str("reseller_name", reseller.Name).
 		Str("updated_by", updatedByUserID).
 		Msg("Reseller updated successfully with Logto sync")
+
+	if reseller.Name != currentReseller.Name && reseller.LogtoID != nil {
+		s.propagateCreatorOrgRename(*reseller.LogtoID, reseller.Name)
+	}
 
 	refreshUnifiedOrganizationsAsync()
 	return reseller, nil
@@ -1362,8 +1370,40 @@ func (s *LocalOrganizationService) UpdateCustomer(id string, req *models.UpdateL
 		Str("updated_by", updatedByUserID).
 		Msg("Customer updated successfully with Logto sync")
 
+	if customer.Name != currentCustomer.Name && customer.LogtoID != nil {
+		s.propagateCreatorOrgRename(*customer.LogtoID, customer.Name)
+	}
+
 	refreshUnifiedOrganizationsAsync()
 	return customer, nil
+}
+
+// propagateCreatorOrgRename refreshes the organization_name stored in creator
+// snapshots (custom_data.createdByUser on organizations, the created_by JSONB
+// column on systems and users) after the referenced organization is renamed.
+// The snapshot is display/audit only — RBAC keys on custom_data.createdBy and
+// systems.organization_id — so this runs best-effort after the rename commits:
+// a failure leaves a stale display name, never inconsistent permissions.
+// updated_at is intentionally left untouched on the affected rows.
+func (s *LocalOrganizationService) propagateCreatorOrgRename(orgLogtoID, newName string) {
+	statements := map[string]string{
+		"distributors": `UPDATE distributors SET custom_data = jsonb_set(custom_data, '{createdByUser,organization_name}', to_jsonb($2::text)) WHERE custom_data->'createdByUser'->>'organization_id' = $1 AND custom_data->'createdByUser'->>'organization_name' IS DISTINCT FROM $2`,
+		"resellers":    `UPDATE resellers SET custom_data = jsonb_set(custom_data, '{createdByUser,organization_name}', to_jsonb($2::text)) WHERE custom_data->'createdByUser'->>'organization_id' = $1 AND custom_data->'createdByUser'->>'organization_name' IS DISTINCT FROM $2`,
+		"customers":    `UPDATE customers SET custom_data = jsonb_set(custom_data, '{createdByUser,organization_name}', to_jsonb($2::text)) WHERE custom_data->'createdByUser'->>'organization_id' = $1 AND custom_data->'createdByUser'->>'organization_name' IS DISTINCT FROM $2`,
+		"systems":      `UPDATE systems SET created_by = jsonb_set(created_by, '{organization_name}', to_jsonb($2::text)) WHERE created_by->>'organization_id' = $1 AND created_by->>'organization_name' IS DISTINCT FROM $2`,
+		"users":        `UPDATE users SET created_by = jsonb_set(created_by, '{organization_name}', to_jsonb($2::text)) WHERE created_by->>'organization_id' = $1 AND created_by->>'organization_name' IS DISTINCT FROM $2`,
+	}
+
+	for table, query := range statements {
+		if _, err := database.DB.Exec(query, orgLogtoID, newName); err != nil {
+			logger.Warn().
+				Err(err).
+				Str("org_logto_id", orgLogtoID).
+				Str("new_name", newName).
+				Str("table", table).
+				Msg("Failed to propagate organization rename to creator snapshots")
+		}
+	}
 }
 
 // ============================================

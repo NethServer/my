@@ -52,6 +52,11 @@ type OrgCreator struct {
 	Email            string `json:"email"`
 	OrganizationID   string `json:"organization_id"`
 	OrganizationName string `json:"organization_name"`
+	// OnBehalfOf is true when the entity was attributed to a different org via
+	// created_by_organization_id: the user acted on behalf of organization_name
+	// rather than belonging to it. Lets the UI render "created by <user> on
+	// behalf of <org>". Omitted (false) on the default own-org path.
+	OnBehalfOf bool `json:"on_behalf_of,omitempty"`
 }
 
 // NewOrgCreatorFromUser builds an OrgCreator snapshot from the authenticated user.
@@ -83,6 +88,7 @@ func (c *OrgCreator) AttributeToOrg(orgID, orgName string) {
 	}
 	c.OrganizationID = orgID
 	c.OrganizationName = orgName
+	c.OnBehalfOf = true
 }
 
 // ExtractOrgCreator pulls the createdByUser snapshot out of an organization's

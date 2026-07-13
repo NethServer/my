@@ -1968,6 +1968,10 @@ components:
           type: string
           description: Organization name of the creator
           example: "Nethesis Italia"
+        on_behalf_of:
+          type: boolean
+          description: True when the system was attributed to a different organization via created_by_organization_id (the user acted on behalf of organization_name rather than belonging to it). Omitted when false.
+          example: true
 
     OrgCreator:
       type: object
@@ -1997,6 +2001,10 @@ components:
           type: string
           description: Organization name the creator belongs to
           example: "Owner"
+        on_behalf_of:
+          type: boolean
+          description: True when the organization was attributed to a different organization via created_by_organization_id (the user acted on behalf of organization_name rather than belonging to it). Omitted when false.
+          example: true
 
     OrgFiltersData:
       type: object

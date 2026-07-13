@@ -34,6 +34,7 @@ func TestSystemCreatorAttributeToOrg(t *testing.T) {
 
 		assert.Equal(t, "eeex9cffzsd7", c.OrganizationID)
 		assert.Equal(t, "Nethesis Diretta", c.OrganizationName)
+		assert.True(t, c.OnBehalfOf)
 		assert.Equal(t, "kyfy0tlnlk3l", c.UserID)
 		assert.Equal(t, "sviluppo_contratti", c.Username)
 		assert.Equal(t, "Sviluppo - Integrazioni Esterne", c.Name)
@@ -59,6 +60,7 @@ func TestSystemCreatorAttributeToOrg(t *testing.T) {
 		c.AttributeToOrg("obhdyclbfx4t", "Renamed But Same ID")
 		assert.Equal(t, "obhdyclbfx4t", c.OrganizationID)
 		assert.Equal(t, "Nethesis Italia", c.OrganizationName)
+		assert.False(t, c.OnBehalfOf)
 	})
 
 	t.Run("nil receiver is safe", func(t *testing.T) {

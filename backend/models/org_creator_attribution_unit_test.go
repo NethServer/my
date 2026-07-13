@@ -35,6 +35,8 @@ func TestOrgCreatorAttributeToOrg(t *testing.T) {
 		// Org re-pointed to the attributed owner...
 		assert.Equal(t, "eeex9cffzsd7", c.OrganizationID)
 		assert.Equal(t, "Nethesis Diretta", c.OrganizationName)
+		// ...flagged as acting on behalf of that org...
+		assert.True(t, c.OnBehalfOf)
 		// ...but the actual actor is untouched.
 		assert.Equal(t, "kyfy0tlnlk3l", c.UserID)
 		assert.Equal(t, "sviluppo_contratti", c.Username)
@@ -47,6 +49,7 @@ func TestOrgCreatorAttributeToOrg(t *testing.T) {
 		c.AttributeToOrg("", "Whatever")
 		assert.Equal(t, "obhdyclbfx4t", c.OrganizationID)
 		assert.Equal(t, "Nethesis Italia", c.OrganizationName)
+		assert.False(t, c.OnBehalfOf)
 	})
 
 	t.Run("no-op when orgName is empty", func(t *testing.T) {
@@ -61,6 +64,7 @@ func TestOrgCreatorAttributeToOrg(t *testing.T) {
 		c.AttributeToOrg("obhdyclbfx4t", "Renamed But Same ID")
 		assert.Equal(t, "obhdyclbfx4t", c.OrganizationID)
 		assert.Equal(t, "Nethesis Italia", c.OrganizationName)
+		assert.False(t, c.OnBehalfOf)
 	})
 
 	t.Run("nil receiver is safe", func(t *testing.T) {
@@ -94,6 +98,7 @@ func TestOrgCreatorAttributionRoundTrip(t *testing.T) {
 			"email":             creator.Email,
 			"organization_id":   creator.OrganizationID,
 			"organization_name": creator.OrganizationName,
+			"on_behalf_of":      creator.OnBehalfOf,
 		},
 	}
 
@@ -101,6 +106,7 @@ func TestOrgCreatorAttributionRoundTrip(t *testing.T) {
 	assert.NotNil(t, extracted)
 	assert.Equal(t, "eeex9cffzsd7", extracted.OrganizationID)
 	assert.Equal(t, "Nethesis Diretta", extracted.OrganizationName)
+	assert.True(t, extracted.OnBehalfOf)
 	assert.Equal(t, "kyfy0tlnlk3l", extracted.UserID)
 	assert.Equal(t, "sviluppo_contratti", extracted.Username)
 	// Extraction removes the raw key so it is only exposed as the typed field.

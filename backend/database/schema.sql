@@ -290,7 +290,7 @@ COMMENT ON COLUMN systems.system_key IS 'Unique system key for identification (u
 COMMENT ON COLUMN systems.system_secret_public IS 'Public part of token (my_<public>.<secret>) for fast DB lookup';
 COMMENT ON COLUMN systems.system_secret_sha256 IS 'SHA256 hash of secret part (hex_salt:hex_hash)';
 COMMENT ON COLUMN systems.registered_at IS 'Timestamp when system first sent inventory. NULL = not yet registered';
-COMMENT ON COLUMN systems.created_by IS 'JSON object: {user_id, username, organization_id} who created the system';
+COMMENT ON COLUMN systems.created_by IS 'JSON object: {user_id, username, name, email, organization_id, organization_name, on_behalf_of} who created the system; display/audit only, not used for RBAC';
 COMMENT ON COLUMN systems.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted';
 COMMENT ON COLUMN systems.deleted_by_org_id IS 'Organization that caused cascade soft-deletion (for tracking cascade source)';
 
