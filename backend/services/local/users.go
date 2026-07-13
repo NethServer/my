@@ -1573,10 +1573,13 @@ func (s *LocalUserService) generateBaseUsernameFromEmail(email string) string {
 	return baseUsername
 }
 
-// isUsernameExists checks if a username already exists in the local database
+// isUsernameExists checks if a username already exists in the local database.
+// Soft-deleted users are included on purpose: they still exist in Logto (only
+// DestroyUser removes them there), so their username is still taken and Logto
+// would reject a new user reusing it.
 func (s *LocalUserService) isUsernameExists(username string) bool {
 	var count int
-	query := `SELECT COUNT(*) FROM users WHERE username = $1 AND deleted_at IS NULL`
+	query := `SELECT COUNT(*) FROM users WHERE username = $1`
 	err := database.DB.QueryRow(query, username).Scan(&count)
 	if err != nil {
 		logger.Warn().
