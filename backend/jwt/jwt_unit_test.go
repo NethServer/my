@@ -487,12 +487,12 @@ func TestConfigurationFallbacks(t *testing.T) {
 	assert.NoError(t, err) // Should succeed with fallback
 	assert.NotEmpty(t, tokenString)
 
-	// Validate token to check it uses fallback expiration (24 hours)
+	// Validate token to check it uses fallback expiration (30 minutes)
 	claims, err := ValidateCustomToken(tokenString)
 	require.NoError(t, err)
 
-	// Should expire approximately 24 hours from now (with some tolerance)
-	expectedExpiry := time.Now().Add(24 * time.Hour)
+	// Should expire approximately 30 minutes from now (with some tolerance)
+	expectedExpiry := time.Now().Add(30 * time.Minute)
 	assert.True(t, claims.ExpiresAt.Before(expectedExpiry.Add(time.Minute)))
 	assert.True(t, claims.ExpiresAt.After(expectedExpiry.Add(-time.Minute)))
 

@@ -55,7 +55,7 @@ func TestConfigurationDefaults(t *testing.T) {
 	assert.Equal(t, "https://test-tenant.logto.app/oidc/jwks", Config.JWKSEndpoint)
 	assert.Equal(t, "test-secret-key", Config.JWTSecret)
 	assert.Equal(t, "test-domain.com", Config.JWTIssuer)
-	assert.Equal(t, "24h", Config.JWTExpiration)
+	assert.Equal(t, "30m", Config.JWTExpiration)
 	assert.Equal(t, "168h", Config.JWTRefreshExpiration)
 	assert.Equal(t, "test-client-id", Config.LogtoManagementClientID)
 	assert.Equal(t, "test-client-secret", Config.LogtoManagementClientSecret)

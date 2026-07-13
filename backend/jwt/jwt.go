@@ -56,7 +56,7 @@ func GenerateCustomToken(user models.User) (string, error) {
 	// Parse expiration duration
 	expDuration, err := time.ParseDuration(configuration.Config.JWTExpiration)
 	if err != nil {
-		expDuration = 24 * time.Hour // Default fallback
+		expDuration = 30 * time.Minute // Default fallback, mirrors configuration default
 	}
 
 	// Create custom claims

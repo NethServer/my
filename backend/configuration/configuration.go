@@ -181,7 +181,10 @@ func Init() {
 	if os.Getenv("JWT_EXPIRATION") != "" {
 		Config.JWTExpiration = os.Getenv("JWT_EXPIRATION")
 	} else {
-		Config.JWTExpiration = "24h" // Default: 24 hours
+		// Short-lived by design: the access token is held in browser memory
+		// and renewed via the rotating refresh token, so a stolen one has a
+		// small abuse window
+		Config.JWTExpiration = "30m"
 	}
 
 	if os.Getenv("JWT_REFRESH_EXPIRATION") != "" {
