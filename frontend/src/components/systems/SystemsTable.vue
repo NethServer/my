@@ -256,9 +256,11 @@ function onCloseDrawer() {
 }
 
 function getKebabMenuItems(system: System) {
-  let items: NeDropdownItem[] = []
+  const items: NeDropdownItem[] = []
+  const canManage = canManageSystems()
+  const isDeleted = system.status === 'deleted'
 
-  if (canManageSystems() && system.status !== 'deleted') {
+  if (canManage && !isDeleted) {
     items.push({
       id: 'editSystem',
       label: t('common.edit'),
@@ -267,8 +269,7 @@ function getKebabMenuItems(system: System) {
     })
   }
 
-  items = [
-    ...items,
+  items.push(
     {
       id: 'exportToPdf',
       label: t('systems.export_to_pdf'),
@@ -281,50 +282,44 @@ function getKebabMenuItems(system: System) {
       icon: faFileCsv,
       action: () => exportSystem(system, 'csv'),
     },
-  ]
+  )
 
-  if (canManageSystems() && system.status !== 'deleted') {
+  if (canManage && !isDeleted) {
     if (system.suspended_at) {
-      items = [
-        ...items,
-        {
-          id: 'reactivateSystem',
-          label: t('common.reactivate'),
-          icon: faCirclePlay,
-          action: () => showReactivateSystemModal(system),
-        },
-      ]
+      items.push({
+        id: 'reactivateSystem',
+        label: t('common.reactivate'),
+        icon: faCirclePlay,
+        action: () => showReactivateSystemModal(system),
+      })
     } else {
-      items = [
-        ...items,
-        {
+      if (!system.registered_at) {
+        items.push({
           id: 'regenerateSecret',
           label: t('systems.regenerate_secret'),
           icon: faKey,
           action: () => showRegenerateSecretModal(system),
-        },
-        {
-          id: 'suspendSystem',
-          label: t('common.suspend'),
-          icon: faCirclePause,
-          action: () => showSuspendSystemModal(system),
-        },
-      ]
+        })
+      }
+
+      items.push({
+        id: 'suspendSystem',
+        label: t('common.suspend'),
+        icon: faCirclePause,
+        action: () => showSuspendSystemModal(system),
+      })
     }
 
-    items = [
-      ...items,
-      {
-        id: 'deleteSystem',
-        label: t('common.archive'),
-        icon: faBoxArchive,
-        danger: true,
-        action: () => showDeleteSystemModal(system),
-      },
-    ]
+    items.push({
+      id: 'deleteSystem',
+      label: t('common.archive'),
+      icon: faBoxArchive,
+      danger: true,
+      action: () => showDeleteSystemModal(system),
+    })
   }
 
-  if (canManageSystems() && system.status === 'deleted') {
+  if (canManage && isDeleted) {
     items.push({
       id: 'restoreSystem',
       label: t('common.restore'),
@@ -334,17 +329,15 @@ function getKebabMenuItems(system: System) {
   }
 
   if (canDestroySystems()) {
-    items = [
-      ...items,
-      {
-        id: 'destroySystem',
-        label: t('common.destroy'),
-        icon: faBomb,
-        danger: true,
-        action: () => showDestroySystemModal(system),
-      },
-    ]
+    items.push({
+      id: 'destroySystem',
+      label: t('common.destroy'),
+      icon: faBomb,
+      danger: true,
+      action: () => showDestroySystemModal(system),
+    })
   }
+
   return items
 }
 
