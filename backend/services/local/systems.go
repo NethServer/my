@@ -244,7 +244,7 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 			system.LastInventory = &lastInventory.Time
 		}
 
-		// Apply unified status (suspended takes priority over DB status)
+		// Apply unified status (deleted > suspended > DB status)
 		s.applyUnifiedStatus(system)
 
 		// Hide system_key if system is not registered yet
@@ -292,7 +292,7 @@ func (s *LocalSystemsService) GetSystemsByOrganizationPaginated(userID, userOrgI
 		if system.RegisteredAt == nil {
 			system.SystemKey = ""
 		}
-		// Apply unified status (suspended takes priority over DB status)
+		// Apply unified status (deleted > suspended > DB status)
 		s.applyUnifiedStatus(system)
 	}
 
@@ -313,7 +313,7 @@ func (s *LocalSystemsService) GetSystem(systemID, userOrgRole, userOrgID string)
 		return nil, fmt.Errorf("access denied: %s", reason)
 	}
 
-	// Apply unified status (suspended takes priority over DB status)
+	// Apply unified status (deleted > suspended > DB status)
 	s.applyUnifiedStatus(system)
 
 	// Hide system_key if system is not registered yet
@@ -1036,14 +1036,17 @@ func (s *LocalSystemsService) CanDeleteSystem(system *models.System, userOrgRole
 // =============================================================================
 
 // applyUnifiedStatus overrides the DB status with the unified status.
-// Priority: suspended > deleted > DB status (unknown/active/inactive)
+// Priority: deleted > suspended > DB status (unknown/active/inactive).
+// Deleted wins over suspended (same convention as orgs/users): a system
+// suspended and then archived must read as "deleted" so the frontend offers
+// restore, not reactivate (which 404s on soft-deleted rows).
 func (s *LocalSystemsService) applyUnifiedStatus(system *models.System) {
-	if system.SuspendedAt != nil {
-		system.Status = "suspended"
-		return
-	}
 	if system.DeletedAt != nil {
 		system.Status = "deleted"
+		return
+	}
+	if system.SuspendedAt != nil {
+		system.Status = "suspended"
 		return
 	}
 	// DB status is already unknown/active/inactive - keep as is

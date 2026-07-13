@@ -299,15 +299,18 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 				args = append(args, s)
 			}
 			statusCondition := fmt.Sprintf("s.status IN (%s)", strings.Join(statusPlaceholders, ","))
-			// Exclude suspended systems from normal status filters unless "suspended" is also selected
+			// Exclude suspended systems from normal status filters unless "suspended" is also selected.
+			// Deleted rows are exempt from the exclusion: deleted wins over suspended
+			// (a suspended-then-archived system must still match status=deleted).
 			if !hasSuspendedFilter {
-				statusCondition = fmt.Sprintf("(%s AND s.suspended_at IS NULL)", statusCondition)
+				statusCondition = fmt.Sprintf("(%s AND (s.suspended_at IS NULL OR s.deleted_at IS NOT NULL))", statusCondition)
 			}
 			statusParts = append(statusParts, statusCondition)
 		}
 
 		if hasSuspendedFilter {
-			statusParts = append(statusParts, "s.suspended_at IS NOT NULL")
+			// Deleted rows are not "suspended" even if suspended_at is set (deleted wins)
+			statusParts = append(statusParts, "(s.suspended_at IS NOT NULL AND s.deleted_at IS NULL)")
 		}
 
 		whereClause += " AND (" + strings.Join(statusParts, " OR ") + ")"
