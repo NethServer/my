@@ -147,7 +147,7 @@ func (hw *HeartbeatWorker) bulkUpsert(ctx context.Context, heartbeats map[string
 
 	// Build bulk INSERT ... ON CONFLICT query
 	var sb strings.Builder
-	sb.WriteString("INSERT INTO system_heartbeats (system_id, last_heartbeat) VALUES ")
+	sb.WriteString("WITH upserted AS (INSERT INTO system_heartbeats (system_id, last_heartbeat) VALUES ")
 
 	args := make([]interface{}, 0, len(heartbeats)*2)
 	i := 0
@@ -160,7 +160,20 @@ func (hw *HeartbeatWorker) bulkUpsert(ctx context.Context, heartbeats map[string
 		i++
 	}
 
-	sb.WriteString(" ON CONFLICT (system_id) DO UPDATE SET last_heartbeat = EXCLUDED.last_heartbeat")
+	// A heartbeat just arrived, so a system still 'unknown' (never reported
+	// before) can be activated right away instead of waiting for the heartbeat
+	// monitor cron. The 'inactive' -> 'active' recovery is NOT handled here on
+	// purpose: that transition must also resolve the firing LinkFailed alert,
+	// which stays in the cron. updated_at is intentionally not touched (status
+	// is system-driven liveness, not a user edit).
+	sb.WriteString(` ON CONFLICT (system_id) DO UPDATE SET last_heartbeat = EXCLUDED.last_heartbeat
+		RETURNING system_id)
+		UPDATE systems s
+		SET status = 'active'
+		FROM upserted u
+		WHERE s.id = u.system_id
+			AND s.status = 'unknown'
+			AND s.deleted_at IS NULL`)
 
 	_, err := database.DB.ExecContext(ctx, sb.String(), args...)
 	return err

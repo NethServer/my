@@ -79,11 +79,11 @@ LOG_LEVEL=info
 - **Queue Monitor Worker** tracks system health and performance
 
 **6. Heartbeat Monitoring**
-- **Heartbeat Monitor Cron** runs every 60 seconds
-- Automatically updates system status based on heartbeat freshness:
-  - `unknown` → `active` when first heartbeat arrives
-  - `inactive` → `active` when a fresh heartbeat arrives (within `HEARTBEAT_TIMEOUT_MINUTES`)
+- `unknown` → `active` happens inline in the **Heartbeat Worker** (same statement as the heartbeat upsert), so a system just registered turns `active` within seconds of its first heartbeat
+- **Heartbeat Monitor Cron** handles the freshness-based transitions:
+  - `inactive` → `active` when a fresh heartbeat arrives (within `HEARTBEAT_TIMEOUT_MINUTES`); this recovery path also resolves the firing `LinkFailed` alert
   - `active` → `inactive` when the heartbeat is stale (older than `HEARTBEAT_TIMEOUT_MINUTES`)
+  - `unknown` → `active` as a safety net for the inline flip
 - Configurable timeout via `HEARTBEAT_TIMEOUT_MINUTES` (default: 20 minutes)
 
 **7. LinkFailed Synchronization**
