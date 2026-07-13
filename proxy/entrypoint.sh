@@ -43,8 +43,14 @@ fi
 echo "DNS resolver: $RESOLVER"
 echo "Search domain: ${SEARCH_DOMAIN:-none}"
 
+# Logto endpoint allowed by the Content-Security-Policy (connect-src/img-src).
+# Default to the production tenant so a missing env var degrades to a valid,
+# strict policy instead of an nginx config with an empty CSP source.
+export LOGTO_ENDPOINT="${LOGTO_ENDPOINT:-https://id.nethesis.it}"
+echo "CSP Logto endpoint: $LOGTO_ENDPOINT"
+
 echo '==> Substituting nginx config...'
-envsubst '$PORT $BACKEND_SERVICE_NAME $COLLECT_SERVICE_NAME $FRONTEND_SERVICE_NAME $RESOLVER' < /etc/nginx/nginx.conf > /tmp/nginx.conf
+envsubst '$PORT $BACKEND_SERVICE_NAME $COLLECT_SERVICE_NAME $FRONTEND_SERVICE_NAME $RESOLVER $LOGTO_ENDPOINT' < /etc/nginx/nginx.conf > /tmp/nginx.conf
 
 echo '==> Generated upstream URLs:'
 grep -E 'set.*upstream' /tmp/nginx.conf || true

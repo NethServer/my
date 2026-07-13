@@ -25,6 +25,11 @@ http {
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    # Mirror of the deployed CSP (see nginx.conf) so policy breakage shows up
+    # locally before QA. This config is static (no envsubst), so the Logto
+    # sources cover the tenants a local build may point to. No HSTS here:
+    # local setups may run plain HTTP.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://id.nethesis.it https://qa.id.nethesis.it https://*.logto.app; font-src 'self' data:; connect-src 'self' https://id.nethesis.it https://qa.id.nethesis.it https://*.logto.app; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self' https://id.nethesis.it https://qa.id.nethesis.it https://*.logto.app" always;
 
     server {
         listen 8080;
