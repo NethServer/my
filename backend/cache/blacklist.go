@@ -26,6 +26,9 @@ const (
 	BlacklistKeyPrefix = "jwt_blacklist:"
 	// UserBlacklistKeyPrefix is the Redis key prefix for user-level blacklists
 	UserBlacklistKeyPrefix = "jwt_user_blacklist:"
+	// ReasonRefreshTokenRotated marks a refresh token consumed by a successful
+	// rotation; presenting it again outside the grace window is treated as theft
+	ReasonRefreshTokenRotated = "refresh_token_rotated"
 )
 
 // TokenBlacklist handles JWT token blacklisting operations
@@ -151,6 +154,63 @@ func (tb *TokenBlacklist) IsTokenBlacklisted(tokenString string) (bool, string, 
 		Msg("Token found in blacklist")
 
 	return true, blacklistData.Reason, nil
+}
+
+// GetBlacklistEntry returns the blacklist entry for a token, or nil when the
+// token is not blacklisted. Fails open (nil) when Redis is unavailable,
+// consistent with IsTokenBlacklisted.
+func (tb *TokenBlacklist) GetBlacklistEntry(tokenString string) *BlacklistData {
+	if tb.redisClient == nil {
+		logger.ComponentLogger("blacklist").Warn().
+			Str("operation", "blacklist_entry_check_skipped").
+			Msg("Redis client unavailable for blacklist entry check - failing open")
+		return nil
+	}
+
+	key := BlacklistKeyPrefix + tb.hashToken(tokenString)
+
+	var blacklistData BlacklistData
+	if err := tb.redisClient.Get(key, &blacklistData); err != nil {
+		// Token not blacklisted (key doesn't exist)
+		return nil
+	}
+
+	return &blacklistData
+}
+
+// IsUserTokenInvalidatedSince reports whether a user-level blacklist entry
+// exists that post-dates the given token issue time. Unlike IsUserBlacklisted
+// (an absolute block used for suspensions), this comparison lets tokens minted
+// after the blacklist event pass — e.g. a fresh login after a logout that
+// blacklisted all previous tokens.
+func (tb *TokenBlacklist) IsUserTokenInvalidatedSince(userID string, issuedAt time.Time) (bool, string) {
+	if tb.redisClient == nil {
+		logger.ComponentLogger("blacklist").Warn().
+			Str("operation", "user_token_invalidation_check_skipped").
+			Msg("Redis client unavailable for user token invalidation check - failing open")
+		return false, ""
+	}
+
+	userKey := UserBlacklistKeyPrefix + userID
+
+	var blacklistData BlacklistData
+	if err := tb.redisClient.Get(userKey, &blacklistData); err != nil {
+		// User not blacklisted (key doesn't exist)
+		return false, ""
+	}
+
+	if issuedAt.Unix() <= blacklistData.BlacklistedAt {
+		logger.ComponentLogger("blacklist").Info().
+			Str("operation", "user_token_invalidated_found").
+			Str("user_id", userID).
+			Str("reason", blacklistData.Reason).
+			Time("issued_at", issuedAt).
+			Int64("blacklisted_at", blacklistData.BlacklistedAt).
+			Msg("Token issued before user-level blacklist event")
+		return true, blacklistData.Reason
+	}
+
+	return false, ""
 }
 
 // BlacklistAllUserTokens blacklists all tokens for a specific user

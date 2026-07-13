@@ -142,7 +142,7 @@ func ExchangeToken(c *gin.Context) {
 	// Calculate expiration in seconds
 	expDuration, err := time.ParseDuration(configuration.Config.JWTExpiration)
 	if err != nil {
-		expDuration = 24 * time.Hour // Default fallback
+		expDuration = 30 * time.Minute // Default fallback, mirrors configuration default
 	}
 	expiresIn := int64(expDuration.Seconds())
 
@@ -159,7 +159,15 @@ func ExchangeToken(c *gin.Context) {
 	))
 }
 
-// RefreshToken refreshes access token using refresh token
+// refreshReuseGraceWindow tolerates a rotated refresh token re-presented
+// shortly after its rotation (e.g. the client never received the rotation
+// response and retries); beyond it, reuse is treated as token theft and the
+// whole chain is burned.
+const refreshReuseGraceWindow = 30 * time.Second
+
+// RefreshToken refreshes access token using refresh token, rotating the
+// refresh token: each token is one-shot, and reuse burns every token of the
+// user (reuse detection per OAuth refresh token rotation).
 // POST /auth/refresh
 func RefreshToken(c *gin.Context) {
 	var req RefreshTokenRequest
@@ -179,6 +187,56 @@ func RefreshToken(c *gin.Context) {
 		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "validate_refresh_token", http.StatusUnauthorized, "Invalid refresh token")
 		c.JSON(http.StatusUnauthorized, response.Unauthorized(
 			"invalid refresh token: "+err.Error(),
+			nil,
+		))
+		return
+	}
+
+	blacklist := cache.GetTokenBlacklist()
+
+	// Reuse detection: a refresh token consumed by a previous rotation must
+	// never come back. Outside the grace window we cannot tell the thief from
+	// the victim, so all the user's outstanding tokens are burned and a new
+	// login is required.
+	rotatedEntry := blacklist.GetBlacklistEntry(req.RefreshToken)
+	if rotatedEntry != nil {
+		withinGrace := rotatedEntry.Reason == cache.ReasonRefreshTokenRotated &&
+			time.Since(time.Unix(rotatedEntry.BlacklistedAt, 0)) <= refreshReuseGraceWindow
+		if !withinGrace {
+			if blErr := blacklist.BlacklistAllUserTokens(refreshClaims.UserID, "refresh token reuse detected"); blErr != nil {
+				logger.RequestLogger(c, "auth").Error().
+					Err(blErr).
+					Str("operation", "burn_tokens_on_reuse").
+					Str("logto_id", refreshClaims.UserID).
+					Msg("Failed to blacklist user tokens after refresh token reuse")
+			}
+			logger.RequestLogger(c, "auth").Warn().
+				Str("operation", "refresh_token_reuse_detected").
+				Str("logto_id", refreshClaims.UserID).
+				Str("client_ip", c.ClientIP()).
+				Msg("Rotated refresh token presented again - all user tokens invalidated")
+			c.JSON(http.StatusUnauthorized, response.Unauthorized(
+				"invalid refresh token",
+				nil,
+			))
+			return
+		}
+	}
+
+	// Refresh tokens issued before a user-level blacklist event (logout,
+	// reuse-detection burn) are dead; tokens from a later login pass.
+	issuedAt := time.Time{} // zero value predates any blacklist event
+	if refreshClaims.IssuedAt != nil {
+		issuedAt = refreshClaims.IssuedAt.Time
+	}
+	if revoked, reason := blacklist.IsUserTokenInvalidatedSince(refreshClaims.UserID, issuedAt); revoked {
+		logger.RequestLogger(c, "auth").Warn().
+			Str("operation", "refresh_token_revoked").
+			Str("logto_id", refreshClaims.UserID).
+			Str("reason", reason).
+			Msg("Refresh token predates user-level blacklist event")
+		c.JSON(http.StatusUnauthorized, response.Unauthorized(
+			"refresh token has been revoked",
 			nil,
 		))
 		return
@@ -219,10 +277,24 @@ func RefreshToken(c *gin.Context) {
 		return
 	}
 
+	// Rotate: the presented refresh token is now consumed. Skip when it was
+	// already rotated (grace-window replay) so the grace window doesn't slide.
+	// A blacklist failure only leaves this one token spendable until its
+	// expiry, so log it instead of failing the refresh.
+	if rotatedEntry == nil {
+		if blErr := blacklist.BlacklistToken(req.RefreshToken, cache.ReasonRefreshTokenRotated); blErr != nil {
+			logger.RequestLogger(c, "auth").Warn().
+				Err(blErr).
+				Str("operation", "rotate_refresh_token").
+				Str("logto_id", refreshClaims.UserID).
+				Msg("Failed to blacklist rotated refresh token")
+		}
+	}
+
 	// Calculate expiration in seconds
 	expDuration, err := time.ParseDuration(configuration.Config.JWTExpiration)
 	if err != nil {
-		expDuration = 24 * time.Hour // Default fallback
+		expDuration = 30 * time.Minute // Default fallback, mirrors configuration default
 	}
 	expiresIn := int64(expDuration.Seconds())
 

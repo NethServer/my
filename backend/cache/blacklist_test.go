@@ -162,4 +162,12 @@ func TestTokenBlacklist_EdgeCases(t *testing.T) {
 
 	err = blacklist.RemoveUserFromBlacklist("user123")
 	assert.Error(t, err)
+
+	// New rotation helpers fail open on nil Redis
+	entry := blacklist.GetBlacklistEntry(token)
+	assert.Nil(t, entry)
+
+	invalidated, reason := blacklist.IsUserTokenInvalidatedSince("user123", time.Now())
+	assert.False(t, invalidated)
+	assert.Empty(t, reason)
 }
