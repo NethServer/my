@@ -37,19 +37,21 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const { options, loading, onSearch, currentSearch } = useOrganizationFilter(() => props.isShown)
+const { organizations, loading, onSearch, currentSearch } = useOrganizationFilter(
+  () => props.isShown,
+)
 
 const organizationOptions = computed(() => {
-  let orgs = options.value
+  let orgs = organizations.value
   if (props.allowedTypes && props.allowedTypes.length > 0) {
     orgs = orgs.filter((org) => props.allowedTypes!.includes(org.type))
   }
   if (props.excludeOrganizationIds && props.excludeOrganizationIds.length > 0) {
-    orgs = orgs.filter((org) => !props.excludeOrganizationIds!.includes(org.id))
+    orgs = orgs.filter((org) => !props.excludeOrganizationIds!.includes(org.logto_id))
   }
   return orgs.map((org) => ({
-    id: org.id,
-    label: org.label,
+    id: org.logto_id,
+    label: org.name,
     description: t(`organizations.${org.type}`),
   }))
 })
@@ -57,7 +59,7 @@ const organizationOptions = computed(() => {
 const isLoading = loading
 
 const isInitiallyLoading = computed(
-  () => loading.value && options.value.length === 0 && !currentSearch.value,
+  () => loading.value && organizations.value.length === 0 && !currentSearch.value,
 )
 
 const computedPlaceholder = computed(() =>

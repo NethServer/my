@@ -10,10 +10,7 @@ import { useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
 import { computed, ref, toValue, watch, type MaybeRefOrGetter } from 'vue'
 import type { FilterOption } from '@nethesis/vue-components'
-
-export interface OrganizationFilterOption extends FilterOption {
-  type: string
-}
+import { useI18n } from 'vue-i18n'
 
 /**
  * Server-searched organization options for comboboxes/filters.
@@ -22,6 +19,7 @@ export interface OrganizationFilterOption extends FilterOption {
  *   the query doesn't fire while the host drawer is closed. Defaults to always on.
  */
 export function useOrganizationFilter(enabled?: MaybeRefOrGetter<boolean>) {
+  const { t } = useI18n()
   const loginStore = useLoginStore()
   const searchInput = ref('')
   const debouncedSearch = ref('')
@@ -39,14 +37,15 @@ export function useOrganizationFilter(enabled?: MaybeRefOrGetter<boolean>) {
     query: () => searchOrganizations(debouncedSearch.value),
   })
 
-  const options = computed<OrganizationFilterOption[]>(() => {
-    const orgs = state.value.data ?? []
-    return orgs.map((org) => ({
+  const organizations = computed(() => state.value.data ?? [])
+
+  const options = computed<FilterOption[]>(() =>
+    organizations.value.map((org) => ({
       id: org.logto_id,
       label: org.name,
-      type: org.type,
-    }))
-  })
+      description: t(`organizations.${org.type}`),
+    })),
+  )
 
   const loading = computed(() => asyncStatus.value === 'loading')
 
@@ -54,7 +53,7 @@ export function useOrganizationFilter(enabled?: MaybeRefOrGetter<boolean>) {
     searchInput.value = query
   }
 
-  return { options, loading, onSearch, currentSearch: searchInput }
+  return { options, organizations, loading, onSearch, currentSearch: searchInput }
 }
 
 /**
@@ -71,12 +70,13 @@ export function useHasAttributableOrganizations(
   enabled?: MaybeRefOrGetter<boolean>,
 ) {
   const loginStore = useLoginStore()
-  const { options } = useOrganizationFilter(enabled)
+  const { organizations } = useOrganizationFilter(enabled)
 
   return computed(() =>
-    options.value.some(
+    organizations.value.some(
       (org) =>
-        toValue(allowedTypes).includes(org.type) && org.id !== loginStore.userInfo?.organization_id,
+        toValue(allowedTypes).includes(org.type) &&
+        org.logto_id !== loginStore.userInfo?.organization_id,
     ),
   )
 }
