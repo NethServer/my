@@ -551,9 +551,7 @@ const localizedDateRange = computed(() => {
           <span
             class="text-sm font-medium"
             :class="
-              group.isToday
-                ? 'text-indigo-700 dark:text-indigo-500'
-                : 'text-tertiary-neutral dark:text-tertiary-neutral'
+              group.isToday ? 'text-indigo-700 dark:text-indigo-500' : 'text-secondary-neutral'
             "
           >
             {{ group.isToday ? t('system_detail.today') : formatGroupDate(group.date) }}
@@ -572,11 +570,9 @@ const localizedDateRange = computed(() => {
         <div class="min-w-0 flex-1 pl-6 md:pl-10">
           <!-- Date label (small screens only) -->
           <span
-            class="mb-1 block text-sm font-medium md:hidden"
+            class="mb-4 block text-sm font-medium md:hidden"
             :class="
-              group.isToday
-                ? 'text-indigo-700 dark:text-indigo-500'
-                : 'text-tertiary-neutral dark:text-tertiary-neutral'
+              group.isToday ? 'text-indigo-700 dark:text-indigo-500' : 'text-secondary-neutral'
             "
           >
             {{ group.isToday ? t('system_detail.today') : formatGroupDate(group.date) }}
@@ -591,7 +587,7 @@ const localizedDateRange = computed(() => {
           <!-- Group with changes: toggle header -->
           <template v-else-if="group.change_count > 0">
             <button
-              class="text-tertiary-neutral dark:text-tertiary-neutral mt-5 flex items-center gap-2 text-sm font-medium hover:text-gray-700 dark:hover:text-gray-200"
+              class="text-tertiary-neutral flex items-center gap-2 text-sm font-medium hover:text-gray-700 dark:hover:text-gray-200"
               @click="toggleGroup(group.date)"
             >
               <FontAwesomeIcon
@@ -652,16 +648,14 @@ const localizedDateRange = computed(() => {
                         {{ capitalize(diff.severity) }}
                       </NeBadgeV2>
                       <!-- Field path -->
-                      <span
-                        class="text-tertiary-neutral dark:text-tertiary-neutral min-w-0 text-sm break-all"
-                      >
+                      <span class="text-tertiary-neutral min-w-0 text-sm break-all">
                         {{ diff.field_path }}
                       </span>
                     </div>
                     <!-- Expand chevron -->
                     <FontAwesomeIcon
                       :icon="expandedDiffs.has(diff.id) ? faAngleUp : faAngleDown"
-                      class="text-tertiary-neutral dark:text-tertiary-neutral size-4 shrink-0"
+                      class="text-tertiary-neutral size-4 shrink-0"
                     />
                   </div>
 
@@ -673,18 +667,14 @@ const localizedDateRange = computed(() => {
                       class="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm bg-blue-50 px-1.5 py-0.5 dark:bg-blue-950"
                     >
                       <FontAwesomeIcon :icon="faPen" class="size-3 shrink-0" />
-                      <span
-                        class="dark:text-tertiary-neutral min-w-0 font-mono text-sm break-all text-gray-700"
-                      >
+                      <span class="text-secondary-neutral min-w-0 font-mono text-sm break-all">
                         {{ formatDiffValue(diff.previous_value) }}
                       </span>
                       <FontAwesomeIcon
                         :icon="faArrowRight"
                         class="size-4 shrink-0 text-gray-500 dark:text-gray-400"
                       />
-                      <span
-                        class="dark:text-tertiary-neutral min-w-0 font-mono text-sm break-all text-gray-700"
-                      >
+                      <span class="text-secondary-neutral min-w-0 font-mono text-sm break-all">
                         {{ formatDiffValue(diff.current_value) }}
                       </span>
                     </div>
@@ -699,10 +689,9 @@ const localizedDateRange = computed(() => {
                         class="flex items-start gap-4"
                       >
                         <FontAwesomeIcon :icon="faPlus" class="mt-1 size-3 shrink-0" />
-                        <span
-                          class="dark:text-tertiary-neutral min-w-0 font-mono text-sm break-all text-gray-700"
-                          >{{ line }}</span
-                        >
+                        <span class="text-secondary-neutral min-w-0 font-mono text-sm break-all">{{
+                          line
+                        }}</span>
                       </div>
                     </div>
                     <!-- Delete: rose list of removed values with strikethrough -->
@@ -716,10 +705,9 @@ const localizedDateRange = computed(() => {
                         class="flex items-start gap-4"
                       >
                         <FontAwesomeIcon :icon="faMinus" class="mt-1 size-3 shrink-0" />
-                        <span
-                          class="dark:text-tertiary-neutral min-w-0 font-mono text-sm break-all text-gray-700"
-                          >{{ line }}</span
-                        >
+                        <span class="text-secondary-neutral min-w-0 font-mono text-sm break-all">{{
+                          line
+                        }}</span>
                       </div>
                     </div>
                     <!-- Timestamp -->
@@ -780,7 +768,7 @@ const localizedDateRange = computed(() => {
       <!-- First inventory sent -->
       <div class="relative mb-8 flex items-start">
         <div class="hidden w-36 shrink-0 pt-0.5 pr-6 text-right md:block">
-          <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
+          <span class="text-tertiary-neutral font-medium">
             {{ formatGroupDate(latestInventoryState.data.created_at.slice(0, 10)) }}
           </span>
         </div>
@@ -788,12 +776,10 @@ const localizedDateRange = computed(() => {
           class="absolute top-1.75 left-0.75 z-10 size-2 rounded-full bg-gray-300 ring-4 ring-gray-50 md:left-34.75 dark:bg-gray-600 dark:ring-gray-900"
         ></div>
         <div class="min-w-0 flex-1 pl-6 md:pl-10">
-          <span
-            class="text-tertiary-neutral dark:text-tertiary-neutral mb-1 block text-sm font-medium md:hidden"
-          >
+          <span class="text-tertiary-neutral mb-4 block text-sm font-medium md:hidden">
             {{ formatGroupDate(latestInventoryState.data.created_at.slice(0, 10)) }}
           </span>
-          <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
+          <span class="text-secondary-neutral font-medium">
             {{ t('system_detail.first_inventory_sent') }}
           </span>
           <p class="text-tertiary-neutral mt-0.5">
@@ -808,7 +794,7 @@ const localizedDateRange = computed(() => {
       <!-- System registration -->
       <div v-if="systemDetailState.data.registered_at" class="relative mb-8 flex items-start">
         <div class="hidden w-36 shrink-0 pt-0.5 pr-6 text-right md:block">
-          <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
+          <span class="text-tertiary-neutral font-medium">
             {{ formatGroupDate(systemDetailState.data.registered_at.slice(0, 10)) }}
           </span>
         </div>
@@ -816,12 +802,10 @@ const localizedDateRange = computed(() => {
           class="absolute top-1.75 left-0.75 z-10 size-2 rounded-full bg-gray-300 ring-4 ring-gray-50 md:left-34.75 dark:bg-gray-600 dark:ring-gray-900"
         ></div>
         <div class="min-w-0 flex-1 pl-6 md:pl-10">
-          <span
-            class="text-tertiary-neutral dark:text-tertiary-neutral mb-1 block text-sm font-medium md:hidden"
-          >
+          <span class="text-tertiary-neutral mb-4 block text-sm font-medium md:hidden">
             {{ formatGroupDate(systemDetailState.data.registered_at.slice(0, 10)) }}
           </span>
-          <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
+          <span class="text-secondary-neutral font-medium">
             {{ t('system_detail.system_registered') }}
           </span>
           <p class="text-tertiary-neutral mt-0.5">
@@ -833,7 +817,7 @@ const localizedDateRange = computed(() => {
       <!-- System creation -->
       <div v-if="systemDetailState.data.created_at" class="relative mb-8 flex items-start">
         <div class="hidden w-36 shrink-0 pt-0.5 pr-6 text-right md:block">
-          <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
+          <span class="text-tertiary-neutral font-medium">
             {{ formatGroupDate(systemDetailState.data.created_at.slice(0, 10)) }}
           </span>
         </div>
@@ -841,12 +825,10 @@ const localizedDateRange = computed(() => {
           class="absolute top-1.75 left-0.75 z-10 size-2 rounded-full bg-gray-300 ring-4 ring-gray-50 md:left-34.75 dark:bg-gray-600 dark:ring-gray-900"
         ></div>
         <div class="min-w-0 flex-1 pl-6 md:pl-10">
-          <span
-            class="text-tertiary-neutral dark:text-tertiary-neutral mb-1 block text-sm font-medium md:hidden"
-          >
+          <span class="text-tertiary-neutral mb-4 block text-sm font-medium md:hidden">
             {{ formatGroupDate(systemDetailState.data.created_at.slice(0, 10)) }}
           </span>
-          <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
+          <span class="text-secondary-neutral font-medium">
             {{ t('system_detail.system_created') }}
           </span>
           <p class="text-tertiary-neutral mt-0.5">
