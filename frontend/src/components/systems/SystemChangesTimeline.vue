@@ -511,9 +511,11 @@ const localizedDateRange = computed(() => {
     </div>
   </div>
 
-  <!-- Empty state -->
+  <!-- Empty state (only when a filter/search genuinely returns nothing; with default
+       filters we fall through to the timeline so the system creation/registration
+       milestones are always shown) -->
   <NeEmptyState
-    v-else-if="isTimelineEmpty"
+    v-else-if="isTimelineEmpty && !areDefaultFiltersApplied"
     :title="
       areDefaultFiltersApplied
         ? $t('system_detail.no_inventory_changes')

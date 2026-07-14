@@ -52,6 +52,15 @@ export function formatTimeNoSeconds(dateTime: Date, locale: string, timeZone?: s
   })
 }
 
+export function formatTimeWithSeconds(dateTime: Date, locale: string, timeZone?: string): string {
+  return dateTime.toLocaleTimeString(locale, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    ...getTimeZoneOptions(timeZone),
+  })
+}
+
 export function formatMinutes(totalMinutes: number, t: ComposerTranslation) {
   if (totalMinutes < 60) {
     return t('time.minutes', totalMinutes)
