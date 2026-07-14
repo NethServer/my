@@ -501,8 +501,8 @@ const localizedDateRange = computed(() => {
 
   <!-- Loading skeleton (initial load) -->
   <div v-if="timelineIsPending" class="space-y-6">
-    <div v-for="i in 3" :key="i" class="flex gap-12">
-      <NeSkeleton class="h-5 w-24" />
+    <div v-for="i in 3" :key="i" class="flex gap-6 md:gap-12">
+      <NeSkeleton class="hidden h-5 w-24 md:block" />
       <div class="flex-1 space-y-3">
         <NeSkeleton class="h-5 w-32" />
         <NeSkeleton class="h-14 w-full" />
@@ -536,17 +536,16 @@ const localizedDateRange = computed(() => {
 
   <!-- Timeline -->
   <div v-else class="relative mt-2">
-    <!-- Vertical timeline line -->
+    <!-- Vertical timeline line (left edge on small screens, after the date column on md+) -->
     <div
-      class="absolute top-2 bottom-5 w-px bg-gray-200 dark:bg-gray-700"
-      style="left: 143px"
+      class="absolute top-2 bottom-5 left-1.75 w-px bg-gray-200 md:left-35.75 dark:bg-gray-700"
     ></div>
 
     <div v-for="group in displayGroups" :key="group.date">
       <!-- Date header row -->
       <div v-if="!isGroupPendingDiffs(group)" class="relative mb-8 flex items-start">
-        <!-- Date label column (right-aligned) -->
-        <div class="w-36 shrink-0 pt-0.5 pr-6 text-right">
+        <!-- Date label column (right-aligned, md+ only) -->
+        <div class="hidden w-36 shrink-0 pt-0.5 pr-6 text-right md:block">
           <span
             class="text-sm font-medium"
             :class="
@@ -559,17 +558,27 @@ const localizedDateRange = computed(() => {
           </span>
         </div>
 
-        <!-- Timeline dot (centered on the vertical line at left: 143px, dot size 10px → left: 139px) -->
+        <!-- Timeline dot (centered on the vertical line) -->
         <div
-          class="absolute z-10 size-2 rounded-full ring-4 ring-gray-50 dark:ring-gray-900"
+          class="absolute top-1.75 left-0.75 z-10 size-2 rounded-full ring-4 ring-gray-50 md:left-34.75 dark:ring-gray-900"
           :class="
             group.isToday ? 'bg-indigo-700 dark:bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'
           "
-          style="left: 139px; top: 7px"
         ></div>
 
         <!-- Content -->
-        <div class="flex-1 pl-10">
+        <div class="min-w-0 flex-1 pl-6 md:pl-10">
+          <!-- Date label (small screens only) -->
+          <span
+            class="mb-1 block text-sm font-medium md:hidden"
+            :class="
+              group.isToday
+                ? 'text-indigo-700 dark:text-indigo-500'
+                : 'text-tertiary-neutral dark:text-tertiary-neutral'
+            "
+          >
+            {{ group.isToday ? t('system_detail.today') : formatGroupDate(group.date) }}
+          </span>
           <!-- Today with no changes -->
           <template v-if="group.isToday && group.change_count === 0">
             <span class="text-sm font-medium text-indigo-600 dark:text-indigo-400">
@@ -580,7 +589,7 @@ const localizedDateRange = computed(() => {
           <!-- Group with changes: toggle header -->
           <template v-else-if="group.change_count > 0">
             <button
-              class="text-tertiary-neutral dark:text-tertiary-neutral flex items-center gap-2 text-sm font-medium hover:text-gray-700 dark:hover:text-gray-200"
+              class="text-tertiary-neutral dark:text-tertiary-neutral mt-5 flex items-center gap-2 text-sm font-medium hover:text-gray-700 dark:hover:text-gray-200"
               @click="toggleGroup(group.date)"
             >
               <FontAwesomeIcon
@@ -612,10 +621,10 @@ const localizedDateRange = computed(() => {
                 >
                   <!-- Diff header row -->
                   <div
-                    class="flex cursor-pointer items-center justify-between gap-2 px-6 py-4"
+                    class="flex cursor-pointer items-center justify-between gap-2 px-4 py-3 sm:px-6 sm:py-4"
                     @click="toggleDiff(diff.id)"
                   >
-                    <div class="flex min-w-0 items-center gap-4">
+                    <div class="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
                       <!-- Change type icon -->
                       <div
                         class="flex size-6 shrink-0 items-center justify-center rounded-full"
@@ -655,21 +664,25 @@ const localizedDateRange = computed(() => {
                   </div>
 
                   <!-- Expanded diff detail -->
-                  <div v-if="expandedDiffs.has(diff.id)" class="px-6 pt-2 pb-4">
+                  <div v-if="expandedDiffs.has(diff.id)" class="px-4 pt-2 pb-4 sm:px-6">
                     <!-- Update: inline strikethrough → arrow → new value -->
                     <div
                       v-if="diff.diff_type === 'update'"
-                      class="flex items-center gap-4 rounded-sm bg-blue-50 px-1.5 py-0.5 dark:bg-blue-950"
+                      class="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm bg-blue-50 px-1.5 py-0.5 dark:bg-blue-950"
                     >
                       <FontAwesomeIcon :icon="faPen" class="size-3 shrink-0" />
-                      <span class="dark:text-tertiary-neutral font-mono text-sm text-gray-700">
+                      <span
+                        class="dark:text-tertiary-neutral min-w-0 font-mono text-sm break-all text-gray-700"
+                      >
                         {{ formatDiffValue(diff.previous_value) }}
                       </span>
                       <FontAwesomeIcon
                         :icon="faArrowRight"
                         class="size-4 shrink-0 text-gray-500 dark:text-gray-400"
                       />
-                      <span class="dark:text-tertiary-neutral font-mono text-sm text-gray-700">
+                      <span
+                        class="dark:text-tertiary-neutral min-w-0 font-mono text-sm break-all text-gray-700"
+                      >
                         {{ formatDiffValue(diff.current_value) }}
                       </span>
                     </div>
@@ -681,12 +694,13 @@ const localizedDateRange = computed(() => {
                       <div
                         v-for="(line, idx) in objectToLines(diff.current_value)"
                         :key="idx"
-                        class="flex items-center gap-4"
+                        class="flex items-start gap-4"
                       >
-                        <FontAwesomeIcon :icon="faPlus" class="size-3 shrink-0" />
-                        <span class="dark:text-tertiary-neutral font-mono text-sm text-gray-700">{{
-                          line
-                        }}</span>
+                        <FontAwesomeIcon :icon="faPlus" class="mt-1 size-3 shrink-0" />
+                        <span
+                          class="dark:text-tertiary-neutral min-w-0 font-mono text-sm break-all text-gray-700"
+                          >{{ line }}</span
+                        >
                       </div>
                     </div>
                     <!-- Delete: rose list of removed values with strikethrough -->
@@ -697,12 +711,13 @@ const localizedDateRange = computed(() => {
                       <div
                         v-for="(line, idx) in objectToLines(diff.previous_value)"
                         :key="idx"
-                        class="flex items-center gap-4"
+                        class="flex items-start gap-4"
                       >
-                        <FontAwesomeIcon :icon="faMinus" class="size-3 shrink-0" />
-                        <span class="dark:text-tertiary-neutral font-mono text-sm text-gray-700">{{
-                          line
-                        }}</span>
+                        <FontAwesomeIcon :icon="faMinus" class="mt-1 size-3 shrink-0" />
+                        <span
+                          class="dark:text-tertiary-neutral min-w-0 font-mono text-sm break-all text-gray-700"
+                          >{{ line }}</span
+                        >
                       </div>
                     </div>
                     <!-- Timestamp -->
@@ -731,8 +746,8 @@ const localizedDateRange = computed(() => {
         v-if="group.gapDaysAfter > 0 && !isGroupPendingDiffs(group) && areDefaultFiltersApplied"
         class="my-8 flex items-start"
       >
-        <div class="w-36 shrink-0"></div>
-        <div class="flex-1 pl-10">
+        <div class="hidden w-36 shrink-0 md:block"></div>
+        <div class="flex-1 pl-6 md:pl-10">
           <span
             class="inline-block rounded bg-gray-200 px-3 py-1 text-sm font-medium text-gray-800 dark:bg-gray-600 dark:text-gray-100"
           >
@@ -744,8 +759,8 @@ const localizedDateRange = computed(() => {
 
     <!-- Load more trigger (IntersectionObserver target) -->
     <div v-if="hasNextPage" ref="loadMoreTrigger" class="flex items-start py-4">
-      <div class="w-36 shrink-0"></div>
-      <div class="flex-1 pl-10">
+      <div class="hidden w-36 shrink-0 md:block"></div>
+      <div class="flex-1 pl-6 md:pl-10">
         <div
           v-if="timelineAsyncStatus === 'loading' || diffsAsyncStatus === 'loading'"
           class="flex items-center gap-2"
@@ -762,16 +777,20 @@ const localizedDateRange = computed(() => {
     <template v-if="systemDetailState.data">
       <!-- System registration -->
       <div v-if="systemDetailState.data.registered_at" class="relative mb-8 flex items-start">
-        <div class="w-36 shrink-0 pt-0.5 pr-6 text-right">
+        <div class="hidden w-36 shrink-0 pt-0.5 pr-6 text-right md:block">
           <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
             {{ formatGroupDate(systemDetailState.data.registered_at.slice(0, 10)) }}
           </span>
         </div>
         <div
-          class="absolute z-10 size-2 rounded-full bg-gray-300 ring-4 ring-gray-50 dark:bg-gray-600 dark:ring-gray-900"
-          style="left: 139px; top: 7px"
+          class="absolute top-1.75 left-0.75 z-10 size-2 rounded-full bg-gray-300 ring-4 ring-gray-50 md:left-34.75 dark:bg-gray-600 dark:ring-gray-900"
         ></div>
-        <div class="flex-1 pl-10">
+        <div class="min-w-0 flex-1 pl-6 md:pl-10">
+          <span
+            class="text-tertiary-neutral dark:text-tertiary-neutral mb-1 block text-sm font-medium md:hidden"
+          >
+            {{ formatGroupDate(systemDetailState.data.registered_at.slice(0, 10)) }}
+          </span>
           <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
             {{ t('system_detail.system_registered') }}
           </span>
@@ -783,16 +802,20 @@ const localizedDateRange = computed(() => {
 
       <!-- System creation -->
       <div v-if="systemDetailState.data.created_at" class="relative mb-8 flex items-start">
-        <div class="w-36 shrink-0 pt-0.5 pr-6 text-right">
+        <div class="hidden w-36 shrink-0 pt-0.5 pr-6 text-right md:block">
           <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
             {{ formatGroupDate(systemDetailState.data.created_at.slice(0, 10)) }}
           </span>
         </div>
         <div
-          class="absolute z-10 size-2 rounded-full bg-gray-300 ring-4 ring-gray-50 dark:bg-gray-600 dark:ring-gray-900"
-          style="left: 139px; top: 7px"
+          class="absolute top-1.75 left-0.75 z-10 size-2 rounded-full bg-gray-300 ring-4 ring-gray-50 md:left-34.75 dark:bg-gray-600 dark:ring-gray-900"
         ></div>
-        <div class="flex-1 pl-10">
+        <div class="min-w-0 flex-1 pl-6 md:pl-10">
+          <span
+            class="text-tertiary-neutral dark:text-tertiary-neutral mb-1 block text-sm font-medium md:hidden"
+          >
+            {{ formatGroupDate(systemDetailState.data.created_at.slice(0, 10)) }}
+          </span>
           <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
             {{ t('system_detail.system_created') }}
           </span>
