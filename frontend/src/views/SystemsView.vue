@@ -33,17 +33,28 @@ const {
   versionFilter,
   statusFilter,
   organizationFilter,
+  includeHierarchy,
   sortBy,
   sortDescending,
+  applyHierarchyFilter,
   resetFilters,
 } = useSystems()
 
 // apply the filters requested via query params, then clean the URL
-const { organization_id: orgId, organization_name: orgName, status } = route.query
+const {
+  organization_id: orgId,
+  organization_name: orgName,
+  include_hierarchy: includeHierarchyParam,
+  status,
+} = route.query
 
 if (typeof orgId === 'string' && orgId && typeof orgName === 'string' && orgName) {
-  resetFilters()
-  organizationFilter.value = [{ id: orgId, label: orgName }]
+  if (includeHierarchyParam === 'true') {
+    applyHierarchyFilter({ id: orgId, label: orgName })
+  } else {
+    resetFilters()
+    organizationFilter.value = [{ id: orgId, label: orgName }]
+  }
   router.replace({ query: {} })
 }
 
@@ -84,6 +95,8 @@ async function exportSystems(format: 'pdf' | 'csv') {
       createdByFilter.value.map((o) => o.id),
       versionFilter.value.map((o) => o.id),
       statusFilter.value.map((o) => o.id) as SystemStatus[],
+      organizationFilter.value.map((o) => o.id),
+      includeHierarchy.value,
       sortBy.value,
       sortDescending.value,
     )

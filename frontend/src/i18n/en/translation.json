@@ -119,9 +119,10 @@
     "no_distributor": "No distributors",
     "export_distributors_to_pdf": "Export distributors to PDF",
     "export_distributors_to_csv": "Export distributors to CSV",
-    "total_customers": "Total Customers",
+    "total_customers": "Total customers",
     "import_distributors": "Import distributors",
-    "distributors_imported": "Distributors imported"
+    "distributors_imported": "Distributors imported",
+    "show_distributor_systems": "Show systems of {name} and its hierarchy"
   },
   "distributor_detail": {
     "title": "Distributor detail",
@@ -158,7 +159,8 @@
     "export_resellers_to_pdf": "Export resellers to PDF",
     "export_resellers_to_csv": "Export resellers to CSV",
     "import_resellers": "Import resellers",
-    "resellers_imported": "Resellers imported"
+    "resellers_imported": "Resellers imported",
+    "show_reseller_systems": "Show systems of {name} and its hierarchy"
   },
   "customers": {
     "title": "Customers",
@@ -659,15 +661,18 @@
     "destroy_system_confirmation": "Are you sure you want to destroy system {name}? This action cannot be undone.",
     "system_destroyed": "System destroyed",
     "cannot_destroy_system": "Cannot destroy system",
-    "total_systems": "Total Systems",
-    "organization_systems": "Company Systems",
+    "total_systems": "Total systems",
+    "organization_systems": "Company systems",
     "count_active": "{count} active",
     "count_inactive": "{count} inactive",
     "count_pending": "{count} pending",
     "show_active_systems": "Show active systems",
     "show_inactive_systems": "Show inactive systems",
     "show_pending_systems": "Show pending systems",
-    "organization_id_system_not_registered": "Company cannot be changed until the system is registered. To change it now, delete and re-create the system."
+    "organization_id_system_not_registered": "Company cannot be changed until the system is registered. To change it now, delete and re-create the system.",
+    "hierarchy_filter_title": "Filtering by company hierarchy",
+    "hierarchy_filter_description": "Showing systems of {name} and of all companies in its hierarchy. Changing the Company filter will remove this hierarchy filtering.",
+    "hierarchy_filter_exact": "Filter by this company only"
   },
   "system_detail": {
     "title": "System detail",
@@ -786,9 +791,9 @@
     "set_application_notes": "Set application notes",
     "set_application_notes_description": "The notes for application {application} have been set",
     "cannot_set_notes": "Cannot set application notes",
-    "total_applications": "Total Applications",
-    "organization_applications": "Company Applications",
-    "system_applications": "System Applications"
+    "total_applications": "Total applications",
+    "organization_applications": "Company applications",
+    "system_applications": "System applications"
   },
   "forbidden": {
     "title": "Restricted page",

@@ -121,7 +121,8 @@
     "export_distributors_to_csv": "Esporta distributori in CSV",
     "total_customers": "Clienti totali",
     "import_distributors": "Importa distributori",
-    "distributors_imported": "Distributori importati"
+    "distributors_imported": "Distributori importati",
+    "show_distributor_systems": "Mostra i sistemi di {name} e della sua gerarchia"
   },
   "distributor_detail": {
     "title": "Dettaglio distributore",
@@ -158,7 +159,8 @@
     "export_resellers_to_pdf": "Esporta rivenditori in PDF",
     "export_resellers_to_csv": "Esporta rivenditori in CSV",
     "import_resellers": "Importa rivenditori",
-    "resellers_imported": "Rivenditori importati"
+    "resellers_imported": "Rivenditori importati",
+    "show_reseller_systems": "Mostra i sistemi di {name} e della sua gerarchia"
   },
   "customers": {
     "title": "Clienti",
@@ -588,7 +590,10 @@
     "organization_systems": "Sistemi dell'azienda",
     "count_active": "{count} attivo | {count} attivi",
     "count_inactive": "{count} inattivo | {count} inattivi",
-    "count_pending": "{count} in attesa"
+    "count_pending": "{count} in attesa",
+    "hierarchy_filter_title": "Filtro per gerarchia aziendale",
+    "hierarchy_filter_description": "Sono mostrati i sistemi di {name} e di tutte le aziende della sua gerarchia. Modificare il filtro Azienda rimuoverà il filtro per gerarchia.",
+    "hierarchy_filter_exact": "Filtra solo per questa azienda"
   },
   "system_detail": {
     "title": "Dettaglio sistema",

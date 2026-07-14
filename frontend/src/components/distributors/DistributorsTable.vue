@@ -443,7 +443,27 @@ const goToDistributorDetails = (distributor: Distributor) => {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.total_systems')">
-            <div class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
+            <router-link
+              v-if="!item.deleted_at && item.systems_count > 0"
+              :to="{
+                name: 'systems',
+                query: {
+                  organization_id: item.logto_id,
+                  organization_name: item.name,
+                  include_hierarchy: 'true',
+                },
+              }"
+              class="flex items-center gap-2 hover:underline"
+              :aria-label="$t('distributors.show_distributor_systems', { name: item.name })"
+            >
+              <FontAwesomeIcon
+                :icon="faServer"
+                class="size-4 text-gray-700 dark:text-gray-400"
+                aria-hidden="true"
+              />
+              {{ item.systems_count }}
+            </router-link>
+            <div v-else class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
               <FontAwesomeIcon
                 :icon="faServer"
                 class="size-4 text-gray-700 dark:text-gray-400"

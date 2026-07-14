@@ -86,6 +86,7 @@ const {
   versionFilter,
   statusFilter,
   organizationFilter,
+  includeHierarchy,
   sortBy,
   sortDescending,
   areDefaultFiltersApplied,
@@ -370,6 +371,18 @@ function onCloseSecretRegeneratedModal() {
       :title="$t('systems.cannot_retrieve_systems')"
       :description="state.error.message"
       class="mb-6"
+    />
+    <!-- company hierarchy filter notification -->
+    <NeInlineNotification
+      v-if="includeHierarchy && organizationFilter.length === 1"
+      kind="info"
+      :title="$t('systems.hierarchy_filter_title')"
+      :description="
+        $t('systems.hierarchy_filter_description', { name: organizationFilter[0].label })
+      "
+      :secondary-button-label="$t('systems.hierarchy_filter_exact')"
+      class="mb-6"
+      @secondary-click="includeHierarchy = false"
     />
     <!-- table toolbar -->
     <div class="mb-6 flex items-center gap-4">

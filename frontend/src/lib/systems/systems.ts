@@ -120,6 +120,7 @@ export const getQueryStringParams = (
   versionFilter: string[],
   statusFilter: SystemStatus[],
   organizationFilter: string[],
+  includeHierarchy: boolean,
   sortBy: string | null,
   sortDescending: boolean,
 ) => {
@@ -153,6 +154,10 @@ export const getQueryStringParams = (
   organizationFilter.forEach((orgId) => {
     searchParams.append('organization_id', orgId)
   })
+
+  if (includeHierarchy) {
+    searchParams.append('include_hierarchy', 'true')
+  }
   return searchParams.toString()
 }
 
@@ -164,6 +169,8 @@ export const getQueryStringParamsForExport = (
   createdByFilter: string[] | undefined,
   versionFilter: string[] | undefined,
   statusFilter: SystemStatus[] | undefined,
+  organizationFilter: string[] | undefined,
+  includeHierarchy: boolean | undefined,
   sortBy: string | undefined,
   sortDescending: boolean | undefined,
 ) => {
@@ -197,6 +204,17 @@ export const getQueryStringParamsForExport = (
     })
   }
 
+  // appended before the statusFilter block because that block returns early
+  if (organizationFilter) {
+    organizationFilter.forEach((orgId) => {
+      searchParams.append('organization_id', orgId)
+    })
+  }
+
+  if (includeHierarchy) {
+    searchParams.append('include_hierarchy', 'true')
+  }
+
   if (statusFilter) {
     statusFilter.forEach((status) => {
       searchParams.append('status', status)
@@ -223,6 +241,7 @@ export const getSystems = (
   versionFilter: string[],
   statusFilter: SystemStatus[],
   organizationFilter: string[],
+  includeHierarchy: boolean,
   sortBy: string,
   sortDescending: boolean,
 ) => {
@@ -236,6 +255,7 @@ export const getSystems = (
     versionFilter,
     statusFilter,
     organizationFilter,
+    includeHierarchy,
     sortBy,
     sortDescending,
   )
@@ -365,6 +385,8 @@ export const getExport = (
   createdByFilter: string[] | undefined = undefined,
   versionFilter: string[] | undefined = undefined,
   statusFilter: SystemStatus[] | undefined = undefined,
+  organizationFilter: string[] | undefined = undefined,
+  includeHierarchy: boolean | undefined = undefined,
   sortBy: string | undefined = undefined,
   sortDescending: boolean | undefined = undefined,
 ) => {
@@ -377,6 +399,8 @@ export const getExport = (
     createdByFilter,
     versionFilter,
     statusFilter,
+    organizationFilter,
+    includeHierarchy,
     sortBy,
     sortDescending,
   )

@@ -27,7 +27,19 @@ export function useSystemFilter(idField: 'system_key' | 'id' = 'system_key') {
     key: () => [SYSTEMS_SEARCH_KEY, idField, debouncedSearch.value],
     enabled: () => !!loginStore.jwtToken,
     query: () =>
-      getSystems(1, OPTIONS_PAGE_SIZE, debouncedSearch.value, [], [], [], [], [], 'name', false),
+      getSystems(
+        1,
+        OPTIONS_PAGE_SIZE,
+        debouncedSearch.value,
+        [],
+        [],
+        [],
+        [],
+        [],
+        false,
+        'name',
+        false,
+      ),
   })
 
   const options = computed<NeDropdownFilterV2Option[]>(() => {
