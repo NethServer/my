@@ -305,28 +305,31 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 			           OR s.organization_id IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL)
 			           OR s.organization_id IN (
 			               SELECT c.logto_id FROM customers c
-			               WHERE c.deleted_at IS NULL AND EXISTS (
-			                   SELECT 1 FROM resellers r
-			                   WHERE r.logto_id = c.custom_data->>'createdBy'
-			                   AND r.custom_data->>'createdBy' = d.logto_id
-			                   AND r.deleted_at IS NULL
+			               WHERE c.deleted_at IS NULL AND (
+			                   c.custom_data->>'createdBy' = d.logto_id
+			                   OR c.custom_data->>'createdBy' IN (
+			                       SELECT logto_id FROM resellers
+			                       WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL
+			                   )
 			               )
 			           )
 			       )) as systems_count,
 			       (SELECT COUNT(*) FROM resellers r WHERE r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL) as resellers_count,
-			       (SELECT COUNT(*) FROM customers c WHERE c.deleted_at IS NULL AND EXISTS (
-			           SELECT 1 FROM resellers r WHERE r.logto_id = c.custom_data->>'createdBy' AND r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL
+			       (SELECT COUNT(*) FROM customers c WHERE c.deleted_at IS NULL AND (
+			           c.custom_data->>'createdBy' = d.logto_id
+			           OR c.custom_data->>'createdBy' IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL)
 			       )) as customers_count,
 			       (SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND (
 			           a.organization_id = d.logto_id
 			           OR a.organization_id IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL)
 			           OR a.organization_id IN (
 			               SELECT c.logto_id FROM customers c
-			               WHERE c.deleted_at IS NULL AND EXISTS (
-			                   SELECT 1 FROM resellers r
-			                   WHERE r.logto_id = c.custom_data->>'createdBy'
-			                   AND r.custom_data->>'createdBy' = d.logto_id
-			                   AND r.deleted_at IS NULL
+			               WHERE c.deleted_at IS NULL AND (
+			                   c.custom_data->>'createdBy' = d.logto_id
+			                   OR c.custom_data->>'createdBy' IN (
+			                       SELECT logto_id FROM resellers
+			                       WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL
+			                   )
 			               )
 			           )
 			       )) as applications_count
@@ -349,28 +352,31 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 			           OR s.organization_id IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL)
 			           OR s.organization_id IN (
 			               SELECT c.logto_id FROM customers c
-			               WHERE c.deleted_at IS NULL AND EXISTS (
-			                   SELECT 1 FROM resellers r
-			                   WHERE r.logto_id = c.custom_data->>'createdBy'
-			                   AND r.custom_data->>'createdBy' = d.logto_id
-			                   AND r.deleted_at IS NULL
+			               WHERE c.deleted_at IS NULL AND (
+			                   c.custom_data->>'createdBy' = d.logto_id
+			                   OR c.custom_data->>'createdBy' IN (
+			                       SELECT logto_id FROM resellers
+			                       WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL
+			                   )
 			               )
 			           )
 			       )) as systems_count,
 			       (SELECT COUNT(*) FROM resellers r WHERE r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL) as resellers_count,
-			       (SELECT COUNT(*) FROM customers c WHERE c.deleted_at IS NULL AND EXISTS (
-			           SELECT 1 FROM resellers r WHERE r.logto_id = c.custom_data->>'createdBy' AND r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL
+			       (SELECT COUNT(*) FROM customers c WHERE c.deleted_at IS NULL AND (
+			           c.custom_data->>'createdBy' = d.logto_id
+			           OR c.custom_data->>'createdBy' IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL)
 			       )) as customers_count,
 			       (SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND (
 			           a.organization_id = d.logto_id
 			           OR a.organization_id IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL)
 			           OR a.organization_id IN (
 			               SELECT c.logto_id FROM customers c
-			               WHERE c.deleted_at IS NULL AND EXISTS (
-			                   SELECT 1 FROM resellers r
-			                   WHERE r.logto_id = c.custom_data->>'createdBy'
-			                   AND r.custom_data->>'createdBy' = d.logto_id
-			                   AND r.deleted_at IS NULL
+			               WHERE c.deleted_at IS NULL AND (
+			                   c.custom_data->>'createdBy' = d.logto_id
+			                   OR c.custom_data->>'createdBy' IN (
+			                       SELECT logto_id FROM resellers
+			                       WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL
+			                   )
 			               )
 			           )
 			       )) as applications_count
@@ -660,11 +666,12 @@ func (r *LocalDistributorRepository) GetStats(id string) (*models.DistributorSta
 				OR u.organization_id IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL)
 				OR u.organization_id IN (
 					SELECT c.logto_id FROM customers c
-					WHERE c.deleted_at IS NULL AND EXISTS (
-						SELECT 1 FROM resellers r
-						WHERE r.logto_id = c.custom_data->>'createdBy'
-						AND r.custom_data->>'createdBy' = $1
-						AND r.deleted_at IS NULL
+					WHERE c.deleted_at IS NULL AND (
+						c.custom_data->>'createdBy' = $1
+						OR c.custom_data->>'createdBy' IN (
+							SELECT logto_id FROM resellers
+							WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
+						)
 					)
 				)
 			)) as users_hierarchy_count,
@@ -674,20 +681,22 @@ func (r *LocalDistributorRepository) GetStats(id string) (*models.DistributorSta
 				OR s.organization_id IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL)
 				OR s.organization_id IN (
 					SELECT c.logto_id FROM customers c
-					WHERE c.deleted_at IS NULL AND EXISTS (
-						SELECT 1 FROM resellers r
-						WHERE r.logto_id = c.custom_data->>'createdBy'
-						AND r.custom_data->>'createdBy' = $1
-						AND r.deleted_at IS NULL
+					WHERE c.deleted_at IS NULL AND (
+						c.custom_data->>'createdBy' = $1
+						OR c.custom_data->>'createdBy' IN (
+							SELECT logto_id FROM resellers
+							WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
+						)
 					)
 				)
 			)) as systems_hierarchy_count,
 			(SELECT COUNT(*) FROM resellers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL) as resellers_count,
-			(SELECT COUNT(*) FROM customers c WHERE c.deleted_at IS NULL AND EXISTS (
-				SELECT 1 FROM resellers r
-				WHERE r.logto_id = c.custom_data->>'createdBy'
-				AND r.custom_data->>'createdBy' = $1
-				AND r.deleted_at IS NULL
+			(SELECT COUNT(*) FROM customers c WHERE c.deleted_at IS NULL AND (
+				c.custom_data->>'createdBy' = $1
+				OR c.custom_data->>'createdBy' IN (
+					SELECT logto_id FROM resellers
+					WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
+				)
 			)) as customers_count,
 			(SELECT COUNT(*) FROM applications WHERE organization_id = $1 AND deleted_at IS NULL AND (inventory_data->>'certification_level')::int IN (4, 5)) as applications_count,
 			(SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND (
@@ -695,11 +704,12 @@ func (r *LocalDistributorRepository) GetStats(id string) (*models.DistributorSta
 				OR a.organization_id IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL)
 				OR a.organization_id IN (
 					SELECT c.logto_id FROM customers c
-					WHERE c.deleted_at IS NULL AND EXISTS (
-						SELECT 1 FROM resellers r
-						WHERE r.logto_id = c.custom_data->>'createdBy'
-						AND r.custom_data->>'createdBy' = $1
-						AND r.deleted_at IS NULL
+					WHERE c.deleted_at IS NULL AND (
+						c.custom_data->>'createdBy' = $1
+						OR c.custom_data->>'createdBy' IN (
+							SELECT logto_id FROM resellers
+							WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
+						)
 					)
 				)
 			)) as applications_hierarchy_count
