@@ -66,6 +66,10 @@ export const UserSchema = v.object({
       email: v.string(),
       organization_id: v.string(),
       organization_name: v.string(),
+      // True when the creator acted on behalf of organization_name (attributed
+      // via created_by_organization_id) rather than belonging to it. Omitted
+      // (falsy) on the default own-org path.
+      on_behalf_of: v.optional(v.boolean()),
     }),
   ),
 })

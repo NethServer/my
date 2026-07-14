@@ -196,6 +196,8 @@
     "distributor": "Distributore",
     "reseller": "Rivenditore",
     "customer": "Cliente",
+    "created_on_behalf_of": "Creato per conto di",
+    "created_on_behalf_of_helper": "Assegna questo {companyType} a un'altra azienda della tua gerarchia se lo stai creando per suo conto. Lascia questo campo vuoto per assegnare il {companyType} alla tua azienda.",
     "name_cannot_be_empty": "Il nome dell'azienda è richiesto",
     "custom_data_vat_cannot_be_empty": "La partita IVA è richiesta",
     "custom_data_vat_already_exists": "Un'azienda con questa partita IVA esiste già",
@@ -225,7 +227,7 @@
     "organization_restored_successfully": "{name} ripristinata con successo",
     "restore_organization_confirmation": "Sei sicuro di voler ripristinare {name}?",
     "no_company": "Nessuna azienda",
-    "distributors_lc": "distributori |",
+    "distributors_lc": "distributore | distributori",
     "resellers_lc": "rivenditore | rivenditori",
     "customers_lc": "cliente | clienti"
   },

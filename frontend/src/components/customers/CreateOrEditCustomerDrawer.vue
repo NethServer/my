@@ -38,6 +38,9 @@ import { getCommonLanguagesOptions } from '@/lib/locale'
 import { getBrowserLocale } from '@/i18n'
 import { useLoginStore } from '@/stores/login'
 import { combinePhoneParts, countryCodeComboOptions, parsePhoneForForm } from '@/lib/phone'
+import CreatedOnBehalfOfCombobox from '@/components/organizations/CreatedOnBehalfOfCombobox.vue'
+import { isUserDistributor } from '@/lib/organizations/organizations'
+import { useHasAttributableOrganizations } from '@/composables/useOrganizationFilter'
 
 const { isShown = false, currentCustomer = undefined } = defineProps<{
   isShown: boolean
@@ -132,6 +135,7 @@ const language = ref('it')
 const languageRef = useTemplateRef<HTMLInputElement>('languageRef')
 const notes = ref('')
 const notesRef = useTemplateRef<HTMLInputElement>('notesRef')
+const createdByOrganizationId = ref('')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
@@ -149,6 +153,18 @@ const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> =
 const saving = computed(() => {
   return createCustomerLoading.value || editCustomerLoading.value
 })
+
+// The optional "created by" attribution is honored by the backend only for
+// owner or distributor callers (see ResolveCreatedByOrg), so only show it to them.
+const canSetCreatedByOrganization = computed(() => loginStore.isOwner || isUserDistributor())
+
+// Only show the field when the caller actually has an ancestor org to attribute
+// to; the lookup runs only while the drawer is open and the field is applicable.
+const createdOnBehalfAllowedTypes = ['distributor', 'reseller']
+const hasAttributableOrganizations = useHasAttributableOrganizations(
+  () => createdOnBehalfAllowedTypes,
+  () => isShown && canSetCreatedByOrganization.value,
+)
 
 const languageOptions = computed((): NeComboboxOption[] => {
   if (loginStore.userInfo?.email && getPreference('locale', loginStore.userInfo.email)) {
@@ -184,6 +200,7 @@ function onShow() {
 
     language.value = currentCustomer.custom_data?.language || ''
     notes.value = currentCustomer.custom_data?.notes || ''
+    createdByOrganizationId.value = ''
   } else {
     // creating customer, reset form to defaults
     name.value = ''
@@ -196,6 +213,7 @@ function onShow() {
     phone.value = ''
     language.value = 'it'
     notes.value = ''
+    createdByOrganizationId.value = ''
   }
 }
 
@@ -300,7 +318,13 @@ async function saveCustomer() {
   } else {
     // creating customer
 
-    const customerToCreate: CreateCustomer = customer
+    const customerToCreate: CreateCustomer = {
+      ...customer,
+      // attribute the new customer to an ancestor org when one is picked
+      ...(createdByOrganizationId.value
+        ? { created_by_organization_id: createdByOrganizationId.value }
+        : {}),
+    }
     const isValidationOk = validateCreate(customerToCreate)
     if (!isValidationOk) {
       return
@@ -463,6 +487,19 @@ async function saveCustomer() {
           :invalid-message="validationIssues.notes?.[0] ? $t(validationIssues.notes[0]) : ''"
           :optional="true"
           :optional-label="t('common.optional')"
+        />
+        <!-- created on behalf of (owner/distributor only, on create) -->
+        <CreatedOnBehalfOfCombobox
+          v-if="!currentCustomer && canSetCreatedByOrganization && hasAttributableOrganizations"
+          v-model="createdByOrganizationId"
+          :allowed-types="createdOnBehalfAllowedTypes"
+          :company-type="$t('organizations.customers_lc', { count: 1 })"
+          :disabled="saving"
+          :invalid-message="
+            validationIssues.created_by_organization_id?.[0]
+              ? $t(validationIssues.created_by_organization_id[0])
+              : ''
+          "
         />
         <!-- create customer error notification -->
         <NeInlineNotification
