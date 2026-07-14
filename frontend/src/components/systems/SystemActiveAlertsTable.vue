@@ -427,7 +427,7 @@ function onMuteDrawerClose(): void {
                 <template #prefix>
                   <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
                 </template>
-                {{ $t('alerts.view_details') }}
+                {{ $t('common.details') }}
               </NeButton>
               <NeDropdown
                 v-if="canManageSystems()"

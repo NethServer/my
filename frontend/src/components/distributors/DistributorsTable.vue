@@ -526,7 +526,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
                 <template #prefix>
                   <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
                 </template>
-                {{ $t('common.view') }}
+                {{ $t('common.details') }}
               </NeButton>
               <!-- kebab menu -->
               <NeDropdown
