@@ -44,3 +44,25 @@ func createdByFilterClause(createdBy []string) string {
 	list := strings.Join(quoted, ", ")
 	return fmt.Sprintf(" AND (custom_data->'createdByUser'->>'user_id' IN (%s) OR custom_data->'createdByUser'->>'organization_id' IN (%s))", list, list)
 }
+
+// ownedByFilterClause builds a SQL fragment restricting resellers/customers to
+// those owned by any of the given organization logto IDs (custom_data.createdBy,
+// the ownership key RBAC visibility walks — not the creator snapshot). Backs
+// the organization_id list filter; combined with ExpandOrganizationIDs it
+// covers a whole hierarchy. Same validation and inlining rules as
+// createdByFilterClause. Returns "" when no usable value is provided.
+func ownedByFilterClause(ownedBy []string) string {
+	seen := make(map[string]bool)
+	quoted := make([]string, 0, len(ownedBy))
+	for _, v := range ownedBy {
+		if v == "" || seen[v] || !createdByIDPattern.MatchString(v) {
+			continue
+		}
+		seen[v] = true
+		quoted = append(quoted, "'"+v+"'")
+	}
+	if len(quoted) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" AND custom_data->>'createdBy' IN (%s)", strings.Join(quoted, ", "))
+}

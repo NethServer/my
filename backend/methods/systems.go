@@ -162,6 +162,18 @@ func GetSystems(c *gin.Context) {
 	filterOrgIDs := c.QueryArray("organization_id") // Organization filter (multiple IDs)
 	filterStatuses := c.QueryArray("status")        // Status filter (multiple values)
 
+	// include_hierarchy expands each organization_id filter to the org plus its
+	// whole subtree (resellers/customers); the systems RBAC scope still applies
+	// on top, so the expansion can never widen visibility.
+	if c.Query("include_hierarchy") == "true" && len(filterOrgIDs) > 0 {
+		expanded, err := local.NewOrganizationService().ExpandOrganizationIDs(filterOrgIDs)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to expand organization hierarchy", nil))
+			return
+		}
+		filterOrgIDs = expanded
+	}
+
 	// Create systems service
 	systemsService := local.NewSystemsService()
 

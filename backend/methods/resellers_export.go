@@ -54,9 +54,21 @@ func ExportResellers(c *gin.Context) {
 	// Create service
 	service := local.NewOrganizationService()
 
+	// include_hierarchy expands each organization_id to the org plus its whole
+	// subtree; the RBAC scope of the export still applies on top.
+	ownedBy := c.QueryArray("organization_id")
+	if c.Query("include_hierarchy") == "true" && len(ownedBy) > 0 {
+		expanded, err := service.ExpandOrganizationIDs(ownedBy)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to expand organization hierarchy", nil))
+			return
+		}
+		ownedBy = expanded
+	}
+
 	// Get resellers based on RBAC without pagination limit (but with max export limit)
 	userOrgRole := strings.ToLower(user.OrgRole)
-	resellers, totalCount, err := service.ListResellers(userOrgRole, user.OrganizationID, 1, MaxResellersExportLimit, search, sortBy, sortDirection, statuses, c.QueryArray("created_by"))
+	resellers, totalCount, err := service.ListResellers(userOrgRole, user.OrganizationID, 1, MaxResellersExportLimit, search, sortBy, sortDirection, statuses, c.QueryArray("created_by"), ownedBy)
 	if err != nil {
 		logger.Error().
 			Err(err).

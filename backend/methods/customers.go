@@ -204,13 +204,25 @@ func GetCustomers(c *gin.Context) {
 	search := c.Query("search")
 	statuses := c.QueryArray("status")
 	createdBy := c.QueryArray("created_by")
+	ownedBy := c.QueryArray("organization_id")
 
 	// Create service
 	service := local.NewOrganizationService()
 
+	// include_hierarchy expands each organization_id to the org plus its whole
+	// subtree; the RBAC scope of the list still applies on top.
+	if c.Query("include_hierarchy") == "true" && len(ownedBy) > 0 {
+		expanded, err := service.ExpandOrganizationIDs(ownedBy)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to expand organization hierarchy", nil))
+			return
+		}
+		ownedBy = expanded
+	}
+
 	// Get customers based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	customers, totalCount, err := service.ListCustomers(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy)
+	customers, totalCount, err := service.ListCustomers(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy, ownedBy)
 	if err != nil {
 		logger.Error().
 			Err(err).

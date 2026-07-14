@@ -17,6 +17,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lib/pq"
+
 	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/entities"
@@ -674,6 +676,71 @@ func (s *LocalOrganizationService) ResolveCreatedByOrg(userOrgRole, userOrgID, t
 	return targetOrgID, orgName, true, ""
 }
 
+// ExpandOrganizationIDs returns the given organization ids plus every
+// descendant organization id (a distributor's resellers and the customers
+// created by it or by those resellers; a reseller's customers), deduplicated.
+// It backs the include_hierarchy flag of the list endpoints: the expanded set
+// only refines filters that are always ANDed with the caller's RBAC scope, so
+// it can never widen visibility beyond what the caller already sees.
+func (s *LocalOrganizationService) ExpandOrganizationIDs(orgIDs []string) ([]string, error) {
+	if len(orgIDs) == 0 {
+		return orgIDs, nil
+	}
+
+	seen := make(map[string]bool, len(orgIDs))
+	expanded := make([]string, 0, len(orgIDs))
+	add := func(id string) {
+		if id != "" && !seen[id] {
+			seen[id] = true
+			expanded = append(expanded, id)
+		}
+	}
+	for _, id := range orgIDs {
+		add(id)
+	}
+
+	// Resellers created by any of the requested orgs (non-empty only when the
+	// org is a distributor: nothing else can own a reseller).
+	resellerRows, err := database.DB.Query(`
+		SELECT logto_id FROM resellers
+		WHERE deleted_at IS NULL AND logto_id IS NOT NULL
+		AND custom_data->>'createdBy' = ANY($1::text[])
+	`, pq.Array(orgIDs))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query child resellers: %w", err)
+	}
+	defer func() { _ = resellerRows.Close() }()
+	createdByIDs := append([]string{}, orgIDs...)
+	for resellerRows.Next() {
+		var id string
+		if err := resellerRows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan reseller ID: %w", err)
+		}
+		add(id)
+		createdByIDs = append(createdByIDs, id)
+	}
+
+	// Customers created by the requested orgs or by their resellers.
+	customerRows, err := database.DB.Query(`
+		SELECT logto_id FROM customers
+		WHERE deleted_at IS NULL AND logto_id IS NOT NULL
+		AND custom_data->>'createdBy' = ANY($1::text[])
+	`, pq.Array(createdByIDs))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query child customers: %w", err)
+	}
+	defer func() { _ = customerRows.Close() }()
+	for customerRows.Next() {
+		var id string
+		if err := customerRows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan customer ID: %w", err)
+		}
+		add(id)
+	}
+
+	return expanded, nil
+}
+
 // ============================================
 // READ OPERATIONS (GetByID and List)
 // ============================================
@@ -699,13 +766,13 @@ func (s *LocalOrganizationService) ListDistributors(userOrgRole, userOrgID strin
 }
 
 // ListResellers returns paginated resellers based on RBAC
-func (s *LocalOrganizationService) ListResellers(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy []string) ([]*models.LocalReseller, int, error) {
-	return s.resellerRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy)
+func (s *LocalOrganizationService) ListResellers(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string) ([]*models.LocalReseller, int, error) {
+	return s.resellerRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy, ownedBy)
 }
 
 // ListCustomers returns paginated customers based on RBAC
-func (s *LocalOrganizationService) ListCustomers(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy []string) ([]*models.LocalCustomer, int, error) {
-	return s.customerRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy)
+func (s *LocalOrganizationService) ListCustomers(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string) ([]*models.LocalCustomer, int, error) {
+	return s.customerRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy, ownedBy)
 }
 
 // ============================================

@@ -99,7 +99,7 @@ func GetResellerFilters(c *gin.Context) {
 
 	service := local.NewOrganizationService()
 	userOrgRole := strings.ToLower(user.OrgRole)
-	resellers, _, err := service.ListResellers(userOrgRole, user.OrganizationID, 1, orgFiltersScanLimit, "", "name", "asc", nil, nil)
+	resellers, _, err := service.ListResellers(userOrgRole, user.OrganizationID, 1, orgFiltersScanLimit, "", "name", "asc", nil, nil, nil)
 	if err != nil {
 		logger.Error().Err(err).Str("user_id", user.ID).Msg("Failed to retrieve reseller filters")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve reseller filters", nil))
@@ -121,7 +121,7 @@ func GetCustomerFilters(c *gin.Context) {
 
 	service := local.NewOrganizationService()
 	userOrgRole := strings.ToLower(user.OrgRole)
-	customers, _, err := service.ListCustomers(userOrgRole, user.OrganizationID, 1, orgFiltersScanLimit, "", "name", "asc", nil, nil)
+	customers, _, err := service.ListCustomers(userOrgRole, user.OrganizationID, 1, orgFiltersScanLimit, "", "name", "asc", nil, nil, nil)
 	if err != nil {
 		logger.Error().Err(err).Str("user_id", user.ID).Msg("Failed to retrieve customer filters")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve customer filters", nil))

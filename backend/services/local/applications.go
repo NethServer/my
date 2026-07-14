@@ -672,83 +672,8 @@ func (s *LocalApplicationsService) GetApplicationTypeSummary(userOrgRole, userOr
 	return s.repo.GetTypeSummary(allowedSystemIDs, orgIDsToFilter, true, page, pageSize, sortBy, sortDirection) // userFacingOnly
 }
 
-// getChildOrganizationIDs returns the given org plus all its children in the hierarchy
+// getChildOrganizationIDs returns the given org plus all its children in the
+// hierarchy (delegates to the shared organization-service expansion).
 func (s *LocalApplicationsService) getChildOrganizationIDs(orgID string) ([]string, error) {
-	orgType, err := s.getOrganizationType(orgID)
-	if err != nil {
-		return nil, err
-	}
-
-	result := []string{orgID}
-
-	switch orgType {
-	case "distributor":
-		// Get child resellers
-		resellerRows, err := database.DB.Query(`
-			SELECT logto_id FROM resellers
-			WHERE deleted_at IS NULL AND logto_id IS NOT NULL
-			AND custom_data->>'createdBy' = $1
-		`, orgID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to query child resellers: %w", err)
-		}
-		defer func() { _ = resellerRows.Close() }()
-
-		var resellerIDs []string
-		for resellerRows.Next() {
-			var id string
-			if err := resellerRows.Scan(&id); err != nil {
-				return nil, fmt.Errorf("failed to scan reseller ID: %w", err)
-			}
-			resellerIDs = append(resellerIDs, id)
-			result = append(result, id)
-		}
-
-		// Get child customers (direct + through resellers)
-		createdByIDs := append([]string{orgID}, resellerIDs...)
-		if len(createdByIDs) > 0 {
-			customerRows, err := database.DB.Query(`
-				SELECT logto_id FROM customers
-				WHERE deleted_at IS NULL AND logto_id IS NOT NULL
-				AND custom_data->>'createdBy' = ANY($1::text[])
-			`, pq.Array(createdByIDs))
-			if err != nil {
-				return nil, fmt.Errorf("failed to query child customers: %w", err)
-			}
-			defer func() { _ = customerRows.Close() }()
-
-			for customerRows.Next() {
-				var id string
-				if err := customerRows.Scan(&id); err != nil {
-					return nil, fmt.Errorf("failed to scan customer ID: %w", err)
-				}
-				result = append(result, id)
-			}
-		}
-
-	case "reseller":
-		// Get child customers
-		customerRows, err := database.DB.Query(`
-			SELECT logto_id FROM customers
-			WHERE deleted_at IS NULL AND logto_id IS NOT NULL
-			AND custom_data->>'createdBy' = $1
-		`, orgID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to query child customers: %w", err)
-		}
-		defer func() { _ = customerRows.Close() }()
-
-		for customerRows.Next() {
-			var id string
-			if err := customerRows.Scan(&id); err != nil {
-				return nil, fmt.Errorf("failed to scan customer ID: %w", err)
-			}
-			result = append(result, id)
-		}
-
-	case "customer":
-		// No children, just the org itself
-	}
-
-	return result, nil
+	return NewOrganizationService().ExpandOrganizationIDs([]string{orgID})
 }

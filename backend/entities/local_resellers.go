@@ -229,14 +229,14 @@ func (r *LocalResellerRepository) Reactivate(id string) error {
 }
 
 // List returns paginated list of resellers visible to the user
-func (r *LocalResellerRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy []string) ([]*models.LocalReseller, int, error) {
+func (r *LocalResellerRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string) ([]*models.LocalReseller, int, error) {
 	offset := (page - 1) * pageSize
 
 	switch userOrgRole {
 	case "owner":
-		return r.listForOwner(page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy)
+		return r.listForOwner(page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy)
 	case "distributor":
-		return r.listForDistributor(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy)
+		return r.listForDistributor(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy)
 	default:
 		// Resellers and customers can't see other resellers
 		return []*models.LocalReseller{}, 0, nil
@@ -244,7 +244,7 @@ func (r *LocalResellerRepository) List(userOrgRole, userOrgID string, page, page
 }
 
 // listForOwner handles reseller listing for owner role
-func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy []string) ([]*models.LocalReseller, int, error) {
+func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string) ([]*models.LocalReseller, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
@@ -293,6 +293,8 @@ func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, searc
 
 	// Restrict to the requested creators (see createdByFilterClause).
 	statusClause += createdByFilterClause(createdBy)
+	// Restrict to the requested owning organizations (see ownedByFilterClause).
+	statusClause += ownedByFilterClause(ownedBy)
 
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
@@ -349,7 +351,7 @@ func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, searc
 }
 
 // listForDistributor handles reseller listing for distributor role
-func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy []string) ([]*models.LocalReseller, int, error) {
+func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string) ([]*models.LocalReseller, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
@@ -398,6 +400,8 @@ func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pag
 
 	// Restrict to the requested creators (see createdByFilterClause).
 	statusClause += createdByFilterClause(createdBy)
+	// Restrict to the requested owning organizations (see ownedByFilterClause).
+	statusClause += ownedByFilterClause(ownedBy)
 
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
