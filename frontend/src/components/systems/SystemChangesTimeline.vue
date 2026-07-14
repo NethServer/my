@@ -8,6 +8,7 @@ import { useInventoryTimeline } from '@/queries/systems/inventoryTimeline'
 import { useInventoryChanges } from '@/queries/systems/inventoryChanges'
 import { useInventoryDiffs } from '@/queries/systems/inventoryDiffs'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
+import { useLatestInventory } from '@/queries/systems/latestInventory'
 import {
   type InventoryDiff,
   type InventoryDiffCategory,
@@ -74,6 +75,7 @@ const {
 
 const { state: inventoryChangesState } = useInventoryChanges()
 const { state: systemDetailState } = useSystemDetail()
+const { state: latestInventoryState } = useLatestInventory()
 
 // ── Local state ──────────────────────────────────────────────────────────────
 const expandedGroups = ref<Set<string>>(new Set())
@@ -772,6 +774,34 @@ const localizedDateRange = computed(() => {
         </div>
       </div>
     </div>
+
+    <!-- Static milestone events: first inventory sent, system registration and creation -->
+    <template v-if="latestInventoryState.data?.created_at">
+      <!-- First inventory sent -->
+      <div class="relative mb-8 flex items-start">
+        <div class="hidden w-36 shrink-0 pt-0.5 pr-6 text-right md:block">
+          <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
+            {{ formatGroupDate(latestInventoryState.data.created_at.slice(0, 10)) }}
+          </span>
+        </div>
+        <div
+          class="absolute top-1.75 left-0.75 z-10 size-2 rounded-full bg-gray-300 ring-4 ring-gray-50 md:left-34.75 dark:bg-gray-600 dark:ring-gray-900"
+        ></div>
+        <div class="min-w-0 flex-1 pl-6 md:pl-10">
+          <span
+            class="text-tertiary-neutral dark:text-tertiary-neutral mb-1 block text-sm font-medium md:hidden"
+          >
+            {{ formatGroupDate(latestInventoryState.data.created_at.slice(0, 10)) }}
+          </span>
+          <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
+            {{ t('system_detail.first_inventory_sent') }}
+          </span>
+          <p class="text-tertiary-neutral mt-0.5">
+            {{ formatTimeNoSeconds(new Date(latestInventoryState.data.created_at), locale, 'UTC') }}
+          </p>
+        </div>
+      </div>
+    </template>
 
     <!-- Static milestone events: system registration and creation -->
     <template v-if="systemDetailState.data">

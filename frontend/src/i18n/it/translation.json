@@ -670,6 +670,7 @@
     "service_threat_shield": "Yoroi blocklist",
     "system_registered": "Sistema registrato",
     "system_created": "Sistema creato",
+    "first_inventory_sent": "Primo inventario inviato",
     "active_alerts_title": "Allarmi attivi",
     "active_alerts_description": "Visualizza gli allarmi attivi e monitora i problemi in corso per questo sistema.",
     "alert_history_title": "Cronologia allarmi",
