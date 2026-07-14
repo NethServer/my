@@ -544,7 +544,7 @@ const localizedDateRange = computed(() => {
       <!-- Date header row -->
       <div v-if="!isGroupPendingDiffs(group)" class="relative mb-8 flex items-start">
         <!-- Date label column (right-aligned) -->
-        <div class="w-36 flex-shrink-0 pt-0.5 pr-6 text-right">
+        <div class="w-36 shrink-0 pt-0.5 pr-6 text-right">
           <span
             class="text-sm font-medium"
             :class="
@@ -616,7 +616,7 @@ const localizedDateRange = computed(() => {
                     <div class="flex min-w-0 items-center gap-4">
                       <!-- Change type icon -->
                       <div
-                        class="flex size-6 flex-shrink-0 items-center justify-center rounded-full"
+                        class="flex size-6 shrink-0 items-center justify-center rounded-full"
                         :class="getDiffTypeIconBg(diff.diff_type)"
                       >
                         <FontAwesomeIcon
@@ -626,7 +626,7 @@ const localizedDateRange = computed(() => {
                       </div>
                       <!-- Category -->
                       <span
-                        class="min-w-[80px] flex-shrink-0 text-sm font-medium text-gray-900 uppercase dark:text-gray-50"
+                        class="min-w-20 shrink-0 text-sm font-medium text-gray-900 uppercase dark:text-gray-50"
                       >
                         {{ getCategoryLabel(diff.category) }}
                       </span>
@@ -634,7 +634,7 @@ const localizedDateRange = computed(() => {
                       <NeBadgeV2
                         :kind="getSeverityKind(diff.severity)"
                         :custom-kind-classes="getSeverityCustomKindClasses(diff.severity)"
-                        class="mr-2 min-w-[80px] justify-center"
+                        class="mr-2 min-w-20 justify-center"
                       >
                         {{ capitalize(diff.severity) }}
                       </NeBadgeV2>
@@ -648,7 +648,7 @@ const localizedDateRange = computed(() => {
                     <!-- Expand chevron -->
                     <FontAwesomeIcon
                       :icon="expandedDiffs.has(diff.id) ? faAngleUp : faAngleDown"
-                      class="text-tertiary-neutral dark:text-tertiary-neutral size-4 flex-shrink-0"
+                      class="text-tertiary-neutral dark:text-tertiary-neutral size-4 shrink-0"
                     />
                   </div>
 
@@ -729,7 +729,7 @@ const localizedDateRange = computed(() => {
         v-if="group.gapDaysAfter > 0 && !isGroupPendingDiffs(group) && areDefaultFiltersApplied"
         class="my-8 flex items-start"
       >
-        <div class="w-36 flex-shrink-0"></div>
+        <div class="w-36 shrink-0"></div>
         <div class="flex-1 pl-10">
           <span
             class="inline-block rounded bg-gray-200 px-3 py-1 text-sm font-medium text-gray-800 dark:bg-gray-600 dark:text-gray-100"
@@ -742,7 +742,7 @@ const localizedDateRange = computed(() => {
 
     <!-- Load more trigger (IntersectionObserver target) -->
     <div v-if="hasNextPage" ref="loadMoreTrigger" class="flex items-start py-4">
-      <div class="w-36 flex-shrink-0"></div>
+      <div class="w-36 shrink-0"></div>
       <div class="flex-1 pl-10">
         <div
           v-if="timelineAsyncStatus === 'loading' || diffsAsyncStatus === 'loading'"
@@ -760,7 +760,7 @@ const localizedDateRange = computed(() => {
     <template v-if="systemDetailState.data">
       <!-- System registration -->
       <div v-if="systemDetailState.data.registered_at" class="relative mb-8 flex items-start">
-        <div class="w-36 flex-shrink-0 pt-0.5 pr-6 text-right">
+        <div class="w-36 shrink-0 pt-0.5 pr-6 text-right">
           <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
             {{ formatGroupDate(systemDetailState.data.registered_at.slice(0, 10)) }}
           </span>
@@ -781,7 +781,7 @@ const localizedDateRange = computed(() => {
 
       <!-- System creation -->
       <div v-if="systemDetailState.data.created_at" class="relative mb-8 flex items-start">
-        <div class="w-36 flex-shrink-0 pt-0.5 pr-6 text-right">
+        <div class="w-36 shrink-0 pt-0.5 pr-6 text-right">
           <span class="text-tertiary-neutral dark:text-tertiary-neutral text-sm font-medium">
             {{ formatGroupDate(systemDetailState.data.created_at.slice(0, 10)) }}
           </span>
