@@ -165,6 +165,7 @@
   "customers": {
     "title": "Clienti",
     "page_description": "Elenco dei clienti finali con relative informazioni aziendali.",
+    "show_customer_systems": "Mostra i sistemi di {name}",
     "cannot_retrieve_customers": "Impossibile recuperare i clienti",
     "no_customer_found": "Nessun cliente trovato",
     "filter_customers": "Filtra clienti",
@@ -235,7 +236,7 @@
   },
   "users": {
     "title": "Utenti",
-    "page_description": "Elenco degli utenti autorizzati ad accedere a {productName}, con l'azienda associata e i ruoli assegnati.",
+    "page_description": "Elenco degli utenti autorizzati ad accedere a {productName}, con le aziende associate e i ruoli assegnati.",
     "cannot_retrieve_users": "Impossibile recuperare gli utenti",
     "email": "Email",
     "name": "Nome",
@@ -519,6 +520,7 @@
     "created": "Creato",
     "created_by": "Creato da",
     "created_by_name": "Creato da {name}",
+    "on_behalf_of": "Per conto di {organization}",
     "organization": "Azienda",
     "organization_helper": "Scegli l'azienda a cui verrà assegnato questo sistema",
     "status": "Stato",
@@ -591,6 +593,10 @@
     "count_active": "{count} attivo | {count} attivi",
     "count_inactive": "{count} inattivo | {count} inattivi",
     "count_pending": "{count} in attesa",
+    "show_active_systems": "Mostra sistemi attivi",
+    "show_inactive_systems": "Mostra sistemi inattivi",
+    "show_pending_systems": "Mostra sistemi in attesa",
+    "organization_id_system_not_registered": "L'azienda non può essere modificata finché il sistema non è registrato. Per modificarla ora, elimina e ricrea il sistema.",
     "hierarchy_filter_title": "Filtro per gerarchia aziendale",
     "hierarchy_filter_description": "Sono mostrati i sistemi di {name} e di tutte le aziende della sua gerarchia. Modificare il filtro Azienda rimuoverà il filtro per gerarchia.",
     "hierarchy_filter_exact": "Filtra solo per questa azienda"
@@ -618,6 +624,7 @@
     "no_inventory_available_description": "Il sistema non ha ancora inviato dati di inventario.",
     "no_active_alerts": "Nessun allarme attivo",
     "n_active_alerts": "{n} allarme attivo | {n} allarmi attivi",
+    "show_system_alerts": "Mostra gli allarmi di {name}",
     "no_backups_stored": "Nessun backup caricato",
     "n_backups_stored": "{n} backup conservato | {n} backup conservati",
     "show_system_backups": "Mostra i backup di {name}",
@@ -952,6 +959,7 @@
     "email_channel_description": "Consegna SMTP",
     "webhook_channel_title": "Webhook",
     "webhook_channel_description": "Consegna via webhook",
+    "webhook_channel_title_tooltip": "Notifica automaticamente un servizio esterno gestito da te. Quando un allarme viene attivato, My Nethesis invierà una richiesta HTTP con i dettagli dell'allarme all'URL specificato, permettendoti di centralizzare e gestire gli allarmi nei tuoi strumenti.",
     "telegram_channel_title": "Telegram",
     "telegram_channel_description": "Messaggistica via bot",
     "recipients_count": "Destinatari",
@@ -1004,7 +1012,10 @@
     "no_systems_configured": "Nessun sistema configurato",
     "count_critical": "{count} critical",
     "count_warning": "{count} warning",
-    "count_muted": "{count} silenziati"
+    "count_muted": "{count} silenziati",
+    "show_critical_alerts": "Mostra allarmi di livello critical",
+    "show_warning_alerts": "Mostra allarmi di livello warning",
+    "show_muted_alerts": "Mostra allarmi silenziati"
   },
   "ne_tabs": {
     "tabs": "Schede",
