@@ -24,6 +24,7 @@ import {
   NeTableHeadCell,
   NeTableRow,
   type NeDropdownFilterV2Option,
+  type SortEvent,
 } from '@nethesis/vue-components'
 import capitalize from 'lodash/capitalize'
 import { computed, ref } from 'vue'
@@ -68,6 +69,13 @@ const { state: alertFiltersState } = useAlertFilters()
 
 const historyAlerts = computed(() => historyState.value.data?.alerts ?? [])
 const historyPagination = computed(() => historyState.value.data?.pagination)
+
+// ── Sort ──────────────────────────────────────────────────────────────────────
+
+function onSort(payload: SortEvent) {
+  historySortBy.value = payload.key
+  historySortDescending.value = payload.descending
+}
 
 // ── Filter options ────────────────────────────────────────────────────────────
 
@@ -238,10 +246,18 @@ function showDetails(alert: Alert): void {
       :skeleton-rows="5"
     >
       <NeTableHead>
-        <NeTableHeadCell>{{ $t('alerts.severity') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('alerts.alertname') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('alerts.started') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('alerts.ends_at') }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="severity" @sort="onSort">{{
+          $t('alerts.severity')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="alertname" @sort="onSort">{{
+          $t('alerts.alertname')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="starts_at" @sort="onSort">{{
+          $t('alerts.started')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="ends_at" @sort="onSort">{{
+          $t('alerts.ends_at')
+        }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- actions -->
         </NeTableHeadCell>

@@ -32,6 +32,7 @@ import {
   NeTableRow,
   type NeDropdownFilterV2Option,
   type NeDropdownItem,
+  type SortEvent,
 } from '@nethesis/vue-components'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import capitalize from 'lodash/capitalize'
@@ -50,6 +51,7 @@ import {
   SYSTEM_ALERTS_TABLE_ID,
   SEVERITY_FILTER_OPTIONS,
   type Alert,
+  type AlertSortBy,
   ALERTS_REFETCH_INTERVAL_SECONDS,
 } from '@/lib/alerts'
 import { setPendingAlertState, isProcessing } from '@/lib/alertPendingStates'
@@ -118,6 +120,11 @@ const alertsSortDescending = computed({
     alertsSortDirection.value = val ? 'desc' : 'asc'
   },
 })
+
+function onSort(payload: SortEvent) {
+  alertsSortBy.value = payload.key as AlertSortBy
+  alertsSortDirection.value = payload.descending ? 'desc' : 'asc'
+}
 
 // ── Filter options ────────────────────────────────────────────────────────────
 
@@ -464,10 +471,18 @@ function onMuteDrawerClose(): void {
       :skeleton-rows="5"
     >
       <NeTableHead>
-        <NeTableHeadCell>{{ $t('alerts.severity') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('alerts.alertname') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('alerts.started') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('alerts.assigned_to') }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="severity" @sort="onSort">{{
+          $t('alerts.severity')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="alertname" @sort="onSort">{{
+          $t('alerts.alertname')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="starts_at" @sort="onSort">{{
+          $t('alerts.started')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="assigned_user_name" @sort="onSort">{{
+          $t('alerts.assigned_to')
+        }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- actions — no header -->
         </NeTableHeadCell>

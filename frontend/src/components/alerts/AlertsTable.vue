@@ -34,6 +34,7 @@ import {
   NeTableRow,
   type NeDropdownFilterV2Option,
   type NeDropdownItem,
+  type SortEvent,
 } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -52,6 +53,7 @@ import {
   isAlertSilenced,
   SEVERITY_FILTER_OPTIONS,
   type Alert,
+  type AlertSortBy,
 } from '@/lib/alerts'
 import { setPendingAlertState, isProcessing } from '@/lib/alertPendingStates'
 import { type AlertFilterAlert } from '@/lib/alertFilters'
@@ -174,6 +176,11 @@ const sortDescending = computed({
     sortDirection.value = val ? 'desc' : 'asc'
   },
 })
+
+function onSort(payload: SortEvent) {
+  sortBy.value = payload.key as AlertSortBy
+  sortDirection.value = payload.descending ? 'desc' : 'asc'
+}
 
 // ── Mute alert drawer ────────────────────────────────────────────────────────────
 
@@ -505,12 +512,20 @@ function goToSystems() {
       :skeleton-rows="7"
     >
       <NeTableHead>
-        <NeTableHeadCell>{{ $t('alerts.severity') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('alerts.alertname') }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="severity" @sort="onSort">{{
+          $t('alerts.severity')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="alertname" @sort="onSort">{{
+          $t('alerts.alertname')
+        }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('alerts.system') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('alerts.organization') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('alerts.started') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('alerts.assigned_to') }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="starts_at" @sort="onSort">{{
+          $t('alerts.started')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="assigned_user_name" @sort="onSort">{{
+          $t('alerts.assigned_to')
+        }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
         </NeTableHeadCell>

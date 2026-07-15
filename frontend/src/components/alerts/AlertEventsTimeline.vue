@@ -15,6 +15,7 @@ import { useI18n } from 'vue-i18n'
 import { useAlertActivity } from '@/queries/alerts/alertActivity'
 import type { Alert } from '@/lib/alerts'
 import UserAvatar from '@/components/users/UserAvatar.vue'
+import AlertCommentText from '@/components/alerts/AlertCommentText.vue'
 import { formatDateTimeNoSeconds, formatRelativeTime } from '@/lib/dateTime'
 
 const props = defineProps<{
@@ -131,10 +132,12 @@ function getEventText(details: Record<string, unknown>): string | null {
           </span>
         </div>
 
-        <!-- Comment / note text (max 1 line, ellipsized) -->
-        <p v-if="getEventText(event.details)" class="text-tertiary-neutral mt-1 truncate">
-          {{ getEventText(event.details) }}
-        </p>
+        <!-- Comment / note text with inline links; clipped links listed below -->
+        <AlertCommentText
+          v-if="getEventText(event.details)"
+          :text="getEventText(event.details)!"
+          class="mt-1"
+        />
       </div>
     </div>
   </div>
