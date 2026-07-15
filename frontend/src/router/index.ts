@@ -9,6 +9,16 @@ import { useLoginStore } from '@/stores/login'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) {
+      // restore position on back/forward navigation
+      return savedPosition
+    }
+    if (to.hash) {
+      return { el: to.hash }
+    }
+    return { top: 0 }
+  },
   routes: [
     {
       path: '/',
