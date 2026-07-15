@@ -4,7 +4,12 @@
 -->
 
 <script setup lang="ts">
-import { faBuilding, faCircleInfo, faEye, faPenToSquare } from '@fortawesome/free-solid-svg-icons'
+import {
+  faBuilding,
+  faMagnifyingGlass,
+  faEye,
+  faPenToSquare,
+} from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   NeTable,
@@ -275,7 +280,7 @@ const goToApplicationDetails = (application: Application) => {
         v-if="isNoMatchEmptyStateShown"
         :title="$t('applications.no_applications_found')"
         :description="$t('common.try_changing_search_filters')"
-        :icon="faCircleInfo"
+        :icon="faMagnifyingGlass"
         class="bg-white dark:bg-gray-950"
       >
         <NeButton kind="tertiary" @click="clearFilters">

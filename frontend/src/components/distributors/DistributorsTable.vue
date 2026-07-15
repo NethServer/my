@@ -8,7 +8,7 @@ import { DISTRIBUTORS_TABLE_ID, type Distributor } from '@/lib/organizations/dis
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import { useDistributorFilters } from '@/queries/organizations/distributorFilters'
 import {
-  faCircleInfo,
+  faMagnifyingGlass,
   faGlobe,
   faPenToSquare,
   faBoxArchive,
@@ -363,7 +363,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
       v-else-if="isNoMatchEmptyStateShown"
       :title="$t('distributors.no_distributor_found')"
       :description="$t('common.try_changing_search_filters')"
-      :icon="faCircleInfo"
+      :icon="faMagnifyingGlass"
       class="bg-white dark:bg-gray-950"
     >
       <NeButton kind="tertiary" @click="resetFilters"> {{ $t('common.reset_filters') }}</NeButton>

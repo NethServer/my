@@ -6,7 +6,7 @@
 <script setup lang="ts">
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import {
-  faCircleInfo,
+  faMagnifyingGlass,
   faBoxArchive,
   faServer,
   faEye,
@@ -495,7 +495,7 @@ function onCloseSecretRegeneratedModal() {
       v-else-if="isNoMatchEmptyStateShown"
       :title="$t('systems.no_systems_found')"
       :description="$t('common.try_changing_search_filters')"
-      :icon="faCircleInfo"
+      :icon="faMagnifyingGlass"
       class="bg-white dark:bg-gray-950"
     >
       <NeButton kind="tertiary" @click="resetFilters">

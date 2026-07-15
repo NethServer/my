@@ -7,7 +7,7 @@
 import { USERS_TABLE_ID, type User } from '@/lib/users/users'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import {
-  faCircleInfo,
+  faMagnifyingGlass,
   faUserGroup,
   faPenToSquare,
   faBoxArchive,
@@ -460,7 +460,7 @@ const goToAccount = () => {
       v-else-if="isNoMatchEmptyStateShown"
       :title="$t('users.no_user_found')"
       :description="$t('common.try_changing_search_filters')"
-      :icon="faCircleInfo"
+      :icon="faMagnifyingGlass"
       class="bg-white dark:bg-gray-950"
     >
       <NeButton kind="tertiary" @click="resetFilters"> {{ $t('common.clear_filters') }}</NeButton>

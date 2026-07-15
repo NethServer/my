@@ -8,7 +8,7 @@ import { CUSTOMERS_TABLE_ID, type Customer } from '@/lib/organizations/customers
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import { useCustomerFilters } from '@/queries/organizations/customerFilters'
 import {
-  faCircleInfo,
+  faMagnifyingGlass,
   faPenToSquare,
   faBoxArchive,
   faBuilding,
@@ -361,7 +361,7 @@ const goToCustomerDetails = (customer: Customer) => {
       v-else-if="isNoMatchEmptyStateShown"
       :title="$t('customers.no_customer_found')"
       :description="$t('common.try_changing_search_filters')"
-      :icon="faCircleInfo"
+      :icon="faMagnifyingGlass"
       class="bg-white dark:bg-gray-950"
     >
       <NeButton kind="tertiary" @click="resetFilters"> {{ $t('common.reset_filters') }}</NeButton>

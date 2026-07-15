@@ -8,7 +8,7 @@ import { RESELLERS_TABLE_ID, type Reseller } from '@/lib/organizations/resellers
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import { useResellerFilters } from '@/queries/organizations/resellerFilters'
 import {
-  faCircleInfo,
+  faMagnifyingGlass,
   faCity,
   faPenToSquare,
   faBoxArchive,
@@ -362,7 +362,7 @@ const goToResellerDetails = (reseller: Reseller) => {
       v-else-if="isNoMatchEmptyStateShown"
       :title="$t('resellers.no_reseller_found')"
       :description="$t('common.try_changing_search_filters')"
-      :icon="faCircleInfo"
+      :icon="faMagnifyingGlass"
       class="bg-white dark:bg-gray-950"
     >
       <NeButton kind="tertiary" @click="resetFilters">
