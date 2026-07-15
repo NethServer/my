@@ -69,6 +69,28 @@ Puoi restringere la lista degli allarmi usando i filtri in cima alla pagina:
 
 Clicca **Reset filtri** per rimuovere tutti i filtri attivi, oppure **Aggiorna** per ricaricare manualmente la lista.
 
+## Lavorare sugli allarmi
+
+Ogni allarme attivo offre un set di strumenti di collaborazione, disponibili dalla riga dell'allarme:
+
+### Presa in carico
+
+**Assegna a me** indica che stai lavorando sull'allarme. Un solo assegnatario per allarme: assegnarsi un allarme già preso da qualcun altro esegue un **subentro** (il precedente assegnatario resta registrato nella timeline delle attività). Non esiste la rimozione manuale dell'assegnazione: viene **rilasciata automaticamente** quando l'allarme si risolve. L'assegnatario corrente è mostrato sulla riga dell'allarme, così il team sa sempre chi se ne sta occupando.
+
+L'assegnazione è solo self-service (assegni sempre te stesso) e richiede `manage:systems`.
+
+### Silenziamenti
+
+Un allarme può essere **silenziato** per una durata a scelta con un commento opzionale: le notifiche si fermano mentre l'allarme resta visibile come silenziato. Modificando il silenziamento se ne aggiorna la scadenza o il commento; rimuovendolo le notifiche riprendono. I silenziamenti richiedono `manage:systems`.
+
+### Note
+
+È possibile aggiungere **note** libere a un allarme in qualsiasi momento, indipendentemente dai silenziamenti — utili per registrare osservazioni o passaggi di consegne. Le note compaiono nella timeline come eventi `note_added`.
+
+### Timeline delle attività
+
+Ogni allarme conserva una timeline con l'intera cronologia di collaborazione: silenziato / silenziamento aggiornato / riattivato, assegnato / rilasciato (incluso il rilascio automatico alla risoluzione) e note, ciascuno con autore e data.
+
 ## Configurazione alerting
 
 Il tab **Configurazione alerting** ti permette di definire chi viene notificato quando un allarme scatta nella tua organizzazione. Quello che salvi qui è il tuo **layer** — il server lo unisce ai layer di tutte le organizzazioni sopra di te nella gerarchia (Owner → Distributor → Reseller → Customer) e pusha la YAML Alertmanager risultante a Mimir.

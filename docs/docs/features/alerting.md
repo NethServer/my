@@ -69,6 +69,28 @@ You can narrow down the alert list using the filters at the top of the page:
 
 Click **Reset filters** to clear all active filters, or **Refresh** to manually reload the alerts list.
 
+## Working on alerts
+
+Each active alert has a set of collaboration tools, available from the alert row:
+
+### Assignment
+
+**Assign to me** marks that you are working on the alert. One assignee per alert: assigning an alert already taken by someone else performs a **take over** (the previous assignee is recorded in the activity timeline). There is no manual unassign — the assignment is **auto-released** when the alert resolves. The current assignee is shown on the alert row, so the team always knows who is in charge.
+
+Assignment is self-service only (you always assign yourself) and requires `manage:systems`.
+
+### Silences
+
+An alert can be **silenced** for a chosen duration with an optional comment: notifications stop while the alert stays visible as silenced. Editing the silence updates its expiry or comment; removing it re-enables notifications. Silences require `manage:systems`.
+
+### Notes
+
+Free-form **notes** can be added to an alert at any time, independently from silences — use them to record findings or hand-over context. Notes appear in the activity timeline as `note_added` events.
+
+### Activity timeline
+
+Every alert keeps an activity timeline with the full collaboration history: silenced / silence updated / unsilenced, assigned / unassigned (including auto-release on resolution) and notes, each with the actor and timestamp.
+
 ## Alerting Configuration
 
 The **Alerting Configuration** tab lets you define who gets notified when an alert fires for your organization. The configuration you save here is your **layer** — the server merges it with the layers of every organization above you in the hierarchy (Owner → Distributor → Reseller → Customer) and pushes the resulting Alertmanager YAML to Mimir.
