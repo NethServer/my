@@ -117,6 +117,12 @@ func (cw *CleanupWorker) runCleanup(ctx context.Context, workerLogger *zerolog.L
 		return
 	}
 
+	if err := cw.cleanupOrphanAlertAssignments(ctx, workerLogger); err != nil {
+		workerLogger.Error().Err(err).Msg("Failed to cleanup orphan alert assignments")
+		atomic.StoreInt32(&cw.isHealthy, 0)
+		return
+	}
+
 	if err := cw.vacuumAnalyze(ctx, workerLogger); err != nil {
 		workerLogger.Error().Err(err).Msg("Failed to vacuum analyze tables")
 		atomic.StoreInt32(&cw.isHealthy, 0)
@@ -323,6 +329,56 @@ func (cw *CleanupWorker) cleanupResolvedAlerts(ctx context.Context, workerLogger
 			Msg("Cleaned up resolved alerts")
 	}
 
+	return nil
+}
+
+// cleanupOrphanAlertAssignments sweeps assignments whose alert resolved but
+// whose auto-release in the webhook path didn't land (e.g. the DELETE failed
+// after the history insert succeeded). An assignment is orphaned when a
+// resolved history row for the same (organization_id, fingerprint) was written
+// after the assignment was made — a refire + re-assign updates assigned_at, so
+// current work on a flapping alert is never swept. Mirrors the webhook path:
+// each released row appends a system-driven `unassigned` event to the timeline.
+func (cw *CleanupWorker) cleanupOrphanAlertAssignments(ctx context.Context, workerLogger *zerolog.Logger) error {
+	const query = `
+		WITH released AS (
+		    DELETE FROM alert_assignments a
+		    WHERE EXISTS (
+		        SELECT 1 FROM alert_history h
+		        WHERE h.organization_id = a.organization_id
+		          AND h.fingerprint     = a.fingerprint
+		          AND h.status          = 'resolved'
+		          AND h.created_at      > a.assigned_at
+		    )
+		    RETURNING a.organization_id, a.fingerprint, a.assigned_user_id, a.assigned_user_name, a.assigned_user_org_id, a.assigned_user_org_name
+		)
+		INSERT INTO alert_activity (organization_id, fingerprint, action, details)
+		SELECT organization_id, fingerprint, 'unassigned',
+		       jsonb_build_object(
+		           'reason', 'resolved',
+		           'assigned_user_id', assigned_user_id,
+		           'assigned_user_name', assigned_user_name,
+		           'assigned_user_org_id', assigned_user_org_id,
+		           'assigned_user_org_name', assigned_user_org_name
+		       )
+		FROM released
+	`
+	stmtCtx, cancel := context.WithTimeout(ctx, retentionCleanupStmtTimeout)
+	defer cancel()
+	result, err := database.DB.ExecContext(stmtCtx, query)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected > 0 {
+		workerLogger.Info().
+			Int64("rows_deleted", rowsAffected).
+			Msg("Cleaned up orphan alert assignments (resolved but not auto-released)")
+	}
 	return nil
 }
 

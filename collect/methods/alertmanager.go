@@ -145,6 +145,8 @@ func ReceiveAlertHistory(c *gin.Context) {
 		}
 	}
 
+	releaseAlertAssignments(ctx, deliverable)
+
 	logger.Debug().
 		Str("receiver", payload.Receiver).
 		Str("status", payload.Status).
@@ -365,6 +367,56 @@ SELECT idx FROM updated`
 		notUpdated = append(notUpdated, p)
 	}
 	return notUpdated, nil
+}
+
+// releaseAlertAssignments auto-releases the assignment of every alert in the
+// just-resolved batch: there is no manual unassign in the product, resolution
+// is what frees an alert from its assignee. Each released row also appends a
+// system-driven `unassigned` event (NULL actor, details.reason=resolved) to
+// the alert's activity timeline. Best-effort by design: a failure here must
+// not fail the webhook (history is already persisted); the cleanup worker
+// sweep catches anything missed.
+func releaseAlertAssignments(ctx context.Context, batch []pendingAlert) {
+	n := len(batch)
+	orgIDs := make([]string, n)
+	fingerprints := make([]string, n)
+	for i, p := range batch {
+		orgIDs[i] = p.organizationID
+		fingerprints[i] = p.alert.Fingerprint
+	}
+
+	const query = `
+WITH released AS (
+    DELETE FROM alert_assignments a
+    USING (
+        SELECT DISTINCT organization_id, fingerprint
+        FROM unnest($1::text[], $2::text[]) AS t(organization_id, fingerprint)
+    ) t
+    WHERE a.organization_id = t.organization_id
+      AND a.fingerprint     = t.fingerprint
+    RETURNING a.organization_id, a.fingerprint, a.assigned_user_id, a.assigned_user_name, a.assigned_user_org_id, a.assigned_user_org_name
+)
+INSERT INTO alert_activity (organization_id, fingerprint, action, details)
+SELECT organization_id, fingerprint, 'unassigned',
+       jsonb_build_object(
+           'reason', 'resolved',
+           'assigned_user_id', assigned_user_id,
+           'assigned_user_name', assigned_user_name,
+           'assigned_user_org_id', assigned_user_org_id,
+           'assigned_user_org_name', assigned_user_org_name
+       )
+FROM released`
+
+	result, err := database.DB.ExecContext(ctx, query, pq.Array(orgIDs), pq.Array(fingerprints))
+	if err != nil {
+		logger.Warn().Err(err).Msg("alertmanager history: failed to auto-release alert assignments (non-fatal)")
+		return
+	}
+	if released, err := result.RowsAffected(); err == nil && released > 0 {
+		logger.Info().
+			Int64("released", released).
+			Msg("alertmanager history: auto-released assignments for resolved alerts")
+	}
 }
 
 // bulkInsertAlertHistory writes every alert in the batch with a single
