@@ -6,6 +6,11 @@
   "ignoreTests": false,
   "packageRules": [
     {
+      "description": "Docusaurus requires all @docusaurus/* packages at the same version",
+      "matchPackagePrefixes": ["@docusaurus/"],
+      "groupName": "docusaurus"
+    },
+    {
       "description": "Automerge patch updates",
       "matchUpdateTypes": ["patch"],
       "automerge": true,
