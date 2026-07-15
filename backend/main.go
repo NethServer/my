@@ -247,6 +247,37 @@ func main() {
 			systemsGroup.PATCH("/:id/suspend", methods.SuspendSystem)       // Suspend system (manage:systems required)
 			systemsGroup.PATCH("/:id/reactivate", methods.ReactivateSystem) // Reactivate suspended system (manage:systems required)
 
+			// Entitlements (granular add-on licensing; writes need the dedicated manage:entitlements permission)
+			systemsGroup.GET("/:id/entitlements", methods.ListSystemEntitlements)
+			systemsGroup.POST("/:id/entitlements", methods.CreateSystemEntitlement)                // owner org / Super Admin only (handler-gated)
+			systemsGroup.PUT("/:id/entitlements/:entitlement", methods.UpdateSystemEntitlement)    // owner org / Super Admin only (handler-gated)
+			systemsGroup.DELETE("/:id/entitlements/:entitlement", methods.DeleteSystemEntitlement) // owner org / Super Admin only (handler-gated)
+		}
+
+		// Entitlement catalog (DB-driven add-on types; writes need manage:entitlements — the licensing back-office duty)
+		entitlementsGroup := customAuthWithAudit.Group("/entitlements", middleware.RequireResourcePermission("entitlements"))
+		{
+			entitlementsGroup.GET("/catalog", methods.ListEntitlementCatalog)
+			entitlementsGroup.POST("/catalog", methods.CreateEntitlementCatalogItem)       // owner org / Super Admin only (handler-gated)
+			entitlementsGroup.PUT("/catalog/:id", methods.UpdateEntitlementCatalogItem)    // owner org / Super Admin only (handler-gated)
+			entitlementsGroup.DELETE("/catalog/:id", methods.DeleteEntitlementCatalogItem) // owner org / Super Admin only (handler-gated)
+
+			// Commercial availability (who may buy/self-activate a type)
+			entitlementsGroup.GET("/catalog/:id/availability", methods.ListEntitlementAvailability)
+			entitlementsGroup.POST("/catalog/:id/availability", methods.CreateEntitlementAvailability)            // owner org / Super Admin only (handler-gated)
+			entitlementsGroup.DELETE("/catalog/:id/availability/:rule_id", methods.DeleteEntitlementAvailability) // owner org / Super Admin only (handler-gated)
+
+			// What the caller's org may buy (drives my UI / shop)
+			entitlementsGroup.GET("/available", methods.ListAvailableEntitlements)
+
+			// Reporting: buyers see their hierarchy (expirations/renewals), owner/SA the fleet
+			entitlementsGroup.GET("/grants", methods.GetEntitlementGrants)
+			entitlementsGroup.GET("/stats", methods.GetEntitlementStats)
+
+			// Shop webhook: activation/renewal + deactivation by system_key (owner API key)
+			entitlementsGroup.POST("/activate", middleware.RequirePermission("manage:entitlements"), methods.ActivateEntitlement)
+			entitlementsGroup.POST("/deactivate", middleware.RequirePermission("manage:entitlements"), methods.DeactivateEntitlement)
+
 			// Systems totals and trend endpoints (read:systems required)
 			systemsGroup.GET("/totals", methods.GetSystemsTotals)
 			systemsGroup.GET("/trend", methods.GetSystemsTrend)

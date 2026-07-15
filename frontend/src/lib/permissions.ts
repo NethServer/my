@@ -23,6 +23,28 @@ const DESTROY_USERS = 'destroy:users'
 const DESTROY_SYSTEMS = 'destroy:systems'
 const READ_ALERTS = 'read:alerts'
 const MANAGE_ALERTS = 'manage:alerts'
+const READ_ENTITLEMENTS = 'read:entitlements'
+const MANAGE_ENTITLEMENTS = 'manage:entitlements'
+
+export const canReadEntitlements = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(READ_ENTITLEMENTS)
+}
+
+export const canManageEntitlements = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(MANAGE_ENTITLEMENTS)
+}
+
+// Administrative surface (catalog, manual grants, fleet view): owner org or
+// Super Admin only — matches the backend isEntitlementAdmin gate.
+export const isEntitlementAdmin = () => {
+  const loginStore = useLoginStore()
+  return (
+    loginStore.userInfo?.org_role === 'Owner' ||
+    (loginStore.userInfo?.user_roles ?? []).includes('Super Admin')
+  )
+}
 
 export const canReadDistributors = () => {
   const loginStore = useLoginStore()

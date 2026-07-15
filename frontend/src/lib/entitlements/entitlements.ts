@@ -1,0 +1,117 @@
+//
+// Copyright (C) 2026 Nethesis S.r.l.
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+
+import axios from 'axios'
+import { API_URL } from '@/lib/config'
+import { useLoginStore } from '@/stores/login'
+
+export const SYSTEM_ENTITLEMENTS_KEY = 'system_entitlements'
+export const ENTITLEMENT_CATALOG_KEY = 'entitlement_catalog'
+
+export interface EntitlementCatalogItem {
+  id: string
+  display_name: string
+  description: string
+  scoped: boolean
+  kind: 'service' | 'app' | 'module'
+  system_type?: string
+  legacy_alias?: string
+}
+
+export interface SystemEntitlement {
+  id: string
+  system_id: string
+  entitlement: string
+  scope?: string
+  source: string
+  source_ref?: string
+  valid_from: string
+  valid_until?: string
+  revoked_at?: string
+  active: boolean
+}
+
+interface Envelope<T> {
+  code: number
+  message: string
+  data: T
+}
+
+const authHeaders = () => {
+  const loginStore = useLoginStore()
+  return { headers: { Authorization: `Bearer ${loginStore.jwtToken}` } }
+}
+
+// What the caller's org may buy on the shop (availability rules set by the
+// owner). Drives the "Available on NethShop" section.
+export const getAvailableEntitlements = () =>
+  axios
+    .get<
+      Envelope<{ available: EntitlementCatalogItem[] }>
+    >(`${API_URL}/entitlements/available`, authHeaders())
+    .then((res) => res.data.data.available)
+
+export const getEntitlementCatalog = () =>
+  axios
+    .get<
+      Envelope<{ catalog: EntitlementCatalogItem[] }>
+    >(`${API_URL}/entitlements/catalog`, authHeaders())
+    .then((res) => res.data.data.catalog)
+
+export const getSystemEntitlements = (systemId: string) =>
+  axios
+    .get<
+      Envelope<{ entitlements: SystemEntitlement[] }>
+    >(`${API_URL}/systems/${systemId}/entitlements`, authHeaders())
+    .then((res) => res.data.data.entitlements)
+
+export const createSystemEntitlement = (
+  systemId: string,
+  payload: { entitlement: string; scope?: string; valid_until?: string; source?: string },
+) =>
+  axios
+    .post<
+      Envelope<SystemEntitlement>
+    >(`${API_URL}/systems/${systemId}/entitlements`, payload, authHeaders())
+    .then((res) => res.data.data)
+
+export const updateSystemEntitlement = (
+  systemId: string,
+  entitlement: string,
+  scope: string,
+  payload: { valid_until?: string; clear_valid_until?: boolean; revoked?: boolean },
+) =>
+  axios
+    .put<
+      Envelope<SystemEntitlement>
+    >(`${API_URL}/systems/${systemId}/entitlements/${entitlement}?scope=${encodeURIComponent(scope)}`, payload, authHeaders())
+    .then((res) => res.data.data)
+
+export const revokeSystemEntitlement = (systemId: string, entitlement: string, scope: string) =>
+  axios
+    .delete<
+      Envelope<SystemEntitlement>
+    >(`${API_URL}/systems/${systemId}/entitlements/${entitlement}?scope=${encodeURIComponent(scope)}`, authHeaders())
+    .then((res) => res.data.data)
+
+export const createEntitlementCatalogItem = (payload: {
+  id: string
+  display_name: string
+  description?: string
+  scoped?: boolean
+  kind?: string
+  system_type?: string
+  legacy_alias?: string
+}) =>
+  axios
+    .post<
+      Envelope<EntitlementCatalogItem>
+    >(`${API_URL}/entitlements/catalog`, payload, authHeaders())
+    .then((res) => res.data.data)
+
+export const deleteEntitlementCatalogItem = (id: string) =>
+  axios
+    .delete<Envelope<null>>(`${API_URL}/entitlements/catalog/${id}`, authHeaders())
+    .then((res) => res.data)
