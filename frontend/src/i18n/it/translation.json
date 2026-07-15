@@ -1054,5 +1054,8 @@
   "ne_tabs": {
     "tabs": "Schede",
     "select_a_tab": "Seleziona una scheda"
+  },
+  "entitlements-catalog": {
+    "title": "Entitlements"
   }
 }
