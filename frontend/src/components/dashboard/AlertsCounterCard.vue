@@ -5,7 +5,7 @@
 
 <script setup lang="ts">
 import CounterCard from '../common/CounterCard.vue'
-import { NeBadgeV2 } from '@nethesis/vue-components'
+import BadgeLink from '../common/BadgeLink.vue'
 import { faTriangleExclamation } from '@fortawesome/free-solid-svg-icons'
 import { useAlertsTotals } from '@/queries/alerts/alertsTotals.ts'
 import { computed } from 'vue'
@@ -33,37 +33,64 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
     :counter="totalCount"
     :icon="faTriangleExclamation"
     :loading="isLoading"
-    title-route-name="alerts"
+    :to="{ name: 'alerts' }"
     :is-estimated="loginStore.isOwner && totalCount > MIN_ESTIMATED_COUNT"
   >
     <div class="mt-5 flex flex-wrap justify-center gap-2">
-      <NeBadgeV2 v-if="criticalCount > 0" kind="rose">
+      <BadgeLink
+        v-if="criticalCount > 0"
+        :to="{ name: 'alerts', query: { severity: 'critical' } }"
+        kind="rose"
+        :aria-label="$t('alerts.show_critical_alerts')"
+      >
         {{
-          $t('alerts.count_critical', {
-            count:
-              (loginStore.isOwner && criticalCount > MIN_ESTIMATED_COUNT ? '~' : '') +
-              abbreviateNumber(criticalCount, locale),
-          })
+          $t(
+            'alerts.count_critical',
+            {
+              count:
+                (loginStore.isOwner && criticalCount > MIN_ESTIMATED_COUNT ? '~' : '') +
+                abbreviateNumber(criticalCount, locale),
+            },
+            criticalCount,
+          )
         }}
-      </NeBadgeV2>
-      <NeBadgeV2 v-if="warningCount > 0" kind="amber">
+      </BadgeLink>
+      <BadgeLink
+        v-if="warningCount > 0"
+        :to="{ name: 'alerts', query: { severity: 'warning' } }"
+        kind="amber"
+        :aria-label="$t('alerts.show_warning_alerts')"
+      >
         {{
-          $t('alerts.count_warning', {
-            count:
-              (loginStore.isOwner && warningCount > MIN_ESTIMATED_COUNT ? '~' : '') +
-              abbreviateNumber(warningCount, locale),
-          })
+          $t(
+            'alerts.count_warning',
+            {
+              count:
+                (loginStore.isOwner && warningCount > MIN_ESTIMATED_COUNT ? '~' : '') +
+                abbreviateNumber(warningCount, locale),
+            },
+            warningCount,
+          )
         }}
-      </NeBadgeV2>
-      <NeBadgeV2 v-if="mutedCount > 0" kind="gray">
+      </BadgeLink>
+      <BadgeLink
+        v-if="mutedCount > 0"
+        :to="{ name: 'alerts', query: { status: 'suppressed' } }"
+        kind="gray"
+        :aria-label="$t('alerts.show_muted_alerts')"
+      >
         {{
-          $t('alerts.count_muted', {
-            count:
-              (loginStore.isOwner && mutedCount > MIN_ESTIMATED_COUNT ? '~' : '') +
-              abbreviateNumber(mutedCount, locale),
-          })
+          $t(
+            'alerts.count_muted',
+            {
+              count:
+                (loginStore.isOwner && mutedCount > MIN_ESTIMATED_COUNT ? '~' : '') +
+                abbreviateNumber(mutedCount, locale),
+            },
+            mutedCount,
+          )
         }}
-      </NeBadgeV2>
+      </BadgeLink>
     </div>
   </CounterCard>
 </template>

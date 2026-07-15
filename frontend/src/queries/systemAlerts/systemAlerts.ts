@@ -1,12 +1,17 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { ALERTS_REFETCH_INTERVAL_SECONDS, type AlertStatusEnum } from '@/lib/alerts'
+import {
+  ALERTS_REFETCH_INTERVAL_SECONDS,
+  type AlertSortBy,
+  type AlertStatusEnum,
+} from '@/lib/alerts'
 import { syncWithBackend } from '@/lib/alertPendingStates'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import type { NeDropdownFilterV2Option } from '@nethesis/vue-components'
 import { getSystemActiveAlerts, SYSTEM_ALERTS_KEY, SYSTEM_ALERTS_TABLE_ID } from '@/lib/alerts'
@@ -14,14 +19,22 @@ import { getSystemActiveAlerts, SYSTEM_ALERTS_KEY, SYSTEM_ALERTS_TABLE_ID } from
 export const useSystemAlerts = defineQuery(() => {
   const loginStore = useLoginStore()
   const route = useRoute()
+  const { t } = useI18n()
 
   const pageNum = ref(1)
   const pageSize = ref(DEFAULT_PAGE_SIZE)
-  const sortBy = ref<'starts_at' | 'severity' | 'alertname' | 'status'>('starts_at')
+  const sortBy = ref<AlertSortBy>('starts_at')
   const sortDirection = ref<'asc' | 'desc'>('desc')
   const severityFilters = ref<NeDropdownFilterV2Option[]>([])
   const alertnameFilters = ref<NeDropdownFilterV2Option[]>([])
-  const statusFilters = ref<NeDropdownFilterV2Option[]>([])
+  // Default: show only unmuted (active) alerts.
+  const defaultStatusFilters = (): NeDropdownFilterV2Option[] => [
+    { id: 'active', label: t('alerts.unmuted') },
+  ]
+  const isDefaultStatusFilter = () =>
+    statusFilters.value.length === 1 && statusFilters.value[0].id === 'active'
+  const statusFilters = ref<NeDropdownFilterV2Option[]>(defaultStatusFilters())
+  const assigneeFilters = ref<NeDropdownFilterV2Option[]>([])
   const shouldAutoRefetch = () => document.visibilityState === 'visible'
 
   const { state, asyncStatus, ...rest } = useQuery({
@@ -35,6 +48,7 @@ export const useSystemAlerts = defineQuery(() => {
       severityFilters.value.map((o) => o.id).join(','),
       alertnameFilters.value.map((o) => o.id).join(','),
       statusFilters.value.map((o) => o.id).join(','),
+      assigneeFilters.value.map((o) => o.id).join(','),
     ],
     enabled: () => !!loginStore.jwtToken && !!route.params.systemId,
     query: () =>
@@ -49,23 +63,30 @@ export const useSystemAlerts = defineQuery(() => {
           : undefined,
         severityFilters.value.length > 0 ? severityFilters.value.map((o) => o.id) : undefined,
         alertnameFilters.value.length > 0 ? alertnameFilters.value.map((o) => o.id) : undefined,
+        assigneeFilters.value.length > 0
+          ? assigneeFilters.value.map((o) => String(o.id))
+          : undefined,
       ),
     staleTime: ALERTS_REFETCH_INTERVAL_SECONDS * 1000,
     autoRefetch: shouldAutoRefetch,
   })
 
   const areDefaultFiltersApplied = () =>
-    !severityFilters.value.length && !alertnameFilters.value.length && !statusFilters.value.length
+    !severityFilters.value.length &&
+    !alertnameFilters.value.length &&
+    isDefaultStatusFilter() &&
+    !assigneeFilters.value.length
 
   const clearFilters = () => {
     severityFilters.value = []
     alertnameFilters.value = []
+    assigneeFilters.value = []
     clearStatusFilter()
     pageNum.value = 1
   }
 
   const clearStatusFilter = () => {
-    statusFilters.value = []
+    statusFilters.value = defaultStatusFilters()
   }
 
   // load table page size from storage
@@ -106,6 +127,7 @@ export const useSystemAlerts = defineQuery(() => {
     severityFilters,
     alertnameFilters,
     statusFilters,
+    assigneeFilters,
     areDefaultFiltersApplied,
     clearFilters,
     clearStatusFilter,

@@ -39,6 +39,66 @@ export const normalize = (str: string) => {
   return str.toLowerCase().replace(/\s+/g, '_')
 }
 
+export interface TextToken {
+  type: 'text' | 'url'
+  value: string
+}
+
+// Splits a free-form string into ordered text/URL tokens, so callers can
+// render the text with the URLs turned into inline links. Only http/https
+// URLs (validated via the URL constructor, trailing sentence punctuation
+// stripped) become `url` tokens, so their value is safe to bind to an anchor
+// href without risking javascript:/data: injection; anything else stays inside
+// `text` tokens.
+export const tokenizeText = (text: string): TextToken[] => {
+  if (!text) return []
+
+  const tokens: TextToken[] = []
+  let lastIndex = 0
+
+  for (const match of text.matchAll(/\bhttps?:\/\/[^\s<>"']+/gi)) {
+    // Trailing punctuation is usually sentence punctuation, not part of the URL.
+    const raw = match[0].replace(/[.,;:!?)\]}]+$/, '')
+    const start = match.index
+
+    try {
+      const url = new URL(raw)
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') continue
+    } catch {
+      // Not a valid URL — leave it as plain text.
+      continue
+    }
+
+    if (start > lastIndex) {
+      tokens.push({ type: 'text', value: text.slice(lastIndex, start) })
+    }
+    tokens.push({ type: 'url', value: raw })
+    lastIndex = start + raw.length
+  }
+
+  if (lastIndex < text.length) {
+    tokens.push({ type: 'text', value: text.slice(lastIndex) })
+  }
+
+  return tokens
+}
+
+// Extracts the http(s) URLs found in a free-form string, in order and
+// de-duplicated. Safe to bind to an anchor href (see tokenizeText).
+export const extractUrls = (text: string): string[] => {
+  const seen = new Set<string>()
+  const urls: string[] = []
+
+  for (const token of tokenizeText(text)) {
+    if (token.type === 'url' && !seen.has(token.value)) {
+      seen.add(token.value)
+      urls.push(token.value)
+    }
+  }
+
+  return urls
+}
+
 export const abbreviateNumber = (
   value: number,
   locale = navigator.language,

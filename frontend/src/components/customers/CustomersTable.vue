@@ -8,7 +8,7 @@ import { CUSTOMERS_TABLE_ID, type Customer } from '@/lib/organizations/customers
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import { useCustomerFilters } from '@/queries/organizations/customerFilters'
 import {
-  faCircleInfo,
+  faMagnifyingGlass,
   faPenToSquare,
   faBoxArchive,
   faBuilding,
@@ -101,13 +101,14 @@ const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
   },
 ])
 
-const createdByFilterOptions = computed(() => {
+const createdByFilterOptions = computed<NeDropdownFilterV2Option[]>(() => {
   if (!customerFiltersState.value.data || !customerFiltersState.value.data.created_by) {
     return []
   } else {
-    return customerFiltersState.value.data.created_by.map((user) => ({
-      id: user.user_id,
-      label: user.name,
+    return customerFiltersState.value.data.created_by.map((createdBy) => ({
+      id: createdBy.user_id,
+      label: createdBy.name,
+      description: createdBy.organization_name,
     }))
   }
 })
@@ -360,7 +361,7 @@ const goToCustomerDetails = (customer: Customer) => {
       v-else-if="isNoMatchEmptyStateShown"
       :title="$t('customers.no_customer_found')"
       :description="$t('common.try_changing_search_filters')"
-      :icon="faCircleInfo"
+      :icon="faMagnifyingGlass"
       class="bg-white dark:bg-gray-950"
     >
       <NeButton kind="tertiary" @click="resetFilters"> {{ $t('common.reset_filters') }}</NeButton>
@@ -414,7 +415,23 @@ const goToCustomerDetails = (customer: Customer) => {
             {{ item.custom_data?.vat || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.title')">
-            <div class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
+            <router-link
+              v-if="!item.deleted_at && item.systems_count > 0"
+              :to="{
+                name: 'systems',
+                query: { organization_id: item.logto_id, organization_name: item.name },
+              }"
+              class="flex items-center gap-2 hover:underline"
+              :aria-label="$t('customers.show_customer_systems', { name: item.name })"
+            >
+              <FontAwesomeIcon
+                :icon="faServer"
+                class="size-4 text-gray-700 dark:text-gray-400"
+                aria-hidden="true"
+              />
+              {{ item.systems_count }}
+            </router-link>
+            <div v-else class="flex items-center gap-2">
               <FontAwesomeIcon
                 :icon="faServer"
                 class="size-4 text-gray-700 dark:text-gray-400"
@@ -439,7 +456,13 @@ const goToCustomerDetails = (customer: Customer) => {
                       v-if="item.created_by.organization_name"
                       class="text-gray-500 dark:text-gray-400"
                     >
-                      {{ item.created_by.organization_name }}
+                      {{
+                        item.created_by.on_behalf_of
+                          ? $t('systems.on_behalf_of', {
+                              organization: item.created_by.organization_name,
+                            })
+                          : item.created_by.organization_name
+                      }}
                     </div>
                   </div>
                 </div>
@@ -487,7 +510,7 @@ const goToCustomerDetails = (customer: Customer) => {
                 <template #prefix>
                   <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
                 </template>
-                {{ $t('common.view') }}
+                {{ $t('common.details') }}
               </NeButton>
               <!-- kebab menu -->
               <NeDropdown

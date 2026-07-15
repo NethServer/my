@@ -17,11 +17,28 @@ import { useApplicationsSummaryByCompany } from '@/queries/applications/applicat
 import OrganizationSystemsCard from '@/components/organizations/OrganizationSystemsCard.vue'
 import OrganizationApplicationsCard from '@/components/organizations/OrganizationApplicationsCard.vue'
 import { canReadDistributors } from '@/lib/permissions'
+import { computed } from 'vue'
 
 const { state: distributorDetail } = useDistributorDetail()
 const { state: distributorStats } = useDistributorStats()
 const { state: distributorSystems } = useDistributorSystems()
 const { state: applicationsSummary } = useApplicationsSummaryByCompany()
+
+// link to the Systems page filtered by the whole distributor hierarchy
+const hierarchySystemsRoute = computed(() => {
+  if (!distributorDetail.value.data || !distributorStats.value.data?.systems_hierarchy_count) {
+    return undefined
+  }
+
+  return {
+    name: 'systems',
+    query: {
+      organization_id: distributorDetail.value.data.logto_id,
+      organization_name: distributorDetail.value.data.name,
+      include_hierarchy: 'true',
+    },
+  }
+})
 </script>
 
 <template>
@@ -62,6 +79,7 @@ const { state: applicationsSummary } = useApplicationsSummaryByCompany()
         :counter="distributorStats.data?.systems_hierarchy_count ?? 0"
         :icon="faServer"
         :loading="distributorStats.status === 'pending'"
+        :to="hierarchySystemsRoute"
       />
       <!-- total applications -->
       <CounterCard

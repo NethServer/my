@@ -38,6 +38,8 @@ import { getCommonLanguagesOptions } from '@/lib/locale'
 import { getBrowserLocale } from '@/i18n'
 import { useLoginStore } from '@/stores/login'
 import { combinePhoneParts, countryCodeComboOptions, parsePhoneForForm } from '@/lib/phone'
+import CreatedOnBehalfOfCombobox from '@/components/organizations/CreatedOnBehalfOfCombobox.vue'
+import { useHasAttributableOrganizations } from '@/composables/useOrganizationFilter'
 
 const { isShown = false, currentReseller = undefined } = defineProps<{
   isShown: boolean
@@ -132,6 +134,7 @@ const language = ref('it')
 const languageRef = useTemplateRef<HTMLInputElement>('languageRef')
 const notes = ref('')
 const notesRef = useTemplateRef<HTMLInputElement>('notesRef')
+const createdByOrganizationId = ref('')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
@@ -149,6 +152,19 @@ const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> =
 const saving = computed(() => {
   return createResellerLoading.value || editResellerLoading.value
 })
+
+// Only the owner can attribute a reseller to another distributor: a distributor's
+// hierarchy contains no other distributors, so ResolveCreatedByOrg would never
+// resolve a valid target for a distributor caller. Hence owner-only here.
+const canSetCreatedByOrganization = computed(() => loginStore.isOwner)
+
+// Only show the field when the caller actually has a distributor to attribute
+// to; the lookup runs only while the drawer is open and the field is applicable.
+const createdOnBehalfAllowedTypes = ['distributor']
+const hasAttributableOrganizations = useHasAttributableOrganizations(
+  () => createdOnBehalfAllowedTypes,
+  () => isShown && canSetCreatedByOrganization.value,
+)
 
 const languageOptions = computed((): NeComboboxOption[] => {
   if (loginStore.userInfo?.email && getPreference('locale', loginStore.userInfo.email)) {
@@ -184,6 +200,7 @@ function onShow() {
 
     language.value = currentReseller.custom_data?.language || ''
     notes.value = currentReseller.custom_data?.notes || ''
+    createdByOrganizationId.value = ''
   } else {
     // creating reseller, reset form to defaults
     name.value = ''
@@ -196,6 +213,7 @@ function onShow() {
     phone.value = ''
     language.value = 'it'
     notes.value = ''
+    createdByOrganizationId.value = ''
   }
 }
 
@@ -300,7 +318,13 @@ async function saveReseller() {
   } else {
     // creating reseller
 
-    const resellerToCreate: CreateReseller = reseller
+    const resellerToCreate: CreateReseller = {
+      ...reseller,
+      // attribute the new reseller to an ancestor org when one is picked
+      ...(createdByOrganizationId.value
+        ? { created_by_organization_id: createdByOrganizationId.value }
+        : {}),
+    }
     const isValidationOk = validateCreate(resellerToCreate)
     if (!isValidationOk) {
       return
@@ -463,6 +487,19 @@ async function saveReseller() {
           :invalid-message="validationIssues.notes?.[0] ? $t(validationIssues.notes[0]) : ''"
           :optional="true"
           :optional-label="t('common.optional')"
+        />
+        <!-- created on behalf of (owner only, on create) -->
+        <CreatedOnBehalfOfCombobox
+          v-if="!currentReseller && canSetCreatedByOrganization && hasAttributableOrganizations"
+          v-model="createdByOrganizationId"
+          :allowed-types="createdOnBehalfAllowedTypes"
+          :company-type="$t('organizations.resellers_lc', { count: 1 })"
+          :disabled="saving"
+          :invalid-message="
+            validationIssues.created_by_organization_id?.[0]
+              ? $t(validationIssues.created_by_organization_id[0])
+              : ''
+          "
         />
         <!-- create reseller error notification -->
         <NeInlineNotification

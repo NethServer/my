@@ -24,6 +24,7 @@ import {
   NeTableHeadCell,
   NeTableRow,
   type NeDropdownFilterV2Option,
+  type SortEvent,
 } from '@nethesis/vue-components'
 import capitalize from 'lodash/capitalize'
 import { computed, ref } from 'vue'
@@ -34,6 +35,7 @@ import {
   type AlertHistoryRecord,
   SYSTEM_ALERT_HISTORY_TABLE_ID,
   SEVERITY_FILTER_OPTIONS,
+  ALERTS_REFETCH_INTERVAL_SECONDS,
 } from '@/lib/alerts'
 import { useSystemAlertHistory } from '@/queries/systemAlerts/systemAlertHistory'
 import { useAlertFilters } from '@/queries/alerts/alertFilters'
@@ -67,6 +69,13 @@ const { state: alertFiltersState } = useAlertFilters()
 
 const historyAlerts = computed(() => historyState.value.data?.alerts ?? [])
 const historyPagination = computed(() => historyState.value.data?.pagination)
+
+// ── Sort ──────────────────────────────────────────────────────────────────────
+
+function onSort(payload: SortEvent) {
+  historySortBy.value = payload.key
+  historySortDescending.value = payload.descending
+}
 
 // ── Filter options ────────────────────────────────────────────────────────────
 
@@ -198,7 +207,7 @@ function showDetails(alert: Alert): void {
           v-if="historyAsyncStatus === 'loading' && historyState.status !== 'pending'"
         />
         <div class="text-tertiary-neutral">
-          {{ t('common.data_updated_every_seconds', { seconds: 10 }) }}
+          {{ t('common.data_updated_every_seconds', { seconds: ALERTS_REFETCH_INTERVAL_SECONDS }) }}
         </div>
       </div>
     </div>
@@ -237,10 +246,18 @@ function showDetails(alert: Alert): void {
       :skeleton-rows="5"
     >
       <NeTableHead>
-        <NeTableHeadCell>{{ $t('alerts.severity') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('alerts.alertname') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('alerts.started') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('alerts.ends_at') }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="severity" @sort="onSort">{{
+          $t('alerts.severity')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="alertname" @sort="onSort">{{
+          $t('alerts.alertname')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="starts_at" @sort="onSort">{{
+          $t('alerts.started')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="ends_at" @sort="onSort">{{
+          $t('alerts.ends_at')
+        }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- actions -->
         </NeTableHeadCell>
@@ -294,7 +311,7 @@ function showDetails(alert: Alert): void {
                 <template #prefix>
                   <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
                 </template>
-                {{ $t('alerts.view_details') }}
+                {{ $t('common.details') }}
               </NeButton>
             </div>
           </NeTableCell>

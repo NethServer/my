@@ -17,10 +17,13 @@ import { canManageSystems } from '@/lib/permissions'
 import SystemsTable from '@/components/systems/SystemsTable.vue'
 import { useSystems } from '@/queries/systems/systems'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
 import { getExport, type SystemStatus } from '@/lib/systems/systems'
 import { downloadFile } from '@/lib/common'
 
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 
 const {
   state,
@@ -29,9 +32,37 @@ const {
   createdByFilter,
   versionFilter,
   statusFilter,
+  organizationFilter,
+  includeHierarchy,
   sortBy,
   sortDescending,
+  applyHierarchyFilter,
+  resetFilters,
 } = useSystems()
+
+// apply the filters requested via query params, then clean the URL
+const {
+  organization_id: orgId,
+  organization_name: orgName,
+  include_hierarchy: includeHierarchyParam,
+  status,
+} = route.query
+
+if (typeof orgId === 'string' && orgId && typeof orgName === 'string' && orgName) {
+  if (includeHierarchyParam === 'true') {
+    applyHierarchyFilter({ id: orgId, label: orgName })
+  } else {
+    resetFilters()
+    organizationFilter.value = [{ id: orgId, label: orgName }]
+  }
+  router.replace({ query: {} })
+}
+
+if (typeof status === 'string' && ['active', 'inactive', 'unknown', 'suspended'].includes(status)) {
+  resetFilters()
+  statusFilter.value = [{ id: status, label: status }]
+  router.replace({ query: {} })
+}
 
 const isShownCreateSystemDrawer = ref(false)
 
@@ -64,6 +95,8 @@ async function exportSystems(format: 'pdf' | 'csv') {
       createdByFilter.value.map((o) => o.id),
       versionFilter.value.map((o) => o.id),
       statusFilter.value.map((o) => o.id) as SystemStatus[],
+      organizationFilter.value.map((o) => o.id),
+      includeHierarchy.value,
       sortBy.value,
       sortDescending.value,
     )

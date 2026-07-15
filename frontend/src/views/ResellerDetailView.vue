@@ -17,11 +17,28 @@ import { useApplicationsSummaryByCompany } from '@/queries/applications/applicat
 import OrganizationSystemsCard from '@/components/organizations/OrganizationSystemsCard.vue'
 import OrganizationApplicationsCard from '@/components/organizations/OrganizationApplicationsCard.vue'
 import { canReadResellers } from '@/lib/permissions'
+import { computed } from 'vue'
 
 const { state: resellerDetail } = useResellerDetail()
 const { state: resellerStats } = useResellerStats()
 const { state: resellerSystems } = useResellerSystems()
 const { state: applicationsSummary } = useApplicationsSummaryByCompany()
+
+// link to the Systems page filtered by the whole reseller hierarchy
+const hierarchySystemsRoute = computed(() => {
+  if (!resellerDetail.value.data || !resellerStats.value.data?.systems_hierarchy_count) {
+    return undefined
+  }
+
+  return {
+    name: 'systems',
+    query: {
+      organization_id: resellerDetail.value.data.logto_id,
+      organization_name: resellerDetail.value.data.name,
+      include_hierarchy: 'true',
+    },
+  }
+})
 </script>
 
 <template>
@@ -62,6 +79,7 @@ const { state: applicationsSummary } = useApplicationsSummaryByCompany()
         :counter="resellerStats.data?.systems_hierarchy_count ?? 0"
         :icon="faServer"
         :loading="resellerStats.status === 'pending'"
+        :to="hierarchySystemsRoute"
       />
       <!-- total applications -->
       <CounterCard

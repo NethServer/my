@@ -53,6 +53,7 @@ interface InventoryData {
   id: number
   system_id: string
   timestamp: string
+  created_at: string
   data: {
     uuid: string
     installation: string

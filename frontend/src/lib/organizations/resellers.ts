@@ -39,6 +39,10 @@ export const CreateResellerSchema = v.object({
     language: v.optional(v.string()),
     notes: v.optional(v.string()),
   }),
+  // Optional: attribute the new reseller to an ancestor org (instead of the
+  // caller's own org) to preserve hierarchical ownership when an upper tier
+  // creates it on behalf of a lower one. Empty = owned by the caller's org.
+  created_by_organization_id: v.optional(v.string()),
 })
 
 export const EditResellerSchema = v.object({
@@ -61,6 +65,10 @@ export const ResellerSchema = v.object({
       email: v.string(),
       organization_id: v.string(),
       organization_name: v.string(),
+      // True when the creator acted on behalf of organization_name (attributed
+      // via created_by_organization_id) rather than belonging to it. Omitted
+      // (falsy) on the default own-org path.
+      on_behalf_of: v.optional(v.boolean()),
     }),
   ),
 })

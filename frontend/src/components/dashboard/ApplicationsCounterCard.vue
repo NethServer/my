@@ -5,8 +5,8 @@
 
 <script setup lang="ts">
 import CounterCard from '../common/CounterCard.vue'
+import BadgeLink from '../common/BadgeLink.vue'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
-import { NeBadgeV2 } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import { useApplicationsTotal } from '@/queries/applications/applicationsTotal'
 import { abbreviateNumber } from '@/lib/common/index.ts'
@@ -22,16 +22,24 @@ const { state: applicationsTotal } = useApplicationsTotal()
     :counter="applicationsTotal.data?.total ?? 0"
     :icon="faGridOne"
     :loading="applicationsTotal.status === 'pending'"
-    title-route-name="applications"
+    :to="{ name: 'applications' }"
   >
     <div v-if="applicationsTotal.data?.total ?? 0 > 0" class="flex justify-center">
-      <NeBadgeV2 kind="blue">
+      <BadgeLink
+        :to="{ name: 'applications', query: { unassigned: 'true' } }"
+        kind="blue"
+        :aria-label="$t('applications.show_unassigned')"
+      >
         {{
-          t('applications.num_unassigned', {
-            count: abbreviateNumber(applicationsTotal.data?.unassigned ?? 0, locale),
-          })
+          t(
+            'applications.num_unassigned',
+            {
+              count: abbreviateNumber(applicationsTotal.data?.unassigned ?? 0, locale),
+            },
+            applicationsTotal.data?.unassigned ?? 0,
+          )
         }}
-      </NeBadgeV2>
+      </BadgeLink>
     </div>
   </CounterCard>
 </template>

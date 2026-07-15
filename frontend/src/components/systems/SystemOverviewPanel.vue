@@ -16,7 +16,7 @@ const { state: systemDetail } = useSystemDetail()
 </script>
 
 <template>
-  <div class="3xl:grid-cols-4 grid grid-cols-1 gap-x-6 gap-y-6 md:grid-cols-2">
+  <div class="3xl:grid-cols-4 grid grid-cols-1 gap-x-6 gap-y-6 xl:grid-cols-2">
     <SystemInfoCard />
     <SystemStatusCard />
     <SystemSubscriptionCard />

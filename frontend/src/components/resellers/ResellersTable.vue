@@ -8,7 +8,7 @@ import { RESELLERS_TABLE_ID, type Reseller } from '@/lib/organizations/resellers
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import { useResellerFilters } from '@/queries/organizations/resellerFilters'
 import {
-  faCircleInfo,
+  faMagnifyingGlass,
   faCity,
   faPenToSquare,
   faBoxArchive,
@@ -102,13 +102,14 @@ const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
   },
 ])
 
-const createdByFilterOptions = computed(() => {
+const createdByFilterOptions = computed<NeDropdownFilterV2Option[]>(() => {
   if (!resellerFiltersState.value.data || !resellerFiltersState.value.data.created_by) {
     return []
   } else {
-    return resellerFiltersState.value.data.created_by.map((user) => ({
-      id: user.user_id,
-      label: user.name,
+    return resellerFiltersState.value.data.created_by.map((createdBy) => ({
+      id: createdBy.user_id,
+      label: createdBy.name,
+      description: createdBy.organization_name,
     }))
   }
 })
@@ -361,7 +362,7 @@ const goToResellerDetails = (reseller: Reseller) => {
       v-else-if="isNoMatchEmptyStateShown"
       :title="$t('resellers.no_reseller_found')"
       :description="$t('common.try_changing_search_filters')"
-      :icon="faCircleInfo"
+      :icon="faMagnifyingGlass"
       class="bg-white dark:bg-gray-950"
     >
       <NeButton kind="tertiary" @click="resetFilters">
@@ -426,7 +427,27 @@ const goToResellerDetails = (reseller: Reseller) => {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.total_systems')">
-            <div class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
+            <router-link
+              v-if="!item.deleted_at && item.systems_count > 0"
+              :to="{
+                name: 'systems',
+                query: {
+                  organization_id: item.logto_id,
+                  organization_name: item.name,
+                  include_hierarchy: 'true',
+                },
+              }"
+              class="flex items-center gap-2 hover:underline"
+              :aria-label="$t('resellers.show_reseller_systems', { name: item.name })"
+            >
+              <FontAwesomeIcon
+                :icon="faServer"
+                class="size-4 text-gray-700 dark:text-gray-400"
+                aria-hidden="true"
+              />
+              {{ item.systems_count }}
+            </router-link>
+            <div v-else class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
               <FontAwesomeIcon
                 :icon="faServer"
                 class="size-4 text-gray-700 dark:text-gray-400"
@@ -451,7 +472,13 @@ const goToResellerDetails = (reseller: Reseller) => {
                       v-if="item.created_by.organization_name"
                       class="text-gray-500 dark:text-gray-400"
                     >
-                      {{ item.created_by.organization_name }}
+                      {{
+                        item.created_by.on_behalf_of
+                          ? $t('systems.on_behalf_of', {
+                              organization: item.created_by.organization_name,
+                            })
+                          : item.created_by.organization_name
+                      }}
                     </div>
                   </div>
                 </div>
@@ -499,7 +526,7 @@ const goToResellerDetails = (reseller: Reseller) => {
                 <template #prefix>
                   <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
                 </template>
-                {{ $t('common.view') }}
+                {{ $t('common.details') }}
               </NeButton>
               <!-- kebab menu -->
               <NeDropdown

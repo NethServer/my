@@ -25,11 +25,13 @@ import { useSystemActiveAlerts } from '@/queries/systems/activeAlerts'
 import { useSystemBackups } from '@/queries/systems/backups'
 import DataItem from '../common/DataItem.vue'
 import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import SystemStatusIcon from './SystemStatusIcon.vue'
 import type { Ns8Facts } from '@/lib/systems/ns8Facts'
 import type { NsecFacts } from '@/lib/systems/nsecFacts'
 
 const { t, locale } = useI18n()
+const route = useRoute()
 const { state: systemDetail } = useSystemDetail()
 const { state: latestInventory } = useLatestInventory()
 const { state: activeAlerts } = useSystemActiveAlerts()
@@ -124,31 +126,40 @@ const timezone = computed(() => {
         <template #data>
           <div class="flex items-center gap-2">
             <template v-if="systemDetail.data?.status">
-              <SystemStatusIcon :status="systemDetail.data?.status" />
-              {{ t(`systems.status_${systemDetail.data?.status}`) }}
+              <NeTooltip
+                v-if="
+                  systemDetail.data?.status === 'active' ||
+                  systemDetail.data?.status === 'inactive' ||
+                  systemDetail.data?.status === 'unknown'
+                "
+                trigger-event="mouseenter focus"
+                placement="left"
+              >
+                <template #trigger>
+                  <div class="flex items-center gap-2">
+                    <SystemStatusIcon :status="systemDetail.data?.status" />
+                    {{ t(`systems.status_${systemDetail.data?.status}`) }}
+                  </div>
+                </template>
+                <template #content>
+                  <template v-if="systemDetail.data?.status === 'unknown'">
+                    {{ $t('system_detail.no_heartbeat_yet') }}
+                  </template>
+                  <template v-else>
+                    {{
+                      $t('system_detail.last_heartbeat_time', {
+                        time: formatRelativeTime(systemDetail.data?.last_heartbeat ?? '', locale),
+                      })
+                    }}
+                  </template>
+                </template>
+              </NeTooltip>
+              <template v-else>
+                <SystemStatusIcon :status="systemDetail.data?.status" />
+                {{ t(`systems.status_${systemDetail.data?.status}`) }}
+              </template>
             </template>
             <span v-else>-</span>
-            <!-- no inventory warning (do not show for pending/unknown status) -->
-            <NeTooltip
-              v-if="
-                latestInventory.status === 'success' &&
-                !latestInventory.data &&
-                systemDetail.data?.status !== 'unknown'
-              "
-              trigger-event="mouseenter focus"
-              placement="top"
-            >
-              <template #trigger>
-                <FontAwesomeIcon
-                  :icon="faTriangleExclamation"
-                  class="size-4 text-amber-700 dark:text-amber-500"
-                  aria-hidden="true"
-                />
-              </template>
-              <template #content>
-                {{ $t('system_detail.no_inventory_available') }}
-              </template>
-            </NeTooltip>
           </div>
         </template>
       </DataItem>
@@ -158,16 +169,21 @@ const timezone = computed(() => {
           {{ $t('system_detail.last_inventory') }}
         </template>
         <template #data>
-          <NeTooltip trigger-event="mouseenter focus" placement="left">
+          <div v-if="!latestInventory.data?.timestamp" class="flex items-center gap-2">
+            <!-- no inventory warning -->
+            <FontAwesomeIcon
+              :icon="faTriangleExclamation"
+              class="size-4 text-amber-700 dark:text-amber-500"
+              aria-hidden="true"
+            />
+            {{ $t('system_detail.no_inventory_yet') }}
+          </div>
+          <NeTooltip v-else trigger-event="mouseenter focus" placement="left">
             <template #trigger>
               {{ formatRelativeTime(latestInventory.data?.timestamp, locale) }}
             </template>
             <template #content>
-              {{
-                latestInventory.data?.timestamp
-                  ? formatDateTimeNoSeconds(new Date(latestInventory.data?.timestamp), locale)
-                  : '-'
-              }}
+              {{ formatDateTimeNoSeconds(new Date(latestInventory.data?.timestamp), locale) }}
             </template>
           </NeTooltip>
         </template>
@@ -204,12 +220,28 @@ const timezone = computed(() => {
               <span>-</span>
             </template>
             <template v-else-if="hasActiveAlerts">
-              <FontAwesomeIcon
-                :icon="faTriangleExclamation"
-                class="size-4 text-amber-700 dark:text-amber-500"
-                aria-hidden="true"
-              />
-              {{ $t('system_detail.n_active_alerts', { n: activeAlertsCount }, activeAlertsCount) }}
+              <router-link
+                :to="{
+                  name: 'alerts',
+                  query: {
+                    system_key: systemDetail.data?.system_key,
+                    system_name: systemDetail.data?.name,
+                  },
+                }"
+                class="flex items-center gap-2 hover:underline"
+                :aria-label="
+                  $t('system_detail.show_system_alerts', { name: systemDetail.data?.name })
+                "
+              >
+                <FontAwesomeIcon
+                  :icon="faTriangleExclamation"
+                  class="size-4 text-amber-700 dark:text-amber-500"
+                  aria-hidden="true"
+                />
+                {{
+                  $t('system_detail.n_active_alerts', { n: activeAlertsCount }, activeAlertsCount)
+                }}
+              </router-link>
             </template>
             <template v-else>
               <FontAwesomeIcon
@@ -235,21 +267,35 @@ const timezone = computed(() => {
             <template v-else-if="systemBackups.status === 'error'">
               <span>-</span>
             </template>
-            <template v-else-if="hasBackups">
-              <FontAwesomeIcon
-                :icon="faCircleCheck"
-                class="size-4 text-green-700 dark:text-green-500"
-                aria-hidden="true"
-              />
-              {{ $t('system_detail.n_backups_stored', { n: backupsCount }, backupsCount) }}
-            </template>
             <template v-else>
-              <FontAwesomeIcon
-                :icon="faTriangleExclamation"
-                class="size-4 text-amber-700 dark:text-amber-500"
-                aria-hidden="true"
-              />
-              {{ $t('system_detail.no_backups_stored') }}
+              <router-link
+                :to="{
+                  name: 'system_detail',
+                  params: { systemId: route.params.systemId },
+                  query: { tab: 'backups' },
+                }"
+                class="flex items-center gap-2 hover:underline"
+                :aria-label="
+                  $t('system_detail.show_system_backups', { name: systemDetail.data?.name })
+                "
+              >
+                <template v-if="hasBackups">
+                  <FontAwesomeIcon
+                    :icon="faCircleCheck"
+                    class="size-4 text-green-700 dark:text-green-500"
+                    aria-hidden="true"
+                  />
+                  {{ $t('system_detail.n_backups_stored', { n: backupsCount }, backupsCount) }}
+                </template>
+                <template v-else>
+                  <FontAwesomeIcon
+                    :icon="faTriangleExclamation"
+                    class="size-4 text-amber-700 dark:text-amber-500"
+                    aria-hidden="true"
+                  />
+                  {{ $t('system_detail.no_backups_stored') }}
+                </template>
+              </router-link>
             </template>
           </div>
         </template>

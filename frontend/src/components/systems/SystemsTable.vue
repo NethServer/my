@@ -6,7 +6,7 @@
 <script setup lang="ts">
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import {
-  faCircleInfo,
+  faMagnifyingGlass,
   faBoxArchive,
   faServer,
   faEye,
@@ -66,6 +66,7 @@ import OrganizationDropdownFilter from '@/components/organizations/OrganizationD
 import { isUserCustomer } from '@/lib/organizations/organizations.ts'
 import OrganizationIconAndLink from '../organizations/OrganizationIconAndLink.vue'
 import SystemLogoAndLink from './SystemLogoAndLink.vue'
+import { formatRelativeTime } from '@/lib/dateTime'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -73,7 +74,7 @@ const { isShownCreateSystemDrawer = false } = defineProps<{
 
 const emit = defineEmits(['close-drawer'])
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const {
   state,
   asyncStatus,
@@ -85,6 +86,7 @@ const {
   versionFilter,
   statusFilter,
   organizationFilter,
+  includeHierarchy,
   sortBy,
   sortDescending,
   areDefaultFiltersApplied,
@@ -161,13 +163,14 @@ const versionFilterOptions = computed(() => {
   }
 })
 
-const createdByFilterOptions = computed(() => {
+const createdByFilterOptions = computed<NeDropdownFilterV2Option[]>(() => {
   if (!systemFiltersState.value.data || !systemFiltersState.value.data.created_by) {
     return []
   } else {
-    return systemFiltersState.value.data.created_by.map((user) => ({
-      id: user.user_id,
-      label: user.name,
+    return systemFiltersState.value.data.created_by.map((createdBy) => ({
+      id: createdBy.user_id,
+      label: createdBy.name,
+      description: createdBy.organization_name,
     }))
   }
 })
@@ -254,9 +257,11 @@ function onCloseDrawer() {
 }
 
 function getKebabMenuItems(system: System) {
-  let items: NeDropdownItem[] = []
+  const items: NeDropdownItem[] = []
+  const canManage = canManageSystems()
+  const isDeleted = system.status === 'deleted'
 
-  if (canManageSystems() && system.status !== 'deleted') {
+  if (canManage && !isDeleted) {
     items.push({
       id: 'editSystem',
       label: t('common.edit'),
@@ -265,8 +270,7 @@ function getKebabMenuItems(system: System) {
     })
   }
 
-  items = [
-    ...items,
+  items.push(
     {
       id: 'exportToPdf',
       label: t('systems.export_to_pdf'),
@@ -279,50 +283,44 @@ function getKebabMenuItems(system: System) {
       icon: faFileCsv,
       action: () => exportSystem(system, 'csv'),
     },
-  ]
+  )
 
-  if (canManageSystems() && system.status !== 'deleted') {
+  if (canManage && !isDeleted) {
     if (system.suspended_at) {
-      items = [
-        ...items,
-        {
-          id: 'reactivateSystem',
-          label: t('common.reactivate'),
-          icon: faCirclePlay,
-          action: () => showReactivateSystemModal(system),
-        },
-      ]
+      items.push({
+        id: 'reactivateSystem',
+        label: t('common.reactivate'),
+        icon: faCirclePlay,
+        action: () => showReactivateSystemModal(system),
+      })
     } else {
-      items = [
-        ...items,
-        {
+      if (!system.registered_at) {
+        items.push({
           id: 'regenerateSecret',
           label: t('systems.regenerate_secret'),
           icon: faKey,
           action: () => showRegenerateSecretModal(system),
-        },
-        {
-          id: 'suspendSystem',
-          label: t('common.suspend'),
-          icon: faCirclePause,
-          action: () => showSuspendSystemModal(system),
-        },
-      ]
+        })
+      }
+
+      items.push({
+        id: 'suspendSystem',
+        label: t('common.suspend'),
+        icon: faCirclePause,
+        action: () => showSuspendSystemModal(system),
+      })
     }
 
-    items = [
-      ...items,
-      {
-        id: 'deleteSystem',
-        label: t('common.archive'),
-        icon: faBoxArchive,
-        danger: true,
-        action: () => showDeleteSystemModal(system),
-      },
-    ]
+    items.push({
+      id: 'deleteSystem',
+      label: t('common.archive'),
+      icon: faBoxArchive,
+      danger: true,
+      action: () => showDeleteSystemModal(system),
+    })
   }
 
-  if (canManageSystems() && system.status === 'deleted') {
+  if (canManage && isDeleted) {
     items.push({
       id: 'restoreSystem',
       label: t('common.restore'),
@@ -332,17 +330,15 @@ function getKebabMenuItems(system: System) {
   }
 
   if (canDestroySystems()) {
-    items = [
-      ...items,
-      {
-        id: 'destroySystem',
-        label: t('common.destroy'),
-        icon: faBomb,
-        danger: true,
-        action: () => showDestroySystemModal(system),
-      },
-    ]
+    items.push({
+      id: 'destroySystem',
+      label: t('common.destroy'),
+      icon: faBomb,
+      danger: true,
+      action: () => showDestroySystemModal(system),
+    })
   }
+
   return items
 }
 
@@ -375,6 +371,18 @@ function onCloseSecretRegeneratedModal() {
       :title="$t('systems.cannot_retrieve_systems')"
       :description="state.error.message"
       class="mb-6"
+    />
+    <!-- company hierarchy filter notification -->
+    <NeInlineNotification
+      v-if="includeHierarchy && organizationFilter.length === 1"
+      kind="info"
+      :title="$t('systems.hierarchy_filter_title')"
+      :description="
+        $t('systems.hierarchy_filter_description', { name: organizationFilter[0].label })
+      "
+      :secondary-button-label="$t('systems.hierarchy_filter_exact')"
+      class="mb-6"
+      @secondary-click="includeHierarchy = false"
     />
     <!-- table toolbar -->
     <div class="mb-6 flex items-center gap-4">
@@ -487,7 +495,7 @@ function onCloseSecretRegeneratedModal() {
       v-else-if="isNoMatchEmptyStateShown"
       :title="$t('systems.no_systems_found')"
       :description="$t('common.try_changing_search_filters')"
-      :icon="faCircleInfo"
+      :icon="faMagnifyingGlass"
       class="bg-white dark:bg-gray-950"
     >
       <NeButton kind="tertiary" @click="resetFilters">
@@ -529,7 +537,7 @@ function onCloseSecretRegeneratedModal() {
       </NeTableHead>
       <NeTableBody>
         <NeTableRow v-for="(item, index) in systemsPage" :key="index">
-          <NeTableCell :data-label="$t('systems.name')">
+          <NeTableCell :data-label="$t('systems.name')" class="break-all">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
               <SystemLogoAndLink
                 :system-id="item.status === 'deleted' ? '' : item.id"
@@ -582,7 +590,13 @@ function onCloseSecretRegeneratedModal() {
                       v-if="item.created_by.organization_name"
                       class="text-gray-500 dark:text-gray-400"
                     >
-                      {{ item.created_by.organization_name }}
+                      {{
+                        item.created_by.on_behalf_of
+                          ? $t('systems.on_behalf_of', {
+                              organization: item.created_by.organization_name,
+                            })
+                          : item.created_by.organization_name
+                      }}
                     </div>
                   </div>
                 </div>
@@ -593,8 +607,38 @@ function onCloseSecretRegeneratedModal() {
           <NeTableCell :data-label="$t('systems.status')">
             <div class="flex items-center gap-2">
               <template v-if="item.status">
-                <SystemStatusIcon :status="item.status" />
-                {{ t(`systems.status_${item.status}`) }}
+                <NeTooltip
+                  v-if="
+                    item.status === 'active' ||
+                    item.status === 'inactive' ||
+                    item.status === 'unknown'
+                  "
+                  trigger-event="mouseenter focus"
+                  placement="top"
+                >
+                  <template #trigger>
+                    <div class="flex items-center gap-2">
+                      <SystemStatusIcon :status="item.status" />
+                      {{ t(`systems.status_${item.status}`) }}
+                    </div>
+                  </template>
+                  <template #content>
+                    <template v-if="item.status === 'unknown'">
+                      {{ $t('system_detail.no_heartbeat_yet') }}
+                    </template>
+                    <template v-else>
+                      {{
+                        $t('system_detail.last_heartbeat_time', {
+                          time: formatRelativeTime(item.last_heartbeat ?? '', locale),
+                        })
+                      }}
+                    </template>
+                  </template>
+                </NeTooltip>
+                <template v-else>
+                  <SystemStatusIcon :status="item.status" />
+                  {{ t(`systems.status_${item.status}`) }}
+                </template>
               </template>
               <span v-else>-</span>
               <!-- no inventory warning (do not show for pending/unknown status) -->
@@ -626,7 +670,7 @@ function onCloseSecretRegeneratedModal() {
                 <template #prefix>
                   <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
                 </template>
-                {{ $t('common.view') }}
+                {{ $t('common.details') }}
               </NeButton>
               <!-- kebab menu -->
               <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />

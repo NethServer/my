@@ -17,6 +17,8 @@ import {
   NeFormItemLabel,
 } from '@nethesis/vue-components'
 import OrganizationCombobox from '@/components/organizations/OrganizationCombobox.vue'
+import CreatedOnBehalfOfCombobox from '@/components/organizations/CreatedOnBehalfOfCombobox.vue'
+import { useHasAttributableOrganizations } from '@/composables/useOrganizationFilter'
 import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import {
   CreateSystemSchema,
@@ -38,6 +40,8 @@ import type { AxiosError } from 'axios'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faCheck, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
 import { SYSTEM_FILTERS_KEY } from '@/lib/systems/systemFilters'
+import { useLoginStore } from '@/stores/login'
+import { isUserDistributor } from '@/lib/organizations/organizations'
 
 const { isShown = false, currentSystem = undefined } = defineProps<{
   isShown: boolean
@@ -49,6 +53,7 @@ const emit = defineEmits(['close'])
 const { t } = useI18n()
 const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
+const loginStore = useLoginStore()
 
 const {
   mutate: createSystemMutate,
@@ -113,6 +118,7 @@ const organizationId = ref('')
 const organizationIdRef = useTemplateRef<HTMLInputElement>('organizationIdRef')
 const notes = ref('')
 const notesRef = useTemplateRef<HTMLInputElement>('notesRef')
+const createdByOrganizationId = ref('')
 const validationIssues = ref<Record<string, string[]>>({})
 const step = ref<'create' | 'secret'>('create')
 const secret = ref('')
@@ -129,6 +135,18 @@ const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> =
 const saving = computed(() => {
   return createSystemLoading.value || editSystemLoading.value
 })
+
+// The optional "created by" attribution is honored by the backend only for
+// owner or distributor callers (see ResolveCreatedByOrg), so only show it to them.
+const canSetCreatedByOrganization = computed(() => loginStore.isOwner || isUserDistributor())
+
+// Only show the field when the caller actually has an ancestor org to attribute
+// to; the lookup runs only while the drawer is open and the field is applicable.
+const createdOnBehalfAllowedTypes = ['distributor', 'reseller']
+const hasAttributableOrganizations = useHasAttributableOrganizations(
+  () => createdOnBehalfAllowedTypes,
+  () => isShown && canSetCreatedByOrganization.value,
+)
 
 const stepNumber = computed(() => {
   return step.value === 'create' ? 1 : 2
@@ -163,11 +181,13 @@ function onShow() {
     name.value = currentSystem.name
     notes.value = currentSystem.notes || ''
     organizationId.value = currentSystem.organization.logto_id || ''
+    createdByOrganizationId.value = ''
   } else {
     // creating system, reset form to defaults
     name.value = ''
     organizationId.value = ''
     notes.value = ''
+    createdByOrganizationId.value = ''
   }
 }
 
@@ -253,6 +273,10 @@ async function saveSystem() {
 
     const systemToCreate: CreateSystem = {
       ...system,
+      // attribute the new system's created_by display org to an ancestor org when picked
+      ...(createdByOrganizationId.value
+        ? { created_by_organization_id: createdByOrganizationId.value }
+        : {}),
     }
 
     const isValidationOk = validateCreate(systemToCreate)
@@ -328,6 +352,19 @@ function copySecretAndCloseDrawer() {
             :invalid-message="validationIssues.notes?.[0] ? $t(validationIssues.notes[0]) : ''"
             :optional="true"
             :optional-label="t('common.optional')"
+          />
+          <!-- created on behalf of (owner/distributor only, on create) -->
+          <CreatedOnBehalfOfCombobox
+            v-if="!currentSystem && canSetCreatedByOrganization && hasAttributableOrganizations"
+            v-model="createdByOrganizationId"
+            :allowed-types="createdOnBehalfAllowedTypes"
+            :company-type="$t('systems.system').toLowerCase()"
+            :disabled="saving"
+            :invalid-message="
+              validationIssues.created_by_organization_id?.[0]
+                ? $t(validationIssues.created_by_organization_id[0])
+                : ''
+            "
           />
           <!-- create system error notification -->
           <NeInlineNotification

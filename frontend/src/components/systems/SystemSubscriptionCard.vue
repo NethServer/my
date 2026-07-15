@@ -32,7 +32,12 @@ const newSecret = ref<string>('')
 
 function canShowRegenerateSecret() {
   const system = systemDetail.value.data
-  return canManageSystems() && system?.status !== 'deleted' && !system?.suspended_at
+  return (
+    canManageSystems() &&
+    system?.status !== 'deleted' &&
+    !system?.suspended_at &&
+    !system?.registered_at
+  )
 }
 
 function getKebabMenuItems() {

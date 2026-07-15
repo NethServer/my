@@ -58,6 +58,20 @@ export const UserSchema = v.object({
       }),
     ),
   ),
+  created_by: v.optional(
+    v.object({
+      user_id: v.string(),
+      username: v.string(),
+      name: v.string(),
+      email: v.string(),
+      organization_id: v.string(),
+      organization_name: v.string(),
+      // True when the creator acted on behalf of organization_name (attributed
+      // via created_by_organization_id) rather than belonging to it. Omitted
+      // (falsy) on the default own-org path.
+      on_behalf_of: v.optional(v.boolean()),
+    }),
+  ),
 })
 
 export type CreateUser = v.InferOutput<typeof CreateUserSchema>
@@ -88,6 +102,7 @@ export const getQueryStringParams = (
   organizationFilter: string[],
   roleFilter: string[],
   statusFilter: UserStatus[],
+  createdByFilter: string[],
   sortBy: string | null,
   sortDescending: boolean,
 ) => {
@@ -113,6 +128,10 @@ export const getQueryStringParams = (
   statusFilter.forEach((status) => {
     searchParams.append('status', status)
   })
+
+  createdByFilter.forEach((userId) => {
+    searchParams.append('created_by', userId)
+  })
   return searchParams.toString()
 }
 
@@ -123,6 +142,7 @@ export const getUsers = (
   organizationFilter: string[],
   roleFilter: string[],
   statusFilter: UserStatus[],
+  createdByFilter: string[],
   sortBy: string,
   sortDescending: boolean,
 ) => {
@@ -134,6 +154,7 @@ export const getUsers = (
     organizationFilter,
     roleFilter,
     statusFilter,
+    createdByFilter,
     sortBy,
     sortDescending,
   )
@@ -246,6 +267,7 @@ export const getQueryStringParamsForExport = (
   organizationFilter: string[] | undefined,
   roleFilter: string[] | undefined,
   statusFilter: UserStatus[] | undefined,
+  createdByFilter: string[] | undefined,
   sortBy: string | undefined,
   sortDescending: boolean | undefined,
 ) => {
@@ -275,6 +297,12 @@ export const getQueryStringParamsForExport = (
     })
   }
 
+  if (createdByFilter) {
+    createdByFilter.forEach((userId) => {
+      searchParams.append('created_by', userId)
+    })
+  }
+
   if (sortBy) {
     searchParams.append('sort_by', sortBy)
   }
@@ -292,6 +320,7 @@ export const getExport = (
   organizationFilter: string[] | undefined = undefined,
   roleFilter: string[] | undefined = undefined,
   statusFilter: UserStatus[] | undefined = undefined,
+  createdByFilter: string[] | undefined = undefined,
   sortBy: string | undefined = undefined,
   sortDescending: boolean | undefined = undefined,
 ) => {
@@ -302,6 +331,7 @@ export const getExport = (
     organizationFilter,
     roleFilter,
     statusFilter,
+    createdByFilter,
     sortBy,
     sortDescending,
   )

@@ -11,7 +11,7 @@ import {
   faWrench,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { NeButton, NeCard, NeRoundedIcon } from '@nethesis/vue-components'
+import { NeButton, NeCard, NeRoundedIcon, NeTooltip } from '@nethesis/vue-components'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import { useI18n } from 'vue-i18n'
 
@@ -20,6 +20,7 @@ const { t } = useI18n()
 defineProps<{
   icon: IconDefinition
   title: string
+  titleTooltip?: string
   description: string
   canManage: boolean
   notConfigured: boolean
@@ -47,7 +48,14 @@ const emit = defineEmits<{ edit: []; configure: [] }>()
           customForegroundClasses="text-gray-700 dark:text-gray-50"
         />
         <div>
-          <p class="font-medium text-gray-900 dark:text-gray-100">{{ title }}</p>
+          <div class="flex items-center gap-1.5">
+            <p class="font-medium text-gray-900 dark:text-gray-100">{{ title }}</p>
+            <NeTooltip v-if="titleTooltip">
+              <template #content>
+                {{ titleTooltip }}
+              </template>
+            </NeTooltip>
+          </div>
           <p class="text-tertiary-neutral">{{ description }}</p>
         </div>
       </div>

@@ -21,6 +21,10 @@ export const CreateSystemSchema = v.object({
   organization_id: v.pipe(v.string(), v.nonEmpty('systems.organization_required')),
   notes: v.pipe(v.string()),
   custom_data: v.optional(v.record(v.string(), v.string())),
+  // Optional: attribute the new system's created_by display org to an ancestor
+  // org (a reseller or distributor) instead of the caller's own org — used when
+  // an upper tier creates it on behalf of a lower one. Empty = caller's own org.
+  created_by_organization_id: v.optional(v.string()),
 })
 
 export const EditSystemSchema = v.object({
@@ -43,6 +47,7 @@ export const SystemSchema = v.object({
   system_key: v.optional(v.string()),
   system_secret: v.string(),
   suspended_at: v.optional(v.string()),
+  last_heartbeat: v.optional(v.string()),
   last_inventory: v.optional(v.string()),
   rebranding_enabled: v.optional(v.boolean()),
   organization: v.object({
@@ -58,6 +63,10 @@ export const SystemSchema = v.object({
     email: v.string(),
     organization_id: v.string(),
     organization_name: v.string(),
+    // True when the creator acted on behalf of organization_name (attributed
+    // via created_by_organization_id) rather than belonging to it. Omitted
+    // (falsy) on the default own-org path.
+    on_behalf_of: v.optional(v.boolean()),
   }),
 })
 
@@ -111,6 +120,7 @@ export const getQueryStringParams = (
   versionFilter: string[],
   statusFilter: SystemStatus[],
   organizationFilter: string[],
+  includeHierarchy: boolean,
   sortBy: string | null,
   sortDescending: boolean,
 ) => {
@@ -144,6 +154,10 @@ export const getQueryStringParams = (
   organizationFilter.forEach((orgId) => {
     searchParams.append('organization_id', orgId)
   })
+
+  if (includeHierarchy) {
+    searchParams.append('include_hierarchy', 'true')
+  }
   return searchParams.toString()
 }
 
@@ -155,6 +169,8 @@ export const getQueryStringParamsForExport = (
   createdByFilter: string[] | undefined,
   versionFilter: string[] | undefined,
   statusFilter: SystemStatus[] | undefined,
+  organizationFilter: string[] | undefined,
+  includeHierarchy: boolean | undefined,
   sortBy: string | undefined,
   sortDescending: boolean | undefined,
 ) => {
@@ -188,6 +204,17 @@ export const getQueryStringParamsForExport = (
     })
   }
 
+  // appended before the statusFilter block because that block returns early
+  if (organizationFilter) {
+    organizationFilter.forEach((orgId) => {
+      searchParams.append('organization_id', orgId)
+    })
+  }
+
+  if (includeHierarchy) {
+    searchParams.append('include_hierarchy', 'true')
+  }
+
   if (statusFilter) {
     statusFilter.forEach((status) => {
       searchParams.append('status', status)
@@ -214,6 +241,7 @@ export const getSystems = (
   versionFilter: string[],
   statusFilter: SystemStatus[],
   organizationFilter: string[],
+  includeHierarchy: boolean,
   sortBy: string,
   sortDescending: boolean,
 ) => {
@@ -227,6 +255,7 @@ export const getSystems = (
     versionFilter,
     statusFilter,
     organizationFilter,
+    includeHierarchy,
     sortBy,
     sortDescending,
   )
@@ -356,6 +385,8 @@ export const getExport = (
   createdByFilter: string[] | undefined = undefined,
   versionFilter: string[] | undefined = undefined,
   statusFilter: SystemStatus[] | undefined = undefined,
+  organizationFilter: string[] | undefined = undefined,
+  includeHierarchy: boolean | undefined = undefined,
   sortBy: string | undefined = undefined,
   sortDescending: boolean | undefined = undefined,
 ) => {
@@ -368,6 +399,8 @@ export const getExport = (
     createdByFilter,
     versionFilter,
     statusFilter,
+    organizationFilter,
+    includeHierarchy,
     sortBy,
     sortDescending,
   )

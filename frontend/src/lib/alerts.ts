@@ -15,7 +15,7 @@ export const ALERTS_TOTALS_KEY = 'alertsTotals'
 export const ALERT_ACTIVITY_KEY = 'alertActivity'
 export const ALERTS_SILENCES_KEY = 'alertsSilences'
 export const ALERTS_TABLE_ID = 'alertsTable'
-export const ALERTS_REFETCH_INTERVAL_SECONDS = 10
+export const ALERTS_REFETCH_INTERVAL_SECONDS = 20
 export const SYSTEM_ALERT_HISTORY_TABLE_ID = 'systemAlertHistoryTable'
 export const SYSTEM_ALERTS_TABLE_ID = 'systemAlertsTable'
 export const SYSTEM_ALERT_SILENCES_KEY = 'systemAlertSilences'
@@ -128,6 +128,12 @@ export const TelegramNotificationsPayloadSchema = v.object({
 
 export type AlertState = 'active' | 'suppressed' | 'unprocessed'
 
+// Sortable columns for the active-alerts lists (mirrors the backend allowlist).
+export type AlertSortBy = 'starts_at' | 'severity' | 'alertname' | 'status' | 'assigned_user_name'
+
+// Sentinel value for the assignee filter that matches unassigned alerts.
+export const UNASSIGNED_FILTER_ID = 'none'
+
 export interface AlertAnnotations {
   summary_en?: string
   summary_it?: string
@@ -145,6 +151,14 @@ export interface AlertStatus {
   inhibitedBy: string[]
 }
 
+export interface AlertAssignment {
+  user_id: string
+  user_name: string
+  user_org_id: string
+  user_org_name: string
+  assigned_at: string
+}
+
 export interface ActiveAlert {
   fingerprint: string
   labels: Record<string, string>
@@ -153,6 +167,7 @@ export interface ActiveAlert {
   startsAt: string
   endsAt: string
   generatorURL?: string
+  assigned_to?: AlertAssignment | null
 }
 
 export type Alert = ActiveAlert
@@ -234,7 +249,7 @@ interface AlertActivityEntry {
   id: number
   organization_id: string
   fingerprint: string
-  action: 'silenced' | 'silence_updated' | 'unsilenced'
+  action: 'silenced' | 'silence_updated' | 'unsilenced' | 'assigned' | 'unassigned' | 'note_added'
   actor_user_id?: string
   actor_name?: string
   silence_id?: string
@@ -340,12 +355,13 @@ export const getAlerts = (
   organizationIds?: string | string[],
   page: number = 1,
   pageSize: number = OPTIONS_PAGE_SIZE,
-  sortBy: 'starts_at' | 'severity' | 'alertname' | 'status' = 'starts_at',
+  sortBy: AlertSortBy = 'starts_at',
   sortDirection: 'asc' | 'desc' = 'desc',
   statusFilters?: string | string[],
   severityFilters?: string | string[],
   systemKeyFilters?: string | string[],
   alertnameFilters?: string | string[],
+  assignedUserIds?: string | string[],
   include: 'descendants' = 'descendants',
 ) => {
   const loginStore = useLoginStore()
@@ -392,6 +408,12 @@ export const getAlerts = (
   if (alertnameFilters) {
     const names = Array.isArray(alertnameFilters) ? alertnameFilters : [alertnameFilters]
     names.forEach((name) => params.append('alertname', name))
+  }
+
+  // Add assignee filters (user id(s), or the literal "none" for unassigned)
+  if (assignedUserIds) {
+    const ids = Array.isArray(assignedUserIds) ? assignedUserIds : [assignedUserIds]
+    ids.forEach((id) => params.append('assigned_user_id', id))
   }
 
   return axios
@@ -469,6 +491,51 @@ export const createSystemAlertSilence = (
     .then((res) => res.data.data)
 }
 
+// Self-assign the given alert to the current user (assignee is derived from the
+// JWT server-side). An optional note is recorded as a separate timeline event.
+// organizationId is required by the backend to scope the alert.
+export const createAlertAssignment = (
+  fingerprint: string,
+  organizationId: string,
+  note?: string,
+) => {
+  const loginStore = useLoginStore()
+  const params = new URLSearchParams()
+  if (organizationId) {
+    params.append('organization_id', organizationId)
+  }
+  const payload: Record<string, unknown> = { fingerprint }
+  if (note?.trim()) {
+    payload.note = note.trim()
+  }
+
+  return axios
+    .post(`${API_URL}/alerts/assignment?${params}`, payload, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data)
+}
+
+// Append a note/comment to the alert timeline. Works on resolved alerts too.
+// organizationId is required by the backend to scope the alert.
+export const createAlertNote = (fingerprint: string, organizationId: string, text: string) => {
+  const loginStore = useLoginStore()
+  const params = new URLSearchParams()
+  if (organizationId) {
+    params.append('organization_id', organizationId)
+  }
+
+  return axios
+    .post(
+      `${API_URL}/alerts/notes?${params}`,
+      { fingerprint, text: text.trim() },
+      {
+        headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+      },
+    )
+    .then((res) => res.data.data)
+}
+
 type AlertAnnotationKey = 'summary' | 'description'
 type AlertWithAnnotations = {
   annotations?: AlertAnnotations | null | undefined
@@ -520,11 +587,12 @@ export const getSystemActiveAlerts = (
   systemId: string,
   page: number = 1,
   pageSize: number = OPTIONS_PAGE_SIZE,
-  sortBy: 'starts_at' | 'severity' | 'alertname' | 'status' = 'starts_at',
+  sortBy: AlertSortBy = 'starts_at',
   sortDirection: 'asc' | 'desc' = 'desc',
   statusFilters?: string | string[],
   severityFilters?: string | string[],
   alertnameFilters?: string | string[],
+  assignedUserIds?: string | string[],
 ) => {
   const loginStore = useLoginStore()
   const params = new URLSearchParams()
@@ -545,6 +613,10 @@ export const getSystemActiveAlerts = (
   if (alertnameFilters) {
     const names = Array.isArray(alertnameFilters) ? alertnameFilters : [alertnameFilters]
     names.forEach((name) => params.append('alertname', name))
+  }
+  if (assignedUserIds) {
+    const ids = Array.isArray(assignedUserIds) ? assignedUserIds : [assignedUserIds]
+    ids.forEach((id) => params.append('assigned_user_id', id))
   }
 
   return axios

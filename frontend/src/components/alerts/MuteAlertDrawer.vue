@@ -23,6 +23,7 @@ import {
   type Alert,
 } from '@/lib/alerts'
 import { setPendingAlertState } from '@/lib/alertPendingStates'
+import AlertEventsTimeline from '@/components/alerts/AlertEventsTimeline.vue'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useThemeStore } from '@/stores/theme'
 import { getDateTimeFormatPattern } from '@/lib/dateTime'
@@ -203,6 +204,8 @@ onBeforeUnmount(() => {
           :title="t('alerts.cannot_mute_alert')"
           :description="(muteAlertError as Error).message"
         />
+        <!-- Activity timeline -->
+        <AlertEventsTimeline :alert="alert" />
       </div>
       <!-- footer -->
       <hr class="my-8" />

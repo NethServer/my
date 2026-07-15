@@ -48,6 +48,11 @@ export const isUserCustomer = () => {
   return loginStore.userInfo?.org_role?.toLowerCase() === 'customer'
 }
 
+export const isUserDistributor = () => {
+  const loginStore = useLoginStore()
+  return loginStore.userInfo?.org_role?.toLowerCase() === 'distributor'
+}
+
 // ============================================================
 // Common Import Types (used across all entities)
 // ============================================================

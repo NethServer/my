@@ -9,9 +9,11 @@ import {
   faBell,
   faBellSlash,
   faCircleCheck,
+  faComment,
   faEye,
   faMagnifyingGlass,
   faServer,
+  faUserCheck,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -32,15 +34,17 @@ import {
   NeTableRow,
   type NeDropdownFilterV2Option,
   type NeDropdownItem,
+  type SortEvent,
 } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import { useAlerts } from '@/queries/alerts/alerts'
 import { useAlertFilters } from '@/queries/alerts/alertFilters'
 import { useSystems } from '@/queries/systems/systems'
 import {
+  ALERTS_REFETCH_INTERVAL_SECONDS,
   ALERTS_TABLE_ID,
   deleteAlertSilence,
   getAlertSilenceIds,
@@ -49,6 +53,7 @@ import {
   isAlertSilenced,
   SEVERITY_FILTER_OPTIONS,
   type Alert,
+  type AlertSortBy,
 } from '@/lib/alerts'
 import { setPendingAlertState, isProcessing } from '@/lib/alertPendingStates'
 import { type AlertFilterAlert } from '@/lib/alertFilters'
@@ -58,17 +63,25 @@ import { canManageSystems } from '@/lib/permissions'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import MuteAlertDrawer from '@/components/alerts/MuteAlertDrawer.vue'
 import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
+import AssignAlertDrawer from '@/components/alerts/AssignAlertDrawer.vue'
+import AddAlertNoteDrawer from '@/components/alerts/AddAlertNoteDrawer.vue'
+import TakeOverAlertModal from '@/components/alerts/TakeOverAlertModal.vue'
+import AlertAssignee from '@/components/alerts/AlertAssignee.vue'
 import ProcessingAlertBadge from '@/components/alerts/ProcessingAlertBadge.vue'
+import { useLoginStore } from '@/stores/login'
 import capitalize from 'lodash/capitalize'
 import SystemDropdownFilter from '@/components/systems/SystemDropdownFilter.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
+import AssigneeDropdownFilter from '@/components/alerts/AssigneeDropdownFilter.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { isUserCustomer } from '@/lib/organizations/organizations'
 import SystemLogoAndLink from '../systems/SystemLogoAndLink.vue'
 
 const { t, locale } = useI18n()
+const route = useRoute()
 const router = useRouter()
 const notificationsStore = useNotificationsStore()
+const loginStore = useLoginStore()
 
 const { state: systemsState } = useSystems()
 
@@ -83,11 +96,36 @@ const {
   severityFilters,
   alertnameFilters,
   systemKeyFilters,
+  assigneeFilters,
   organizationIds,
   areDefaultFiltersApplied,
   clearFilters,
+  resetStatusFilter,
   refetch,
 } = useAlerts()
+
+// apply the filters requested via query params, then clean the URL
+const { system_key: sysKey, system_name: sysName, severity, status } = route.query
+
+if (typeof sysKey === 'string' && sysKey && typeof sysName === 'string' && sysName) {
+  clearFilters()
+  systemKeyFilters.value = [{ id: sysKey, label: sysName }]
+  router.replace({ query: {} })
+}
+
+const severityOption = SEVERITY_FILTER_OPTIONS.find((option) => option.id === severity)
+
+if (severityOption) {
+  clearFilters()
+  severityFilters.value = [severityOption]
+  router.replace({ query: {} })
+}
+
+if (status === 'suppressed') {
+  clearFilters()
+  statusFilters.value = [{ id: 'suppressed', label: t('alerts.muted') }]
+  router.replace({ query: {} })
+}
 
 const { state: alertFiltersState } = useAlertFilters()
 
@@ -139,6 +177,11 @@ const sortDescending = computed({
     sortDirection.value = val ? 'desc' : 'asc'
   },
 })
+
+function onSort(payload: SortEvent) {
+  sortBy.value = payload.key as AlertSortBy
+  sortDirection.value = payload.descending ? 'desc' : 'asc'
+}
 
 // ── Mute alert drawer ────────────────────────────────────────────────────────────
 
@@ -196,6 +239,47 @@ function showDetailsDrawer(alert: Alert) {
   isDetailsDrawerShown.value = true
 }
 
+// ── Assign to me / Add comment ────────────────────────────────────────────────
+
+const isAssignDrawerShown = ref(false)
+const isAddCommentDrawerShown = ref(false)
+const isTakeOverModalShown = ref(false)
+
+// The current assignee id stored by the backend is the Logto id when available,
+// otherwise the local id — compare against both.
+function isAssignedToOther(alert: Alert): boolean {
+  const assignee = alert.assigned_to
+  if (!assignee) return false
+  const me = loginStore.userInfo
+  return assignee.user_id !== me?.logto_id && assignee.user_id !== me?.id
+}
+
+function isAssignedToMe(alert: Alert): boolean {
+  const assignee = alert.assigned_to
+  if (!assignee) return false
+  const me = loginStore.userInfo
+  return assignee.user_id === me?.logto_id || assignee.user_id === me?.id
+}
+
+function onAssignToMe(alert: Alert) {
+  selectedAlert.value = alert
+  if (isAssignedToOther(alert)) {
+    isTakeOverModalShown.value = true
+  } else {
+    isAssignDrawerShown.value = true
+  }
+}
+
+function onTakeOverConfirm() {
+  isTakeOverModalShown.value = false
+  isAssignDrawerShown.value = true
+}
+
+function showAddCommentDrawer(alert: Alert) {
+  selectedAlert.value = alert
+  isAddCommentDrawerShown.value = true
+}
+
 function getKebabMenuItems(alert: Alert): NeDropdownItem[] {
   const items: NeDropdownItem[] = []
   if (canManageSystems()) {
@@ -232,6 +316,21 @@ function getKebabMenuItems(alert: Alert): NeDropdownItem[] {
         action: () => showMuteDrawer(alert),
       })
     }
+    // Hide "Assign to me" when the alert is already assigned to the current user.
+    if (!isAssignedToMe(alert)) {
+      items.push({
+        id: 'assignToMe',
+        label: t('alerts.assign_to_me'),
+        icon: faUserCheck,
+        action: () => onAssignToMe(alert),
+      })
+    }
+    items.push({
+      id: 'addComment',
+      label: t('alerts.add_comment'),
+      icon: faComment,
+      action: () => showAddCommentDrawer(alert),
+    })
   }
   return items
 }
@@ -264,7 +363,7 @@ function goToSystems() {
 
     <!-- Toolbar -->
     <div class="mb-6 flex items-center gap-4">
-      <div class="flex w-full items-start justify-between gap-4">
+      <div class="flex w-full items-end justify-between gap-4">
         <!-- Filters -->
         <div class="flex flex-wrap items-center gap-4">
           <!-- Severity filter -->
@@ -314,13 +413,20 @@ function goToSystems() {
             kind="checkbox"
             :label="t('common.status')"
             :options="statusFilterOptions"
-            :show-clear-filter="true"
+            :show-clear-filter="false"
             :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
+            :custom-action-label="t('ne_dropdown_filter.reset_selection')"
+            @custom-action="resetStatusFilter"
+            @update:model-value="() => (pageNum = 1)"
+          />
+          <!-- Assignee filter -->
+          <AssigneeDropdownFilter
+            v-model="assigneeFilters"
             @update:model-value="() => (pageNum = 1)"
           />
           <!-- Sort -->
@@ -332,6 +438,7 @@ function goToSystems() {
               { id: 'starts_at', label: t('alerts.started') },
               { id: 'severity', label: t('alerts.severity') },
               { id: 'alertname', label: t('alerts.alertname') },
+              { id: 'assigned_user_name', label: t('alerts.assigned_to') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
             :sort-by-label="t('sort.sort_by')"
@@ -339,9 +446,9 @@ function goToSystems() {
             :ascending-label="t('sort.ascending')"
             :descending-label="t('sort.descending')"
           />
-          <!-- Clear filters -->
+          <!-- Reset filters -->
           <NeButton kind="tertiary" @click="clearFilters">
-            {{ t('common.clear_filters') }}
+            {{ t('common.reset_filters') }}
           </NeButton>
         </div>
         <!-- Data updated every X seconds -->
@@ -351,7 +458,9 @@ function goToSystems() {
             v-if="alertsAsyncStatus === 'loading' && alertsState.status !== 'pending'"
           />
           <div class="text-tertiary-neutral">
-            {{ t('common.data_updated_every_seconds', { seconds: 10 }) }}
+            {{
+              t('common.data_updated_every_seconds', { seconds: ALERTS_REFETCH_INTERVAL_SECONDS })
+            }}
           </div>
         </div>
       </div>
@@ -390,7 +499,7 @@ function goToSystems() {
       class="bg-white dark:bg-gray-950"
     >
       <NeButton kind="tertiary" @click="clearFilters">
-        {{ $t('common.clear_filters') }}
+        {{ $t('common.reset_filters') }}
       </NeButton>
     </NeEmptyState>
 
@@ -402,15 +511,24 @@ function goToSystems() {
       :aria-label="$t('alerts.title')"
       card-breakpoint="2xl"
       :loading="alertsState.status === 'pending'"
-      :skeleton-columns="5"
+      :skeleton-columns="6"
       :skeleton-rows="7"
     >
       <NeTableHead>
-        <NeTableHeadCell>{{ $t('alerts.severity') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('alerts.alertname') }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="severity" @sort="onSort">{{
+          $t('alerts.severity')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="alertname" @sort="onSort">{{
+          $t('alerts.alertname')
+        }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('alerts.system') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('alerts.organization') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('alerts.started') }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="starts_at" @sort="onSort">{{
+          $t('alerts.started')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="assigned_user_name" @sort="onSort">{{
+          $t('alerts.assigned_to')
+        }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
         </NeTableHeadCell>
@@ -475,6 +593,10 @@ function goToSystems() {
               </p>
             </div>
           </NeTableCell>
+          <!-- Assigned to -->
+          <NeTableCell :data-label="$t('alerts.assigned_to')">
+            <AlertAssignee :alert="alert" />
+          </NeTableCell>
           <!-- Actions -->
           <NeTableCell :data-label="$t('common.actions')">
             <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
@@ -482,7 +604,7 @@ function goToSystems() {
                 <template #prefix>
                   <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
                 </template>
-                {{ $t('alerts.view_details') }}
+                {{ $t('common.details') }}
               </NeButton>
               <!-- kebab menu -->
               <NeDropdown
@@ -528,6 +650,28 @@ function goToSystems() {
       :is-shown="isDetailsDrawerShown"
       :alert="detailsDrawerAlert"
       @close="isDetailsDrawerShown = false"
+    />
+
+    <!-- Assign alert drawer -->
+    <AssignAlertDrawer
+      :is-shown="isAssignDrawerShown"
+      :alert="selectedAlert"
+      @close="isAssignDrawerShown = false"
+    />
+
+    <!-- Add comment drawer -->
+    <AddAlertNoteDrawer
+      :is-shown="isAddCommentDrawerShown"
+      :alert="selectedAlert"
+      @close="isAddCommentDrawerShown = false"
+    />
+
+    <!-- Take over confirmation -->
+    <TakeOverAlertModal
+      :visible="isTakeOverModalShown"
+      :alert="selectedAlert"
+      @close="isTakeOverModalShown = false"
+      @confirm="onTakeOverConfirm"
     />
   </div>
 </template>
