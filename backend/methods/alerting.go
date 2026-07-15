@@ -581,6 +581,7 @@ func GetAlerts(c *gin.Context) {
 	if pageAlerts == nil {
 		pageAlerts = []map[string]interface{}{}
 	}
+	attachAlertAssignments(pageAlerts)
 
 	if warnings == nil {
 		warnings = []string{}
@@ -709,6 +710,241 @@ func GetAlertActivity(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("alert activity retrieved successfully", gin.H{
 		"events": entries,
 	}))
+}
+
+// CreateAlertNote handles POST /api/alerts/notes
+// Appends a free-form operator note ({ fingerprint, text }) to the alert's
+// activity timeline as a note_added event. Notes are independent from silences
+// and assignments; no Mimir lookup is performed so a note can also be attached
+// to an alert that already resolved (the timeline outlives the alert).
+func CreateAlertNote(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+	orgID, ok := resolveOrgID(c, user)
+	if !ok {
+		return
+	}
+	if !requireOrgID(c, orgID) {
+		return
+	}
+
+	var req models.CreateAlertNoteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		if _, ok := err.(validator.ValidationErrors); ok {
+			c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+			return
+		}
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
+		return
+	}
+	if !alertFingerprintPattern.MatchString(req.Fingerprint) {
+		c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+			{Key: "fingerprint", Message: "invalid_format", Value: req.Fingerprint},
+		}))
+		return
+	}
+	text := strings.TrimSpace(req.Text)
+	if text == "" {
+		c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+			{Key: "text", Message: "required", Value: req.Text},
+		}))
+		return
+	}
+
+	// Unlike the audit logging around silence operations, here the timeline
+	// write IS the primary action, so a failure fails the request.
+	repo := entities.NewLocalAlertActivityRepository()
+	if err := repo.Log(orgID, req.Fingerprint, entities.AlertActivityNoteAdded,
+		alertActivityActorID(user), alertActivityActorName(user), "",
+		map[string]interface{}{"text": text}); err != nil {
+		logger.Error().Err(err).Str("org_id", orgID).Str("fingerprint", req.Fingerprint).Msg("failed to add alert note")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to add alert note", nil))
+		return
+	}
+	c.JSON(http.StatusOK, response.OK("alert note added successfully", nil))
+}
+
+// CreateAlertAssignment handles POST /api/alerts/assignment
+// Self-assigns the active alert identified by { fingerprint } to the caller.
+// If the alert is already assigned to someone else the row is replaced
+// (takeover) — the "do you want to take over from X?" confirmation is
+// frontend-only by design. There is no unassign endpoint: assignments are
+// auto-released by collect when the resolved webhook for the fingerprint
+// arrives, which is also why the alert must still be firing in Mimir here
+// (assigning a resolved alert would create a row nothing ever cleans up).
+func CreateAlertAssignment(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+	orgID, ok := resolveOrgID(c, user)
+	if !ok {
+		return
+	}
+	if !requireOrgID(c, orgID) {
+		return
+	}
+
+	var req models.CreateAlertAssignmentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		if _, ok := err.(validator.ValidationErrors); ok {
+			c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+			return
+		}
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid request body: "+err.Error(), nil))
+		return
+	}
+	if !alertFingerprintPattern.MatchString(req.Fingerprint) {
+		c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+			{Key: "fingerprint", Message: "invalid_format", Value: req.Fingerprint},
+		}))
+		return
+	}
+
+	if _, ok := resolveActiveAlertForOrg(c, orgID, req.Fingerprint); !ok {
+		return
+	}
+
+	repo := entities.NewLocalAlertAssignmentRepository()
+	previousName, assignment, err := repo.Upsert(orgID, req.Fingerprint,
+		alertActivityActorID(user), alertActivityActorName(user),
+		user.OrganizationID, user.OrganizationName)
+	if err != nil {
+		logger.Error().Err(err).Str("org_id", orgID).Str("fingerprint", req.Fingerprint).Msg("failed to assign alert")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to assign alert", nil))
+		return
+	}
+
+	details := map[string]interface{}{}
+	if previousName != "" {
+		details["reassigned_from"] = previousName
+	}
+	logAlertActivity(c, orgID, req.Fingerprint, entities.AlertActivityAssigned, user, "", details)
+
+	// Optional note taken together with the assignment ("taking this, checking
+	// the firewall"). Recorded as its own note_added event so the timeline
+	// renders it exactly like a note posted via /alerts/notes. Same best-effort
+	// policy as the assigned event: the assignment is already persisted, so a
+	// failed note write logs a warning instead of failing the request.
+	if note := strings.TrimSpace(req.Note); note != "" {
+		logAlertActivity(c, orgID, req.Fingerprint, entities.AlertActivityNoteAdded, user, "",
+			map[string]interface{}{"text": note})
+	}
+
+	c.JSON(http.StatusOK, response.OK("alert assigned successfully", gin.H{
+		"assignment": assignment,
+	}))
+}
+
+// resolveActiveAlertForOrg looks up an active alert by fingerprint inside the
+// Mimir tenant that owns orgID's alerting (TenantForOrg: customers live in
+// their managing reseller/distributor tenant) and verifies the alert actually
+// belongs to orgID via its organization_id label. Reseller tenants hold many
+// customers' alerts together, so the label check is what stops a caller
+// authorized for org A from acting on org B's alert in the same tenant.
+//
+// Returns (alert, true) on success. On any failure the response is already
+// written and the caller must just return.
+func resolveActiveAlertForOrg(c *gin.Context, orgID, fingerprint string) (*models.ActiveAlert, bool) {
+	tenant, err := alerting.TenantForOrg(orgID)
+	if err != nil || tenant == "" {
+		tenant = orgID
+	}
+	body, err := alerting.GetAlerts(tenant)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch alerts from mimir: "+err.Error(), nil))
+		return nil, false
+	}
+	var alerts []models.ActiveAlert
+	if err := json.Unmarshal(body, &alerts); err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to parse alerts from mimir: "+err.Error(), nil))
+		return nil, false
+	}
+	for i := range alerts {
+		if alerts[i].Fingerprint == fingerprint && alerts[i].Labels["organization_id"] == orgID {
+			return &alerts[i], true
+		}
+	}
+	c.JSON(http.StatusNotFound, response.NotFound("alert not found", nil))
+	return nil, false
+}
+
+// alertActivityActorID returns the stable user identifier stored in
+// alert_activity.actor_user_id and alert_assignments.assigned_user_id:
+// the Logto id when available, the local id otherwise.
+func alertActivityActorID(user *models.User) string {
+	if user == nil {
+		return ""
+	}
+	if user.LogtoID != nil && *user.LogtoID != "" {
+		return *user.LogtoID
+	}
+	return user.ID
+}
+
+// alertActivityActorName returns the display name recorded next to the actor
+// id, falling back to username/email so the timeline never renders an empty
+// actor.
+func alertActivityActorName(user *models.User) string {
+	if user == nil {
+		return ""
+	}
+	if user.Name != "" {
+		return user.Name
+	}
+	if user.Username != "" {
+		return user.Username
+	}
+	return user.Email
+}
+
+// attachAlertAssignments decorates a page of Mimir alerts with the current
+// assignee under the `assigned_to` key ({user_id, user_name, assigned_at} or
+// null), resolved with a single batch query per page. Best-effort: on DB
+// failure every alert renders as unassigned rather than failing the list.
+func attachAlertAssignments(alerts []map[string]interface{}) {
+	if len(alerts) == 0 {
+		return
+	}
+	orgIDs := make([]string, 0, len(alerts))
+	fingerprints := make([]string, 0, len(alerts))
+	for _, alert := range alerts {
+		alert["assigned_to"] = nil
+		labels, _ := alert["labels"].(map[string]interface{})
+		org, _ := labels["organization_id"].(string)
+		fp, _ := alert["fingerprint"].(string)
+		if org == "" || fp == "" {
+			continue
+		}
+		orgIDs = append(orgIDs, org)
+		fingerprints = append(fingerprints, fp)
+	}
+
+	repo := entities.NewLocalAlertAssignmentRepository()
+	assignments, err := repo.GetByFingerprints(orgIDs, fingerprints)
+	if err != nil {
+		logger.Warn().Err(err).Msg("failed to load alert assignments for list (non-fatal)")
+		return
+	}
+	if len(assignments) == 0 {
+		return
+	}
+	for _, alert := range alerts {
+		labels, _ := alert["labels"].(map[string]interface{})
+		org, _ := labels["organization_id"].(string)
+		fp, _ := alert["fingerprint"].(string)
+		if a, ok := assignments[entities.AssignmentKey(org, fp)]; ok {
+			alert["assigned_to"] = gin.H{
+				"user_id":       a.AssignedUserID,
+				"user_name":     a.AssignedUserName,
+				"user_org_id":   a.AssignedUserOrgID,
+				"user_org_name": a.AssignedUserOrgName,
+				"assigned_at":   a.AssignedAt,
+			}
+		}
+	}
 }
 
 // fanOutMimirAlerts fetches active alerts from Mimir for every tenant in scope
@@ -1030,11 +1266,22 @@ func filterAlerts(alerts []map[string]interface{}, f alertFilter) []map[string]i
 	return filtered
 }
 
-func getSystemAlertOrgID(system *models.System) string {
+// systemActivityOrgID returns the org the system belongs to (the customer),
+// which is the namespace alert_activity and alert_assignments are keyed by:
+// it matches the organization_id label stamped on the system's alerts, i.e.
+// what the timeline is read back with. Not to be confused with
+// getSystemAlertOrgID, which maps further to the Mimir tenant (the managing
+// reseller) and must only be used for Mimir API calls.
+func systemActivityOrgID(system *models.System) string {
 	orgID := system.Organization.LogtoID
 	if orgID == "" {
 		orgID = system.Organization.ID
 	}
+	return orgID
+}
+
+func getSystemAlertOrgID(system *models.System) string {
+	orgID := systemActivityOrgID(system)
 	// The Mimir tenant is the managing reseller, not the customer org: systems
 	// of many customers share one reseller tenant. Fall back to the owning org
 	// on resolution failure so a transient DB error never breaks the alert path.
@@ -1310,6 +1557,7 @@ func GetSystemAlerts(c *gin.Context) {
 	if pageAlerts == nil {
 		pageAlerts = []map[string]interface{}{}
 	}
+	attachAlertAssignments(pageAlerts)
 
 	c.JSON(http.StatusOK, response.OK("alerts retrieved successfully", gin.H{
 		"alerts":     pageAlerts,
@@ -1397,8 +1645,10 @@ func CreateSystemAlertSilence(c *gin.Context) {
 
 	// Best-effort activity log: a write failure must not break the user's
 	// silence creation, so we only log a warning. The silence is the source
-	// of truth; activity is a denormalised UX convenience.
-	logAlertActivity(c, getSystemAlertOrgID(system), req.Fingerprint, entities.AlertActivitySilenced, user, silenceResp.SilenceID, map[string]interface{}{
+	// of truth; activity is a denormalised UX convenience. Keyed by the
+	// system's org (the alert's organization_id label), NOT the Mimir tenant,
+	// or the event would never show up when the timeline is read back.
+	logAlertActivity(c, systemActivityOrgID(system), req.Fingerprint, entities.AlertActivitySilenced, user, silenceResp.SilenceID, map[string]interface{}{
 		"comment":          normalizeAlertSilenceComment(req.Comment),
 		"duration_minutes": req.DurationMinutes,
 		"end_at":           req.EndAt,
@@ -1492,9 +1742,11 @@ func DeleteSystemAlertSilence(c *gin.Context) {
 	// Resolve the fingerprint of the alert this silence was originally tied to
 	// so the unsilence event lands on the right timeline. If we can't find it
 	// (e.g. silence pre-dates activity tracking), skip the activity write.
+	// Activity is keyed by the system's org, not the Mimir tenant.
+	activityOrg := systemActivityOrgID(system)
 	activityRepo := entities.NewLocalAlertActivityRepository()
-	fingerprint, _ := activityRepo.FindFingerprintBySilenceID(orgID, silenceID)
-	logAlertActivity(c, orgID, fingerprint, entities.AlertActivityUnsilenced, user, silenceID, nil)
+	fingerprint, _ := activityRepo.FindFingerprintBySilenceID(activityOrg, silenceID)
+	logAlertActivity(c, activityOrg, fingerprint, entities.AlertActivityUnsilenced, user, silenceID, nil)
 
 	c.JSON(http.StatusOK, response.OK("silence disabled successfully", nil))
 }
@@ -1658,10 +1910,12 @@ func UpdateSystemAlertSilence(c *gin.Context) {
 	}
 
 	// Resolve fingerprint from the original silence creation event so the
-	// update lands on the right alert's timeline.
+	// update lands on the right alert's timeline. Activity is keyed by the
+	// system's org, not the Mimir tenant.
+	activityOrg := systemActivityOrgID(system)
 	activityRepo := entities.NewLocalAlertActivityRepository()
-	fingerprint, _ := activityRepo.FindFingerprintBySilenceID(orgID, silenceID)
-	logAlertActivity(c, orgID, fingerprint, entities.AlertActivitySilenceUpdated, user, silenceResp.SilenceID, map[string]interface{}{
+	fingerprint, _ := activityRepo.FindFingerprintBySilenceID(activityOrg, silenceID)
+	logAlertActivity(c, activityOrg, fingerprint, entities.AlertActivitySilenceUpdated, user, silenceResp.SilenceID, map[string]interface{}{
 		"comment": normalizeAlertSilenceComment(req.Comment),
 		"end_at":  req.EndAt,
 	})

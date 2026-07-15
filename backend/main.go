@@ -301,6 +301,12 @@ func main() {
 			// Per-alert audit timeline; "activity" literal before the param to avoid colliding with /silences/{silence_id}
 			alertsGroup.GET("/activity/:fingerprint", methods.GetAlertActivity)
 
+			// Operator notes + assignment ("who is working on this"); both are
+			// orthogonal to silences. Assignment is self-assign with takeover,
+			// auto-released by collect when the alert resolves (no DELETE).
+			alertsGroup.POST("/notes", methods.CreateAlertNote)            // Append a note to the alert timeline (body: { fingerprint, text })
+			alertsGroup.POST("/assignment", methods.CreateAlertAssignment) // Take charge of an alert (body: { fingerprint })
+
 			// Cross-system silences; mirrors /systems/:id/alerts/silences*, ?organization_id= for per-id ops, RBAC on `systems`
 			alertsGroup.GET("/silences", methods.GetAlertSilences)                  // List active+pending silences across the caller's hierarchy
 			alertsGroup.POST("/silences", methods.CreateAlertSilence)               // Mute an alert (body: { fingerprint, end_at, comment, duration_minutes? })

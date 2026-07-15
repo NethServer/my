@@ -15,13 +15,18 @@ import (
 )
 
 // AlertActivityAction enumerates the event kinds written to alert_activity.
-// New values can be added without a schema change. Note edits are not
-// represented as their own action: the operator note IS the silence comment,
-// so a comment change shows up as silence_updated.
+// New values can be added without a schema change. Silence-comment changes are
+// silence_updated events; standalone operator notes (independent from any
+// silence) are note_added events with the text in details.text. assigned /
+// unassigned track the assignment lifecycle — unassigned may be system-driven
+// (NULL actor) when collect auto-releases on alert resolution.
 const (
 	AlertActivitySilenced       = "silenced"
 	AlertActivitySilenceUpdated = "silence_updated"
 	AlertActivityUnsilenced     = "unsilenced"
+	AlertActivityAssigned       = "assigned"
+	AlertActivityUnassigned     = "unassigned"
+	AlertActivityNoteAdded      = "note_added"
 )
 
 // AlertActivityEntry is one row of the per-alert audit timeline.

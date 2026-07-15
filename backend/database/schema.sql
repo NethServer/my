@@ -824,11 +824,34 @@ CREATE TABLE IF NOT EXISTS alert_activity (
 
 COMMENT ON TABLE  alert_activity              IS 'Append-only audit timeline of operator actions on individual alerts';
 COMMENT ON COLUMN alert_activity.fingerprint  IS 'Alertmanager fingerprint (hex hash of labels) of the alert the action targets';
-COMMENT ON COLUMN alert_activity.action       IS 'Event kind: silenced | silence_updated | unsilenced. Note changes are silence_updated events.';
+COMMENT ON COLUMN alert_activity.action       IS 'Event kind: silenced | silence_updated | unsilenced | assigned | unassigned | note_added. Silence-comment changes are silence_updated events; standalone notes are note_added events.';
 COMMENT ON COLUMN alert_activity.silence_id   IS 'Silence ID associated with the event. Lets DELETE silence resolve the fingerprint.';
 
 CREATE INDEX IF NOT EXISTS idx_alert_activity_org_fp_created_at ON alert_activity(organization_id, fingerprint, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_alert_activity_silence_lookup    ON alert_activity(organization_id, silence_id) WHERE silence_id IS NOT NULL;
+
+-- =============================================================================
+-- ALERT ASSIGNMENTS (current assignee per active alert)
+-- =============================================================================
+-- One row per (organization_id, fingerprint): who is working on the alert now.
+-- Self-assign only, takeover replaces the row, auto-released by collect when
+-- the resolved webhook arrives. History is in alert_activity. See migration 036.
+
+CREATE TABLE IF NOT EXISTS alert_assignments (
+    organization_id        VARCHAR(255) NOT NULL,
+    fingerprint            VARCHAR(255) NOT NULL,
+    assigned_user_id       VARCHAR(255) NOT NULL,
+    assigned_user_name     VARCHAR(255),
+    assigned_user_org_id   VARCHAR(255),
+    assigned_user_org_name VARCHAR(255),
+    assigned_at            TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (organization_id, fingerprint)
+);
+
+COMMENT ON TABLE  alert_assignments                    IS 'Current assignee per active alert; deleted on alert resolution (auto-release)';
+COMMENT ON COLUMN alert_assignments.fingerprint        IS 'Alertmanager fingerprint (hex hash of labels) of the assigned alert';
+COMMENT ON COLUMN alert_assignments.assigned_user_id   IS 'Logto user id of the assignee (always the authenticated caller: self-assign only)';
+COMMENT ON COLUMN alert_assignments.assigned_user_name IS 'Denormalized assignee display name for cheap render';
 
 -- =============================================================================
 -- ALERT CONFIG LAYERS (per-organization alerting configuration)

@@ -260,6 +260,25 @@ type UpdateSystemAlertSilenceRequest struct {
 	EndAt   string `json:"end_at" binding:"required"` // RFC3339 datetime
 }
 
+// CreateAlertAssignmentRequest identifies the active alert the caller takes
+// charge of. Self-assign only: the assignee is always the authenticated user;
+// assigning an alert already in charge to someone else replaces the assignee
+// (takeover — the confirmation step is frontend-only by design). The optional
+// Note is recorded as a separate note_added timeline event, identical to one
+// posted via /alerts/notes ("taking this, looking at the firewall").
+type CreateAlertAssignmentRequest struct {
+	Fingerprint string `json:"fingerprint" binding:"required"`
+	Note        string `json:"note" binding:"omitempty,max=2000"`
+}
+
+// CreateAlertNoteRequest is the payload for appending a free-form operator
+// note to an alert's activity timeline. Notes are independent from silences
+// and assignments and can target resolved alerts too.
+type CreateAlertNoteRequest struct {
+	Fingerprint string `json:"fingerprint" binding:"required"`
+	Text        string `json:"text" binding:"required,max=2000"`
+}
+
 // AlertmanagerMatcher represents a single Alertmanager silence matcher.
 type AlertmanagerMatcher struct {
 	Name    string `json:"name"`
