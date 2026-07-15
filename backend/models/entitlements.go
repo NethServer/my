@@ -1,0 +1,161 @@
+/*
+Copyright (C) 2026 Nethesis S.r.l.
+SPDX-License-Identifier: AGPL-3.0-or-later
+*/
+
+package models
+
+import "time"
+
+// Entitlement grant sources.
+const (
+	EntitlementSourceManual       = "manual"
+	EntitlementSourceShop         = "shop"
+	EntitlementSourceLegacyImport = "legacy-import"
+)
+
+// EntitlementCatalogItem is one grantable add-on type. The 3 legacy ng-* ids
+// are the wire ids the appliance feeds call on /auth/service/<id> — never
+// rename them. New ids follow the convention: nsec-<service> (firewall
+// services), ns8-<app> (application enablement on a cluster), <app>-<module>
+// (per-application-instance modules, Scoped=true).
+// Catalog item kinds — both sellable on the shop: services are firewall
+// add-ons granted system-wide, modules are add-ons for a single application
+// instance of an NS8 cluster.
+const (
+	EntitlementKindService = "service"
+	EntitlementKindModule  = "module"
+)
+
+type EntitlementCatalogItem struct {
+	ID          string    `json:"id"`
+	DisplayName string    `json:"display_name"`
+	Description string    `json:"description"`
+	Scoped      bool      `json:"scoped"`
+	Kind        string    `json:"kind"`
+	SystemType  string    `json:"system_type,omitempty"`
+	LegacyAlias string    `json:"legacy_alias,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// CreateEntitlementCatalogRequest adds a new add-on type to the catalog.
+// LegacyAlias is the old wire id consumers still call on /auth/service/<id>
+// (only needed for types migrated from the legacy my).
+type CreateEntitlementCatalogRequest struct {
+	ID          string `json:"id" binding:"required"`
+	DisplayName string `json:"display_name" binding:"required"`
+	Description string `json:"description,omitempty"`
+	Scoped      bool   `json:"scoped,omitempty"`
+	Kind        string `json:"kind,omitempty"`
+	SystemType  string `json:"system_type,omitempty"`
+	LegacyAlias string `json:"legacy_alias,omitempty"`
+}
+
+// UpdateEntitlementCatalogRequest updates the display fields of a catalog
+// item. The id and scoped flag are immutable (grants may already reference
+// them with the current semantics).
+type UpdateEntitlementCatalogRequest struct {
+	DisplayName *string `json:"display_name,omitempty"`
+	Description *string `json:"description,omitempty"`
+}
+
+// EntitlementAvailability is one commercial unlock: the catalog item can be
+// bought/self-activated by a whole hierarchy role OR by one specific
+// organization (exactly one of the two is set). It does not affect /auth
+// enforcement.
+type EntitlementAvailability struct {
+	ID             string                 `json:"id"`
+	Entitlement    string                 `json:"entitlement"`
+	OrgRole        string                 `json:"org_role,omitempty"`
+	OrganizationID string                 `json:"organization_id,omitempty"`
+	CreatedBy      map[string]interface{} `json:"created_by,omitempty"`
+	CreatedAt      time.Time              `json:"created_at"`
+}
+
+// CreateEntitlementAvailabilityRequest unlocks a catalog item for a role or
+// a specific organization.
+type CreateEntitlementAvailabilityRequest struct {
+	OrgRole        string `json:"org_role,omitempty"`
+	OrganizationID string `json:"organization_id,omitempty"`
+}
+
+// EntitlementGrantReportRow is one row of the fleet-wide grants report
+// (owner/Super Admin): the grant plus the system identity it belongs to.
+type EntitlementGrantReportRow struct {
+	SystemEntitlement
+	SystemName       string `json:"system_name"`
+	SystemKey        string `json:"system_key"`
+	OrganizationID   string `json:"organization_id"`
+	OrganizationName string `json:"organization_name"`
+}
+
+// EntitlementStatsRow aggregates active grants per entitlement per org.
+type EntitlementStatsRow struct {
+	Entitlement      string `json:"entitlement"`
+	OrganizationID   string `json:"organization_id"`
+	OrganizationName string `json:"organization_name"`
+	ActiveGrants     int    `json:"active_grants"`
+}
+
+// SystemEntitlement is one add-on grant for one system, optionally narrowed
+// to one application instance via Scope ("" = whole system). Active is
+// derived: not revoked and not expired (valid_until NULL = perpetual).
+type SystemEntitlement struct {
+	ID          string                 `json:"id"`
+	SystemID    string                 `json:"system_id"`
+	Entitlement string                 `json:"entitlement"`
+	Scope       string                 `json:"scope,omitempty"`
+	Source      string                 `json:"source"`
+	SourceRef   string                 `json:"source_ref,omitempty"`
+	ValidFrom   time.Time              `json:"valid_from"`
+	ValidUntil  *time.Time             `json:"valid_until,omitempty"`
+	RevokedAt   *time.Time             `json:"revoked_at,omitempty"`
+	Active      bool                   `json:"active"`
+	CreatedBy   map[string]interface{} `json:"created_by,omitempty"`
+	CreatedAt   time.Time              `json:"created_at"`
+	UpdatedAt   time.Time              `json:"updated_at"`
+}
+
+// CreateSystemEntitlementRequest grants an add-on to a system. Scope narrows
+// the grant to one application instance and is only accepted for catalog
+// items with Scoped=true.
+type CreateSystemEntitlementRequest struct {
+	Entitlement string     `json:"entitlement" binding:"required"`
+	Scope       string     `json:"scope,omitempty"`
+	ValidUntil  *time.Time `json:"valid_until,omitempty"`
+	Source      string     `json:"source,omitempty"`
+	SourceRef   string     `json:"source_ref,omitempty"`
+}
+
+// ActivateEntitlementRequest is the shop-facing activation/renewal call
+// (webhook after purchase or subscription renewal). The system is addressed
+// by its key (the shop never sees internal ids); the entitlement accepts the
+// canonical id or the legacy alias. Idempotent: an existing grant is renewed
+// in place (new expiry, revocation cleared).
+type ActivateEntitlementRequest struct {
+	SystemKey   string     `json:"system_key" binding:"required"`
+	Entitlement string     `json:"entitlement" binding:"required"`
+	Scope       string     `json:"scope,omitempty"`
+	ValidUntil  *time.Time `json:"valid_until,omitempty"`
+	SourceRef   string     `json:"source_ref,omitempty"`
+}
+
+// DeactivateEntitlementRequest revokes a shop-managed grant (subscription
+// cancelled/expired).
+type DeactivateEntitlementRequest struct {
+	SystemKey   string `json:"system_key" binding:"required"`
+	Entitlement string `json:"entitlement" binding:"required"`
+	Scope       string `json:"scope,omitempty"`
+	SourceRef   string `json:"source_ref,omitempty"`
+}
+
+// UpdateSystemEntitlementRequest extends/reduces the expiry or toggles the
+// revoked state. ClearValidUntil makes the grant perpetual (valid_until NULL);
+// it wins over ValidUntil when both are set. The target grant is addressed by
+// path (:entitlement) + optional ?scope= query.
+type UpdateSystemEntitlementRequest struct {
+	ValidUntil      *time.Time `json:"valid_until,omitempty"`
+	ClearValidUntil bool       `json:"clear_valid_until,omitempty"`
+	Revoked         *bool      `json:"revoked,omitempty"`
+}

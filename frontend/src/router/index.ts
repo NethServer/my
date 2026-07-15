@@ -76,6 +76,11 @@ const router = createRouter({
       component: () => import('../views/SystemsView.vue'),
     },
     {
+      path: '/entitlements-catalog',
+      name: 'entitlements-catalog',
+      component: () => import('../views/EntitlementsCatalogView.vue'),
+    },
+    {
       path: '/systems/:systemId',
       name: 'system_detail',
       component: () => import('../views/SystemDetailView.vue'),
