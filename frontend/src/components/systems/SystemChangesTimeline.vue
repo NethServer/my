@@ -35,6 +35,7 @@ import {
   NeEmptyState,
   type NeBadgeV2Kind,
   getDateFnsLocale,
+  NeTooltip,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
@@ -292,6 +293,12 @@ function getDiffTypeBorder(type: InventoryDiffType): string {
   if (type === 'create') return 'border-l-green-500 dark:border-l-green-400'
   if (type === 'delete') return 'border-l-red-700 dark:border-l-red-500'
   return 'border-l-blue-700 dark:border-l-blue-500'
+}
+
+function getDiffTypeLabel(type: InventoryDiffType): string {
+  if (type === 'create') return t('system_detail.diff_type_create')
+  if (type === 'delete') return t('system_detail.diff_type_delete')
+  return t('system_detail.diff_type_update')
 }
 
 // ── Severity badge styling ────────────────────────────────────────────────────
@@ -624,15 +631,22 @@ const localizedDateRange = computed(() => {
                   >
                     <div class="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
                       <!-- Change type icon -->
-                      <div
-                        class="flex size-6 shrink-0 items-center justify-center rounded-full"
-                        :class="getDiffTypeIconBg(diff.diff_type)"
-                      >
-                        <FontAwesomeIcon
-                          :icon="getDiffTypeIcon(diff.diff_type)"
-                          class="size-3 text-white dark:text-gray-950"
-                        />
-                      </div>
+                      <NeTooltip trigger-event="mouseenter focus">
+                        <template #trigger>
+                          <div
+                            class="flex size-6 shrink-0 items-center justify-center rounded-full"
+                            :class="getDiffTypeIconBg(diff.diff_type)"
+                          >
+                            <FontAwesomeIcon
+                              :icon="getDiffTypeIcon(diff.diff_type)"
+                              class="size-3 text-white dark:text-gray-950"
+                            />
+                          </div>
+                        </template>
+                        <template #content>
+                          {{ getDiffTypeLabel(diff.diff_type) }}
+                        </template>
+                      </NeTooltip>
                       <!-- Category -->
                       <span
                         class="min-w-20 shrink-0 text-sm font-medium text-gray-900 uppercase dark:text-gray-50"
