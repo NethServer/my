@@ -493,12 +493,15 @@ const alertsListDefaultPageSize = 50
 // The intersection with /api/alerts/history (starts_at, severity, alertname,
 // status) is intentional: the UI can offer a single "Sort by" dropdown that
 // works on both tabs without sending column names that one side would
-// silently fall back to its default.
+// silently fall back to its default. assigned_user_name is the one exception:
+// assignments only exist on active alerts, so history falls back to its
+// default when it receives it.
 var alertsListAllowedSortBy = map[string]bool{
-	"starts_at": true,
-	"severity":  true,
-	"alertname": true,
-	"status":    true,
+	"starts_at":          true,
+	"severity":           true,
+	"alertname":          true,
+	"status":             true,
+	"assigned_user_name": true,
 }
 
 // severityRank maps severity labels to a comparable integer (higher = more
@@ -557,11 +560,21 @@ func GetAlerts(c *gin.Context) {
 	all, warnings := fanOutMimirAlerts(c.Request.Context(), tenants)
 	all = filterByOrgScope(all, orgIDs)
 
+	// Filtering or sorting by assignee needs the whole (org-scoped) list
+	// decorated before pagination — still a single batch DB query. Otherwise
+	// keep the cheaper page-only decoration below.
+	assignedUserIDs := c.QueryArray("assigned_user_id")
+	needAssignmentsUpfront := len(assignedUserIDs) > 0 || sortBy == "assigned_user_name"
+	if needAssignmentsUpfront {
+		attachAlertAssignments(all)
+	}
+
 	all = filterAlerts(all, alertFilter{
-		statuses:   c.QueryArray("status"),
-		severities: c.QueryArray("severity"),
-		systemKeys: c.QueryArray("system_key"),
-		alertnames: c.QueryArray("alertname"),
+		statuses:        c.QueryArray("status"),
+		severities:      c.QueryArray("severity"),
+		systemKeys:      c.QueryArray("system_key"),
+		alertnames:      c.QueryArray("alertname"),
+		assignedUserIDs: assignedUserIDs,
 	})
 
 	// Sort with fingerprint as a stable tiebreaker so pagination doesn't
@@ -581,7 +594,9 @@ func GetAlerts(c *gin.Context) {
 	if pageAlerts == nil {
 		pageAlerts = []map[string]interface{}{}
 	}
-	attachAlertAssignments(pageAlerts)
+	if !needAssignmentsUpfront {
+		attachAlertAssignments(pageAlerts)
+	}
 
 	if warnings == nil {
 		warnings = []string{}
@@ -616,6 +631,15 @@ func sortAlertsList(alerts []map[string]interface{}, sortBy, sortDirection strin
 		case "status":
 			ai := statusOf(alerts[i])
 			aj := statusOf(alerts[j])
+			primaryEqual = ai == aj
+			primaryLess = ai < aj
+		case "assigned_user_name":
+			// Case-insensitive by display name; unassigned alerts have the
+			// empty name so they group together at one end of the list. The
+			// caller must have decorated the list via attachAlertAssignments.
+			_, ni := assigneeOf(alerts[i])
+			_, nj := assigneeOf(alerts[j])
+			ai, aj := strings.ToLower(ni), strings.ToLower(nj)
 			primaryEqual = ai == aj
 			primaryLess = ai < aj
 		default: // starts_at
@@ -936,7 +960,7 @@ func attachAlertAssignments(alerts []map[string]interface{}) {
 		org, _ := labels["organization_id"].(string)
 		fp, _ := alert["fingerprint"].(string)
 		if a, ok := assignments[entities.AssignmentKey(org, fp)]; ok {
-			alert["assigned_to"] = gin.H{
+			alert["assigned_to"] = map[string]interface{}{
 				"user_id":       a.AssignedUserID,
 				"user_name":     a.AssignedUserName,
 				"user_org_id":   a.AssignedUserOrgID,
@@ -945,6 +969,19 @@ func attachAlertAssignments(alerts []map[string]interface{}) {
 			}
 		}
 	}
+}
+
+// assigneeOf reads the assigned_to decoration set by attachAlertAssignments
+// and returns (user_id, user_name), both empty when the alert is unassigned
+// or not yet decorated.
+func assigneeOf(alert map[string]interface{}) (string, string) {
+	a, _ := alert["assigned_to"].(map[string]interface{})
+	if a == nil {
+		return "", ""
+	}
+	uid, _ := a["user_id"].(string)
+	name, _ := a["user_name"].(string)
+	return uid, name
 }
 
 // fanOutMimirAlerts fetches active alerts from Mimir for every tenant in scope
@@ -1213,6 +1250,10 @@ type alertFilter struct {
 	severities []string
 	systemKeys []string
 	alertnames []string
+	// assignedUserIDs matches on the assignee's user_id; the literal value
+	// "none" matches unassigned alerts. Requires attachAlertAssignments to
+	// have decorated the list first.
+	assignedUserIDs []string
 }
 
 // filterAlerts applies optional multi-value query filters to the alerts list.
@@ -1220,7 +1261,7 @@ type alertFilter struct {
 // or does not match any of the requested values; this prevents silent leakage
 // of unrelated alerts when the caller narrows the query.
 func filterAlerts(alerts []map[string]interface{}, f alertFilter) []map[string]interface{} {
-	if len(f.statuses) == 0 && len(f.severities) == 0 && len(f.systemKeys) == 0 && len(f.alertnames) == 0 {
+	if len(f.statuses) == 0 && len(f.severities) == 0 && len(f.systemKeys) == 0 && len(f.alertnames) == 0 && len(f.assignedUserIDs) == 0 {
 		return alerts
 	}
 
@@ -1256,6 +1297,17 @@ func filterAlerts(alerts []map[string]interface{}, f alertFilter) []map[string]i
 		if len(f.alertnames) > 0 {
 			an, ok := labels["alertname"].(string)
 			if !ok || !slices.Contains(f.alertnames, an) {
+				continue
+			}
+		}
+
+		if len(f.assignedUserIDs) > 0 {
+			uid, _ := assigneeOf(alert)
+			want := uid
+			if uid == "" {
+				want = "none"
+			}
+			if !slices.Contains(f.assignedUserIDs, want) {
 				continue
 			}
 		}
@@ -1535,10 +1587,15 @@ func GetSystemAlerts(c *gin.Context) {
 		}
 	}
 
+	// One system's alerts are few: decorate the whole scoped list upfront so
+	// the assignee filter/sort below work without a second pass.
+	attachAlertAssignments(scoped)
+
 	filtered := filterAlerts(scoped, alertFilter{
-		statuses:   c.QueryArray("status"),
-		severities: c.QueryArray("severity"),
-		alertnames: c.QueryArray("alertname"),
+		statuses:        c.QueryArray("status"),
+		severities:      c.QueryArray("severity"),
+		alertnames:      c.QueryArray("alertname"),
+		assignedUserIDs: c.QueryArray("assigned_user_id"),
 		// systemKeys intentionally omitted: the URL path is the source of truth.
 	})
 
@@ -1557,7 +1614,6 @@ func GetSystemAlerts(c *gin.Context) {
 	if pageAlerts == nil {
 		pageAlerts = []map[string]interface{}{}
 	}
-	attachAlertAssignments(pageAlerts)
 
 	c.JSON(http.StatusOK, response.OK("alerts retrieved successfully", gin.H{
 		"alerts":     pageAlerts,
