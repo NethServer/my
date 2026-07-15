@@ -93,6 +93,7 @@ const {
   assigneeFilters: alertsAssigneeFilters,
   areDefaultFiltersApplied: alertsAreDefaultFiltersApplied,
   clearFilters: alertsClearFilters,
+  clearStatusFilter: alertsResetStatusFilter,
 } = useSystemAlerts()
 
 // ── Alert filters query ───────────────────────────────────────────────────────
@@ -395,7 +396,9 @@ function onMuteDrawerClose(): void {
           :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
           :clear-search-label="t('ne_dropdown_filter.clear_search')"
           :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
-          :show-clear-filter="true"
+          :show-clear-filter="false"
+          :custom-action-label="t('ne_dropdown_filter.reset_selection')"
+          @custom-action="alertsResetStatusFilter"
           @update:model-value="() => (alertsPageNum = 1)"
         />
         <!-- Assignee filter -->
@@ -420,9 +423,9 @@ function onMuteDrawerClose(): void {
           :ascending-label="t('sort.ascending')"
           :descending-label="t('sort.descending')"
         />
-        <!-- Clear filters -->
+        <!-- Reset filters -->
         <NeButton kind="tertiary" @click="alertsClearFilters">
-          {{ t('common.clear_filters') }}
+          {{ t('common.reset_filters') }}
         </NeButton>
       </div>
       <!-- Data updated every X seconds -->
@@ -455,7 +458,7 @@ function onMuteDrawerClose(): void {
       class="bg-white dark:bg-gray-950"
     >
       <NeButton kind="tertiary" @click="alertsClearFilters">
-        {{ $t('common.clear_filters') }}
+        {{ $t('common.reset_filters') }}
       </NeButton>
     </NeEmptyState>
 

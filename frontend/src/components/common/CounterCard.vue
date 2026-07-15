@@ -67,6 +67,20 @@ const counterAttrs = computed(() => {
   return {}
 })
 
+// The title mirrors the counter's interactivity: a RouterLink when `to` is set,
+// a button when `@counter-click` is listened to, a plain heading otherwise.
+const titleTag = computed(() => (to != null ? RouterLink : isClickable.value ? 'button' : 'div'))
+
+const titleAttrs = computed(() => {
+  if (to != null) {
+    return { to }
+  }
+  if (isClickable.value) {
+    return { type: 'button', onClick: attrs.onCounterClick }
+  }
+  return {}
+})
+
 const ABBREVIATION_THRESHOLD = 10_000
 
 const { locale } = useI18n()
@@ -96,18 +110,18 @@ const hasDefaultSlot = computed(() => !!slots.default)
           :icon="icon"
           class="text-tertiary-neutral dark:text-tertiary-neutral size-5"
         />
-        <RouterLink
-          v-if="to != null"
-          :to="to"
-          class="text-tertiary-neutral dark:text-tertiary-neutral cursor-pointer hover:underline"
+        <component
+          :is="titleTag"
+          v-bind="titleAttrs"
+          :class="[
+            'text-tertiary-neutral dark:text-tertiary-neutral',
+            isInteractive && 'cursor-pointer hover:underline',
+          ]"
         >
           <NeHeading tag="h6" class="text-inherit">
             {{ uppercaseTitle ? title.toUpperCase() : title }}
           </NeHeading>
-        </RouterLink>
-        <NeHeading v-else tag="h6" class="text-tertiary-neutral dark:text-tertiary-neutral">
-          {{ uppercaseTitle ? title.toUpperCase() : title }}
-        </NeHeading>
+        </component>
       </div>
     </template>
     <template v-if="!centeredCounter" #topRight>

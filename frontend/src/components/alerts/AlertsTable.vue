@@ -100,6 +100,7 @@ const {
   organizationIds,
   areDefaultFiltersApplied,
   clearFilters,
+  resetStatusFilter,
   refetch,
 } = useAlerts()
 
@@ -412,13 +413,15 @@ function goToSystems() {
             kind="checkbox"
             :label="t('common.status')"
             :options="statusFilterOptions"
-            :show-clear-filter="true"
+            :show-clear-filter="false"
             :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
             :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
+            :custom-action-label="t('ne_dropdown_filter.reset_selection')"
+            @custom-action="resetStatusFilter"
             @update:model-value="() => (pageNum = 1)"
           />
           <!-- Assignee filter -->
@@ -443,9 +446,9 @@ function goToSystems() {
             :ascending-label="t('sort.ascending')"
             :descending-label="t('sort.descending')"
           />
-          <!-- Clear filters -->
+          <!-- Reset filters -->
           <NeButton kind="tertiary" @click="clearFilters">
-            {{ t('common.clear_filters') }}
+            {{ t('common.reset_filters') }}
           </NeButton>
         </div>
         <!-- Data updated every X seconds -->
@@ -496,7 +499,7 @@ function goToSystems() {
       class="bg-white dark:bg-gray-950"
     >
       <NeButton kind="tertiary" @click="clearFilters">
-        {{ $t('common.clear_filters') }}
+        {{ $t('common.reset_filters') }}
       </NeButton>
     </NeEmptyState>
 

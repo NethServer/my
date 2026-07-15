@@ -44,10 +44,15 @@ export function useSystemFilter(idField: 'system_key' | 'id' = 'system_key') {
 
   const options = computed<NeDropdownFilterV2Option[]>(() => {
     const systems = state.value.data?.systems ?? []
-    return systems.map((sys: System) => ({
-      id: sys[idField] ?? sys.id,
-      label: sys.name,
-    }))
+    return (
+      systems
+        // When filtering by system_key, only list systems that actually have one.
+        .filter((sys: System) => idField !== 'system_key' || !!sys.system_key)
+        .map((sys: System) => ({
+          id: sys[idField] ?? sys.id,
+          label: sys.name,
+        }))
+    )
   })
 
   const loading = computed(() => asyncStatus.value === 'loading')
