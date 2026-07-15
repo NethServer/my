@@ -4,13 +4,7 @@
 -->
 
 <script setup lang="ts">
-import {
-  faBell,
-  faBellSlash,
-  faCircleCheck,
-  faEye,
-  faMagnifyingGlass,
-} from '@fortawesome/free-solid-svg-icons'
+import { faBell, faBellSlash, faEye, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   NeBadgeV2,
@@ -344,7 +338,7 @@ function onMuteDrawerClose(): void {
       v-if="isNoDataShown"
       :title="$t('alerts.no_active_alerts')"
       :description="$t('alerts.no_active_alerts_description')"
-      :icon="faCircleCheck"
+      :icon="faMagnifyingGlass"
       class="bg-white dark:bg-gray-950"
     />
 

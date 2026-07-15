@@ -8,7 +8,6 @@ import {
   faArrowRight,
   faBell,
   faBellSlash,
-  faCircleCheck,
   faEye,
   faMagnifyingGlass,
   faServer,
@@ -404,7 +403,7 @@ function goToSystems() {
       v-else-if="isNoDataEmptyStateShown"
       :title="$t('alerts.no_active_alerts')"
       :description="$t('alerts.no_active_alerts_description')"
-      :icon="faCircleCheck"
+      :icon="faMagnifyingGlass"
       class="bg-white dark:bg-gray-950"
     />
 
