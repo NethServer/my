@@ -283,18 +283,6 @@ function getDiffTypeIcon(type: InventoryDiffType) {
   return faPen
 }
 
-function getDiffTypeIconBg(type: InventoryDiffType): string {
-  if (type === 'create') return 'bg-green-500 dark:bg-green-400'
-  if (type === 'delete') return 'bg-red-700 dark:bg-red-500'
-  return 'bg-blue-700 dark:bg-blue-500'
-}
-
-function getDiffTypeBorder(type: InventoryDiffType): string {
-  if (type === 'create') return 'border-l-green-500 dark:border-l-green-400'
-  if (type === 'delete') return 'border-l-red-700 dark:border-l-red-500'
-  return 'border-l-blue-700 dark:border-l-blue-500'
-}
-
 function getDiffTypeLabel(type: InventoryDiffType): string {
   if (type === 'create') return t('system_detail.diff_type_create')
   if (type === 'delete') return t('system_detail.diff_type_delete')
@@ -621,8 +609,7 @@ const localizedDateRange = computed(() => {
                 <div
                   v-for="diff in getFilteredDiffsForGroup(group)"
                   :key="diff.id"
-                  class="overflow-hidden rounded-lg border-l-4 bg-white shadow-sm dark:bg-gray-950"
-                  :class="getDiffTypeBorder(diff.diff_type)"
+                  class="overflow-hidden rounded-lg bg-white shadow-sm dark:bg-gray-950"
                 >
                   <!-- Diff header row -->
                   <div
@@ -633,15 +620,10 @@ const localizedDateRange = computed(() => {
                       <!-- Change type icon -->
                       <NeTooltip trigger-event="mouseenter focus">
                         <template #trigger>
-                          <div
-                            class="flex size-6 shrink-0 items-center justify-center rounded-full"
-                            :class="getDiffTypeIconBg(diff.diff_type)"
-                          >
-                            <FontAwesomeIcon
-                              :icon="getDiffTypeIcon(diff.diff_type)"
-                              class="size-3 text-white dark:text-gray-950"
-                            />
-                          </div>
+                          <FontAwesomeIcon
+                            :icon="getDiffTypeIcon(diff.diff_type)"
+                            class="text-secondary-neutral size-4"
+                          />
                         </template>
                         <template #content>
                           {{ getDiffTypeLabel(diff.diff_type) }}
