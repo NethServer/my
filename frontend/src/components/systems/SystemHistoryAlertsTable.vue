@@ -6,7 +6,7 @@
 <script setup lang="ts">
 import { formatRelativeTime } from '@/lib/dateTime'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
-import { faEye, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons'
+import { faCircleCheck, faEye, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   NeBadgeV2,
@@ -209,7 +209,7 @@ function showDetails(alert: Alert): void {
       v-if="isNoDataShown"
       :title="$t('alerts.no_alert_history')"
       :description="$t('alerts.no_alert_history_description')"
-      :icon="faMagnifyingGlass"
+      :icon="faCircleCheck"
       class="bg-white dark:bg-gray-950"
     />
 
