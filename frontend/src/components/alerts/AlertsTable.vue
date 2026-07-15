@@ -9,9 +9,11 @@ import {
   faBell,
   faBellSlash,
   faCircleCheck,
+  faComment,
   faEye,
   faMagnifyingGlass,
   faServer,
+  faUserCheck,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -59,10 +61,16 @@ import { canManageSystems } from '@/lib/permissions'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import MuteAlertDrawer from '@/components/alerts/MuteAlertDrawer.vue'
 import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
+import AssignAlertDrawer from '@/components/alerts/AssignAlertDrawer.vue'
+import AddAlertNoteDrawer from '@/components/alerts/AddAlertNoteDrawer.vue'
+import TakeOverAlertModal from '@/components/alerts/TakeOverAlertModal.vue'
+import AlertAssignee from '@/components/alerts/AlertAssignee.vue'
 import ProcessingAlertBadge from '@/components/alerts/ProcessingAlertBadge.vue'
+import { useLoginStore } from '@/stores/login'
 import capitalize from 'lodash/capitalize'
 import SystemDropdownFilter from '@/components/systems/SystemDropdownFilter.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
+import AssigneeDropdownFilter from '@/components/alerts/AssigneeDropdownFilter.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { isUserCustomer } from '@/lib/organizations/organizations'
 import SystemLogoAndLink from '../systems/SystemLogoAndLink.vue'
@@ -71,6 +79,7 @@ const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const notificationsStore = useNotificationsStore()
+const loginStore = useLoginStore()
 
 const { state: systemsState } = useSystems()
 
@@ -85,6 +94,7 @@ const {
   severityFilters,
   alertnameFilters,
   systemKeyFilters,
+  assigneeFilters,
   organizationIds,
   areDefaultFiltersApplied,
   clearFilters,
@@ -221,6 +231,47 @@ function showDetailsDrawer(alert: Alert) {
   isDetailsDrawerShown.value = true
 }
 
+// ── Assign to me / Add comment ────────────────────────────────────────────────
+
+const isAssignDrawerShown = ref(false)
+const isAddCommentDrawerShown = ref(false)
+const isTakeOverModalShown = ref(false)
+
+// The current assignee id stored by the backend is the Logto id when available,
+// otherwise the local id — compare against both.
+function isAssignedToOther(alert: Alert): boolean {
+  const assignee = alert.assigned_to
+  if (!assignee) return false
+  const me = loginStore.userInfo
+  return assignee.user_id !== me?.logto_id && assignee.user_id !== me?.id
+}
+
+function isAssignedToMe(alert: Alert): boolean {
+  const assignee = alert.assigned_to
+  if (!assignee) return false
+  const me = loginStore.userInfo
+  return assignee.user_id === me?.logto_id || assignee.user_id === me?.id
+}
+
+function onAssignToMe(alert: Alert) {
+  selectedAlert.value = alert
+  if (isAssignedToOther(alert)) {
+    isTakeOverModalShown.value = true
+  } else {
+    isAssignDrawerShown.value = true
+  }
+}
+
+function onTakeOverConfirm() {
+  isTakeOverModalShown.value = false
+  isAssignDrawerShown.value = true
+}
+
+function showAddCommentDrawer(alert: Alert) {
+  selectedAlert.value = alert
+  isAddCommentDrawerShown.value = true
+}
+
 function getKebabMenuItems(alert: Alert): NeDropdownItem[] {
   const items: NeDropdownItem[] = []
   if (canManageSystems()) {
@@ -257,6 +308,21 @@ function getKebabMenuItems(alert: Alert): NeDropdownItem[] {
         action: () => showMuteDrawer(alert),
       })
     }
+    // Hide "Assign to me" when the alert is already assigned to the current user.
+    if (!isAssignedToMe(alert)) {
+      items.push({
+        id: 'assignToMe',
+        label: t('alerts.assign_to_me'),
+        icon: faUserCheck,
+        action: () => onAssignToMe(alert),
+      })
+    }
+    items.push({
+      id: 'addComment',
+      label: t('alerts.add_comment'),
+      icon: faComment,
+      action: () => showAddCommentDrawer(alert),
+    })
   }
   return items
 }
@@ -348,6 +414,11 @@ function goToSystems() {
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             @update:model-value="() => (pageNum = 1)"
           />
+          <!-- Assignee filter -->
+          <AssigneeDropdownFilter
+            v-model="assigneeFilters"
+            @update:model-value="() => (pageNum = 1)"
+          />
           <!-- Sort -->
           <NeSortDropdown
             v-model:sort-key="sortBy"
@@ -357,6 +428,7 @@ function goToSystems() {
               { id: 'starts_at', label: t('alerts.started') },
               { id: 'severity', label: t('alerts.severity') },
               { id: 'alertname', label: t('alerts.alertname') },
+              { id: 'assigned_user_name', label: t('alerts.assigned_to') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
             :sort-by-label="t('sort.sort_by')"
@@ -429,7 +501,7 @@ function goToSystems() {
       :aria-label="$t('alerts.title')"
       card-breakpoint="2xl"
       :loading="alertsState.status === 'pending'"
-      :skeleton-columns="5"
+      :skeleton-columns="6"
       :skeleton-rows="7"
     >
       <NeTableHead>
@@ -438,6 +510,7 @@ function goToSystems() {
         <NeTableHeadCell>{{ $t('alerts.system') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('alerts.organization') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('alerts.started') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('alerts.assigned_to') }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
         </NeTableHeadCell>
@@ -502,6 +575,10 @@ function goToSystems() {
               </p>
             </div>
           </NeTableCell>
+          <!-- Assigned to -->
+          <NeTableCell :data-label="$t('alerts.assigned_to')">
+            <AlertAssignee :alert="alert" />
+          </NeTableCell>
           <!-- Actions -->
           <NeTableCell :data-label="$t('common.actions')">
             <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
@@ -555,6 +632,28 @@ function goToSystems() {
       :is-shown="isDetailsDrawerShown"
       :alert="detailsDrawerAlert"
       @close="isDetailsDrawerShown = false"
+    />
+
+    <!-- Assign alert drawer -->
+    <AssignAlertDrawer
+      :is-shown="isAssignDrawerShown"
+      :alert="selectedAlert"
+      @close="isAssignDrawerShown = false"
+    />
+
+    <!-- Add comment drawer -->
+    <AddAlertNoteDrawer
+      :is-shown="isAddCommentDrawerShown"
+      :alert="selectedAlert"
+      @close="isAddCommentDrawerShown = false"
+    />
+
+    <!-- Take over confirmation -->
+    <TakeOverAlertModal
+      :visible="isTakeOverModalShown"
+      :alert="selectedAlert"
+      @close="isTakeOverModalShown = false"
+      @confirm="onTakeOverConfirm"
     />
   </div>
 </template>

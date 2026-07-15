@@ -10,10 +10,6 @@ import {
   NeBadgeV2,
   NeButton,
   NeSideDrawer,
-  NeSkeleton,
-  NeInlineNotification,
-  NeTextArea,
-  NeTooltip,
   NeFormItemLabel,
   NeRoundedIcon,
 } from '@nethesis/vue-components'
@@ -30,8 +26,9 @@ import {
 import { isProcessing } from '@/lib/alertPendingStates'
 import ProcessingAlertBadge from '@/components/alerts/ProcessingAlertBadge.vue'
 import SystemLogoAndLink from '@/components/systems/SystemLogoAndLink.vue'
-import UserAvatar from '@/components/users/UserAvatar.vue'
-import { formatDateTimeNoSeconds, formatRelativeTime } from '@/lib/dateTime'
+import AlertAssignee from '@/components/alerts/AlertAssignee.vue'
+import AlertEventsTimeline from '@/components/alerts/AlertEventsTimeline.vue'
+import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 
 interface Props {
   isShown: boolean
@@ -47,11 +44,9 @@ const { t, locale } = useI18n()
 const fingerprint = computed(() => props.alert?.fingerprint)
 const organizationId = computed(() => props.alert?.labels?.organization_id)
 
-// Get alert activity
-const { state: activityState, asyncStatus: activityAsyncStatus } = useAlertActivity(
-  fingerprint,
-  organizationId,
-)
+// Get alert activity (shared with AlertEventsTimeline via the Pinia Colada
+// query cache); used here for the "silenced until" and read-only mute notes.
+const { state: activityState } = useAlertActivity(fingerprint, organizationId)
 
 const activity = computed(() => activityState.value.data?.events ?? [])
 
@@ -76,39 +71,6 @@ const silencedUntil = computed<Date | null>(() => {
   }
   return matchedEndAt
 })
-
-// Comment from the most recent silenced/silence_updated event, shown as
-// read-only notes when the alert is muted.
-const muteComment = computed<string | null>(() => {
-  if (!props.alert || !isAlertSilenced(props.alert)) return null
-  let latestDate: Date | null = null
-  let latestComment: string | null = null
-  for (const event of activity.value) {
-    if (event.action !== 'silenced' && event.action !== 'silence_updated') continue
-    const comment = event.details?.comment
-    if (typeof comment !== 'string' || !comment) continue
-    const eventDate = new Date(event.created_at)
-    if (isNaN(eventDate.getTime())) continue
-    if (latestDate === null || eventDate > latestDate) {
-      latestDate = eventDate
-      latestComment = comment
-    }
-  }
-  return latestComment
-})
-
-function getActionLabel(action: string): string {
-  switch (action) {
-    case 'silenced':
-      return t('alerts.activity_silenced')
-    case 'silence_updated':
-      return t('alerts.activity_updated')
-    case 'unsilenced':
-      return t('alerts.activity_unsilenced')
-    default:
-      return action
-  }
-}
 
 function closeDrawer() {
   emit('close')
@@ -195,6 +157,14 @@ function closeDrawer() {
             :system-type="alert.labels?.system_type"
           />
         </div>
+
+        <!-- Assigned to -->
+        <div>
+          <NeFormItemLabel class="mb-1!">
+            {{ t('alerts.assigned_to') }}
+          </NeFormItemLabel>
+          <AlertAssignee :alert="alert" />
+        </div>
       </div>
 
       <!-- Description -->
@@ -207,89 +177,8 @@ function closeDrawer() {
         </p>
       </div>
 
-      <!-- Mute notes (read-only, shown when the alert is suppressed and a note was left) -->
-      <NeTextArea
-        v-if="isAlertSilenced(alert) && muteComment"
-        :model-value="muteComment"
-        :label="t('alerts.mute_notes')"
-        :readonly="true"
-        :rows="4"
-      />
-
       <!-- Activity Timeline -->
-      <div v-if="activity.length > 0">
-        <NeFormItemLabel>
-          {{ t('alerts.activity') }}
-        </NeFormItemLabel>
-
-        <!-- Loading skeleton -->
-        <div v-if="activityAsyncStatus === 'loading'" class="space-y-3 pt-3">
-          <div v-for="i in 2" :key="i" class="space-y-2">
-            <NeSkeleton :lines="2" />
-          </div>
-        </div>
-
-        <!-- Error state -->
-        <NeInlineNotification
-          v-else-if="activityState.status === 'error'"
-          kind="error"
-          :title="t('alerts.cannot_retrieve_activity')"
-        />
-
-        <!-- Activity list -->
-        <div v-else class="relative">
-          <!-- Vertical timeline line -->
-          <div
-            class="absolute inset-y-0 left-2.25 w-px bg-gray-200 dark:bg-gray-700"
-            aria-hidden="true"
-          />
-
-          <div v-for="event in activity" :key="event.id" class="relative pb-6 pl-8">
-            <!-- Timeline dot -->
-            <span
-              class="absolute top-[1.35rem] left-1.5 size-2 -translate-y-1/2 rounded-full bg-gray-400 dark:bg-gray-500"
-              aria-hidden="true"
-            />
-
-            <!-- Humanized time (absolute datetime shown on hover) -->
-            <NeTooltip placement="top" trigger-event="mouseenter focus">
-              <template #trigger>
-                <span class="text-tertiary-neutral w-fit cursor-default">
-                  {{ formatRelativeTime(event.created_at, locale) }}
-                </span>
-              </template>
-              <template #content>
-                {{ formatDateTimeNoSeconds(new Date(event.created_at), locale) }}
-              </template>
-            </NeTooltip>
-
-            <!-- Avatar + actor name + action label -->
-            <div class="mt-1 flex items-center gap-2">
-              <UserAvatar
-                v-if="event.actor_user_id"
-                :name="event.actor_name ?? ''"
-                :logto-id="event.actor_user_id"
-                :is-owner="false"
-                size="xs"
-              />
-              <span class="text-secondary-neutral shrink-0 text-sm font-medium">
-                {{ event.actor_name || t('alerts.activity_actor_system') }}
-              </span>
-              <span class="text-tertiary-neutral truncate text-sm">
-                {{ getActionLabel(event.action) }}
-              </span>
-            </div>
-
-            <!-- Comment (max 1 line, ellipsized) -->
-            <p
-              v-if="event.details?.comment && typeof event.details.comment === 'string'"
-              class="text-tertiary-neutral mt-1 truncate"
-            >
-              {{ event.details.comment }}
-            </p>
-          </div>
-        </div>
-      </div>
+      <AlertEventsTimeline :alert="alert" />
     </div>
 
     <!-- Drawer footer -->
