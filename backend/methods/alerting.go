@@ -845,17 +845,14 @@ func CreateAlertAssignment(c *gin.Context) {
 	if previousName != "" {
 		details["reassigned_from"] = previousName
 	}
-	logAlertActivity(c, orgID, req.Fingerprint, entities.AlertActivityAssigned, user, "", details)
-
 	// Optional note taken together with the assignment ("taking this, checking
-	// the firewall"). Recorded as its own note_added event so the timeline
-	// renders it exactly like a note posted via /alerts/notes. Same best-effort
-	// policy as the assigned event: the assignment is already persisted, so a
-	// failed note write logs a warning instead of failing the request.
+	// the firewall"). Embedded in the assigned event itself — one user action,
+	// one timeline block — unlike standalone notes which are their own
+	// note_added events via /alerts/notes.
 	if note := strings.TrimSpace(req.Note); note != "" {
-		logAlertActivity(c, orgID, req.Fingerprint, entities.AlertActivityNoteAdded, user, "",
-			map[string]interface{}{"text": note})
+		details["note"] = note
 	}
+	logAlertActivity(c, orgID, req.Fingerprint, entities.AlertActivityAssigned, user, "", details)
 
 	c.JSON(http.StatusOK, response.OK("alert assigned successfully", gin.H{
 		"assignment": assignment,
