@@ -48,8 +48,16 @@ const {
   onError: (error) => {
     console.error('Error destroying system:', error)
   },
-  onSettled: () => {
-    queryCache.invalidateQueries({ key: [SYSTEMS_KEY] })
+  onSettled: (data, error, vars) => {
+    // Refresh the systems lists/aggregates, but skip this system's detail
+    // query. [SYSTEMS_KEY] prefix-matches both the list and the detail entry
+    // (['systems', <id>]); since we're navigating away and the system is now
+    // destroyed, refetching GET /systems/<id> would fail and show a spurious
+    // "request failed" notification.
+    queryCache.invalidateQueries({
+      key: [SYSTEMS_KEY],
+      predicate: (entry) => entry.key[1] !== vars.id,
+    })
     queryCache.invalidateQueries({ key: [SYSTEMS_TOTAL_KEY] })
   },
 })
