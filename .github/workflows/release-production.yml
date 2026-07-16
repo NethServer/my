@@ -338,6 +338,7 @@ jobs:
           VITE_API_BASE_URL=/backend/api
           VITE_SIGNIN_REDIRECT_URI=login-redirect
           VITE_SIGNOUT_REDIRECT_URI=login
+          VITE_SHOP_BASE_URL=https://nethshop.nethesis.it
         cache-from: type=gha,scope=frontend
         cache-to: type=gha,mode=max,scope=frontend
 

@@ -28,6 +28,13 @@ import (
 // <app>-<module>; the ng-* ids are the legacy wire ids).
 var entitlementIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,98}$`)
 
+// isSystemBlocked reports whether the system cannot use its entitlements at
+// all: suspended or deleted (directly, or via the org cascade). Grants stay
+// untouched but are reported with status=suspended.
+func isSystemBlocked(system *models.System) bool {
+	return system.Status == "suspended" || system.Status == "deleted"
+}
+
 // isEntitlementAdmin returns true for the ADMINISTRATIVE surface — catalog
 // management, manual grants via API, fleet-wide visibility: only the owner
 // organization or a Super Admin user (Nethesis).
@@ -492,7 +499,54 @@ func DeactivateEntitlement(c *gin.Context) {
 		return
 	}
 
-	grant, err := repo.Revoke(systemID, item.ID, req.Scope)
+	existing, err := repo.Get(systemID, item.ID, req.Scope)
+	if err == entities.ErrEntitlementNotFound {
+		c.JSON(http.StatusNotFound, response.NotFound("entitlement not found for this system", nil))
+		return
+	}
+	if err != nil {
+		logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to read entitlement")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to deactivate entitlement", nil))
+		return
+	}
+
+	// Reference matching (when the shop sends one): a cancelled UNPAID order
+	// only clears its own pending marker, and an order that neither created
+	// the grant nor is pending on it must not revoke what another order paid
+	// for.
+	if req.SourceRef != "" {
+		if existing.PendingRef == req.SourceRef {
+			grant, err := repo.ClearPending(systemID, item.ID, req.Scope)
+			if err != nil && err != entities.ErrEntitlementNotFound {
+				logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to clear pending entitlement")
+				c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to deactivate entitlement", nil))
+				return
+			}
+			logger.RequestLogger(c, "entitlements").Info().
+				Str("operation", "clear_pending_entitlement").
+				Str("system_key", req.SystemKey).
+				Str("entitlement", item.ID).
+				Str("scope", req.Scope).
+				Str("source_ref", req.SourceRef).
+				Msg("Pending entitlement activation cleared (order cancelled before payment)")
+			c.JSON(http.StatusOK, response.OK("pending activation cleared", grant))
+			return
+		}
+		if existing.SourceRef != req.SourceRef {
+			logger.RequestLogger(c, "entitlements").Warn().
+				Str("operation", "deactivate_entitlement").
+				Str("system_key", req.SystemKey).
+				Str("entitlement", item.ID).
+				Str("scope", req.Scope).
+				Str("source_ref", req.SourceRef).
+				Str("grant_source_ref", existing.SourceRef).
+				Msg("Deactivate reference does not match the grant; leaving it untouched")
+			c.JSON(http.StatusOK, response.OK("reference does not match the current grant, nothing deactivated", existing))
+			return
+		}
+	}
+
+	grant, err := repo.Revoke(systemID, item.ID, req.Scope, models.EntitlementSourceShop)
 	if err == entities.ErrEntitlementNotFound {
 		c.JSON(http.StatusNotFound, response.NotFound("entitlement not found for this system", nil))
 		return
@@ -512,6 +566,83 @@ func DeactivateEntitlement(c *gin.Context) {
 		Msg("Entitlement deactivated via shop")
 
 	c.JSON(http.StatusOK, response.OK("entitlement deactivated successfully", grant))
+}
+
+// PendingEntitlement handles POST /api/entitlements/pending — the shop calls
+// it at checkout, when the order exists but the payment (bank transfer/RiBa)
+// hasn't been confirmed yet. Display-only: the UI shows "pending" instead of
+// offering another purchase; enforcement is not affected. Idempotent; the
+// later activate (order completed) or deactivate (order cancelled) resolves
+// the marker.
+func PendingEntitlement(c *gin.Context) {
+	user, ok := transactGate(c)
+	if !ok {
+		return
+	}
+
+	var req models.PendingEntitlementRequest
+	if err := c.ShouldBindBodyWith(&req, binding.JSON); err != nil {
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+		return
+	}
+
+	catalogRepo := entities.NewLocalEntitlementCatalogRepository()
+	item, err := catalogRepo.Resolve(req.Entitlement)
+	if err == entities.ErrCatalogItemNotFound {
+		c.JSON(http.StatusBadRequest, response.BadRequest("unknown entitlement", nil))
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve entitlement", nil))
+		return
+	}
+	if req.Scope != "" && !item.Scoped {
+		c.JSON(http.StatusBadRequest, response.BadRequest("this entitlement does not support per-application scope", nil))
+		return
+	}
+
+	repo := entities.NewLocalSystemEntitlementRepository()
+	systemID, systemType, err := repo.FindSystemIDByKey(req.SystemKey)
+	if err == entities.ErrEntitlementNotFound {
+		c.JSON(http.StatusNotFound, response.NotFound("system not found for this key", nil))
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve system key", nil))
+		return
+	}
+	if systemTypeMismatch(item, systemType) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("this entitlement applies to "+item.SystemType+" systems only", nil))
+		return
+	}
+
+	createdBy := map[string]interface{}{
+		"user_id":           user.ID,
+		"user_name":         user.Name,
+		"organization_id":   user.OrganizationID,
+		"organization_name": user.OrganizationName,
+		"channel":           "shop",
+	}
+
+	grant, err := repo.MarkPending(systemID, item.ID, req.Scope, req.SourceRef, createdBy)
+	if err != nil {
+		logger.RequestLogger(c, "entitlements").Error().Err(err).
+			Str("system_key", req.SystemKey).
+			Str("entitlement", item.ID).
+			Msg("Failed to mark entitlement pending")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to mark entitlement pending", nil))
+		return
+	}
+
+	logger.RequestLogger(c, "entitlements").Info().
+		Str("operation", "pending_entitlement").
+		Str("system_key", req.SystemKey).
+		Str("entitlement", item.ID).
+		Str("scope", req.Scope).
+		Str("source_ref", req.SourceRef).
+		Msg("Entitlement activation marked pending (order awaiting payment)")
+
+	c.JSON(http.StatusOK, response.OK("entitlement activation marked pending", grant))
 }
 
 // ===========================================
@@ -632,6 +763,12 @@ func ListSystemEntitlements(c *gin.Context) {
 		return
 	}
 
+	if isSystemBlocked(system) {
+		for _, e := range list {
+			e.Status = models.EntitlementStatus(e.Active, e.RevokedAt, true, e.PendingRef)
+		}
+	}
+
 	c.JSON(http.StatusOK, response.OK("entitlements retrieved successfully", gin.H{
 		"entitlements": list,
 	}))
@@ -695,7 +832,7 @@ func CreateSystemEntitlement(c *gin.Context) {
 	}
 
 	repo := entities.NewLocalSystemEntitlementRepository()
-	entitlement, err := repo.Create(systemID, req.Entitlement, req.Scope, source, req.SourceRef, req.ValidUntil, createdBy)
+	entitlement, err := repo.Create(systemID, req.Entitlement, req.Scope, source, req.SourceRef, req.ValidFrom, req.ValidUntil, createdBy)
 	if err == entities.ErrEntitlementExists {
 		c.JSON(http.StatusConflict, response.Conflict("entitlement already exists for this system", nil))
 		return
@@ -717,6 +854,7 @@ func CreateSystemEntitlement(c *gin.Context) {
 		Str("source", source).
 		Msg("Entitlement created")
 
+	entitlement.Status = models.EntitlementStatus(entitlement.Active, entitlement.RevokedAt, isSystemBlocked(system), entitlement.PendingRef)
 	c.JSON(http.StatusCreated, response.Created("entitlement created successfully", entitlement))
 }
 
@@ -743,7 +881,7 @@ func UpdateSystemEntitlement(c *gin.Context) {
 	}
 
 	repo := entities.NewLocalSystemEntitlementRepository()
-	entitlement, err := repo.Update(systemID, entitlementID, scope, setValidUntil, validUntil, req.Revoked)
+	entitlement, err := repo.Update(systemID, entitlementID, scope, setValidUntil, validUntil, req.Revoked, models.EntitlementSourceManual)
 	if err == entities.ErrEntitlementNotFound {
 		c.JSON(http.StatusNotFound, response.NotFound("entitlement not found for this system", nil))
 		return
@@ -764,6 +902,7 @@ func UpdateSystemEntitlement(c *gin.Context) {
 		Str("scope", scope).
 		Msg("Entitlement updated")
 
+	entitlement.Status = models.EntitlementStatus(entitlement.Active, entitlement.RevokedAt, isSystemBlocked(system), entitlement.PendingRef)
 	c.JSON(http.StatusOK, response.OK("entitlement updated successfully", entitlement))
 }
 
@@ -779,7 +918,7 @@ func DeleteSystemEntitlement(c *gin.Context) {
 	scope := c.Query("scope")
 
 	repo := entities.NewLocalSystemEntitlementRepository()
-	entitlement, err := repo.Revoke(systemID, entitlementID, scope)
+	entitlement, err := repo.Revoke(systemID, entitlementID, scope, models.EntitlementSourceManual)
 	if err == entities.ErrEntitlementNotFound {
 		c.JSON(http.StatusNotFound, response.NotFound("entitlement not found for this system", nil))
 		return
@@ -800,5 +939,6 @@ func DeleteSystemEntitlement(c *gin.Context) {
 		Str("scope", scope).
 		Msg("Entitlement revoked")
 
+	entitlement.Status = models.EntitlementStatus(entitlement.Active, entitlement.RevokedAt, isSystemBlocked(system), entitlement.PendingRef)
 	c.JSON(http.StatusOK, response.OK("entitlement revoked successfully", entitlement))
 }

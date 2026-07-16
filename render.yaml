@@ -327,6 +327,8 @@ services:
         value: "login-redirect"
       - key: VITE_SIGNOUT_REDIRECT_URI
         value: "login"
+      - key: VITE_SHOP_BASE_URL
+        value: "https://nethshop.nethesis.it"
 
   # Production Proxy - Public Entry Point (my.nethesis.it)
   - type: web
@@ -526,6 +528,8 @@ services:
         value: "login-redirect"
       - key: VITE_SIGNOUT_REDIRECT_URI
         value: "login"
+      - key: VITE_SHOP_BASE_URL
+        value: "https://nethshop2.nethesis.it/test"  # staging shop for QA testing
     autoDeploy: true   # Auto-deploy on every commit
     branch: main
     pullRequestPreviewsEnabled: true  # PR previews enabled
