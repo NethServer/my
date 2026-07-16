@@ -282,17 +282,19 @@ func NewLocalSystemEntitlementRepository() *LocalSystemEntitlementRepository {
 
 const entitlementColumns = `
 	id, system_id, entitlement, scope, source, COALESCE(source_ref, ''),
-	valid_from, valid_until, revoked_at, created_by, created_at, updated_at,
+	valid_from, valid_until, revoked_at, COALESCE(revoked_source, ''),
+	COALESCE(pending_ref, ''), pending_since, created_by, created_at, updated_at,
 	(revoked_at IS NULL AND (valid_until IS NULL OR valid_until > NOW())) AS active`
 
 func scanEntitlement(scanner interface{ Scan(...interface{}) error }) (*models.SystemEntitlement, error) {
 	var e models.SystemEntitlement
-	var validUntil, revokedAt sql.NullTime
+	var validUntil, revokedAt, pendingSince sql.NullTime
 	var createdBy []byte
 
 	err := scanner.Scan(
 		&e.ID, &e.SystemID, &e.Entitlement, &e.Scope, &e.Source, &e.SourceRef,
-		&e.ValidFrom, &validUntil, &revokedAt, &createdBy, &e.CreatedAt, &e.UpdatedAt,
+		&e.ValidFrom, &validUntil, &revokedAt, &e.RevokedSource,
+		&e.PendingRef, &pendingSince, &createdBy, &e.CreatedAt, &e.UpdatedAt,
 		&e.Active,
 	)
 	if err != nil {
@@ -307,9 +309,17 @@ func scanEntitlement(scanner interface{ Scan(...interface{}) error }) (*models.S
 		t := revokedAt.Time
 		e.RevokedAt = &t
 	}
+	if pendingSince.Valid {
+		t := pendingSince.Time
+		e.PendingSince = &t
+	}
 	if len(createdBy) > 0 {
 		_ = json.Unmarshal(createdBy, &e.CreatedBy)
 	}
+
+	// Grant-level status; callers that know the owning system's lifecycle
+	// re-derive it with the suspension overlay (models.EntitlementStatus).
+	e.Status = models.EntitlementStatus(e.Active, e.RevokedAt, false, e.PendingRef)
 
 	return &e, nil
 }
@@ -355,17 +365,19 @@ func (r *LocalSystemEntitlementRepository) Get(systemID, entitlement, scope stri
 // Create grants an entitlement to a system. Duplicate (system, entitlement,
 // scope) tuples return ErrEntitlementExists — renewals must Update the
 // existing row.
-func (r *LocalSystemEntitlementRepository) Create(systemID, entitlement, scope, source, sourceRef string, validUntil *time.Time, createdBy map[string]interface{}) (*models.SystemEntitlement, error) {
+func (r *LocalSystemEntitlementRepository) Create(systemID, entitlement, scope, source, sourceRef string, validFrom, validUntil *time.Time, createdBy map[string]interface{}) (*models.SystemEntitlement, error) {
 	var createdByJSON []byte
 	if createdBy != nil {
 		createdByJSON, _ = json.Marshal(createdBy)
 	}
 
+	// validFrom NULL → DB default now(); set for legacy imports to preserve
+	// the original order date.
 	e, err := scanEntitlement(r.db.QueryRow(
-		`INSERT INTO system_entitlements (system_id, entitlement, scope, source, source_ref, valid_until, created_by)
-		 VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $7)
+		`INSERT INTO system_entitlements (system_id, entitlement, scope, source, source_ref, valid_from, valid_until, created_by)
+		 VALUES ($1, $2, $3, $4, NULLIF($5, ''), COALESCE($6, now()), $7, $8)
 		 RETURNING `+entitlementColumns,
-		systemID, entitlement, scope, source, sourceRef, validUntil, createdByJSON))
+		systemID, entitlement, scope, source, sourceRef, validFrom, validUntil, createdByJSON))
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
 			switch pqErr.Code {
@@ -383,20 +395,29 @@ func (r *LocalSystemEntitlementRepository) Create(systemID, entitlement, scope, 
 
 // Update applies expiry and/or revocation changes to an existing row.
 // setValidUntil distinguishes "leave valid_until alone" (false) from "set it
-// to the given value, possibly NULL" (true).
-func (r *LocalSystemEntitlementRepository) Update(systemID, entitlement, scope string, setValidUntil bool, validUntil *time.Time, revoked *bool) (*models.SystemEntitlement, error) {
+// to the given value, possibly NULL" (true). revokedSource records who is
+// revoking (manual|shop): stamped only on the transition to revoked (an
+// idempotent re-revoke keeps the original), cleared on unrevoke.
+func (r *LocalSystemEntitlementRepository) Update(systemID, entitlement, scope string, setValidUntil bool, validUntil *time.Time, revoked *bool, revokedSource string) (*models.SystemEntitlement, error) {
 	e, err := scanEntitlement(r.db.QueryRow(
 		`UPDATE system_entitlements SET
 		     valid_until = CASE WHEN $4 THEN $5 ELSE valid_until END,
+		     revoked_source = CASE
+		                       WHEN $6::boolean IS NULL THEN revoked_source
+		                       WHEN $6 THEN CASE WHEN revoked_at IS NULL THEN NULLIF($7, '') ELSE revoked_source END
+		                       ELSE NULL
+		                   END,
 		     revoked_at  = CASE
 		                       WHEN $6::boolean IS NULL THEN revoked_at
 		                       WHEN $6 THEN COALESCE(revoked_at, NOW())
 		                       ELSE NULL
 		                   END,
+		     pending_ref   = CASE WHEN $6::boolean IS TRUE THEN NULL ELSE pending_ref END,
+		     pending_since = CASE WHEN $6::boolean IS TRUE THEN NULL ELSE pending_since END,
 		     updated_at  = NOW()
 		 WHERE system_id = $1 AND entitlement = $2 AND scope = $3
 		 RETURNING `+entitlementColumns,
-		systemID, entitlement, scope, setValidUntil, validUntil, revoked))
+		systemID, entitlement, scope, setValidUntil, validUntil, revoked, revokedSource))
 	if err == sql.ErrNoRows {
 		return nil, ErrEntitlementNotFound
 	}
@@ -407,9 +428,10 @@ func (r *LocalSystemEntitlementRepository) Update(systemID, entitlement, scope s
 }
 
 // Revoke marks the entitlement as revoked (idempotent, row kept for audit).
-func (r *LocalSystemEntitlementRepository) Revoke(systemID, entitlement, scope string) (*models.SystemEntitlement, error) {
+// source records who revoked: manual (admin) or shop (deactivate webhook).
+func (r *LocalSystemEntitlementRepository) Revoke(systemID, entitlement, scope, source string) (*models.SystemEntitlement, error) {
 	revoked := true
-	return r.Update(systemID, entitlement, scope, false, nil, &revoked)
+	return r.Update(systemID, entitlement, scope, false, nil, &revoked, source)
 }
 
 // Upsert creates the grant or, when the (system, entitlement, scope) row
@@ -427,7 +449,12 @@ func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, 
 		 VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $7)
 		 ON CONFLICT (system_id, entitlement, scope) DO UPDATE SET
 		     valid_until = EXCLUDED.valid_until,
+		     valid_from  = CASE WHEN system_entitlements.valid_until = system_entitlements.valid_from
+		                        THEN NOW() ELSE system_entitlements.valid_from END,
 		     revoked_at  = NULL,
+		     revoked_source = NULL,
+		     pending_ref = NULL,
+		     pending_since = NULL,
 		     source      = EXCLUDED.source,
 		     source_ref  = COALESCE(EXCLUDED.source_ref, system_entitlements.source_ref),
 		     updated_at  = NOW()
@@ -438,6 +465,66 @@ func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, 
 			return nil, ErrCatalogItemNotFound
 		}
 		return nil, fmt.Errorf("failed to upsert entitlement: %w", err)
+	}
+	return e, nil
+}
+
+// MarkPending records a shop order placed at checkout and not yet paid.
+// Display-only: on a fresh purchase it creates a NON-active stub row
+// (valid_until = valid_from → enforcement keeps answering 403); on an
+// existing row (renewal, re-buy after revoke/expiry) it only stamps the
+// pending marker, leaving validity and revocation untouched. Idempotent.
+func (r *LocalSystemEntitlementRepository) MarkPending(systemID, entitlement, scope, ref string, createdBy map[string]interface{}) (*models.SystemEntitlement, error) {
+	var createdByJSON []byte
+	if createdBy != nil {
+		createdByJSON, _ = json.Marshal(createdBy)
+	}
+
+	e, err := scanEntitlement(r.db.QueryRow(
+		`INSERT INTO system_entitlements (system_id, entitlement, scope, source, source_ref, valid_from, valid_until, pending_ref, pending_since, created_by)
+		 VALUES ($1, $2, $3, 'shop', $4, NOW(), NOW(), $4, NOW(), $5)
+		 ON CONFLICT (system_id, entitlement, scope) DO UPDATE SET
+		     pending_ref   = EXCLUDED.pending_ref,
+		     pending_since = NOW(),
+		     updated_at    = NOW()
+		 RETURNING `+entitlementColumns,
+		systemID, entitlement, scope, ref, createdByJSON))
+	if err != nil {
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23503" {
+			return nil, ErrCatalogItemNotFound
+		}
+		return nil, fmt.Errorf("failed to mark entitlement pending: %w", err)
+	}
+	return e, nil
+}
+
+// ClearPending removes the pending marker (order cancelled/failed before
+// payment). A never-activated stub (valid_until = valid_from, not revoked)
+// is deleted outright so the UI goes back to "not purchased"; in that case
+// (nil, nil) is returned. ErrEntitlementNotFound when no row matches.
+func (r *LocalSystemEntitlementRepository) ClearPending(systemID, entitlement, scope string) (*models.SystemEntitlement, error) {
+	res, err := r.db.Exec(
+		`DELETE FROM system_entitlements
+		 WHERE system_id = $1 AND entitlement = $2 AND scope = $3
+		   AND pending_ref IS NOT NULL AND revoked_at IS NULL AND valid_until = valid_from`,
+		systemID, entitlement, scope)
+	if err != nil {
+		return nil, fmt.Errorf("failed to clear pending entitlement: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil, nil
+	}
+
+	e, err := scanEntitlement(r.db.QueryRow(
+		`UPDATE system_entitlements SET pending_ref = NULL, pending_since = NULL, updated_at = NOW()
+		 WHERE system_id = $1 AND entitlement = $2 AND scope = $3
+		 RETURNING `+entitlementColumns,
+		systemID, entitlement, scope))
+	if err == sql.ErrNoRows {
+		return nil, ErrEntitlementNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to clear pending entitlement: %w", err)
 	}
 	return e, nil
 }
@@ -517,8 +604,10 @@ func (r *LocalSystemEntitlementRepository) ListGrants(f GrantsReportFilter, limi
 	args = append(args, limit, offset)
 	rows, err := r.db.Query(
 		`SELECT e.id, e.system_id, e.entitlement, e.scope, e.source, COALESCE(e.source_ref, ''),
-		        e.valid_from, e.valid_until, e.revoked_at, e.created_by, e.created_at, e.updated_at,
+		        e.valid_from, e.valid_until, e.revoked_at, COALESCE(e.revoked_source, ''),
+		        COALESCE(e.pending_ref, ''), e.pending_since, e.created_by, e.created_at, e.updated_at,
 		        (e.revoked_at IS NULL AND (e.valid_until IS NULL OR e.valid_until > NOW())) AS active,
+		        (s.suspended_at IS NOT NULL) AS system_suspended,
 		        s.name, COALESCE(s.system_key, ''), s.organization_id,
 		        COALESCE(d.name, r.name, c.name, 'Owner') AS organization_name
 		 `+grantsReportJoin+`
@@ -534,12 +623,14 @@ func (r *LocalSystemEntitlementRepository) ListGrants(f GrantsReportFilter, limi
 	out := []*models.EntitlementGrantReportRow{}
 	for rows.Next() {
 		var row models.EntitlementGrantReportRow
-		var validUntil, revokedAt sql.NullTime
+		var validUntil, revokedAt, pendingSince sql.NullTime
 		var createdBy []byte
+		var systemSuspended bool
 		err := rows.Scan(
 			&row.ID, &row.SystemID, &row.Entitlement, &row.Scope, &row.Source, &row.SourceRef,
-			&row.ValidFrom, &validUntil, &revokedAt, &createdBy, &row.CreatedAt, &row.UpdatedAt,
-			&row.Active,
+			&row.ValidFrom, &validUntil, &revokedAt, &row.RevokedSource,
+			&row.PendingRef, &pendingSince, &createdBy, &row.CreatedAt, &row.UpdatedAt,
+			&row.Active, &systemSuspended,
 			&row.SystemName, &row.SystemKey, &row.OrganizationID, &row.OrganizationName,
 		)
 		if err != nil {
@@ -553,9 +644,16 @@ func (r *LocalSystemEntitlementRepository) ListGrants(f GrantsReportFilter, limi
 			t := revokedAt.Time
 			row.RevokedAt = &t
 		}
+		if pendingSince.Valid {
+			t := pendingSince.Time
+			row.PendingSince = &t
+		}
 		if len(createdBy) > 0 {
 			_ = json.Unmarshal(createdBy, &row.CreatedBy)
 		}
+		// Deleted systems are filtered out by the WHERE, so the overlay here
+		// is suspension only.
+		row.Status = models.EntitlementStatus(row.Active, row.RevokedAt, systemSuspended, row.PendingRef)
 		out = append(out, &row)
 	}
 	return out, total, rows.Err()

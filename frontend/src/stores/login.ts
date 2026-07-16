@@ -71,12 +71,9 @@ export const useLoginStore = defineStore('login', () => {
     () => {
       if (isAuthenticated.value) {
         fetchTokenAndUserInfo()
-        const pathRequested = useStorage('pathRequested', '')
-
-        if (pathRequested.value) {
-          router.push(JSON.parse(pathRequested.value))
-          pathRequested.value = null // clear the local storage entry
-        }
+        // pathRequested (deep link saved by the router guard) is restored by
+        // LoginRedirectView's sign-in callback: doing it here too would race
+        // with that push and could bounce the user to the dashboard.
       } else {
         jwtToken.value = ''
         accessToken.value = ''

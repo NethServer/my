@@ -41,7 +41,7 @@ const { tabs, selectedTab } = useTabs(
     // catalog cannot be filtered and the tab would be misleading.
     const systemType = systemDetail.value.data?.type
     if (systemType === 'nsec' || systemType === 'ns8') {
-      list.push({ name: 'entitlements', label: 'Entitlements' })
+      list.push({ name: 'entitlements', label: t('entitlements.title') })
     }
     return list
   }),

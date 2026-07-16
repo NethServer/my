@@ -5,8 +5,16 @@ import { NeLink, NeSpinner } from '@nethesis/vue-components'
 import { ref } from 'vue'
 
 useHandleSignInCallback(() => {
-  // Redirect to home page on successful sign-in
-  router.push('/')
+  // Resume the deep link that triggered the login (saved by the router
+  // guard), or fall back to the home page. Single consumer: restoring it
+  // anywhere else would race with this push and land on the dashboard.
+  const pathRequested = localStorage.getItem('pathRequested')
+  if (pathRequested) {
+    localStorage.removeItem('pathRequested')
+    router.push(JSON.parse(pathRequested))
+  } else {
+    router.push('/')
+  }
 })
 
 const isRedirectMessageShown = ref(false)

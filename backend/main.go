@@ -277,6 +277,7 @@ func main() {
 			// Shop webhook: activation/renewal + deactivation by system_key (owner API key)
 			entitlementsGroup.POST("/activate", middleware.RequirePermission("manage:entitlements"), methods.ActivateEntitlement)
 			entitlementsGroup.POST("/deactivate", middleware.RequirePermission("manage:entitlements"), methods.DeactivateEntitlement)
+			entitlementsGroup.POST("/pending", middleware.RequirePermission("manage:entitlements"), methods.PendingEntitlement) // checkout: order placed, payment not confirmed yet
 
 			// Systems totals and trend endpoints (read:systems required)
 			systemsGroup.GET("/totals", methods.GetSystemsTotals)

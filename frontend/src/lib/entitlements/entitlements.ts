@@ -9,6 +9,10 @@ import { useLoginStore } from '@/stores/login'
 
 export const SYSTEM_ENTITLEMENTS_KEY = 'system_entitlements'
 export const ENTITLEMENT_CATALOG_KEY = 'entitlement_catalog'
+export const SYSTEM_ENTITLEMENTS_TABLE_ID = 'systemEntitlements'
+// Shop webhooks land asynchronously (pending at checkout, activate on
+// completion): poll like the alerts tables so the row status follows along.
+export const ENTITLEMENTS_REFETCH_INTERVAL_SECONDS = 10
 
 export interface EntitlementCatalogItem {
   id: string
@@ -30,7 +34,17 @@ export interface SystemEntitlement {
   valid_from: string
   valid_until?: string
   revoked_at?: string
+  // who revoked: 'shop' (subscription cancelled / payment failed — the user
+  // may buy again) or 'manual' (deliberate admin revocation — restore only)
+  revoked_source?: 'manual' | 'shop'
+  // shop order placed at checkout, payment not confirmed yet (display-only)
+  pending_ref?: string
+  pending_since?: string
   active: boolean
+  // server-computed lifecycle: suspended = the system (or its org) is
+  // suspended/deleted, the grant itself is untouched; pending = an order is
+  // awaiting payment, don't offer another purchase
+  status: 'active' | 'expired' | 'revoked' | 'suspended' | 'pending'
 }
 
 interface Envelope<T> {

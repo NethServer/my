@@ -2324,10 +2324,39 @@ components:
           nullable: true
           description: When the grant was revoked. Null = not revoked.
           example: null
+        revoked_source:
+          type: string
+          enum: [manual, shop]
+          description: |
+            Who revoked the grant: `manual` (admin via API/UI — deliberate,
+            the shop button is not offered again) or `shop` (deactivate
+            webhook: subscription cancelled or payment failed — buyable
+            again). Omitted when not revoked.
+          example: "shop"
         active:
           type: boolean
           description: "Derived: not revoked and not expired"
           example: true
+        pending_ref:
+          type: string
+          description: Shop order placed at checkout and not yet paid (display-only; cleared by activate or cancel). Omitted when nothing is pending.
+          example: "wc-order-83164"
+        pending_since:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the pending order was placed
+          example: "2026-07-15T18:00:00Z"
+        status:
+          type: string
+          enum: [active, expired, revoked, suspended, pending]
+          description: |
+            Server-computed lifecycle status. `suspended` = the grant is
+            intact but the owning system (or its organization) is suspended
+            or deleted, so collect rejects its credentials. `pending` = an
+            order is awaiting payment (masks revoked/expired but never an
+            active grant). Enforcement authorizes only truly active grants.
+          example: "active"
         created_by:
           $ref: '#/components/schemas/EntitlementCreator'
         created_at:
@@ -2431,6 +2460,11 @@ components:
           type: string
           description: Application instance to narrow the grant to (only for scoped catalog items)
           example: "nethvoice1"
+        valid_from:
+          type: string
+          format: date-time
+          description: Override the start date. Omitted = now. Used by the legacy import to preserve the original order date.
+          example: "2026-02-01T00:00:00Z"
         valid_until:
           type: string
           format: date-time
@@ -2589,8 +2623,33 @@ components:
           example: "nethvoice1"
         source_ref:
           type: string
-          description: Free-form reference to the originating record
+          description: Free-form reference to the originating record. When set, it is matched against the grant — a pending activation with the same ref is cleared instead of revoked, and a grant owned by a different ref is left untouched.
           example: "sub_12345"
+
+    PendingEntitlementRequest:
+      type: object
+      description: Shop-facing "order placed, payment not confirmed yet" marker (display-only, no enforcement impact)
+      required:
+        - system_key
+        - entitlement
+        - source_ref
+      properties:
+        system_key:
+          type: string
+          description: Key of the system the add-on was bought for
+          example: "NETH-F5D2-5E69-A174-45A9-B1AB-2BB9-03F5-F1B4"
+        entitlement:
+          type: string
+          description: Canonical catalog id or legacy alias of the add-on
+          example: "nethvoice-chat"
+        scope:
+          type: string
+          description: Application instance the grant is narrowed to
+          example: "nethvoice1"
+        source_ref:
+          type: string
+          description: Reference of the order awaiting payment; the later activate/deactivate with the same ref resolves the marker
+          example: "wc-order-83164"
 
     # Applications schemas
     Application:
@@ -11130,6 +11189,67 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /entitlements/pending:
+    post:
+      operationId: pendingEntitlement
+      tags:
+        - Backend - Entitlements
+      summary: /entitlements/pending - Shop-facing "order placed, payment not confirmed"
+      description: |
+        Mark an add-on activation as pending: the shop order exists but the
+        payment (bank transfer/RiBa) has not been confirmed yet. Display-only
+        — the UI shows the entitlement as `pending` instead of offering
+        another purchase; enforcement is NOT affected (collect keeps
+        answering 403 until the real activation).
+
+        On a fresh purchase a non-active stub grant is created; on an
+        existing grant (renewal, re-buy after revocation/expiry) only the
+        pending marker is stamped. Idempotent. The marker is cleared by
+        `POST /entitlements/activate` (order completed) or by
+        `POST /entitlements/deactivate` with the same `source_ref` (order
+        cancelled before payment). Same addressing and auth as activate
+        (`manage:entitlements` permission).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PendingEntitlementRequest'
+      responses:
+        '200':
+          description: Entitlement activation marked pending
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "entitlement activation marked pending"
+                  data:
+                    $ref: '#/components/schemas/SystemEntitlement'
+        '400':
+          description: Unknown entitlement, scope not supported by the catalog item, or system-type mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: System not found for this key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /entitlements/deactivate:
     post:
       operationId: deactivateEntitlement
@@ -11141,6 +11261,12 @@ paths:
         expires (called by the NethShop webhook). Same addressing and auth as
         `POST /entitlements/activate` (`manage:entitlements` permission).
         The revocation is soft and idempotent.
+
+        When `source_ref` is provided it is matched against the grant: a
+        PENDING activation with the same ref is cleared instead of revoked
+        (order cancelled before payment), and a grant whose `source_ref`
+        differs is left untouched — cancelling an old order can never revoke
+        an entitlement another order paid for.
       requestBody:
         required: true
         content:

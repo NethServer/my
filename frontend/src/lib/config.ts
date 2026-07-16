@@ -14,3 +14,7 @@ export const LOGTO_ENDPOINT = import.meta.env.VITE_LOGTO_ENDPOINT
 export const LOGTO_APP_ID = import.meta.env.VITE_LOGTO_APP_ID
 
 export const API_URL = import.meta.env.VITE_API_BASE_URL
+
+// NethShop base URL (no trailing slash) — where add-on deep-links and order
+// links point. Staging shop in dev/qa, live shop in production.
+export const SHOP_BASE_URL = import.meta.env.VITE_SHOP_BASE_URL

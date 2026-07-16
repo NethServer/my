@@ -79,6 +79,9 @@ CREATE TABLE IF NOT EXISTS system_entitlements (
     valid_from  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     valid_until TIMESTAMP WITH TIME ZONE,
     revoked_at  TIMESTAMP WITH TIME ZONE,
+    revoked_source VARCHAR(50),
+    pending_ref VARCHAR(255),
+    pending_since TIMESTAMP WITH TIME ZONE,
     created_by  JSONB,
     created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -95,4 +98,6 @@ COMMENT ON COLUMN system_entitlements.source      IS 'How the grant was created:
 COMMENT ON COLUMN system_entitlements.source_ref  IS 'Reference in the source system (e.g. nethshop order/subscription id, legacy service_server id)';
 COMMENT ON COLUMN system_entitlements.valid_until IS 'Expiry; NULL = perpetual (legacy imports). Renewals push this forward in place';
 COMMENT ON COLUMN system_entitlements.revoked_at  IS 'Set on revoke (DELETE endpoint / subscription cancelled); row kept for audit';
+COMMENT ON COLUMN system_entitlements.revoked_source IS 'Who revoked: manual (admin DELETE/PUT — deliberate, not re-buyable) | shop (deactivate webhook: subscription cancelled/payment failed — re-buyable). NULL when not revoked';
+COMMENT ON COLUMN system_entitlements.pending_ref  IS 'Shop order awaiting payment (set at checkout, cleared on activate/cancel). Display-only: enforcement ignores it. A never-activated pending stub has valid_until = valid_from';
 COMMENT ON COLUMN system_entitlements.created_by  IS 'Actor snapshot (user/org or shop M2M) that created the grant';

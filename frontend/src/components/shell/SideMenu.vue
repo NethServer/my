@@ -106,7 +106,7 @@ const navigation = computed(() => {
 
   if (isEntitlementAdmin()) {
     menuItems.push({
-      name: 'Entitlements',
+      name: 'entitlements-catalog.title',
       to: 'entitlements-catalog',
       solidIcon: faCertificate,
       lightIcon: faCertificate,

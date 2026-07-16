@@ -8,6 +8,7 @@ import { useRoute } from 'vue-router'
 import { useLoginStore } from '@/stores/login'
 import {
   ENTITLEMENT_CATALOG_KEY,
+  ENTITLEMENTS_REFETCH_INTERVAL_SECONDS,
   SYSTEM_ENTITLEMENTS_KEY,
   getAvailableEntitlements,
   getEntitlementCatalog,
@@ -21,6 +22,10 @@ export const useSystemEntitlements = defineQuery(() => {
     key: () => [SYSTEM_ENTITLEMENTS_KEY, route.params.systemId as string],
     enabled: () => !!loginStore.jwtToken && !!route.params.systemId,
     query: () => getSystemEntitlements(route.params.systemId as string),
+    // Shop webhooks (pending/activate) land asynchronously: keep polling
+    // like the alerts tables do.
+    staleTime: ENTITLEMENTS_REFETCH_INTERVAL_SECONDS * 1000,
+    autoRefetch: true,
   })
   return { ...rest, state, asyncStatus }
 })
