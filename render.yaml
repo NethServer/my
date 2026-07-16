@@ -354,6 +354,10 @@ services:
       - key: LOGTO_ENDPOINT
         value: https://id.nethesis.it
 
+      # Third-party app origins allowed in the CSP connect-src (info_url widgets)
+      - key: THIRD_PARTY_CONNECT_SRC
+        value: https://nethshop.nethesis.it
+
 
 # =============================================================================
 # QA ENVIRONMENT - qa.my.nethesis.it
@@ -564,6 +568,10 @@ services:
       # Logto endpoint allowed by the Content-Security-Policy
       - key: LOGTO_ENDPOINT
         value: https://qa.id.nethesis.it
+
+      # Third-party app origins allowed in the CSP connect-src (info_url widgets)
+      - key: THIRD_PARTY_CONNECT_SRC
+        value: https://nethshop2.nethesis.it
     autoDeploy: true   # Auto-deploy on every commit
     branch: main
     pullRequestPreviewsEnabled: true  # PR previews enabled
