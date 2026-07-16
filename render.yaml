@@ -176,7 +176,7 @@ services:
     plan: starter
     region: frankfurt
     image:
-      url: ghcr.io/nethserver/my/mimir:v0.7.8
+      url: ghcr.io/nethserver/my/mimir:v0.7.9
     envVars:
       - fromGroup: spaces-prod
       - key: PORT
@@ -195,7 +195,7 @@ services:
     plan: starter
     region: frankfurt
     image:
-      url: ghcr.io/nethserver/my/backend:v0.7.8
+      url: ghcr.io/nethserver/my/backend:v0.7.9
     envVars:
       - fromGroup: infra-prod
       - fromGroup: spaces-prod
@@ -251,7 +251,7 @@ services:
     plan: starter
     region: frankfurt
     image:
-      url: ghcr.io/nethserver/my/collect:v0.7.8
+      url: ghcr.io/nethserver/my/collect:v0.7.9
     envVars:
       - fromGroup: infra-prod
       - fromGroup: spaces-prod
@@ -308,7 +308,7 @@ services:
     plan: starter
     region: frankfurt
     image:
-      url: ghcr.io/nethserver/my/frontend:v0.7.8
+      url: ghcr.io/nethserver/my/frontend:v0.7.9
     envVars:
       - key: VITE_PRODUCT_NAME
         value: "My Nethesis"
@@ -330,7 +330,7 @@ services:
     plan: starter
     region: frankfurt
     image:
-      url: ghcr.io/nethserver/my/proxy:v0.7.8
+      url: ghcr.io/nethserver/my/proxy:v0.7.9
     domains:
       - my.nethesis.it
       - beta.my.nethesis.it  # beta-program alias, remove after the cutover
