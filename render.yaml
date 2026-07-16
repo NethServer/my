@@ -356,7 +356,7 @@ services:
 
       # Third-party app origins allowed in the CSP connect-src (info_url widgets)
       - key: THIRD_PARTY_CONNECT_SRC
-        value: https://nethshop.nethesis.it
+        value: https://nethshop.nethesis.it https://my.nethspot.com
 
 
 # =============================================================================
@@ -571,7 +571,7 @@ services:
 
       # Third-party app origins allowed in the CSP connect-src (info_url widgets)
       - key: THIRD_PARTY_CONNECT_SRC
-        value: https://nethshop2.nethesis.it
+        value: https://nethshop2.nethesis.it https://my.staging.nethspot.com
     autoDeploy: true   # Auto-deploy on every commit
     branch: main
     pullRequestPreviewsEnabled: true  # PR previews enabled
