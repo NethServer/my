@@ -14,6 +14,41 @@ const (
 	EntitlementSourceLegacyImport = "legacy-import"
 )
 
+// Entitlement grant lifecycle statuses (server-computed, the single source
+// of truth for UI badges). Revoked and expired are facts of the grant
+// itself; suspended means the grant is fine but the system — directly or
+// through its organization's suspension/deletion cascade — cannot use it
+// (collect rejects its credentials before even looking at grants).
+const (
+	EntitlementStatusActive    = "active"
+	EntitlementStatusExpired   = "expired"
+	EntitlementStatusRevoked   = "revoked"
+	EntitlementStatusSuspended = "suspended"
+	EntitlementStatusPending   = "pending"
+)
+
+// EntitlementStatus derives the lifecycle status of a grant. `active` is the
+// SQL-computed grant validity (not revoked, not expired), `systemBlocked`
+// whether the owning system is suspended or deleted, `pendingRef` a shop
+// order awaiting payment. Pending masks revoked/expired (an order is already
+// on its way — the UI must not offer another purchase) but never an active
+// grant (a pending renewal doesn't change what the customer has today);
+// suspension masks otherwise-active grants only.
+func EntitlementStatus(active bool, revokedAt *time.Time, systemBlocked bool, pendingRef string) string {
+	switch {
+	case active && systemBlocked:
+		return EntitlementStatusSuspended
+	case active:
+		return EntitlementStatusActive
+	case pendingRef != "":
+		return EntitlementStatusPending
+	case revokedAt != nil:
+		return EntitlementStatusRevoked
+	default:
+		return EntitlementStatusExpired
+	}
+}
+
 // EntitlementCatalogItem is one grantable add-on type. The 3 legacy ng-* ids
 // are the wire ids the appliance feeds call on /auth/service/<id> — never
 // rename them. New ids follow the convention: nsec-<service> (firewall
@@ -102,19 +137,30 @@ type EntitlementStatsRow struct {
 // to one application instance via Scope ("" = whole system). Active is
 // derived: not revoked and not expired (valid_until NULL = perpetual).
 type SystemEntitlement struct {
-	ID          string                 `json:"id"`
-	SystemID    string                 `json:"system_id"`
-	Entitlement string                 `json:"entitlement"`
-	Scope       string                 `json:"scope,omitempty"`
-	Source      string                 `json:"source"`
-	SourceRef   string                 `json:"source_ref,omitempty"`
-	ValidFrom   time.Time              `json:"valid_from"`
-	ValidUntil  *time.Time             `json:"valid_until,omitempty"`
-	RevokedAt   *time.Time             `json:"revoked_at,omitempty"`
-	Active      bool                   `json:"active"`
-	CreatedBy   map[string]interface{} `json:"created_by,omitempty"`
-	CreatedAt   time.Time              `json:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at"`
+	ID          string     `json:"id"`
+	SystemID    string     `json:"system_id"`
+	Entitlement string     `json:"entitlement"`
+	Scope       string     `json:"scope,omitempty"`
+	Source      string     `json:"source"`
+	SourceRef   string     `json:"source_ref,omitempty"`
+	ValidFrom   time.Time  `json:"valid_from"`
+	ValidUntil  *time.Time `json:"valid_until,omitempty"`
+	RevokedAt   *time.Time `json:"revoked_at,omitempty"`
+	// RevokedSource records WHO revoked: "manual" (admin, deliberate — not
+	// re-buyable from the shop) or "shop" (deactivate webhook: subscription
+	// cancelled / payment failed — re-buyable). Empty when not revoked.
+	RevokedSource string `json:"revoked_source,omitempty"`
+	// PendingRef is the shop order placed at checkout and not yet paid
+	// (bank transfer/RiBa can take days): display-only, so the UI shows
+	// "pending" instead of offering another purchase. Enforcement ignores
+	// it. Cleared by activate (payment confirmed) or cancel.
+	PendingRef   string                 `json:"pending_ref,omitempty"`
+	PendingSince *time.Time             `json:"pending_since,omitempty"`
+	Active       bool                   `json:"active"`
+	Status       string                 `json:"status"` // active | expired | revoked | suspended | pending (see EntitlementStatus)
+	CreatedBy    map[string]interface{} `json:"created_by,omitempty"`
+	CreatedAt    time.Time              `json:"created_at"`
+	UpdatedAt    time.Time              `json:"updated_at"`
 }
 
 // CreateSystemEntitlementRequest grants an add-on to a system. Scope narrows
@@ -123,6 +169,7 @@ type SystemEntitlement struct {
 type CreateSystemEntitlementRequest struct {
 	Entitlement string     `json:"entitlement" binding:"required"`
 	Scope       string     `json:"scope,omitempty"`
+	ValidFrom   *time.Time `json:"valid_from,omitempty"` // override (legacy import: the original order date); defaults to now
 	ValidUntil  *time.Time `json:"valid_until,omitempty"`
 	Source      string     `json:"source,omitempty"`
 	SourceRef   string     `json:"source_ref,omitempty"`
@@ -142,12 +189,25 @@ type ActivateEntitlementRequest struct {
 }
 
 // DeactivateEntitlementRequest revokes a shop-managed grant (subscription
-// cancelled/expired).
+// cancelled/expired). When SourceRef is set it is matched against the grant:
+// a pending activation with the same ref is cleared instead of revoked, and
+// a grant owned by a DIFFERENT ref is left untouched (cancelling an old
+// order must not kill an entitlement another order paid for).
 type DeactivateEntitlementRequest struct {
 	SystemKey   string `json:"system_key" binding:"required"`
 	Entitlement string `json:"entitlement" binding:"required"`
 	Scope       string `json:"scope,omitempty"`
 	SourceRef   string `json:"source_ref,omitempty"`
+}
+
+// PendingEntitlementRequest marks a shop order placed at checkout and not
+// yet paid. SourceRef is required: it correlates the pending marker with the
+// activate/cancel that will follow.
+type PendingEntitlementRequest struct {
+	SystemKey   string `json:"system_key" binding:"required"`
+	Entitlement string `json:"entitlement" binding:"required"`
+	Scope       string `json:"scope,omitempty"`
+	SourceRef   string `json:"source_ref" binding:"required"`
 }
 
 // UpdateSystemEntitlementRequest extends/reduces the expiry or toggles the
