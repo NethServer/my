@@ -29,7 +29,11 @@ import type { AxiosError } from 'axios'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DeleteObjectModal from '@/components/common/DeleteObjectModal.vue'
-import { PAGE_SIZE_OPTIONS, loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
+import {
+  PAGE_SIZE_OPTIONS,
+  loadPageSizeFromStorage,
+  savePageSizeToStorage,
+} from '@/lib/tablePageSize'
 import {
   ENTITLEMENT_CATALOG_KEY,
   createEntitlementCatalogItem,
