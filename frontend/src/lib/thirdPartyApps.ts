@@ -29,9 +29,37 @@ export type ThirdPartyApp = {
   redirect_uris: string[]
   post_logout_redirect_uris: string[]
   login_url: string
+  // Optional endpoint the app exposes to return a summary widget for the my
+  // dashboard (config `info_url`). The app owns the content; my renders it.
+  info_url?: string
   branding: {
     display_name: string
   }
+}
+
+// Generic widget contract returned by an app's info_url. my renders `items`
+// without knowing anything app-specific; the app decides labels and values.
+export type ThirdPartyAppWidgetItem = {
+  label: string
+  value: string | number
+  tone?: 'neutral' | 'info' | 'success' | 'warning' | 'danger'
+  link?: string
+}
+
+export type ThirdPartyAppInfo = {
+  status: string
+  widget?: { items: ThirdPartyAppWidgetItem[] }
+}
+
+// Fetch an app's info_url with the user's Logto ID token (same tenant as the
+// app), reusing the OAuth identity instead of a bespoke credential.
+export const getThirdPartyAppInfo = (app: ThirdPartyApp) => {
+  const loginStore = useLoginStore()
+  return axios
+    .get<ThirdPartyAppInfo>(app.info_url as string, {
+      headers: { Authorization: `Bearer ${loginStore.idToken}` },
+    })
+    .then((res) => res.data)
 }
 
 export const getThirdPartyApps = () => {
