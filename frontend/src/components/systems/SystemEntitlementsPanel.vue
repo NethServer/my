@@ -64,7 +64,11 @@ import { useAvailableEntitlements, useSystemEntitlements } from '@/queries/syste
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { getApplications, getApplicationLogo } from '@/lib/applications/applications'
 import DeleteObjectModal from '@/components/common/DeleteObjectModal.vue'
-import { PAGE_SIZE_OPTIONS, loadPageSizeFromStorage, savePageSizeToStorage } from '@/lib/tablePageSize'
+import {
+  PAGE_SIZE_OPTIONS,
+  loadPageSizeFromStorage,
+  savePageSizeToStorage,
+} from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 import { useNotificationsStore } from '@/stores/notifications'
 import { canManageEntitlements, isEntitlementAdmin } from '@/lib/permissions'
@@ -257,7 +261,10 @@ const { mutate: enable } = useMutation({
       ...(row.scope ? { scope: row.scope } : {}),
     }),
   onSuccess: () => {
-    notificationsStore.createNotification({ kind: 'success', title: t('entitlements.entitlement_enabled') })
+    notificationsStore.createNotification({
+      kind: 'success',
+      title: t('entitlements.entitlement_enabled'),
+    })
     refresh()
   },
   onError: (err: Error) =>
@@ -278,7 +285,10 @@ const {
     revokeSystemEntitlement(systemId.value, grant.entitlement, grant.scope ?? ''),
   onSuccess: () => {
     grantToRevoke.value = undefined
-    notificationsStore.createNotification({ kind: 'success', title: t('entitlements.entitlement_revoked') })
+    notificationsStore.createNotification({
+      kind: 'success',
+      title: t('entitlements.entitlement_revoked'),
+    })
     refresh()
   },
   onError: (err: Error) => {
@@ -292,7 +302,10 @@ const { mutate: unrevoke } = useMutation({
       revoked: false,
     }),
   onSuccess: () => {
-    notificationsStore.createNotification({ kind: 'success', title: t('entitlements.entitlement_restored') })
+    notificationsStore.createNotification({
+      kind: 'success',
+      title: t('entitlements.entitlement_restored'),
+    })
     refresh()
   },
   onError: (err: Error) =>
@@ -309,7 +322,10 @@ const { mutate: renewOneYear } = useMutation({
     })
   },
   onSuccess: () => {
-    notificationsStore.createNotification({ kind: 'success', title: t('entitlements.entitlement_renewed') })
+    notificationsStore.createNotification({
+      kind: 'success',
+      title: t('entitlements.entitlement_renewed'),
+    })
     refresh()
   },
   onError: (err: Error) =>
@@ -318,10 +334,20 @@ const { mutate: renewOneYear } = useMutation({
 
 function kebabItems(grant: SystemEntitlement): NeDropdownItem[] {
   const items: NeDropdownItem[] = [
-    { id: 'renew', label: t('entitlements.renew_one_year'), icon: faCalendarPlus, action: () => renewOneYear(grant) },
+    {
+      id: 'renew',
+      label: t('entitlements.renew_one_year'),
+      icon: faCalendarPlus,
+      action: () => renewOneYear(grant),
+    },
   ]
   if (grant.revoked_at) {
-    items.push({ id: 'unrevoke', label: t('entitlements.restore'), icon: faRotateLeft, action: () => unrevoke(grant) })
+    items.push({
+      id: 'unrevoke',
+      label: t('entitlements.restore'),
+      icon: faRotateLeft,
+      action: () => unrevoke(grant),
+    })
   } else {
     items.push({
       id: 'revoke',
@@ -386,12 +412,13 @@ const revokeErrorDescription = computed(() => {
       </p>
       <!-- Data updated every X seconds -->
       <div class="flex items-center gap-2">
-        <NeSpinner
-          color="white"
-          v-if="asyncStatus === 'loading' && state.status !== 'pending'"
-        />
+        <NeSpinner color="white" v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
         <div class="text-tertiary-neutral">
-          {{ t('common.data_updated_every_seconds', { seconds: ENTITLEMENTS_REFETCH_INTERVAL_SECONDS }) }}
+          {{
+            t('common.data_updated_every_seconds', {
+              seconds: ENTITLEMENTS_REFETCH_INTERVAL_SECONDS,
+            })
+          }}
         </div>
       </div>
     </div>
@@ -459,142 +486,152 @@ const revokeErrorDescription = computed(() => {
           </NeTableRow>
 
           <NeTableRow v-else-if="row.entry">
-          <NeTableCell :data-label="$t('entitlements.entitlement')">
-            <div :class="row.entry.appLabel ? '2xl:pl-9' : ''">
-              <div class="font-medium">{{ row.entry.item.display_name }}</div>
-              <div class="text-xs text-gray-500">{{ row.entry.item.id }}</div>
-            </div>
-          </NeTableCell>
+            <NeTableCell :data-label="$t('entitlements.entitlement')">
+              <div :class="row.entry.appLabel ? '2xl:pl-9' : ''">
+                <div class="font-medium">{{ row.entry.item.display_name }}</div>
+                <div class="text-xs text-gray-500">{{ row.entry.item.id }}</div>
+              </div>
+            </NeTableCell>
 
-          <template v-if="row.entry.grant">
-            <!-- a pending row shows the order awaiting payment; the dates
+            <template v-if="row.entry.grant">
+              <!-- a pending row shows the order awaiting payment; the dates
                  only exist once the activation lands -->
-            <NeTableCell :data-label="$t('entitlements.order')">
-              <!-- rel deliberately WITHOUT noreferrer: the shop's SSO handler
+              <NeTableCell :data-label="$t('entitlements.order')">
+                <!-- rel deliberately WITHOUT noreferrer: the shop's SSO handler
                    checks the Referer host to start the login flow -->
-              <NeLink
-                v-if="orderUrl(row.entry.grant)"
-                :href="orderUrl(row.entry.grant)"
-                target="_blank"
-                rel="noopener"
-              >
-                NethShop #{{ grantRef(row.entry.grant)!.replace('wc-order-', '') }}
-              </NeLink>
-              <template v-else>
-                <span class="capitalize">{{ row.entry.grant.source }}</span>
-                <span v-if="grantRef(row.entry.grant)" class="text-xs text-gray-500">
-                  · {{ grantRef(row.entry.grant) }}
-                </span>
-              </template>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('entitlements.valid_from')">
-              {{ row.entry.grant.status === 'pending' ? '—' : fmtDate(row.entry.grant.valid_from) }}
-            </NeTableCell>
-            <NeTableCell :data-label="$t('entitlements.valid_until')">
-              <template v-if="row.entry.grant.status === 'pending'">—</template>
-              <template v-else>
-                {{ row.entry.grant.valid_until ? fmtDate(row.entry.grant.valid_until) : t('entitlements.never_expires') }}
-              </template>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('entitlements.status')">
-              <!-- badge driven by the server-computed grant.status -->
-              <div class="flex items-center gap-2">
-                <template v-if="row.entry.grant.status === 'pending'">
-                  <FontAwesomeIcon
-                    :icon="faHourglassHalf"
-                    class="size-4 text-sky-600 dark:text-sky-400"
-                    aria-hidden="true"
-                  />
-                  <span>{{ $t('entitlements.status_pending_payment') }}</span>
-                </template>
-                <template v-else-if="row.entry.grant.status === 'suspended'">
-                  <FontAwesomeIcon
-                    :icon="faCirclePause"
-                    class="size-4 text-amber-600 dark:text-amber-500"
-                    aria-hidden="true"
-                  />
-                  <span>{{ $t('entitlements.status_suspended') }}</span>
-                </template>
-                <template v-else-if="row.entry.grant.status === 'active'">
-                  <FontAwesomeIcon
-                    :icon="faCircleCheck"
-                    class="size-4 text-green-600 dark:text-green-400"
-                    aria-hidden="true"
-                  />
-                  <span>{{ $t('entitlements.status_active') }}</span>
-                </template>
-                <template v-else-if="row.entry.grant.status === 'revoked'">
-                  <FontAwesomeIcon
-                    :icon="faCircleXmark"
-                    class="size-4 text-rose-700 dark:text-rose-500"
-                    aria-hidden="true"
-                  />
-                  <span>{{ $t('entitlements.status_revoked') }}</span>
-                </template>
+                <NeLink
+                  v-if="orderUrl(row.entry.grant)"
+                  :href="orderUrl(row.entry.grant)"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  NethShop #{{ grantRef(row.entry.grant)!.replace('wc-order-', '') }}
+                </NeLink>
                 <template v-else>
-                  <FontAwesomeIcon
-                    :icon="faClock"
-                    class="size-4 text-amber-600 dark:text-amber-500"
-                    aria-hidden="true"
-                  />
-                  <span>{{ $t('entitlements.status_expired') }}</span>
+                  <span class="capitalize">{{ row.entry.grant.source }}</span>
+                  <span v-if="grantRef(row.entry.grant)" class="text-xs text-gray-500">
+                    · {{ grantRef(row.entry.grant) }}
+                  </span>
                 </template>
-              </div>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('common.actions')">
-              <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
-                <NeDropdown
-                  v-if="isEntitlementAdmin()"
-                  :items="kebabItems(row.entry.grant)"
-                  :align-to-right="true"
-                />
-                <NeButton
-                  v-else-if="!isSystemBlocked && canBuyAgain(row.entry.grant!) && canManageEntitlements()"
-                  kind="secondary"
-                  size="sm"
-                  @click="buyOnShop(row.entry!)"
-                >
-                  <template #prefix>
-                    <FontAwesomeIcon :icon="faCartShopping" />
+              </NeTableCell>
+              <NeTableCell :data-label="$t('entitlements.valid_from')">
+                {{
+                  row.entry.grant.status === 'pending' ? '—' : fmtDate(row.entry.grant.valid_from)
+                }}
+              </NeTableCell>
+              <NeTableCell :data-label="$t('entitlements.valid_until')">
+                <template v-if="row.entry.grant.status === 'pending'">—</template>
+                <template v-else>
+                  {{
+                    row.entry.grant.valid_until
+                      ? fmtDate(row.entry.grant.valid_until)
+                      : t('entitlements.never_expires')
+                  }}
+                </template>
+              </NeTableCell>
+              <NeTableCell :data-label="$t('entitlements.status')">
+                <!-- badge driven by the server-computed grant.status -->
+                <div class="flex items-center gap-2">
+                  <template v-if="row.entry.grant.status === 'pending'">
+                    <FontAwesomeIcon
+                      :icon="faHourglassHalf"
+                      class="size-4 text-sky-600 dark:text-sky-400"
+                      aria-hidden="true"
+                    />
+                    <span>{{ $t('entitlements.status_pending_payment') }}</span>
                   </template>
-                  {{ $t('entitlements.buy_again_on_nethshop') }}
-                </NeButton>
-              </div>
-            </NeTableCell>
-          </template>
+                  <template v-else-if="row.entry.grant.status === 'suspended'">
+                    <FontAwesomeIcon
+                      :icon="faCirclePause"
+                      class="size-4 text-amber-600 dark:text-amber-500"
+                      aria-hidden="true"
+                    />
+                    <span>{{ $t('entitlements.status_suspended') }}</span>
+                  </template>
+                  <template v-else-if="row.entry.grant.status === 'active'">
+                    <FontAwesomeIcon
+                      :icon="faCircleCheck"
+                      class="size-4 text-green-600 dark:text-green-400"
+                      aria-hidden="true"
+                    />
+                    <span>{{ $t('entitlements.status_active') }}</span>
+                  </template>
+                  <template v-else-if="row.entry.grant.status === 'revoked'">
+                    <FontAwesomeIcon
+                      :icon="faCircleXmark"
+                      class="size-4 text-rose-700 dark:text-rose-500"
+                      aria-hidden="true"
+                    />
+                    <span>{{ $t('entitlements.status_revoked') }}</span>
+                  </template>
+                  <template v-else>
+                    <FontAwesomeIcon
+                      :icon="faClock"
+                      class="size-4 text-amber-600 dark:text-amber-500"
+                      aria-hidden="true"
+                    />
+                    <span>{{ $t('entitlements.status_expired') }}</span>
+                  </template>
+                </div>
+              </NeTableCell>
+              <NeTableCell :data-label="$t('common.actions')">
+                <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
+                  <NeDropdown
+                    v-if="isEntitlementAdmin()"
+                    :items="kebabItems(row.entry.grant)"
+                    :align-to-right="true"
+                  />
+                  <NeButton
+                    v-else-if="
+                      !isSystemBlocked && canBuyAgain(row.entry.grant!) && canManageEntitlements()
+                    "
+                    kind="secondary"
+                    size="sm"
+                    @click="buyOnShop(row.entry!)"
+                  >
+                    <template #prefix>
+                      <FontAwesomeIcon :icon="faCartShopping" />
+                    </template>
+                    {{ $t('entitlements.buy_again_on_nethshop') }}
+                  </NeButton>
+                </div>
+              </NeTableCell>
+            </template>
 
-          <template v-else>
-            <NeTableCell colspan="4" :data-label="$t('entitlements.status')">
-              <span class="text-sm text-gray-500 italic dark:text-gray-400">{{ $t('entitlements.not_purchased') }}</span>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('common.actions')">
-              <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
-                <!-- entitlement admins (owner/SA) grant directly, skipping the shop -->
-                <NeButton
-                  v-if="!isSystemBlocked && isEntitlementAdmin()"
-                  kind="secondary"
-                  size="sm"
-                  @click="enable(row.entry!)"
-                >
-                  <template #prefix>
-                    <FontAwesomeIcon :icon="faToggleOn" />
-                  </template>
-                  {{ $t('entitlements.enable') }}
-                </NeButton>
-                <NeButton
-                  v-else-if="!isSystemBlocked && canManageEntitlements()"
-                  kind="secondary"
-                  size="sm"
-                  @click="buyOnShop(row.entry!)"
-                >
-                  <template #prefix>
-                    <FontAwesomeIcon :icon="faCartShopping" />
-                  </template>
-                  {{ $t('entitlements.buy_on_nethshop') }}
-                </NeButton>
-              </div>
-            </NeTableCell>
-          </template>
+            <template v-else>
+              <NeTableCell colspan="4" :data-label="$t('entitlements.status')">
+                <span class="text-sm text-gray-500 italic dark:text-gray-400">{{
+                  $t('entitlements.not_purchased')
+                }}</span>
+              </NeTableCell>
+              <NeTableCell :data-label="$t('common.actions')">
+                <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
+                  <!-- entitlement admins (owner/SA) grant directly, skipping the shop -->
+                  <NeButton
+                    v-if="!isSystemBlocked && isEntitlementAdmin()"
+                    kind="secondary"
+                    size="sm"
+                    @click="enable(row.entry!)"
+                  >
+                    <template #prefix>
+                      <FontAwesomeIcon :icon="faToggleOn" />
+                    </template>
+                    {{ $t('entitlements.enable') }}
+                  </NeButton>
+                  <NeButton
+                    v-else-if="!isSystemBlocked && canManageEntitlements()"
+                    kind="secondary"
+                    size="sm"
+                    @click="buyOnShop(row.entry!)"
+                  >
+                    <template #prefix>
+                      <FontAwesomeIcon :icon="faCartShopping" />
+                    </template>
+                    {{ $t('entitlements.buy_on_nethshop') }}
+                  </NeButton>
+                </div>
+              </NeTableCell>
+            </template>
           </NeTableRow>
         </template>
       </NeTableBody>
