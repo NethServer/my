@@ -41,6 +41,9 @@ collect/configs/*.yml
 config.json
 config.yaml
 
+# Local dev TLS certs (mkcert-generated per-machine — see proxy/Makefile dev-setup)
+proxy/*.pem
+
 # IDE
 .vscode/
 .idea/
