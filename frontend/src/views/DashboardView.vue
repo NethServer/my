@@ -11,6 +11,7 @@ import DistributorsCounterCard from '@/components/dashboard/DistributorsCounterC
 import ResellersCounterCard from '@/components/dashboard/ResellersCounterCard.vue'
 import SystemsCounterCard from '@/components/dashboard/SystemsCounterCard.vue'
 import UsersCounterCard from '@/components/dashboard/UsersCounterCard.vue'
+import ThirdPartyAppInfo from '@/components/dashboard/ThirdPartyAppInfo.vue'
 import {
   canReadApplications,
   canReadCustomers,
@@ -18,6 +19,7 @@ import {
   canReadResellers,
   canReadSystems,
   canReadUsers,
+  isEntitlementAdmin,
 } from '@/lib/permissions'
 import {
   getThirdPartyApps,
@@ -92,6 +94,17 @@ const { state: thirdPartyApps } = useQuery({
             <p>
               {{ $t(getThirdPartyAppDescription(thirdPartyApp)) }}
             </p>
+            <!--
+              App-provided summary widget (info_url), rendered generically.
+              Hidden for owner/Super Admin (Nethesis-internal): the shop
+              account data is meaningful for the transacting partners
+              (distributor/reseller/customer), not for platform admins.
+            -->
+            <ThirdPartyAppInfo
+              v-if="isEnabled(thirdPartyApp) && !isEntitlementAdmin()"
+              :app="thirdPartyApp"
+              class="w-full"
+            />
           </div>
           <NeButton
             kind="secondary"
