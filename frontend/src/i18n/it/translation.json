@@ -1083,6 +1083,8 @@
     "service_name_helper": "L'id finale sarà nsec-<nome>",
     "module_name_helper": "L'id finale sarà {app}-<nome>",
     "order": "Ordine",
-    "valid_until": "Valido fino al"
+    "valid_until": "Valido fino al",
+    "purchased_by": "Acquistato da",
+    "purchased_by_other_org": "Acquistato da un'altra organizzazione"
   }
 }

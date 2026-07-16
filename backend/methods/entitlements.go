@@ -97,6 +97,61 @@ func systemTypeMismatch(item *models.EntitlementCatalogItem, systemType string) 
 	return item.SystemType != "" && systemType != "" && systemType != item.SystemType
 }
 
+// resolvePurchaser builds the purchased_by audit snapshot from the order's
+// customer email sent by the shop webhook (server-to-server, trusted). The
+// email is resolved to a my user and snapshotted in full — identity, org and
+// roles AT PURCHASE TIME, robust to later renames/moves like the other
+// created_by/on_behalf_of snapshots. An address matching no my user is kept
+// raw ({email} only); no email at all (stamped legacy order) → nil.
+func resolvePurchaser(buyerEmail string) map[string]interface{} {
+	if buyerEmail == "" {
+		return nil
+	}
+
+	u, err := entities.NewLocalUserRepository().GetByEmail(buyerEmail)
+	if err != nil {
+		return map[string]interface{}{"email": buyerEmail}
+	}
+
+	snap := map[string]interface{}{
+		"name":  u.Name,
+		"email": u.Email,
+	}
+	if u.LogtoID != nil {
+		snap["logto_id"] = *u.LogtoID
+	}
+	if u.Organization != nil {
+		snap["organization_id"] = u.Organization.LogtoID
+		snap["organization_name"] = u.Organization.Name
+		snap["org_role"] = u.Organization.Type
+	}
+	roles := make([]string, 0, len(u.Roles))
+	for _, role := range u.Roles {
+		if role.Name != "" {
+			roles = append(roles, role.Name)
+		}
+	}
+	if len(roles) > 0 {
+		snap["user_roles"] = roles
+	}
+	return snap
+}
+
+// redactPurchaser strips the buyer identity when the buyer's organization is
+// outside the viewer's hierarchy (orgScope nil = no restriction, owner/Super
+// Admin): a reseller must not learn who sits above them — the UI renders a
+// generic "purchased by another organization" from the bare marker. Raw
+// email-only snapshots have no organization and are admin-only too.
+func redactPurchaser(e *models.SystemEntitlement, orgScope []string) {
+	if e.PurchasedBy == nil || orgScope == nil {
+		return
+	}
+	orgID, _ := e.PurchasedBy["organization_id"].(string)
+	if orgID == "" || !slices.Contains(orgScope, orgID) {
+		e.PurchasedBy = map[string]interface{}{"out_of_scope": true}
+	}
+}
+
 // ===========================================
 // ENTITLEMENT CATALOG
 // ===========================================
@@ -443,7 +498,7 @@ func ActivateEntitlement(c *gin.Context) {
 		"channel":           "shop",
 	}
 
-	grant, err := repo.Upsert(systemID, item.ID, req.Scope, models.EntitlementSourceShop, req.SourceRef, req.ValidUntil, createdBy)
+	grant, err := repo.Upsert(systemID, item.ID, req.Scope, models.EntitlementSourceShop, req.SourceRef, req.ValidUntil, createdBy, resolvePurchaser(req.BuyerEmail))
 	if err != nil {
 		logger.RequestLogger(c, "entitlements").Error().Err(err).
 			Str("system_key", req.SystemKey).
@@ -624,7 +679,7 @@ func PendingEntitlement(c *gin.Context) {
 		"channel":           "shop",
 	}
 
-	grant, err := repo.MarkPending(systemID, item.ID, req.Scope, req.SourceRef, createdBy)
+	grant, err := repo.MarkPending(systemID, item.ID, req.Scope, req.SourceRef, createdBy, resolvePurchaser(req.BuyerEmail))
 	if err != nil {
 		logger.RequestLogger(c, "entitlements").Error().Err(err).
 			Str("system_key", req.SystemKey).
@@ -707,6 +762,11 @@ func GetEntitlementGrants(c *gin.Context) {
 		return
 	}
 
+	// Buyer identity is only shown within the viewer's hierarchy.
+	for _, row := range rows {
+		redactPurchaser(&row.SystemEntitlement, scope)
+	}
+
 	c.JSON(http.StatusOK, response.OK("grants retrieved successfully", gin.H{
 		"grants":    rows,
 		"total":     total,
@@ -747,7 +807,7 @@ func GetEntitlementStats(c *gin.Context) {
 
 // ListSystemEntitlements handles GET /api/systems/:id/entitlements
 func ListSystemEntitlements(c *gin.Context) {
-	system, _, ok := entitlementAccessCheck(c, false)
+	system, user, ok := entitlementAccessCheck(c, false)
 	if !ok {
 		return
 	}
@@ -767,6 +827,17 @@ func ListSystemEntitlements(c *gin.Context) {
 		for _, e := range list {
 			e.Status = models.EntitlementStatus(e.Active, e.RevokedAt, true, e.PendingRef)
 		}
+	}
+
+	// Buyer identity is only shown within the viewer's hierarchy.
+	scope, err := grantsOrgScope(user)
+	if err != nil {
+		logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to resolve org scope")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve organization scope", nil))
+		return
+	}
+	for _, e := range list {
+		redactPurchaser(e, scope)
 	}
 
 	c.JSON(http.StatusOK, response.OK("entitlements retrieved successfully", gin.H{

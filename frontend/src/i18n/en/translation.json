@@ -1083,6 +1083,8 @@
     "service_name_helper": "The final id will be nsec-<name>",
     "module_name_helper": "The final id will be {app}-<name>",
     "order": "Order",
-    "valid_until": "Valid until"
+    "valid_until": "Valid until",
+    "purchased_by": "Purchased by",
+    "purchased_by_other_org": "Purchased by another organization"
   }
 }

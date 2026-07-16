@@ -64,6 +64,7 @@ import { useAvailableEntitlements, useSystemEntitlements } from '@/queries/syste
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { getApplications, getApplicationLogo } from '@/lib/applications/applications'
 import DeleteObjectModal from '@/components/common/DeleteObjectModal.vue'
+import UserAvatar from '@/components/users/UserAvatar.vue'
 import {
   PAGE_SIZE_OPTIONS,
   loadPageSizeFromStorage,
@@ -370,17 +371,60 @@ function grantRef(grant: SystemEntitlement) {
   return grant.status === 'pending' ? grant.pending_ref : grant.source_ref
 }
 
-// A wc-order-<id> reference links to the order page on NethShop, going
-// through the SSO activate endpoint: a not-yet-logged user signs in first
-// and lands on the order afterwards (redirect_to is honored by the shop
-// plugin, host-whitelisted).
+// A wc-order-<id> reference links to the order on NethShop, going through
+// the SSO activate endpoint: a not-yet-logged user signs in first and lands
+// on the order afterwards (redirect_to is honored by the shop plugin,
+// host-whitelisted). Buyers open their own order in the customer area;
+// entitlement admins (Administrators on the shop) open the backoffice order
+// editor — the customer page rejects orders that are not theirs.
 function orderUrl(grant: SystemEntitlement) {
   const match = grantRef(grant)?.match(/^wc-order-(\d+)$/)
   if (!match) {
     return ''
   }
-  const target = `${SHOP_BASE_URL}/mio-account/view-order/${match[1]}/`
+  const target = isEntitlementAdmin()
+    ? `${SHOP_BASE_URL}/wp-admin/post.php?post=${match[1]}&action=edit`
+    : `${SHOP_BASE_URL}/mio-account/view-order/${match[1]}/`
   return `${SHOP_ACTIVATE_URL}&redirect_to=${encodeURIComponent(target)}`
+}
+
+function orderNumber(grant: SystemEntitlement) {
+  return grantRef(grant)?.replace('wc-order-', '')
+}
+
+// ----- purchaser (Order column) -----
+
+// Did the current user buy this grant? purchased_by is the audit snapshot
+// the backend resolves from the shop order's customer email (redacted to
+// {out_of_scope: true} outside the viewer's hierarchy).
+function isPurchasedByMe(grant: SystemEntitlement) {
+  const p = grant.purchased_by
+  const me = loginStore.userInfo
+  if (!p || !me) {
+    return false
+  }
+  return (!!p.logto_id && p.logto_id === me.logto_id) || (!!p.email && p.email === me.email)
+}
+
+// The order link is clickable only when the shop would actually open the
+// order: the buyer themself, or owner/Super Admin (Administrators on the
+// shop, they can open any order). Anyone else would land on a 404-ish "not
+// your order" page. No buyer snapshot at all (grant activated before the
+// purchaser feature, or a stamped legacy order) = unknown buyer: keep the
+// link usable instead of dead-ending the person who actually bought it.
+function canOpenOrder(grant: SystemEntitlement) {
+  return isEntitlementAdmin() || !grant.purchased_by || isPurchasedByMe(grant)
+}
+
+// Buyer identity for the "Purchased by" column (same avatar chip as the
+// Created by column of the other tables), when it is within the viewer's
+// scope. The redacted out-of-scope marker renders as a generic text instead.
+function purchaserDetails(grant: SystemEntitlement) {
+  const p = grant.purchased_by
+  if (!p || p.out_of_scope || (!p.name && !p.email)) {
+    return undefined
+  }
+  return p
 }
 
 // An inactive grant can be bought again from the shop (the activate call is
@@ -443,12 +487,13 @@ const revokeErrorDescription = computed(() => {
       :aria-label="t('entitlements.title')"
       card-breakpoint="2xl"
       :loading="state.status === 'pending'"
-      :skeleton-columns="6"
+      :skeleton-columns="7"
       :skeleton-rows="5"
     >
       <NeTableHead>
         <NeTableHeadCell>{{ $t('entitlements.entitlement') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('entitlements.order') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('entitlements.purchased_by') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('entitlements.valid_from') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('entitlements.valid_until') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('entitlements.status') }}</NeTableHeadCell>
@@ -468,7 +513,7 @@ const revokeErrorDescription = computed(() => {
                colgroup row with a subtle background -->
           <NeTableRow v-if="row.rowType === 'app-header'">
             <NeTableCell
-              colspan="6"
+              colspan="7"
               class="border-t border-gray-200 !bg-gray-50 !py-2 dark:border-gray-700 dark:!bg-gray-900"
             >
               <div
@@ -498,21 +543,63 @@ const revokeErrorDescription = computed(() => {
                  only exist once the activation lands -->
               <NeTableCell :data-label="$t('entitlements.order')">
                 <!-- rel deliberately WITHOUT noreferrer: the shop's SSO handler
-                   checks the Referer host to start the login flow -->
-                <NeLink
-                  v-if="orderUrl(row.entry.grant)"
-                  :href="orderUrl(row.entry.grant)"
-                  target="_blank"
-                  rel="noopener"
-                >
-                  NethShop #{{ grantRef(row.entry.grant)!.replace('wc-order-', '') }}
-                </NeLink>
+                   checks the Referer host to start the login flow.
+                   The link is only offered to viewers the shop lets in (the
+                   buyer, or owner/Super Admin = shop Administrators). -->
+                <div v-if="orderUrl(row.entry.grant)">
+                  <NeLink
+                    v-if="canOpenOrder(row.entry.grant)"
+                    :href="orderUrl(row.entry.grant)"
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    NethShop #{{ orderNumber(row.entry.grant) }}
+                  </NeLink>
+                  <span v-else>NethShop #{{ orderNumber(row.entry.grant) }}</span>
+                </div>
                 <template v-else>
                   <span class="capitalize">{{ row.entry.grant.source }}</span>
                   <span v-if="grantRef(row.entry.grant)" class="text-xs text-gray-500">
                     · {{ grantRef(row.entry.grant) }}
                   </span>
                 </template>
+              </NeTableCell>
+              <!-- buyer identity — same pattern as the Created by column of
+                 the other tables -->
+              <NeTableCell :data-label="$t('entitlements.purchased_by')">
+                <div v-if="purchaserDetails(row.entry.grant)" class="flex items-center gap-2">
+                  <UserAvatar
+                    size="sm"
+                    :is-owner="purchaserDetails(row.entry.grant)!.org_role === 'owner'"
+                    :name="
+                      purchaserDetails(row.entry.grant)!.name ||
+                      purchaserDetails(row.entry.grant)!.email ||
+                      ''
+                    "
+                    :logto-id="purchaserDetails(row.entry.grant)!.logto_id || ''"
+                  />
+                  <div class="space-y-0.5">
+                    <div>
+                      {{
+                        purchaserDetails(row.entry.grant)!.name ||
+                        purchaserDetails(row.entry.grant)!.email
+                      }}
+                    </div>
+                    <div
+                      v-if="purchaserDetails(row.entry.grant)!.organization_name"
+                      class="text-gray-500 dark:text-gray-400"
+                    >
+                      {{ purchaserDetails(row.entry.grant)!.organization_name }}
+                    </div>
+                  </div>
+                </div>
+                <span
+                  v-else-if="row.entry.grant.purchased_by?.out_of_scope"
+                  class="text-gray-500 dark:text-gray-400"
+                >
+                  {{ $t('entitlements.purchased_by_other_org') }}
+                </span>
+                <template v-else>-</template>
               </NeTableCell>
               <NeTableCell :data-label="$t('entitlements.valid_from')">
                 {{
@@ -599,7 +686,7 @@ const revokeErrorDescription = computed(() => {
             </template>
 
             <template v-else>
-              <NeTableCell colspan="4" :data-label="$t('entitlements.status')">
+              <NeTableCell colspan="5" :data-label="$t('entitlements.status')">
                 <span class="text-sm text-gray-500 italic dark:text-gray-400">{{
                   $t('entitlements.not_purchased')
                 }}</span>

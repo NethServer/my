@@ -283,18 +283,18 @@ func NewLocalSystemEntitlementRepository() *LocalSystemEntitlementRepository {
 const entitlementColumns = `
 	id, system_id, entitlement, scope, source, COALESCE(source_ref, ''),
 	valid_from, valid_until, revoked_at, COALESCE(revoked_source, ''),
-	COALESCE(pending_ref, ''), pending_since, created_by, created_at, updated_at,
+	COALESCE(pending_ref, ''), pending_since, created_by, purchased_by, created_at, updated_at,
 	(revoked_at IS NULL AND (valid_until IS NULL OR valid_until > NOW())) AS active`
 
 func scanEntitlement(scanner interface{ Scan(...interface{}) error }) (*models.SystemEntitlement, error) {
 	var e models.SystemEntitlement
 	var validUntil, revokedAt, pendingSince sql.NullTime
-	var createdBy []byte
+	var createdBy, purchasedBy []byte
 
 	err := scanner.Scan(
 		&e.ID, &e.SystemID, &e.Entitlement, &e.Scope, &e.Source, &e.SourceRef,
 		&e.ValidFrom, &validUntil, &revokedAt, &e.RevokedSource,
-		&e.PendingRef, &pendingSince, &createdBy, &e.CreatedAt, &e.UpdatedAt,
+		&e.PendingRef, &pendingSince, &createdBy, &purchasedBy, &e.CreatedAt, &e.UpdatedAt,
 		&e.Active,
 	)
 	if err != nil {
@@ -315,6 +315,9 @@ func scanEntitlement(scanner interface{ Scan(...interface{}) error }) (*models.S
 	}
 	if len(createdBy) > 0 {
 		_ = json.Unmarshal(createdBy, &e.CreatedBy)
+	}
+	if len(purchasedBy) > 0 {
+		_ = json.Unmarshal(purchasedBy, &e.PurchasedBy)
 	}
 
 	// Grant-level status; callers that know the owning system's lifecycle
@@ -438,15 +441,24 @@ func (r *LocalSystemEntitlementRepository) Revoke(systemID, entitlement, scope, 
 // already exists, renews it in place: new expiry, revocation cleared,
 // source/source_ref refreshed. This is the shop-webhook semantics —
 // activation and renewal are the same idempotent call (safe on retries).
-func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, source, sourceRef string, validUntil *time.Time, createdBy map[string]interface{}) (*models.SystemEntitlement, error) {
+// purchasedBy (the buyer audit snapshot) replaces the stored one only when
+// provided — an activation without buyer identity (stamped legacy order)
+// must not wipe the audit trail of a previous purchase.
+func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, source, sourceRef string, validUntil *time.Time, createdBy, purchasedBy map[string]interface{}) (*models.SystemEntitlement, error) {
 	var createdByJSON []byte
 	if createdBy != nil {
 		createdByJSON, _ = json.Marshal(createdBy)
 	}
+	// interface{} nil → SQL NULL: lib/pq encodes a nil []byte as an empty
+	// string, which jsonb rejects.
+	var purchasedByJSON interface{}
+	if purchasedBy != nil {
+		purchasedByJSON, _ = json.Marshal(purchasedBy)
+	}
 
 	e, err := scanEntitlement(r.db.QueryRow(
-		`INSERT INTO system_entitlements (system_id, entitlement, scope, source, source_ref, valid_until, created_by)
-		 VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $7)
+		`INSERT INTO system_entitlements (system_id, entitlement, scope, source, source_ref, valid_until, created_by, purchased_by)
+		 VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $7, $8)
 		 ON CONFLICT (system_id, entitlement, scope) DO UPDATE SET
 		     valid_until = EXCLUDED.valid_until,
 		     valid_from  = CASE WHEN system_entitlements.valid_until = system_entitlements.valid_from
@@ -457,9 +469,10 @@ func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, 
 		     pending_since = NULL,
 		     source      = EXCLUDED.source,
 		     source_ref  = COALESCE(EXCLUDED.source_ref, system_entitlements.source_ref),
+		     purchased_by = COALESCE(EXCLUDED.purchased_by, system_entitlements.purchased_by),
 		     updated_at  = NOW()
 		 RETURNING `+entitlementColumns,
-		systemID, entitlement, scope, source, sourceRef, validUntil, createdByJSON))
+		systemID, entitlement, scope, source, sourceRef, validUntil, createdByJSON, purchasedByJSON))
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23503" {
 			return nil, ErrCatalogItemNotFound
@@ -474,21 +487,30 @@ func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, 
 // (valid_until = valid_from → enforcement keeps answering 403); on an
 // existing row (renewal, re-buy after revoke/expiry) it only stamps the
 // pending marker, leaving validity and revocation untouched. Idempotent.
-func (r *LocalSystemEntitlementRepository) MarkPending(systemID, entitlement, scope, ref string, createdBy map[string]interface{}) (*models.SystemEntitlement, error) {
+// purchasedBy is stamped on the fresh stub only: a pending renewal must not
+// overwrite who bought the grant the customer currently has — activate will
+// stamp the real buyer when the payment lands.
+func (r *LocalSystemEntitlementRepository) MarkPending(systemID, entitlement, scope, ref string, createdBy, purchasedBy map[string]interface{}) (*models.SystemEntitlement, error) {
 	var createdByJSON []byte
 	if createdBy != nil {
 		createdByJSON, _ = json.Marshal(createdBy)
 	}
+	// interface{} nil → SQL NULL: lib/pq encodes a nil []byte as an empty
+	// string, which jsonb rejects.
+	var purchasedByJSON interface{}
+	if purchasedBy != nil {
+		purchasedByJSON, _ = json.Marshal(purchasedBy)
+	}
 
 	e, err := scanEntitlement(r.db.QueryRow(
-		`INSERT INTO system_entitlements (system_id, entitlement, scope, source, source_ref, valid_from, valid_until, pending_ref, pending_since, created_by)
-		 VALUES ($1, $2, $3, 'shop', $4, NOW(), NOW(), $4, NOW(), $5)
+		`INSERT INTO system_entitlements (system_id, entitlement, scope, source, source_ref, valid_from, valid_until, pending_ref, pending_since, created_by, purchased_by)
+		 VALUES ($1, $2, $3, 'shop', $4, NOW(), NOW(), $4, NOW(), $5, $6)
 		 ON CONFLICT (system_id, entitlement, scope) DO UPDATE SET
 		     pending_ref   = EXCLUDED.pending_ref,
 		     pending_since = NOW(),
 		     updated_at    = NOW()
 		 RETURNING `+entitlementColumns,
-		systemID, entitlement, scope, ref, createdByJSON))
+		systemID, entitlement, scope, ref, createdByJSON, purchasedByJSON))
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23503" {
 			return nil, ErrCatalogItemNotFound
@@ -605,7 +627,7 @@ func (r *LocalSystemEntitlementRepository) ListGrants(f GrantsReportFilter, limi
 	rows, err := r.db.Query(
 		`SELECT e.id, e.system_id, e.entitlement, e.scope, e.source, COALESCE(e.source_ref, ''),
 		        e.valid_from, e.valid_until, e.revoked_at, COALESCE(e.revoked_source, ''),
-		        COALESCE(e.pending_ref, ''), e.pending_since, e.created_by, e.created_at, e.updated_at,
+		        COALESCE(e.pending_ref, ''), e.pending_since, e.created_by, e.purchased_by, e.created_at, e.updated_at,
 		        (e.revoked_at IS NULL AND (e.valid_until IS NULL OR e.valid_until > NOW())) AS active,
 		        (s.suspended_at IS NOT NULL) AS system_suspended,
 		        s.name, COALESCE(s.system_key, ''), s.organization_id,
@@ -624,12 +646,12 @@ func (r *LocalSystemEntitlementRepository) ListGrants(f GrantsReportFilter, limi
 	for rows.Next() {
 		var row models.EntitlementGrantReportRow
 		var validUntil, revokedAt, pendingSince sql.NullTime
-		var createdBy []byte
+		var createdBy, purchasedBy []byte
 		var systemSuspended bool
 		err := rows.Scan(
 			&row.ID, &row.SystemID, &row.Entitlement, &row.Scope, &row.Source, &row.SourceRef,
 			&row.ValidFrom, &validUntil, &revokedAt, &row.RevokedSource,
-			&row.PendingRef, &pendingSince, &createdBy, &row.CreatedAt, &row.UpdatedAt,
+			&row.PendingRef, &pendingSince, &createdBy, &purchasedBy, &row.CreatedAt, &row.UpdatedAt,
 			&row.Active, &systemSuspended,
 			&row.SystemName, &row.SystemKey, &row.OrganizationID, &row.OrganizationName,
 		)
@@ -650,6 +672,9 @@ func (r *LocalSystemEntitlementRepository) ListGrants(f GrantsReportFilter, limi
 		}
 		if len(createdBy) > 0 {
 			_ = json.Unmarshal(createdBy, &row.CreatedBy)
+		}
+		if len(purchasedBy) > 0 {
+			_ = json.Unmarshal(purchasedBy, &row.PurchasedBy)
 		}
 		// Deleted systems are filtered out by the WHERE, so the overlay here
 		// is suspension only.

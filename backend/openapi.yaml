@@ -2359,6 +2359,8 @@ components:
           example: "active"
         created_by:
           $ref: '#/components/schemas/EntitlementCreator'
+        purchased_by:
+          $ref: '#/components/schemas/EntitlementPurchaser'
         created_at:
           type: string
           format: date-time
@@ -2367,6 +2369,53 @@ components:
           type: string
           format: date-time
           example: "2026-07-01T10:00:00Z"
+
+    EntitlementPurchaser:
+      type: object
+      description: |
+        Audit snapshot of the my user that BOUGHT the grant on the shop,
+        resolved from the order's customer email at activation and frozen at
+        purchase time (robust to later renames/moves). Omitted for manual
+        grants, legacy imports and stamped legacy orders. When the email
+        matches no my user only `email` is present. When the buyer's
+        organization is outside the viewer's hierarchy the snapshot is
+        redacted to `{out_of_scope: true}` (owner org and Super Admin always
+        see it in full).
+      properties:
+        logto_id:
+          type: string
+          description: Logto ID of the buyer
+          example: "53h5zxpwu4vc"
+        name:
+          type: string
+          description: Full name of the buyer at purchase time
+          example: "Mario Rossi"
+        email:
+          type: string
+          description: Email of the buyer (the shop order's customer)
+          example: "mario.rossi@example.com"
+        organization_id:
+          type: string
+          description: Logto ID of the buyer's organization at purchase time
+          example: "akkbs6x2wo82"
+        organization_name:
+          type: string
+          description: Name of the buyer's organization at purchase time
+          example: "ACME S.r.l."
+        org_role:
+          type: string
+          description: Hierarchy role of the buyer's organization at purchase time
+          example: "reseller"
+        user_roles:
+          type: array
+          items:
+            type: string
+          description: User role names of the buyer at purchase time
+          example: ["Admin"]
+        out_of_scope:
+          type: boolean
+          description: Present (true) when the buyer identity was redacted because it is outside the viewer's hierarchy
+          example: true
 
     EntitlementAvailability:
       type: object
@@ -2601,6 +2650,14 @@ components:
           type: string
           description: Free-form reference to the originating record (e.g. shop subscription id)
           example: "sub_12345"
+        buyer_email:
+          type: string
+          description: |
+            Email of the WordPress customer that owns the order
+            (server-to-server, trusted). Resolved to a my user to store the
+            `purchased_by` audit snapshot; an address matching no my user is
+            kept raw. Omitted on stamped legacy orders.
+          example: "mario.rossi@example.com"
 
     DeactivateEntitlementRequest:
       type: object
@@ -2650,6 +2707,14 @@ components:
           type: string
           description: Reference of the order awaiting payment; the later activate/deactivate with the same ref resolves the marker
           example: "wc-order-83164"
+        buyer_email:
+          type: string
+          description: |
+            Email of the WordPress customer that owns the order
+            (server-to-server, trusted). Stamped in `purchased_by` on fresh
+            pending stubs only — a pending renewal never overwrites who
+            bought the currently active grant.
+          example: "mario.rossi@example.com"
 
     # Applications schemas
     Application:

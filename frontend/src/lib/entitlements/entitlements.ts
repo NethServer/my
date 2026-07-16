@@ -24,6 +24,22 @@ export interface EntitlementCatalogItem {
   legacy_alias?: string
 }
 
+// Audit snapshot of the my user that BOUGHT the grant on the shop, frozen at
+// purchase time (robust to later renames/moves). Absent for manual grants
+// and legacy imports; {email} only when the address matches no my user;
+// {out_of_scope: true} when the buyer sits outside the viewer's hierarchy
+// (redacted server-side).
+export interface EntitlementPurchaser {
+  logto_id?: string
+  name?: string
+  email?: string
+  organization_id?: string
+  organization_name?: string
+  org_role?: string
+  user_roles?: string[]
+  out_of_scope?: boolean
+}
+
 export interface SystemEntitlement {
   id: string
   system_id: string
@@ -45,6 +61,7 @@ export interface SystemEntitlement {
   // suspended/deleted, the grant itself is untouched; pending = an order is
   // awaiting payment, don't offer another purchase
   status: 'active' | 'expired' | 'revoked' | 'suspended' | 'pending'
+  purchased_by?: EntitlementPurchaser
 }
 
 interface Envelope<T> {

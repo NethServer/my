@@ -183,6 +183,74 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 	return user, nil
 }
 
+// GetByEmail retrieves a user by email (case-insensitive). Emails are not
+// guaranteed unique across organizations: prefer a non-suspended account,
+// then the most recent one.
+func (r *LocalUserRepository) GetByEmail(email string) (*models.LocalUser, error) {
+	query := `
+		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data, u.created_by,
+		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at, u.suspended_by_org_id,
+		       uo.name as organization_name,
+		       COALESCE(uo.db_id, '') as organization_local_id,
+		       COALESCE(uo.org_type, 'owner') as organization_type
+		FROM users u
+		LEFT JOIN unified_organizations uo ON u.organization_id = uo.logto_id
+		WHERE LOWER(u.email) = LOWER($1) AND u.deleted_at IS NULL
+		ORDER BY (u.suspended_at IS NULL) DESC, u.created_at DESC
+		LIMIT 1
+	`
+
+	user := &models.LocalUser{}
+	var customDataJSON []byte
+	var userRoleIDsJSON []byte
+	var createdByJSON []byte
+
+	err := r.db.QueryRow(query, email).Scan(
+		&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name, &user.Phone,
+		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON, &createdByJSON,
+		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt, &user.SuspendedByOrgID,
+		&user.OrganizationName, &user.OrganizationLocalID, &user.OrganizationType,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// Parse user_role_ids JSON
+	if len(userRoleIDsJSON) > 0 {
+		if err := json.Unmarshal(userRoleIDsJSON, &user.UserRoleIDs); err != nil {
+			user.UserRoleIDs = []string{}
+		}
+	} else {
+		user.UserRoleIDs = []string{}
+	}
+
+	// Parse custom_data JSON
+	if len(customDataJSON) > 0 {
+		if err := json.Unmarshal(customDataJSON, &user.CustomData); err != nil {
+			user.CustomData = make(map[string]interface{})
+		}
+	} else {
+		user.CustomData = make(map[string]interface{})
+	}
+
+	// Parse created_by JSON (creator snapshot; may be NULL on pre-backfill rows)
+	if len(createdByJSON) > 0 {
+		var creator models.OrgCreator
+		if err := json.Unmarshal(createdByJSON, &creator); err == nil {
+			user.CreatedBy = &creator
+		}
+	}
+
+	// Enrich with organization and role data
+	_ = r.enrichUserWithRelations(user) // Relations are nice-to-have, don't fail request on error
+
+	return user, nil
+}
+
 // GetByLogtoID retrieves a user by Logto ID from local database
 func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, error) {
 	query := `

@@ -159,8 +159,17 @@ type SystemEntitlement struct {
 	Active       bool                   `json:"active"`
 	Status       string                 `json:"status"` // active | expired | revoked | suspended | pending (see EntitlementStatus)
 	CreatedBy    map[string]interface{} `json:"created_by,omitempty"`
-	CreatedAt    time.Time              `json:"created_at"`
-	UpdatedAt    time.Time              `json:"updated_at"`
+	// PurchasedBy is the audit snapshot of the my user that BOUGHT the grant
+	// on the shop, resolved from the order's customer email at activation:
+	// {logto_id, name, email, organization_id, organization_name, org_role,
+	// user_roles} — {email} only when the address matches no my user, nil for
+	// manual grants, legacy imports and stamped legacy orders. CreatedBy stays
+	// the webhook actor (owner key); this is the real buyer. Read endpoints
+	// redact it to {out_of_scope: true} when the buyer's organization is
+	// outside the viewer's hierarchy.
+	PurchasedBy map[string]interface{} `json:"purchased_by,omitempty"`
+	CreatedAt   time.Time              `json:"created_at"`
+	UpdatedAt   time.Time              `json:"updated_at"`
 }
 
 // CreateSystemEntitlementRequest grants an add-on to a system. Scope narrows
@@ -186,6 +195,10 @@ type ActivateEntitlementRequest struct {
 	Scope       string     `json:"scope,omitempty"`
 	ValidUntil  *time.Time `json:"valid_until,omitempty"`
 	SourceRef   string     `json:"source_ref,omitempty"`
+	// BuyerEmail is the email of the WordPress customer that owns the order
+	// (server-to-server, trusted): the backend resolves it to a my user and
+	// stores the purchased_by audit snapshot. Empty on stamped legacy orders.
+	BuyerEmail string `json:"buyer_email,omitempty"`
 }
 
 // DeactivateEntitlementRequest revokes a shop-managed grant (subscription
@@ -208,6 +221,10 @@ type PendingEntitlementRequest struct {
 	Entitlement string `json:"entitlement" binding:"required"`
 	Scope       string `json:"scope,omitempty"`
 	SourceRef   string `json:"source_ref" binding:"required"`
+	// BuyerEmail: see ActivateEntitlementRequest. Stamped on fresh pending
+	// stubs only — a pending renewal must not overwrite who bought the grant
+	// the customer currently has.
+	BuyerEmail string `json:"buyer_email,omitempty"`
 }
 
 // UpdateSystemEntitlementRequest extends/reduces the expiry or toggles the

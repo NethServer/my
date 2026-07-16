@@ -1273,6 +1273,7 @@ CREATE TABLE IF NOT EXISTS system_entitlements (
     pending_ref VARCHAR(255),
     pending_since TIMESTAMP WITH TIME ZONE,
     created_by  JSONB,
+    purchased_by JSONB,
     created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT system_entitlements_unique UNIQUE (system_id, entitlement, scope)
@@ -1291,3 +1292,4 @@ COMMENT ON COLUMN system_entitlements.revoked_at  IS 'Set on revoke (DELETE endp
 COMMENT ON COLUMN system_entitlements.revoked_source IS 'Who revoked: manual (admin DELETE/PUT — deliberate, not re-buyable) | shop (deactivate webhook: subscription cancelled/payment failed — re-buyable). NULL when not revoked';
 COMMENT ON COLUMN system_entitlements.pending_ref  IS 'Shop order awaiting payment (set at checkout, cleared on activate/cancel). Display-only: enforcement ignores it. A never-activated pending stub has valid_until = valid_from';
 COMMENT ON COLUMN system_entitlements.created_by  IS 'Actor snapshot (user/org or shop M2M) that created the grant';
+COMMENT ON COLUMN system_entitlements.purchased_by IS 'Snapshot of the my user that BOUGHT the grant on the shop (resolved from the order customer email at activation): {logto_id, name, email, organization_id, organization_name, org_role, user_roles}. {email} only when the address matches no my user; NULL for manual grants, legacy imports and stamped legacy orders';
