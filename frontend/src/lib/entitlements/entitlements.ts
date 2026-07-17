@@ -62,6 +62,9 @@ export interface SystemEntitlement {
   // awaiting payment, don't offer another purchase
   status: 'active' | 'expired' | 'revoked' | 'suspended' | 'pending'
   purchased_by?: EntitlementPurchaser
+  // shop variation (tier) of the purchased product line — display only, the
+  // add-on mapping stays on the parent product (e.g. label "16-30 device")
+  variant?: { id?: number; sku?: string; label?: string }
 }
 
 interface Envelope<T> {

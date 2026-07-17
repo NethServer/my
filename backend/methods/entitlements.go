@@ -498,7 +498,7 @@ func ActivateEntitlement(c *gin.Context) {
 		"channel":           "shop",
 	}
 
-	grant, err := repo.Upsert(systemID, item.ID, req.Scope, models.EntitlementSourceShop, req.SourceRef, req.ValidUntil, createdBy, resolvePurchaser(req.BuyerEmail))
+	grant, err := repo.Upsert(systemID, item.ID, req.Scope, models.EntitlementSourceShop, req.SourceRef, req.ValidUntil, createdBy, resolvePurchaser(req.BuyerEmail), req.Variant)
 	if err != nil {
 		logger.RequestLogger(c, "entitlements").Error().Err(err).
 			Str("system_key", req.SystemKey).
@@ -679,7 +679,7 @@ func PendingEntitlement(c *gin.Context) {
 		"channel":           "shop",
 	}
 
-	grant, err := repo.MarkPending(systemID, item.ID, req.Scope, req.SourceRef, createdBy, resolvePurchaser(req.BuyerEmail))
+	grant, err := repo.MarkPending(systemID, item.ID, req.Scope, req.SourceRef, createdBy, resolvePurchaser(req.BuyerEmail), req.Variant)
 	if err != nil {
 		logger.RequestLogger(c, "entitlements").Error().Err(err).
 			Str("system_key", req.SystemKey).
