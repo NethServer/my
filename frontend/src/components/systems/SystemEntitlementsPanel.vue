@@ -534,6 +534,13 @@ const revokeErrorDescription = computed(() => {
             <NeTableCell :data-label="$t('entitlements.entitlement')">
               <div :class="row.entry.appLabel ? '2xl:pl-9' : ''">
                 <div class="font-medium">{{ row.entry.item.display_name }}</div>
+                <!-- shop tier of the purchase (variable products) -->
+                <div
+                  v-if="row.entry.grant?.variant?.label"
+                  class="text-gray-500 dark:text-gray-400"
+                >
+                  {{ row.entry.grant.variant.label }}
+                </div>
                 <div class="text-xs text-gray-500">{{ row.entry.item.id }}</div>
               </div>
             </NeTableCell>

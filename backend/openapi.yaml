@@ -2361,6 +2361,8 @@ components:
           $ref: '#/components/schemas/EntitlementCreator'
         purchased_by:
           $ref: '#/components/schemas/EntitlementPurchaser'
+        variant:
+          $ref: '#/components/schemas/EntitlementVariant'
         created_at:
           type: string
           format: date-time
@@ -2416,6 +2418,28 @@ components:
           type: boolean
           description: Present (true) when the buyer identity was redacted because it is outside the viewer's hierarchy
           example: true
+
+    EntitlementVariant:
+      type: object
+      description: |
+        Shop variation (tier) of the purchased product line. Display metadata
+        only: the add-on↔product mapping stays on the parent product and
+        /auth enforcement ignores it. Refreshed by activate, so tier
+        upgrades/downgrades follow the renewals. Omitted for manual grants
+        and simple (non-variable) products.
+      properties:
+        id:
+          type: integer
+          description: WooCommerce variation id
+          example: 245
+        sku:
+          type: string
+          description: SKU of the variation
+          example: "ATS-15"
+        label:
+          type: string
+          description: Human-readable tier, from the variation attributes
+          example: "1-15 device"
 
     EntitlementAvailability:
       type: object
@@ -2658,6 +2682,8 @@ components:
             `purchased_by` audit snapshot; an address matching no my user is
             kept raw. Omitted on stamped legacy orders.
           example: "mario.rossi@example.com"
+        variant:
+          $ref: '#/components/schemas/EntitlementVariant'
 
     DeactivateEntitlementRequest:
       type: object
@@ -2715,6 +2741,8 @@ components:
             pending stubs only — a pending renewal never overwrites who
             bought the currently active grant.
           example: "mario.rossi@example.com"
+        variant:
+          $ref: '#/components/schemas/EntitlementVariant'
 
     # Applications schemas
     Application:
