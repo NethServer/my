@@ -283,7 +283,7 @@ func NewLocalSystemEntitlementRepository() *LocalSystemEntitlementRepository {
 const entitlementColumns = `
 	id, system_id, entitlement, scope, source, COALESCE(source_ref, ''),
 	valid_from, valid_until, revoked_at, COALESCE(revoked_source, ''),
-	COALESCE(pending_ref, ''), pending_since, created_by, purchased_by, variant, created_at, updated_at,
+	COALESCE(pending_ref, ''), pending_since, created_by, purchased_by, variant, renewal_count, created_at, updated_at,
 	(revoked_at IS NULL AND (valid_until IS NULL OR valid_until > NOW())) AS active`
 
 func scanEntitlement(scanner interface{ Scan(...interface{}) error }) (*models.SystemEntitlement, error) {
@@ -294,7 +294,7 @@ func scanEntitlement(scanner interface{ Scan(...interface{}) error }) (*models.S
 	err := scanner.Scan(
 		&e.ID, &e.SystemID, &e.Entitlement, &e.Scope, &e.Source, &e.SourceRef,
 		&e.ValidFrom, &validUntil, &revokedAt, &e.RevokedSource,
-		&e.PendingRef, &pendingSince, &createdBy, &purchasedBy, &variant, &e.CreatedAt, &e.UpdatedAt,
+		&e.PendingRef, &pendingSince, &createdBy, &purchasedBy, &variant, &e.RenewalCount, &e.CreatedAt, &e.UpdatedAt,
 		&e.Active,
 	)
 	if err != nil {
@@ -479,6 +479,12 @@ func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, 
 		     source_ref  = COALESCE(EXCLUDED.source_ref, system_entitlements.source_ref),
 		     purchased_by = COALESCE(EXCLUDED.purchased_by, system_entitlements.purchased_by),
 		     variant     = COALESCE(EXCLUDED.variant, system_entitlements.variant),
+		     -- a renewal is an activation paid by a DIFFERENT order: webhook
+		     -- retries on the same order never double-count
+		     renewal_count = system_entitlements.renewal_count +
+		                     CASE WHEN EXCLUDED.source_ref IS NOT NULL
+		                               AND EXCLUDED.source_ref IS DISTINCT FROM system_entitlements.source_ref
+		                          THEN 1 ELSE 0 END,
 		     updated_at  = NOW()
 		 RETURNING `+entitlementColumns,
 		systemID, entitlement, scope, source, sourceRef, validUntil, createdByJSON, purchasedByJSON, variantJSON))
@@ -640,7 +646,7 @@ func (r *LocalSystemEntitlementRepository) ListGrants(f GrantsReportFilter, limi
 	rows, err := r.db.Query(
 		`SELECT e.id, e.system_id, e.entitlement, e.scope, e.source, COALESCE(e.source_ref, ''),
 		        e.valid_from, e.valid_until, e.revoked_at, COALESCE(e.revoked_source, ''),
-		        COALESCE(e.pending_ref, ''), e.pending_since, e.created_by, e.purchased_by, e.variant, e.created_at, e.updated_at,
+		        COALESCE(e.pending_ref, ''), e.pending_since, e.created_by, e.purchased_by, e.variant, e.renewal_count, e.created_at, e.updated_at,
 		        (e.revoked_at IS NULL AND (e.valid_until IS NULL OR e.valid_until > NOW())) AS active,
 		        (s.suspended_at IS NOT NULL) AS system_suspended,
 		        s.name, COALESCE(s.system_key, ''), s.organization_id,
@@ -664,7 +670,7 @@ func (r *LocalSystemEntitlementRepository) ListGrants(f GrantsReportFilter, limi
 		err := rows.Scan(
 			&row.ID, &row.SystemID, &row.Entitlement, &row.Scope, &row.Source, &row.SourceRef,
 			&row.ValidFrom, &validUntil, &revokedAt, &row.RevokedSource,
-			&row.PendingRef, &pendingSince, &createdBy, &purchasedBy, &variant, &row.CreatedAt, &row.UpdatedAt,
+			&row.PendingRef, &pendingSince, &createdBy, &purchasedBy, &variant, &row.RenewalCount, &row.CreatedAt, &row.UpdatedAt,
 			&row.Active, &systemSuspended,
 			&row.SystemName, &row.SystemKey, &row.OrganizationID, &row.OrganizationName,
 		)
