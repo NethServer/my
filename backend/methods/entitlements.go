@@ -775,6 +775,102 @@ func GetEntitlementGrants(c *gin.Context) {
 	}))
 }
 
+// GetEntitlementReport handles GET /api/entitlements/report — the fleet-wide
+// add-on analytics (lifecycle totals, per-type/org/tier breakdowns, renewal
+// distribution, 12-month activation trend). Owner org / Super Admin only:
+// this is the commercial overview of everyone's licences.
+func GetEntitlementReport(c *gin.Context) {
+	u, found := helpers.GetUserFromContext(c)
+	if !found {
+		return
+	}
+	if !isEntitlementAdmin(u) {
+		c.JSON(http.StatusForbidden, response.Forbidden("only the owner organization or a Super Admin can access the add-on report", nil))
+		return
+	}
+
+	repo := entities.NewLocalSystemEntitlementRepository()
+	report, err := repo.Report()
+	if err != nil {
+		logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to build entitlement report")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to build entitlement report", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("entitlement report retrieved successfully", report))
+}
+
+// reportGate rejects non entitlement-admins and parses the standard
+// search/page/page_size query of the paginated report slices.
+func reportGate(c *gin.Context) (search string, page, pageSize int, ok bool) {
+	u, found := helpers.GetUserFromContext(c)
+	if !found {
+		return "", 0, 0, false
+	}
+	if !isEntitlementAdmin(u) {
+		c.JSON(http.StatusForbidden, response.Forbidden("only the owner organization or a Super Admin can access the add-on report", nil))
+		return "", 0, 0, false
+	}
+
+	search = c.Query("search")
+	page, pageSize = 1, 10
+	if v, err := strconv.Atoi(c.DefaultQuery("page", "1")); err == nil && v > 0 {
+		page = v
+	}
+	if v, err := strconv.Atoi(c.DefaultQuery("page_size", "10")); err == nil && v > 0 && v <= 200 {
+		pageSize = v
+	}
+	return search, page, pageSize, true
+}
+
+// GetEntitlementReportOrganizations handles GET /api/entitlements/report/organizations
+// — the paginated + searchable per-organization slice of the add-on report.
+func GetEntitlementReportOrganizations(c *gin.Context) {
+	search, page, pageSize, ok := reportGate(c)
+	if !ok {
+		return
+	}
+
+	repo := entities.NewLocalSystemEntitlementRepository()
+	rows, total, err := repo.ReportOrganizations(search, pageSize, (page-1)*pageSize)
+	if err != nil {
+		logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to build per-organization report")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to build per-organization report", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("report organizations retrieved successfully", gin.H{
+		"organizations": rows,
+		"total":         total,
+		"page":          page,
+		"page_size":     pageSize,
+	}))
+}
+
+// GetEntitlementReportTiers handles GET /api/entitlements/report/tiers — the
+// paginated + searchable per-tier slice of the add-on report.
+func GetEntitlementReportTiers(c *gin.Context) {
+	search, page, pageSize, ok := reportGate(c)
+	if !ok {
+		return
+	}
+
+	repo := entities.NewLocalSystemEntitlementRepository()
+	rows, total, err := repo.ReportVariants(search, pageSize, (page-1)*pageSize)
+	if err != nil {
+		logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to build per-tier report")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to build per-tier report", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("report tiers retrieved successfully", gin.H{
+		"tiers":     rows,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	}))
+}
+
 // GetEntitlementStats handles GET /api/entitlements/stats — active grants
 // per entitlement per organization, within the caller's visibility.
 func GetEntitlementStats(c *gin.Context) {

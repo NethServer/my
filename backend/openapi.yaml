@@ -2505,6 +2505,56 @@ components:
               description: Name of the organization owning the system
               example: "ACME S.r.l."
 
+    EntitlementReport:
+      type: object
+      description: Fleet-wide add-on analytics (owner/Super Admin only)
+      properties:
+        totals:
+          type: object
+          properties:
+            total: { type: integer, example: 120 }
+            active: { type: integer, example: 95 }
+            expired: { type: integer, example: 12 }
+            revoked: { type: integer, example: 6 }
+            pending: { type: integer, example: 3 }
+            suspended: { type: integer, example: 4 }
+            perpetual: { type: integer, example: 40, description: "Active grants without an expiry (legacy imports)" }
+            expiring_in_30d: { type: integer, example: 8, description: "Active grants expiring within 30 days" }
+            expiring_in_60d: { type: integer, example: 15, description: "Active grants expiring within 60 days (cumulative)" }
+            expiring_in_90d: { type: integer, example: 22, description: "Active grants expiring within 90 days (cumulative)" }
+            systems: { type: integer, example: 80, description: "Distinct systems with at least one grant" }
+            organizations: { type: integer, example: 35, description: "Distinct organizations owning those systems" }
+            total_renewals: { type: integer, example: 60, description: "Sum of renewal_count over all grants" }
+        by_entitlement:
+          type: array
+          items:
+            type: object
+            properties:
+              entitlement: { type: string, example: "nsec-blacklist" }
+              display_name: { type: string, example: "Advanced Threat Shield" }
+              active: { type: integer, example: 60 }
+              expired: { type: integer, example: 8 }
+              revoked: { type: integer, example: 3 }
+              pending: { type: integer, example: 2 }
+              suspended: { type: integer, example: 1 }
+              total: { type: integer, example: 74 }
+        renewals:
+          type: object
+          description: Renewal distribution across grants
+          properties:
+            never: { type: integer, example: 70 }
+            once: { type: integer, example: 30 }
+            twice: { type: integer, example: 15 }
+            three_plus: { type: integer, example: 5 }
+        trend:
+          type: array
+          description: Grants created per month, last 12 months
+          items:
+            type: object
+            properties:
+              month: { type: string, example: "2026-07" }
+              activations: { type: integer, example: 9 }
+
     EntitlementStatsRow:
       type: object
       description: Active grants aggregated per entitlement per organization
@@ -11223,6 +11273,157 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/EntitlementStatsRow'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /entitlements/report:
+    get:
+      operationId: getEntitlementReport
+      tags:
+        - Backend - Entitlements
+      summary: /entitlements/report - Fleet-wide add-on analytics (owner/Super Admin)
+      description: |
+        The commercial overview of every add-on grant: lifecycle totals
+        (active/expired/revoked/pending/suspended, perpetual, expiring in
+        30/60/90 days), the per-type breakdown, the renewal distribution and
+        a 12-month activation trend. The per-organization and per-tier
+        breakdowns live on their own paginated endpoints. Owner organization
+        / Super Admin only; deleted systems are excluded.
+      responses:
+        '200':
+          description: Entitlement report retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "entitlement report retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/EntitlementReport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /entitlements/report/organizations:
+    get:
+      operationId: getEntitlementReportOrganizations
+      tags:
+        - Backend - Entitlements
+      summary: /entitlements/report/organizations - Per-organization slice of the add-on report
+      description: |
+        Grants grouped by the organization owning the systems, most active
+        first, paginated and searchable by organization name. Owner
+        organization / Super Admin only.
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+          description: Case-insensitive filter on the organization name
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, default: 10, maximum: 200 }
+      responses:
+        '200':
+          description: Report organizations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "report organizations retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      organizations:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            organization_id: { type: string, example: "akkbs6x2wo82" }
+                            organization_name: { type: string, example: "ACME S.r.l." }
+                            org_type: { type: string, example: "reseller", description: "distributor | reseller | customer | owner" }
+                            systems: { type: integer, example: 12 }
+                            active: { type: integer, example: 18 }
+                            total: { type: integer, example: 20 }
+                      total: { type: integer, example: 130 }
+                      page: { type: integer, example: 1 }
+                      page_size: { type: integer, example: 10 }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /entitlements/report/tiers:
+    get:
+      operationId: getEntitlementReportTiers
+      tags:
+        - Backend - Entitlements
+      summary: /entitlements/report/tiers - Per-tier slice of the add-on report
+      description: |
+        Grants grouped by shop tier (variable products only), paginated and
+        searchable by add-on id or tier label. Owner organization / Super
+        Admin only.
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+          description: Case-insensitive filter on the add-on id or tier label
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, default: 10, maximum: 200 }
+      responses:
+        '200':
+          description: Report tiers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "report tiers retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      tiers:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            entitlement: { type: string, example: "nsec-blacklist" }
+                            label: { type: string, example: "16 - 30 device" }
+                            count: { type: integer, example: 14 }
+                      total: { type: integer, example: 12 }
+                      page: { type: integer, example: 1 }
+                      page_size: { type: integer, example: 10 }
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
