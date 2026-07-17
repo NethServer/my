@@ -1062,7 +1062,6 @@
     "buy_on_nethshop": "Acquista su NethShop",
     "buy_again_on_nethshop": "Riacquista su NethShop",
     "enable": "Abilita",
-    "renew_one_year": "Rinnova +1 anno",
     "restore": "Ripristina",
     "revoke": "Revoca",
     "revoke_entitlement": "Revoca add-on",
@@ -1071,7 +1070,6 @@
     "entitlement_enabled": "Add-on abilitato",
     "entitlement_revoked": "Add-on revocato",
     "entitlement_restored": "Add-on ripristinato",
-    "entitlement_renewed": "Add-on rinnovato +1 anno",
     "no_entitlements": "Nessun add-on disponibile",
     "no_entitlements_description": "Non ci sono add-on applicabili a questo sistema",
     "cannot_retrieve_entitlements": "Impossibile recuperare gli add-on",
@@ -1085,6 +1083,7 @@
     "order": "Ordine",
     "valid_until": "Valido fino al",
     "purchased_by": "Acquistato da",
-    "purchased_by_other_org": "Acquistato da un'altra organizzazione"
+    "purchased_by_other_org": "Acquistato da un'altra organizzazione",
+    "renewal_number": "Rinnovo n. {n}"
   }
 }

@@ -1275,6 +1275,7 @@ CREATE TABLE IF NOT EXISTS system_entitlements (
     created_by  JSONB,
     purchased_by JSONB,
     variant     JSONB,
+    renewal_count INTEGER NOT NULL DEFAULT 0,
     created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT system_entitlements_unique UNIQUE (system_id, entitlement, scope)
@@ -1295,3 +1296,4 @@ COMMENT ON COLUMN system_entitlements.pending_ref  IS 'Shop order awaiting payme
 COMMENT ON COLUMN system_entitlements.created_by  IS 'Actor snapshot (user/org or shop M2M) that created the grant';
 COMMENT ON COLUMN system_entitlements.purchased_by IS 'Snapshot of the my user that BOUGHT the grant on the shop (resolved from the order customer email at activation): {logto_id, name, email, organization_id, organization_name, org_role, user_roles}. {email} only when the address matches no my user; NULL for manual grants, legacy imports and stamped legacy orders';
 COMMENT ON COLUMN system_entitlements.variant IS 'Shop variation (tier) of the purchased product line: {id, sku, label} (e.g. label "16-30 device"). Display metadata only — the add-on mapping stays on the parent product and /auth enforcement ignores it. Refreshed by activate (upgrades/downgrades follow renewals); NULL for manual grants and simple products';
+COMMENT ON COLUMN system_entitlements.renewal_count IS 'Paid shop orders on this grant beyond the first: incremented by activate when source_ref CHANGES (webhook retries on the same order never double-count). 0 = first period';

@@ -65,6 +65,8 @@ export interface SystemEntitlement {
   // shop variation (tier) of the purchased product line — display only, the
   // add-on mapping stays on the parent product (e.g. label "16-30 device")
   variant?: { id?: number; sku?: string; label?: string }
+  // paid shop orders beyond the first (0 = first period)
+  renewal_count?: number
 }
 
 interface Envelope<T> {

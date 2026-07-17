@@ -2363,6 +2363,13 @@ components:
           $ref: '#/components/schemas/EntitlementPurchaser'
         variant:
           $ref: '#/components/schemas/EntitlementVariant'
+        renewal_count:
+          type: integer
+          description: |
+            Paid shop orders on this grant beyond the first: activate
+            increments it when source_ref changes (webhook retries on the
+            same order never double-count). 0 = first period.
+          example: 3
         created_at:
           type: string
           format: date-time

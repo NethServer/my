@@ -173,9 +173,13 @@ type SystemEntitlement struct {
 	// the add-on mapping stays on the parent product and /auth enforcement
 	// ignores it. Refreshed by activate, so upgrades/downgrades follow the
 	// renewals; nil for manual grants and simple products.
-	Variant   map[string]interface{} `json:"variant,omitempty"`
-	CreatedAt time.Time              `json:"created_at"`
-	UpdatedAt time.Time              `json:"updated_at"`
+	Variant map[string]interface{} `json:"variant,omitempty"`
+	// RenewalCount is the number of paid shop orders on this grant beyond
+	// the first: activate increments it when source_ref CHANGES (webhook
+	// retries on the same order never double-count). 0 = first period.
+	RenewalCount int       `json:"renewal_count"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // CreateSystemEntitlementRequest grants an add-on to a system. Scope narrows

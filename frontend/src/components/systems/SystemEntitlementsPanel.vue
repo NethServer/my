@@ -34,7 +34,6 @@ import {
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   faBan,
-  faCalendarPlus,
   faCartShopping,
   faCertificate,
   faCircleCheck,
@@ -313,35 +312,8 @@ const { mutate: unrevoke } = useMutation({
     notificationsStore.createNotification({ kind: 'error', title: err.message }),
 })
 
-const { mutate: renewOneYear } = useMutation({
-  mutation: (grant: SystemEntitlement) => {
-    const oneYear = new Date()
-    oneYear.setFullYear(oneYear.getFullYear() + 1)
-    return updateSystemEntitlement(systemId.value, grant.entitlement, grant.scope ?? '', {
-      valid_until: oneYear.toISOString(),
-      revoked: false,
-    })
-  },
-  onSuccess: () => {
-    notificationsStore.createNotification({
-      kind: 'success',
-      title: t('entitlements.entitlement_renewed'),
-    })
-    refresh()
-  },
-  onError: (err: Error) =>
-    notificationsStore.createNotification({ kind: 'error', title: err.message }),
-})
-
 function kebabItems(grant: SystemEntitlement): NeDropdownItem[] {
-  const items: NeDropdownItem[] = [
-    {
-      id: 'renew',
-      label: t('entitlements.renew_one_year'),
-      icon: faCalendarPlus,
-      action: () => renewOneYear(grant),
-    },
-  ]
+  const items: NeDropdownItem[] = []
   if (grant.revoked_at) {
     items.push({
       id: 'unrevoke',
@@ -563,6 +535,13 @@ const revokeErrorDescription = computed(() => {
                     NethShop #{{ orderNumber(row.entry.grant) }}
                   </NeLink>
                   <span v-else>NethShop #{{ orderNumber(row.entry.grant) }}</span>
+                  <!-- the order shown is the Nth renewal of the grant -->
+                  <div
+                    v-if="row.entry.grant.renewal_count"
+                    class="text-xs text-gray-500 dark:text-gray-400"
+                  >
+                    {{ $t('entitlements.renewal_number', { n: row.entry.grant.renewal_count }) }}
+                  </div>
                 </div>
                 <template v-else>
                   <span class="capitalize">{{ row.entry.grant.source }}</span>
