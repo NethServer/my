@@ -168,8 +168,14 @@ type SystemEntitlement struct {
 	// redact it to {out_of_scope: true} when the buyer's organization is
 	// outside the viewer's hierarchy.
 	PurchasedBy map[string]interface{} `json:"purchased_by,omitempty"`
-	CreatedAt   time.Time              `json:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at"`
+	// Variant is the shop variation (tier) of the purchased product line,
+	// {id, sku, label} (e.g. label "16-30 device"). Display metadata only:
+	// the add-on mapping stays on the parent product and /auth enforcement
+	// ignores it. Refreshed by activate, so upgrades/downgrades follow the
+	// renewals; nil for manual grants and simple products.
+	Variant   map[string]interface{} `json:"variant,omitempty"`
+	CreatedAt time.Time              `json:"created_at"`
+	UpdatedAt time.Time              `json:"updated_at"`
 }
 
 // CreateSystemEntitlementRequest grants an add-on to a system. Scope narrows
@@ -199,6 +205,9 @@ type ActivateEntitlementRequest struct {
 	// (server-to-server, trusted): the backend resolves it to a my user and
 	// stores the purchased_by audit snapshot. Empty on stamped legacy orders.
 	BuyerEmail string `json:"buyer_email,omitempty"`
+	// Variant is the shop variation (tier) of the order line, {id, sku,
+	// label}; stored as display metadata on the grant.
+	Variant map[string]interface{} `json:"variant,omitempty"`
 }
 
 // DeactivateEntitlementRequest revokes a shop-managed grant (subscription
@@ -225,6 +234,10 @@ type PendingEntitlementRequest struct {
 	// stubs only — a pending renewal must not overwrite who bought the grant
 	// the customer currently has.
 	BuyerEmail string `json:"buyer_email,omitempty"`
+	// Variant: see ActivateEntitlementRequest. Fresh pending stubs only,
+	// like BuyerEmail — the not-yet-paid tier must not overwrite the one the
+	// customer currently has.
+	Variant map[string]interface{} `json:"variant,omitempty"`
 }
 
 // UpdateSystemEntitlementRequest extends/reduces the expiry or toggles the
