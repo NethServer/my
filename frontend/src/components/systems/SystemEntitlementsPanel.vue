@@ -579,11 +579,14 @@ const revokeErrorDescription = computed(() => {
                     :logto-id="purchaserDetails(row.entry.grant)!.logto_id || ''"
                   />
                   <div class="space-y-0.5">
-                    <div>
+                    <div class="flex items-center gap-2">
                       {{
                         purchaserDetails(row.entry.grant)!.name ||
                         purchaserDetails(row.entry.grant)!.email
                       }}
+                      <span v-if="isPurchasedByMe(row.entry.grant)" class="text-tertiary-neutral"
+                        >({{ $t('users.me') }})</span
+                      >
                     </div>
                     <div
                       v-if="purchaserDetails(row.entry.grant)!.organization_name"
