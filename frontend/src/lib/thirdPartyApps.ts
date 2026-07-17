@@ -2,8 +2,9 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import axios from 'axios'
-import { API_URL } from './config'
+import { API_URL, SHOP_BASE_URL } from './config'
 import { useLoginStore } from '@/stores/login'
+import { isEntitlementAdmin } from '@/lib/permissions'
 import {
   faArrowUpRightFromSquare,
   faHeadset,
@@ -95,7 +96,15 @@ export const getThirdPartyAppDescription = (thirdPartyApp: ThirdPartyApp) => {
 }
 
 export const openThirdPartyApp = (thirdPartyApp: ThirdPartyApp) => {
-  window.open(thirdPartyApp.login_url, '_blank', 'noopener')
+  let url = thirdPartyApp.login_url
+  // Entitlement admins (owner org / Super Admin) are Administrators on the
+  // shop: land them on the backoffice instead of the storefront. redirect_to
+  // is honored by the shop's SSO handler (host-whitelisted).
+  if (thirdPartyApp.name === 'nethshop.nethesis.it' && isEntitlementAdmin()) {
+    const sep = url.includes('?') ? '&' : '?'
+    url += `${sep}redirect_to=${encodeURIComponent(`${SHOP_BASE_URL}/wp-admin/`)}`
+  }
+  window.open(url, '_blank', 'noopener')
 }
 
 export const sortThirdPartyApps = (app1: ThirdPartyApp, app2: ThirdPartyApp) => {
