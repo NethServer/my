@@ -133,6 +133,84 @@ type EntitlementStatsRow struct {
 	ActiveGrants     int    `json:"active_grants"`
 }
 
+// EntitlementReport is the owner/Super Admin analytics snapshot of the whole
+// add-on fleet: lifecycle totals, the per-type breakdown, the renewal
+// distribution and an activation trend. The per-organization and per-tier
+// breakdowns live on their own paginated+searchable endpoints
+// (/report/organizations, /report/tiers) — orgs can be hundreds. Deleted
+// systems are excluded everywhere.
+type EntitlementReport struct {
+	Totals        EntitlementReportTotals     `json:"totals"`
+	ByEntitlement []EntitlementReportByType   `json:"by_entitlement"`
+	Renewals      EntitlementReportRenewals   `json:"renewals"`
+	Trend         []EntitlementReportTrendRow `json:"trend"`
+}
+
+// EntitlementReportTotals is the fleet-wide lifecycle breakdown. Statuses
+// follow the same precedence as EntitlementStatus; Perpetual counts active
+// grants without an expiry (legacy imports); the Expiring* buckets count
+// active grants whose expiry falls within the window (cumulative).
+type EntitlementReportTotals struct {
+	Total         int `json:"total"`
+	Active        int `json:"active"`
+	Expired       int `json:"expired"`
+	Revoked       int `json:"revoked"`
+	Pending       int `json:"pending"`
+	Suspended     int `json:"suspended"`
+	Perpetual     int `json:"perpetual"`
+	ExpiringIn30d int `json:"expiring_in_30d"`
+	ExpiringIn60d int `json:"expiring_in_60d"`
+	ExpiringIn90d int `json:"expiring_in_90d"`
+	Systems       int `json:"systems"`        // distinct systems with at least one grant
+	Organizations int `json:"organizations"`  // distinct orgs owning those systems
+	TotalRenewals int `json:"total_renewals"` // sum of renewal_count over all grants
+}
+
+// EntitlementReportByType is the lifecycle breakdown of one add-on type.
+type EntitlementReportByType struct {
+	Entitlement string `json:"entitlement"`
+	DisplayName string `json:"display_name"`
+	Active      int    `json:"active"`
+	Expired     int    `json:"expired"`
+	Revoked     int    `json:"revoked"`
+	Pending     int    `json:"pending"`
+	Suspended   int    `json:"suspended"`
+	Total       int    `json:"total"`
+}
+
+// EntitlementReportByOrg aggregates grants per organization owning the
+// systems, with the reseller/distributor hierarchy role for grouping.
+type EntitlementReportByOrg struct {
+	OrganizationID   string `json:"organization_id"`
+	OrganizationName string `json:"organization_name"`
+	OrgType          string `json:"org_type"`
+	Systems          int    `json:"systems"`
+	Active           int    `json:"active"`
+	Total            int    `json:"total"`
+}
+
+// EntitlementReportByVariant counts grants per shop tier of one add-on.
+type EntitlementReportByVariant struct {
+	Entitlement string `json:"entitlement"`
+	Label       string `json:"label"`
+	Count       int    `json:"count"`
+}
+
+// EntitlementReportRenewals is the renewal distribution across grants.
+type EntitlementReportRenewals struct {
+	Never     int `json:"never"`
+	Once      int `json:"once"`
+	Twice     int `json:"twice"`
+	ThreePlus int `json:"three_plus"`
+}
+
+// EntitlementReportTrendRow is one month of the activation trend (grants
+// created in that month, by created_at).
+type EntitlementReportTrendRow struct {
+	Month       string `json:"month"` // YYYY-MM
+	Activations int    `json:"activations"`
+}
+
 // SystemEntitlement is one add-on grant for one system, optionally narrowed
 // to one application instance via Scope ("" = whole system). Active is
 // derived: not revoked and not expired (valid_until NULL = perpetual).

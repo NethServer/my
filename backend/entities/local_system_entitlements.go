@@ -706,6 +706,208 @@ func (r *LocalSystemEntitlementRepository) ListGrants(f GrantsReportFilter, limi
 	return out, total, rows.Err()
 }
 
+// reportStatusExpr derives the grant lifecycle status in SQL with the same
+// precedence as models.EntitlementStatus (suspended > active > pending >
+// revoked > expired); `active` mirrors the usual validity expression.
+const reportStatusExpr = `
+	CASE
+	    WHEN (e.revoked_at IS NULL AND (e.valid_until IS NULL OR e.valid_until > NOW()))
+	         AND s.suspended_at IS NOT NULL THEN 'suspended'
+	    WHEN (e.revoked_at IS NULL AND (e.valid_until IS NULL OR e.valid_until > NOW())) THEN 'active'
+	    WHEN e.pending_ref IS NOT NULL THEN 'pending'
+	    WHEN e.revoked_at IS NOT NULL THEN 'revoked'
+	    ELSE 'expired'
+	END`
+
+// Report builds the fleet-wide add-on analytics for the owner/Super Admin
+// view: lifecycle totals, per-type / per-org / per-tier breakdowns, renewal
+// distribution and a 12-month activation trend. Deleted systems excluded.
+func (r *LocalSystemEntitlementRepository) Report() (*models.EntitlementReport, error) {
+	report := &models.EntitlementReport{
+		ByEntitlement: []models.EntitlementReportByType{},
+		Trend:         []models.EntitlementReportTrendRow{},
+	}
+
+	statusJoin := `FROM system_entitlements e JOIN systems s ON s.id = e.system_id WHERE s.deleted_at IS NULL`
+
+	// Totals: lifecycle counts, expiry buckets, coverage and renewals in one pass.
+	err := r.db.QueryRow(`
+		SELECT COUNT(*),
+		       COUNT(*) FILTER (WHERE `+reportStatusExpr+` = 'active'),
+		       COUNT(*) FILTER (WHERE `+reportStatusExpr+` = 'expired'),
+		       COUNT(*) FILTER (WHERE `+reportStatusExpr+` = 'revoked'),
+		       COUNT(*) FILTER (WHERE `+reportStatusExpr+` = 'pending'),
+		       COUNT(*) FILTER (WHERE `+reportStatusExpr+` = 'suspended'),
+		       COUNT(*) FILTER (WHERE e.revoked_at IS NULL AND e.valid_until IS NULL),
+		       COUNT(*) FILTER (WHERE e.revoked_at IS NULL AND e.valid_until > NOW() AND e.valid_until <= NOW() + interval '30 days'),
+		       COUNT(*) FILTER (WHERE e.revoked_at IS NULL AND e.valid_until > NOW() AND e.valid_until <= NOW() + interval '60 days'),
+		       COUNT(*) FILTER (WHERE e.revoked_at IS NULL AND e.valid_until > NOW() AND e.valid_until <= NOW() + interval '90 days'),
+		       COUNT(DISTINCT e.system_id),
+		       COUNT(DISTINCT s.organization_id),
+		       COALESCE(SUM(e.renewal_count), 0)
+		`+statusJoin,
+	).Scan(
+		&report.Totals.Total, &report.Totals.Active, &report.Totals.Expired,
+		&report.Totals.Revoked, &report.Totals.Pending, &report.Totals.Suspended,
+		&report.Totals.Perpetual,
+		&report.Totals.ExpiringIn30d, &report.Totals.ExpiringIn60d, &report.Totals.ExpiringIn90d,
+		&report.Totals.Systems, &report.Totals.Organizations, &report.Totals.TotalRenewals,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute report totals: %w", err)
+	}
+
+	// Renewal distribution.
+	err = r.db.QueryRow(`
+		SELECT COUNT(*) FILTER (WHERE e.renewal_count = 0),
+		       COUNT(*) FILTER (WHERE e.renewal_count = 1),
+		       COUNT(*) FILTER (WHERE e.renewal_count = 2),
+		       COUNT(*) FILTER (WHERE e.renewal_count >= 3)
+		`+statusJoin,
+	).Scan(&report.Renewals.Never, &report.Renewals.Once, &report.Renewals.Twice, &report.Renewals.ThreePlus)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute renewal distribution: %w", err)
+	}
+
+	// Per add-on type.
+	rows, err := r.db.Query(`
+		SELECT e.entitlement, COALESCE(cat.display_name, e.entitlement),
+		       COUNT(*) FILTER (WHERE ` + reportStatusExpr + ` = 'active'),
+		       COUNT(*) FILTER (WHERE ` + reportStatusExpr + ` = 'expired'),
+		       COUNT(*) FILTER (WHERE ` + reportStatusExpr + ` = 'revoked'),
+		       COUNT(*) FILTER (WHERE ` + reportStatusExpr + ` = 'pending'),
+		       COUNT(*) FILTER (WHERE ` + reportStatusExpr + ` = 'suspended'),
+		       COUNT(*)
+		FROM system_entitlements e
+		JOIN systems s ON s.id = e.system_id
+		LEFT JOIN entitlement_catalog cat ON cat.id = e.entitlement
+		WHERE s.deleted_at IS NULL
+		GROUP BY e.entitlement, cat.display_name
+		ORDER BY COUNT(*) DESC, e.entitlement`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute per-type report: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var row models.EntitlementReportByType
+		if err := rows.Scan(&row.Entitlement, &row.DisplayName, &row.Active, &row.Expired, &row.Revoked, &row.Pending, &row.Suspended, &row.Total); err != nil {
+			return nil, fmt.Errorf("failed to scan per-type row: %w", err)
+		}
+		report.ByEntitlement = append(report.ByEntitlement, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Activation trend: grants created per month, last 12 months.
+	trendRows, err := r.db.Query(`
+		SELECT to_char(date_trunc('month', e.created_at), 'YYYY-MM'), COUNT(*)
+		` + statusJoin + ` AND e.created_at >= date_trunc('month', NOW()) - interval '11 months'
+		GROUP BY 1 ORDER BY 1`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute activation trend: %w", err)
+	}
+	defer func() { _ = trendRows.Close() }()
+	for trendRows.Next() {
+		var row models.EntitlementReportTrendRow
+		if err := trendRows.Scan(&row.Month, &row.Activations); err != nil {
+			return nil, fmt.Errorf("failed to scan trend row: %w", err)
+		}
+		report.Trend = append(report.Trend, row)
+	}
+	if err := trendRows.Err(); err != nil {
+		return nil, err
+	}
+
+	return report, nil
+}
+
+// ReportOrganizations is the paginated + searchable per-organization slice
+// of the add-on report (orgs can be hundreds on the real fleet): grants
+// grouped by the systems' owning organization, most active first. search
+// filters by organization name.
+func (r *LocalSystemEntitlementRepository) ReportOrganizations(search string, limit, offset int) ([]models.EntitlementReportByOrg, int, error) {
+	base := `
+		FROM system_entitlements e
+		JOIN systems s ON s.id = e.system_id
+		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
+		LEFT JOIN resellers   rs ON s.organization_id = rs.logto_id AND rs.deleted_at IS NULL
+		LEFT JOIN customers    c ON s.organization_id = c.logto_id AND c.deleted_at IS NULL
+		WHERE s.deleted_at IS NULL
+		  AND ($1 = '' OR COALESCE(d.name, rs.name, c.name, 'Owner') ILIKE '%' || $1 || '%')
+		GROUP BY s.organization_id, d.logto_id, rs.logto_id, c.logto_id, d.name, rs.name, c.name`
+
+	var total int
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM (SELECT 1 `+base+`) g`, search).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("failed to count report organizations: %w", err)
+	}
+
+	rows, err := r.db.Query(`
+		SELECT s.organization_id,
+		       COALESCE(d.name, rs.name, c.name, 'Owner'),
+		       COALESCE(
+		           CASE WHEN d.logto_id IS NOT NULL THEN 'distributor'
+		                WHEN rs.logto_id IS NOT NULL THEN 'reseller'
+		                WHEN c.logto_id IS NOT NULL THEN 'customer'
+		           END, 'owner'),
+		       COUNT(DISTINCT e.system_id),
+		       COUNT(*) FILTER (WHERE `+reportStatusExpr+` = 'active'),
+		       COUNT(*)
+		`+base+`
+		ORDER BY COUNT(*) FILTER (WHERE `+reportStatusExpr+` = 'active') DESC, COUNT(*) DESC
+		LIMIT $2 OFFSET $3`, search, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to compute per-org report: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := []models.EntitlementReportByOrg{}
+	for rows.Next() {
+		var row models.EntitlementReportByOrg
+		if err := rows.Scan(&row.OrganizationID, &row.OrganizationName, &row.OrgType, &row.Systems, &row.Active, &row.Total); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan per-org row: %w", err)
+		}
+		out = append(out, row)
+	}
+	return out, total, rows.Err()
+}
+
+// ReportVariants is the paginated + searchable per-tier slice of the add-on
+// report (variable products only). search filters by add-on id or tier label.
+func (r *LocalSystemEntitlementRepository) ReportVariants(search string, limit, offset int) ([]models.EntitlementReportByVariant, int, error) {
+	where := `
+		FROM system_entitlements e
+		JOIN systems s ON s.id = e.system_id
+		WHERE s.deleted_at IS NULL AND e.variant->>'label' IS NOT NULL
+		  AND ($1 = '' OR e.entitlement ILIKE '%' || $1 || '%' OR e.variant->>'label' ILIKE '%' || $1 || '%')
+		GROUP BY e.entitlement, e.variant->>'label'`
+
+	var total int
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM (SELECT 1 `+where+`) g`, search).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("failed to count report tiers: %w", err)
+	}
+
+	rows, err := r.db.Query(`
+		SELECT e.entitlement, e.variant->>'label', COUNT(*)
+		`+where+`
+		ORDER BY e.entitlement, COUNT(*) DESC
+		LIMIT $2 OFFSET $3`, search, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to compute per-variant report: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := []models.EntitlementReportByVariant{}
+	for rows.Next() {
+		var row models.EntitlementReportByVariant
+		if err := rows.Scan(&row.Entitlement, &row.Label, &row.Count); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan per-variant row: %w", err)
+		}
+		out = append(out, row)
+	}
+	return out, total, rows.Err()
+}
+
 // Stats aggregates ACTIVE grants per entitlement per organization, within
 // the caller's scope (nil = everything).
 func (r *LocalSystemEntitlementRepository) Stats(orgScope []string) ([]*models.EntitlementStatsRow, error) {
