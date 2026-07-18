@@ -2524,6 +2524,10 @@ components:
             expiring_in_90d: { type: integer, example: 22, description: "Active grants expiring within 90 days (cumulative)" }
             systems: { type: integer, example: 80, description: "Distinct systems with at least one grant" }
             organizations: { type: integer, example: 35, description: "Distinct organizations owning those systems" }
+            distributor_systems: { type: integer, example: 20, description: "Systems owned by distributor organizations (the four *_systems fields sum up to systems)" }
+            reseller_systems: { type: integer, example: 35, description: "Systems owned by reseller organizations" }
+            customer_systems: { type: integer, example: 22, description: "Systems owned by customer organizations" }
+            owner_systems: { type: integer, example: 3, description: "Systems owned by the owner organization" }
             total_renewals: { type: integer, example: 60, description: "Sum of renewal_count over all grants" }
         by_entitlement:
           type: array

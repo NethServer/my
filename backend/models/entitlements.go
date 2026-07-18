@@ -161,9 +161,15 @@ type EntitlementReportTotals struct {
 	ExpiringIn30d int `json:"expiring_in_30d"`
 	ExpiringIn60d int `json:"expiring_in_60d"`
 	ExpiringIn90d int `json:"expiring_in_90d"`
-	Systems       int `json:"systems"`        // distinct systems with at least one grant
-	Organizations int `json:"organizations"`  // distinct orgs owning those systems
-	TotalRenewals int `json:"total_renewals"` // sum of renewal_count over all grants
+	Systems       int `json:"systems"`       // distinct systems with at least one grant
+	Organizations int `json:"organizations"` // distinct orgs owning those systems
+	// Breakdown of Systems by the hierarchy role of the owning org (the
+	// four sum up to Systems).
+	DistributorSystems int `json:"distributor_systems"`
+	ResellerSystems    int `json:"reseller_systems"`
+	CustomerSystems    int `json:"customer_systems"`
+	OwnerSystems       int `json:"owner_systems"`
+	TotalRenewals      int `json:"total_renewals"` // sum of renewal_count over all grants
 }
 
 // EntitlementReportByType is the lifecycle breakdown of one add-on type.

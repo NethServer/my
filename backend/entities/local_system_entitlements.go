@@ -730,7 +730,8 @@ func (r *LocalSystemEntitlementRepository) Report() (*models.EntitlementReport, 
 
 	statusJoin := `FROM system_entitlements e JOIN systems s ON s.id = e.system_id WHERE s.deleted_at IS NULL`
 
-	// Totals: lifecycle counts, expiry buckets, coverage and renewals in one pass.
+	// Totals: lifecycle counts, expiry buckets, coverage (with the org-type
+	// breakdown of who is buying) and renewals in one pass.
 	err := r.db.QueryRow(`
 		SELECT COUNT(*),
 		       COUNT(*) FILTER (WHERE `+reportStatusExpr+` = 'active'),
@@ -744,14 +745,26 @@ func (r *LocalSystemEntitlementRepository) Report() (*models.EntitlementReport, 
 		       COUNT(*) FILTER (WHERE e.revoked_at IS NULL AND e.valid_until > NOW() AND e.valid_until <= NOW() + interval '90 days'),
 		       COUNT(DISTINCT e.system_id),
 		       COUNT(DISTINCT s.organization_id),
+		       COUNT(DISTINCT e.system_id) FILTER (WHERE d.logto_id IS NOT NULL),
+		       COUNT(DISTINCT e.system_id) FILTER (WHERE rs.logto_id IS NOT NULL),
+		       COUNT(DISTINCT e.system_id) FILTER (WHERE c.logto_id IS NOT NULL),
+		       COUNT(DISTINCT e.system_id) FILTER (WHERE d.logto_id IS NULL AND rs.logto_id IS NULL AND c.logto_id IS NULL),
 		       COALESCE(SUM(e.renewal_count), 0)
-		`+statusJoin,
+		FROM system_entitlements e
+		JOIN systems s ON s.id = e.system_id
+		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
+		LEFT JOIN resellers   rs ON s.organization_id = rs.logto_id AND rs.deleted_at IS NULL
+		LEFT JOIN customers    c ON s.organization_id = c.logto_id AND c.deleted_at IS NULL
+		WHERE s.deleted_at IS NULL`,
 	).Scan(
 		&report.Totals.Total, &report.Totals.Active, &report.Totals.Expired,
 		&report.Totals.Revoked, &report.Totals.Pending, &report.Totals.Suspended,
 		&report.Totals.Perpetual,
 		&report.Totals.ExpiringIn30d, &report.Totals.ExpiringIn60d, &report.Totals.ExpiringIn90d,
-		&report.Totals.Systems, &report.Totals.Organizations, &report.Totals.TotalRenewals,
+		&report.Totals.Systems, &report.Totals.Organizations,
+		&report.Totals.DistributorSystems, &report.Totals.ResellerSystems, &report.Totals.CustomerSystems,
+		&report.Totals.OwnerSystems,
+		&report.Totals.TotalRenewals,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute report totals: %w", err)

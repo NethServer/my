@@ -13,7 +13,9 @@
 <script setup lang="ts">
 import {
   NeBadgeV2,
+  NeButton,
   NeCard,
+  NeEmptyState,
   NeHeading,
   NeInlineNotification,
   NePaginator,
@@ -32,8 +34,11 @@ import {
   faCircleCheck,
   faCirclePause,
   faCircleXmark,
+  faCity,
   faClock,
+  faGlobe,
   faHourglassHalf,
+  faMagnifyingGlass,
   faServer,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -164,6 +169,49 @@ const orgTypeBadgeKind = (orgType: string) => {
       return 'gray'
   }
 }
+
+// Systems broken down by the owning org's hierarchy role (the counts sum up
+// to the card counter), with the same icons as the Companies and users menu.
+const orgBreakdown = computed(() =>
+  [
+    {
+      key: 'distributors',
+      icon: faGlobe,
+      count: report.value?.totals.distributor_systems ?? 0,
+      label: t('entitlements.in_distributors'),
+    },
+    {
+      key: 'resellers',
+      icon: faCity,
+      count: report.value?.totals.reseller_systems ?? 0,
+      label: t('entitlements.in_resellers'),
+    },
+    {
+      key: 'customers',
+      icon: faBuilding,
+      count: report.value?.totals.customer_systems ?? 0,
+      label: t('entitlements.in_customers'),
+    },
+    {
+      key: 'owner',
+      icon: faServer,
+      count: report.value?.totals.owner_systems ?? 0,
+      label: t('entitlements.in_owner'),
+    },
+  ].filter((row) => row.count > 0),
+)
+
+// ----- empty states (same two-state pattern as the entity tables:
+// no data at all vs no match for the current search) -----
+const byAddonEmpty = computed(
+  () => state.value.status === 'success' && !(report.value?.by_entitlement.length ?? 0),
+)
+const orgsEmpty = computed(
+  () => orgsState.value.status === 'success' && !(orgsState.value.data?.total ?? 0),
+)
+const tiersEmpty = computed(
+  () => tiersState.value.status === 'success' && !(tiersState.value.data?.total ?? 0),
+)
 </script>
 
 <template>
@@ -209,11 +257,12 @@ const orgTypeBadgeKind = (orgType: string) => {
         :loading="loading"
       >
         <div class="flex flex-wrap justify-center gap-2">
-          <NeBadgeV2 kind="gray">
+          <!-- the owning organizations, same icons as the Companies and
+             users menu -->
+          <NeBadgeV2 v-for="row in orgBreakdown" :key="row.key" kind="gray">
             <div class="flex items-center gap-1">
-              <FontAwesomeIcon :icon="faBuilding" class="size-3" aria-hidden="true" />
-              {{ report?.totals.organizations ?? 0 }}
-              {{ t('entitlements.organizations_label').toLowerCase() }}
+              <FontAwesomeIcon :icon="row.icon" class="size-3" aria-hidden="true" />
+              {{ row.count }} {{ row.label }}
             </div>
           </NeBadgeV2>
         </div>
@@ -320,7 +369,15 @@ const orgTypeBadgeKind = (orgType: string) => {
           {{ t('entitlements.status_' + (s.key === 'pending' ? 'pending_payment' : s.key)) }}
         </span>
       </div>
+      <!-- empty state -->
+      <NeEmptyState
+        v-if="byAddonEmpty"
+        :title="t('entitlements.no_grants_yet')"
+        :icon="faCertificate"
+        class="bg-white dark:bg-gray-950"
+      />
       <NeTable
+        v-else
         :aria-label="t('entitlements.by_addon')"
         card-breakpoint="xl"
         :loading="loading"
@@ -389,7 +446,27 @@ const orgTypeBadgeKind = (orgType: string) => {
         class="mb-4 max-w-xs"
         @blur="orgsTextFilter = orgsTextFilter.trim()"
       />
+      <!-- empty state -->
+      <NeEmptyState
+        v-if="orgsEmpty && !orgsTextFilter"
+        :title="t('entitlements.no_report_organizations')"
+        :icon="faBuilding"
+        class="bg-white dark:bg-gray-950"
+      />
+      <!-- no organization matching filter -->
+      <NeEmptyState
+        v-else-if="orgsEmpty"
+        :title="t('entitlements.no_organizations_found')"
+        :description="t('common.try_changing_search_filters')"
+        :icon="faMagnifyingGlass"
+        class="bg-white dark:bg-gray-950"
+      >
+        <NeButton kind="tertiary" @click="orgsTextFilter = ''">
+          {{ t('common.reset_filters') }}
+        </NeButton>
+      </NeEmptyState>
       <NeTable
+        v-else
         :aria-label="t('entitlements.by_organization')"
         card-breakpoint="xl"
         :loading="orgsState.status === 'pending'"
@@ -451,7 +528,21 @@ const orgTypeBadgeKind = (orgType: string) => {
         class="mb-4 max-w-xs"
         @blur="tiersTextFilter = tiersTextFilter.trim()"
       />
+      <!-- no tier matching filter (the whole section is hidden when there
+         are no tiers at all) -->
+      <NeEmptyState
+        v-if="tiersEmpty"
+        :title="t('entitlements.no_tiers_found')"
+        :description="t('common.try_changing_search_filters')"
+        :icon="faMagnifyingGlass"
+        class="bg-white dark:bg-gray-950"
+      >
+        <NeButton kind="tertiary" @click="tiersTextFilter = ''">
+          {{ t('common.reset_filters') }}
+        </NeButton>
+      </NeEmptyState>
       <NeTable
+        v-else
         :aria-label="t('entitlements.by_tier')"
         card-breakpoint="xl"
         :loading="tiersState.status === 'pending'"

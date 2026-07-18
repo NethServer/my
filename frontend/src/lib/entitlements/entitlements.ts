@@ -86,6 +86,11 @@ export interface EntitlementReport {
     expiring_in_90d: number
     systems: number
     organizations: number
+    // breakdown of `systems` by the owning org's hierarchy role
+    distributor_systems: number
+    reseller_systems: number
+    customer_systems: number
+    owner_systems: number
     total_renewals: number
   }
   by_entitlement: {
