@@ -370,20 +370,27 @@ func (r *LocalSystemEntitlementRepository) Get(systemID, entitlement, scope stri
 
 // Create grants an entitlement to a system. Duplicate (system, entitlement,
 // scope) tuples return ErrEntitlementExists — renewals must Update the
-// existing row.
-func (r *LocalSystemEntitlementRepository) Create(systemID, entitlement, scope, source, sourceRef string, validFrom, validUntil *time.Time, createdBy map[string]interface{}) (*models.SystemEntitlement, error) {
+// existing row. purchasedBy carries the buyer snapshot when the caller has
+// one (legacy-import backfill with the order email); nil otherwise.
+func (r *LocalSystemEntitlementRepository) Create(systemID, entitlement, scope, source, sourceRef string, validFrom, validUntil *time.Time, createdBy, purchasedBy map[string]interface{}) (*models.SystemEntitlement, error) {
 	var createdByJSON []byte
 	if createdBy != nil {
 		createdByJSON, _ = json.Marshal(createdBy)
+	}
+	// interface{} nil → SQL NULL: lib/pq encodes a nil []byte as an empty
+	// string, which jsonb rejects.
+	var purchasedByJSON interface{}
+	if purchasedBy != nil {
+		purchasedByJSON, _ = json.Marshal(purchasedBy)
 	}
 
 	// validFrom NULL → DB default now(); set for legacy imports to preserve
 	// the original order date.
 	e, err := scanEntitlement(r.db.QueryRow(
-		`INSERT INTO system_entitlements (system_id, entitlement, scope, source, source_ref, valid_from, valid_until, created_by)
-		 VALUES ($1, $2, $3, $4, NULLIF($5, ''), COALESCE($6, now()), $7, $8)
+		`INSERT INTO system_entitlements (system_id, entitlement, scope, source, source_ref, valid_from, valid_until, created_by, purchased_by)
+		 VALUES ($1, $2, $3, $4, NULLIF($5, ''), COALESCE($6, now()), $7, $8, $9)
 		 RETURNING `+entitlementColumns,
-		systemID, entitlement, scope, source, sourceRef, validFrom, validUntil, createdByJSON))
+		systemID, entitlement, scope, source, sourceRef, validFrom, validUntil, createdByJSON, purchasedByJSON))
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
 			switch pqErr.Code {
