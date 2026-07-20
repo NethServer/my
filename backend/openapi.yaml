@@ -2383,9 +2383,10 @@ components:
       type: object
       description: |
         Audit snapshot of the my user that BOUGHT the grant on the shop,
-        resolved from the order's customer email at activation and frozen at
-        purchase time (robust to later renames/moves). Omitted for manual
-        grants, legacy imports and stamped legacy orders. When the email
+        resolved from the order's customer email (webhook activation, or the
+        legacy-import backfill when the expiry map carries the order email)
+        and frozen at purchase time (robust to later renames/moves). Omitted
+        for manual grants and legacy rows without an order. When the email
         matches no my user only `email` is present. When the buyer's
         organization is outside the viewer's hierarchy the snapshot is
         redacted to `{out_of_scope: true}` (owner org and Super Admin always
@@ -2615,6 +2616,13 @@ components:
           type: string
           description: Free-form reference to the originating record
           example: "sub_12345"
+        buyer_email:
+          type: string
+          description: |
+            Customer email of the originating shop order (legacy-import
+            backfill): resolved to a my user for the `purchased_by` snapshot,
+            kept raw when no user matches.
+          example: "mario.rossi@example.com"
 
     UpdateSystemEntitlementRequest:
       type: object
@@ -2741,7 +2749,7 @@ components:
             Email of the WordPress customer that owns the order
             (server-to-server, trusted). Resolved to a my user to store the
             `purchased_by` audit snapshot; an address matching no my user is
-            kept raw. Omitted on stamped legacy orders.
+            kept raw.
           example: "mario.rossi@example.com"
         variant:
           $ref: '#/components/schemas/EntitlementVariant'

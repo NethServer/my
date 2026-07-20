@@ -244,13 +244,15 @@ type SystemEntitlement struct {
 	Status       string                 `json:"status"` // active | expired | revoked | suspended | pending (see EntitlementStatus)
 	CreatedBy    map[string]interface{} `json:"created_by,omitempty"`
 	// PurchasedBy is the audit snapshot of the my user that BOUGHT the grant
-	// on the shop, resolved from the order's customer email at activation:
-	// {logto_id, name, email, organization_id, organization_name, org_role,
-	// user_roles} — {email} only when the address matches no my user, nil for
-	// manual grants, legacy imports and stamped legacy orders. CreatedBy stays
-	// the webhook actor (owner key); this is the real buyer. Read endpoints
-	// redact it to {out_of_scope: true} when the buyer's organization is
-	// outside the viewer's hierarchy.
+	// on the shop, resolved from the order's customer email (webhook
+	// activation, or the legacy-import backfill when the expiry map carries
+	// the order email): {logto_id, name, email, organization_id,
+	// organization_name, org_role, user_roles} — {email} only when the
+	// address matches no my user, nil for manual grants and legacy rows
+	// without an order. CreatedBy stays the webhook/import actor (owner
+	// key); this is the real buyer. Read endpoints redact it to
+	// {out_of_scope: true} when the buyer's organization is outside the
+	// viewer's hierarchy.
 	PurchasedBy map[string]interface{} `json:"purchased_by,omitempty"`
 	// Variant is the shop variation (tier) of the purchased product line,
 	// {id, sku, label} (e.g. label "16-30 device"). Display metadata only:
@@ -276,6 +278,10 @@ type CreateSystemEntitlementRequest struct {
 	ValidUntil  *time.Time `json:"valid_until,omitempty"`
 	Source      string     `json:"source,omitempty"`
 	SourceRef   string     `json:"source_ref,omitempty"`
+	// BuyerEmail is the customer email of the originating shop order (legacy
+	// import backfill): resolved to a my user for the purchased_by snapshot,
+	// kept raw when no user matches. See ActivateEntitlementRequest.
+	BuyerEmail string `json:"buyer_email,omitempty"`
 }
 
 // ActivateEntitlementRequest is the shop-facing activation/renewal call
