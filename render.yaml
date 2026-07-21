@@ -234,11 +234,13 @@ services:
 
       # Connection pool: kept small for the 256MB Postgres tier (each backend
       # process costs a few MB, so an oversized pool OOMs the DB, not scales it).
-      # Honoured once the prod image ships the env-driven pool.
+      # Honoured once the prod image ships the env-driven pool. 10/3 gives the
+      # user-facing API concurrency headroom while staying well within the
+      # 256MB tier's budget (backend 10 + collect 10 << max_connections 103).
       - key: DATABASE_MAX_CONNS
-        value: 6
+        value: 10
       - key: DATABASE_MAX_IDLE
-        value: 2
+        value: 3
 
       # Backend-only alerting webhook URL (env-specific public URL)
       - key: ALERTING_HISTORY_WEBHOOK_URL

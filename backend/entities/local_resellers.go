@@ -307,14 +307,16 @@ func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, searc
 		query = fmt.Sprintf(`
 			SELECT r.id, r.logto_id, r.name, r.description, r.custom_data, r.created_at, r.updated_at,
 			       r.logto_synced_at, r.logto_sync_error, r.deleted_at, r.suspended_at, r.suspended_by_org_id,
-			       (SELECT COUNT(*) FROM systems s WHERE s.deleted_at IS NULL AND (
-			           s.organization_id = r.logto_id
-			           OR s.organization_id IN (SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL)
+			       (SELECT COUNT(*) FROM systems s WHERE s.deleted_at IS NULL AND s.organization_id IN (
+			           SELECT r.logto_id
+			           UNION ALL
+			           SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL
 			       )) as systems_count,
 			       (SELECT COUNT(*) FROM customers c WHERE c.custom_data->>'createdBy' = r.logto_id AND c.deleted_at IS NULL) as customers_count,
-			       (SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND (
-			           a.organization_id = r.logto_id
-			           OR a.organization_id IN (SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL)
+			       (SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND a.organization_id IN (
+			           SELECT r.logto_id
+			           UNION ALL
+			           SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL
 			       )) as applications_count
 			FROM resellers r
 			WHERE 1=1%s%s AND (LOWER(r.name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(r.description) LIKE LOWER('%%' || $1 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(r.custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $1 || '%%')))
@@ -330,14 +332,16 @@ func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, searc
 		query = fmt.Sprintf(`
 			SELECT r.id, r.logto_id, r.name, r.description, r.custom_data, r.created_at, r.updated_at,
 			       r.logto_synced_at, r.logto_sync_error, r.deleted_at, r.suspended_at, r.suspended_by_org_id,
-			       (SELECT COUNT(*) FROM systems s WHERE s.deleted_at IS NULL AND (
-			           s.organization_id = r.logto_id
-			           OR s.organization_id IN (SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL)
+			       (SELECT COUNT(*) FROM systems s WHERE s.deleted_at IS NULL AND s.organization_id IN (
+			           SELECT r.logto_id
+			           UNION ALL
+			           SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL
 			       )) as systems_count,
 			       (SELECT COUNT(*) FROM customers c WHERE c.custom_data->>'createdBy' = r.logto_id AND c.deleted_at IS NULL) as customers_count,
-			       (SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND (
-			           a.organization_id = r.logto_id
-			           OR a.organization_id IN (SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL)
+			       (SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND a.organization_id IN (
+			           SELECT r.logto_id
+			           UNION ALL
+			           SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL
 			       )) as applications_count
 			FROM resellers r
 			WHERE 1=1%s%s
@@ -414,14 +418,16 @@ func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pag
 		query = fmt.Sprintf(`
 			SELECT r.id, r.logto_id, r.name, r.description, r.custom_data, r.created_at, r.updated_at,
 			       r.logto_synced_at, r.logto_sync_error, r.deleted_at, r.suspended_at, r.suspended_by_org_id,
-			       (SELECT COUNT(*) FROM systems s WHERE s.deleted_at IS NULL AND (
-			           s.organization_id = r.logto_id
-			           OR s.organization_id IN (SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL)
+			       (SELECT COUNT(*) FROM systems s WHERE s.deleted_at IS NULL AND s.organization_id IN (
+			           SELECT r.logto_id
+			           UNION ALL
+			           SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL
 			       )) as systems_count,
 			       (SELECT COUNT(*) FROM customers c WHERE c.custom_data->>'createdBy' = r.logto_id AND c.deleted_at IS NULL) as customers_count,
-			       (SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND (
-			           a.organization_id = r.logto_id
-			           OR a.organization_id IN (SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL)
+			       (SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND a.organization_id IN (
+			           SELECT r.logto_id
+			           UNION ALL
+			           SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL
 			       )) as applications_count
 			FROM resellers r
 			WHERE r.custom_data->>'createdBy' = $1%s%s AND (LOWER(r.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(r.description) LIKE LOWER('%%' || $2 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(r.custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $2 || '%%')))
@@ -437,14 +443,16 @@ func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pag
 		query = fmt.Sprintf(`
 			SELECT r.id, r.logto_id, r.name, r.description, r.custom_data, r.created_at, r.updated_at,
 			       r.logto_synced_at, r.logto_sync_error, r.deleted_at, r.suspended_at, r.suspended_by_org_id,
-			       (SELECT COUNT(*) FROM systems s WHERE s.deleted_at IS NULL AND (
-			           s.organization_id = r.logto_id
-			           OR s.organization_id IN (SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL)
+			       (SELECT COUNT(*) FROM systems s WHERE s.deleted_at IS NULL AND s.organization_id IN (
+			           SELECT r.logto_id
+			           UNION ALL
+			           SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL
 			       )) as systems_count,
 			       (SELECT COUNT(*) FROM customers c WHERE c.custom_data->>'createdBy' = r.logto_id AND c.deleted_at IS NULL) as customers_count,
-			       (SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND (
-			           a.organization_id = r.logto_id
-			           OR a.organization_id IN (SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL)
+			       (SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND a.organization_id IN (
+			           SELECT r.logto_id
+			           UNION ALL
+			           SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL
 			       )) as applications_count
 			FROM resellers r
 			WHERE r.custom_data->>'createdBy' = $1%s%s
@@ -770,20 +778,23 @@ func (r *LocalResellerRepository) GetStats(id string) (*models.ResellerStats, er
 	query := `
 		SELECT
 			(SELECT COUNT(*) FROM users WHERE organization_id = $1 AND deleted_at IS NULL) as users_count,
-			(SELECT COUNT(*) FROM users u WHERE u.deleted_at IS NULL AND (
-				u.organization_id = $1
-				OR u.organization_id IN (SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL)
+			(SELECT COUNT(*) FROM users u WHERE u.deleted_at IS NULL AND u.organization_id IN (
+				SELECT $1::text
+				UNION ALL
+				SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 			)) as users_hierarchy_count,
 			(SELECT COUNT(*) FROM systems WHERE organization_id = $1 AND deleted_at IS NULL) as systems_count,
-			(SELECT COUNT(*) FROM systems s WHERE s.deleted_at IS NULL AND (
-				s.organization_id = $1
-				OR s.organization_id IN (SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL)
+			(SELECT COUNT(*) FROM systems s WHERE s.deleted_at IS NULL AND s.organization_id IN (
+				SELECT $1::text
+				UNION ALL
+				SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 			)) as systems_hierarchy_count,
 			(SELECT COUNT(*) FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL) as customers_count,
 			(SELECT COUNT(*) FROM applications WHERE organization_id = $1 AND deleted_at IS NULL AND (inventory_data->>'certification_level')::int IN (4, 5)) as applications_count,
-			(SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND (
-				a.organization_id = $1
-				OR a.organization_id IN (SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL)
+			(SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND a.organization_id IN (
+				SELECT $1::text
+				UNION ALL
+				SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 			)) as applications_hierarchy_count
 	`
 

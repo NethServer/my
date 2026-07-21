@@ -775,6 +775,24 @@ func (s *LocalOrganizationService) ListCustomers(userOrgRole, userOrgID string, 
 	return s.customerRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy, ownedBy)
 }
 
+// ListDistributorCreators returns the distinct creators of the distributors
+// visible to the caller, for the created_by filter dropdown.
+func (s *LocalOrganizationService) ListDistributorCreators(userOrgRole, userOrgID string) ([]models.OrgCreator, error) {
+	return s.distributorRepo.ListCreators(userOrgRole, userOrgID)
+}
+
+// ListResellerCreators returns the distinct creators of the resellers visible
+// to the caller, for the created_by filter dropdown.
+func (s *LocalOrganizationService) ListResellerCreators(userOrgRole, userOrgID string) ([]models.OrgCreator, error) {
+	return s.resellerRepo.ListCreators(userOrgRole, userOrgID)
+}
+
+// ListCustomerCreators returns the distinct creators of the customers visible
+// to the caller, for the created_by filter dropdown.
+func (s *LocalOrganizationService) ListCustomerCreators(userOrgRole, userOrgID string) ([]models.OrgCreator, error) {
+	return s.customerRepo.ListCreators(userOrgRole, userOrgID)
+}
+
 // ============================================
 // UPDATE OPERATIONS
 // ============================================

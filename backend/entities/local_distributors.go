@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/models"
 )
@@ -299,40 +300,7 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 
 		query = fmt.Sprintf(`
 			SELECT d.id, d.logto_id, d.name, d.description, d.custom_data, d.created_at, d.updated_at,
-			       d.logto_synced_at, d.logto_sync_error, d.deleted_at, d.suspended_at,
-			       (SELECT COUNT(*) FROM systems s WHERE s.deleted_at IS NULL AND (
-			           s.organization_id = d.logto_id
-			           OR s.organization_id IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL)
-			           OR s.organization_id IN (
-			               SELECT c.logto_id FROM customers c
-			               WHERE c.deleted_at IS NULL AND (
-			                   c.custom_data->>'createdBy' = d.logto_id
-			                   OR c.custom_data->>'createdBy' IN (
-			                       SELECT logto_id FROM resellers
-			                       WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL
-			                   )
-			               )
-			           )
-			       )) as systems_count,
-			       (SELECT COUNT(*) FROM resellers r WHERE r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL) as resellers_count,
-			       (SELECT COUNT(*) FROM customers c WHERE c.deleted_at IS NULL AND (
-			           c.custom_data->>'createdBy' = d.logto_id
-			           OR c.custom_data->>'createdBy' IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL)
-			       )) as customers_count,
-			       (SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND (
-			           a.organization_id = d.logto_id
-			           OR a.organization_id IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL)
-			           OR a.organization_id IN (
-			               SELECT c.logto_id FROM customers c
-			               WHERE c.deleted_at IS NULL AND (
-			                   c.custom_data->>'createdBy' = d.logto_id
-			                   OR c.custom_data->>'createdBy' IN (
-			                       SELECT logto_id FROM resellers
-			                       WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL
-			                   )
-			               )
-			           )
-			       )) as applications_count
+			       d.logto_synced_at, d.logto_sync_error, d.deleted_at, d.suspended_at
 			FROM distributors d
 			WHERE 1=1%s%s AND (LOWER(d.name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(d.description) LIKE LOWER('%%' || $1 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(d.custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $1 || '%%')))
 			%s
@@ -346,40 +314,7 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 
 		query = fmt.Sprintf(`
 			SELECT d.id, d.logto_id, d.name, d.description, d.custom_data, d.created_at, d.updated_at,
-			       d.logto_synced_at, d.logto_sync_error, d.deleted_at, d.suspended_at,
-			       (SELECT COUNT(*) FROM systems s WHERE s.deleted_at IS NULL AND (
-			           s.organization_id = d.logto_id
-			           OR s.organization_id IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL)
-			           OR s.organization_id IN (
-			               SELECT c.logto_id FROM customers c
-			               WHERE c.deleted_at IS NULL AND (
-			                   c.custom_data->>'createdBy' = d.logto_id
-			                   OR c.custom_data->>'createdBy' IN (
-			                       SELECT logto_id FROM resellers
-			                       WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL
-			                   )
-			               )
-			           )
-			       )) as systems_count,
-			       (SELECT COUNT(*) FROM resellers r WHERE r.custom_data->>'createdBy' = d.logto_id AND r.deleted_at IS NULL) as resellers_count,
-			       (SELECT COUNT(*) FROM customers c WHERE c.deleted_at IS NULL AND (
-			           c.custom_data->>'createdBy' = d.logto_id
-			           OR c.custom_data->>'createdBy' IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL)
-			       )) as customers_count,
-			       (SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND (
-			           a.organization_id = d.logto_id
-			           OR a.organization_id IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL)
-			           OR a.organization_id IN (
-			               SELECT c.logto_id FROM customers c
-			               WHERE c.deleted_at IS NULL AND (
-			                   c.custom_data->>'createdBy' = d.logto_id
-			                   OR c.custom_data->>'createdBy' IN (
-			                       SELECT logto_id FROM resellers
-			                       WHERE custom_data->>'createdBy' = d.logto_id AND deleted_at IS NULL
-			                   )
-			               )
-			           )
-			       )) as applications_count
+			       d.logto_synced_at, d.logto_sync_error, d.deleted_at, d.suspended_at
 			FROM distributors d
 			WHERE 1=1%s%s
 			%s
@@ -413,14 +348,12 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 	for rows.Next() {
 		distributor := &models.LocalDistributor{}
 		var customDataJSON []byte
-		var systemsCount, resellersCount, customersCount, applicationsCount int
 
 		err := rows.Scan(
 			&distributor.ID, &distributor.LogtoID, &distributor.Name, &distributor.Description,
 			&customDataJSON, &distributor.CreatedAt, &distributor.UpdatedAt,
 			&distributor.LogtoSyncedAt, &distributor.LogtoSyncError, &distributor.DeletedAt,
 			&distributor.SuspendedAt,
-			&systemsCount, &resellersCount, &customersCount, &applicationsCount,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan distributor: %w", err)
@@ -436,11 +369,6 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 		}
 
 		distributor.CreatedBy = models.ExtractOrgCreator(distributor.CustomData)
-		distributor.SystemsCount = &systemsCount
-		distributor.ResellersCount = &resellersCount
-		distributor.CustomersCount = &customersCount
-		distributor.ApplicationsCount = &applicationsCount
-
 		distributors = append(distributors, distributor)
 	}
 
@@ -448,7 +376,169 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 		return nil, 0, fmt.Errorf("error iterating distributors: %w", err)
 	}
 
+	// Counts (systems/resellers/customers/applications per distributor subtree)
+	// are computed in a small number of single-scan queries rather than as
+	// per-row correlated subqueries: a distributor's subtree spans almost the
+	// whole database, so the correlated form re-scanned systems/applications
+	// once per row. See populateDistributorCounts.
+	if err := r.populateDistributorCounts(distributors); err != nil {
+		return nil, 0, fmt.Errorf("failed to populate distributor counts: %w", err)
+	}
+
 	return distributors, totalCount, nil
+}
+
+// populateDistributorCounts fills SystemsCount/ResellersCount/CustomersCount/
+// ApplicationsCount for the given distributors in a fixed, small number of
+// single-scan queries independent of the number of distributors on the page.
+//
+// A distributor's subtree (itself + its resellers + all their customers) spans
+// almost the entire org tree, so the previous per-row correlated subqueries
+// re-scanned systems and applications once for every distributor row. Instead
+// we build the org->distributor map once (two indexed lookups over resellers
+// and customers) and fold per-organization counts into it, so systems and
+// applications are each scanned a single time.
+func (r *LocalDistributorRepository) populateDistributorCounts(distributors []*models.LocalDistributor) error {
+	// Initialise every distributor to zero so the API always returns the fields,
+	// and index the ones that have a logto_id (unsynced rows own nothing yet).
+	byLogto := make(map[string]*models.LocalDistributor, len(distributors))
+	distIDs := make([]string, 0, len(distributors))
+	for _, d := range distributors {
+		zero := 0
+		sc, rc, cc, ac := zero, zero, zero, zero
+		d.SystemsCount, d.ResellersCount, d.CustomersCount, d.ApplicationsCount = &sc, &rc, &cc, &ac
+		if d.LogtoID != nil && *d.LogtoID != "" {
+			byLogto[*d.LogtoID] = d
+			distIDs = append(distIDs, *d.LogtoID)
+		}
+	}
+	if len(distIDs) == 0 {
+		return nil
+	}
+
+	// orgToDist maps every organization in any page distributor's subtree to
+	// that distributor's logto_id: the distributor itself, its resellers, and
+	// the customers owned directly by it or by one of its resellers.
+	orgToDist := make(map[string]string)
+	for _, id := range distIDs {
+		orgToDist[id] = id
+	}
+
+	// Resellers created by the page distributors.
+	resToDist := make(map[string]string)
+	rows, err := r.db.Query(`SELECT logto_id, custom_data->>'createdBy' FROM resellers WHERE deleted_at IS NULL AND logto_id IS NOT NULL AND custom_data->>'createdBy' = ANY($1)`, pq.Array(distIDs))
+	if err != nil {
+		return fmt.Errorf("failed to query resellers for counts: %w", err)
+	}
+	var resellerIDs []string
+	for rows.Next() {
+		var resLogto, distID string
+		if err := rows.Scan(&resLogto, &distID); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("failed to scan reseller for counts: %w", err)
+		}
+		resToDist[resLogto] = distID
+		orgToDist[resLogto] = distID
+		resellerIDs = append(resellerIDs, resLogto)
+		if d := byLogto[distID]; d != nil {
+			*d.ResellersCount++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return fmt.Errorf("error iterating resellers for counts: %w", err)
+	}
+	_ = rows.Close()
+
+	// Customers created directly by the page distributors.
+	if err := r.foldCustomers(`custom_data->>'createdBy' = ANY($1)`, pq.Array(distIDs), func(custLogto, createdBy string) string {
+		return createdBy // createdBy is the distributor itself
+	}, orgToDist, byLogto); err != nil {
+		return err
+	}
+
+	// Customers created by resellers of the page distributors.
+	if len(resellerIDs) > 0 {
+		if err := r.foldCustomers(`custom_data->>'createdBy' = ANY($1)`, pq.Array(resellerIDs), func(custLogto, createdBy string) string {
+			return resToDist[createdBy] // map reseller -> its distributor
+		}, orgToDist, byLogto); err != nil {
+			return err
+		}
+	}
+
+	// Fold per-organization system and certified-application counts into the map.
+	// The queries scan each table once, grouped by organization, with no org
+	// filter: a distributor's subtree covers almost every organization, so a
+	// single sequential scan is cheaper than probing the index for thousands of
+	// IDs. Organizations outside any page distributor's subtree resolve to no
+	// distributor and are ignored.
+	if err := r.foldOrgCounts(
+		`SELECT organization_id, COUNT(*) FROM systems WHERE deleted_at IS NULL AND organization_id IS NOT NULL GROUP BY organization_id`,
+		orgToDist, byLogto, func(d *models.LocalDistributor) *int { return d.SystemsCount },
+	); err != nil {
+		return fmt.Errorf("failed to fold system counts: %w", err)
+	}
+	if err := r.foldOrgCounts(
+		`SELECT organization_id, COUNT(*) FROM applications WHERE deleted_at IS NULL AND organization_id IS NOT NULL AND (inventory_data->>'certification_level')::int IN (4, 5) GROUP BY organization_id`,
+		orgToDist, byLogto, func(d *models.LocalDistributor) *int { return d.ApplicationsCount },
+	); err != nil {
+		return fmt.Errorf("failed to fold application counts: %w", err)
+	}
+
+	return nil
+}
+
+// foldCustomers runs a customers query filtered by whereExpr/arg, and for each
+// row records the customer's owning distributor (resolved by distFor) into
+// orgToDist while incrementing that distributor's CustomersCount.
+func (r *LocalDistributorRepository) foldCustomers(whereExpr string, arg interface{}, distFor func(custLogto, createdBy string) string, orgToDist map[string]string, byLogto map[string]*models.LocalDistributor) error {
+	query := fmt.Sprintf(`SELECT logto_id, custom_data->>'createdBy' FROM customers WHERE deleted_at IS NULL AND logto_id IS NOT NULL AND %s`, whereExpr)
+	rows, err := r.db.Query(query, arg)
+	if err != nil {
+		return fmt.Errorf("failed to query customers for counts: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var custLogto, createdBy string
+		if err := rows.Scan(&custLogto, &createdBy); err != nil {
+			return fmt.Errorf("failed to scan customer for counts: %w", err)
+		}
+		distID := distFor(custLogto, createdBy)
+		if distID == "" {
+			continue
+		}
+		orgToDist[custLogto] = distID
+		if d := byLogto[distID]; d != nil {
+			*d.CustomersCount++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error iterating customers for counts: %w", err)
+	}
+	return nil
+}
+
+// foldOrgCounts runs a per-organization COUNT(*) query (one scan, grouped by
+// organization) and adds each organization's count to its owning distributor's
+// counter (selected by pick). Organizations with no owning distributor in the
+// current page are ignored.
+func (r *LocalDistributorRepository) foldOrgCounts(query string, orgToDist map[string]string, byLogto map[string]*models.LocalDistributor, pick func(*models.LocalDistributor) *int) error {
+	rows, err := r.db.Query(query)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var orgID string
+		var n int
+		if err := rows.Scan(&orgID, &n); err != nil {
+			return err
+		}
+		if d := byLogto[orgToDist[orgID]]; d != nil {
+			*pick(d) += n
+		}
+	}
+	return rows.Err()
 }
 
 // GetTotals returns total count of distributors visible to the user

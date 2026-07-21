@@ -11,7 +11,6 @@ package methods
 
 import (
 	"net/http"
-	"sort"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -22,11 +21,6 @@ import (
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services/local"
 )
-
-// orgFiltersScanLimit bounds how many organizations are scanned to build the
-// created_by filter options. Organization counts are in the low thousands, so a
-// single generous page captures every distinct creator the user can see.
-const orgFiltersScanLimit = 100000
 
 // creatorFilterOption is one selectable creator in the filters dropdown. It
 // carries the creator's org (name + id) alongside the user so the UI can
@@ -40,29 +34,20 @@ type creatorFilterOption struct {
 	OrganizationName string `json:"organization_name"`
 }
 
-// distinctCreators collects the unique creators from a page of organizations,
-// deduplicated by user_id and sorted by name. This keeps the option list shape
-// unchanged (one entry per user); the creator's org (from the first record seen
-// for that user) is attached purely so the UI can label homonyms. Organizations
-// without a creator snapshot are skipped.
-func distinctCreators[T any](items []T, get func(T) *models.OrgCreator) []creatorFilterOption {
-	seen := make(map[string]bool)
-	out := make([]creatorFilterOption, 0)
-	for _, it := range items {
-		cb := get(it)
-		if cb == nil || cb.UserID == "" || seen[cb.UserID] {
-			continue
-		}
-		seen[cb.UserID] = true
+// toCreatorOptions maps the creator snapshots returned by the repository to the
+// filter dropdown shape (one entry per user, already deduplicated and sorted by
+// name). The org is attached only to label homonyms in the UI.
+func toCreatorOptions(creators []models.OrgCreator) []creatorFilterOption {
+	out := make([]creatorFilterOption, 0, len(creators))
+	for _, cr := range creators {
 		out = append(out, creatorFilterOption{
-			UserID:           cb.UserID,
-			Name:             cb.Name,
-			Email:            cb.Email,
-			OrganizationID:   cb.OrganizationID,
-			OrganizationName: cb.OrganizationName,
+			UserID:           cr.UserID,
+			Name:             cr.Name,
+			Email:            cr.Email,
+			OrganizationID:   cr.OrganizationID,
+			OrganizationName: cr.OrganizationName,
 		})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
 }
 
@@ -77,7 +62,7 @@ func GetDistributorFilters(c *gin.Context) {
 
 	service := local.NewOrganizationService()
 	userOrgRole := strings.ToLower(user.OrgRole)
-	distributors, _, err := service.ListDistributors(userOrgRole, user.OrganizationID, 1, orgFiltersScanLimit, "", "name", "asc", nil, nil)
+	creators, err := service.ListDistributorCreators(userOrgRole, user.OrganizationID)
 	if err != nil {
 		logger.Error().Err(err).Str("user_id", user.ID).Msg("Failed to retrieve distributor filters")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve distributor filters", nil))
@@ -85,7 +70,7 @@ func GetDistributorFilters(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response.OK("distributor filters retrieved successfully", gin.H{
-		"created_by": distinctCreators(distributors, func(d *models.LocalDistributor) *models.OrgCreator { return d.CreatedBy }),
+		"created_by": toCreatorOptions(creators),
 	}))
 }
 
@@ -99,7 +84,7 @@ func GetResellerFilters(c *gin.Context) {
 
 	service := local.NewOrganizationService()
 	userOrgRole := strings.ToLower(user.OrgRole)
-	resellers, _, err := service.ListResellers(userOrgRole, user.OrganizationID, 1, orgFiltersScanLimit, "", "name", "asc", nil, nil, nil)
+	creators, err := service.ListResellerCreators(userOrgRole, user.OrganizationID)
 	if err != nil {
 		logger.Error().Err(err).Str("user_id", user.ID).Msg("Failed to retrieve reseller filters")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve reseller filters", nil))
@@ -107,7 +92,7 @@ func GetResellerFilters(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response.OK("reseller filters retrieved successfully", gin.H{
-		"created_by": distinctCreators(resellers, func(r *models.LocalReseller) *models.OrgCreator { return r.CreatedBy }),
+		"created_by": toCreatorOptions(creators),
 	}))
 }
 
@@ -121,7 +106,7 @@ func GetCustomerFilters(c *gin.Context) {
 
 	service := local.NewOrganizationService()
 	userOrgRole := strings.ToLower(user.OrgRole)
-	customers, _, err := service.ListCustomers(userOrgRole, user.OrganizationID, 1, orgFiltersScanLimit, "", "name", "asc", nil, nil, nil)
+	creators, err := service.ListCustomerCreators(userOrgRole, user.OrganizationID)
 	if err != nil {
 		logger.Error().Err(err).Str("user_id", user.ID).Msg("Failed to retrieve customer filters")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve customer filters", nil))
@@ -129,6 +114,6 @@ func GetCustomerFilters(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response.OK("customer filters retrieved successfully", gin.H{
-		"created_by": distinctCreators(customers, func(cu *models.LocalCustomer) *models.OrgCreator { return cu.CreatedBy }),
+		"created_by": toCreatorOptions(creators),
 	}))
 }
