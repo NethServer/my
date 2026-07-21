@@ -15,6 +15,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/lib/pq"
+
+	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/models"
 )
 
@@ -70,24 +73,74 @@ func ownedByFilterClause(ownedBy []string) string {
 	return fmt.Sprintf(" AND custom_data->>'createdBy' IN (%s)", strings.Join(quoted, ", "))
 }
 
-// queryOrgCreators returns the distinct creator snapshots (custom_data.createdByUser)
-// of the organizations in the given table matching scopeClause. It powers the
-// created_by filter dropdown on the distributor/reseller/customer lists without
-// paying for the per-row hierarchy counts the full List query computes: it reads
-// only the snapshot from one pass over the (small) org table.
+// CreatorHomeOrg is a creator's real owning organization — the one they belong
+// to, not the on_behalf_of organization recorded in a created_by snapshot.
+type CreatorHomeOrg struct {
+	OrganizationID   string
+	OrganizationName string
+}
+
+// ResolveCreatorHomeOrgs maps creator Logto user IDs to their real home
+// organization, resolved from the users table (users.organization_id) and named
+// via unified_organizations. It exists because created_by snapshots store the
+// on_behalf_of organization the creator acted for, not the creator's own org:
+// an account that onboards entities across many organizations (e.g. the owner,
+// or a distributor operating for its resellers) would otherwise be labelled with
+// an arbitrary one of them in the created_by filter dropdown. Creators that
+// aren't regular users (the owner is not in the users table) are simply absent
+// from the map, so the caller shows no organization for them — there is no
+// homonym to disambiguate for a single platform account anyway.
+func ResolveCreatorHomeOrgs(userIDs []string) (map[string]CreatorHomeOrg, error) {
+	out := make(map[string]CreatorHomeOrg, len(userIDs))
+	if len(userIDs) == 0 {
+		return out, nil
+	}
+	rows, err := database.DB.Query(`
+		SELECT u.logto_id, u.organization_id, COALESCE(uo.name, '')
+		FROM users u
+		LEFT JOIN unified_organizations uo ON uo.logto_id = u.organization_id
+		WHERE u.deleted_at IS NULL AND u.logto_id = ANY($1)`, pq.Array(userIDs))
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve creator home orgs: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var logtoID string
+		var orgID sql.NullString
+		var orgName string
+		if err := rows.Scan(&logtoID, &orgID, &orgName); err != nil {
+			continue
+		}
+		out[logtoID] = CreatorHomeOrg{OrganizationID: orgID.String, OrganizationName: orgName}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating creator home orgs: %w", err)
+	}
+	return out, nil
+}
+
+// queryOrgCreators returns the distinct creators of the organizations in the
+// given table matching scopeClause. It powers the created_by filter dropdown on
+// the distributor/reseller/customer lists without paying for the per-row
+// hierarchy counts the full List query computes: it reads only the creator
+// identity from the snapshot in one pass over the (small) org table.
+//
+// The creator's organization is NOT taken from the snapshot (which records the
+// on_behalf_of org) but resolved to the creator's real home org via
+// ResolveCreatorHomeOrgs, so an account that created entities for many orgs is
+// labelled with its own org rather than an arbitrary one.
 //
 // table is a trusted constant supplied by the caller (never user input) and
 // scopeClause carries only positional placeholders, so both interpolate safely.
-// Results are deduplicated by user_id (a creator may own many orgs) and sorted
-// by name, matching LocalUserRepository.ListCreators.
+// Results are deduplicated by user_id and sorted by name, matching
+// LocalUserRepository.ListCreators.
 func queryOrgCreators(db *sql.DB, table, scopeClause string, args []interface{}) ([]models.OrgCreator, error) {
 	query := fmt.Sprintf(`
 		SELECT DISTINCT
-			custom_data->'createdByUser'->>'user_id'                        AS user_id,
-			custom_data->'createdByUser'->>'name'                           AS name,
-			COALESCE(custom_data->'createdByUser'->>'email', '')            AS email,
-			COALESCE(custom_data->'createdByUser'->>'organization_id', '')  AS organization_id,
-			COALESCE(custom_data->'createdByUser'->>'organization_name', '') AS organization_name
+			custom_data->'createdByUser'->>'user_id'             AS user_id,
+			custom_data->'createdByUser'->>'name'                AS name,
+			COALESCE(custom_data->'createdByUser'->>'email', '') AS email
 		FROM %s
 		WHERE deleted_at IS NULL
 			AND custom_data->'createdByUser'->>'user_id' IS NOT NULL
@@ -106,7 +159,7 @@ func queryOrgCreators(db *sql.DB, table, scopeClause string, args []interface{})
 	seen := make(map[string]bool)
 	for rows.Next() {
 		var c models.OrgCreator
-		if err := rows.Scan(&c.UserID, &c.Name, &c.Email, &c.OrganizationID, &c.OrganizationName); err != nil {
+		if err := rows.Scan(&c.UserID, &c.Name, &c.Email); err != nil {
 			continue
 		}
 		if seen[c.UserID] {
@@ -117,6 +170,22 @@ func queryOrgCreators(db *sql.DB, table, scopeClause string, args []interface{})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating %s creators: %w", table, err)
+	}
+
+	// Replace the snapshot's on_behalf_of org with each creator's real home org.
+	userIDs := make([]string, 0, len(creators))
+	for _, c := range creators {
+		userIDs = append(userIDs, c.UserID)
+	}
+	homeOrgs, err := ResolveCreatorHomeOrgs(userIDs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range creators {
+		if ho, ok := homeOrgs[creators[i].UserID]; ok {
+			creators[i].OrganizationID = ho.OrganizationID
+			creators[i].OrganizationName = ho.OrganizationName
+		}
 	}
 
 	return creators, nil

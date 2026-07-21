@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/nethesis/my/backend/database"
+	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/response"
@@ -95,9 +96,7 @@ func GetSystemFilters(c *gin.Context) {
 			SELECT DISTINCT
 				created_by->>'user_id' as user_id,
 				created_by->>'name' as name,
-				created_by->>'email' as email,
-				created_by->>'organization_id' as organization_id,
-				created_by->>'organization_name' as organization_name
+				created_by->>'email' as email
 			FROM systems
 			WHERE deleted_at IS NULL
 				AND created_by IS NOT NULL
@@ -117,32 +116,41 @@ func GetSystemFilters(c *gin.Context) {
 		}
 		defer func() { _ = rows.Close() }()
 
-		// Dedupe by user_id: the same user can appear with different creator orgs
-		// (created_by_organization_id attribution), but the option list carries one
-		// entry per user — the org is attached only to label homonyms in the UI.
+		// Dedupe by user_id: the same user can appear on many systems.
 		creators = make([]Creator, 0)
 		seen := make(map[string]bool)
 		for rows.Next() {
-			var uid, name, email, orgID, orgName *string
-			if err := rows.Scan(&uid, &name, &email, &orgID, &orgName); err != nil {
+			var uid, name, email *string
+			if err := rows.Scan(&uid, &name, &email); err != nil {
 				continue
 			}
 			if uid != nil && name != nil && !seen[*uid] {
 				seen[*uid] = true
-				deref := func(s *string) string {
-					if s != nil {
-						return *s
-					}
-					return ""
+				e := ""
+				if email != nil {
+					e = *email
 				}
-				creators = append(creators, Creator{
-					UserID:           *uid,
-					Name:             *name,
-					Email:            deref(email),
-					OrganizationID:   deref(orgID),
-					OrganizationName: deref(orgName),
-				})
+				creators = append(creators, Creator{UserID: *uid, Name: *name, Email: e})
 			}
+		}
+
+		// Attach each creator's real home org (not the on_behalf_of org from the
+		// created_by snapshot, which for accounts that register systems for many
+		// organizations — e.g. the owner — would be an arbitrary one). Creators
+		// that are not regular users resolve to no org.
+		userIDs := make([]string, 0, len(creators))
+		for _, cr := range creators {
+			userIDs = append(userIDs, cr.UserID)
+		}
+		homeOrgs, err := entities.ResolveCreatorHomeOrgs(userIDs)
+		if err != nil {
+			errCreators = err
+			return
+		}
+		for i := range creators {
+			ho := homeOrgs[creators[i].UserID]
+			creators[i].OrganizationID = ho.OrganizationID
+			creators[i].OrganizationName = ho.OrganizationName
 		}
 	}()
 
