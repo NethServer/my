@@ -170,10 +170,13 @@ services:
     ipAllowList: []
 
   # Production Mimir (Private Service - NOT internet accessible)
+  # standard (2 GB): one Alertmanager tenant per reseller/distributor — ~640
+  # tenants after the fleet migration. starter (512 MB) OOM-loops at this tenant
+  # count (memory scales with tenant count, not alert volume); do not downgrade.
   - type: pserv
     name: my-mimir-prod
     runtime: image
-    plan: starter
+    plan: standard
     region: frankfurt
     image:
       url: ghcr.io/nethserver/my/mimir:v0.7.9
@@ -182,9 +185,9 @@ services:
       - key: PORT
         value: 9009
       # Go must honor the cgroup limit, otherwise GC waits too long and the
-      # container is OOM-killed before any GC pass. ~78% of the 512 MB plan.
+      # container is OOM-killed before any GC pass. ~78% of the 2 GB plan.
       - key: GOMEMLIMIT
-        value: 400MiB
+        value: 1600MiB
       - key: GOGC
         value: 50
 
