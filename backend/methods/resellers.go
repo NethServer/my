@@ -100,16 +100,11 @@ func CreateReseller(c *gin.Context) {
 	// webhook is active from day one and any ancestor layers (Owner /
 	// Distributor) propagate to Mimir for the new tenant. The new reseller
 	// starts with no layer of its own; admins opt in to notifications by
-	// saving a layer via POST /alerts/config. Failure is logged but does
-	// not block reseller creation.
+	// saving a layer via POST /alerts/config. Runs in the background: a
+	// slow/struggling Mimir must not delay this response (failure is
+	// logged, does not block creation).
 	if reseller.LogtoID != nil && *reseller.LogtoID != "" {
-		if err := alerting.ProvisionDefaultConfig(*reseller.LogtoID); err != nil {
-			logger.Warn().
-				Err(err).
-				Str("reseller_id", reseller.ID).
-				Str("logto_id", *reseller.LogtoID).
-				Msg("failed to provision default alerting config for new reseller")
-		}
+		alerting.ProvisionDefaultConfigAsync(*reseller.LogtoID, "reseller", reseller.ID)
 	}
 
 	// Return success response

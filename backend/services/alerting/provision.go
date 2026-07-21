@@ -72,3 +72,31 @@ func ProvisionDefaultConfig(orgID string) error {
 
 	return fmt.Errorf("pushing default alerting config for tenant %s after %d attempts: %w", tenant, len(provisionRetryDelays)+1, lastErr)
 }
+
+// ProvisionDefaultConfigAsync runs ProvisionDefaultConfig in the background so
+// a slow or struggling Mimir cannot delay the caller's HTTP response: creating
+// a customer/reseller/distributor must not block on this. entityType/entityID
+// are only used to correlate the failure log with the org that triggered it.
+func ProvisionDefaultConfigAsync(orgID, entityType, entityID string) {
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Error().
+					Interface("panic", r).
+					Str("org_id", orgID).
+					Str("entity_type", entityType).
+					Str("entity_id", entityID).
+					Msg("panic while provisioning default alerting config")
+			}
+		}()
+
+		if err := ProvisionDefaultConfig(orgID); err != nil {
+			logger.Warn().
+				Err(err).
+				Str("org_id", orgID).
+				Str("entity_type", entityType).
+				Str("entity_id", entityID).
+				Msg("failed to provision default alerting config")
+		}
+	}()
+}

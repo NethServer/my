@@ -100,16 +100,10 @@ func CreateCustomer(c *gin.Context) {
 	// webhook is active from day one and any ancestor layers propagate to
 	// Mimir for the new tenant. The new customer starts with no layer of
 	// its own; admins opt in to notifications by saving a layer via POST
-	// /alerts/config. Failure is logged but does not block customer
-	// creation.
+	// /alerts/config. Runs in the background: a slow/struggling Mimir must
+	// not delay this response (failure is logged, does not block creation).
 	if customer.LogtoID != nil && *customer.LogtoID != "" {
-		if err := alerting.ProvisionDefaultConfig(*customer.LogtoID); err != nil {
-			logger.Warn().
-				Err(err).
-				Str("customer_id", customer.ID).
-				Str("logto_id", *customer.LogtoID).
-				Msg("failed to provision default alerting config for new customer")
-		}
+		alerting.ProvisionDefaultConfigAsync(*customer.LogtoID, "customer", customer.ID)
 	}
 
 	// Return success response
