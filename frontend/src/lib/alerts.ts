@@ -26,7 +26,6 @@ export const SEVERITY_FILTER_OPTIONS: FilterOption[] = [
   { id: 'warning', label: 'Warning' },
   { id: 'info', label: 'Info' },
 ]
-export const MIN_ESTIMATED_COUNT = 50
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

@@ -11,11 +11,8 @@ import { useAlertsTotals } from '@/queries/alerts/alertsTotals.ts'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { abbreviateNumber } from '@/lib/common/index.ts'
-import { useLoginStore } from '@/stores/login'
-import { MIN_ESTIMATED_COUNT } from '@/lib/alerts.ts'
 
 const { locale } = useI18n()
-const loginStore = useLoginStore()
 const { state: totalsState } = useAlertsTotals()
 
 const totals = computed(() => totalsState.value?.data)
@@ -34,7 +31,6 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
     :icon="faTriangleExclamation"
     :loading="isLoading"
     :to="{ name: 'alerts' }"
-    :is-estimated="loginStore.isOwner && totalCount > MIN_ESTIMATED_COUNT"
   >
     <div class="mt-5 flex flex-wrap justify-center gap-2">
       <BadgeLink
@@ -47,9 +43,7 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
           $t(
             'alerts.count_critical',
             {
-              count:
-                (loginStore.isOwner && criticalCount > MIN_ESTIMATED_COUNT ? '~' : '') +
-                abbreviateNumber(criticalCount, locale),
+              count: abbreviateNumber(criticalCount, locale),
             },
             criticalCount,
           )
@@ -65,9 +59,7 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
           $t(
             'alerts.count_warning',
             {
-              count:
-                (loginStore.isOwner && warningCount > MIN_ESTIMATED_COUNT ? '~' : '') +
-                abbreviateNumber(warningCount, locale),
+              count: abbreviateNumber(warningCount, locale),
             },
             warningCount,
           )
@@ -83,9 +75,7 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
           $t(
             'alerts.count_muted',
             {
-              count:
-                (loginStore.isOwner && mutedCount > MIN_ESTIMATED_COUNT ? '~' : '') +
-                abbreviateNumber(mutedCount, locale),
+              count: abbreviateNumber(mutedCount, locale),
             },
             mutedCount,
           )

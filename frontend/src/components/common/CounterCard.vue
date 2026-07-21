@@ -27,7 +27,6 @@ const {
   uppercaseTitle = true,
   centeredCounter = true,
   colorClasses = undefined,
-  isEstimated = false,
   to = undefined,
   abbreviateCounter = true,
 } = defineProps<{
@@ -39,7 +38,6 @@ const {
   uppercaseTitle?: boolean
   centeredCounter?: boolean
   colorClasses?: string
-  isEstimated?: boolean
   to?: RouteLocationRaw
   abbreviateCounter?: boolean
 }>()
@@ -136,13 +134,13 @@ const hasDefaultSlot = computed(() => !!slots.default)
       >
         <NeTooltip v-if="counter >= ABBREVIATION_THRESHOLD" trigger-event="mouseenter focus">
           <template #trigger>
-            <span> {{ isEstimated ? '~' : '' }}{{ abbreviatedCounter }} </span>
+            <span> {{ abbreviatedCounter }} </span>
           </template>
           <template #content>
             {{ formattedCounter }}
           </template>
         </NeTooltip>
-        <span v-else> {{ isEstimated ? '~' : '' }}{{ abbreviatedCounter }} </span>
+        <span v-else> {{ abbreviatedCounter }} </span>
       </component>
     </template>
     <NeSkeleton v-if="loading" :lines="skeletonLines" class="w-full" />
@@ -159,13 +157,13 @@ const hasDefaultSlot = computed(() => !!slots.default)
         >
           <NeTooltip v-if="counter >= ABBREVIATION_THRESHOLD" trigger-event="mouseenter focus">
             <template #trigger>
-              <span> {{ isEstimated ? '~' : '' }}{{ abbreviatedCounter }} </span>
+              <span> {{ abbreviatedCounter }} </span>
             </template>
             <template #content>
               {{ formattedCounter }}
             </template>
           </NeTooltip>
-          <span v-else> {{ isEstimated ? '~' : '' }}{{ abbreviatedCounter }} </span>
+          <span v-else> {{ abbreviatedCounter }} </span>
         </component>
       </div>
       <div v-if="hasDefaultSlot" class="mt-5">

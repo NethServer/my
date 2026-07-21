@@ -10,11 +10,9 @@ import CounterCard from '@/components/common/CounterCard.vue'
 import AlertsTable from '@/components/alerts/AlertsTable.vue'
 import { useAlertsTotals } from '@/queries/alerts/alertsTotals'
 import { useAlerts } from '@/queries/alerts/alerts'
-import { useLoginStore } from '@/stores/login'
-import { MIN_ESTIMATED_COUNT, SEVERITY_FILTER_OPTIONS } from '@/lib/alerts'
+import { SEVERITY_FILTER_OPTIONS } from '@/lib/alerts'
 
 const { t } = useI18n()
-const loginStore = useLoginStore()
 const { state: totalsState } = useAlertsTotals()
 const { clearFilters, severityFilters, statusFilters, pageNum } = useAlerts()
 
@@ -52,7 +50,6 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
         :counter="totalCount"
         :loading="isLoading"
         colorClasses="text-secondary-neutral dark:text-secondary-neutral"
-        :is-estimated="loginStore.isOwner && totalCount > MIN_ESTIMATED_COUNT"
         class="sm:col-span-3 xl:col-span-1"
         @counter-click="clearFilters"
       />
@@ -61,7 +58,6 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
         :counter="mutedCount"
         :loading="isLoading"
         color-classes="text-secondary-neutral dark:text-secondary-neutral"
-        :is-estimated="loginStore.isOwner && mutedCount > MIN_ESTIMATED_COUNT"
         class="sm:col-span-3 xl:col-span-1"
         @counter-click="filterByMuted"
       />
@@ -70,7 +66,6 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
         :counter="criticalCount"
         :loading="isLoading"
         color-classes="text-rose-600 dark:text-rose-400"
-        :is-estimated="loginStore.isOwner && criticalCount > MIN_ESTIMATED_COUNT"
         class="sm:col-span-2 xl:col-span-1"
         @counter-click="filterBySeverity('critical')"
       />
@@ -79,7 +74,6 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
         :counter="warningCount"
         :loading="isLoading"
         color-classes="text-amber-600 dark:text-amber-400"
-        :is-estimated="loginStore.isOwner && warningCount > MIN_ESTIMATED_COUNT"
         class="sm:col-span-2 xl:col-span-1"
         @counter-click="filterBySeverity('warning')"
       />
@@ -88,7 +82,6 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
         :counter="infoCount"
         :loading="isLoading"
         color-classes="text-blue-600 dark:text-blue-400"
-        :is-estimated="loginStore.isOwner && infoCount > MIN_ESTIMATED_COUNT"
         class="sm:col-span-2 xl:col-span-1"
         @counter-click="filterBySeverity('info')"
       />
