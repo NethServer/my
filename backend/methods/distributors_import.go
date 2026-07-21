@@ -16,7 +16,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/lib/pq"
+
 	"github.com/nethesis/my/backend/cache"
+	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
@@ -320,6 +323,18 @@ func confirmOrganizationImport(c *gin.Context, entityType string) {
 
 	// Invalidate caches
 	cache.GetRBACCache().InvalidateAll()
+
+	// Refresh planner statistics for the imported table. A bulk import can add
+	// hundreds of rows at once and shift the custom_data->>'createdBy'
+	// distribution the org list/stats count queries rely on; stale statistics
+	// make those queries fall back to sequential scans until autoanalyze
+	// catches up. entityType is an internal constant (distributors/resellers/
+	// customers), quoted defensively. Best-effort: never fail the import on it.
+	if result.Created+result.Updated > 0 {
+		if _, err := database.DB.Exec("ANALYZE " + pq.QuoteIdentifier(entityType)); err != nil {
+			logger.RequestLogger(c, entityType).Warn().Err(err).Msg("post-import ANALYZE failed")
+		}
+	}
 
 	logger.RequestLogger(c, entityType).Info().
 		Str("operation", "import_confirm").

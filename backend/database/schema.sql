@@ -53,6 +53,11 @@ CREATE INDEX IF NOT EXISTS idx_distributors_name ON distributors(name);
 CREATE INDEX IF NOT EXISTS idx_distributors_vat_jsonb ON distributors((custom_data->>'vat'));
 CREATE INDEX IF NOT EXISTS idx_distributors_created_by ON distributors ((custom_data->>'createdBy')) WHERE deleted_at IS NULL;
 
+-- Too few rows to ever cross the default autoanalyze threshold, so it was never
+-- auto-analyzed and the planner had no statistics. Trigger after a handful of
+-- modifications regardless of size. See migration 038.
+ALTER TABLE distributors SET (autovacuum_analyze_scale_factor = 0, autovacuum_analyze_threshold = 5);
+
 -- =============================================================================
 -- RESELLERS TABLE
 -- =============================================================================
@@ -279,6 +284,10 @@ CREATE TABLE IF NOT EXISTS systems (
 -- from inventory ingest lands as a HOT update (no index maintenance). See migration 032.
 ALTER TABLE systems SET (fillfactor = 85);
 
+-- Continuous rewrites by collect drift statistics between autoanalyze runs at
+-- the default 10% scale factor, degrading the org count-query plans. See migration 038.
+ALTER TABLE systems SET (autovacuum_analyze_scale_factor = 0.02);
+
 -- Table documentation
 COMMENT ON TABLE systems IS 'NS8/NethSecurity systems registered for monitoring and inventory collection';
 COMMENT ON COLUMN systems.type IS 'System type from inventory: ns8 (NethServer 8), nsec (NethSecurity)';
@@ -429,6 +438,10 @@ ALTER TABLE applications ADD CONSTRAINT chk_applications_status
 -- Organization type validation
 ALTER TABLE applications ADD CONSTRAINT chk_applications_org_type
     CHECK (organization_type IS NULL OR organization_type IN ('owner', 'distributor', 'reseller', 'customer'));
+
+-- Continuous rewrites by collect drift statistics between autoanalyze runs at
+-- the default 10% scale factor, degrading the org count-query plans. See migration 038.
+ALTER TABLE applications SET (autovacuum_analyze_scale_factor = 0.02);
 
 -- =============================================================================
 -- IMPERSONATION CONSENTS TABLE
