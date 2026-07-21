@@ -1345,6 +1345,25 @@ func getSystemAlertOrgID(system *models.System) string {
 // (reseller) via alerting.TenantForOrg and deduplicates. On resolution error it
 // falls back to the org id itself so the caller still sees its own tenant.
 func distinctTenants(orgIDs []string) []string {
+	if len(orgIDs) == 0 {
+		return nil
+	}
+	// One batched query resolves every org's tenant. The per-org fallback is an
+	// N+1 (one DB round-trip per org) that times out owner-scope calls where
+	// orgIDs is the whole fleet (thousands of customers), so it must stay off
+	// the hot path — used only if the batch query errors.
+	tenants, err := alerting.TenantsForOrgs(orgIDs)
+	if err != nil {
+		logger.Warn().Err(err).Int("orgs", len(orgIDs)).Msg("batch tenant resolution failed; falling back to per-org")
+		return distinctTenantsPerOrg(orgIDs)
+	}
+	return tenants
+}
+
+// distinctTenantsPerOrg is the pre-batch resolver, retained only as a fallback
+// for the unlikely case TenantsForOrgs errors. Never call it directly for large
+// scopes: it issues one query per org.
+func distinctTenantsPerOrg(orgIDs []string) []string {
 	seen := make(map[string]struct{}, len(orgIDs))
 	tenants := make([]string, 0, len(orgIDs))
 	for _, oid := range orgIDs {

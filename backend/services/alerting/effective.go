@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/lib/pq"
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/entities"
@@ -139,6 +140,44 @@ func lookupCustomerParent(orgID string) (parent string, isCustomer bool, err err
 		return "", true, nil
 	}
 	return *p, true, nil
+}
+
+// TenantsForOrgs resolves the DISTINCT Mimir tenant for every org in orgIDs in a
+// SINGLE query — the batched equivalent of calling TenantForOrg per org. The
+// per-org path is an N+1: owner-scope alert queries pass thousands of orgs
+// (every customer in the fleet), and one DB round-trip per org times the
+// request out. The COALESCE mirrors TenantForOrg exactly: a customer's tenant
+// is its createdBy (empty/missing → itself); any non-customer org is its own
+// tenant. Order is unspecified (callers dedupe by set, not order).
+func TenantsForOrgs(orgIDs []string) ([]string, error) {
+	if len(orgIDs) == 0 {
+		return nil, nil
+	}
+	rows, err := database.DB.Query(
+		`SELECT DISTINCT COALESCE(NULLIF(c.custom_data->>'createdBy', ''), o.id)
+		 FROM unnest($1::text[]) AS o(id)
+		 LEFT JOIN customers c ON c.logto_id = o.id AND c.deleted_at IS NULL`,
+		pq.Array(orgIDs),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("batch resolve tenants: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	tenants := make([]string, 0, len(orgIDs))
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, fmt.Errorf("scan tenant: %w", err)
+		}
+		if t != "" {
+			tenants = append(tenants, t)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate tenants: %w", err)
+	}
+	return tenants, nil
 }
 
 // computeEffectiveLayer walks the tenant's ancestor chain and merges every layer Owner→tenant (orgs with no row contribute nothing); used by RenderAndPushEffective for the Mimir push.
