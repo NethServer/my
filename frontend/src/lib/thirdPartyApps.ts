@@ -47,9 +47,32 @@ export type ThirdPartyAppWidgetItem = {
   link?: string
 }
 
+export type ThirdPartyAppOrderSummary = {
+  count: number
+  orders?: unknown[]
+}
+
+// An app's info_url may return prebuilt `widget.items` (my renders them as-is)
+// or, like NethShop, a data-only contract (raw counts below) that the frontend
+// composes into a widget itself.
 export type ThirdPartyAppInfo = {
-  status: string
   widget?: { items: ThirdPartyAppWidgetItem[] }
+  link?: string
+  // NethShop (nethshop.nethesis.it) raw fields
+  completed?: number
+  completed_last_12m?: number
+  processing?: ThirdPartyAppOrderSummary
+  pending_payment?: ThirdPartyAppOrderSummary
+  renewing?: ThirdPartyAppOrderSummary & { window_days?: number }
+  // NethSpot (my.nethspot.com) raw fields
+  company?: string
+  hotspots?: number
+  units?: number
+  users?: number
+  devices?: number
+  sessions?: number
+  managers?: number
+  sms?: { count: number; max: number; remaining: number }
 }
 
 // Fetch an app's info_url with the user's Logto ID token (same tenant as the

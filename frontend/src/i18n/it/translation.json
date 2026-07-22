@@ -331,7 +331,19 @@
     "description_nethshop_nethesis_it": "Sfoglia e ordina prodotti e servizi Nethesis.",
     "description_my_nethspot_com": "Gestisci i tuoi dispositivi hotspot.",
     "description_stock_nethesis_it": "Controlla l'inventario dei prodotti e gestisci le scorte.",
-    "description_helpdesk_nethesis_it": "Ottieni supporto, apri e gestisci ticket."
+    "description_helpdesk_nethesis_it": "Ottieni supporto, apri e gestisci ticket.",
+    "nethshop_widget": {
+      "processing": "In lavorazione",
+      "pending_payment": "In attesa di pagamento",
+      "renewing": "In rinnovo ({days} giorni)",
+      "completed_last_12m": "Completati (ultimi 12 mesi)"
+    },
+    "nethspot_widget": {
+      "hotspots": "Hotspot",
+      "units": "Unit",
+      "users": "Utenti",
+      "sms_remaining": "SMS residui"
+    }
   },
   "ne_text_input": {
     "show_password": "Mostra password",

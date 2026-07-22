@@ -12,6 +12,7 @@
 import { NeSkeleton } from '@nethesis/vue-components'
 import { useQuery } from '@pinia/colada'
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useLoginStore } from '@/stores/login'
 import {
   getThirdPartyAppInfo,
@@ -21,6 +22,7 @@ import {
 
 const props = defineProps<{ app: ThirdPartyApp }>()
 const loginStore = useLoginStore()
+const { t } = useI18n()
 
 const { state } = useQuery({
   key: () => ['thirdPartyAppInfo', props.app.id],
@@ -28,7 +30,82 @@ const { state } = useQuery({
   query: () => getThirdPartyAppInfo(props.app),
 })
 
-const items = computed<ThirdPartyAppWidgetItem[]>(() => state.value.data?.widget?.items ?? [])
+// Apps may return prebuilt `widget.items` (rendered as-is). NethShop returns a
+// data-only contract instead; map its raw counts to rows here (INTERIM — the
+// widget will be redesigned; labels live in the UI, the app returns only data).
+const items = computed<ThirdPartyAppWidgetItem[]>(() => {
+  const data = state.value.data
+  if (!data) return []
+  if (data.widget?.items?.length) return data.widget.items
+  if (props.app.name === 'nethshop.nethesis.it') {
+    const link = data.link
+    const days = data.renewing?.window_days ?? 7
+    const processing = data.processing?.count ?? 0
+    const pending = data.pending_payment?.count ?? 0
+    const renewing = data.renewing?.count ?? 0
+    return [
+      {
+        label: t('third_party_apps.nethshop_widget.processing'),
+        value: processing,
+        tone: processing > 0 ? 'info' : 'neutral',
+        link,
+      },
+      {
+        label: t('third_party_apps.nethshop_widget.pending_payment'),
+        value: pending,
+        tone: pending > 0 ? 'warning' : 'neutral',
+        link,
+      },
+      {
+        label: t('third_party_apps.nethshop_widget.renewing', { days }),
+        value: renewing,
+        tone: renewing > 0 ? 'info' : 'neutral',
+        link,
+      },
+      {
+        label: t('third_party_apps.nethshop_widget.completed_last_12m'),
+        value: data.completed_last_12m ?? 0,
+        tone: 'neutral',
+        link,
+      },
+    ]
+  }
+  if (props.app.name === 'my.nethspot.com') {
+    const link = data.link
+    const smsMax = data.sms?.max ?? 0
+    const smsRemaining = data.sms?.remaining ?? 0
+    let smsTone: ThirdPartyAppWidgetItem['tone'] = 'neutral'
+    if (smsMax > 0 && smsRemaining * 100 <= smsMax * 10) smsTone = 'danger'
+    else if (smsMax > 0 && smsRemaining * 100 <= smsMax * 25) smsTone = 'warning'
+    return [
+      {
+        label: t('third_party_apps.nethspot_widget.hotspots'),
+        value: data.hotspots ?? 0,
+        tone: 'neutral',
+        link,
+      },
+      {
+        label: t('third_party_apps.nethspot_widget.units'),
+        value: data.units ?? 0,
+        tone: 'neutral',
+        link,
+      },
+      {
+        label: t('third_party_apps.nethspot_widget.users'),
+        value: data.users ?? 0,
+        tone: 'neutral',
+        link,
+      },
+      {
+        label: t('third_party_apps.nethspot_widget.sms_remaining'),
+        value: smsRemaining,
+        tone: smsTone,
+        link,
+      },
+    ]
+  }
+  return []
+})
 
 const toneClass = (tone?: string) => {
   switch (tone) {
@@ -47,7 +124,10 @@ const toneClass = (tone?: string) => {
 </script>
 
 <template>
-  <div v-if="app.info_url" class="mt-4 border-t border-gray-200 pt-4 dark:border-gray-700">
+  <div
+    v-if="app.info_url && items.length"
+    class="mt-4 border-t border-gray-200 pt-4 dark:border-gray-700"
+  >
     <NeSkeleton v-if="state.status === 'pending'" :lines="2" />
     <!-- silent on error/empty: the widget is a nice-to-have -->
     <dl v-else-if="items.length" class="space-y-2">
