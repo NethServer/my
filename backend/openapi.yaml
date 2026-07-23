@@ -62,6 +62,8 @@ tags:
     description: System statistics, trends and exports
   - name: Backend - Systems Inventory
     description: System inventory history, diffs and timeline
+  - name: Backend - Entitlements
+    description: "Granular add-on licensing: catalog, grants, availability and shop activation"
 
   - name: Backend - Applications
     description: Application CRUD and organization assignment
@@ -100,6 +102,8 @@ tags:
     description: Collect service inventory and heartbeat collection
   - name: Collect - Rebranding
     description: Collect service rebranding endpoints for systems
+  - name: Collect - Feed Authorization
+    description: Feed authorization (/auth forwardAuth) — subscription-level and per-add-on entitlement checks for the appliance enterprise feeds
   - name: Collect - Alerting
     description: |
       Collect service alerting proxy to Mimir Alertmanager.
@@ -2193,6 +2197,621 @@ components:
           type: string
           description: Additional notes or description for the system
           example: "Production web server for EU region"
+
+    # Entitlements schemas
+    EntitlementCatalogItem:
+      type: object
+      description: |
+        One grantable add-on type. Ids are lowercase kebab-case; convention:
+        `nsec-<service>` (firewall services), `ns8-<app>` (application
+        enablement on a cluster) or `<app>-<module>` (per-application-instance
+        modules, `scoped: true`). `legacy_alias` is the old wire id the
+        appliance feeds still call on `GET /auth/service/{id}` — legacy ids
+        are never renamed.
+      properties:
+        id:
+          type: string
+          description: Catalog id (lowercase kebab-case, immutable)
+          example: "nsec-blacklist"
+        display_name:
+          type: string
+          description: Human-readable name
+          example: "Blacklist"
+        description:
+          type: string
+          description: Optional longer description
+          example: "IP and DNS blacklist feed for NethSecurity"
+        scoped:
+          type: boolean
+          description: True when grants can be narrowed to a single application instance via scope (per-application-instance modules). Immutable.
+          example: false
+        kind:
+          type: string
+          description: Both kinds are sellable on the shop — services are firewall add-ons granted system-wide, modules are add-ons for a single application instance of an NS8 cluster
+          enum: [service, module]
+          example: "service"
+        system_type:
+          type: string
+          description: Restricts the add-on to one system type. Empty/omitted = any type.
+          enum: [nsec, ns8]
+          example: "nsec"
+        legacy_alias:
+          type: string
+          description: Old wire id consumers still call on GET /auth/service/{id} (only for types migrated from the legacy my)
+          example: "ng-blacklist"
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-07-01T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-07-01T10:00:00Z"
+
+    EntitlementCreator:
+      type: object
+      description: Snapshot of the user who created the grant or availability rule
+      properties:
+        user_id:
+          type: string
+          description: Logto ID of the creator
+          example: "53h5zxpwu4vc"
+        user_name:
+          type: string
+          description: Full name of the creator
+          example: "Edoardo Super"
+        organization_id:
+          type: string
+          description: Organization ID of the creator
+          example: "lbswt1rxdhbz"
+        organization_name:
+          type: string
+          description: Organization name of the creator
+          example: "Nethesis Italia"
+        channel:
+          type: string
+          description: Set to "shop" when the grant was created via POST /entitlements/activate. Omitted otherwise.
+          example: "shop"
+
+    SystemEntitlement:
+      type: object
+      description: |
+        One add-on grant for one system, optionally narrowed to a single
+        application instance via `scope` (omitted = whole system). `active` is
+        derived: not revoked and not expired (`valid_until` null = perpetual).
+        Revocation is soft (sets `revoked_at`, the row is kept for audit).
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Grant ID
+          example: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+        system_id:
+          type: string
+          description: ID of the system the grant belongs to
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        entitlement:
+          type: string
+          description: Catalog id of the granted add-on
+          example: "nsec-blacklist"
+        scope:
+          type: string
+          description: Application instance the grant is narrowed to (only for scoped catalog items). Omitted = whole system.
+          example: "nethvoice1"
+        source:
+          type: string
+          description: How the grant was created
+          enum: [manual, shop, legacy-import]
+          example: "manual"
+        source_ref:
+          type: string
+          description: Free-form reference to the originating record (e.g. shop subscription id)
+          example: "sub_12345"
+        valid_from:
+          type: string
+          format: date-time
+          description: When the grant became valid
+          example: "2026-07-01T10:00:00Z"
+        valid_until:
+          type: string
+          format: date-time
+          nullable: true
+          description: Expiry of the grant. Null = perpetual.
+          example: "2027-07-01T10:00:00Z"
+        revoked_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the grant was revoked. Null = not revoked.
+          example: null
+        revoked_source:
+          type: string
+          enum: [manual, shop]
+          description: |
+            Who revoked the grant: `manual` (admin via API/UI — deliberate,
+            the shop button is not offered again) or `shop` (deactivate
+            webhook: subscription cancelled or payment failed — buyable
+            again). Omitted when not revoked.
+          example: "shop"
+        active:
+          type: boolean
+          description: "Derived: not revoked and not expired"
+          example: true
+        pending_ref:
+          type: string
+          description: Shop order placed at checkout and not yet paid (display-only; cleared by activate or cancel). Omitted when nothing is pending.
+          example: "wc-order-83164"
+        pending_since:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the pending order was placed
+          example: "2026-07-15T18:00:00Z"
+        status:
+          type: string
+          enum: [active, expired, revoked, suspended, pending]
+          description: |
+            Server-computed lifecycle status. `suspended` = the grant is
+            intact but the owning system (or its organization) is suspended
+            or deleted, so collect rejects its credentials. `pending` = an
+            order is awaiting payment (masks revoked/expired but never an
+            active grant). Enforcement authorizes only truly active grants.
+          example: "active"
+        created_by:
+          $ref: '#/components/schemas/EntitlementCreator'
+        purchased_by:
+          $ref: '#/components/schemas/EntitlementPurchaser'
+        variant:
+          $ref: '#/components/schemas/EntitlementVariant'
+        renewal_count:
+          type: integer
+          description: |
+            Paid shop orders on this grant beyond the first: activate
+            increments it when source_ref changes (webhook retries on the
+            same order never double-count). 0 = first period.
+          example: 3
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-07-01T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-07-01T10:00:00Z"
+
+    EntitlementPurchaser:
+      type: object
+      description: |
+        Audit snapshot of the my user that BOUGHT the grant on the shop,
+        resolved from the order's customer email (webhook activation, or the
+        legacy-import backfill when the expiry map carries the order email)
+        and frozen at purchase time (robust to later renames/moves). Omitted
+        for manual grants and legacy rows without an order. When the email
+        matches no my user only `email` is present. When the buyer's
+        organization is outside the viewer's hierarchy the snapshot is
+        redacted to `{out_of_scope: true}` (owner org and Super Admin always
+        see it in full).
+      properties:
+        logto_id:
+          type: string
+          description: Logto ID of the buyer
+          example: "53h5zxpwu4vc"
+        name:
+          type: string
+          description: Full name of the buyer at purchase time
+          example: "Mario Rossi"
+        email:
+          type: string
+          description: Email of the buyer (the shop order's customer)
+          example: "mario.rossi@example.com"
+        organization_id:
+          type: string
+          description: Logto ID of the buyer's organization at purchase time
+          example: "akkbs6x2wo82"
+        organization_name:
+          type: string
+          description: Name of the buyer's organization at purchase time
+          example: "ACME S.r.l."
+        org_role:
+          type: string
+          description: Hierarchy role of the buyer's organization at purchase time
+          example: "reseller"
+        user_roles:
+          type: array
+          items:
+            type: string
+          description: User role names of the buyer at purchase time
+          example: ["Admin"]
+        out_of_scope:
+          type: boolean
+          description: Present (true) when the buyer identity was redacted because it is outside the viewer's hierarchy
+          example: true
+
+    EntitlementVariant:
+      type: object
+      description: |
+        Shop variation (tier) of the purchased product line. Display metadata
+        only: the add-on↔product mapping stays on the parent product and
+        /auth enforcement ignores it. Refreshed by activate, so tier
+        upgrades/downgrades follow the renewals. Omitted for manual grants
+        and simple (non-variable) products.
+      properties:
+        id:
+          type: integer
+          description: WooCommerce variation id
+          example: 245
+        sku:
+          type: string
+          description: SKU of the variation
+          example: "ATS-15"
+        label:
+          type: string
+          description: Human-readable tier, from the variation attributes
+          example: "1-15 device"
+
+    EntitlementAvailability:
+      type: object
+      description: |
+        One commercial unlock for a catalog item: the add-on can be bought or
+        self-activated by a whole hierarchy role OR by one specific
+        organization (exactly one of the two is set). A catalog item without
+        any rule is available to everyone. Availability rules do not affect
+        /auth enforcement on collect.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Rule ID
+          example: "9f1b7c2e-4a3d-4a2b-8f6e-1c2d3e4f5a6b"
+        entitlement:
+          type: string
+          description: Catalog id the rule applies to
+          example: "nsec-blacklist"
+        org_role:
+          type: string
+          description: Hierarchy role the item is unlocked for (mutually exclusive with organization_id)
+          enum: [distributor, reseller, customer]
+          example: "reseller"
+        organization_id:
+          type: string
+          description: Specific organization the item is unlocked for (mutually exclusive with org_role)
+          example: "akkbs6x2wo82"
+        created_by:
+          $ref: '#/components/schemas/EntitlementCreator'
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-07-01T10:00:00Z"
+
+    EntitlementGrantReportRow:
+      description: One row of the grants report — the grant plus the identity of the system it belongs to
+      allOf:
+        - $ref: '#/components/schemas/SystemEntitlement'
+        - type: object
+          properties:
+            system_name:
+              type: string
+              description: Name of the system
+              example: "Milan Office Firewall"
+            system_key:
+              type: string
+              description: Key of the system
+              example: "NETH-F5D2-5E69-A174-45A9-B1AB-2BB9-03F5-F1B4"
+            organization_id:
+              type: string
+              description: Logto ID of the organization owning the system
+              example: "akkbs6x2wo82"
+            organization_name:
+              type: string
+              description: Name of the organization owning the system
+              example: "ACME S.r.l."
+
+    EntitlementReport:
+      type: object
+      description: Fleet-wide add-on analytics (owner/Super Admin only)
+      properties:
+        totals:
+          type: object
+          properties:
+            total: { type: integer, example: 120 }
+            active: { type: integer, example: 95 }
+            expired: { type: integer, example: 12 }
+            revoked: { type: integer, example: 6 }
+            pending: { type: integer, example: 3 }
+            suspended: { type: integer, example: 4 }
+            perpetual: { type: integer, example: 40, description: "Active grants without an expiry (legacy imports)" }
+            expiring_in_30d: { type: integer, example: 8, description: "Active grants expiring within 30 days" }
+            expiring_in_60d: { type: integer, example: 15, description: "Active grants expiring within 60 days (cumulative)" }
+            expiring_in_90d: { type: integer, example: 22, description: "Active grants expiring within 90 days (cumulative)" }
+            systems: { type: integer, example: 80, description: "Distinct systems with at least one grant" }
+            organizations: { type: integer, example: 35, description: "Distinct organizations owning those systems" }
+            distributor_systems: { type: integer, example: 20, description: "Systems owned by distributor organizations (the four *_systems fields sum up to systems)" }
+            reseller_systems: { type: integer, example: 35, description: "Systems owned by reseller organizations" }
+            customer_systems: { type: integer, example: 22, description: "Systems owned by customer organizations" }
+            owner_systems: { type: integer, example: 3, description: "Systems owned by the owner organization" }
+            total_renewals: { type: integer, example: 60, description: "Sum of renewal_count over all grants" }
+        by_entitlement:
+          type: array
+          items:
+            type: object
+            properties:
+              entitlement: { type: string, example: "nsec-blacklist" }
+              display_name: { type: string, example: "Advanced Threat Shield" }
+              active: { type: integer, example: 60 }
+              expired: { type: integer, example: 8 }
+              revoked: { type: integer, example: 3 }
+              pending: { type: integer, example: 2 }
+              suspended: { type: integer, example: 1 }
+              total: { type: integer, example: 74 }
+        renewals:
+          type: object
+          description: Renewal distribution across grants
+          properties:
+            never: { type: integer, example: 70 }
+            once: { type: integer, example: 30 }
+            twice: { type: integer, example: 15 }
+            three_plus: { type: integer, example: 5 }
+        trend:
+          type: array
+          description: Grants created per month, last 12 months
+          items:
+            type: object
+            properties:
+              month: { type: string, example: "2026-07" }
+              activations: { type: integer, example: 9 }
+
+    EntitlementStatsRow:
+      type: object
+      description: Active grants aggregated per entitlement per organization
+      properties:
+        entitlement:
+          type: string
+          description: Catalog id
+          example: "nsec-blacklist"
+        organization_id:
+          type: string
+          description: Logto ID of the organization
+          example: "akkbs6x2wo82"
+        organization_name:
+          type: string
+          description: Name of the organization
+          example: "ACME S.r.l."
+        active_grants:
+          type: integer
+          description: Number of active grants
+          example: 12
+
+    CreateSystemEntitlementRequest:
+      type: object
+      description: Manually grants an add-on to a system. Scope narrows the grant to one application instance and is only accepted for catalog items with scoped=true.
+      required:
+        - entitlement
+      properties:
+        entitlement:
+          type: string
+          description: Catalog id of the add-on to grant
+          example: "nsec-blacklist"
+        scope:
+          type: string
+          description: Application instance to narrow the grant to (only for scoped catalog items)
+          example: "nethvoice1"
+        valid_from:
+          type: string
+          format: date-time
+          description: Override the start date. Omitted = now. Used by the legacy import to preserve the original order date.
+          example: "2026-02-01T00:00:00Z"
+        valid_until:
+          type: string
+          format: date-time
+          nullable: true
+          description: Expiry of the grant. Null/omitted = perpetual.
+          example: "2027-07-01T10:00:00Z"
+        source:
+          type: string
+          description: How the grant was created
+          enum: [manual, shop, legacy-import]
+          default: manual
+          example: "manual"
+        source_ref:
+          type: string
+          description: Free-form reference to the originating record
+          example: "sub_12345"
+        buyer_email:
+          type: string
+          description: |
+            Customer email of the originating shop order (legacy-import
+            backfill): resolved to a my user for the `purchased_by` snapshot,
+            kept raw when no user matches.
+          example: "mario.rossi@example.com"
+
+    UpdateSystemEntitlementRequest:
+      type: object
+      description: Extends/reduces the expiry or toggles the revoked state of a grant. clear_valid_until makes the grant perpetual (valid_until null) and wins over valid_until when both are set.
+      properties:
+        valid_until:
+          type: string
+          format: date-time
+          description: New expiry of the grant
+          example: "2027-07-01T10:00:00Z"
+        clear_valid_until:
+          type: boolean
+          description: True makes the grant perpetual (valid_until null). Wins over valid_until when both are set.
+          example: false
+        revoked:
+          type: boolean
+          description: "True revokes the grant, false restores it. Omitted = unchanged."
+          example: false
+
+    CreateEntitlementCatalogRequest:
+      type: object
+      description: Adds a new add-on type to the catalog. legacy_alias is the old wire id consumers still call on GET /auth/service/{id} (only needed for types migrated from the legacy my).
+      required:
+        - id
+        - display_name
+      properties:
+        id:
+          type: string
+          description: "Catalog id: lowercase kebab-case, convention nsec-<service>, ns8-<app> or <app>-<module>"
+          example: "nsec-blacklist"
+        display_name:
+          type: string
+          description: Human-readable name
+          example: "Blacklist"
+        description:
+          type: string
+          description: Optional longer description
+          example: "IP and DNS blacklist feed for NethSecurity"
+        scoped:
+          type: boolean
+          description: True when grants can be narrowed to a single application instance (per-application-instance modules)
+          default: false
+          example: false
+        kind:
+          type: string
+          description: Add-on kind
+          enum: [service, module]
+          default: service
+          example: "service"
+        system_type:
+          type: string
+          description: Restricts the add-on to one system type. Empty/omitted = any type.
+          enum: [nsec, ns8]
+          example: "nsec"
+        legacy_alias:
+          type: string
+          description: Old wire id (lowercase kebab-case) consumers still call on GET /auth/service/{id}
+          example: "ng-blacklist"
+
+    UpdateEntitlementCatalogRequest:
+      type: object
+      description: Updates the display fields of a catalog item. The id and scoped flag are immutable (grants may already reference them with the current semantics).
+      properties:
+        display_name:
+          type: string
+          description: Human-readable name
+          example: "Blacklist"
+        description:
+          type: string
+          description: Optional longer description
+          example: "IP and DNS blacklist feed for NethSecurity"
+
+    CreateEntitlementAvailabilityRequest:
+      type: object
+      description: Unlocks a catalog item for a hierarchy role OR one specific organization. Exactly one of the two fields must be set.
+      properties:
+        org_role:
+          type: string
+          description: Hierarchy role to unlock the item for (mutually exclusive with organization_id)
+          enum: [distributor, reseller, customer]
+          example: "reseller"
+        organization_id:
+          type: string
+          description: Specific organization to unlock the item for (mutually exclusive with org_role)
+          example: "akkbs6x2wo82"
+
+    ActivateEntitlementRequest:
+      type: object
+      description: |
+        Shop-facing activation/renewal (webhook after purchase or subscription
+        renewal). The system is addressed by its key (the shop never sees
+        internal ids); the entitlement accepts the canonical id or the legacy
+        alias. Idempotent: an existing (system, entitlement, scope) grant is
+        renewed in place (new expiry, revocation cleared).
+      required:
+        - system_key
+        - entitlement
+      properties:
+        system_key:
+          type: string
+          description: Key of the system to activate the add-on on
+          example: "NETH-F5D2-5E69-A174-45A9-B1AB-2BB9-03F5-F1B4"
+        entitlement:
+          type: string
+          description: Canonical catalog id or legacy alias of the add-on
+          example: "nsec-blacklist"
+        scope:
+          type: string
+          description: Application instance to narrow the grant to (only for scoped catalog items)
+          example: "nethvoice1"
+        valid_until:
+          type: string
+          format: date-time
+          nullable: true
+          description: Expiry of the grant. Null/omitted = perpetual.
+          example: "2027-07-01T10:00:00Z"
+        source_ref:
+          type: string
+          description: Free-form reference to the originating record (e.g. shop subscription id)
+          example: "sub_12345"
+        buyer_email:
+          type: string
+          description: |
+            Email of the WordPress customer that owns the order
+            (server-to-server, trusted). Resolved to a my user to store the
+            `purchased_by` audit snapshot; an address matching no my user is
+            kept raw.
+          example: "mario.rossi@example.com"
+        variant:
+          $ref: '#/components/schemas/EntitlementVariant'
+
+    DeactivateEntitlementRequest:
+      type: object
+      description: Shop-facing revocation of a grant (subscription cancelled/expired)
+      required:
+        - system_key
+        - entitlement
+      properties:
+        system_key:
+          type: string
+          description: Key of the system to revoke the add-on from
+          example: "NETH-F5D2-5E69-A174-45A9-B1AB-2BB9-03F5-F1B4"
+        entitlement:
+          type: string
+          description: Canonical catalog id or legacy alias of the add-on
+          example: "nsec-blacklist"
+        scope:
+          type: string
+          description: Application instance the grant is narrowed to
+          example: "nethvoice1"
+        source_ref:
+          type: string
+          description: Free-form reference to the originating record. When set, it is matched against the grant — a pending activation with the same ref is cleared instead of revoked, and a grant owned by a different ref is left untouched.
+          example: "sub_12345"
+
+    PendingEntitlementRequest:
+      type: object
+      description: Shop-facing "order placed, payment not confirmed yet" marker (display-only, no enforcement impact)
+      required:
+        - system_key
+        - entitlement
+        - source_ref
+      properties:
+        system_key:
+          type: string
+          description: Key of the system the add-on was bought for
+          example: "NETH-F5D2-5E69-A174-45A9-B1AB-2BB9-03F5-F1B4"
+        entitlement:
+          type: string
+          description: Canonical catalog id or legacy alias of the add-on
+          example: "nethvoice-chat"
+        scope:
+          type: string
+          description: Application instance the grant is narrowed to
+          example: "nethvoice1"
+        source_ref:
+          type: string
+          description: Reference of the order awaiting payment; the later activate/deactivate with the same ref resolves the marker
+          example: "wc-order-83164"
+        buyer_email:
+          type: string
+          description: |
+            Email of the WordPress customer that owns the order
+            (server-to-server, trusted). Stamped in `purchased_by` on fresh
+            pending stubs only — a pending renewal never overwrites who
+            bought the currently active grant.
+          example: "mario.rossi@example.com"
+        variant:
+          $ref: '#/components/schemas/EntitlementVariant'
 
     # Applications schemas
     Application:
@@ -9869,6 +10488,1139 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  # ===========================================================================
+  # ENTITLEMENTS (Granular add-on licensing)
+  # ===========================================================================
+
+  /systems/{id}/entitlements:
+    get:
+      operationId: listSystemEntitlements
+      tags:
+        - Backend - Entitlements
+      summary: /systems/{id}/entitlements - List the add-on grants of a system
+      description: |
+        List the add-on grants of a system, including expired and revoked ones
+        (`active` tells them apart). Any user who can read the system can read
+        its entitlements.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: Entitlements retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "entitlements retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      entitlements:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SystemEntitlement'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      operationId: createSystemEntitlement
+      tags:
+        - Backend - Entitlements
+      summary: /systems/{id}/entitlements - Manually grant an add-on to a system
+      description: |
+        Manually grant an add-on to a system. Only the owner organization or a
+        Super Admin can manage grants directly (403 otherwise); the shop goes
+        through `POST /entitlements/activate` instead.
+
+        The entitlement must exist in the catalog; `scope` is only accepted
+        for scoped catalog items, and a catalog item restricted to a
+        `system_type` cannot be granted to a system of a different known type.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSystemEntitlementRequest'
+      responses:
+        '201':
+          description: Entitlement created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: "entitlement created successfully"
+                  data:
+                    $ref: '#/components/schemas/SystemEntitlement'
+        '400':
+          description: Unknown entitlement, scope not supported by the catalog item, invalid source, or system-type mismatch ("this entitlement applies to nsec systems only")
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Grant already exists for this (system, entitlement, scope)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 409
+                  message:
+                    type: string
+                    example: "entitlement already exists for this system"
+                  data:
+                    type: object
+                    nullable: true
+                    example: null
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /systems/{id}/entitlements/{entitlement}:
+    put:
+      operationId: updateSystemEntitlement
+      tags:
+        - Backend - Entitlements
+      summary: /systems/{id}/entitlements/{entitlement} - Update a grant's expiry or revocation
+      description: |
+        Extend/reduce the expiry of a grant or toggle its revoked state.
+        Scoped grants are addressed with the `scope` query parameter. Only the
+        owner organization or a Super Admin can manage grants directly.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+        - name: entitlement
+          in: path
+          required: true
+          description: Catalog id of the granted add-on
+          schema:
+            type: string
+            example: "nsec-blacklist"
+        - name: scope
+          in: query
+          description: Application instance the grant is narrowed to (omit for system-wide grants)
+          schema:
+            type: string
+            example: "nethvoice1"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSystemEntitlementRequest'
+      responses:
+        '200':
+          description: Entitlement updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "entitlement updated successfully"
+                  data:
+                    $ref: '#/components/schemas/SystemEntitlement'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: System not found, or no grant for this (entitlement, scope)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      operationId: deleteSystemEntitlement
+      tags:
+        - Backend - Entitlements
+      summary: /systems/{id}/entitlements/{entitlement} - Revoke a grant
+      description: |
+        Revoke a grant. The revocation is soft (sets `revoked_at`; the row is
+        kept for audit) and idempotent. Scoped grants are addressed with the
+        `scope` query parameter. Only the owner organization or a Super Admin
+        can manage grants directly.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+        - name: entitlement
+          in: path
+          required: true
+          description: Catalog id of the granted add-on
+          schema:
+            type: string
+            example: "nsec-blacklist"
+        - name: scope
+          in: query
+          description: Application instance the grant is narrowed to (omit for system-wide grants)
+          schema:
+            type: string
+            example: "nethvoice1"
+      responses:
+        '200':
+          description: Entitlement revoked successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "entitlement revoked successfully"
+                  data:
+                    $ref: '#/components/schemas/SystemEntitlement'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: System not found, or no grant for this (entitlement, scope)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /entitlements/catalog:
+    get:
+      operationId: listEntitlementCatalog
+      tags:
+        - Backend - Entitlements
+      summary: /entitlements/catalog - List the add-on catalog
+      description: List all grantable add-on types. Available to any authenticated user with entitlements resource access.
+      responses:
+        '200':
+          description: Entitlement catalog retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "entitlement catalog retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      catalog:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/EntitlementCatalogItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      operationId: createEntitlementCatalogItem
+      tags:
+        - Backend - Entitlements
+      summary: /entitlements/catalog - Create an add-on type
+      description: |
+        Add a new add-on type to the catalog. Only the owner organization or a
+        Super Admin can manage the catalog (403 otherwise).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEntitlementCatalogRequest'
+      responses:
+        '201':
+          description: Catalog item created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: "catalog item created successfully"
+                  data:
+                    $ref: '#/components/schemas/EntitlementCatalogItem'
+        '400':
+          description: Invalid id or legacy_alias (lowercase kebab-case required), invalid kind (service/module) or system_type (nsec/ns8/empty)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Catalog item already exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 409
+                  message:
+                    type: string
+                    example: "catalog item already exists"
+                  data:
+                    type: object
+                    nullable: true
+                    example: null
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /entitlements/catalog/{id}:
+    put:
+      operationId: updateEntitlementCatalogItem
+      tags:
+        - Backend - Entitlements
+      summary: /entitlements/catalog/{id} - Update an add-on type
+      description: |
+        Update the display fields (display_name, description) of a catalog
+        item. The id and scoped flag are immutable. Only the owner
+        organization or a Super Admin can manage the catalog.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Catalog id
+          schema:
+            type: string
+            example: "nsec-blacklist"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEntitlementCatalogRequest'
+      responses:
+        '200':
+          description: Catalog item updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "catalog item updated successfully"
+                  data:
+                    $ref: '#/components/schemas/EntitlementCatalogItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      operationId: deleteEntitlementCatalogItem
+      tags:
+        - Backend - Entitlements
+      summary: /entitlements/catalog/{id} - Delete an add-on type
+      description: |
+        Delete a catalog item. Refused while grants (including revoked ones,
+        kept for audit) still reference it. Only the owner organization or a
+        Super Admin can manage the catalog.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Catalog id
+          schema:
+            type: string
+            example: "nsec-blacklist"
+      responses:
+        '200':
+          description: Catalog item deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "catalog item deleted successfully"
+                  data:
+                    type: object
+                    nullable: true
+                    example: null
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Catalog item is referenced by existing grants
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 409
+                  message:
+                    type: string
+                    example: "catalog item is referenced by existing grants"
+                  data:
+                    type: object
+                    nullable: true
+                    example: null
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /entitlements/catalog/{id}/availability:
+    get:
+      operationId: listEntitlementAvailability
+      tags:
+        - Backend - Entitlements
+      summary: /entitlements/catalog/{id}/availability - List the commercial availability rules of an add-on
+      description: |
+        List the optional commercial restriction rules of a catalog item.
+        No rules at all means the add-on is available to everyone.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Catalog id
+          schema:
+            type: string
+            example: "nsec-blacklist"
+      responses:
+        '200':
+          description: Availability retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "availability retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      availability:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/EntitlementAvailability'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      operationId: createEntitlementAvailability
+      tags:
+        - Backend - Entitlements
+      summary: /entitlements/catalog/{id}/availability - Add a commercial availability rule
+      description: |
+        Restrict who may buy/self-activate the add-on: unlock it for a whole
+        hierarchy role OR one specific organization (exactly one of the two).
+        By default (no rules) an add-on is available to everyone. Only the
+        owner organization or a Super Admin can manage availability rules.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Catalog id
+          schema:
+            type: string
+            example: "nsec-blacklist"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEntitlementAvailabilityRequest'
+      responses:
+        '201':
+          description: Availability rule created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: "availability rule created successfully"
+                  data:
+                    $ref: '#/components/schemas/EntitlementAvailability'
+        '400':
+          description: Both or neither of org_role/organization_id set, or invalid org_role (must be distributor, reseller or customer)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Availability rule already exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 409
+                  message:
+                    type: string
+                    example: "availability rule already exists"
+                  data:
+                    type: object
+                    nullable: true
+                    example: null
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /entitlements/catalog/{id}/availability/{rule_id}:
+    delete:
+      operationId: deleteEntitlementAvailability
+      tags:
+        - Backend - Entitlements
+      summary: /entitlements/catalog/{id}/availability/{rule_id} - Remove a commercial availability rule
+      description: Remove one availability rule. Only the owner organization or a Super Admin can manage availability rules.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Catalog id
+          schema:
+            type: string
+            example: "nsec-blacklist"
+        - name: rule_id
+          in: path
+          required: true
+          description: Availability rule ID
+          schema:
+            type: string
+            example: "9f1b7c2e-4a3d-4a2b-8f6e-1c2d3e4f5a6b"
+      responses:
+        '200':
+          description: Availability rule removed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "availability rule removed successfully"
+                  data:
+                    type: object
+                    nullable: true
+                    example: null
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /entitlements/available:
+    get:
+      operationId: listAvailableEntitlements
+      tags:
+        - Backend - Entitlements
+      summary: /entitlements/available - List the add-ons the caller's organization may buy
+      description: |
+        The catalog items (services and modules) the CALLER's organization may
+        buy/self-activate on the shop, with availability rules applied. The
+        owner organization and Super Admins see the whole catalog.
+      responses:
+        '200':
+          description: Available entitlements retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "available entitlements retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      available:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/EntitlementCatalogItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /entitlements/grants:
+    get:
+      operationId: getEntitlementGrants
+      tags:
+        - Backend - Entitlements
+      summary: /entitlements/grants - Grants report with filters
+      description: |
+        Paginated grants report. The owner organization and Super Admins see
+        the whole fleet; other users only the grants of systems in their
+        hierarchy.
+      parameters:
+        - name: entitlement
+          in: query
+          description: Filter by catalog id
+          schema:
+            type: string
+            example: "nsec-blacklist"
+        - name: organization_id
+          in: query
+          description: Filter by the organization owning the system
+          schema:
+            type: string
+            example: "akkbs6x2wo82"
+        - name: source
+          in: query
+          description: Filter by grant source
+          schema:
+            type: string
+            enum: [manual, shop, legacy-import]
+        - name: active
+          in: query
+          description: When "true", only active grants (not revoked, not expired)
+          schema:
+            type: string
+            enum: ["true"]
+        - name: expiring_before
+          in: query
+          description: Only grants expiring before this RFC3339 timestamp
+          schema:
+            type: string
+            format: date-time
+            example: "2026-12-31T23:59:59Z"
+        - name: page
+          in: query
+          description: Page number
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          description: Page size (max 200)
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+      responses:
+        '200':
+          description: Grants retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "grants retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      grants:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/EntitlementGrantReportRow'
+                      total:
+                        type: integer
+                        example: 42
+                      page:
+                        type: integer
+                        example: 1
+                      page_size:
+                        type: integer
+                        example: 50
+        '400':
+          description: expiring_before is not a valid RFC3339 timestamp
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /entitlements/stats:
+    get:
+      operationId: getEntitlementStats
+      tags:
+        - Backend - Entitlements
+      summary: /entitlements/stats - Active grants per entitlement per organization
+      description: |
+        Active grants aggregated per entitlement per organization. Same
+        visibility scoping as the grants report: owner organization and Super
+        Admins see the whole fleet, other users only their hierarchy.
+      responses:
+        '200':
+          description: Entitlement stats retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "entitlement stats retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      stats:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/EntitlementStatsRow'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /entitlements/report:
+    get:
+      operationId: getEntitlementReport
+      tags:
+        - Backend - Entitlements
+      summary: /entitlements/report - Fleet-wide add-on analytics (owner/Super Admin)
+      description: |
+        The commercial overview of every add-on grant: lifecycle totals
+        (active/expired/revoked/pending/suspended, perpetual, expiring in
+        30/60/90 days), the per-type breakdown, the renewal distribution and
+        a 12-month activation trend. The per-organization and per-tier
+        breakdowns live on their own paginated endpoints. Owner organization
+        / Super Admin only; deleted systems are excluded.
+      responses:
+        '200':
+          description: Entitlement report retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "entitlement report retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/EntitlementReport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /entitlements/report/organizations:
+    get:
+      operationId: getEntitlementReportOrganizations
+      tags:
+        - Backend - Entitlements
+      summary: /entitlements/report/organizations - Per-organization slice of the add-on report
+      description: |
+        Grants grouped by the organization owning the systems, most active
+        first, paginated and searchable by organization name. Owner
+        organization / Super Admin only.
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+          description: Case-insensitive filter on the organization name
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, default: 10, maximum: 200 }
+      responses:
+        '200':
+          description: Report organizations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "report organizations retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      organizations:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            organization_id: { type: string, example: "akkbs6x2wo82" }
+                            organization_name: { type: string, example: "ACME S.r.l." }
+                            org_type: { type: string, example: "reseller", description: "distributor | reseller | customer | owner" }
+                            systems: { type: integer, example: 12 }
+                            active: { type: integer, example: 18 }
+                            total: { type: integer, example: 20 }
+                      total: { type: integer, example: 130 }
+                      page: { type: integer, example: 1 }
+                      page_size: { type: integer, example: 10 }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /entitlements/report/tiers:
+    get:
+      operationId: getEntitlementReportTiers
+      tags:
+        - Backend - Entitlements
+      summary: /entitlements/report/tiers - Per-tier slice of the add-on report
+      description: |
+        Grants grouped by shop tier (variable products only), paginated and
+        searchable by add-on id or tier label. Owner organization / Super
+        Admin only.
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+          description: Case-insensitive filter on the add-on id or tier label
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, default: 10, maximum: 200 }
+      responses:
+        '200':
+          description: Report tiers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "report tiers retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      tiers:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            entitlement: { type: string, example: "nsec-blacklist" }
+                            label: { type: string, example: "16 - 30 device" }
+                            count: { type: integer, example: 14 }
+                      total: { type: integer, example: 12 }
+                      page: { type: integer, example: 1 }
+                      page_size: { type: integer, example: 10 }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /entitlements/activate:
+    post:
+      operationId: activateEntitlement
+      tags:
+        - Backend - Entitlements
+      summary: /entitlements/activate - Shop-facing activation/renewal of an add-on
+      description: |
+        Activate or renew an add-on after a shop purchase or subscription
+        renewal (called by the NethShop webhook). The system is addressed by
+        its key; the entitlement accepts the canonical catalog id or the
+        legacy alias.
+
+        Idempotent upsert: an existing (system, entitlement, scope) grant is
+        renewed in place (new expiry, revocation cleared), so webhook retries
+        are safe. The grant is recorded with `source: shop`.
+
+        Requires the `manage:entitlements` permission — held by the
+        Backoffice, Admin and Super Admin user roles, or an owner API key.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivateEntitlementRequest'
+      responses:
+        '200':
+          description: Entitlement activated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "entitlement activated successfully"
+                  data:
+                    $ref: '#/components/schemas/SystemEntitlement'
+        '400':
+          description: Unknown entitlement, scope not supported by the catalog item, or system-type mismatch ("this entitlement applies to nsec systems only")
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: System not found for this key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /entitlements/pending:
+    post:
+      operationId: pendingEntitlement
+      tags:
+        - Backend - Entitlements
+      summary: /entitlements/pending - Shop-facing "order placed, payment not confirmed"
+      description: |
+        Mark an add-on activation as pending: the shop order exists but the
+        payment (bank transfer/RiBa) has not been confirmed yet. Display-only
+        — the UI shows the entitlement as `pending` instead of offering
+        another purchase; enforcement is NOT affected (collect keeps
+        answering 403 until the real activation).
+
+        On a fresh purchase a non-active stub grant is created; on an
+        existing grant (renewal, re-buy after revocation/expiry) only the
+        pending marker is stamped. Idempotent. The marker is cleared by
+        `POST /entitlements/activate` (order completed) or by
+        `POST /entitlements/deactivate` with the same `source_ref` (order
+        cancelled before payment). Same addressing and auth as activate
+        (`manage:entitlements` permission).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PendingEntitlementRequest'
+      responses:
+        '200':
+          description: Entitlement activation marked pending
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "entitlement activation marked pending"
+                  data:
+                    $ref: '#/components/schemas/SystemEntitlement'
+        '400':
+          description: Unknown entitlement, scope not supported by the catalog item, or system-type mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: System not found for this key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /entitlements/deactivate:
+    post:
+      operationId: deactivateEntitlement
+      tags:
+        - Backend - Entitlements
+      summary: /entitlements/deactivate - Shop-facing revocation of an add-on
+      description: |
+        Revoke a shop-managed grant when the subscription is cancelled or
+        expires (called by the NethShop webhook). Same addressing and auth as
+        `POST /entitlements/activate` (`manage:entitlements` permission).
+        The revocation is soft and idempotent.
+
+        When `source_ref` is provided it is matched against the grant: a
+        PENDING activation with the same ref is cleared instead of revoked
+        (order cancelled before payment), and a grant whose `source_ref`
+        differs is left untouched — cancelling an old order can never revoke
+        an entitlement another order paid for.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeactivateEntitlementRequest'
+      responses:
+        '200':
+          description: Entitlement deactivated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "entitlement deactivated successfully"
+                  data:
+                    $ref: '#/components/schemas/SystemEntitlement'
+        '400':
+          description: Unknown entitlement
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: System not found for this key, or no grant for this (entitlement, scope)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   # ===========================================
   # ALERTING ENDPOINTS (Collect - Mimir Proxy)
   # ===========================================
@@ -14658,3 +16410,169 @@ paths:
           $ref: '#/components/responses/InternalServerError'
         '503':
           description: Webhook authentication not configured
+
+  # ===========================================
+  # FEED AUTHORIZATION (Collect - /auth forwardAuth)
+  # ===========================================
+
+  /auth:
+    get:
+      operationId: authCheck
+      servers:
+        - url: https://collect.your-domain.com/api
+          description: Collect API server (port 8081)
+      tags:
+        - Collect - Feed Authorization
+      summary: /auth - Subscription-level authorization check
+      description: |
+        Native replacement of the legacy my /auth used by the appliance
+        enterprise feeds (distfeed, ns-signatures-proxy, blacklists) via
+        forwardAuth. Returns 200 when the system credentials belong to a valid
+        subscription; unknown, unregistered, suspended and deleted systems get
+        401 (same semantics as the legacy nethserver_basic_auth.php).
+      security:
+        - BasicAuth: [system_key:system_secret]
+      responses:
+        '200':
+          description: Valid subscription
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "authorized"
+                  data:
+                    type: object
+                    nullable: true
+                    example: null
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/service/{id}:
+    get:
+      operationId: authCheckService
+      servers:
+        - url: https://collect.your-domain.com/api
+          description: Collect API server (port 8081)
+      tags:
+        - Collect - Feed Authorization
+      summary: /auth/service/{id} - Per-add-on entitlement check
+      description: |
+        Returns 200 only when the system holds an active grant (not revoked,
+        not expired; `valid_until` null = perpetual) for the requested service
+        id, 403 otherwise. The id may be the canonical catalog id or a legacy
+        wire alias (the feeds still call `ng-blacklist` while the canonical id
+        is `nsec-blacklist`).
+
+        `?scope=<app-instance>` also matches grants narrowed to that
+        application instance (e.g. `nethvoice1`); a system-wide grant (empty
+        scope) covers every instance. Without `scope` only system-wide grants
+        count.
+      security:
+        - BasicAuth: [system_key:system_secret]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Service id (canonical catalog id or legacy alias)
+          schema:
+            type: string
+            example: "ng-blacklist"
+        - name: scope
+          in: query
+          description: Application instance to check an instance-narrowed grant for
+          schema:
+            type: string
+            example: "nethvoice1"
+      responses:
+        '200':
+          description: The system holds an active grant for the service
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "authorized"
+                  data:
+                    type: object
+                    nullable: true
+                    example: null
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Valid subscription but the service is not enabled for this system
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 403
+                  message:
+                    type: string
+                    example: "service not enabled for this system"
+                  data:
+                    type: object
+                    nullable: true
+                    example: null
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/product/{name}:
+    get:
+      operationId: authCheckProduct
+      servers:
+        - url: https://collect.your-domain.com/api
+          description: Collect API server (port 8081)
+      tags:
+        - Collect - Feed Authorization
+      summary: /auth/product/{name} - Product-level authorization check
+      description: |
+        Pass-through for systems with a valid subscription: product-level
+        enforcement is not applied yet, so any authenticated system gets 200
+        (mirrors the transitional broker behaviour for /auth/product/*).
+      security:
+        - BasicAuth: [system_key:system_secret]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: Product name
+          schema:
+            type: string
+            example: "nethservice"
+      responses:
+        '200':
+          description: Valid subscription
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "authorized"
+                  data:
+                    type: object
+                    nullable: true
+                    example: null
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'

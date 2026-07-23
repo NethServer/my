@@ -169,6 +169,20 @@ func main() {
 	}
 
 	// ===========================================
+	// FEED AUTHORIZATION (/auth forwardAuth)
+	// ===========================================
+	// Native replacement of the legacy my /auth used by the nsec enterprise
+	// feeds (distfeed, ns-signatures-proxy, blacklists) via forwardAuth.
+	// Subscription check comes from BasicAuthMiddleware; per-add-on grants
+	// come from system_entitlements (403 without an active grant).
+	authGroup := api.Group("/auth", middleware.BasicAuthMiddleware())
+	{
+		authGroup.GET("", methods.AuthCheck)
+		authGroup.GET("/service/:id", methods.AuthCheckService)
+		authGroup.GET("/product/:name", methods.AuthCheckProduct)
+	}
+
+	// ===========================================
 	// EXTERNAL SERVICES PROXY
 	// ===========================================
 	// Each machine can only access its own alerts and silences (scoped by system_key).

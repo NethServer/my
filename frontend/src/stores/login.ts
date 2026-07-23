@@ -37,11 +37,14 @@ export type UserInfo = {
 }
 
 export const useLoginStore = defineStore('login', () => {
-  const { signIn, signOut, isAuthenticated, getAccessToken } = useLogto()
+  const { signIn, signOut, isAuthenticated, getAccessToken, getIdToken } = useLogto()
   const themeStore = useThemeStore()
 
   const accessToken = ref<string>('')
   const jwtToken = ref<string>('')
+  // Raw Logto ID token (JWT with email): sent to third-party apps' info_url,
+  // which validate it against the shared Logto tenant.
+  const idToken = ref<string>('')
   const refreshToken = ref<string>('')
   // per-tab bookkeeping: each tab exchanges its own token pair, so refresh
   // timing must not be shared across tabs (e.g. via localStorage)
@@ -71,15 +74,13 @@ export const useLoginStore = defineStore('login', () => {
     () => {
       if (isAuthenticated.value) {
         fetchTokenAndUserInfo()
-        const pathRequested = useStorage('pathRequested', '')
-
-        if (pathRequested.value) {
-          router.push(JSON.parse(pathRequested.value))
-          pathRequested.value = null // clear the local storage entry
-        }
+        // pathRequested (deep link saved by the router guard) is restored by
+        // LoginRedirectView's sign-in callback: doing it here too would race
+        // with that push and could bounce the user to the dashboard.
       } else {
         jwtToken.value = ''
         accessToken.value = ''
+        idToken.value = ''
         refreshToken.value = ''
         userInfo.value = undefined
       }
@@ -113,6 +114,13 @@ export const useLoginStore = defineStore('login', () => {
       }
 
       accessToken.value = token || ''
+
+      // Raw ID token for third-party info_url calls (best-effort).
+      try {
+        idToken.value = (await getIdToken()) || ''
+      } catch {
+        idToken.value = ''
+      }
     } catch (error) {
       console.error('Cannot fetch access token:', error)
       loadingUserInfo.value = false
@@ -270,6 +278,7 @@ export const useLoginStore = defineStore('login', () => {
   return {
     isAuthenticated,
     jwtToken,
+    idToken,
     userDisplayName,
     userInfo,
     loadingUserInfo,

@@ -1198,3 +1198,102 @@ CREATE INDEX IF NOT EXISTS idx_api_key_audit_user ON api_key_audit(user_id, crea
 CREATE INDEX IF NOT EXISTS idx_api_key_audit_org ON api_key_audit(organization_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_api_key_audit_key ON api_key_audit(api_key_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_api_key_audit_event ON api_key_audit(event);
+
+-- =============================================================================
+-- ENTITLEMENTS (granular add-on licensing, migration 037)
+-- =============================================================================
+-- entitlement_catalog: DB-driven set of grantable add-on types. The 3 ng-*
+-- ids are the legacy wire ids the feeds call — do not rename. New ids follow
+-- the convention: nsec-<service> / ns8-<app> / <app>-<module> (scoped=TRUE).
+-- system_entitlements: one row grants one add-on to one system, optionally
+-- narrowed to one application instance via scope ('' = whole system).
+-- Collect's native /auth/service/<id>[?scope=] answers 200/403 from here;
+-- a system-wide grant also covers every instance (fallback).
+-- Active = revoked_at IS NULL AND (valid_until IS NULL OR valid_until > now());
+-- valid_until NULL = perpetual (legacy imports). Renewals UPDATE valid_until
+-- in place — one row per (system, entitlement, scope).
+
+CREATE TABLE IF NOT EXISTS entitlement_catalog (
+    id           VARCHAR(100) PRIMARY KEY,
+    display_name VARCHAR(255) NOT NULL,
+    description  TEXT NOT NULL DEFAULT '',
+    scoped       BOOLEAN NOT NULL DEFAULT FALSE,
+    kind         VARCHAR(20)  NOT NULL DEFAULT 'service',
+    system_type  VARCHAR(50)  NOT NULL DEFAULT '',
+    legacy_alias VARCHAR(100) NOT NULL DEFAULT '',
+    created_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_entitlement_catalog_legacy_alias
+    ON entitlement_catalog(legacy_alias) WHERE legacy_alias <> '';
+
+COMMENT ON TABLE  entitlement_catalog              IS 'Grantable add-on types. Id convention: nsec-<service> / ns8-<app> / <app>-<module> (scoped)';
+COMMENT ON COLUMN entitlement_catalog.scoped       IS 'TRUE = grantable per application instance of a system (scope on the grant); FALSE = system-wide only';
+COMMENT ON COLUMN entitlement_catalog.kind         IS 'service (nsec-<service>, firewall add-on, system-wide) | module (<app>-<module>, add-on for one application instance of an NS8 cluster) — both sellable on the shop';
+COMMENT ON COLUMN entitlement_catalog.system_type  IS 'System type the add-on applies to: nsec | ns8; empty = any. Grants are refused on mismatching systems and the UI/shop only offer pertinent add-ons';
+COMMENT ON COLUMN entitlement_catalog.legacy_alias IS 'Legacy wire id the appliance feeds still call on /auth/service/<id>; collect resolves it to the canonical id';
+
+INSERT INTO entitlement_catalog (id, display_name, description, scoped, kind, system_type, legacy_alias) VALUES
+    ('nsec-blacklist', 'Advanced Threat Shield', 'Enterprise blacklist feeds (bl.nethesis.it)', FALSE, 'service', 'nsec', 'ng-blacklist'),
+    ('nsec-ha',        'High Availability',      'High availability (HA)',                      FALSE, 'service', 'nsec', 'ng-ha'),
+    ('nsec-sandbox',   'Sandbox',                'Sandbox',                                     FALSE, 'service', 'nsec', 'ng-sandbox')
+ON CONFLICT (id) DO NOTHING;
+
+-- OPTIONAL commercial restriction: sellable items are available to everyone
+-- by default; rules, when present, restrict to matching role/orgs.
+CREATE TABLE IF NOT EXISTS entitlement_availability (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    entitlement     VARCHAR(100) NOT NULL REFERENCES entitlement_catalog(id) ON DELETE CASCADE,
+    org_role        VARCHAR(50)  NOT NULL DEFAULT '',
+    organization_id VARCHAR(255) NOT NULL DEFAULT '',
+    created_by      JSONB,
+    created_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT entitlement_availability_unique UNIQUE (entitlement, org_role, organization_id),
+    CONSTRAINT entitlement_availability_target CHECK ((org_role <> '') <> (organization_id <> ''))
+);
+
+CREATE INDEX IF NOT EXISTS idx_entitlement_availability_ent ON entitlement_availability(entitlement);
+
+COMMENT ON TABLE  entitlement_availability                 IS 'Optional commercial restriction: no rows = item available to everyone; rules restrict to matching role/orgs. Does not affect /auth enforcement';
+COMMENT ON COLUMN entitlement_availability.org_role        IS 'Role-wide unlock: distributor | reseller | customer (empty when organization_id is set)';
+COMMENT ON COLUMN entitlement_availability.organization_id IS 'Org-specific unlock (empty when org_role is set)';
+
+CREATE TABLE IF NOT EXISTS system_entitlements (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    system_id   VARCHAR(255) NOT NULL REFERENCES systems(id) ON DELETE CASCADE,
+    entitlement VARCHAR(100) NOT NULL REFERENCES entitlement_catalog(id),
+    scope       VARCHAR(255) NOT NULL DEFAULT '',
+    source      VARCHAR(50)  NOT NULL DEFAULT 'manual',
+    source_ref  VARCHAR(255),
+    valid_from  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    valid_until TIMESTAMP WITH TIME ZONE,
+    revoked_at  TIMESTAMP WITH TIME ZONE,
+    revoked_source VARCHAR(50),
+    pending_ref VARCHAR(255),
+    pending_since TIMESTAMP WITH TIME ZONE,
+    created_by  JSONB,
+    purchased_by JSONB,
+    variant     JSONB,
+    renewal_count INTEGER NOT NULL DEFAULT 0,
+    created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT system_entitlements_unique UNIQUE (system_id, entitlement, scope)
+);
+
+CREATE INDEX IF NOT EXISTS idx_system_entitlements_system_id ON system_entitlements(system_id);
+CREATE INDEX IF NOT EXISTS idx_system_entitlements_entitlement ON system_entitlements(entitlement);
+
+COMMENT ON TABLE  system_entitlements             IS 'Granular add-on grants per system; checked by collect /auth/service/<id>[?scope=]';
+COMMENT ON COLUMN system_entitlements.entitlement IS 'Add-on id from entitlement_catalog (same ids as the legacy service table for ng-*)';
+COMMENT ON COLUMN system_entitlements.scope       IS 'Application instance the grant is narrowed to (e.g. nethvoice5 on an NS8 cluster); empty = whole system';
+COMMENT ON COLUMN system_entitlements.source      IS 'How the grant was created: legacy-import | shop | manual';
+COMMENT ON COLUMN system_entitlements.source_ref  IS 'Reference in the source system (e.g. nethshop order/subscription id, legacy service_server id)';
+COMMENT ON COLUMN system_entitlements.valid_until IS 'Expiry; NULL = perpetual (legacy imports). Renewals push this forward in place';
+COMMENT ON COLUMN system_entitlements.revoked_at  IS 'Set on revoke (DELETE endpoint / subscription cancelled); row kept for audit';
+COMMENT ON COLUMN system_entitlements.revoked_source IS 'Who revoked: manual (admin DELETE/PUT — deliberate, not re-buyable) | shop (deactivate webhook: subscription cancelled/payment failed — re-buyable). NULL when not revoked';
+COMMENT ON COLUMN system_entitlements.pending_ref  IS 'Shop order awaiting payment (set at checkout, cleared on activate/cancel). Display-only: enforcement ignores it. A never-activated pending stub has valid_until = valid_from';
+COMMENT ON COLUMN system_entitlements.created_by  IS 'Actor snapshot (user/org or shop M2M) that created the grant';
+COMMENT ON COLUMN system_entitlements.purchased_by IS 'Snapshot of the my user that BOUGHT the grant on the shop, resolved from the order customer email (webhook activation or legacy-import backfill): {logto_id, name, email, organization_id, organization_name, org_role, user_roles}. {email} only when the address matches no my user; NULL for manual grants and legacy rows without an order';
+COMMENT ON COLUMN system_entitlements.variant IS 'Shop variation (tier) of the purchased product line: {id, sku, label} (e.g. label "16-30 device"). Display metadata only — the add-on mapping stays on the parent product and /auth enforcement ignores it. Refreshed by activate (upgrades/downgrades follow renewals); NULL for manual grants and simple products';
+COMMENT ON COLUMN system_entitlements.renewal_count IS 'Paid shop orders on this grant beyond the first: incremented by activate when source_ref CHANGES (webhook retries on the same order never double-count). 0 = first period';
