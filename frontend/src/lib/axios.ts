@@ -53,6 +53,13 @@ export const configureAxios = () => {
         console.error('[interceptor]', error.response.data.message)
       }
 
+      // A 401 on the refresh endpoint means the custom refresh chain is dead;
+      // doRefreshToken handles it (it falls back to a silent Logto re-exchange),
+      // so don't log out or toast here — that would pre-empt the self-heal.
+      if (error.config?.url === `${API_URL}/auth/refresh`) {
+        return Promise.reject(error)
+      }
+
       if (error.response?.status == 401) {
         // logout user
         console.warn('[interceptor]', 'Detected error 401, logout')

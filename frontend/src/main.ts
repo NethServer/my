@@ -19,10 +19,13 @@ import { PiniaColadaAutoRefetch } from '@pinia/colada-plugin-auto-refetch'
 fontawesomeConfig.autoAddCss = false
 
 // logto configuration
+// `offline_access` makes Logto issue a refresh token to the SPA, so the SDK can
+// renew the access token silently after its (~1h) TTL instead of forcing a full
+// re-login. Requires the "Refresh token" grant to be enabled on the Logto app.
 const logtoConfig: LogtoConfig = {
   endpoint: LOGTO_ENDPOINT,
   appId: LOGTO_APP_ID,
-  scopes: ['openid', 'profile', 'email'],
+  scopes: ['openid', 'profile', 'email', 'offline_access'],
 }
 
 const app = createApp(App)

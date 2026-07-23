@@ -40,13 +40,29 @@ export const useLoginStore = defineStore('login', () => {
   const { signIn, signOut, isAuthenticated, getAccessToken } = useLogto()
   const themeStore = useThemeStore()
 
+  // The Logto opaque token is only used at exchange time; keep it in memory.
   const accessToken = ref<string>('')
-  const jwtToken = ref<string>('')
-  const refreshToken = ref<string>('')
-  // per-tab bookkeeping: each tab exchanges its own token pair, so refresh
-  // timing must not be shared across tabs (e.g. via localStorage)
-  const tokenRefreshedAt = ref<number>(0)
-  const tokenExpiresAt = ref<number>(0)
+  // The custom JWT pair (and its expiry bookkeeping) is persisted in
+  // sessionStorage so a page reload no longer drops the session and falls back
+  // to a full Logto re-login. sessionStorage keeps the per-tab isolation the
+  // rotating refresh chain relies on: it survives reload, is not shared between
+  // tabs, and is cleared when the tab closes.
+  const jwtToken = useStorage<string>('my_jwt', '', sessionStorage)
+  const refreshToken = useStorage<string>('my_refresh_token', '', sessionStorage)
+  const tokenRefreshedAt = useStorage<number>('my_token_refreshed_at', 0, sessionStorage)
+  const tokenExpiresAt = useStorage<number>('my_token_expires_at', 0, sessionStorage)
+
+  // A reload rehydrates the pair from sessionStorage. If the access token is
+  // already (near) expired, drop it so queries gated on jwtToken don't fire
+  // with a dead token before the silent re-exchange runs; the refresh token is
+  // kept so the interceptor / re-exchange can still mint a fresh pair.
+  if (
+    jwtToken.value &&
+    (!tokenExpiresAt.value || Date.now() > tokenExpiresAt.value - TOKEN_EXPIRY_MARGIN)
+  ) {
+    jwtToken.value = ''
+  }
+
   const userInfo = ref<UserInfo | undefined>()
   const loadingUserInfo = ref<boolean>(true)
   const avatarVersion = ref<number>(0)
@@ -65,11 +81,46 @@ export const useLoginStore = defineStore('login', () => {
     return (userInfo.value?.org_permissions || []).concat(userInfo.value?.user_permissions || [])
   })
 
+  // Proactively refresh the short-lived access token while the tab is open, so
+  // an idle period never leaves an expired token that the interceptor would
+  // turn into a 401 logout. The tick is cheap; shouldRefreshToken() decides
+  // whether a network refresh actually happens, and doRefreshToken dedups.
+  const AUTO_REFRESH_CHECK_INTERVAL = 60 * 1000 // 1 minute
+  let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
+
+  const startAutoRefresh = () => {
+    if (autoRefreshTimer) {
+      return
+    }
+    autoRefreshTimer = setInterval(() => {
+      if (document.visibilityState === 'visible' && shouldRefreshToken()) {
+        doRefreshToken()
+      }
+    }, AUTO_REFRESH_CHECK_INTERVAL)
+  }
+
+  const stopAutoRefresh = () => {
+    if (autoRefreshTimer) {
+      clearInterval(autoRefreshTimer)
+      autoRefreshTimer = null
+    }
+  }
+
+  // A tab returning to the foreground after being idle is the classic moment
+  // for an expired token: refresh right away instead of waiting for the tick.
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && shouldRefreshToken()) {
+        doRefreshToken()
+      }
+    })
+  }
+
   // watch for authentication changes
   watch(
     isAuthenticated,
-    () => {
-      if (isAuthenticated.value) {
+    (isAuth, wasAuth) => {
+      if (isAuth) {
         fetchTokenAndUserInfo()
         const pathRequested = useStorage('pathRequested', '')
 
@@ -77,10 +128,17 @@ export const useLoginStore = defineStore('login', () => {
           router.push(JSON.parse(pathRequested.value))
           pathRequested.value = null // clear the local storage entry
         }
-      } else {
+      } else if (wasAuth) {
+        // Genuine logout (was authenticated, now not) — tear the session down.
+        // On the initial boot tick isAuthenticated is transiently false while
+        // the Logto SDK restores the session, so wasAuth is undefined there and
+        // we must NOT wipe the persisted tokens we just rehydrated.
+        stopAutoRefresh()
         jwtToken.value = ''
         accessToken.value = ''
         refreshToken.value = ''
+        tokenRefreshedAt.value = 0
+        tokenExpiresAt.value = 0
         userInfo.value = undefined
       }
     },
@@ -92,6 +150,14 @@ export const useLoginStore = defineStore('login', () => {
   }
 
   const logout = () => {
+    // Clear the persisted session before redirecting to Logto: signOut is a
+    // same-tab navigation, so sessionStorage would otherwise survive and leave
+    // orphaned tokens that queries (gated on jwtToken) could still pick up.
+    stopAutoRefresh()
+    jwtToken.value = ''
+    refreshToken.value = ''
+    tokenRefreshedAt.value = 0
+    tokenExpiresAt.value = 0
     signOut(SIGN_OUT_REDIRECT_URI)
   }
 
@@ -129,6 +195,10 @@ export const useLoginStore = defineStore('login', () => {
       tokenExpiresAt.value = Date.now() + res.data.data.expires_in * 1000
       const user = res.data.data.user as UserInfo
       userInfo.value = user
+
+      // keep the short-lived access token fresh while the tab is open, so an
+      // idle period never leaves an expired token that would 401 on the next call
+      startAutoRefresh()
 
       // Load user theme
       themeStore.loadTheme()
@@ -183,6 +253,32 @@ export const useLoginStore = defineStore('login', () => {
     return now - tokenRefreshedAt.value > TOKEN_REFRESH_INTERVAL
   }
 
+  // Fallback used when the custom refresh chain can no longer be rotated (e.g.
+  // reuse-detection burned it, or two tabs briefly shared the same token):
+  // re-derive a brand-new token pair from the still-valid Logto session. Works
+  // silently only because we request the offline_access scope.
+  const reexchangeFromLogto = async (): Promise<boolean> => {
+    try {
+      const token = await getAccessToken()
+      if (!token) {
+        return false
+      }
+      accessToken.value = token
+      const res = await axios.post(`${API_URL}/auth/exchange`, {
+        access_token: token,
+      })
+      jwtToken.value = res.data.data.token
+      refreshToken.value = res.data.data.refresh_token
+      tokenRefreshedAt.value = Date.now()
+      tokenExpiresAt.value = Date.now() + res.data.data.expires_in * 1000
+      userInfo.value = res.data.data.user as UserInfo
+      return true
+    } catch (error) {
+      console.error('Cannot re-exchange token via Logto:', error)
+      return false
+    }
+  }
+
   // deduplicate concurrent refreshes: the backend rotates the refresh token on
   // every use, so two parallel calls with the same token would look like theft
   let refreshPromise: Promise<void> | null = null
@@ -207,7 +303,11 @@ export const useLoginStore = defineStore('login', () => {
         tokenRefreshedAt.value = Date.now()
         tokenExpiresAt.value = Date.now() + res.data.data.expires_in * 1000
       } catch (error) {
-        console.error('Cannot refresh token:', error)
+        // the custom refresh chain is dead; try a silent Logto re-exchange
+        // before surrendering, so a burned chain self-heals instead of the
+        // next request 401-ing the user out
+        console.warn('Refresh failed, falling back to Logto re-exchange:', error)
+        await reexchangeFromLogto()
       } finally {
         refreshPromise = null
       }
