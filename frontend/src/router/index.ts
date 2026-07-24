@@ -110,6 +110,11 @@ const router = createRouter({
       name: 'customer_detail',
       component: () => import('../views/CustomerDetailView.vue'),
     },
+    {
+      path: '/support-sessions',
+      name: 'support',
+      component: () => import('../views/SupportSessionsView.vue'),
+    },
   ],
 })
 

@@ -22,6 +22,7 @@ import {
   faUserGroup as fasUserGroup,
   faServer as fasServer,
   faTriangleExclamation,
+  faHeadset as fasHeadset,
 } from '@fortawesome/free-solid-svg-icons'
 import { faGridOne as fasGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import {
@@ -33,12 +34,14 @@ import {
   faServer as falServer,
   faGrid2 as falGrid2,
   faTriangleExclamation as falTriangleExclamation,
+  faHeadset as falHeadset,
 } from '@nethesis/nethesis-light-svg-icons'
 import {
   canReadApplications,
   canReadCustomers,
   canReadDistributors,
   canReadResellers,
+  canConnectSystems,
   canReadSystems,
   canReadUsers,
 } from '@/lib/permissions'
@@ -67,7 +70,7 @@ const menuExpanded: Ref<Record<string, boolean>> = ref({
   resellers: false,
 })
 
-const systemsManagementRoutes = ['alerts', 'systems', 'applications']
+const systemsManagementRoutes = ['alerts', 'systems', 'applications', 'support-sessions']
 const companiesAndUsersRoutes = ['distributors', 'resellers', 'customers', 'users']
 
 const navigation = computed(() => {
@@ -99,6 +102,15 @@ const navigation = computed(() => {
       to: 'applications',
       solidIcon: fasGridOne,
       lightIcon: falGrid2,
+    })
+  }
+
+  if (canConnectSystems()) {
+    menuItems.push({
+      name: 'support.title',
+      to: 'support-sessions',
+      solidIcon: fasHeadset,
+      lightIcon: falHeadset,
     })
   }
 
