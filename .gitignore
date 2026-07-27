@@ -9,6 +9,9 @@ collect/collect
 collect/main
 collect/build/
 collect/*.exe
+services/support/build/
+services/support/tunnel-client
+services/support/*.exe
 *.exe
 *.bin
 

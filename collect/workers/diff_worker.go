@@ -13,6 +13,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -188,9 +189,25 @@ func (dw *DiffWorker) processInventoryDiff(ctx context.Context, job *models.Inve
 		return nil
 	}
 
-	// Compute differences
+	// Compute differences. r3labs/diff bails with "types do not match" when a
+	// field's JSON type drifts between the two records (null → object, [] →
+	// {}, etc.); that's a schema change in the appliance payload, not a
+	// processing failure. Swallow it: mark the inventory processed with zero
+	// diffs so we don't poison-pill the queue with retries.
 	diffs, err := dw.diffEngine.ComputeDiff(job.SystemID, previousRecord, currentRecord)
 	if err != nil {
+		if strings.Contains(err.Error(), "types do not match") {
+			workerLogger.Warn().
+				Err(err).
+				Str("system_id", job.SystemID).
+				Int64("previous_inventory_id", previousRecord.ID).
+				Int64("current_inventory_id", currentRecord.ID).
+				Msg("Skipping diff: inventory payload changed shape since the previous record")
+			if markErr := dw.markInventoryProcessed(ctx, currentRecord.ID, false, 0); markErr != nil {
+				return fmt.Errorf("failed to mark inventory as processed after diff type-mismatch: %w", markErr)
+			}
+			return nil
+		}
 		return fmt.Errorf("failed to compute diff: %w", err)
 	}
 
