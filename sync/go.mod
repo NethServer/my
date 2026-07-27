@@ -30,5 +30,5 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
-	golang.org/x/text v0.26.0 // indirect
+	golang.org/x/text v0.39.0 // indirect
 )
