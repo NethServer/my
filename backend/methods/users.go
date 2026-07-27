@@ -25,12 +25,10 @@ import (
 // invalidateUserProfileCache removes the cached user profile from Redis.
 // This ensures that changes to roles, permissions, or profile data take effect immediately.
 func invalidateUserProfileCache(logtoID *string) {
-	if logtoID == nil || *logtoID == "" {
+	if logtoID == nil {
 		return
 	}
-	if rc := cache.GetRedisClient(); rc != nil {
-		_ = rc.Delete("user_profile:" + *logtoID)
-	}
+	local.InvalidateUserProfileCache(*logtoID)
 }
 
 // CreateUser handles POST /api/users - creates a new user locally and syncs to Logto

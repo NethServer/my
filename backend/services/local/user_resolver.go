@@ -19,6 +19,24 @@ import (
 	"github.com/nethesis/my/backend/services/logto"
 )
 
+const userProfileCacheKeyPrefix = "user_profile:"
+
+// InvalidateUserProfileCache drops cached profiles so the next resolve reads
+// roles, permissions and organization live instead of serving the cached copy
+// for the rest of the TTL.
+func InvalidateUserProfileCache(logtoIDs ...string) {
+	rc := cache.GetRedisClient()
+	if rc == nil {
+		return
+	}
+	for _, logtoID := range logtoIDs {
+		if logtoID == "" {
+			continue
+		}
+		_ = rc.Delete(userProfileCacheKeyPrefix + logtoID)
+	}
+}
+
 // ResolveUserByLogtoID builds a fully enriched User (roles, permissions, org)
 // for a Logto ID, reusing the 10-minute Redis profile cache. On a cache hit it
 // performs no live Logto call; on a miss it fetches the profile and enriches
@@ -27,7 +45,7 @@ import (
 // It is shared by the token exchange and by API-key authentication: both need
 // the owner's effective permissions without a per-request Logto round-trip.
 func ResolveUserByLogtoID(logtoID string) (*models.User, error) {
-	cacheKey := "user_profile:" + logtoID
+	cacheKey := userProfileCacheKeyPrefix + logtoID
 	rc := cache.GetRedisClient()
 	if rc != nil {
 		var cached models.User

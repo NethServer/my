@@ -23,6 +23,27 @@ import (
 
 const rolesCacheTTL = 15 * time.Minute
 
+// SuperAdminUserRole is the technical role only the Owner can assign, carrying
+// owner-level authority on the operations that gate on it.
+const SuperAdminUserRole = "Super Admin"
+
+// IsOwnerOrSuperAdmin reports whether the caller holds owner-level authority:
+// a user of the Owner organization, or a Super Admin.
+func IsOwnerOrSuperAdmin(user *models.User) bool {
+	if user == nil {
+		return false
+	}
+	if strings.EqualFold(user.OrgRole, "owner") {
+		return true
+	}
+	for _, role := range user.UserRoles {
+		if strings.EqualFold(role, SuperAdminUserRole) {
+			return true
+		}
+	}
+	return false
+}
+
 // GetRoles returns all available user roles filtered by access control
 func GetRoles(c *gin.Context) {
 	// Get current user context

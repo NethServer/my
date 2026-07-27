@@ -8092,6 +8092,144 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /resellers/{id}/promote:
+    patch:
+      operationId: promoteReseller
+      tags:
+        - Backend - Resellers
+      summary: /resellers/{id}/promote - Promote reseller to distributor
+      description: |
+        Move a reseller one level up to distributor, in place. Restricted to
+        owner-level authority: a user of the Owner organization, or a Super
+        Admin. A Super Admin that does not belong to the Owner organization acts
+        within its own scope only — it can promote the resellers its own
+        organization manages, never a peer's and never the organization it
+        belongs to (403 otherwise).
+
+        The organization keeps its `id` and `logto_id`, so its customers, users,
+        systems, applications, alert history and Mimir tenant stay attached. Its
+        `custom_data.createdBy` moves to the Owner organization, so the
+        distributor that manages it drops it — and the customers under it — from
+        its scope, and the alerting config chain stops inheriting that
+        distributor's layer.
+
+        Members get the `Distributor` organization role in place of `Reseller`,
+        so each of them picks up the new level at the next login or token
+        refresh.
+
+        Rejected with 409 when the reseller is suspended (reactivate it first),
+        when it is not yet synced with Logto, or when the Owner organization
+        cannot be resolved; with 400 when its VAT already belongs to an active
+        distributor (VAT is unique per level). Both carry the
+        `validation_error` shape with stable `message` codes — see the
+        individual responses.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Reseller Logto ID
+      responses:
+        '200':
+          description: Reseller promoted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "reseller promoted to distributor successfully"
+                  data:
+                    type: object
+                    properties:
+                      distributor:
+                        $ref: '#/components/schemas/Organization'
+                      detached_from_organization_id:
+                        type: string
+                        description: Distributor that drops the promoted organization and its customers from its scope
+                        example: "5j8k2m4n6p8q"
+                      parent_organization_id:
+                        type: string
+                        description: Owner organization recorded as the promoted organization's createdBy
+                        example: "aa15fcvgzw1y"
+                      customers_count:
+                        type: integer
+                        description: Customers still attached to the promoted organization
+                        example: 12
+                      users_count:
+                        type: integer
+                        description: Users still attached to the promoted organization
+                        example: 3
+                      systems_count:
+                        type: integer
+                        description: Systems still owned by the promoted organization
+                        example: 4
+                      members_role_switched:
+                        type: integer
+                        description: Members whose Logto organization role moved from Reseller to Distributor
+                        example: 3
+                      warnings:
+                        type: array
+                        description: Best-effort steps that did not confirm and need an operator check
+                        items:
+                          type: string
+        '400':
+          description: |
+            Validation failed. `data.type` is always `validation_error` and
+            `data.errors[]` carries a stable `message` code the UI turns into an
+            i18n key: `already exists` on `custom_data.vat` when the VAT already
+            belongs to an active distributor (`value` is the VAT).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                VatAlreadyExists:
+                  summary: the VAT already belongs to an active distributor
+                  value:
+                    code: 400
+                    message: "validation failed"
+                    data:
+                      type: "validation_error"
+                      errors:
+                        - key: "custom_data.vat"
+                          message: "already exists"
+                          value: "12345678901"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: |
+            The organization cannot be promoted in its current state. Same
+            `validation_error` shape as the 400, on key `promote`, with stable
+            `message` codes: `organization_is_suspended` (reactivate it first),
+            `organization_not_synced` (no Logto organization yet),
+            `owner_organization_not_found` (no Owner organization to attach it
+            to).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                Suspended:
+                  summary: the organization is suspended
+                  value:
+                    code: 409
+                    message: "validation failed"
+                    data:
+                      type: "validation_error"
+                      errors:
+                        - key: "promote"
+                          message: "organization_is_suspended"
+
   /resellers/{id}/restore:
     patch:
       operationId: restoreReseller
@@ -13663,38 +13801,39 @@ paths:
               type: object
               description: Raw inventory data sent directly from the system
               additionalProperties: true
-              example: {
-                "$schema": "https://schema.nethserver.org/facts/2022-12.json",
-                "uuid": "659d2fbe-792f-4a0d-ae58-f278304d4f7f",
-                "installation": "nethserver",
-                "facts": {
-                  "cluster": {
-                    "leader_node_id": "1",
-                    "user_domains": [],
-                    "subscription": "community",
-                    "ui_name": "MyNethServer 8"
-                  },
-                  "nodes": {
-                    "1": {
-                      "cluster_leader": true,
-                      "fqdn": "rl1.dp.nethserver.net",
-                      "default_ipv4": "165.22.17.26",
-                      "default_ipv6": "2a03:b0c0:3:f0:0:1:dbfe:3000",
-                      "version": "3.17.0-dev.6",
-                      "ui_name": "MyNodeRl1"
-                    }
-                  },
-                  "modules": [
-                    {
-                      "id": "mail1",
-                      "version": "1.7.4",
-                      "name": "mail",
-                      "node": "1",
-                      "ui_name": "MyMail"
-                    }
-                  ]
+              example:
+                {
+                  "$schema": "https://schema.nethserver.org/facts/2022-12.json",
+                  "uuid": "659d2fbe-792f-4a0d-ae58-f278304d4f7f",
+                  "installation": "nethserver",
+                  "facts": {
+                    "cluster": {
+                      "leader_node_id": "1",
+                      "user_domains": [],
+                      "subscription": "community",
+                      "ui_name": "MyNethServer 8"
+                    },
+                    "nodes": {
+                      "1": {
+                        "cluster_leader": true,
+                        "fqdn": "rl1.dp.nethserver.net",
+                        "default_ipv4": "165.22.17.26",
+                        "default_ipv6": "2a03:b0c0:3:f0:0:1:dbfe:3000",
+                        "version": "3.17.0-dev.6",
+                        "ui_name": "MyNodeRl1"
+                      }
+                    },
+                    "modules": [
+                      {
+                        "id": "mail1",
+                        "version": "1.7.4",
+                        "name": "mail",
+                        "node": "1",
+                        "ui_name": "MyMail"
+                      }
+                    ]
+                  }
                 }
-              }
       responses:
         '202':
           description: Inventory received and queued for processing

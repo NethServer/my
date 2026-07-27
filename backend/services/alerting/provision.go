@@ -16,11 +16,11 @@ import (
 // pushing the default config to Mimir fails with a transient error.
 var provisionRetryDelays = []time.Duration{1 * time.Second, 3 * time.Second, 5 * time.Second}
 
-// ProvisionDefaultConfig is called when a new organization is created. It
-// resolves the org's Mimir tenant (its managing reseller, or itself for a
-// non-customer org — see TenantForOrg) and re-renders+pushes that whole tenant
-// config so the new org's route (and any ancestor layers already saved) take
-// effect immediately. The new org itself starts with no layer of its own; the
+// ProvisionDefaultConfig is called when an organization enters the hierarchy or
+// changes level. It resolves the org's Mimir tenant (its managing reseller, or
+// itself for a non-customer org — see TenantForOrg) and re-renders+pushes that
+// whole tenant config so the org's route and the layers of its current ancestor
+// chain take effect immediately. A new org starts with no layer of its own; the
 // admin opts in to notifications by saving a layer via POST /alerts/config.
 //
 // The built-in history webhook is always active so resolved alerts are

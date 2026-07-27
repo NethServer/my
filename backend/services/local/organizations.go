@@ -11,7 +11,9 @@ package local
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -2577,6 +2579,399 @@ func (s *LocalOrganizationService) ReactivateReseller(id, reactivatedByUserID, r
 		return nil, reactivatedCustomersCount, reactivatedUsersCount, reactivatedSystemsCount, fmt.Errorf("failed to get updated reseller: %w", err)
 	}
 	return updatedReseller, reactivatedCustomersCount, reactivatedUsersCount, reactivatedSystemsCount, nil
+}
+
+// Guardrails for reseller promotion, surfaced by the handler as 409s.
+var (
+	ErrPromoteResellerSuspended = errors.New("the organization is suspended: reactivate it before promoting it")
+	ErrPromoteResellerNotSynced = errors.New("the organization is not synced with logto yet")
+	ErrPromoteOwnerOrgUnknown   = errors.New("the owner organization cannot be resolved")
+)
+
+// PromoteResellerToDistributor moves a reseller one level up, in place: the
+// organization keeps its local id and its logto_id, so its customers (attached
+// through custom_data.createdBy), users, systems, applications, alert history
+// and Mimir tenant all stay where they are. Only its level changes.
+//
+// The distributor that manages it drops it — and the customers under it — from
+// its scope, because a distributor's scope walks createdBy through resellers
+// and the promoted organization is now a peer. Its createdBy moves to the Owner
+// organization, which is also what keeps the alerting chain right: a
+// distributor merges the Owner's layer and its own, nothing in between.
+//
+// The level lives in three places that must agree: the local table,
+// custom_data.type (locally and in Logto, where the pull reconciler keys the
+// target table on it) and the organization role each member holds. A Logto call
+// that fails undoes the ones already applied and rolls the local move back, so
+// the organization stays a plain reseller and the call can be retried.
+func (s *LocalOrganizationService) PromoteResellerToDistributor(resellerLogtoID, promotedByUserID, promotedByOrgID string) (*models.ResellerPromotion, error) {
+	reseller, err := s.resellerRepo.GetByID(resellerLogtoID)
+	if err != nil {
+		return nil, err
+	}
+	if reseller.LogtoID == nil || *reseller.LogtoID == "" {
+		return nil, ErrPromoteResellerNotSynced
+	}
+	if reseller.SuspendedAt != nil {
+		return nil, ErrPromoteResellerSuspended
+	}
+	orgID := *reseller.LogtoID
+
+	parentOrgID, err := s.resolveOwnerOrgID(promotedByOrgID)
+	if err != nil {
+		return nil, err
+	}
+
+	// VAT uniqueness is enforced per level: report a clash as a validation error
+	// instead of letting the distributors trigger raise it mid-transaction.
+	vat := ""
+	if reseller.CustomData != nil {
+		if raw, ok := reseller.CustomData["vat"].(string); ok {
+			vat = strings.TrimSpace(raw)
+		}
+	}
+	if vat != "" {
+		var clashingName string
+		err := database.DB.QueryRow(`
+			SELECT name FROM distributors
+			WHERE TRIM(custom_data->>'vat') = $1 AND deleted_at IS NULL
+			LIMIT 1
+		`, vat).Scan(&clashingName)
+		switch {
+		case err == nil:
+			// Same message code the create and update paths use, so the UI
+			// resolves it through the i18n key it already has. The organization
+			// it clashes with goes to the log, not to the client.
+			logger.Warn().
+				Str("logto_org_id", orgID).
+				Str("vat", vat).
+				Str("clashing_distributor", clashingName).
+				Msg("Promotion rejected: vat already belongs to a distributor")
+
+			return nil, &ValidationError{
+				StatusCode: 400,
+				ErrorData: response.ErrorData{
+					Type: "validation_error",
+					Errors: []response.ValidationError{{
+						Key:     "custom_data.vat",
+						Message: "already exists",
+						Value:   vat,
+					}},
+				},
+			}
+		case !errors.Is(err, sql.ErrNoRows):
+			return nil, fmt.Errorf("failed to check distributor vat uniqueness: %w", err)
+		}
+	}
+
+	summary := &models.ResellerPromotion{
+		DetachedFromOrganizationID: customDataString(reseller.CustomData, "createdBy"),
+		ParentOrganizationID:       parentOrgID,
+	}
+	if err := database.DB.QueryRow(`
+		SELECT (SELECT COUNT(*) FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL),
+		       (SELECT COUNT(*) FROM users WHERE organization_id = $1 AND deleted_at IS NULL),
+		       (SELECT COUNT(*) FROM systems WHERE organization_id = $1 AND deleted_at IS NULL)
+	`, orgID).Scan(&summary.CustomersCount, &summary.UsersCount, &summary.SystemsCount); err != nil {
+		return nil, fmt.Errorf("failed to count promoted organization hierarchy: %w", err)
+	}
+
+	customData, originalCustomData := promotedCustomData(reseller, parentOrgID)
+	customDataJSON, err := json.Marshal(customData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal custom_data: %w", err)
+	}
+
+	// Undo steps for the Logto calls, replayed in reverse when a later step
+	// fails: the local transaction rolls back on its own, Logto does not.
+	// Registered before the transaction so the rollback runs first.
+	var undo []func()
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		for i := len(undo) - 1; i >= 0; i-- {
+			undo[i]()
+		}
+	}()
+
+	tx, err := database.DB.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// Take the row before touching Logto so two concurrent promotions of the
+	// same organization serialize here: the loser finds no row and gives up
+	// early, instead of undoing the winner's Logto state and leaving the two
+	// sides disagreeing on the level.
+	var lockedOrgID string
+	err = tx.QueryRow(`
+		SELECT logto_id FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL FOR UPDATE
+	`, orgID).Scan(&lockedOrgID)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return nil, fmt.Errorf("reseller not found")
+	case err != nil:
+		return nil, fmt.Errorf("failed to lock the reseller row: %w", err)
+	}
+
+	if _, err := tx.Exec(`
+		INSERT INTO distributors (id, logto_id, logto_synced_at, logto_sync_error, name, description,
+		                          custom_data, created_at, updated_at, deleted_at, suspended_at)
+		SELECT id, logto_id, logto_synced_at, logto_sync_error, name, description,
+		       $2::jsonb, created_at, NOW(), deleted_at, suspended_at
+		FROM resellers
+		WHERE logto_id = $1 AND deleted_at IS NULL
+	`, orgID, customDataJSON); err != nil {
+		return nil, fmt.Errorf("failed to insert promoted distributor: %w", err)
+	}
+
+	deleted, err := tx.Exec(`DELETE FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL`, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to drop the promoted reseller row: %w", err)
+	}
+	if affected, err := deleted.RowsAffected(); err == nil && affected != 1 {
+		return nil, fmt.Errorf("expected to drop exactly one reseller row, dropped %d", affected)
+	}
+
+	// Denormalized level, kept in sync so filters and rebranding scope agree
+	// with the org tables.
+	if _, err := tx.Exec(`
+		UPDATE applications SET organization_type = 'distributor', updated_at = NOW()
+		WHERE organization_id = $1 AND organization_type IS NOT NULL
+	`, orgID); err != nil {
+		return nil, fmt.Errorf("failed to update application organization type: %w", err)
+	}
+	if _, err := tx.Exec(`
+		UPDATE rebranding_enabled SET organization_type = 'distributor' WHERE organization_id = $1
+	`, orgID); err != nil {
+		return nil, fmt.Errorf("failed to update rebranding organization type: %w", err)
+	}
+
+	// Logto holds the level twice: custom_data.type on the organization (the
+	// pull reconciler reads it) and the organization role of every member (the
+	// token exchange reads it).
+	logtoUpdate := models.UpdateOrganizationRequest{
+		Name:        &reseller.Name,
+		Description: &reseller.Description,
+		CustomData:  customData,
+	}
+	if _, err := s.logtoClient.UpdateOrganization(orgID, logtoUpdate); err != nil {
+		return nil, fmt.Errorf("failed to sync the promoted organization to Logto: %w", err)
+	}
+	undo = append(undo, func() {
+		restored := models.UpdateOrganizationRequest{
+			Name:        &reseller.Name,
+			Description: &reseller.Description,
+			CustomData:  originalCustomData,
+		}
+		if _, err := s.logtoClient.UpdateOrganization(orgID, restored); err != nil {
+			logger.Error().Err(err).Str("logto_org_id", orgID).Msg("Failed to restore organization custom data in Logto after a failed promotion")
+		}
+	})
+
+	distributorRole, err := s.logtoClient.GetOrganizationRoleByName("Distributor")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get the Distributor organization role: %w", err)
+	}
+	resellerRole, err := s.logtoClient.GetOrganizationRoleByName("Reseller")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get the Reseller organization role: %w", err)
+	}
+
+	if err := s.logtoClient.SetOrganizationJitRoles(orgID, []string{distributorRole.ID}); err != nil {
+		return nil, fmt.Errorf("failed to set JIT roles on the promoted organization: %w", err)
+	}
+	undo = append(undo, func() {
+		if err := s.logtoClient.SetOrganizationJitRoles(orgID, []string{resellerRole.ID}); err != nil {
+			logger.Error().Err(err).Str("logto_org_id", orgID).Msg("Failed to restore JIT roles in Logto after a failed promotion")
+		}
+	})
+
+	members, err := s.organizationMemberLogtoIDs(orgID)
+	if err != nil {
+		return nil, err
+	}
+	switched, err := s.switchMemberOrganizationRole(orgID, members, distributorRole.ID, resellerRole.ID, &undo)
+	if err != nil {
+		return nil, err
+	}
+	summary.MembersRoleSwitched = switched
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	committed = true
+
+	// Best effort from here on: the level is consistent everywhere it is
+	// enforced, what follows only trims the JIT list and refreshes caches.
+	if err := s.logtoClient.RemoveOrganizationJitRole(orgID, resellerRole.ID); err != nil {
+		logger.Warn().Err(err).Str("logto_org_id", orgID).Msg("Failed to drop the Reseller JIT role from the promoted organization")
+		summary.Warnings = append(summary.Warnings, "the Reseller JIT role could not be dropped: check the organization's JIT roles in Logto")
+	}
+
+	InvalidateUserProfileCache(members...)
+
+	// The move is committed: a failed read back is a stale response, not a
+	// failed promotion.
+	if distributor, err := s.distributorRepo.GetByID(orgID); err != nil {
+		logger.Warn().Err(err).Str("logto_org_id", orgID).Msg("Failed to read back the promoted distributor")
+		summary.Warnings = append(summary.Warnings, "the promoted distributor could not be read back: reload the organization")
+	} else {
+		summary.Distributor = distributor
+	}
+
+	logger.Info().
+		Str("local_id", reseller.ID).
+		Str("logto_org_id", orgID).
+		Str("organization_name", reseller.Name).
+		Str("detached_from_org_id", summary.DetachedFromOrganizationID).
+		Str("parent_org_id", parentOrgID).
+		Int("customers_count", summary.CustomersCount).
+		Int("users_count", summary.UsersCount).
+		Int("systems_count", summary.SystemsCount).
+		Int("members_role_switched", summary.MembersRoleSwitched).
+		Str("promoted_by_user_id", promotedByUserID).
+		Str("promoted_by_org_id", promotedByOrgID).
+		Msg("Reseller promoted to distributor")
+
+	refreshUnifiedOrganizationsAsync()
+	return summary, nil
+}
+
+// promotedCustomData builds the two org custom_data payloads a promotion needs:
+// the distributor-level one to store, and the reseller-level one to restore in
+// Logto if a later step fails.
+//
+// The read lifts createdByUser out of custom_data into CreatedBy, so both have
+// to put the creator snapshot back: the organization keeps who created it, only
+// its level changes.
+func promotedCustomData(reseller *models.LocalReseller, parentOrgID string) (promoted, original map[string]interface{}) {
+	original = make(map[string]interface{}, len(reseller.CustomData)+1)
+	for k, v := range reseller.CustomData {
+		original[k] = v
+	}
+	if reseller.CreatedBy != nil {
+		original["createdByUser"] = reseller.CreatedBy
+	}
+
+	promoted = make(map[string]interface{}, len(original))
+	for k, v := range original {
+		promoted[k] = v
+	}
+	promoted["type"] = "distributor"
+	promoted["createdBy"] = parentOrgID
+
+	return promoted, original
+}
+
+// resolveOwnerOrgID returns the Logto id of the Owner organization, the
+// createdBy a distributor carries. The Owner has no row in the three org
+// tables, which is how callerOrgID is recognized as owner-level; a Super Admin
+// signing in from a partner org has to be resolved through the distributors,
+// which are all created by the Owner.
+func (s *LocalOrganizationService) resolveOwnerOrgID(callerOrgID string) (string, error) {
+	if callerOrgID != "" {
+		var partnerOrg bool
+		err := database.DB.QueryRow(`
+			SELECT EXISTS (
+				SELECT 1 FROM distributors WHERE logto_id = $1 AND deleted_at IS NULL
+				UNION ALL
+				SELECT 1 FROM resellers WHERE logto_id = $1 AND deleted_at IS NULL
+				UNION ALL
+				SELECT 1 FROM customers WHERE logto_id = $1 AND deleted_at IS NULL
+			)
+		`, callerOrgID).Scan(&partnerOrg)
+		if err != nil {
+			return "", fmt.Errorf("failed to classify the calling organization: %w", err)
+		}
+		if !partnerOrg {
+			return callerOrgID, nil
+		}
+	}
+
+	var ownerOrgID string
+	err := database.DB.QueryRow(`
+		SELECT custom_data->>'createdBy'
+		FROM distributors
+		WHERE deleted_at IS NULL AND COALESCE(custom_data->>'createdBy', '') <> ''
+		GROUP BY 1
+		ORDER BY COUNT(*) DESC
+		LIMIT 1
+	`).Scan(&ownerOrgID)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return "", ErrPromoteOwnerOrgUnknown
+	case err != nil:
+		return "", fmt.Errorf("failed to resolve the owner organization: %w", err)
+	}
+	return ownerOrgID, nil
+}
+
+// organizationMemberLogtoIDs lists the Logto users of an organization,
+// soft-deleted ones included: their role assignment survives in Logto and would
+// come back with the organization's old level if they are restored.
+func (s *LocalOrganizationService) organizationMemberLogtoIDs(orgLogtoID string) ([]string, error) {
+	rows, err := database.DB.Query(`
+		SELECT logto_id FROM users
+		WHERE organization_id = $1 AND COALESCE(logto_id, '') <> ''
+	`, orgLogtoID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list organization members: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var members []string
+	for rows.Next() {
+		var logtoID string
+		if err := rows.Scan(&logtoID); err != nil {
+			return nil, fmt.Errorf("failed to scan organization member: %w", err)
+		}
+		members = append(members, logtoID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read organization members: %w", err)
+	}
+	return members, nil
+}
+
+// switchMemberOrganizationRole gives every member the new organization role and
+// takes the old one away. The new role goes first: the token exchange picks the
+// first role Logto returns, so a member seen mid-switch resolves to a role the
+// organization legitimately holds rather than to none at all.
+func (s *LocalOrganizationService) switchMemberOrganizationRole(orgLogtoID string, members []string, newRoleID, oldRoleID string, undo *[]func()) (int, error) {
+	switched := 0
+	for _, member := range members {
+		if err := s.logtoClient.AssignOrganizationRolesToUser(orgLogtoID, member, []string{newRoleID}, nil); err != nil {
+			return switched, fmt.Errorf("failed to assign the organization role to member %s: %w", member, err)
+		}
+		if err := s.logtoClient.RemoveUserFromOrganizationRole(orgLogtoID, member, oldRoleID); err != nil {
+			return switched, fmt.Errorf("failed to remove the organization role from member %s: %w", member, err)
+		}
+		switched++
+
+		memberID := member
+		*undo = append(*undo, func() {
+			if err := s.logtoClient.AssignOrganizationRolesToUser(orgLogtoID, memberID, []string{oldRoleID}, nil); err != nil {
+				logger.Error().Err(err).Str("logto_user_id", memberID).Msg("Failed to restore the member organization role after a failed promotion")
+			}
+			if err := s.logtoClient.RemoveUserFromOrganizationRole(orgLogtoID, memberID, newRoleID); err != nil {
+				logger.Error().Err(err).Str("logto_user_id", memberID).Msg("Failed to drop the member organization role after a failed promotion")
+			}
+		})
+	}
+	return switched, nil
+}
+
+// customDataString reads a string field out of an org's custom_data.
+func customDataString(customData map[string]interface{}, key string) string {
+	if customData == nil {
+		return ""
+	}
+	value, _ := customData[key].(string)
+	return value
 }
 
 // SuspendCustomer suspends a customer and all its users and systems

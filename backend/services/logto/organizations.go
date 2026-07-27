@@ -109,3 +109,15 @@ func (c *LogtoManagementClient) SetOrganizationJitRoles(orgID string, roleIDs []
 
 	return checkStatus(resp, []int{http.StatusCreated}, "set organization JIT roles")
 }
+
+// RemoveOrganizationJitRole drops a role from an organization's JIT list, so
+// users signing in through that organization no longer get it. 404 counts as
+// success: the desired end state is "the role is not in the list".
+func (c *LogtoManagementClient) RemoveOrganizationJitRole(orgID, roleID string) error {
+	resp, err := c.makeRequest("DELETE", fmt.Sprintf("/organizations/%s/jit/roles/%s", orgID, roleID), nil)
+	if err != nil {
+		return fmt.Errorf("failed to remove organization JIT role: %w", err)
+	}
+
+	return checkStatus(resp, []int{http.StatusNoContent, http.StatusOK, http.StatusNotFound}, "remove organization JIT role")
+}

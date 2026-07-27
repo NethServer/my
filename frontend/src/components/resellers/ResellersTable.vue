@@ -17,6 +17,7 @@ import {
   faCircleCheck,
   faRotateLeft,
   faBomb,
+  faCircleUp,
   faServer,
   faBuilding,
   faEye,
@@ -50,9 +51,10 @@ import SuspendResellerModal from './SuspendResellerModal.vue'
 import ReactivateResellerModal from './ReactivateResellerModal.vue'
 import RestoreResellerModal from './RestoreResellerModal.vue'
 import DestroyResellerModal from './DestroyResellerModal.vue'
+import PromoteResellerModal from './PromoteResellerModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useResellers } from '@/queries/organizations/resellers'
-import { canManageResellers, canDestroyResellers } from '@/lib/permissions'
+import { canManageResellers, canDestroyResellers, canPromoteOrganizations } from '@/lib/permissions'
 import router from '@/router'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 
@@ -86,6 +88,7 @@ const isShownSuspendResellerModal = ref(false)
 const isShownReactivateResellerModal = ref(false)
 const isShownRestoreResellerModal = ref(false)
 const isShownDestroyResellerModal = ref(false)
+const isShownPromoteResellerModal = ref(false)
 
 const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
   {
@@ -187,6 +190,11 @@ function showDestroyResellerModal(reseller: Reseller) {
   isShownDestroyResellerModal.value = true
 }
 
+function showPromoteResellerModal(reseller: Reseller) {
+  currentReseller.value = reseller
+  isShownPromoteResellerModal.value = true
+}
+
 function onCloseDrawer() {
   isShownCreateOrEditResellerDrawer.value = false
   emit('close-drawer')
@@ -195,17 +203,29 @@ function onCloseDrawer() {
 function getKebabMenuItems(reseller: Reseller) {
   const items: NeDropdownItem[] = []
 
-  if (canManageResellers()) {
-    if (!reseller.deleted_at) {
-      items.push({
-        id: 'editReseller',
-        label: t('common.edit'),
-        icon: faPenToSquare,
-        action: () => showEditResellerDrawer(reseller),
-        disabled: asyncStatus.value === 'loading',
-      })
-    }
+  if (canManageResellers() && !reseller.deleted_at) {
+    items.push({
+      id: 'editReseller',
+      label: t('common.edit'),
+      icon: faPenToSquare,
+      action: () => showEditResellerDrawer(reseller),
+      disabled: asyncStatus.value === 'loading',
+    })
+  }
 
+  // Promotion answers to owner-level authority, not to manage:resellers, and
+  // only applies to an active organization: the backend rejects a suspended one.
+  if (canPromoteOrganizations() && !reseller.deleted_at && !reseller.suspended_at) {
+    items.push({
+      id: 'promoteReseller',
+      label: t('common.promote'),
+      icon: faCircleUp,
+      action: () => showPromoteResellerModal(reseller),
+      disabled: asyncStatus.value === 'loading',
+    })
+  }
+
+  if (canManageResellers()) {
     if (reseller.suspended_at) {
       items.push({
         id: 'reactivateReseller',
@@ -530,7 +550,7 @@ const goToResellerDetails = (reseller: Reseller) => {
               </NeButton>
               <!-- kebab menu -->
               <NeDropdown
-                v-if="canManageResellers() || canDestroyResellers()"
+                v-if="canManageResellers() || canDestroyResellers() || canPromoteOrganizations()"
                 :items="getKebabMenuItems(item)"
                 :align-to-right="true"
               />
@@ -598,6 +618,12 @@ const goToResellerDetails = (reseller: Reseller) => {
       :visible="isShownDestroyResellerModal"
       :reseller="currentReseller"
       @close="isShownDestroyResellerModal = false"
+    />
+    <!-- promote reseller modal -->
+    <PromoteResellerModal
+      :visible="isShownPromoteResellerModal"
+      :reseller="currentReseller"
+      @close="isShownPromoteResellerModal = false"
     />
   </div>
 </template>

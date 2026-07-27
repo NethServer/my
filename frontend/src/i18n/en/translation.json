@@ -48,6 +48,7 @@
     "suspend": "Suspend",
     "suspended": "Suspended",
     "reactivate": "Reactivate",
+    "promote": "Promote",
     "notes": "Notes",
     "show_notes": "Show notes",
     "plus_n_more": "+{count} more | +{count} more",
@@ -160,7 +161,12 @@
     "export_resellers_to_csv": "Export resellers to CSV",
     "import_resellers": "Import resellers",
     "resellers_imported": "Resellers imported",
-    "show_reseller_systems": "Show systems of {name} and its hierarchy"
+    "show_reseller_systems": "Show systems of {name} and its hierarchy",
+    "reseller_promoted": "Reseller promoted",
+    "reseller_promoted_successfully": "{name} is now a distributor",
+    "promote_reseller": "Promote to distributor",
+    "cannot_promote_reseller": "Cannot promote reseller",
+    "promote_reseller_confirmation": "Are you sure you want to promote {name} to distributor? It keeps its customers, users and systems, but the distributor that manages it today loses access to them. This action cannot be undone."
   },
   "customers": {
     "title": "Customers",
@@ -232,7 +238,10 @@
     "cannot_restore_organization": "Cannot restore company",
     "organization_restored": "Company restored",
     "organization_restored_successfully": "{name} restored successfully",
-    "restore_organization_confirmation": "Are you sure you want to restore {name}?"
+    "restore_organization_confirmation": "Are you sure you want to restore {name}?",
+    "promote_organization_is_suspended": "This company is suspended. Reactivate it before promoting it.",
+    "promote_organization_not_synced": "This company is not synchronised with the identity provider yet. Try again later.",
+    "promote_owner_organization_not_found": "The owner company could not be determined, so the promoted company cannot be attached to it."
   },
   "import": {
     "download_the_template": "Download the template",

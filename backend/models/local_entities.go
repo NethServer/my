@@ -145,6 +145,34 @@ type LocalReseller struct {
 	CreatedBy *OrgCreator `json:"created_by,omitempty"`
 }
 
+// ResellerPromotion reports the outcome of promoting a reseller to distributor.
+// The organization keeps its identity (id and logto_id), so the counts below
+// describe what stays attached to it, not what moves.
+type ResellerPromotion struct {
+	Distributor *LocalDistributor `json:"distributor"`
+
+	// DetachedFromOrganizationID is the distributor that drops the promoted
+	// organization — and the customers under it — from its scope, since the two
+	// are now peers.
+	DetachedFromOrganizationID string `json:"detached_from_organization_id"`
+
+	// ParentOrganizationID is the Owner organization recorded as the promoted
+	// organization's createdBy.
+	ParentOrganizationID string `json:"parent_organization_id"`
+
+	CustomersCount int `json:"customers_count"`
+	UsersCount     int `json:"users_count"`
+	SystemsCount   int `json:"systems_count"`
+
+	// MembersRoleSwitched counts the members whose Logto organization role moved
+	// from Reseller to Distributor.
+	MembersRoleSwitched int `json:"members_role_switched"`
+
+	// Warnings collects the best-effort steps that did not confirm: the
+	// promotion itself succeeded, but these need an operator check.
+	Warnings []string `json:"warnings,omitempty"`
+}
+
 // LocalCustomer represents a customer stored in local database
 type LocalCustomer struct {
 	ID               string                 `json:"id" db:"id"`

@@ -23,6 +23,7 @@ const DESTROY_USERS = 'destroy:users'
 const DESTROY_SYSTEMS = 'destroy:systems'
 const READ_ALERTS = 'read:alerts'
 const MANAGE_ALERTS = 'manage:alerts'
+const SUPER_ADMIN_ROLE = 'Super Admin'
 
 export const canReadDistributors = () => {
   const loginStore = useLoginStore()
@@ -122,4 +123,13 @@ export const canManageAlerts = () => {
 export const canReadAlerts = () => {
   const loginStore = useLoginStore()
   return loginStore.permissions.includes(READ_ALERTS)
+}
+
+// Moving an organization between hierarchy levels takes it out of the scope of
+// the company that manages it, so it answers to owner-level authority rather
+// than to a manage:* permission every distributor holds. Mirrors the backend
+// gate on PATCH /resellers/:id/promote.
+export const canPromoteOrganizations = () => {
+  const loginStore = useLoginStore()
+  return loginStore.isOwner || (loginStore.userInfo?.user_roles || []).includes(SUPER_ADMIN_ROLE)
 }

@@ -6,6 +6,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package methods
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -844,5 +845,120 @@ func ReactivateReseller(c *gin.Context) {
 		"reactivated_customers_count": reactivatedCustomersCount,
 		"reactivated_users_count":     reactivatedUsersCount,
 		"reactivated_systems_count":   reactivatedSystemsCount,
+	}))
+}
+
+// PromoteReseller handles PATCH /api/resellers/:id/promote - moves a reseller
+// up to distributor level, in place. Restricted to owner-level authority: the
+// promoted organization leaves the scope of the distributor that manages it, so
+// no distributor can hand out (or take back) a level on its own.
+func PromoteReseller(c *gin.Context) {
+	resellerID := c.Param("id")
+	if resellerID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("reseller ID required", nil))
+		return
+	}
+
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	if !IsOwnerOrSuperAdmin(user) {
+		logger.RequestLogger(c, "resellers").Warn().
+			Str("operation", "promote_denied").
+			Str("user_id", user.ID).
+			Str("org_role", user.OrgRole).
+			Strs("user_roles", user.UserRoles).
+			Str("reseller_id", resellerID).
+			Msg("Promotion denied - owner or super admin required")
+
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied to promote reseller", nil))
+		return
+	}
+
+	// A Super Admin outside the Owner organization carries owner-level authority
+	// but not owner-level reach: it promotes the resellers its own organization
+	// manages, never a peer's, and never the organization it belongs to — that
+	// would be a self-granted level.
+	if !strings.EqualFold(user.OrgRole, "owner") {
+		userOrgRole := strings.ToLower(user.OrgRole)
+		inScope := resellerID != user.OrganizationID &&
+			local.NewUserService().IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, resellerID)
+
+		if !inScope {
+			logger.RequestLogger(c, "resellers").Warn().
+				Str("operation", "promote_out_of_scope").
+				Str("user_id", user.ID).
+				Str("org_role", user.OrgRole).
+				Str("organization_id", user.OrganizationID).
+				Str("reseller_id", resellerID).
+				Msg("Promotion denied - target outside the caller's hierarchy")
+
+			c.JSON(http.StatusForbidden, response.Forbidden("access denied to promote reseller", nil))
+			return
+		}
+	}
+
+	service := local.NewOrganizationService()
+	promotion, err := service.PromoteResellerToDistributor(resellerID, user.ID, user.OrganizationID)
+	if err != nil {
+		if validationErr := getValidationError(err); validationErr != nil {
+			c.JSON(validationErr.StatusCode, response.Error(validationErr.StatusCode, "validation failed", validationErr.ErrorData))
+			return
+		}
+
+		switch {
+		case strings.Contains(err.Error(), "not found"):
+			c.JSON(http.StatusNotFound, response.NotFound("reseller not found", nil))
+			return
+		case errors.Is(err, local.ErrPromoteResellerSuspended):
+			promoteConflict(c, resellerID, err, "organization_is_suspended")
+			return
+		case errors.Is(err, local.ErrPromoteResellerNotSynced):
+			promoteConflict(c, resellerID, err, "organization_not_synced")
+			return
+		case errors.Is(err, local.ErrPromoteOwnerOrgUnknown):
+			promoteConflict(c, resellerID, err, "owner_organization_not_found")
+			return
+		}
+
+		logger.Error().
+			Err(err).
+			Str("user_id", user.ID).
+			Str("reseller_id", resellerID).
+			Msg("Failed to promote reseller to distributor")
+
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to promote reseller", nil))
+		return
+	}
+
+	logger.LogBusinessOperation(c, "resellers", "promote", "reseller", resellerID, true, nil)
+
+	// The organization keeps its Mimir tenant, but its ancestor chain now stops
+	// at the Owner: re-render and push the tenant config so the layers of the
+	// distributor it leaves stop reaching it.
+	promotedID := ""
+	if promotion.Distributor != nil {
+		promotedID = promotion.Distributor.ID
+	}
+	alerting.ProvisionDefaultConfigAsync(resellerID, "distributor", promotedID)
+
+	cache.GetRBACCache().InvalidateAll()
+	c.JSON(http.StatusOK, response.OK("reseller promoted to distributor successfully", promotion))
+}
+
+// promoteConflict answers a promotion conflict in the validation-error shape the
+// other write endpoints use: the client builds its i18n key from errors[].key
+// and errors[].message, so the message carries a stable code and the readable
+// wording stays on the client side. The cause goes to the audit log.
+func promoteConflict(c *gin.Context, resellerID string, cause error, code string) {
+	logger.LogBusinessOperation(c, "resellers", "promote", "reseller", resellerID, false, cause)
+
+	c.JSON(http.StatusConflict, response.Error(http.StatusConflict, "validation failed", response.ErrorData{
+		Type: "validation_error",
+		Errors: []response.ValidationError{
+			{Key: "promote", Message: code},
+		},
 	}))
 }

@@ -210,6 +210,18 @@ export const reactivateReseller = (reseller: Reseller) => {
   )
 }
 
+export const promoteReseller = (reseller: Reseller) => {
+  const loginStore = useLoginStore()
+
+  return axios.patch(
+    `${API_URL}/resellers/${reseller.logto_id}/promote`,
+    {},
+    {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    },
+  )
+}
+
 export const restoreReseller = (reseller: Reseller) => {
   const loginStore = useLoginStore()
 
