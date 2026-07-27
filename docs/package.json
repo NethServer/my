@@ -53,6 +53,7 @@
     "dompurify": "^3.4.12",
     "fast-uri": "^3.1.4",
     "mermaid": "^11.15.0",
+    "minimatch": "^10.0.1",
     "postcss": "^8.5.18",
     "qs": "^6.15.2",
     "serialize-javascript": "^7.0.5",
