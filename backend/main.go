@@ -158,20 +158,6 @@ func main() {
 	api.POST("/systems/register", methods.RegisterSystem)
 
 	// ===========================================
-	// STANDARD OAUTH2/OIDC ROUTES (for third-party apps)
-	// Uses Logto tokens directly - standard compliance
-	// ===========================================
-	standardAuth := api.Group("/", middleware.LogtoAuthMiddleware())
-	{
-		// User business data endpoints (OAuth2/OIDC standard flow)
-		userGroup := standardAuth.Group("/user")
-		{
-			userGroup.GET("/permissions", methods.GetUserPermissions)
-			userGroup.GET("/profile", methods.GetUserProfile)
-		}
-	}
-
-	// ===========================================
 	// CUSTOM JWT ROUTES (for resilient apps)
 	// Uses our enriched JWT - works offline when Logto is down
 	// Resource-based permissions: read:resource for GET, manage:resource for POST/PUT/PATCH/DELETE
@@ -325,7 +311,11 @@ func main() {
 				configGroup.DELETE("", methods.DisableAlerts)  // Remove caller's layer + propagate to descendants (manage:alerts required)
 			}
 
-			// Merged effective config + Mimir YAML for any tenant; config:alerts (owner-only super), secrets redacted
+			// Merged effective config + Mimir YAML for ANY tenant, secrets redacted.
+			// Gated on config:alerts, which only the Super Admin user role carries.
+			// Note this is deliberately not hierarchy-scoped: any Super Admin can
+			// read any organization's effective config, whatever org they sit in.
+			// Only an Owner can grant the Super Admin role (see role access control).
 			alertsGroup.GET("/config/effective", middleware.RequirePermission("config:alerts"), methods.GetEffectiveAlertingConfig)
 		}
 

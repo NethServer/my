@@ -52,7 +52,6 @@ func TestConfigurationDefaults(t *testing.T) {
 	assert.Equal(t, "https://test-app.com", Config.AppURL)
 	assert.Equal(t, "https://test-tenant.logto.app", Config.LogtoIssuer)
 	assert.Equal(t, "https://test-domain.com/api", Config.LogtoAudience)
-	assert.Equal(t, "https://test-tenant.logto.app/oidc/jwks", Config.JWKSEndpoint)
 	assert.Equal(t, "test-secret-key", Config.JWTSecret)
 	assert.Equal(t, "test-domain.com", Config.JWTIssuer)
 	assert.Equal(t, "30m", Config.JWTExpiration)
@@ -86,7 +85,6 @@ func TestConfigurationCustomValues(t *testing.T) {
 	assert.Equal(t, "https://custom-app.example.com", Config.AppURL)
 	assert.Equal(t, "https://custom-tenant.logto.app", Config.LogtoIssuer)
 	assert.Equal(t, "https://custom.example.com/api", Config.LogtoAudience)
-	assert.Equal(t, "https://custom-tenant.logto.app/oidc/jwks", Config.JWKSEndpoint)
 	assert.Equal(t, "custom-secret-key", Config.JWTSecret)
 	assert.Equal(t, "custom.example.com", Config.JWTIssuer)
 	assert.Equal(t, "12h", Config.JWTExpiration)
@@ -110,7 +108,6 @@ func TestConfigurationStructure(t *testing.T) {
 		AppURL:                      "https://test-app.com",
 		LogtoIssuer:                 "test-issuer",
 		LogtoAudience:               "test-audience",
-		JWKSEndpoint:                "test-jwks",
 		JWTSecret:                   "test-secret",
 		JWTIssuer:                   "test-jwt-issuer",
 		JWTExpiration:               "test-exp",
@@ -126,7 +123,6 @@ func TestConfigurationStructure(t *testing.T) {
 	assert.Equal(t, "https://test-app.com", config.AppURL)
 	assert.Equal(t, "test-issuer", config.LogtoIssuer)
 	assert.Equal(t, "test-audience", config.LogtoAudience)
-	assert.Equal(t, "test-jwks", config.JWKSEndpoint)
 	assert.Equal(t, "test-secret", config.JWTSecret)
 	assert.Equal(t, "test-jwt-issuer", config.JWTIssuer)
 	assert.Equal(t, "test-exp", config.JWTExpiration)

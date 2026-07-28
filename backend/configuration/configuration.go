@@ -30,7 +30,6 @@ type Configuration struct {
 	APIBaseURL    string `json:"api_base_url"`
 	LogtoIssuer   string `json:"logto_issuer"`
 	LogtoAudience string `json:"logto_audience"`
-	JWKSEndpoint  string `json:"jwks_endpoint"`
 	// JWT Custom token configuration
 	JWTSecret            string `json:"jwt_secret"`
 	JWTIssuer            string `json:"jwt_issuer"`
@@ -52,14 +51,11 @@ type Configuration struct {
 	RedisDialTimeout  time.Duration `json:"redis_dial_timeout"`
 	RedisReadTimeout  time.Duration `json:"redis_read_timeout"`
 	RedisWriteTimeout time.Duration `json:"redis_write_timeout"`
-	// Cache TTL configuration
-	JWKSCacheTTL time.Duration `json:"jwks_cache_ttl"`
 	// Redis pool configuration
 	RedisPoolSize     int           `json:"redis_pool_size"`
 	RedisMinIdleConns int           `json:"redis_min_idle_conns"`
 	RedisPoolTimeout  time.Duration `json:"redis_pool_timeout"`
 	// HTTP timeouts configuration
-	JWKSHTTPTimeout       time.Duration `json:"jwks_http_timeout"`
 	RedisOperationTimeout time.Duration `json:"redis_operation_timeout"`
 	// API configuration
 	DefaultPageSize int `json:"default_page_size"`
@@ -157,9 +153,6 @@ func Init() {
 	// LOGTO_AUDIENCE (auto-derived from LOGTO_TENANT_DOMAIN)
 	Config.LogtoAudience = fmt.Sprintf("https://%s/api", Config.TenantDomain)
 
-	// JWKS endpoint (auto-derived from LogtoIssuer)
-	Config.JWKSEndpoint = Config.LogtoIssuer + "/oidc/jwks"
-
 	// JWT custom token configuration
 	if os.Getenv("JWT_SECRET") != "" {
 		Config.JWTSecret = os.Getenv("JWT_SECRET")
@@ -229,9 +222,6 @@ func Init() {
 	Config.RedisMinIdleConns = parseIntWithDefault("REDIS_MIN_IDLE_CONNS", 10)
 	Config.RedisPoolTimeout = parseDurationWithDefault("REDIS_POOL_TIMEOUT", 5*time.Second)
 
-	// Cache TTL configuration with defaults
-	Config.JWKSCacheTTL = parseDurationWithDefault("JWKS_CACHE_TTL", 5*time.Minute)
-	Config.JWKSHTTPTimeout = parseDurationWithDefault("JWKS_HTTP_TIMEOUT", 10*time.Second)
 	Config.RedisOperationTimeout = parseDurationWithDefault("REDIS_OPERATION_TIMEOUT", 5*time.Second)
 	Config.DefaultPageSize = parseIntWithDefault("DEFAULT_PAGE_SIZE", 100)
 

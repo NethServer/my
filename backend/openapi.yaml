@@ -78,8 +78,6 @@ tags:
 
   - name: Backend - Public
     description: Public endpoints requiring no authentication (avatars, etc.)
-  - name: Backend - User
-    description: OAuth2/OIDC user profile and permissions endpoints
   - name: Backend - Validators
     description: Real-time validation endpoints (VAT, etc.)
   - name: Backend - Health
@@ -13585,86 +13583,6 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-
-  # ===========================================================================
-  # OAUTH2/OIDC STANDARD ENDPOINTS (Third-party Applications)
-  # ===========================================================================
-  /user/permissions:
-    get:
-      operationId: getUserPermissions
-      tags:
-        - Backend - User
-      summary: /user/permissions - Get user permissions (OAuth2/OIDC)
-      description: Get current user permissions using standard OAuth2/OIDC flow with Logto token
-      responses:
-        '200':
-          description: User permissions retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "user permissions retrieved successfully"
-                  data:
-                    type: object
-                    properties:
-                      user_roles:
-                        type: array
-                        items:
-                          type: string
-                        example: ["Admin"]
-                      user_permissions:
-                        type: array
-                        items:
-                          type: string
-                        example: ["manage:systems", "read:systems"]
-                      org_role:
-                        type: string
-                        example: "Owner"
-                      org_permissions:
-                        type: array
-                        items:
-                          type: string
-                        example: ["manage:resellers", "create:customers"]
-                      organization_id:
-                        type: string
-                        example: "org_123456789"
-                      organization_name:
-                        type: string
-                        example: "ACME Corp"
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  /user/profile:
-    get:
-      operationId: getUserProfile
-      tags:
-        - Backend - User
-      summary: /user/profile - Get user profile (OAuth2/OIDC)
-      description: Get current user profile using standard OAuth2/OIDC flow with Logto token
-      responses:
-        '200':
-          description: User profile retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "user profile retrieved successfully"
-                  data:
-                    $ref: '#/components/schemas/UserProfile'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
 
   # ===========================================
   # COLLECT SERVICE ENDPOINTS
