@@ -59,7 +59,7 @@ import { setPendingAlertState, isProcessing } from '@/lib/alertPendingStates'
 import { type AlertFilterAlert } from '@/lib/alertFilters'
 import { useNotificationsStore } from '@/stores/notifications'
 import { formatDateTime, formatRelativeTime } from '@/lib/dateTime'
-import { canManageSystems } from '@/lib/permissions'
+import { canManageSystems, canReadUsers } from '@/lib/permissions'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import MuteAlertDrawer from '@/components/alerts/MuteAlertDrawer.vue'
 import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
@@ -424,8 +424,10 @@ function goToSystems() {
             @custom-action="resetStatusFilter"
             @update:model-value="() => (pageNum = 1)"
           />
-          <!-- Assignee filter -->
+          <!-- Assignee filter: the options come from GET /users, so hide it for
+          roles without read:users (they'd get a 403 that kicks them out of the page) -->
           <AssigneeDropdownFilter
+            v-if="canReadUsers()"
             v-model="assigneeFilters"
             @update:model-value="() => (pageNum = 1)"
           />

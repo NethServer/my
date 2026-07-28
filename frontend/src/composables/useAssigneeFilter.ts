@@ -8,6 +8,7 @@ import { useDebounceFn } from '@vueuse/core'
 import { computed, ref, watch } from 'vue'
 import type { NeDropdownFilterV2Option } from '@nethesis/vue-components'
 import { OPTIONS_PAGE_SIZE } from '@/lib/common'
+import { canReadUsers } from '@/lib/permissions'
 
 const ASSIGNEES_SEARCH_KEY = 'assigneesSearch'
 
@@ -28,7 +29,7 @@ export function useAssigneeFilter() {
 
   const { state, asyncStatus } = useQuery({
     key: () => [ASSIGNEES_SEARCH_KEY, debouncedSearch.value],
-    enabled: () => !!loginStore.jwtToken,
+    enabled: () => !!loginStore.jwtToken && canReadUsers(),
     query: () =>
       getUsers(1, OPTIONS_PAGE_SIZE, debouncedSearch.value, [], [], [], [], 'name', false),
   })
