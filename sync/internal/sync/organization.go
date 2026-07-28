@@ -29,6 +29,15 @@ func isSystemOrganizationRole(role client.LogtoOrganizationRole) bool {
 
 // isSystemOrganizationScope checks if an organization scope is a system scope that shouldn't be deleted
 func isSystemOrganizationScope(scope client.LogtoOrganizationScope) bool {
+	// Scopes we provision carry this description, so they are never system
+	// scopes. Checked first because the name patterns below match on
+	// substrings: without this, any permission on a resource called "systems"
+	// (read:systems, admin:systems, ...) looks like a Logto system scope and
+	// becomes impossible to clean up once it drops out of the config.
+	if strings.HasPrefix(strings.ToLower(scope.Description), "organization scope:") {
+		return false
+	}
+
 	// Use pattern matching for name
 	if IsSystemEntityByPatterns(
 		scope.Name, "",

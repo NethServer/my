@@ -11,13 +11,19 @@ package sync
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/nethesis/my/sync/internal/client"
 	"github.com/nethesis/my/sync/internal/config"
 	"github.com/nethesis/my/sync/internal/logger"
 )
 
-// syncResources synchronizes resources and their scopes
+// syncResources synchronizes the Logto API resources that host our scopes.
+//
+// Logto bills per API resource, not per scope, so config resources are grouped
+// into containers (see config.Resource.Container) and only the distinct
+// containers become Logto resources. Scope names remain "{action}:{resource}",
+// so neither roles nor the backend can tell the difference.
 func (e *Engine) syncResources(cfg *config.Config, result *Result) error {
 	logger.Info("Syncing resources...")
 
@@ -38,83 +44,79 @@ func (e *Engine) syncResources(cfg *config.Config, result *Result) error {
 		existingResourceMap[resource.Name] = resource
 	}
 
-	for _, resource := range cfg.Resources {
-		configResourceMap[resource.Name] = true
+	containers := cfg.GetResourceContainers()
+	for _, container := range containers {
+		configResourceMap[container.Name] = true
 	}
 
-	// Create or recreate resources
-	for _, configResource := range cfg.Resources {
+	// Create or recreate containers, then reconcile the scopes they hold
+	for _, container := range containers {
+		resourceIndicator := fmt.Sprintf("%s/%s", e.options.APIBaseURL, container.Name)
 
-		if existingResource, exists := existingResourceMap[configResource.Name]; exists {
-			// Resource exists, check if update needed
-			if true { // Always update to ensure consistency
-				if e.options.DryRun {
-					logger.Info("DRY RUN: Would recreate resource with new indicator: %s", configResource.Name)
-					e.addOperation(result, "resource", "delete", configResource.Name,
-						"Would delete resource for recreation", nil)
-					e.addOperation(result, "resource", "create", configResource.Name,
-						"Would create resource with new indicator", nil)
-					result.Summary.ResourcesDeleted++
-					result.Summary.ResourcesCreated++
-				} else {
-					logger.Info("Recreating resource with new indicator: %s", configResource.Name)
-
-					// Delete existing resource
-					err := e.client.DeleteResource(existingResource.ID)
-					e.addOperation(result, "resource", "delete", configResource.Name,
-						"Deleted resource for recreation", err)
-					if err != nil {
-						return fmt.Errorf("failed to delete resource %s: %w", configResource.Name, err)
-					}
-					result.Summary.ResourcesDeleted++
-
-					// Create new resource with correct indicator
-					logger.Info("Creating resource: %s", configResource.Name)
-					resourceIndicator := fmt.Sprintf("%s/%s", e.options.APIBaseURL, configResource.Name)
-					logtoResource := client.LogtoResource{
-						Name:      configResource.Name,
-						Indicator: resourceIndicator,
-					}
-
-					err = e.client.CreateResource(logtoResource)
-					e.addOperation(result, "resource", "create", configResource.Name,
-						"Created resource with new indicator", err)
-					if err != nil {
-						return fmt.Errorf("failed to create resource %s: %w", configResource.Name, err)
-					}
-					result.Summary.ResourcesCreated++
-				}
+		if existingResource, exists := existingResourceMap[container.Name]; exists {
+			// Only recreate when the indicator actually drifted. Deleting a
+			// resource cascades to its scopes, which strips them from every
+			// role that references them, so this must not run on every sync.
+			if existingResource.Indicator == resourceIndicator {
+				logger.Debug("Resource %s already exists with correct indicator", container.Name)
+			} else if e.options.DryRun {
+				logger.Info("DRY RUN: Would recreate resource with new indicator: %s", container.Name)
+				e.addOperation(result, "resource", "delete", container.Name,
+					"Would delete resource for recreation", nil)
+				e.addOperation(result, "resource", "create", container.Name,
+					"Would create resource with new indicator", nil)
+				result.Summary.ResourcesDeleted++
+				result.Summary.ResourcesCreated++
 			} else {
-				logger.Debug("Resource %s already exists with correct indicator", configResource.Name)
+				logger.Info("Recreating resource with new indicator: %s", container.Name)
+
+				// Delete existing resource
+				err := e.client.DeleteResource(existingResource.ID)
+				e.addOperation(result, "resource", "delete", container.Name,
+					"Deleted resource for recreation", err)
+				if err != nil {
+					return fmt.Errorf("failed to delete resource %s: %w", container.Name, err)
+				}
+				result.Summary.ResourcesDeleted++
+
+				// Create new resource with correct indicator
+				logger.Info("Creating resource: %s", container.Name)
+				err = e.client.CreateResource(client.LogtoResource{
+					Name:      container.Name,
+					Indicator: resourceIndicator,
+				})
+				e.addOperation(result, "resource", "create", container.Name,
+					"Created resource with new indicator", err)
+				if err != nil {
+					return fmt.Errorf("failed to create resource %s: %w", container.Name, err)
+				}
+				result.Summary.ResourcesCreated++
 			}
 		} else {
 			// Create new resource
 			if e.options.DryRun {
-				logger.Info("DRY RUN: Would create resource: %s", configResource.Name)
-				e.addOperation(result, "resource", "create", configResource.Name,
+				logger.Info("DRY RUN: Would create resource: %s", container.Name)
+				e.addOperation(result, "resource", "create", container.Name,
 					"Would create new resource", nil)
 				result.Summary.ResourcesCreated++
 			} else {
-				logger.Info("Creating resource: %s", configResource.Name)
-				resourceIndicator := fmt.Sprintf("%s/%s", e.options.APIBaseURL, configResource.Name)
-				logtoResource := client.LogtoResource{
-					Name:      configResource.Name,
+				logger.Info("Creating resource: %s", container.Name)
+				err := e.client.CreateResource(client.LogtoResource{
+					Name:      container.Name,
 					Indicator: resourceIndicator,
-				}
-
-				err := e.client.CreateResource(logtoResource)
-				e.addOperation(result, "resource", "create", configResource.Name,
+				})
+				e.addOperation(result, "resource", "create", container.Name,
 					"Created new resource", err)
 				if err != nil {
-					return fmt.Errorf("failed to create resource %s: %w", configResource.Name, err)
+					return fmt.Errorf("failed to create resource %s: %w", container.Name, err)
 				}
 				result.Summary.ResourcesCreated++
 			}
 		}
 
-		// Sync scopes for this resource
-		if err := e.syncScopes(configResource, result); err != nil {
-			return fmt.Errorf("failed to sync scopes for resource %s: %w", configResource.Name, err)
+		// Sync scopes for this container
+		if err := e.syncScopes(container, result); err != nil {
+			return fmt.Errorf("failed to sync scopes for resource %s: %w", container.Name, err)
 		}
 	}
 
@@ -127,9 +129,13 @@ func (e *Engine) syncResources(cfg *config.Config, result *Result) error {
 		}
 
 		for _, existingResource := range existingResources {
-			// Skip system/default resources
-			if false { // Simplified check
-				logger.Debug("Skipping system resource: %s", existingResource.Name)
+			// Never remove the tenant audience resource. Its indicator is the
+			// API base URL itself and the backend validates the "aud" claim of
+			// incoming Logto tokens against it (backend/middleware/logto.go),
+			// which is what the third-party apps hitting /api/user/* rely on.
+			// It is maintained by hand, so it never appears in the config.
+			if strings.TrimSuffix(existingResource.Indicator, "/") == strings.TrimSuffix(e.options.APIBaseURL, "/") {
+				logger.Debug("Skipping tenant audience resource: %s", existingResource.Name)
 				continue
 			}
 
@@ -164,9 +170,20 @@ func (e *Engine) syncResources(cfg *config.Config, result *Result) error {
 	return nil
 }
 
-// syncScopes synchronizes scopes for a specific resource
-func (e *Engine) syncScopes(resource config.Resource, result *Result) error {
-	logger.Debug("Syncing scopes for resource: %s", resource.Name)
+// simulateScopeCreation records the scopes a container would gain, for dry-run
+// paths where the container itself does not exist yet.
+func (e *Engine) simulateScopeCreation(container config.ResourceContainer, result *Result) {
+	for _, configScope := range container.Scopes {
+		logger.Info("DRY RUN: Would create scope: %s", configScope.Name)
+		e.addOperation(result, "scope", "create", configScope.Name,
+			fmt.Sprintf("Would create scope for %s", container.Name), nil)
+		result.Summary.ScopesCreated++
+	}
+}
+
+// syncScopes synchronizes the scopes held by a single resource container
+func (e *Engine) syncScopes(container config.ResourceContainer, result *Result) error {
+	logger.Debug("Syncing scopes for resource: %s", container.Name)
 
 	// First, get the resource ID
 	resources, err := e.client.GetResources()
@@ -174,13 +191,7 @@ func (e *Engine) syncScopes(resource config.Resource, result *Result) error {
 		if e.options.DryRun {
 			logger.Warn("DRY RUN: Could not get resources for scope sync: %v", err)
 			// In dry-run, simulate scope creation
-			for _, action := range resource.Actions {
-				scopeName := fmt.Sprintf("%s:%s", action, resource.Name)
-				logger.Info("DRY RUN: Would create scope: %s", scopeName)
-				e.addOperation(result, "scope", "create", scopeName,
-					fmt.Sprintf("Would create scope for %s", resource.Name), nil)
-				result.Summary.ScopesCreated++
-			}
+			e.simulateScopeCreation(container, result)
 			return nil
 		}
 		return fmt.Errorf("failed to get resources: %w", err)
@@ -188,7 +199,7 @@ func (e *Engine) syncScopes(resource config.Resource, result *Result) error {
 
 	var resourceID string
 	for _, r := range resources {
-		if r.Name == resource.Name {
+		if r.Name == container.Name {
 			resourceID = r.ID
 			break
 		}
@@ -196,18 +207,12 @@ func (e *Engine) syncScopes(resource config.Resource, result *Result) error {
 
 	if resourceID == "" {
 		if e.options.DryRun {
-			logger.Debug("DRY RUN: Resource %s not found, would be created", resource.Name)
+			logger.Debug("DRY RUN: Resource %s not found, would be created", container.Name)
 			// In dry-run, the resource would be created, so simulate scope creation
-			for _, action := range resource.Actions {
-				scopeName := fmt.Sprintf("%s:%s", action, resource.Name)
-				logger.Info("DRY RUN: Would create scope: %s", scopeName)
-				e.addOperation(result, "scope", "create", scopeName,
-					fmt.Sprintf("Would create scope for %s", resource.Name), nil)
-				result.Summary.ScopesCreated++
-			}
+			e.simulateScopeCreation(container, result)
 			return nil
 		}
-		return fmt.Errorf("resource %s not found", resource.Name)
+		return fmt.Errorf("resource %s not found", container.Name)
 	}
 
 	// Get existing scopes
@@ -225,35 +230,32 @@ func (e *Engine) syncScopes(resource config.Resource, result *Result) error {
 		existingScopeMap[scope.Name] = true
 	}
 
-	// Create scopes for each action
+	// Create the scopes this container holds
 	configScopeMap := make(map[string]bool)
-	for _, action := range resource.Actions {
-		scopeName := fmt.Sprintf("%s:%s", action, resource.Name)
-		configScopeMap[scopeName] = true
+	for _, configScope := range container.Scopes {
+		configScopeMap[configScope.Name] = true
 
-		if !existingScopeMap[scopeName] {
+		if !existingScopeMap[configScope.Name] {
 			if e.options.DryRun {
-				logger.Info("DRY RUN: Would create scope: %s", scopeName)
-				e.addOperation(result, "scope", "create", scopeName,
-					fmt.Sprintf("Would create scope for %s", resource.Name), nil)
+				logger.Info("DRY RUN: Would create scope: %s", configScope.Name)
+				e.addOperation(result, "scope", "create", configScope.Name,
+					fmt.Sprintf("Would create scope for %s", container.Name), nil)
 				result.Summary.ScopesCreated++
 			} else {
-				logger.Info("Creating scope: %s", scopeName)
-				scope := client.LogtoScope{
-					Name:        scopeName,
-					Description: fmt.Sprintf("Permission to %s %s", action, resource.Name),
-				}
-
-				err := e.client.CreateScope(resourceID, scope)
-				e.addOperation(result, "scope", "create", scopeName,
-					fmt.Sprintf("Created scope for %s", resource.Name), err)
+				logger.Info("Creating scope: %s", configScope.Name)
+				err := e.client.CreateScope(resourceID, client.LogtoScope{
+					Name:        configScope.Name,
+					Description: configScope.Description,
+				})
+				e.addOperation(result, "scope", "create", configScope.Name,
+					fmt.Sprintf("Created scope for %s", container.Name), err)
 				if err != nil {
-					return fmt.Errorf("failed to create scope %s: %w", scopeName, err)
+					return fmt.Errorf("failed to create scope %s: %w", configScope.Name, err)
 				}
 				result.Summary.ScopesCreated++
 			}
 		} else {
-			logger.Debug("Scope %s already exists", scopeName)
+			logger.Debug("Scope %s already exists", configScope.Name)
 		}
 	}
 
@@ -264,13 +266,13 @@ func (e *Engine) syncScopes(resource config.Resource, result *Result) error {
 				if e.options.DryRun {
 					logger.Info("DRY RUN: Would remove scope not in config: %s", existingScope.Name)
 					e.addOperation(result, "scope", "cleanup", existingScope.Name,
-						fmt.Sprintf("Would remove scope not in config from %s", resource.Name), nil)
+						fmt.Sprintf("Would remove scope not in config from %s", container.Name), nil)
 					result.Summary.ScopesDeleted++
 				} else {
 					logger.Info("Removing scope not in config: %s", existingScope.Name)
 					err := e.client.DeleteScope(resourceID, existingScope.ID)
 					e.addOperation(result, "scope", "cleanup", existingScope.Name,
-						fmt.Sprintf("Removed scope not in config from %s", resource.Name), err)
+						fmt.Sprintf("Removed scope not in config from %s", container.Name), err)
 					if err != nil {
 						logger.Warn("Failed to remove scope %s: %v", existingScope.Name, err)
 					} else {

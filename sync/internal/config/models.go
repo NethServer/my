@@ -52,6 +52,64 @@ type Permission struct {
 type Resource struct {
 	Name    string   `yaml:"name" json:"name"`
 	Actions []string `yaml:"actions" json:"actions"`
+	// Container is the Logto API resource that hosts this resource's scopes.
+	// Logto bills per API resource and not per scope, so several config
+	// resources can share one container. Scope names stay "{action}:{name}"
+	// regardless of the container, so grouping is invisible to roles and to
+	// the backend. Defaults to Name, i.e. one Logto resource per entry.
+	Container string `yaml:"container,omitempty" json:"container,omitempty"`
+}
+
+// ContainerName returns the Logto API resource hosting this resource's scopes.
+func (r Resource) ContainerName() string {
+	if r.Container != "" {
+		return r.Container
+	}
+	return r.Name
+}
+
+// ResourceContainer is a Logto API resource together with the scopes it hosts.
+type ResourceContainer struct {
+	Name   string
+	Scopes []ResourceScope
+}
+
+// ResourceScope is a single permission inside a container.
+type ResourceScope struct {
+	Name        string
+	Description string
+}
+
+// GetResourceContainers collapses the configured resources into the distinct
+// Logto API resources that must exist, preserving config order. Scope names are
+// unaffected by the grouping.
+func (c *Config) GetResourceContainers() []ResourceContainer {
+	order := make([]string, 0, len(c.Resources))
+	byName := make(map[string]*ResourceContainer)
+
+	for _, resource := range c.Resources {
+		containerName := resource.ContainerName()
+		container, exists := byName[containerName]
+		if !exists {
+			container = &ResourceContainer{Name: containerName}
+			byName[containerName] = container
+			order = append(order, containerName)
+		}
+
+		for _, action := range resource.Actions {
+			container.Scopes = append(container.Scopes, ResourceScope{
+				Name:        fmt.Sprintf("%s:%s", action, resource.Name),
+				Description: fmt.Sprintf("Permission to %s %s", action, resource.Name),
+			})
+		}
+	}
+
+	containers := make([]ResourceContainer, 0, len(order))
+	for _, name := range order {
+		containers = append(containers, *byName[name])
+	}
+
+	return containers
 }
 
 // Application represents a third-party application configuration

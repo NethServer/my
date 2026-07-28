@@ -3,6 +3,8 @@ metadata:
   version: "1.0.0"
   description: "RBAC configuration for my application"
 
+# Business hierarchy: owner -> distributor -> reseller -> customer.
+# Each role sees only what sits below it in the commercial chain.
 organization_roles:
     - id: owner
       name: "Owner"
@@ -12,10 +14,26 @@ organization_roles:
         - id: "read:customers"
         - id: "manage:customers"
 
+    - id: distributor
+      name: "Distributor"
+      type: org
+      priority: 1
+      permissions:
+        - id: "read:customers"
+        - id: "manage:customers"
+
+    - id: reseller
+      name: "Reseller"
+      type: org
+      priority: 2
+      permissions:
+        - id: "read:customers"
+        - id: "manage:customers"
+
     - id: customer
       name: "Customer"
       type: org
-      priority: 1
+      priority: 3
       permissions:
 
 user_roles:
@@ -53,15 +71,28 @@ user_roles:
         - id: "read:systems"
         - id: "manage:systems"
 
+# Resources and their available actions.
+#
+# Scope names are always "{action}:{name}", which is what roles and the backend
+# match on. "container" says which Logto API resource hosts those scopes: Logto
+# bills per API resource and includes 3 in the Pro plan, so everything shares a
+# single container. Omitting it creates one Logto resource per entry.
 resources:
+    - name: "customers"
+      actions: ["read", "manage"]
+      container: "permissions"
+
     - name: "systems"
       actions: ["read", "manage", "destroy"]
+      container: "permissions"
 
     - name: "users"
       actions: ["read", "manage", "impersonate"]
+      container: "permissions"
 
     - name: "role-access-control"
       actions: ["owner", "distributor", "reseller"]
+      container: "permissions"
 
 # Third-party applications (optional)
 third_party_apps:

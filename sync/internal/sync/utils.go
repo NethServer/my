@@ -108,19 +108,22 @@ func BuildGlobalScopeMapping(client *client.LogtoClient, cfg *config.Config, res
 	allScopeNameToID := make(map[string]string)
 	allScopeIDToName := make(map[string]string)
 
-	for _, configResource := range cfg.Resources {
-		resourceID, exists := resourceNameToID[configResource.Name]
+	// Scopes are looked up per container, not per config resource: several
+	// resources can share one Logto resource. The resulting map stays keyed by
+	// scope name, which is how roles reference their permissions.
+	for _, container := range cfg.GetResourceContainers() {
+		resourceID, exists := resourceNameToID[container.Name]
 		if !exists {
 			syncLogger := logger.ComponentLogger("sync")
 			syncLogger.Warn().
-				Str("resource", configResource.Name).
+				Str("resource", container.Name).
 				Msg("Resource not found, skipping scope mappings")
 			continue
 		}
 
 		scopes, err := client.GetScopes(resourceID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get scopes for resource %s: %w", configResource.Name, err)
+			return nil, fmt.Errorf("failed to get scopes for resource %s: %w", container.Name, err)
 		}
 
 		for _, scope := range scopes {

@@ -38,6 +38,11 @@ func LoadAndValidateConfig(configFile string) (*config.Config, error) {
 	resourceCount := len(cfg.Resources)
 	roleCount := len(cfg.UserRoles) + len(cfg.OrganizationRoles)
 
+	// Logto bills per API resource, so make the grouping visible up front
+	if containers := cfg.GetResourceContainers(); len(containers) != resourceCount {
+		logger.Info("Grouping %d resources into %d Logto API resource(s)", resourceCount, len(containers))
+	}
+
 	// Validate configuration
 	if err := cfg.Validate(); err != nil && !viper.GetBool("force") {
 		logger.LogConfigLoad(configFile, resourceCount, roleCount, false)

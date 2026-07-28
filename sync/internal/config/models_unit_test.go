@@ -508,6 +508,194 @@ func TestValidateApplication(t *testing.T) {
 	}
 }
 
+func TestContainerName(t *testing.T) {
+	tests := []struct {
+		name     string
+		resource Resource
+		expected string
+	}{
+		{
+			name:     "falls back to the resource name",
+			resource: Resource{Name: "systems", Actions: []string{"read"}},
+			expected: "systems",
+		},
+		{
+			name:     "honours an explicit container",
+			resource: Resource{Name: "systems", Actions: []string{"read"}, Container: "permissions"},
+			expected: "permissions",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.resource.ContainerName(); got != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestGetResourceContainers(t *testing.T) {
+	scopeNames := func(container ResourceContainer) []string {
+		names := make([]string, 0, len(container.Scopes))
+		for _, scope := range container.Scopes {
+			names = append(names, scope.Name)
+		}
+		return names
+	}
+
+	t.Run("grouping does not rename scopes", func(t *testing.T) {
+		config := &Config{
+			Resources: []Resource{
+				{Name: "distributors", Actions: []string{"read", "manage"}, Container: "permissions"},
+				{Name: "systems", Actions: []string{"read", "connect"}, Container: "permissions"},
+				{Name: "role-access-control", Actions: []string{"owner"}, Container: "permissions"},
+			},
+		}
+
+		containers := config.GetResourceContainers()
+
+		if len(containers) != 1 {
+			t.Fatalf("expected 1 container, got %d", len(containers))
+		}
+		if containers[0].Name != "permissions" {
+			t.Errorf("expected container %q, got %q", "permissions", containers[0].Name)
+		}
+
+		// The point of the grouping: scope names stay "{action}:{resource}",
+		// because roles and the backend match on these exact strings.
+		expected := []string{
+			"read:distributors", "manage:distributors",
+			"read:systems", "connect:systems",
+			"owner:role-access-control",
+		}
+		got := scopeNames(containers[0])
+
+		if len(got) != len(expected) {
+			t.Fatalf("expected %d scopes, got %d: %v", len(expected), len(got), got)
+		}
+		for i, name := range expected {
+			if got[i] != name {
+				t.Errorf("scope %d: expected %q, got %q", i, name, got[i])
+			}
+		}
+	})
+
+	t.Run("no container keeps one resource per entry", func(t *testing.T) {
+		config := &Config{
+			Resources: []Resource{
+				{Name: "distributors", Actions: []string{"read"}},
+				{Name: "systems", Actions: []string{"read", "manage"}},
+			},
+		}
+
+		containers := config.GetResourceContainers()
+
+		if len(containers) != 2 {
+			t.Fatalf("expected 2 containers for backward compatibility, got %d", len(containers))
+		}
+		if containers[0].Name != "distributors" || containers[1].Name != "systems" {
+			t.Errorf("expected config order [distributors systems], got [%s %s]",
+				containers[0].Name, containers[1].Name)
+		}
+		if names := scopeNames(containers[1]); len(names) != 2 || names[0] != "read:systems" {
+			t.Errorf("unexpected scopes on systems: %v", names)
+		}
+	})
+
+	t.Run("mixed grouping keeps first-seen order", func(t *testing.T) {
+		config := &Config{
+			Resources: []Resource{
+				{Name: "distributors", Actions: []string{"read"}, Container: "permissions"},
+				{Name: "systems", Actions: []string{"read"}},
+				{Name: "users", Actions: []string{"read"}, Container: "permissions"},
+			},
+		}
+
+		containers := config.GetResourceContainers()
+
+		if len(containers) != 2 {
+			t.Fatalf("expected 2 containers, got %d", len(containers))
+		}
+		if containers[0].Name != "permissions" || containers[1].Name != "systems" {
+			t.Fatalf("expected [permissions systems], got [%s %s]", containers[0].Name, containers[1].Name)
+		}
+		if names := scopeNames(containers[0]); len(names) != 2 ||
+			names[0] != "read:distributors" || names[1] != "read:users" {
+			t.Errorf("expected permissions to hold both scopes in config order, got %v", names)
+		}
+	})
+
+	// The production shape: 9 resources, 27 scopes, a single billable container.
+	t.Run("production shape collapses to one container", func(t *testing.T) {
+		config := &Config{
+			Resources: []Resource{
+				{Name: "distributors", Actions: []string{"read", "manage", "destroy"}, Container: "permissions"},
+				{Name: "resellers", Actions: []string{"read", "manage", "destroy"}, Container: "permissions"},
+				{Name: "customers", Actions: []string{"read", "manage", "destroy"}, Container: "permissions"},
+				{Name: "systems", Actions: []string{"read", "manage", "destroy", "connect"}, Container: "permissions"},
+				{Name: "entitlements", Actions: []string{"read", "manage"}, Container: "permissions"},
+				{Name: "users", Actions: []string{"read", "manage", "destroy", "impersonate"}, Container: "permissions"},
+				{Name: "applications", Actions: []string{"read", "manage"}, Container: "permissions"},
+				{Name: "alerts", Actions: []string{"read", "manage", "config"}, Container: "permissions"},
+				{Name: "role-access-control", Actions: []string{"owner", "distributor", "reseller"}, Container: "permissions"},
+			},
+		}
+
+		containers := config.GetResourceContainers()
+
+		if len(containers) != 1 {
+			t.Fatalf("expected the 9 resources to collapse into 1 container, got %d", len(containers))
+		}
+		if len(containers[0].Scopes) != 27 {
+			t.Errorf("expected 27 scopes, got %d", len(containers[0].Scopes))
+		}
+
+		// Logto rejects duplicate scope names within a resource.
+		present := make(map[string]bool)
+		for _, scope := range containers[0].Scopes {
+			if present[scope.Name] {
+				t.Errorf("duplicate scope name %q would be rejected by Logto", scope.Name)
+			}
+			present[scope.Name] = true
+		}
+
+		// Every permission the backend hardcodes must survive the grouping.
+		for _, name := range []string{
+			"destroy:distributors", "destroy:resellers", "destroy:customers",
+			"destroy:systems", "connect:systems", "impersonate:users",
+			"config:alerts", "manage:entitlements",
+			"owner:role-access-control", "distributor:role-access-control", "reseller:role-access-control",
+		} {
+			if !present[name] {
+				t.Errorf("permission %q is missing after grouping", name)
+			}
+		}
+	})
+}
+
+// Grouping must not change what validation accepts, since role definitions
+// reference permissions by scope name.
+func TestGroupedConfigStillValidates(t *testing.T) {
+	config := &Config{
+		Metadata: Metadata{Name: "Test Config", Version: "1.0.0"},
+		OrganizationRoles: []Role{
+			{ID: "owner", Name: "Owner", Permissions: []Permission{{ID: "read:distributors"}}},
+		},
+		UserRoles: []Role{
+			{ID: "admin", Name: "Admin", Permissions: []Permission{{ID: "connect:systems"}}},
+		},
+		Resources: []Resource{
+			{Name: "distributors", Actions: []string{"read"}, Container: "permissions"},
+			{Name: "systems", Actions: []string{"connect"}, Container: "permissions"},
+		},
+	}
+
+	if err := config.Validate(); err != nil {
+		t.Errorf("expected grouped config to validate, got %v", err)
+	}
+}
+
 // Helper function for substring matching
 func containsSubstring(str, substr string) bool {
 	for i := 0; i <= len(str)-len(substr); i++ {

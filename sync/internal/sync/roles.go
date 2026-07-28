@@ -18,6 +18,12 @@ import (
 	"github.com/nethesis/my/sync/internal/logger"
 )
 
+// accessControlScopeSuffix marks the scopes that gate who may assign a user
+// role (e.g. "owner:role-access-control"). They are declared under a role's
+// access_control block rather than its permissions, and are owned exclusively
+// by syncUserRoleAccessControlScopes.
+const accessControlScopeSuffix = ":role-access-control"
+
 // isSystemUserRole checks if a role is a system role that shouldn't be deleted
 func isSystemUserRole(role client.LogtoRole) bool {
 	return IsSystemEntityByPatterns(
@@ -168,9 +174,9 @@ func (e *Engine) buildUserRolePermissionMappings(cfg *config.Config) (*UserRoleP
 			}
 		}
 
-		for _, resource := range cfg.Resources {
-			if _, exists := resourceNameToID[resource.Name]; !exists {
-				resourceNameToID[resource.Name] = "dry-run-resource-" + resource.Name
+		for _, container := range cfg.GetResourceContainers() {
+			if _, exists := resourceNameToID[container.Name]; !exists {
+				resourceNameToID[container.Name] = "dry-run-resource-" + container.Name
 			}
 		}
 	}
@@ -346,6 +352,13 @@ func (e *Engine) applyUserRolePermissionChanges(roleID, roleName string, diff *P
 	if len(diff.ToRemove) > 0 {
 		permissionIDs := make([]string, 0, len(diff.ToRemove))
 		for _, permName := range diff.ToRemove {
+			// Access control scopes live under the role's access_control block,
+			// not its permissions, so they always look "unexpected" here.
+			// syncUserRoleAccessControlScopes owns them: without this skip the
+			// two steps fight, stripping and re-adding the scope on every run.
+			if strings.HasSuffix(permName, accessControlScopeSuffix) {
+				continue
+			}
 			if scopeID, exists := scopeMapping.NameToID[permName]; exists {
 				permissionIDs = append(permissionIDs, scopeID)
 			}
@@ -424,7 +437,7 @@ func (e *Engine) syncSingleRoleAccessControlScopes(configRole config.Role, mappi
 	if configRole.AccessControl != nil && len(configRole.AccessControl.OrganizationRoles) > 0 {
 		// Use the first (most restrictive) organization role for the scope name
 		// Format follows Logto convention: action:resource
-		requiredScopeName = fmt.Sprintf("%s:role-access-control", configRole.AccessControl.OrganizationRoles[0])
+		requiredScopeName = configRole.AccessControl.OrganizationRoles[0] + accessControlScopeSuffix
 	}
 
 	if requiredScopeName == "" {
@@ -441,7 +454,7 @@ func (e *Engine) syncSingleRoleAccessControlScopes(configRole config.Role, mappi
 	hasRequiredScope := false
 	accessControlScopesToRemove := make([]string, 0)
 	for _, scope := range currentScopes {
-		if strings.HasSuffix(scope.Name, ":role-access-control") {
+		if strings.HasSuffix(scope.Name, accessControlScopeSuffix) {
 			if scope.Name == requiredScopeName {
 				hasRequiredScope = true
 			} else {
