@@ -53,6 +53,8 @@ func main() {
 		err = cmdRegisterSystem(args)
 	case "cleanup-orphans":
 		err = cmdCleanupOrphans(args)
+	case "oauth-probe":
+		err = cmdOAuthProbe(args)
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -118,6 +120,21 @@ Usage:
       Soft-delete every user listed in <org> whose email is NOT in registry.
       Useful to clean up users left over from earlier failed runs.
 
+  apitool oauth-probe <user-key> [--all | --app=<name>
+                                 | --client-id=<id> --redirect-uri=<uri>]
+                                [--scope=...]
+      Run a real OIDC authorization-code flow against third-party apps as
+      <user-key>, and compare two things:
+        portal — does the app appear in that user's /third-party-applications
+                 list (my filters it through access_control in custom_data)
+        IdP    — does Logto actually issue an authorization code
+      Only the second is a security boundary. "hidden + CODE ISSUED" means the
+      user can reach the app straight through its login URL and only the app's
+      own checks stand in the way. The client's redirect target is never
+      contacted: the Location header is inspected, not followed.
+      --all resolves the catalogue through the owner, so apps the probed user
+      cannot see are still targeted.
+
 Registry: backend/.api-registry.json (gitignored, file mode 0600)`)
 }
 
@@ -125,26 +142,31 @@ func loadOrInit() (*Registry, error) {
 	return LoadRegistry()
 }
 
+// credsFor resolves the saved credentials for a registry key.
+// "" or "owner" means the saved owner credentials.
+func credsFor(r *Registry, key string) (email, password string, err error) {
+	if r.Config.LogtoEndpoint == "" {
+		return "", "", fmt.Errorf("not initialized; run: apitool init")
+	}
+	if key == "" || key == "owner" {
+		if r.Owner.Email == "" {
+			return "", "", fmt.Errorf("not initialized; run: apitool init")
+		}
+		return r.Owner.Email, r.Owner.Password, nil
+	}
+	u, ok := r.Users[key]
+	if !ok {
+		return "", "", fmt.Errorf("user %q not found in registry", key)
+	}
+	return u.Email, u.Password, nil
+}
+
 // loginAs returns an authenticated client logged in as the given registry key.
 // "" or "owner" means use the saved owner credentials.
 func loginAs(r *Registry, key string) (*Client, error) {
-	if r.Config.LogtoEndpoint == "" {
-		return nil, fmt.Errorf("not initialized; run: apitool init")
-	}
-	var email, password string
-	if key == "" || key == "owner" {
-		if r.Owner.Email == "" {
-			return nil, fmt.Errorf("not initialized; run: apitool init")
-		}
-		email = r.Owner.Email
-		password = r.Owner.Password
-	} else {
-		u, ok := r.Users[key]
-		if !ok {
-			return nil, fmt.Errorf("user %q not found in registry", key)
-		}
-		email = u.Email
-		password = u.Password
+	email, password, err := credsFor(r, key)
+	if err != nil {
+		return nil, err
 	}
 	client, err := NewClient(r.Config)
 	if err != nil {
@@ -536,6 +558,168 @@ func cmdRegisterSystem(args []string) error {
 	}
 	fmt.Printf("Registered system\n  system_key=%s\n", systemKey)
 	return nil
+}
+
+// cmdOAuthProbe runs a real OIDC authorization-code flow against a third-party
+// application as a registered user. It exists to separate two things that are
+// easy to conflate:
+//
+//   - whether the app shows up in the user's portal list, which my filters
+//     through the per-app access_control in Logto custom_data;
+//   - whether Logto itself authorizes that user for that client, which is the
+//     only actual security boundary.
+//
+// When "portal" says no and "IdP" says a code was issued, the access_control
+// entry is advisory: the user can reach the app straight through its login URL,
+// and only the app's own checks stand in the way.
+func cmdOAuthProbe(args []string) error {
+	flags, pos := parseFlags(args)
+	if len(pos) < 1 {
+		return fmt.Errorf("usage: apitool oauth-probe <user-key> [--all | --app=<name> | --client-id=<id> --redirect-uri=<uri>] [--scope=...]")
+	}
+	userKey := pos[0]
+
+	r, err := loadOrInit()
+	if err != nil {
+		return err
+	}
+	email, password, err := credsFor(r, userKey)
+	if err != nil {
+		return err
+	}
+
+	scope := flags["scope"]
+	if scope == "" {
+		scope = ThirdPartyScope
+	}
+
+	// Build the target list.
+	var targets []ThirdPartyApp
+	if cid := flags["client-id"]; cid != "" {
+		redirect := flags["redirect-uri"]
+		if redirect == "" {
+			return fmt.Errorf("--client-id requires --redirect-uri")
+		}
+		targets = append(targets, ThirdPartyApp{ID: cid, Name: cid, RedirectURIs: []string{redirect}})
+	} else {
+		// Resolve through the owner, who sees more of the catalogue than the
+		// probed user: that is the point, we need to target apps the user
+		// cannot see.
+		ownerClient, err := loginAs(r, "owner")
+		if err != nil {
+			return fmt.Errorf("resolving app catalogue as owner: %w", err)
+		}
+		catalogue, err := ownerClient.ListThirdPartyApps()
+		if err != nil {
+			return err
+		}
+		want := flags["app"]
+		if want == "" && flags["all"] != "true" {
+			return fmt.Errorf("specify --all, --app=<name>, or --client-id with --redirect-uri\nowner sees: %s", appNames(catalogue))
+		}
+		for _, a := range catalogue {
+			if want == "" || a.Name == want {
+				targets = append(targets, a)
+			}
+		}
+		if len(targets) == 0 {
+			return fmt.Errorf("app %q not visible to owner; pass --client-id/--redirect-uri explicitly\nowner sees: %s", want, appNames(catalogue))
+		}
+	}
+
+	// What the probed user sees in the portal.
+	userClient, err := loginAs(r, userKey)
+	if err != nil {
+		return err
+	}
+	visibleApps, err := userClient.ListThirdPartyApps()
+	if err != nil {
+		return err
+	}
+	visible := map[string]bool{}
+	for _, a := range visibleApps {
+		visible[a.ID] = true
+	}
+
+	fmt.Printf("user: %s (%s)\n\n", userKey, email)
+	fmt.Printf("%-24s %-14s %-16s %s\n", "app", "portal", "IdP", "note")
+	fmt.Println(strings.Repeat("-", 92))
+
+	gap := 0
+	for _, app := range targets {
+		redirect := flags["redirect-uri"]
+		if redirect == "" {
+			if len(app.RedirectURIs) == 0 {
+				fmt.Printf("%-24s %-14s %-16s %s\n", trunc(app.Name, 24), yesNo(visible[app.ID]), "-", "no redirect URI registered")
+				continue
+			}
+			redirect = app.RedirectURIs[0]
+		}
+
+		// Fresh client per probe: its own cookie jar, so every run is a
+		// complete sign-in rather than riding an existing session.
+		probe, err := NewClient(r.Config)
+		if err != nil {
+			return err
+		}
+		out, err := probe.Authorize(email, password, AuthzRequest{
+			ClientID:    app.ID,
+			RedirectURI: redirect,
+			Scope:       scope,
+		})
+
+		idp, note := "", ""
+		switch {
+		case err != nil:
+			idp = "error"
+			note = err.Error()
+		case out.Code != "":
+			idp = "CODE ISSUED"
+			note = fmt.Sprintf("consent=%v", out.ConsentShown)
+		case out.OAuthError != "":
+			idp = "refused"
+			note = out.OAuthError
+		default:
+			idp = "no code"
+			note = "stopped at " + out.Stage
+		}
+		if !visible[app.ID] && out != nil && out.Code != "" {
+			gap++
+			note = "NOT in portal but IdP authorized -> " + note
+		}
+		fmt.Printf("%-24s %-14s %-16s %s\n", trunc(app.Name, 24), yesNo(visible[app.ID]), idp, trunc(note, 44))
+	}
+
+	fmt.Println(strings.Repeat("-", 92))
+	if gap > 0 {
+		fmt.Printf("%d app reachable at the IdP despite not being listed in the portal.\n", gap)
+		fmt.Println("access_control filters the portal only; the app's own checks are the real gate.")
+	} else {
+		fmt.Println("no gap: every app the IdP authorized is also listed in the portal.")
+	}
+	return nil
+}
+
+func appNames(apps []ThirdPartyApp) string {
+	names := make([]string, 0, len(apps))
+	for _, a := range apps {
+		names = append(names, a.Name)
+	}
+	return strings.Join(names, ", ")
+}
+
+func yesNo(b bool) string {
+	if b {
+		return "visible"
+	}
+	return "hidden"
+}
+
+func trunc(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n-1] + "…"
 }
 
 func cmdCleanupOrphans(args []string) error {

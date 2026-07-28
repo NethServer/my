@@ -64,7 +64,33 @@ apitool cleanup-orphans --org=<name>                # purge users in org not in 
 
 apitool create-system --org=<customer-name> <system-name>  [--as=<user-key>] [--register]
 apitool register-system <system_secret>
+
+apitool oauth-probe <user-key> --all                # third-party app: portal vs IdP
+apitool oauth-probe <user-key> --app=<name>
+apitool oauth-probe <user-key> --client-id=<id> --redirect-uri=<uri>
 ```
+
+## Third-party apps: visibility is not authorization
+
+`oauth-probe` drives a real OIDC authorization-code flow against a third-party
+application as a registered user, and prints two independent answers:
+
+- **portal** — whether the app appears in that user's `/third-party-applications`
+  list. my filters that list through the per-app `access_control` stored in
+  Logto `custom_data` (organization_ids AND organization_roles AND user_roles,
+  fail-closed).
+- **IdP** — whether Logto issues an authorization code for that client.
+
+Logto does not read our `custom_data`, so the two can disagree. A row reading
+`hidden` + `CODE ISSUED` means the user is not offered the app in the portal but
+can still complete SSO by going straight to its login URL, which is a public
+predictable address. In that case the only remaining gate is whatever the
+application itself enforces on the token.
+
+The probe never contacts the application: it inspects the `Location` header of
+Logto's final redirect instead of following it, so no session is created
+downstream. Each probe uses a fresh cookie jar, so it is a complete sign-in
+rather than a reuse of an existing session.
 
 `--as=<user-key>` runs the call authenticated as a registered user (default:
 owner). Use it to build a real hierarchy where, for example, a Reseller is

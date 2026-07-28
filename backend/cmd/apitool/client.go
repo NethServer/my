@@ -56,78 +56,118 @@ func NewClient(cfg Config) (*Client, error) {
 
 func (c *Client) JWT() string { return c.jwt }
 
-// Login executes the full OIDC + backend exchange. On success the JWT is
-// stored on the client and returned by JWT().
-func (c *Client) Login(email, password string) error {
-	redirectURI := c.cfg.AuthBaseURL + "/login-redirect"
+// AuthzRequest describes an OIDC authorization-code request. It exists so the
+// same interaction flow can be driven for the frontend app and for any other
+// client registered on the tenant (e.g. a third-party application).
+type AuthzRequest struct {
+	ClientID    string
+	RedirectURI string
+	Scope       string
+}
+
+// AuthzOutcome reports how far an authorization-code flow got. Code is set only
+// when Logto redirected back to the client with an authorization code, i.e. the
+// IdP authorized this user for this client.
+type AuthzOutcome struct {
+	Code         string
+	CodeVerifier string
+	ConsentShown bool
+	Location     string
+	OAuthError   string
+	Stage        string
+}
+
+// DefaultLoginScope is the scope set the frontend app requests.
+const DefaultLoginScope = "openid profile email offline_access urn:logto:scope:organizations urn:logto:scope:organization_roles"
+
+// ThirdPartyScope matches what the third-party applications are provisioned
+// with (see sync config): no offline_access, no API resource scopes.
+const ThirdPartyScope = "openid profile email roles urn:logto:scope:organizations urn:logto:scope:organization_roles"
+
+// Authorize drives the OIDC authorization-code flow for an arbitrary client and
+// stops as soon as Logto redirects back to that client. It never contacts the
+// client's redirect target: the Location header is inspected, not followed.
+func (c *Client) Authorize(email, password string, req AuthzRequest) (*AuthzOutcome, error) {
+	out := &AuthzOutcome{Stage: "start"}
 
 	verBytes := make([]byte, 48)
 	if _, err := rand.Read(verBytes); err != nil {
-		return err
+		return out, err
 	}
 	codeVerifier := b64url(verBytes)
+	out.CodeVerifier = codeVerifier
 	sum := sha256.Sum256([]byte(codeVerifier))
 	codeChallenge := b64url(sum[:])
 	stateBytes := make([]byte, 16)
 	if _, err := rand.Read(stateBytes); err != nil {
-		return err
+		return out, err
 	}
 	state := b64url(stateBytes)
 
 	q := url.Values{
-		"client_id":             {c.cfg.LogtoAppID},
-		"redirect_uri":          {redirectURI},
+		"client_id":             {req.ClientID},
+		"redirect_uri":          {req.RedirectURI},
 		"response_type":         {"code"},
-		"scope":                 {"openid profile email offline_access urn:logto:scope:organizations urn:logto:scope:organization_roles"},
+		"scope":                 {req.Scope},
 		"state":                 {state},
 		"code_challenge":        {codeChallenge},
 		"code_challenge_method": {"S256"},
 	}
+	out.Stage = "authorize"
 	if _, err := c.followAll(c.cfg.LogtoEndpoint + "/oidc/auth?" + q.Encode()); err != nil {
-		return fmt.Errorf("oidc auth: %w", err)
+		return out, fmt.Errorf("oidc auth: %w", err)
 	}
 
+	out.Stage = "interaction"
 	if _, err := c.do("PUT", c.cfg.LogtoEndpoint+"/api/interaction", `{"event":"SignIn"}`, "application/json"); err != nil {
-		return fmt.Errorf("interaction start: %w", err)
+		return out, fmt.Errorf("interaction start: %w", err)
 	}
 
 	credBody, err := json.Marshal(map[string]string{"email": email, "password": password})
 	if err != nil {
-		return err
+		return out, err
 	}
+	out.Stage = "credentials"
 	r, err := c.do("PATCH", c.cfg.LogtoEndpoint+"/api/interaction/identifiers", string(credBody), "application/json")
 	if err != nil {
-		return fmt.Errorf("submit creds: %w", err)
+		return out, fmt.Errorf("submit creds: %w", err)
 	}
 	if r.status >= 400 {
-		return fmt.Errorf("login failed (%d): %s", r.status, r.body)
+		return out, fmt.Errorf("login failed (%d): %s", r.status, r.body)
 	}
 
+	out.Stage = "submit"
 	r, err = c.do("POST", c.cfg.LogtoEndpoint+"/api/interaction/submit", "", "")
 	if err != nil {
-		return fmt.Errorf("interaction submit: %w", err)
+		return out, fmt.Errorf("interaction submit: %w", err)
 	}
 	var sub struct {
 		RedirectTo string `json:"redirectTo"`
 	}
 	if err := json.Unmarshal([]byte(r.body), &sub); err != nil || sub.RedirectTo == "" {
-		return fmt.Errorf("no redirectTo: %s", r.body)
+		return out, fmt.Errorf("no redirectTo: %s", r.body)
 	}
 
 	r, err = c.do("GET", sub.RedirectTo, "", "")
 	if err != nil {
-		return fmt.Errorf("follow redirect: %w", err)
+		return out, fmt.Errorf("follow redirect: %w", err)
 	}
 	loc := r.headers.Get("Location")
 	if strings.Contains(loc, "/consent") {
 		// GET the consent page (Logto records that we visited it),
 		// then POST consent acceptance and re-follow the redirect chain.
+		out.ConsentShown = true
+		out.Stage = "consent"
 		if _, err := c.do("GET", c.cfg.LogtoEndpoint+loc, "", ""); err != nil {
-			return fmt.Errorf("consent get: %w", err)
+			return out, fmt.Errorf("consent get: %w", err)
 		}
 		r, err = c.do("POST", c.cfg.LogtoEndpoint+"/api/interaction/consent", "", "")
 		if err != nil {
-			return fmt.Errorf("consent post: %w", err)
+			return out, fmt.Errorf("consent post: %w", err)
+		}
+		if r.status >= 400 {
+			out.OAuthError = fmt.Sprintf("consent refused (%d): %s", r.status, r.body)
+			return out, nil
 		}
 		var cr struct {
 			RedirectTo string `json:"redirectTo"`
@@ -135,28 +175,59 @@ func (c *Client) Login(email, password string) error {
 		_ = json.Unmarshal([]byte(r.body), &cr)
 		r, err = c.do("GET", cr.RedirectTo, "", "")
 		if err != nil {
-			return fmt.Errorf("follow after consent: %w", err)
+			return out, fmt.Errorf("follow after consent: %w", err)
 		}
 		loc = r.headers.Get("Location")
 	}
 
+	out.Location = loc
+	out.Stage = "redirect"
 	parsedLoc, err := url.Parse(loc)
 	if err != nil {
-		return fmt.Errorf("parse redirect: %w", err)
+		return out, fmt.Errorf("parse redirect: %w", err)
 	}
-	authCode := parsedLoc.Query().Get("code")
-	if authCode == "" {
-		return fmt.Errorf("no auth code in redirect: %s", loc)
+	if e := parsedLoc.Query().Get("error"); e != "" {
+		out.OAuthError = e
+		if d := parsedLoc.Query().Get("error_description"); d != "" {
+			out.OAuthError += ": " + d
+		}
+		return out, nil
+	}
+	out.Code = parsedLoc.Query().Get("code")
+	if out.Code != "" {
+		out.Stage = "code_issued"
+	}
+	return out, nil
+}
+
+// Login executes the full OIDC + backend exchange. On success the JWT is
+// stored on the client and returned by JWT().
+func (c *Client) Login(email, password string) error {
+	redirectURI := c.cfg.AuthBaseURL + "/login-redirect"
+
+	out, err := c.Authorize(email, password, AuthzRequest{
+		ClientID:    c.cfg.LogtoAppID,
+		RedirectURI: redirectURI,
+		Scope:       DefaultLoginScope,
+	})
+	if err != nil {
+		return err
+	}
+	if out.Code == "" {
+		if out.OAuthError != "" {
+			return fmt.Errorf("authorization refused at %s: %s", out.Stage, out.OAuthError)
+		}
+		return fmt.Errorf("no auth code in redirect: %s", out.Location)
 	}
 
 	form := url.Values{
 		"grant_type":    {"authorization_code"},
-		"code":          {authCode},
+		"code":          {out.Code},
 		"redirect_uri":  {redirectURI},
 		"client_id":     {c.cfg.LogtoAppID},
-		"code_verifier": {codeVerifier},
+		"code_verifier": {out.CodeVerifier},
 	}
-	r, err = c.do("POST", c.cfg.LogtoEndpoint+"/oidc/token", form.Encode(), "application/x-www-form-urlencoded")
+	r, err := c.do("POST", c.cfg.LogtoEndpoint+"/oidc/token", form.Encode(), "application/x-www-form-urlencoded")
 	if err != nil {
 		return fmt.Errorf("token exchange: %w", err)
 	}
@@ -594,6 +665,45 @@ func (c *Client) ResetPassword(userID, password string) error {
 }
 
 // GetRoles returns a name->id map of available user roles.
+// ThirdPartyApp is one entry of GET /third-party-applications, i.e. an app the
+// authenticated caller is allowed to see in the portal.
+type ThirdPartyApp struct {
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	LoginURL     string   `json:"login_url"`
+	RedirectURIs []string `json:"redirect_uris"`
+}
+
+// ListThirdPartyApps returns the third-party applications visible to the
+// authenticated user. The backend filters this list through the per-app
+// access_control stored in Logto custom_data.
+func (c *Client) ListThirdPartyApps() ([]ThirdPartyApp, error) {
+	r, err := c.api("GET", "/third-party-applications", nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.status != 200 {
+		return nil, fmt.Errorf("list third-party apps failed (%d): %s", r.status, string(r.body))
+	}
+	// data is a bare array; tolerate an {"applications": [...]} wrapper too so
+	// the tool keeps working if the envelope ever changes.
+	var flat struct {
+		Data []ThirdPartyApp `json:"data"`
+	}
+	if err := json.Unmarshal(r.body, &flat); err == nil && flat.Data != nil {
+		return flat.Data, nil
+	}
+	var wrapped struct {
+		Data struct {
+			Applications []ThirdPartyApp `json:"applications"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(r.body, &wrapped); err != nil {
+		return nil, fmt.Errorf("decode third-party apps: %w", err)
+	}
+	return wrapped.Data.Applications, nil
+}
+
 func (c *Client) GetRoles() (map[string]string, error) {
 	r, err := c.api("GET", "/roles", nil)
 	if err != nil {
