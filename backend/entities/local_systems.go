@@ -151,6 +151,73 @@ func (r *LocalSystemRepository) Delete(id string) error {
 	return fmt.Errorf("Delete method not yet implemented - use SystemsService directly")
 }
 
+// statusFilterClause renders the `status` query filter as a parenthesised SQL
+// fragment plus the positional arguments it consumes. The clause is empty when
+// no status is requested, so the caller can skip it.
+//
+// Three kinds of value are accepted:
+//   - unknown/active/inactive/deleted: matched against the systems.status column
+//   - suspended: virtual, matched on suspended_at
+//   - no_inventory: virtual, systems that have been in contact but never
+//     delivered an inventory
+//
+// The parts are OR'd together. Suspended systems are excluded from the column
+// match unless "suspended" is selected too, so the two do not overlap; deleted
+// rows are exempt from that exclusion because deleted wins over suspended (a
+// suspended-then-archived system must still match status=deleted).
+// "no_inventory" is additive instead: such a system is also active or inactive,
+// so it deliberately overlaps with those. Its predicate mirrors the
+// missing-inventory warning icon in the systems table, so the filtered count
+// equals the number of flagged rows on screen.
+//
+// argOffset is the number of placeholders the caller already consumed: the
+// first placeholder generated here is $argOffset+1.
+func statusFilterClause(filterStatuses []string, argOffset int) (string, []interface{}) {
+	hasSuspended := false
+	hasNoInventory := false
+	var dbStatuses []string
+	for _, s := range filterStatuses {
+		switch s {
+		case "suspended":
+			hasSuspended = true
+		case "no_inventory":
+			hasNoInventory = true
+		default:
+			dbStatuses = append(dbStatuses, s)
+		}
+	}
+
+	if len(dbStatuses) == 0 && !hasSuspended && !hasNoInventory {
+		return "", nil
+	}
+
+	var statusParts []string
+	var args []interface{}
+
+	if len(dbStatuses) > 0 {
+		placeholders := make([]string, len(dbStatuses))
+		for i, s := range dbStatuses {
+			placeholders[i] = fmt.Sprintf("$%d", argOffset+i+1)
+			args = append(args, s)
+		}
+		condition := fmt.Sprintf("s.status IN (%s)", strings.Join(placeholders, ","))
+		if !hasSuspended {
+			condition = fmt.Sprintf("(%s AND (s.suspended_at IS NULL OR s.deleted_at IS NOT NULL))", condition)
+		}
+		statusParts = append(statusParts, condition)
+	}
+
+	if hasSuspended {
+		statusParts = append(statusParts, "(s.suspended_at IS NOT NULL AND s.deleted_at IS NULL)")
+	}
+
+	if hasNoInventory {
+		statusParts = append(statusParts, "(s.last_inventory_at IS NULL AND s.status <> 'unknown')")
+	}
+
+	return "(" + strings.Join(statusParts, " OR ") + ")", args
+}
+
 // ListByCreatedByOrganizations returns paginated list of systems created by users in specified organizations with filters
 func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection, filterName, filterSystemKey string, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses []string) ([]*models.System, int, error) {
 	// nil = owner (no RBAC filter), empty = no access
@@ -275,45 +342,9 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		whereClause += fmt.Sprintf(" AND s.organization_id IN (%s)", strings.Join(orgPlaceholders, ","))
 	}
 
-	// Handle status filter (treat "deleted" as a normal status value, "suspended" as virtual status)
-	// When filtering by normal statuses (unknown, active, inactive) WITHOUT "suspended",
-	// exclude suspended systems to avoid overlap
-	hasSuspendedFilter := false
-	var dbStatuses []string
-	for _, s := range filterStatuses {
-		if s == "suspended" {
-			hasSuspendedFilter = true
-		} else {
-			dbStatuses = append(dbStatuses, s)
-		}
-	}
-
-	if len(dbStatuses) > 0 || hasSuspendedFilter {
-		var statusParts []string
-
-		if len(dbStatuses) > 0 {
-			statusPlaceholders := make([]string, len(dbStatuses))
-			baseIndex := len(args)
-			for i, s := range dbStatuses {
-				statusPlaceholders[i] = fmt.Sprintf("$%d", baseIndex+i+1)
-				args = append(args, s)
-			}
-			statusCondition := fmt.Sprintf("s.status IN (%s)", strings.Join(statusPlaceholders, ","))
-			// Exclude suspended systems from normal status filters unless "suspended" is also selected.
-			// Deleted rows are exempt from the exclusion: deleted wins over suspended
-			// (a suspended-then-archived system must still match status=deleted).
-			if !hasSuspendedFilter {
-				statusCondition = fmt.Sprintf("(%s AND (s.suspended_at IS NULL OR s.deleted_at IS NOT NULL))", statusCondition)
-			}
-			statusParts = append(statusParts, statusCondition)
-		}
-
-		if hasSuspendedFilter {
-			// Deleted rows are not "suspended" even if suspended_at is set (deleted wins)
-			statusParts = append(statusParts, "(s.suspended_at IS NOT NULL AND s.deleted_at IS NULL)")
-		}
-
-		whereClause += " AND (" + strings.Join(statusParts, " OR ") + ")"
+	if statusClause, statusArgs := statusFilterClause(filterStatuses, len(args)); statusClause != "" {
+		whereClause += " AND " + statusClause
+		args = append(args, statusArgs...)
 	}
 
 	// Build ORDER BY clause

@@ -3405,15 +3405,22 @@ components:
 
         - unknown, active, inactive, deleted: match the system status column
         - suspended: virtual status matching systems with suspended_at IS NOT NULL
+        - no_inventory: virtual status matching systems that have been in contact
+          but never delivered an inventory (last_inventory_at IS NULL AND status <> 'unknown')
 
         Special value "deleted" shows soft-deleted systems (where deleted_at IS NOT NULL).
         When "deleted" is combined with other statuses, both deleted and non-deleted systems matching the other statuses are returned.
+
+        "no_inventory" is additive rather than exclusive: such a system is also
+        active or inactive, so it matches both filters. Selecting it alone yields
+        exactly the systems flagged with the missing-inventory warning in the UI.
+        The status field of the response never carries this value.
       required: false
       schema:
         type: array
         items:
           type: string
-          enum: ["unknown", "active", "inactive", "suspended", "deleted"]
+          enum: ["unknown", "active", "inactive", "suspended", "deleted", "no_inventory"]
         example: ["active", "unknown"]
       style: form
       explode: true
