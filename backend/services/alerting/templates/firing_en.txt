@@ -22,7 +22,7 @@ DETAILS:  {{ .Annotations.description_en }}
 {{ else if .Annotations.description -}}
 DETAILS:  {{ .Annotations.description }}
 {{ end -}}
-SINCE:    {{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
+SINCE:    {{ (tz "Europe/Rome" .StartsAt).Format "2006-01-02 15:04:05 MST" }} ({{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC)
 
 ───────────────────────────────────────────────────────────────
   SYSTEM

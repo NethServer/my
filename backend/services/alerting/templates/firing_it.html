@@ -166,7 +166,7 @@
                                 <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">ATTIVO DAL</td>
                               </tr>
                               <tr>
-                                <td style="font-size: 13px; color: #dc2626; font-family: 'Poppins', Arial, sans-serif; font-weight: 600;">{{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC</td>
+                                <td style="font-size: 13px; color: #dc2626; font-family: 'Poppins', Arial, sans-serif; font-weight: 600;">{{ (tz "Europe/Rome" .StartsAt).Format "2006-01-02 15:04:05 MST" }} ({{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC)</td>
                               </tr>
                             </table>
                           </td>

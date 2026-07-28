@@ -24,7 +24,7 @@ DETTAGLI:  {{ .Annotations.description_en }}
 {{ else if .Annotations.description -}}
 DETTAGLI:  {{ .Annotations.description }}
 {{ end -}}
-DAL:       {{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
+DAL:       {{ (tz "Europe/Rome" .StartsAt).Format "2006-01-02 15:04:05 MST" }} ({{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC)
 
 ───────────────────────────────────────────────────────────────
   SISTEMA

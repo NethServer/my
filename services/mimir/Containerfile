@@ -4,7 +4,7 @@ FROM docker.io/grafana/mimir:3.0.6 AS mimir
 # Final stage: alpine with shell for entrypoint script
 FROM alpine:3.24
 
-RUN apk add --no-cache gettext
+RUN apk add --no-cache gettext tzdata
 
 # Copy mimir binary from official image
 COPY --from=mimir /bin/mimir /bin/mimir
