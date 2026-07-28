@@ -37,12 +37,9 @@ func (c *LogtoManagementClient) GetUserRoles(userID string) ([]models.LogtoRole,
 
 // GetRoleScopes fetches scopes for a role
 func (c *LogtoManagementClient) GetRoleScopes(roleID string) ([]models.LogtoScope, error) {
-	resp, err := c.makeRequest("GET", fmt.Sprintf("/roles/%s/scopes", roleID), nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch role scopes: %w", err)
-	}
-
-	return decodeSliceResponse[models.LogtoScope](resp, []int{http.StatusOK}, "fetch role scopes")
+	// Paged: a role can hold more scopes than Logto returns on one page, and a
+	// truncated list would silently strip permissions from the user's JWT.
+	return fetchAllPages[models.LogtoScope](c, fmt.Sprintf("/roles/%s/scopes", roleID), "fetch role scopes")
 }
 
 // GetUserOrganizationRoles fetches user's roles in an organization
@@ -57,12 +54,8 @@ func (c *LogtoManagementClient) GetUserOrganizationRoles(orgID, userID string) (
 
 // GetOrganizationRoleScopes fetches scopes for an organization role
 func (c *LogtoManagementClient) GetOrganizationRoleScopes(roleID string) ([]models.LogtoScope, error) {
-	resp, err := c.makeRequest("GET", fmt.Sprintf("/organization-roles/%s/scopes", roleID), nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch organization role scopes: %w", err)
-	}
-
-	return decodeSliceResponse[models.LogtoScope](resp, []int{http.StatusOK}, "fetch organization role scopes")
+	// Paged for the same reason as GetRoleScopes.
+	return fetchAllPages[models.LogtoScope](c, fmt.Sprintf("/organization-roles/%s/scopes", roleID), "fetch organization role scopes")
 }
 
 // GetAllRoles fetches all roles from Logto Management API

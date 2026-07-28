@@ -81,14 +81,11 @@ func (c *LogtoClient) DeleteResource(resourceID string) error {
 func (c *LogtoClient) GetScopes(resourceID string) ([]LogtoScope, error) {
 	logger.Debug("Fetching scopes for resource: %s", resourceID)
 
-	resp, err := c.makeRequest("GET", "/api/resources/"+resourceID+"/scopes", nil)
+	// Must page: Logto defaults to 20 items and a single resource now holds
+	// every permission scope, so a plain request would silently truncate.
+	scopes, err := fetchAllPages[LogtoScope](c, "/api/resources/"+resourceID+"/scopes")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get scopes: %w", err)
-	}
-
-	var scopes []LogtoScope
-	if err := c.handlePaginatedResponse(resp, &scopes); err != nil {
-		return nil, fmt.Errorf("failed to parse scopes response: %w", err)
 	}
 
 	logger.Debug("Retrieved %d scopes for resource %s", len(scopes), resourceID)

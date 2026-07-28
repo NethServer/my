@@ -34,14 +34,11 @@ type LogtoOrganizationScope struct {
 func (c *LogtoClient) GetOrganizationScopes() ([]LogtoOrganizationScope, error) {
 	logger.Debug("Fetching organization scopes")
 
-	resp, err := c.makeRequest("GET", "/api/organization-scopes", nil)
+	// Must page: there is one organization scope per permission (27 today),
+	// well past Logto's default page size of 20.
+	scopes, err := fetchAllPages[LogtoOrganizationScope](c, "/api/organization-scopes")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get organization scopes: %w", err)
-	}
-
-	var scopes []LogtoOrganizationScope
-	if err := c.handlePaginatedResponse(resp, &scopes); err != nil {
-		return nil, fmt.Errorf("failed to parse organization scopes response: %w", err)
 	}
 
 	logger.Debug("Retrieved %d organization scopes", len(scopes))

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 // decodeResponse reads the response body, checks the status code against expected values,
@@ -31,6 +32,39 @@ func decodeResponse[T any](resp *http.Response, expectedStatuses []int, operatio
 	}
 
 	return &result, nil
+}
+
+// fetchAllPages retrieves every item from a paginated Management API endpoint.
+// Logto returns 20 items per page by default, so any list that can outgrow that
+// must page explicitly or it gets silently truncated. A role holding more than
+// 20 scopes is the case that matters here: a short read would drop permissions
+// from the JWT and surface as intermittent 403s.
+func fetchAllPages[T any](c *LogtoManagementClient, endpoint, operation string) ([]T, error) {
+	const pageSize = 100
+
+	separator := "?"
+	if strings.Contains(endpoint, "?") {
+		separator = "&"
+	}
+
+	var all []T
+	for page := 1; ; page++ {
+		resp, err := c.makeRequest("GET", fmt.Sprintf("%s%spage=%d&page_size=%d", endpoint, separator, page, pageSize), nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to %s: %w", operation, err)
+		}
+
+		items, err := decodeSliceResponse[T](resp, []int{http.StatusOK}, operation)
+		if err != nil {
+			return nil, err
+		}
+
+		all = append(all, items...)
+
+		if len(items) < pageSize {
+			return all, nil
+		}
+	}
 }
 
 // decodeSliceResponse reads the response body, checks the status code, and decodes

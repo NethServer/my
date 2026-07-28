@@ -94,14 +94,12 @@ func (c *LogtoClient) DeleteRole(roleID string) error {
 func (c *LogtoClient) GetRolePermissions(roleID string) ([]LogtoScope, error) {
 	logger.Debug("Fetching permissions for user role: %s", roleID)
 
-	resp, err := c.makeRequest("GET", "/api/roles/"+roleID+"/scopes", nil)
+	// Must page: a role can hold more than Logto's default 20 scopes
+	// (Super Admin already does), and a truncated list would make the sync
+	// re-add permissions the role already has.
+	scopes, err := fetchAllPages[LogtoScope](c, "/api/roles/"+roleID+"/scopes")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get role permissions: %w", err)
-	}
-
-	var scopes []LogtoScope
-	if err := c.handlePaginatedResponse(resp, &scopes); err != nil {
-		return nil, fmt.Errorf("failed to parse role permissions response: %w", err)
 	}
 
 	logger.Debug("Retrieved %d permissions for user role %s", len(scopes), roleID)
