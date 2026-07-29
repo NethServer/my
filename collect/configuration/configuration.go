@@ -90,6 +90,10 @@ type Configuration struct {
 	HeartbeatTimeoutMinutes       int `json:"heartbeat_timeout_minutes"`
 	HeartbeatCheckIntervalSeconds int `json:"heartbeat_check_interval_seconds"`
 
+	// LinkFailed lost-wave guard
+	LinkFailedLostWaveMinSystems    int `json:"linkfailed_lost_wave_min_systems"`
+	LinkFailedLostWaveWindowSeconds int `json:"linkfailed_lost_wave_window_seconds"`
+
 	// Mimir configuration
 	MimirURL string `json:"mimir_url"`
 
@@ -221,6 +225,15 @@ func Init() {
 	// a late/missed beat; genuinely-down systems still alert within 20min.
 	Config.HeartbeatTimeoutMinutes = parseIntWithDefault("HEARTBEAT_TIMEOUT_MINUTES", 20)
 	Config.HeartbeatCheckIntervalSeconds = parseIntWithDefault("HEARTBEAT_CHECK_INTERVAL_SECONDS", 300)
+
+	// LinkFailed lost-wave guard. Because heartbeats arrive in synchronized
+	// waves, a gap in our own recording leaves every affected system with the
+	// same last_heartbeat to within seconds. Machines that are really dead stop
+	// beating at arbitrary moments, so a tight cluster this large is our fault,
+	// not theirs, and must not page customers. The window is wider than an
+	// observed wave (~60s) to absorb clock skew and ingest lag.
+	Config.LinkFailedLostWaveMinSystems = parseIntWithDefault("LINKFAILED_LOST_WAVE_MIN_SYSTEMS", 20)
+	Config.LinkFailedLostWaveWindowSeconds = parseIntWithDefault("LINKFAILED_LOST_WAVE_WINDOW_SECONDS", 180)
 
 	// Mimir configuration
 	if mimirURL := os.Getenv("MIMIR_URL"); mimirURL != "" {

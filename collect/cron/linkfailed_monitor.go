@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 	"time"
 
 	collectalerting "github.com/nethesis/my/collect/alerting"
@@ -39,15 +40,20 @@ type LinkFailedMonitor struct {
 	timeoutMinutes int
 	syncInterval   time.Duration
 	postAlerts     postAlertsFunc
+	// Lost-wave guard: see suppressLostWave.
+	lostWaveMinSystems int
+	lostWaveWindow     time.Duration
 }
 
 // NewLinkFailedMonitor creates a new LinkFailed monitor instance.
 func NewLinkFailedMonitor() *LinkFailedMonitor {
 	return &LinkFailedMonitor{
-		db:             database.DB,
-		timeoutMinutes: configuration.Config.HeartbeatTimeoutMinutes,
-		syncInterval:   linkFailedSyncInterval,
-		postAlerts:     collectalerting.PostAlerts,
+		db:                 database.DB,
+		timeoutMinutes:     configuration.Config.HeartbeatTimeoutMinutes,
+		syncInterval:       linkFailedSyncInterval,
+		postAlerts:         collectalerting.PostAlerts,
+		lostWaveMinSystems: configuration.Config.LinkFailedLostWaveMinSystems,
+		lostWaveWindow:     time.Duration(configuration.Config.LinkFailedLostWaveWindowSeconds) * time.Second,
 	}
 }
 
@@ -79,6 +85,18 @@ func (m *LinkFailedMonitor) sync(ctx context.Context) {
 	if err != nil {
 		logger.Error().Err(err).Msg("LinkFailed monitor: failed to load inactive systems")
 		return
+	}
+
+	if suppressed, clusters := suppressLostWave(desiredByOrg, m.lostWaveMinSystems, m.lostWaveWindow); suppressed > 0 {
+		clusterStarts := make([]string, 0, len(clusters))
+		for _, at := range clusters {
+			clusterStarts = append(clusterStarts, at.UTC().Format(time.RFC3339))
+		}
+		logger.Error().
+			Int("systems_suppressed", suppressed).
+			Strs("heartbeat_cluster_starts", clusterStarts).
+			Dur("cluster_window", m.lostWaveWindow).
+			Msg("LinkFailed monitor: suppressed a synchronized heartbeat gap — heartbeat recording broke on our side, these systems are not down")
 	}
 
 	for tenantOrgID, systems := range desiredByOrg {
@@ -183,6 +201,93 @@ func (m *LinkFailedMonitor) loadInactiveSystems(ctx context.Context) (map[string
 	}
 
 	return systemsByOrg, nil
+}
+
+// lostWaveEntry locates one system inside the desired-alert map alongside its
+// heartbeat time, so a detected cluster can be removed in place.
+type lostWaveEntry struct {
+	tenantOrgID string
+	systemKey   string
+	at          time.Time
+}
+
+// suppressLostWave drops inactive systems whose last_heartbeat values all fall
+// inside a single narrow window.
+//
+// Clients send heartbeats on wall-clock-aligned waves, so when the platform
+// briefly stops recording them every affected system is left with the same
+// last_heartbeat to within a few seconds. Hundreds of machines do not genuinely
+// lose connectivity in the same second: a tight cluster means our own ingest
+// gapped, and firing on it pages every customer at once for a fault on our side.
+// A machine that is really dead stopped beating at an arbitrary moment, so it
+// never joins the cluster and still alerts normally.
+//
+// The scan deliberately runs across tenants: an ingest gap hits every tenant at
+// once, which is what separates it from one reseller losing an uplink.
+//
+// One ingest gap usually spans several consecutive waves, so every qualifying
+// cluster is removed, not just the largest. Once two waves have been lost the
+// inactive set holds both, and suppressing only the biggest would still page the
+// systems belonging to the smaller one.
+//
+// Known trade-off: a wave can straddle the staleness cutoff and so reach the
+// inactive set across two ticks. If the first slice lands below minSystems it
+// alerts, and when the rest arrives the now-qualifying cluster is suppressed, so
+// those few alerts stop being refreshed and expire into a spurious "resolved"
+// notification one TTL later. Bounded by minSystems and self-correcting, so it is
+// accepted rather than tracked with per-alert state.
+//
+// Returns how many systems were dropped and the start of each offending window,
+// oldest first. A minSystems or window of zero or less disables the guard.
+func suppressLostWave(byOrg map[string]map[string]linkFailedSystem, minSystems int, window time.Duration) (int, []time.Time) {
+	if minSystems <= 0 || window <= 0 {
+		return 0, nil
+	}
+
+	entries := make([]lostWaveEntry, 0, len(byOrg))
+	for tenantOrgID, systems := range byOrg {
+		for systemKey, system := range systems {
+			entries = append(entries, lostWaveEntry{
+				tenantOrgID: tenantOrgID,
+				systemKey:   systemKey,
+				at:          system.LastHeartbeat,
+			})
+		}
+	}
+	if len(entries) < minSystems {
+		return 0, nil
+	}
+
+	sort.Slice(entries, func(i, j int) bool { return entries[i].at.Before(entries[j].at) })
+
+	// Sweep once, carving out every maximal run that fits inside one window and
+	// meets the floor. Advancing past a suppressed run rather than restarting
+	// keeps this linear and stops a run from being counted twice.
+	var (
+		suppressed int
+		clusters   []time.Time
+		start      int
+	)
+	for start < len(entries) {
+		end := start
+		for end+1 < len(entries) && entries[end+1].at.Sub(entries[start].at) <= window {
+			end++
+		}
+
+		if count := end - start + 1; count >= minSystems {
+			for _, entry := range entries[start : end+1] {
+				delete(byOrg[entry.tenantOrgID], entry.systemKey)
+			}
+			suppressed += count
+			clusters = append(clusters, entries[start].at)
+			start = end + 1
+			continue
+		}
+
+		start++
+	}
+
+	return suppressed, clusters
 }
 
 // syncOrganization pushes the firing alerts for one Mimir tenant. tenantOrgID
