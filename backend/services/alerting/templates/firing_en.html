@@ -148,7 +148,7 @@
                           <td style="padding-bottom: 18px;">
                             <table border="0" cellpadding="0" cellspacing="0" width="100%">
                               <tr>
-                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">DESCRIPTION</td>
+                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">DETAILS</td>
                               </tr>
                               <tr>
                                 <td style="font-size: 14px; color: #374151; line-height: 1.5; font-family: 'Poppins', Arial, sans-serif;">{{ if .Annotations.description_en }}{{ .Annotations.description_en }}{{ else }}{{ .Annotations.description }}{{ end }}</td>
@@ -166,7 +166,10 @@
                                 <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">FIRING SINCE</td>
                               </tr>
                               <tr>
-                                <td style="font-size: 13px; color: #dc2626; font-family: 'Poppins', Arial, sans-serif; font-weight: 600;">{{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC</td>
+                                <td style="font-size: 13px; color: #dc2626; font-family: 'Poppins', Arial, sans-serif; font-weight: 600;">{{ template "ts_en" .StartsAt }}</td>
+                              </tr>
+                              <tr>
+                                <td style="font-size: 11px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-top: 3px;">{{ template "ts_utc" .StartsAt }}</td>
                               </tr>
                             </table>
                           </td>

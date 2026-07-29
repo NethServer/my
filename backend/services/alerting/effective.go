@@ -257,7 +257,7 @@ func renderTenantConfig(tenantOrgID string) (string, map[string]string, error) {
 	if err != nil {
 		return "", nil, fmt.Errorf("render YAML for %s: %w", tenantOrgID, err)
 	}
-	templateFiles, err := BuildTemplateFiles(cfg.AppURL)
+	templateFiles, err := BuildTemplateFiles(cfg.AppURL, cfg.AlertingTimezone)
 	if err != nil {
 		return "", nil, fmt.Errorf("build templates for %s: %w", tenantOrgID, err)
 	}

@@ -14,7 +14,7 @@ Service: <code>{{ .Labels.service }}</code>
 {{ if or .Annotations.description_en .Annotations.description -}}
 Details: {{ if .Annotations.description_en }}{{ .Annotations.description_en }}{{ else }}{{ .Annotations.description }}{{ end }}
 {{ end -}}
-Firing since: {{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
+Firing since: {{ template "ts_en" .StartsAt }}
 {{ if .Labels.organization_name -}}
 {{ if eq .Labels.organization_type "customer" }}Customer{{ else if eq .Labels.organization_type "reseller" }}Reseller{{ else if eq .Labels.organization_type "distributor" }}Distributor{{ else }}Organization{{ end }}: {{ if .Labels.organization_vat }}{{ .Labels.organization_vat }} - {{ end }}{{ .Labels.organization_name }}
 {{ end -}}
@@ -44,7 +44,7 @@ Service: <code>{{ .Labels.service }}</code>
 {{ if or .Annotations.description_en .Annotations.description -}}
 Details: {{ if .Annotations.description_en }}{{ .Annotations.description_en }}{{ else }}{{ .Annotations.description }}{{ end }}
 {{ end -}}
-Started: {{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC | Resolved: {{ .EndsAt.UTC.Format "2006-01-02 15:04:05" }} UTC
+Started: {{ template "ts_en" .StartsAt }} | Resolved: {{ template "ts_en" .EndsAt }}
 {{ if .Labels.organization_name -}}
 {{ if eq .Labels.organization_type "customer" }}Customer{{ else if eq .Labels.organization_type "reseller" }}Reseller{{ else if eq .Labels.organization_type "distributor" }}Distributor{{ else }}Organization{{ end }}: {{ if .Labels.organization_vat }}{{ .Labels.organization_vat }} - {{ end }}{{ .Labels.organization_name }}
 {{ end -}}
