@@ -178,6 +178,27 @@ func TestEnrichAlerts(t *testing.T) {
 	assert.Equal(t, endsAt, alerts[0].EndsAt)
 }
 
+// Alertmanager's Alert.Merge copies the younger alert wholesale and only
+// special-cases StartsAt, so an annotation-free resolve wipes the annotations off
+// the alert it clears, leaving both the resolved notification and the
+// alert_history row without a description. The resolve must therefore carry its
+// own annotations.
+func TestBuildResolvedLinkFailedAlert_CarriesAnnotations(t *testing.T) {
+	systemContext := BuildSystemAlertContext(SystemAlertMetadata{
+		SystemID:       "sys-1",
+		OrganizationID: "org-1",
+		SystemKey:      "SYS-001",
+		SystemName:     "web-01",
+	})
+
+	alert, err := BuildResolvedLinkFailedAlert(systemContext)
+	require.NoError(t, err)
+
+	for _, key := range []string{"summary_en", "summary_it", "description_en", "description_it"} {
+		assert.NotEmpty(t, alert.Annotations[key], "resolve must set %s or Alertmanager blanks it", key)
+	}
+}
+
 func TestBuildResolvedLinkFailedAlert(t *testing.T) {
 	// SystemFQDN/IPv4/VAT left empty on purpose: EnrichAlerts must strip them so
 	// the resolve fingerprint matches the firing alert (which also strips empties).
