@@ -197,6 +197,7 @@ templates:
   - 'resolved_it.html'
   - 'firing_it.txt'
   - 'resolved_it.txt'
+  - '_datetime.tmpl'
   - '_dispatcher.tmpl'
   - 'telegram_en.tmpl'
   - 'telegram_it.tmpl'

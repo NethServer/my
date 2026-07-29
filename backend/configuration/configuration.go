@@ -76,6 +76,7 @@ type Configuration struct {
 	// Mimir configuration
 	MimirURL string `json:"mimir_url"`
 	// Alerting configuration
+	AlertingTimezone             string `json:"alerting_timezone"`
 	AlertingHistoryWebhookURL    string `json:"alerting_history_webhook_url"`
 	AlertingHistoryWebhookSecret string `json:"alerting_history_webhook_secret"`
 
@@ -260,6 +261,24 @@ func Init() {
 	} else {
 		Config.MimirURL = "http://localhost:9009"
 		logger.LogConfigLoad("env", "MIMIR_URL", true, fmt.Errorf("MIMIR_URL variable is empty, using default http://localhost:9009"))
+	}
+
+	// Timezone alert notification timestamps are rendered in (IANA name).
+	// Mimir's alertmanager resolves it via time.LoadLocation when it renders a
+	// notification, and an unresolvable name aborts the template and drops the
+	// notification — so validate the name here to catch a typo at boot instead
+	// of at delivery. This cannot prove Mimir itself can resolve it: the check
+	// runs against the backend image, not the Mimir one.
+	if tz := os.Getenv("ALERTING_TIMEZONE"); tz != "" {
+		Config.AlertingTimezone = tz
+	} else {
+		Config.AlertingTimezone = "Europe/Rome"
+	}
+	if _, err := time.LoadLocation(Config.AlertingTimezone); err != nil {
+		logger.Fatal().
+			Str("timezone", Config.AlertingTimezone).
+			Err(err).
+			Msg("ALERTING_TIMEZONE is not a valid IANA timezone; alert notifications would fail to render")
 	}
 
 	// Alerting configuration — optional, empty means no built-in history webhook.

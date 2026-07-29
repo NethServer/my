@@ -148,7 +148,7 @@
                           <td style="padding-bottom: 18px;">
                             <table border="0" cellpadding="0" cellspacing="0" width="100%">
                               <tr>
-                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">DESCRIPTION</td>
+                                <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">DETAILS</td>
                               </tr>
                               <tr>
                                 <td style="font-size: 14px; color: #374151; line-height: 1.5; font-family: 'Poppins', Arial, sans-serif;">{{ if .Annotations.description_en }}{{ .Annotations.description_en }}{{ else }}{{ .Annotations.description }}{{ end }}</td>
@@ -169,7 +169,10 @@
                                       <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">STARTED</td>
                                     </tr>
                                     <tr>
-                                      <td style="font-size: 13px; color: #374151; font-family: 'Poppins', Arial, sans-serif;">{{ (tz "Europe/Rome" .StartsAt).Format "2006-01-02 15:04:05 MST" }} ({{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC)</td>
+                                      <td style="font-size: 13px; color: #374151; font-family: 'Poppins', Arial, sans-serif;">{{ template "ts_en" .StartsAt }}</td>
+                                    </tr>
+                                    <tr>
+                                      <td style="font-size: 11px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-top: 3px;">{{ template "ts_utc" .StartsAt }}</td>
                                     </tr>
                                   </table>
                                 </td>
@@ -179,7 +182,10 @@
                                       <td style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-bottom: 6px;">RESOLVED</td>
                                     </tr>
                                     <tr>
-                                      <td style="font-size: 13px; color: #16a34a; font-family: 'Poppins', Arial, sans-serif; font-weight: 600;">{{ (tz "Europe/Rome" .EndsAt).Format "2006-01-02 15:04:05 MST" }} ({{ .EndsAt.UTC.Format "2006-01-02 15:04:05" }} UTC)</td>
+                                      <td style="font-size: 13px; color: #16a34a; font-family: 'Poppins', Arial, sans-serif; font-weight: 600;">{{ template "ts_en" .EndsAt }}</td>
+                                    </tr>
+                                    <tr>
+                                      <td style="font-size: 11px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-top: 3px;">{{ template "ts_utc" .EndsAt }}</td>
                                     </tr>
                                   </table>
                                 </td>

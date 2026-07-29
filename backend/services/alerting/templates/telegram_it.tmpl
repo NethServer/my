@@ -14,7 +14,7 @@ Servizio: <code>{{ .Labels.service }}</code>
 {{ if or .Annotations.description_it .Annotations.description_en .Annotations.description -}}
 Dettagli: {{ if .Annotations.description_it }}{{ .Annotations.description_it }}{{ else if .Annotations.description_en }}{{ .Annotations.description_en }}{{ else }}{{ .Annotations.description }}{{ end }}
 {{ end -}}
-Attivo da: {{ (tz "Europe/Rome" .StartsAt).Format "2006-01-02 15:04:05 MST" }} ({{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC)
+Attivo dal: {{ template "ts_it" .StartsAt }}
 {{ if .Labels.organization_name -}}
 {{ if eq .Labels.organization_type "customer" }}Cliente{{ else if eq .Labels.organization_type "reseller" }}Rivenditore{{ else if eq .Labels.organization_type "distributor" }}Distributore{{ else }}Organizzazione{{ end }}: {{ if .Labels.organization_vat }}{{ .Labels.organization_vat }} - {{ end }}{{ .Labels.organization_name }}
 {{ end -}}
@@ -44,7 +44,7 @@ Servizio: <code>{{ .Labels.service }}</code>
 {{ if or .Annotations.description_it .Annotations.description_en .Annotations.description -}}
 Dettagli: {{ if .Annotations.description_it }}{{ .Annotations.description_it }}{{ else if .Annotations.description_en }}{{ .Annotations.description_en }}{{ else }}{{ .Annotations.description }}{{ end }}
 {{ end -}}
-Attivo da: {{ (tz "Europe/Rome" .StartsAt).Format "2006-01-02 15:04:05 MST" }} ({{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC) | Risolto: {{ (tz "Europe/Rome" .EndsAt).Format "2006-01-02 15:04:05 MST" }} ({{ .EndsAt.UTC.Format "2006-01-02 15:04:05" }} UTC)
+Inizio: {{ template "ts_it" .StartsAt }} | Risolto: {{ template "ts_it" .EndsAt }}
 {{ if .Labels.organization_name -}}
 {{ if eq .Labels.organization_type "customer" }}Cliente{{ else if eq .Labels.organization_type "reseller" }}Rivenditore{{ else if eq .Labels.organization_type "distributor" }}Distributore{{ else }}Organizzazione{{ end }}: {{ if .Labels.organization_vat }}{{ .Labels.organization_vat }} - {{ end }}{{ .Labels.organization_name }}
 {{ end -}}

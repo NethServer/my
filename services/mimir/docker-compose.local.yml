@@ -15,7 +15,6 @@ services:
     volumes:
       - ./my-local.yaml:/etc/mimir/my.yaml:ro
       - ./runtime_config.yaml:/etc/mimir/runtime_config.yaml:ro
-      - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
       - mimir-data:/data
     ports:
       - "9009:9009"

@@ -30,6 +30,14 @@ var ValidTemplateLangs = []string{"en", "it"}
 // language-specific templates, used by the "view system" CTA to build a
 // link to the frontend.
 //
+// timezone is substituted into the ${ALERT_TZ} placeholder, the IANA zone
+// every notification timestamp is rendered in. It is deployment-wide rather
+// than per-recipient: the zone abbreviation is printed alongside the time so
+// the value stays unambiguous for a recipient reading it from elsewhere.
+// Mimir's alertmanager resolves it with time.LoadLocation, so the Mimir
+// image must ship tzdata (see services/mimir/Containerfile) — a name it
+// cannot resolve aborts template execution and the notification is dropped.
+//
 // Output layout:
 //
 //	firing_en.html / firing_en.txt / firing_en.subject (defined in firing_en.html)
@@ -37,7 +45,7 @@ var ValidTemplateLangs = []string{"en", "it"}
 //	telegram_en.tmpl
 //	(same for it)
 //	_dispatcher.tmpl  — defines alert_en.{html,txt,subject} and alert_it.{html,txt,subject}
-func BuildTemplateFiles(appURL string) (map[string]string, error) {
+func BuildTemplateFiles(appURL, timezone string) (map[string]string, error) {
 	files := map[string]string{}
 	for _, lang := range ValidTemplateLangs {
 		names := []string{
@@ -52,9 +60,18 @@ func BuildTemplateFiles(appURL string) (map[string]string, error) {
 			if err != nil {
 				return nil, fmt.Errorf("loading alert template %s: %w", name, err)
 			}
-			files[name] = strings.ReplaceAll(string(content), "${APP_URL}", appURL)
+			rendered := strings.ReplaceAll(string(content), "${APP_URL}", appURL)
+			files[name] = strings.ReplaceAll(rendered, "${ALERT_TZ}", timezone)
 		}
 	}
+	// Language-independent helpers (ts_it / ts_en / ts_utc), shared by every
+	// template above so the timestamp format lives in one file.
+	datetime, err := templateFS.ReadFile("templates/_datetime.tmpl")
+	if err != nil {
+		return nil, fmt.Errorf("loading alert template _datetime.tmpl: %w", err)
+	}
+	files["_datetime.tmpl"] = strings.ReplaceAll(string(datetime), "${ALERT_TZ}", timezone)
+
 	files["_dispatcher.tmpl"] = buildDispatcher()
 	return files, nil
 }

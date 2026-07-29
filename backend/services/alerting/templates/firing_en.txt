@@ -7,35 +7,36 @@
   ALERT
 ═══════════════════════════════════════════════════════════════
 
-ALERT:    {{ .Labels.alertname }}
-SEVERITY: {{ .Labels.severity | toUpper }}
+ALERT:        {{ .Labels.alertname }}
+SEVERITY:     {{ .Labels.severity | toUpper }}
 {{ if .Labels.service -}}
-SERVICE:  {{ .Labels.service }}
+SERVICE:      {{ .Labels.service }}
 {{ end -}}
 {{ if .Annotations.summary_en -}}
-SUMMARY:  {{ .Annotations.summary_en }}
+SUMMARY:      {{ .Annotations.summary_en }}
 {{ else if .Annotations.summary -}}
-SUMMARY:  {{ .Annotations.summary }}
+SUMMARY:      {{ .Annotations.summary }}
 {{ end -}}
 {{ if .Annotations.description_en -}}
-DETAILS:  {{ .Annotations.description_en }}
+DETAILS:      {{ .Annotations.description_en }}
 {{ else if .Annotations.description -}}
-DETAILS:  {{ .Annotations.description }}
+DETAILS:      {{ .Annotations.description }}
 {{ end -}}
-SINCE:    {{ (tz "Europe/Rome" .StartsAt).Format "2006-01-02 15:04:05 MST" }} ({{ .StartsAt.UTC.Format "2006-01-02 15:04:05" }} UTC)
+FIRING SINCE: {{ template "ts_en" .StartsAt }}
+              {{ template "ts_utc" .StartsAt }}
 
 ───────────────────────────────────────────────────────────────
   SYSTEM
 ───────────────────────────────────────────────────────────────
 
 {{ if .Labels.organization_name -}}
-{{ if eq .Labels.organization_type "customer" }}CUSTOMER: {{ else if eq .Labels.organization_type "reseller" }}RESELLER: {{ else if eq .Labels.organization_type "distributor" }}DISTRIB.: {{ else }}ORG.:     {{ end }}{{ if .Labels.organization_vat }}{{ .Labels.organization_vat }} - {{ end }}{{ .Labels.organization_name }}
+{{ if eq .Labels.organization_type "customer" }}CUSTOMER:     {{ else if eq .Labels.organization_type "reseller" }}RESELLER:     {{ else if eq .Labels.organization_type "distributor" }}DISTRIBUTOR:  {{ else }}ORGANIZATION: {{ end }}{{ if .Labels.organization_vat }}{{ .Labels.organization_vat }} - {{ end }}{{ .Labels.organization_name }}
 {{ end -}}
 {{ if or .Labels.system_name .Labels.system_key -}}
-SYSTEM:   {{ if .Labels.system_name }}{{ .Labels.system_name }}{{ if .Labels.system_key }} ({{ .Labels.system_key }}){{ end }}{{ else }}{{ .Labels.system_key }}{{ end }}
+SYSTEM:       {{ if .Labels.system_name }}{{ .Labels.system_name }}{{ if .Labels.system_key }} ({{ .Labels.system_key }}){{ end }}{{ else }}{{ .Labels.system_key }}{{ end }}
 {{ end -}}
 {{ if or .Labels.system_fqdn .Labels.system_ipv4 -}}
-{{ if .Labels.system_fqdn }}FQDN:     {{ .Labels.system_fqdn }}{{ else }}IP:       {{ .Labels.system_ipv4 }}{{ end }}
+{{ if .Labels.system_fqdn }}FQDN:         {{ .Labels.system_fqdn }}{{ else }}IP:           {{ .Labels.system_ipv4 }}{{ end }}
 {{ end }}
 {{ if .Labels.system_id -}}
 View system: ${APP_URL}/systems/{{ .Labels.system_id }}

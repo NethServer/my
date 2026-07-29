@@ -1,0 +1,26 @@
+{{/*
+Shared timestamp rendering for every notification template.
+
+The zone is substituted once at build time into ${ALERT_TZ}, so the format and
+the timezone each live in exactly one place instead of being repeated across
+ten template files.
+
+Formats mirror formatDateTimeNoSeconds() in frontend/src/lib/dateTime.ts, so a
+timestamp reads identically in an email and in the app:
+
+	it   03 lug 2026, 13:40 CEST
+	en   Jul 03, 2026, 01:40 PM CEST
+
+Go's time layouts only speak English, so the Italian month abbreviation is
+spelled out below. Alertmanager's function map (the grafana fork vendored by
+Mimir) offers only date/tz/toUpper/toLower/join/match/reReplaceAll/stringSlice
+— no arithmetic and no map constructor — so a month lookup table is not
+expressible and the comparison chain is the available option.
+
+ts_utc renders the same instant in UTC for the muted secondary line in the
+HTML emails; MST resolves to "UTC" for a UTC time, no literal needed.
+*/}}
+{{ define "month_it" }}{{ $m := date "01" . }}{{ if eq $m "01" }}gen{{ else if eq $m "02" }}feb{{ else if eq $m "03" }}mar{{ else if eq $m "04" }}apr{{ else if eq $m "05" }}mag{{ else if eq $m "06" }}giu{{ else if eq $m "07" }}lug{{ else if eq $m "08" }}ago{{ else if eq $m "09" }}set{{ else if eq $m "10" }}ott{{ else if eq $m "11" }}nov{{ else }}dic{{ end }}{{ end }}
+{{ define "ts_it" }}{{ $t := tz "${ALERT_TZ}" . }}{{ date "02 " $t }}{{ template "month_it" $t }}{{ date " 2006, 15:04 MST" $t }}{{ end }}
+{{ define "ts_en" }}{{ date "Jan 02, 2006, 03:04 PM MST" (tz "${ALERT_TZ}" .) }}{{ end }}
+{{ define "ts_utc" }}{{ date "2006-01-02 15:04 MST" .UTC }}{{ end }}

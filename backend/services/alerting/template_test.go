@@ -168,7 +168,7 @@ func TestRenderConfig_HistoryWebhook(t *testing.T) {
 }
 
 func TestBuildTemplateFiles_AllLanguagesPresent(t *testing.T) {
-	files, err := BuildTemplateFiles("https://app.example")
+	files, err := BuildTemplateFiles("https://app.example", "Europe/Rome")
 	if err != nil {
 		t.Fatalf("BuildTemplateFiles error: %v", err)
 	}
@@ -186,7 +186,7 @@ func TestBuildTemplateFiles_AllLanguagesPresent(t *testing.T) {
 }
 
 func TestBuildTemplateFiles_DispatcherDefinesPerLanguage(t *testing.T) {
-	files, err := BuildTemplateFiles("https://app.example")
+	files, err := BuildTemplateFiles("https://app.example", "Europe/Rome")
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
