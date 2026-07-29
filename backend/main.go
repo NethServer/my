@@ -17,6 +17,12 @@ import (
 	"syscall"
 	"time"
 
+	// Embed the IANA timezone database in the binary. ALERTING_TIMEZONE is
+	// validated with time.LoadLocation at startup, and the runtime image is
+	// alpine without the tzdata package, so without this every zone name
+	// fails to resolve and the backend refuses to boot.
+	_ "time/tzdata"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
