@@ -219,11 +219,15 @@ func Init() {
 	Config.NotificationRetryAttempts = parseIntWithDefault("NOTIFICATION_RETRY_ATTEMPTS", 3)
 
 	// Heartbeat monitoring configuration.
-	// Timeout is 2x the ~10min client send interval: at 10min (== the interval)
-	// the synchronized heartbeat waves straddle the cutoff and the fleet flaps
-	// active<->inactive en masse, churning LinkFailed fire/resolve. 20min absorbs
-	// a late/missed beat; genuinely-down systems still alert within 20min.
-	Config.HeartbeatTimeoutMinutes = parseIntWithDefault("HEARTBEAT_TIMEOUT_MINUTES", 20)
+	// Clients send on wall-clock-aligned waves at a ~10min interval, so the
+	// timeout is really a budget of missed beats: at 10min (== the interval) the
+	// waves straddle the cutoff and the fleet flaps active<->inactive en masse.
+	// 20min allowed only 2 beats, which is thin enough that two consecutive lost
+	// waves can mark the whole fleet inactive at once. 30min gives 3 beats, so one
+	// lost wave plus a late one is absorbed; genuinely-down systems still alert
+	// within 30min.
+	// The remaining fleet-wide risk is handled by the lost-wave guard below.
+	Config.HeartbeatTimeoutMinutes = parseIntWithDefault("HEARTBEAT_TIMEOUT_MINUTES", 30)
 	Config.HeartbeatCheckIntervalSeconds = parseIntWithDefault("HEARTBEAT_CHECK_INTERVAL_SECONDS", 300)
 
 	// LinkFailed lost-wave guard. Because heartbeats arrive in synchronized

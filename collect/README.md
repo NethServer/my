@@ -45,7 +45,7 @@ REDIS_PASSWORD=
 ```bash
 LISTEN_ADDRESS=127.0.0.1:8081
 API_MAX_REQUEST_SIZE=10MB
-HEARTBEAT_TIMEOUT_MINUTES=20
+HEARTBEAT_TIMEOUT_MINUTES=30
 LOG_LEVEL=info
 ```
 
@@ -84,11 +84,11 @@ LOG_LEVEL=info
   - `inactive` → `active` when a fresh heartbeat arrives (within `HEARTBEAT_TIMEOUT_MINUTES`); this recovery path also resolves the firing `LinkFailed` alert
   - `active` → `inactive` when the heartbeat is stale (older than `HEARTBEAT_TIMEOUT_MINUTES`)
   - `unknown` → `active` as a safety net for the inline flip
-- Configurable timeout via `HEARTBEAT_TIMEOUT_MINUTES` (default: 20 minutes)
+- Configurable timeout via `HEARTBEAT_TIMEOUT_MINUTES` (default: 30 minutes)
 
 **7. LinkFailed Synchronization**
 - **LinkFailed Monitor Cron** runs every 5 minutes
-- Fires the internal `LinkFailed` alert for inactive, non-deleted, non-suspended systems after `HEARTBEAT_TIMEOUT_MINUTES` (20 minutes by default); systems under a suspended organization are excluded too
+- Fires the internal `LinkFailed` alert for inactive, non-deleted, non-suspended systems after `HEARTBEAT_TIMEOUT_MINUTES` (30 minutes by default); systems under a suspended organization are excluded too
 - On recovery (`inactive` → `active`) the heartbeat monitor posts an explicit resolve with the same fingerprint, so Alertmanager clears the alert immediately instead of waiting for the TTL; the 10 minute TTL from the last refresh remains a backstop if a resolve is ever missed
 - Reuses the same server-side label enrichment as the Mimir proxy so internal alerts carry the same authoritative system and organization labels
 
