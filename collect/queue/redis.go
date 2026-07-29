@@ -349,6 +349,18 @@ func (qm *QueueManager) ProcessDelayedMessages(ctx context.Context, queueName st
 	return nil
 }
 
+// HeartbeatQueueDepth returns the number of heartbeats waiting to be flushed to
+// system_heartbeats. A depth that climbs instead of draining means liveness data
+// is going stale, which the heartbeat monitor cannot distinguish from systems
+// genuinely dropping off the network.
+func (qm *QueueManager) HeartbeatQueueDepth(ctx context.Context) (int64, error) {
+	depth, err := qm.client.LLen(ctx, configuration.Config.QueueHeartbeatName).Result()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get heartbeat queue length: %w", err)
+	}
+	return depth, nil
+}
+
 // GetQueueStats returns statistics about queue lengths and health
 func (qm *QueueManager) GetQueueStats(ctx context.Context) (*models.InventoryStats, error) {
 	stats := &models.InventoryStats{}
@@ -367,6 +379,14 @@ func (qm *QueueManager) GetQueueStats(ctx context.Context) (*models.InventorySta
 	notificationLen, err := qm.client.LLen(ctx, configuration.Config.QueueNotificationName).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get notification queue length: %w", err)
+	}
+
+	// Heartbeat depth matters on its own: a stalled heartbeat queue stops
+	// system_heartbeats advancing, which the monitor then reads as the whole
+	// fleet going offline. It was previously the only queue left uninstrumented.
+	heartbeatLen, err := qm.HeartbeatQueueDepth(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// Get delayed queue lengths
@@ -401,7 +421,7 @@ func (qm *QueueManager) GetQueueStats(ctx context.Context) (*models.InventorySta
 		return nil, fmt.Errorf("failed to get dead notification queue length: %w", err)
 	}
 
-	stats.PendingJobs = inventoryLen + processingLen + notificationLen + delayedInventory + delayedProcessing + delayedNotification
+	stats.PendingJobs = inventoryLen + processingLen + notificationLen + heartbeatLen + delayedInventory + delayedProcessing + delayedNotification
 	stats.ProcessingJobs = 0 // This would be tracked by workers
 	stats.FailedJobs = deadInventory + deadProcessing + deadNotification
 
