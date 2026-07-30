@@ -775,22 +775,26 @@ func GetEntitlementGrants(c *gin.Context) {
 	}))
 }
 
-// GetEntitlementReport handles GET /api/entitlements/report — the fleet-wide
-// add-on analytics (lifecycle totals, per-type/org/tier breakdowns, renewal
-// distribution, 12-month activation trend). Owner org / Super Admin only:
-// this is the commercial overview of everyone's licences.
+// GetEntitlementReport handles GET /api/entitlements/report — the add-on
+// analytics (lifecycle totals, per-type breakdown, renewal distribution,
+// 12-month activation trend) within the caller's visibility: fleet-wide for
+// the owner org / a Super Admin, own hierarchy for everyone else. Same scope
+// as /grants and /stats — the report is their aggregate, no wider.
 func GetEntitlementReport(c *gin.Context) {
 	u, found := helpers.GetUserFromContext(c)
 	if !found {
 		return
 	}
-	if !isEntitlementAdmin(u) {
-		c.JSON(http.StatusForbidden, response.Forbidden("only the owner organization or a Super Admin can access the add-on report", nil))
+
+	scope, err := grantsOrgScope(u)
+	if err != nil {
+		logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to resolve org scope")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve organization scope", nil))
 		return
 	}
 
 	repo := entities.NewLocalSystemEntitlementRepository()
-	report, err := repo.Report()
+	report, err := repo.Report(scope)
 	if err != nil {
 		logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to build entitlement report")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to build entitlement report", nil))
@@ -800,16 +804,20 @@ func GetEntitlementReport(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("entitlement report retrieved successfully", report))
 }
 
-// reportGate rejects non entitlement-admins and parses the standard
-// search/page/page_size query of the paginated report slices.
-func reportGate(c *gin.Context) (search string, page, pageSize int, ok bool) {
+// reportQuery resolves the caller's org visibility (nil = fleet-wide) and
+// parses the standard search/page/page_size query of the paginated report
+// slices.
+func reportQuery(c *gin.Context) (scope []string, search string, page, pageSize int, ok bool) {
 	u, found := helpers.GetUserFromContext(c)
 	if !found {
-		return "", 0, 0, false
+		return nil, "", 0, 0, false
 	}
-	if !isEntitlementAdmin(u) {
-		c.JSON(http.StatusForbidden, response.Forbidden("only the owner organization or a Super Admin can access the add-on report", nil))
-		return "", 0, 0, false
+
+	scope, err := grantsOrgScope(u)
+	if err != nil {
+		logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to resolve org scope")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve organization scope", nil))
+		return nil, "", 0, 0, false
 	}
 
 	search = c.Query("search")
@@ -820,19 +828,20 @@ func reportGate(c *gin.Context) (search string, page, pageSize int, ok bool) {
 	if v, err := strconv.Atoi(c.DefaultQuery("page_size", "10")); err == nil && v > 0 && v <= 200 {
 		pageSize = v
 	}
-	return search, page, pageSize, true
+	return scope, search, page, pageSize, true
 }
 
 // GetEntitlementReportOrganizations handles GET /api/entitlements/report/organizations
-// — the paginated + searchable per-organization slice of the add-on report.
+// — the paginated + searchable per-organization slice of the add-on report,
+// within the caller's hierarchy.
 func GetEntitlementReportOrganizations(c *gin.Context) {
-	search, page, pageSize, ok := reportGate(c)
+	scope, search, page, pageSize, ok := reportQuery(c)
 	if !ok {
 		return
 	}
 
 	repo := entities.NewLocalSystemEntitlementRepository()
-	rows, total, err := repo.ReportOrganizations(search, pageSize, (page-1)*pageSize)
+	rows, total, err := repo.ReportOrganizations(search, scope, pageSize, (page-1)*pageSize)
 	if err != nil {
 		logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to build per-organization report")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to build per-organization report", nil))
@@ -848,15 +857,16 @@ func GetEntitlementReportOrganizations(c *gin.Context) {
 }
 
 // GetEntitlementReportTiers handles GET /api/entitlements/report/tiers — the
-// paginated + searchable per-tier slice of the add-on report.
+// paginated + searchable per-tier slice of the add-on report, within the
+// caller's hierarchy.
 func GetEntitlementReportTiers(c *gin.Context) {
-	search, page, pageSize, ok := reportGate(c)
+	scope, search, page, pageSize, ok := reportQuery(c)
 	if !ok {
 		return
 	}
 
 	repo := entities.NewLocalSystemEntitlementRepository()
-	rows, total, err := repo.ReportVariants(search, pageSize, (page-1)*pageSize)
+	rows, total, err := repo.ReportVariants(search, scope, pageSize, (page-1)*pageSize)
 	if err != nil {
 		logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to build per-tier report")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to build per-tier report", nil))

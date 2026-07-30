@@ -726,16 +726,35 @@ const reportStatusExpr = `
 	    ELSE 'expired'
 	END`
 
-// Report builds the fleet-wide add-on analytics for the owner/Super Admin
-// view: lifecycle totals, per-type / per-org / per-tier breakdowns, renewal
-// distribution and a 12-month activation trend. Deleted systems excluded.
-func (r *LocalSystemEntitlementRepository) Report() (*models.EntitlementReport, error) {
+// reportScopeClause is the org-visibility predicate shared by every report
+// query: nil orgScope means no restriction (owner org / Super Admin see the
+// whole fleet), otherwise only systems owned by the caller's hierarchy count.
+// Every aggregate in the report MUST carry it — a query left unscoped would
+// leak fleet numbers to a buyer.
+func reportScopeClause(orgScope []string, args *[]interface{}) string {
+	if orgScope == nil {
+		return ""
+	}
+	*args = append(*args, pq.Array(orgScope))
+	return fmt.Sprintf(" AND s.organization_id = ANY($%d)", len(*args))
+}
+
+// Report builds the add-on analytics within the caller's visibility:
+// lifecycle totals, per-type breakdown, renewal distribution and a 12-month
+// activation trend. orgScope nil = the whole fleet (owner org / Super Admin);
+// otherwise the caller's hierarchy — a distributor/reseller/customer sees the
+// grants of its own systems and of those below it. Deleted systems excluded.
+func (r *LocalSystemEntitlementRepository) Report(orgScope []string) (*models.EntitlementReport, error) {
 	report := &models.EntitlementReport{
 		ByEntitlement: []models.EntitlementReportByType{},
 		Trend:         []models.EntitlementReportTrendRow{},
 	}
 
-	statusJoin := `FROM system_entitlements e JOIN systems s ON s.id = e.system_id WHERE s.deleted_at IS NULL`
+	// One arg at most ($1, the scope array), shared by all four queries below.
+	args := []interface{}{}
+	scope := reportScopeClause(orgScope, &args)
+
+	statusJoin := `FROM system_entitlements e JOIN systems s ON s.id = e.system_id WHERE s.deleted_at IS NULL` + scope
 
 	// Totals: lifecycle counts, expiry buckets, coverage (with the org-type
 	// breakdown of who is buying) and renewals in one pass.
@@ -762,7 +781,8 @@ func (r *LocalSystemEntitlementRepository) Report() (*models.EntitlementReport, 
 		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
 		LEFT JOIN resellers   rs ON s.organization_id = rs.logto_id AND rs.deleted_at IS NULL
 		LEFT JOIN customers    c ON s.organization_id = c.logto_id AND c.deleted_at IS NULL
-		WHERE s.deleted_at IS NULL`,
+		WHERE s.deleted_at IS NULL`+scope,
+		args...,
 	).Scan(
 		&report.Totals.Total, &report.Totals.Active, &report.Totals.Expired,
 		&report.Totals.Revoked, &report.Totals.Pending, &report.Totals.Suspended,
@@ -784,6 +804,7 @@ func (r *LocalSystemEntitlementRepository) Report() (*models.EntitlementReport, 
 		       COUNT(*) FILTER (WHERE e.renewal_count = 2),
 		       COUNT(*) FILTER (WHERE e.renewal_count >= 3)
 		`+statusJoin,
+		args...,
 	).Scan(&report.Renewals.Never, &report.Renewals.Once, &report.Renewals.Twice, &report.Renewals.ThreePlus)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute renewal distribution: %w", err)
@@ -792,18 +813,19 @@ func (r *LocalSystemEntitlementRepository) Report() (*models.EntitlementReport, 
 	// Per add-on type.
 	rows, err := r.db.Query(`
 		SELECT e.entitlement, COALESCE(cat.display_name, e.entitlement),
-		       COUNT(*) FILTER (WHERE ` + reportStatusExpr + ` = 'active'),
-		       COUNT(*) FILTER (WHERE ` + reportStatusExpr + ` = 'expired'),
-		       COUNT(*) FILTER (WHERE ` + reportStatusExpr + ` = 'revoked'),
-		       COUNT(*) FILTER (WHERE ` + reportStatusExpr + ` = 'pending'),
-		       COUNT(*) FILTER (WHERE ` + reportStatusExpr + ` = 'suspended'),
+		       COUNT(*) FILTER (WHERE `+reportStatusExpr+` = 'active'),
+		       COUNT(*) FILTER (WHERE `+reportStatusExpr+` = 'expired'),
+		       COUNT(*) FILTER (WHERE `+reportStatusExpr+` = 'revoked'),
+		       COUNT(*) FILTER (WHERE `+reportStatusExpr+` = 'pending'),
+		       COUNT(*) FILTER (WHERE `+reportStatusExpr+` = 'suspended'),
 		       COUNT(*)
 		FROM system_entitlements e
 		JOIN systems s ON s.id = e.system_id
 		LEFT JOIN entitlement_catalog cat ON cat.id = e.entitlement
-		WHERE s.deleted_at IS NULL
+		WHERE s.deleted_at IS NULL`+scope+`
 		GROUP BY e.entitlement, cat.display_name
-		ORDER BY COUNT(*) DESC, e.entitlement`)
+		ORDER BY COUNT(*) DESC, e.entitlement`,
+		args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute per-type report: %w", err)
 	}
@@ -822,8 +844,9 @@ func (r *LocalSystemEntitlementRepository) Report() (*models.EntitlementReport, 
 	// Activation trend: grants created per month, last 12 months.
 	trendRows, err := r.db.Query(`
 		SELECT to_char(date_trunc('month', e.created_at), 'YYYY-MM'), COUNT(*)
-		` + statusJoin + ` AND e.created_at >= date_trunc('month', NOW()) - interval '11 months'
-		GROUP BY 1 ORDER BY 1`)
+		`+statusJoin+` AND e.created_at >= date_trunc('month', NOW()) - interval '11 months'
+		GROUP BY 1 ORDER BY 1`,
+		args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute activation trend: %w", err)
 	}
@@ -845,23 +868,28 @@ func (r *LocalSystemEntitlementRepository) Report() (*models.EntitlementReport, 
 // ReportOrganizations is the paginated + searchable per-organization slice
 // of the add-on report (orgs can be hundreds on the real fleet): grants
 // grouped by the systems' owning organization, most active first. search
-// filters by organization name.
-func (r *LocalSystemEntitlementRepository) ReportOrganizations(search string, limit, offset int) ([]models.EntitlementReportByOrg, int, error) {
+// filters by organization name; orgScope narrows the rows to the caller's
+// hierarchy (nil = whole fleet).
+func (r *LocalSystemEntitlementRepository) ReportOrganizations(search string, orgScope []string, limit, offset int) ([]models.EntitlementReportByOrg, int, error) {
+	args := []interface{}{search}
+	scope := reportScopeClause(orgScope, &args)
+
 	base := `
 		FROM system_entitlements e
 		JOIN systems s ON s.id = e.system_id
 		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
 		LEFT JOIN resellers   rs ON s.organization_id = rs.logto_id AND rs.deleted_at IS NULL
 		LEFT JOIN customers    c ON s.organization_id = c.logto_id AND c.deleted_at IS NULL
-		WHERE s.deleted_at IS NULL
+		WHERE s.deleted_at IS NULL` + scope + `
 		  AND ($1 = '' OR COALESCE(d.name, rs.name, c.name, 'Owner') ILIKE '%' || $1 || '%')
 		GROUP BY s.organization_id, d.logto_id, rs.logto_id, c.logto_id, d.name, rs.name, c.name`
 
 	var total int
-	if err := r.db.QueryRow(`SELECT COUNT(*) FROM (SELECT 1 `+base+`) g`, search).Scan(&total); err != nil {
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM (SELECT 1 `+base+`) g`, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("failed to count report organizations: %w", err)
 	}
 
+	args = append(args, limit, offset)
 	rows, err := r.db.Query(`
 		SELECT s.organization_id,
 		       COALESCE(d.name, rs.name, c.name, 'Owner'),
@@ -875,7 +903,7 @@ func (r *LocalSystemEntitlementRepository) ReportOrganizations(search string, li
 		       COUNT(*)
 		`+base+`
 		ORDER BY COUNT(*) FILTER (WHERE `+reportStatusExpr+` = 'active') DESC, COUNT(*) DESC
-		LIMIT $2 OFFSET $3`, search, limit, offset)
+		LIMIT $`+fmt.Sprint(len(args)-1)+` OFFSET $`+fmt.Sprint(len(args)), args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to compute per-org report: %w", err)
 	}
@@ -893,25 +921,30 @@ func (r *LocalSystemEntitlementRepository) ReportOrganizations(search string, li
 }
 
 // ReportVariants is the paginated + searchable per-tier slice of the add-on
-// report (variable products only). search filters by add-on id or tier label.
-func (r *LocalSystemEntitlementRepository) ReportVariants(search string, limit, offset int) ([]models.EntitlementReportByVariant, int, error) {
+// report (variable products only). search filters by add-on id or tier label;
+// orgScope narrows the rows to the caller's hierarchy (nil = whole fleet).
+func (r *LocalSystemEntitlementRepository) ReportVariants(search string, orgScope []string, limit, offset int) ([]models.EntitlementReportByVariant, int, error) {
+	args := []interface{}{search}
+	scope := reportScopeClause(orgScope, &args)
+
 	where := `
 		FROM system_entitlements e
 		JOIN systems s ON s.id = e.system_id
-		WHERE s.deleted_at IS NULL AND e.variant->>'label' IS NOT NULL
+		WHERE s.deleted_at IS NULL AND e.variant->>'label' IS NOT NULL` + scope + `
 		  AND ($1 = '' OR e.entitlement ILIKE '%' || $1 || '%' OR e.variant->>'label' ILIKE '%' || $1 || '%')
 		GROUP BY e.entitlement, e.variant->>'label'`
 
 	var total int
-	if err := r.db.QueryRow(`SELECT COUNT(*) FROM (SELECT 1 `+where+`) g`, search).Scan(&total); err != nil {
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM (SELECT 1 `+where+`) g`, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("failed to count report tiers: %w", err)
 	}
 
+	args = append(args, limit, offset)
 	rows, err := r.db.Query(`
 		SELECT e.entitlement, e.variant->>'label', COUNT(*)
 		`+where+`
 		ORDER BY e.entitlement, COUNT(*) DESC
-		LIMIT $2 OFFSET $3`, search, limit, offset)
+		LIMIT $`+fmt.Sprint(len(args)-1)+` OFFSET $`+fmt.Sprint(len(args)), args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to compute per-variant report: %w", err)
 	}

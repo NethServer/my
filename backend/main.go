@@ -265,9 +265,9 @@ func main() {
 			// Reporting: buyers see their hierarchy (expirations/renewals), owner/SA the fleet
 			entitlementsGroup.GET("/grants", methods.GetEntitlementGrants)
 			entitlementsGroup.GET("/stats", methods.GetEntitlementStats)
-			entitlementsGroup.GET("/report", methods.GetEntitlementReport)                            // owner org / Super Admin only (handler-gated)
-			entitlementsGroup.GET("/report/organizations", methods.GetEntitlementReportOrganizations) // owner org / Super Admin only (handler-gated)
-			entitlementsGroup.GET("/report/tiers", methods.GetEntitlementReportTiers)                 // owner org / Super Admin only (handler-gated)
+			entitlementsGroup.GET("/report", methods.GetEntitlementReport)                            // aggregates scoped to the caller's hierarchy
+			entitlementsGroup.GET("/report/organizations", methods.GetEntitlementReportOrganizations) // aggregates scoped to the caller's hierarchy
+			entitlementsGroup.GET("/report/tiers", methods.GetEntitlementReportTiers)                 // aggregates scoped to the caller's hierarchy
 
 			// Shop webhook: activation/renewal + deactivation by system_key (owner API key)
 			entitlementsGroup.POST("/activate", middleware.RequirePermission("manage:entitlements"), methods.ActivateEntitlement)
