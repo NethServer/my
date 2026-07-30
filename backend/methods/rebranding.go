@@ -10,6 +10,7 @@
 package methods
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -350,6 +351,12 @@ func DeleteRebrandingProduct(c *gin.Context) {
 
 	service := local.NewRebrandingService()
 	if err := service.DeleteProductAssets(orgID, productID); err != nil {
+		// Nothing to delete is a 404, not a server failure: answering 500 there
+		// hid the real outcome and made an authorization probe unreadable.
+		if errors.Is(err, local.ErrRebrandingAssetsNotFound) {
+			c.JSON(http.StatusNotFound, response.NotFound("rebranding product not found", nil))
+			return
+		}
 		logger.Error().Err(err).Str("organization_id", orgID).Str("product_id", productID).Msg("failed to delete rebranding product")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete rebranding product", nil))
 		return
@@ -386,8 +393,17 @@ func DeleteRebrandingAsset(c *gin.Context) {
 
 	service := local.NewRebrandingService()
 	if err := service.DeleteSingleAsset(orgID, productID, assetName); err != nil {
-		logger.Error().Err(err).Str("organization_id", orgID).Str("product_id", productID).Str("asset", assetName).Msg("failed to delete rebranding asset")
-		c.JSON(http.StatusNotFound, response.NotFound("asset not found", nil))
+		// The mirror image of the bug above: this collapsed every failure into
+		// 404, so a storage outage was reported as "asset not found".
+		switch {
+		case errors.Is(err, local.ErrInvalidRebrandingAsset):
+			c.JSON(http.StatusBadRequest, response.BadRequest("invalid asset name", nil))
+		case errors.Is(err, local.ErrRebrandingAssetsNotFound):
+			c.JSON(http.StatusNotFound, response.NotFound("asset not found", nil))
+		default:
+			logger.Error().Err(err).Str("organization_id", orgID).Str("product_id", productID).Str("asset", assetName).Msg("failed to delete rebranding asset")
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to delete rebranding asset", nil))
+		}
 		return
 	}
 

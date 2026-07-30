@@ -14366,6 +14366,8 @@ paths:
           description: Product rebranding deleted
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /rebranding/{org_id}/products/{product_id}/{asset}:
     get:
@@ -14431,6 +14433,10 @@ paths:
       responses:
         '200':
           description: Asset deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 

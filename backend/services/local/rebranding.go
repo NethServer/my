@@ -11,11 +11,21 @@ package local
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/models"
+)
+
+// Sentinel errors so callers can tell "there was nothing to delete" and "you
+// asked for an asset that does not exist" apart from a real storage failure.
+// Without them a delete on an organization with no assets is indistinguishable
+// from a database outage, and the handlers have to guess a status code.
+var (
+	ErrRebrandingAssetsNotFound = errors.New("no rebranding assets found for this organization and product")
+	ErrInvalidRebrandingAsset   = errors.New("invalid rebranding asset name")
 )
 
 // RebrandingService handles rebranding operations
@@ -231,7 +241,7 @@ func (s *RebrandingService) DeleteProductAssets(orgID, productID string) error {
 	}
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
-		return fmt.Errorf("no rebranding assets found for organization %s product %s", orgID, productID)
+		return fmt.Errorf("%w: organization %s product %s", ErrRebrandingAssetsNotFound, orgID, productID)
 	}
 	return nil
 }
@@ -247,7 +257,7 @@ func (s *RebrandingService) DeleteSingleAsset(orgID, productID, assetName string
 		"background_image":  true,
 	}
 	if !validAssets[assetName] {
-		return fmt.Errorf("invalid asset name: %s", assetName)
+		return fmt.Errorf("%w: %s", ErrInvalidRebrandingAsset, assetName)
 	}
 
 	mimeField := assetName + "_mime"
@@ -261,7 +271,7 @@ func (s *RebrandingService) DeleteSingleAsset(orgID, productID, assetName string
 	}
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
-		return fmt.Errorf("no rebranding assets found for organization %s product %s", orgID, productID)
+		return fmt.Errorf("%w: organization %s product %s", ErrRebrandingAssetsNotFound, orgID, productID)
 	}
 	return nil
 }
