@@ -51,9 +51,10 @@ const { state: customerSystems } = useCustomerSystems()
         :systems-status="customerSystems.status"
         :systems-data="customerSystems.data"
         :stats-status="customerStats.status"
+        :organization-name="customerDetail.data?.name"
       />
       <!-- organization applications -->
-      <OrganizationApplicationsCard />
+      <OrganizationApplicationsCard :organization-name="customerDetail.data?.name" />
     </div>
   </div>
 </template>

@@ -17,6 +17,10 @@ import { useRoute } from 'vue-router'
 import { useApplications } from '@/queries/applications/applications'
 import { useApplicationsSummaryByCompany } from '@/queries/applications/applicationsSummaryByCompany'
 
+const { organizationName } = defineProps<{
+  organizationName?: string
+}>()
+
 const { t } = useI18n()
 const route = useRoute()
 
@@ -45,7 +49,11 @@ const moreApplications = computed(() => {
 const goToApplications = () => {
   const companyId = route.params.companyId as string
   clearApplicationsFilters()
-  organizationFilterForApps.value = companyId ? [{ id: companyId, label: companyId }] : []
+  // the filter renders the label carried by the selection: pass the organization
+  // name, as it may not be among the options the dropdown has loaded
+  organizationFilterForApps.value = companyId
+    ? [{ id: companyId, label: organizationName || companyId }]
+    : []
   router.push({ name: 'applications' })
 }
 </script>

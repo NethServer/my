@@ -16,11 +16,13 @@ import router from '@/router'
 import { useRoute } from 'vue-router'
 import { useApplications } from '@/queries/applications/applications'
 import { useApplicationsSummaryBySystem } from '@/queries/applications/applicationsSummaryBySystem'
+import { useSystemDetail } from '@/queries/systems/systemDetail'
 
 const { t } = useI18n()
 const route = useRoute()
 
 const { state: applicationsSummary } = useApplicationsSummaryBySystem()
+const { state: systemDetail } = useSystemDetail()
 const { systemFilter: systemFilterForApps, clearFilters: clearApplicationsFilters } =
   useApplications()
 
@@ -45,7 +47,11 @@ const moreApplications = computed(() => {
 const goToApplications = () => {
   const systemId = route.params.systemId as string
   clearApplicationsFilters()
-  systemFilterForApps.value = systemId ? [{ id: systemId, label: systemId }] : []
+  // the filter renders the label carried by the selection: pass the system name,
+  // as the selected system may not be among the options the dropdown has loaded
+  systemFilterForApps.value = systemId
+    ? [{ id: systemId, label: systemDetail.value.data?.name || systemId }]
+    : []
   router.push({ name: 'applications' })
 }
 </script>

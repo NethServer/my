@@ -127,6 +127,7 @@ async function saveApplication() {
         <OrganizationCombobox
           ref="organizationIdRef"
           v-model="organizationId"
+          :selected-organization="currentApplication?.organization"
           :label="$t('organizations.organization')"
           :placeholder="$t('organizations.choose_organization')"
           :invalid-message="

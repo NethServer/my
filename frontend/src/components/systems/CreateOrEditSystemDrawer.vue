@@ -335,6 +335,7 @@ function copySecretAndCloseDrawer() {
             ref="organizationIdRef"
             v-model="organizationId"
             :is-shown="isShown"
+            :selected-organization="currentSystem?.organization"
             :label="$t('systems.organization')"
             :helper-text="$t('systems.organization_helper')"
             :invalid-message="

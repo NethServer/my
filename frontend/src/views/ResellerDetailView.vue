@@ -94,12 +94,14 @@ const hierarchySystemsRoute = computed(() => {
         :systems-status="resellerSystems.status"
         :systems-data="resellerSystems.data"
         :stats-status="resellerStats.status"
+        :organization-name="resellerDetail.data?.name"
       />
       <!-- organization applications -->
       <OrganizationApplicationsCard
         :applications-count="applicationsSummary.data?.total ?? 0"
         :applications-status="applicationsSummary.status"
         :summary-data="applicationsSummary.data"
+        :organization-name="resellerDetail.data?.name"
       />
     </div>
   </div>

@@ -26,6 +26,7 @@ const props = defineProps<{
   systemsStatus: 'pending' | 'success' | 'error'
   systemsData: SystemData | undefined
   statsStatus: 'pending' | 'success' | 'error'
+  organizationName?: string
 }>()
 
 const { t } = useI18n()
@@ -48,7 +49,11 @@ const moreSystems = computed(() => {
 
 const goToSystems = () => {
   const companyId = route.params.companyId as string
-  organizationFilterForSystems.value = companyId ? [{ id: companyId, label: companyId }] : []
+  // the filter renders the label carried by the selection: pass the organization
+  // name, as it may not be among the options the dropdown has loaded
+  organizationFilterForSystems.value = companyId
+    ? [{ id: companyId, label: props.organizationName || companyId }]
+    : []
   router.push({ name: 'systems' })
 }
 </script>
