@@ -901,7 +901,7 @@ func PromoteReseller(c *gin.Context) {
 	}
 
 	service := local.NewOrganizationService()
-	promotion, err := service.PromoteResellerToDistributor(resellerID, user.ID, user.OrganizationID)
+	promotion, err := service.PromoteResellerToDistributor(resellerID, models.NewOrgCreatorFromUser(*user), user.OrganizationID)
 	if err != nil {
 		if validationErr := getValidationError(err); validationErr != nil {
 			c.JSON(validationErr.StatusCode, response.Error(validationErr.StatusCode, "validation failed", validationErr.ErrorData))

@@ -40,6 +40,10 @@ type LocalDistributor struct {
 
 	// Creator snapshot (resolved from custom_data.createdByUser at read time)
 	CreatedBy *OrgCreator `json:"created_by,omitempty"`
+
+	// Promotion snapshot (resolved from custom_data.promotedFrom at read time).
+	// Set only on a distributor that reached the level through a promotion.
+	PromotedFrom *OrgPromotion `json:"promoted_from,omitempty"`
 }
 
 // OrgCreator is a snapshot of the user who created an organization.
@@ -115,6 +119,51 @@ func ExtractOrgCreator(customData map[string]interface{}) *OrgCreator {
 	}
 	delete(customData, "createdByUser")
 	return &creator
+}
+
+// OrgPromotion records that an organization holds its level through a promotion
+// rather than through creation. It is stored in custom_data.promotedFrom and
+// surfaced as the top-level promoted_from field, so the UI can tell a promoted
+// distributor apart from one created at distributor level.
+//
+// The promotion path is the only writer: the update paths restore the stored
+// value on every write, so a client cannot forge or erase it.
+type OrgPromotion struct {
+	// Level is the organization level the promotion moved up from.
+	Level string `json:"level"`
+	// At is when the promotion ran, RFC3339.
+	At string `json:"at"`
+	// DetachedFromOrganizationID is the organization that manages the promoted
+	// organization at its old level and drops it from its scope, empty when the
+	// organization carried no createdBy.
+	DetachedFromOrganizationID string `json:"detached_from_organization_id,omitempty"`
+	// By is a snapshot of the user who ran the promotion, same shape as the
+	// creator snapshot. OnBehalfOf never applies: a promotion is not attributable.
+	By *OrgCreator `json:"by,omitempty"`
+}
+
+// ExtractOrgPromotion pulls the promotedFrom snapshot out of an organization's
+// custom_data, mirroring ExtractOrgCreator: it returns the typed value and
+// removes the raw key from the map, so it is exposed only as the top-level
+// promoted_from field. Returns nil for an organization created at its level.
+func ExtractOrgPromotion(customData map[string]interface{}) *OrgPromotion {
+	if customData == nil {
+		return nil
+	}
+	raw, ok := customData["promotedFrom"]
+	if !ok || raw == nil {
+		return nil
+	}
+	encoded, err := json.Marshal(raw)
+	if err != nil {
+		return nil
+	}
+	var promotion OrgPromotion
+	if err := json.Unmarshal(encoded, &promotion); err != nil {
+		return nil
+	}
+	delete(customData, "promotedFrom")
+	return &promotion
 }
 
 // LocalReseller represents a reseller stored in local database

@@ -41,6 +41,18 @@ func setupPromoteMock(t *testing.T) (sqlmock.Sqlmock, func()) {
 	}
 }
 
+// promoter is the actor snapshot the handler builds from the authenticated user.
+func promoter() *models.OrgCreator {
+	return &models.OrgCreator{
+		UserID:           "user-1",
+		Username:         "owner",
+		Name:             "Nethesis Owner",
+		Email:            "owner@nethesis.it",
+		OrganizationID:   "owner-1",
+		OrganizationName: "Owner",
+	}
+}
+
 func resellerRow(logtoID interface{}, suspendedAt interface{}) *sqlmock.Rows {
 	now := time.Now()
 	return sqlmock.NewRows(resellerColumns).AddRow(
@@ -59,7 +71,7 @@ func TestPromoteResellerToDistributor_RejectsSuspended(t *testing.T) {
 	mock.ExpectQuery(`FROM resellers`).WithArgs("res-1").
 		WillReturnRows(resellerRow("res-1", time.Now()))
 
-	_, err := NewOrganizationService().PromoteResellerToDistributor("res-1", "user-1", "owner-1")
+	_, err := NewOrganizationService().PromoteResellerToDistributor("res-1", promoter(), "owner-1")
 	assert.ErrorIs(t, err, ErrPromoteResellerSuspended)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -73,7 +85,7 @@ func TestPromoteResellerToDistributor_RejectsUnsynced(t *testing.T) {
 	mock.ExpectQuery(`FROM resellers`).WithArgs("res-1").
 		WillReturnRows(resellerRow(nil, nil))
 
-	_, err := NewOrganizationService().PromoteResellerToDistributor("res-1", "user-1", "owner-1")
+	_, err := NewOrganizationService().PromoteResellerToDistributor("res-1", promoter(), "owner-1")
 	assert.ErrorIs(t, err, ErrPromoteResellerNotSynced)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -159,7 +171,7 @@ func TestPromotedCustomData_KeepsCreatorSnapshot(t *testing.T) {
 		CreatedBy: creator,
 	}
 
-	promoted, original := promotedCustomData(reseller, "owner-1")
+	promoted, original := promotedCustomData(reseller, "owner-1", nil)
 
 	assert.Equal(t, "distributor", promoted["type"])
 	assert.Equal(t, "owner-1", promoted["createdBy"])
@@ -180,11 +192,75 @@ func TestPromotedCustomData_KeepsCreatorSnapshot(t *testing.T) {
 func TestPromotedCustomData_WithoutCreator(t *testing.T) {
 	reseller := &models.LocalReseller{CustomData: map[string]interface{}{"type": "reseller"}}
 
-	promoted, original := promotedCustomData(reseller, "owner-1")
+	promoted, original := promotedCustomData(reseller, "owner-1", nil)
 
 	assert.NotContains(t, promoted, "createdByUser")
 	assert.NotContains(t, original, "createdByUser")
 	assert.Equal(t, "distributor", promoted["type"])
+}
+
+// The promotion snapshot is what tells a promoted distributor apart from one
+// created at distributor level: it goes on the stored payload only, since the
+// restore payload describes an organization that never moved.
+func TestPromotedCustomData_CarriesPromotionSnapshot(t *testing.T) {
+	reseller := &models.LocalReseller{
+		CustomData: map[string]interface{}{"type": "reseller", "createdBy": "dist-1"},
+	}
+	promotion := &models.OrgPromotion{
+		Level:                      "reseller",
+		At:                         "2026-07-30T10:00:00Z",
+		DetachedFromOrganizationID: "dist-1",
+		By:                         promoter(),
+	}
+
+	promoted, original := promotedCustomData(reseller, "owner-1", promotion)
+
+	assert.Equal(t, promotion, promoted["promotedFrom"])
+	assert.NotContains(t, original, "promotedFrom")
+}
+
+// A request cannot claim a promotion: the snapshot the promotion writes wins over
+// whatever the organization carries.
+func TestPromotedCustomData_OverwritesClaimedPromotion(t *testing.T) {
+	reseller := &models.LocalReseller{
+		CustomData: map[string]interface{}{
+			"type":         "reseller",
+			"promotedFrom": map[string]interface{}{"level": "customer"},
+		},
+	}
+	promotion := &models.OrgPromotion{Level: "reseller", At: "2026-07-30T10:00:00Z"}
+
+	promoted, _ := promotedCustomData(reseller, "owner-1", promotion)
+
+	assert.Equal(t, promotion, promoted["promotedFrom"])
+}
+
+// The promotion snapshot round-trips through custom_data the same way the creator
+// snapshot does: typed value out, raw key gone from the map.
+func TestExtractOrgPromotion(t *testing.T) {
+	customData := map[string]interface{}{
+		"vat": "IT00000000001",
+		"promotedFrom": map[string]interface{}{
+			"level":                         "reseller",
+			"at":                            "2026-07-30T10:00:00Z",
+			"detached_from_organization_id": "dist-1",
+			"by":                            map[string]interface{}{"user_id": "user-1", "name": "Nethesis Owner"},
+		},
+	}
+
+	promotion := models.ExtractOrgPromotion(customData)
+
+	require.NotNil(t, promotion)
+	assert.Equal(t, "reseller", promotion.Level)
+	assert.Equal(t, "2026-07-30T10:00:00Z", promotion.At)
+	assert.Equal(t, "dist-1", promotion.DetachedFromOrganizationID)
+	require.NotNil(t, promotion.By)
+	assert.Equal(t, "user-1", promotion.By.UserID)
+	assert.NotContains(t, customData, "promotedFrom")
+	assert.Equal(t, "IT00000000001", customData["vat"])
+
+	assert.Nil(t, models.ExtractOrgPromotion(map[string]interface{}{"vat": "IT00000000001"}))
+	assert.Nil(t, models.ExtractOrgPromotion(nil))
 }
 
 func TestCustomDataString(t *testing.T) {

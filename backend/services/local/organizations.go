@@ -142,6 +142,9 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 	if creator != nil {
 		customData["createdByUser"] = creator
 	}
+	// The promotion snapshot belongs to the promotion path: a created
+	// distributor holds its level by creation, so a request cannot claim one.
+	delete(customData, "promotedFrom")
 
 	// Update the request with the properly managed customData
 	req.CustomData = customData
@@ -861,6 +864,13 @@ func (s *LocalOrganizationService) UpdateDistributor(id string, req *models.Upda
 	// from Postgres and Logto.
 	if currentDistributor.CreatedBy != nil {
 		finalCustomData["createdByUser"] = currentDistributor.CreatedBy
+	}
+	// Same for the promotion snapshot, which the promotion path is the only
+	// writer of: drop whatever the request carries and restore the stored value,
+	// so an update can neither forge a promotion nor erase one.
+	delete(finalCustomData, "promotedFrom")
+	if currentDistributor.PromotedFrom != nil {
+		finalCustomData["promotedFrom"] = currentDistributor.PromotedFrom
 	}
 
 	// Add update tracking (these are additional fields, not replacements)
@@ -2604,7 +2614,11 @@ var (
 // target table on it) and the organization role each member holds. A Logto call
 // that fails undoes the ones already applied and rolls the local move back, so
 // the organization stays a plain reseller and the call can be retried.
-func (s *LocalOrganizationService) PromoteResellerToDistributor(resellerLogtoID, promotedByUserID, promotedByOrgID string) (*models.ResellerPromotion, error) {
+//
+// custom_data.promotedFrom keeps the trace of the move (level, timestamp, actor,
+// the distributor that drops it), so the organization stays distinguishable from
+// one created at distributor level — the API surfaces it as promoted_from.
+func (s *LocalOrganizationService) PromoteResellerToDistributor(resellerLogtoID string, promotedBy *models.OrgCreator, promotedByOrgID string) (*models.ResellerPromotion, error) {
 	reseller, err := s.resellerRepo.GetByID(resellerLogtoID)
 	if err != nil {
 		return nil, err
@@ -2676,7 +2690,14 @@ func (s *LocalOrganizationService) PromoteResellerToDistributor(resellerLogtoID,
 		return nil, fmt.Errorf("failed to count promoted organization hierarchy: %w", err)
 	}
 
-	customData, originalCustomData := promotedCustomData(reseller, parentOrgID)
+	promotion := &models.OrgPromotion{
+		Level:                      "reseller",
+		At:                         time.Now().Format(time.RFC3339),
+		DetachedFromOrganizationID: summary.DetachedFromOrganizationID,
+		By:                         promotedBy,
+	}
+
+	customData, originalCustomData := promotedCustomData(reseller, parentOrgID, promotion)
 	customDataJSON, err := json.Marshal(customData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal custom_data: %w", err)
@@ -2833,7 +2854,7 @@ func (s *LocalOrganizationService) PromoteResellerToDistributor(resellerLogtoID,
 		Int("users_count", summary.UsersCount).
 		Int("systems_count", summary.SystemsCount).
 		Int("members_role_switched", summary.MembersRoleSwitched).
-		Str("promoted_by_user_id", promotedByUserID).
+		Str("promoted_by_user_id", orgCreatorUserID(promotedBy)).
 		Str("promoted_by_org_id", promotedByOrgID).
 		Msg("Reseller promoted to distributor")
 
@@ -2847,8 +2868,9 @@ func (s *LocalOrganizationService) PromoteResellerToDistributor(resellerLogtoID,
 //
 // The read lifts createdByUser out of custom_data into CreatedBy, so both have
 // to put the creator snapshot back: the organization keeps who created it, only
-// its level changes.
-func promotedCustomData(reseller *models.LocalReseller, parentOrgID string) (promoted, original map[string]interface{}) {
+// its level changes. The promotion snapshot goes on the promoted payload only —
+// the restore payload describes an organization that never moved.
+func promotedCustomData(reseller *models.LocalReseller, parentOrgID string, promotion *models.OrgPromotion) (promoted, original map[string]interface{}) {
 	original = make(map[string]interface{}, len(reseller.CustomData)+1)
 	for k, v := range reseller.CustomData {
 		original[k] = v
@@ -2857,12 +2879,15 @@ func promotedCustomData(reseller *models.LocalReseller, parentOrgID string) (pro
 		original["createdByUser"] = reseller.CreatedBy
 	}
 
-	promoted = make(map[string]interface{}, len(original))
+	promoted = make(map[string]interface{}, len(original)+1)
 	for k, v := range original {
 		promoted[k] = v
 	}
 	promoted["type"] = "distributor"
 	promoted["createdBy"] = parentOrgID
+	if promotion != nil {
+		promoted["promotedFrom"] = promotion
+	}
 
 	return promoted, original
 }

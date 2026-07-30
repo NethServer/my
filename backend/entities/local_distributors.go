@@ -117,6 +117,7 @@ func (r *LocalDistributorRepository) GetByID(id string) (*models.LocalDistributo
 	}
 
 	distributor.CreatedBy = models.ExtractOrgCreator(distributor.CustomData)
+	distributor.PromotedFrom = models.ExtractOrgPromotion(distributor.CustomData)
 
 	return distributor, nil
 }
@@ -369,6 +370,7 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 		}
 
 		distributor.CreatedBy = models.ExtractOrgCreator(distributor.CustomData)
+		distributor.PromotedFrom = models.ExtractOrgPromotion(distributor.CustomData)
 		distributors = append(distributors, distributor)
 	}
 
@@ -679,6 +681,7 @@ func (r *LocalDistributorRepository) GetByIDIncludeDeleted(id string) (*models.L
 	}
 
 	distributor.CreatedBy = models.ExtractOrgCreator(distributor.CustomData)
+	distributor.PromotedFrom = models.ExtractOrgPromotion(distributor.CustomData)
 
 	return distributor, nil
 }

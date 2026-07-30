@@ -1273,6 +1273,10 @@ components:
           example: null
         created_by:
           $ref: '#/components/schemas/OrgCreator'
+        promoted_from:
+          description: Trace of the promotion that gave the organization its level. Distributors only, and only those promoted from reseller level (PATCH /resellers/{id}/promote) - omitted for an organization created at its level.
+          allOf:
+            - $ref: '#/components/schemas/OrgPromotion'
 
     OrganizationWithStats:
       description: Organization with inline count statistics, returned in list responses
@@ -2073,6 +2077,28 @@ components:
           type: boolean
           description: True when the organization was attributed to a different organization via created_by_organization_id (the user acted on behalf of organization_name rather than belonging to it). Omitted when false.
           example: true
+
+    OrgPromotion:
+      type: object
+      description: Trace of the promotion that moved an organization up a level, written by the promotion endpoint only - an update request can neither add nor remove it.
+      properties:
+        level:
+          type: string
+          description: The organization level the promotion moved up from
+          example: "reseller"
+        at:
+          type: string
+          format: date-time
+          description: When the promotion ran
+          example: "2026-07-30T10:00:00Z"
+        detached_from_organization_id:
+          type: string
+          description: Logto ID of the organization that manages the promoted organization at its old level and drops it from its scope. Omitted when the organization carried no createdBy.
+          example: "akkbs6x2wo82"
+        by:
+          description: Snapshot of the user who ran the promotion
+          allOf:
+            - $ref: '#/components/schemas/OrgCreator'
 
     OrgFiltersData:
       type: object
