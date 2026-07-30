@@ -3,11 +3,13 @@
   SPDX-License-Identifier: GPL-3.0-or-later
 
 
-  Fleet-wide add-on analytics for the owner organization / Super Admins:
-  counter cards (lifecycle + coverage + expiries), per-type breakdown with a
-  stacked status bar, per-organization and per-tier tables, renewal
-  distribution and the 12-month activation trend. Every visual is backed by
-  the plain numbers next to it — color never carries information alone.
+  Add-on analytics within the viewer's visibility — the whole fleet for the
+  owner organization / a Super Admin, their own hierarchy for a distributor,
+  reseller or customer (the backend scopes every aggregate): counter cards
+  (lifecycle + coverage + expiries), per-type breakdown with a stacked status
+  bar, per-organization and per-tier tables, renewal distribution and the
+  12-month activation trend. Every visual is backed by the plain numbers next
+  to it — color never carries information alone.
 -->
 
 <script setup lang="ts">
@@ -52,6 +54,7 @@ import {
   useEntitlementReportTiers,
 } from '@/queries/systems/entitlements'
 import { getApplicationLogo } from '@/lib/applications/applications'
+import { isUserCustomer } from '@/lib/organizations/organizations'
 import { getProductLogo } from '@/lib/systems/systems'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 
@@ -156,6 +159,10 @@ const renewalBuckets = computed(() => {
 })
 
 const renewalMax = computed(() => Math.max(1, ...renewalBuckets.value.map((b) => b.count)))
+
+// A customer has nothing below itself, so the per-organization table would be
+// a single row repeating the counter cards: only hierarchies show it.
+const showOrganizations = computed(() => !isUserCustomer())
 
 const orgTypeBadgeKind = (orgType: string) => {
   switch (orgType) {
@@ -437,7 +444,7 @@ const tiersEmpty = computed(
     </div>
 
     <!-- per organization -->
-    <div>
+    <div v-if="showOrganizations">
       <NeHeading tag="h5" class="mb-4">{{ t('entitlements.by_organization') }}</NeHeading>
       <NeTextInput
         v-model="orgsTextFilter"

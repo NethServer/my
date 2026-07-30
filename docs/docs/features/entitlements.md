@@ -40,13 +40,15 @@ Distributors and resellers cannot self-activate add-ons: everything flows throug
 
 ## Entitlements catalog (Nethesis)
 
-Owner and Super Admin users have an **Entitlements** entry in the side menu with the catalog of add-on types. Creating a type takes a kind (Service or Module), the target application for modules (the id is composed automatically, e.g. `nethvoice` + `chat` → `nethvoice-chat`), a display name and a description. A newly created type is **immediately purchasable by everyone**; optional availability rules can restrict a type to specific hierarchy roles or organizations.
+The **Add-ons** entry in the side menu is available to everyone holding the `read:entitlements` permission, but the **Configuration** tab with the catalog of add-on types is reserved to owner and Super Admin users. Creating a type takes a kind (Service or Module), the target application for modules (the id is composed automatically, e.g. `nethvoice` + `chat` → `nethvoice-chat`), a display name and a description. A newly created type is **immediately purchasable by everyone**; optional availability rules can restrict a type to specific hierarchy roles or organizations.
 
 Deleting a type is refused while grants reference it.
 
 ## Reporting
 
 `GET /api/entitlements/grants` (with filters by entitlement, organization, source, active state and expiry window) and `GET /api/entitlements/stats` provide the licensing report: buyers see their own hierarchy — every module with its expiry and renewal — while owner and Super Admin see the whole fleet.
+
+The **Add-ons** page shows the same data as a dashboard, on the **Report** tab: lifecycle counters, expiring add-ons, the per-add-on breakdown, the renewal distribution and the 12-month activation trend (`GET /api/entitlements/report`, plus the paginated `/report/organizations` and `/report/tiers`). Every aggregate follows the same visibility as the grants list — a distributor or reseller sees its own organizations, a customer only its own systems, owner and Super Admin the whole fleet. The per-organization table is omitted for customers, which have nothing below them.
 
 ## For developers
 

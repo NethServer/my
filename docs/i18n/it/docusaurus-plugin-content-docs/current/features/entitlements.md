@@ -40,13 +40,15 @@ Distributori e reseller non possono auto-attivarsi add-on: tutto passa dallo sho
 
 ## Catalogo entitlements (Nethesis)
 
-Gli utenti owner e Super Admin hanno la voce **Entitlements** nel menu laterale con il catalogo dei tipi di add-on. La creazione richiede il kind (Service o Module), l'applicazione di destinazione per i moduli (l'id si compone automaticamente, es. `nethvoice` + `chat` → `nethvoice-chat`), nome e descrizione. Un tipo appena creato è **immediatamente acquistabile da tutti**; regole di disponibilità opzionali possono riservarlo a ruoli o organizzazioni specifiche.
+La voce **Add-on** nel menu laterale è disponibile a chiunque abbia il permesso `read:entitlements`, ma la tab **Configurazione** con il catalogo dei tipi di add-on resta riservata agli utenti owner e Super Admin. La creazione richiede il kind (Service o Module), l'applicazione di destinazione per i moduli (l'id si compone automaticamente, es. `nethvoice` + `chat` → `nethvoice-chat`), nome e descrizione. Un tipo appena creato è **immediatamente acquistabile da tutti**; regole di disponibilità opzionali possono riservarlo a ruoli o organizzazioni specifiche.
 
 La cancellazione di un tipo è rifiutata finché esistono licenze che lo referenziano.
 
 ## Reportistica
 
 `GET /api/entitlements/grants` (con filtri per entitlement, organizzazione, origine, stato e finestra di scadenza) e `GET /api/entitlements/stats` forniscono il report licenze: chi acquista vede la propria gerarchia — ogni modulo con scadenza e rinnovo — mentre owner e Super Admin vedono l'intera flotta.
+
+La pagina **Add-on** presenta gli stessi dati in forma di dashboard, nella tab **Report**: contatori di stato, add-on in scadenza, dettaglio per add-on, distribuzione dei rinnovi e trend di attivazione a 12 mesi (`GET /api/entitlements/report`, più le slice paginate `/report/organizations` e `/report/tiers`). Ogni aggregato segue la stessa visibilità dell'elenco licenze: un distributore o un reseller vede le proprie organizzazioni, un customer solo i propri sistemi, owner e Super Admin l'intera flotta. La tabella per organizzazione non viene mostrata ai customer, che non hanno nulla sotto di sé.
 
 ## Per gli sviluppatori
 

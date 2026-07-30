@@ -133,10 +133,11 @@ type EntitlementStatsRow struct {
 	ActiveGrants     int    `json:"active_grants"`
 }
 
-// EntitlementReport is the owner/Super Admin analytics snapshot of the whole
-// add-on fleet: lifecycle totals, the per-type breakdown, the renewal
-// distribution and an activation trend. The per-organization and per-tier
-// breakdowns live on their own paginated+searchable endpoints
+// EntitlementReport is the add-on analytics snapshot within the caller's
+// visibility — the whole fleet for the owner org / a Super Admin, the caller's
+// own hierarchy otherwise: lifecycle totals, the per-type breakdown, the
+// renewal distribution and an activation trend. The per-organization and
+// per-tier breakdowns live on their own paginated+searchable endpoints
 // (/report/organizations, /report/tiers) — orgs can be hundreds. Deleted
 // systems are excluded everywhere.
 type EntitlementReport struct {
@@ -146,7 +147,7 @@ type EntitlementReport struct {
 	Trend         []EntitlementReportTrendRow `json:"trend"`
 }
 
-// EntitlementReportTotals is the fleet-wide lifecycle breakdown. Statuses
+// EntitlementReportTotals is the lifecycle breakdown of the visible grants. Statuses
 // follow the same precedence as EntitlementStatus; Perpetual counts active
 // grants without an expiry (legacy imports); the Expiring* buckets count
 // active grants whose expiry falls within the window (cumulative).

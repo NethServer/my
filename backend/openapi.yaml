@@ -11485,14 +11485,16 @@ paths:
       operationId: getEntitlementReport
       tags:
         - Backend - Entitlements
-      summary: /entitlements/report - Fleet-wide add-on analytics (owner/Super Admin)
+      summary: /entitlements/report - Add-on analytics within the caller's hierarchy
       description: |
-        The commercial overview of every add-on grant: lifecycle totals
-        (active/expired/revoked/pending/suspended, perpetual, expiring in
-        30/60/90 days), the per-type breakdown, the renewal distribution and
-        a 12-month activation trend. The per-organization and per-tier
-        breakdowns live on their own paginated endpoints. Owner organization
-        / Super Admin only; deleted systems are excluded.
+        The commercial overview of the add-on grants the caller can see:
+        lifecycle totals (active/expired/revoked/pending/suspended, perpetual,
+        expiring in 30/60/90 days), the per-type breakdown, the renewal
+        distribution and a 12-month activation trend. The per-organization and
+        per-tier breakdowns live on their own paginated endpoints. Scope
+        matches /entitlements/grants: the whole fleet for the owner
+        organization / a Super Admin, the caller's own organization and its
+        descendants otherwise. Deleted systems are excluded.
       responses:
         '200':
           description: Entitlement report retrieved successfully
@@ -11524,8 +11526,9 @@ paths:
       summary: /entitlements/report/organizations - Per-organization slice of the add-on report
       description: |
         Grants grouped by the organization owning the systems, most active
-        first, paginated and searchable by organization name. Owner
-        organization / Super Admin only.
+        first, paginated and searchable by organization name. Restricted to the
+        caller's hierarchy (the whole fleet for the owner organization / a
+        Super Admin).
       parameters:
         - name: search
           in: query
@@ -11583,8 +11586,8 @@ paths:
       summary: /entitlements/report/tiers - Per-tier slice of the add-on report
       description: |
         Grants grouped by shop tier (variable products only), paginated and
-        searchable by add-on id or tier label. Owner organization / Super
-        Admin only.
+        searchable by add-on id or tier label. Restricted to the caller's
+        hierarchy (the whole fleet for the owner organization / a Super Admin).
       parameters:
         - name: search
           in: query

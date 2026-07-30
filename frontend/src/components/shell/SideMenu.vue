@@ -36,7 +36,7 @@ import {
   faTriangleExclamation as falTriangleExclamation,
 } from '@nethesis/nethesis-light-svg-icons'
 import {
-  isEntitlementAdmin,
+  canReadEntitlements,
   canReadApplications,
   canReadCustomers,
   canReadDistributors,
@@ -104,7 +104,7 @@ const navigation = computed(() => {
     })
   }
 
-  if (isEntitlementAdmin()) {
+  if (canReadEntitlements()) {
     menuItems.push({
       name: 'entitlements-catalog.title',
       to: 'entitlements-catalog',
