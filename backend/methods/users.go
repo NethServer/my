@@ -190,45 +190,23 @@ func GetUser(c *gin.Context) {
 		return
 	}
 
-	// Apply RBAC validation
+	// Apply RBAC validation. The :id parameter is a logto_id, so self-access is
+	// decided against the caller's LogtoID — user.ID is the local database id and
+	// would never match.
 	userOrgRole := strings.ToLower(user.OrgRole)
-	canAccess := false
+	isSelf := userID == user.ID || (user.LogtoID != nil && userID == *user.LogtoID)
 
-	// Users can always see themselves
-	if userID == user.ID {
-		canAccess = true
-	} else {
-		// Check organization-based access
+	if !isSelf {
 		targetOrgID := ""
 		if account.OrganizationID != nil {
 			targetOrgID = *account.OrganizationID
 		}
 
-		switch userOrgRole {
-		case "owner":
-			canAccess = true
-		case "distributor":
-			// Distributor can see users in their organization and customer organizations they manage
-			if targetOrgID == user.OrganizationID {
-				canAccess = true
-			}
-			// Additional logic needed to check customer organizations
-		case "reseller":
-			// Reseller can see users in their organization
-			if targetOrgID == user.OrganizationID {
-				canAccess = true
-			}
-		case "customer":
-			// Customer can only see users in their own organization
-			if targetOrgID == user.OrganizationID {
-				canAccess = true
-			}
+		service := local.NewUserService()
+		if canRead, reason := service.CanReadUser(userOrgRole, user.OrganizationID, targetOrgID); !canRead {
+			c.JSON(http.StatusForbidden, response.Forbidden("access denied: "+reason, nil))
+			return
 		}
-	}
-
-	if !canAccess {
-		c.JSON(http.StatusForbidden, response.Forbidden("access denied to user", nil))
-		return
 	}
 
 	// Log the action

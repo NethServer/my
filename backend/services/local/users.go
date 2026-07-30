@@ -1119,6 +1119,40 @@ func (s *LocalUserService) CanCreateUser(userOrgRole, userOrgID string, req *mod
 	}
 }
 
+// CanReadUser validates if a user can read another user's details based on
+// hierarchical permissions.
+//
+// Read access follows the same hierarchy as update: GET /users already lists
+// these users through helpers.AppendOrgFilter, so a narrower rule here would
+// contradict the list — a reseller would see a user of its own customer in the
+// list and get 403 on its detail.
+func (s *LocalUserService) CanReadUser(userOrgRole, userOrgID, targetUserOrgID string) (bool, string) {
+	switch userOrgRole {
+	case "owner":
+		return true, ""
+	case "distributor":
+		// Distributor can read users in organizations they manage hierarchically
+		if s.IsOrganizationInHierarchy(userOrgRole, userOrgID, targetUserOrgID) {
+			return true, ""
+		}
+		return false, "distributors can only read users in organizations they manage"
+	case "reseller":
+		// Reseller can read users in organizations they manage hierarchically
+		if s.IsOrganizationInHierarchy(userOrgRole, userOrgID, targetUserOrgID) {
+			return true, ""
+		}
+		return false, "resellers can only read users in their own organization or customers they manage"
+	case "customer":
+		// Customer can only read users in their own organization
+		if targetUserOrgID == userOrgID {
+			return true, ""
+		}
+		return false, "customers can only read users in their own organization"
+	default:
+		return false, "insufficient permissions to read users"
+	}
+}
+
 // CanUpdateUser validates if a user can update another user based on hierarchical permissions
 func (s *LocalUserService) CanUpdateUser(userOrgRole, userOrgID, targetUserOrgID string) (bool, string) {
 	switch userOrgRole {

@@ -92,6 +92,120 @@ func TestLocalUserService_CanCreateUser(t *testing.T) {
 	}
 }
 
+// TestLocalUserService_CanReadUser tests the permission validation for reading a
+// single user. GET /users/:id used to compare organization ids directly instead
+// of walking the hierarchy, so a reseller saw a user of its own customer in
+// GET /users and got 403 on that same user's detail.
+func TestLocalUserService_CanReadUser(t *testing.T) {
+	service := &LocalUserService{}
+
+	tests := []struct {
+		name            string
+		userOrgRole     string
+		userOrgID       string
+		targetUserOrgID string
+		expectedResult  bool
+		expectedReason  string
+	}{
+		{
+			name:            "owner can read any user",
+			userOrgRole:     "owner",
+			userOrgID:       "org-owner",
+			targetUserOrgID: "any-org",
+			expectedResult:  true,
+		},
+		{
+			name:            "distributor can read users in own org",
+			userOrgRole:     "distributor",
+			userOrgID:       "org-distributor",
+			targetUserOrgID: "org-distributor",
+			expectedResult:  true,
+		},
+		{
+			name:            "reseller can read users in own org",
+			userOrgRole:     "reseller",
+			userOrgID:       "org-reseller",
+			targetUserOrgID: "org-reseller",
+			expectedResult:  true,
+		},
+		{
+			name:            "customer can read users in own org",
+			userOrgRole:     "customer",
+			userOrgID:       "org-customer",
+			targetUserOrgID: "org-customer",
+			expectedResult:  true,
+		},
+		{
+			name:            "customer cannot read users in other orgs",
+			userOrgRole:     "customer",
+			userOrgID:       "org-customer",
+			targetUserOrgID: "org-other",
+			expectedResult:  false,
+			expectedReason:  "customers can only read users in their own organization",
+		},
+		{
+			name:            "invalid role cannot read users",
+			userOrgRole:     "invalid",
+			userOrgID:       "org-test",
+			targetUserOrgID: "org-test",
+			expectedResult:  false,
+			expectedReason:  "insufficient permissions to read users",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			canRead, reason := service.CanReadUser(tt.userOrgRole, tt.userOrgID, tt.targetUserOrgID)
+
+			assert.Equal(t, tt.expectedResult, canRead)
+			if tt.expectedReason != "" {
+				assert.Contains(t, reason, tt.expectedReason)
+			}
+		})
+	}
+}
+
+// TestLocalUserService_CanReadUserMatchesCanUpdateUser pins the invariant that
+// made the original bug a bug: whoever may update a user must be able to read it.
+// Reading through a narrower rule than updating is always a mistake.
+//
+// Only same-organization and customer pairs are exercised: the cross-organization
+// branches call IsOrganizationInHierarchy, which needs a database. That is not a
+// gap in the invariant — both functions delegate to that same helper for those
+// cases, so they cannot disagree there. The live cross-organization behaviour is
+// covered by the authz suite (backend/authz, scope layer).
+func TestLocalUserService_CanReadUserMatchesCanUpdateUser(t *testing.T) {
+	service := &LocalUserService{}
+
+	roles := []string{"owner", "distributor", "reseller", "customer", "invalid"}
+	orgPairs := [][2]string{
+		{"org-a", "org-a"}, // same organization: resolved without a database
+	}
+	// A customer is decided by a plain comparison for any pair, so the
+	// unrelated-organization case is safe to check for that role alone.
+	customerPairs := [][2]string{{"org-a", "org-a"}, {"org-a", "org-b"}}
+
+	check := func(role, userOrg, targetOrg string) {
+		canUpdate, _ := service.CanUpdateUser(role, userOrg, targetOrg)
+		if !canUpdate {
+			return
+		}
+		canRead, reason := service.CanReadUser(role, userOrg, targetOrg)
+		assert.True(t, canRead,
+			"role %q may update a user of %q from %q but not read it: %s",
+			role, targetOrg, userOrg, reason)
+	}
+
+	for _, role := range roles {
+		for _, pair := range orgPairs {
+			check(role, pair[0], pair[1])
+		}
+	}
+	for _, pair := range customerPairs {
+		check("customer", pair[0], pair[1])
+	}
+}
+
 // TestLocalUserService_CanUpdateUser tests the permission validation for user updates
 func TestLocalUserService_CanUpdateUser(t *testing.T) {
 	service := &LocalUserService{}
