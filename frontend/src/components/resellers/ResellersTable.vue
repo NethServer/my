@@ -290,7 +290,13 @@ const onSort = (payload: SortEvent) => {
 }
 
 const goToResellerDetails = (reseller: Reseller) => {
-  router.push({ name: 'reseller_detail', params: { companyId: reseller.logto_id } })
+  router
+    .push({ name: 'reseller_detail', params: { companyId: reseller.logto_id } })
+    .catch((error) => {
+      // router.push() swallows navigation failures by default; log them so an
+      // intermittent "URL changes but the page doesn't" report leaves a trace
+      console.error('[goToResellerDetails]', error)
+    })
 }
 </script>
 
@@ -417,7 +423,7 @@ const goToResellerDetails = (reseller: Reseller) => {
         </NeTableHeadCell>
       </NeTableHead>
       <NeTableBody>
-        <NeTableRow v-for="(item, index) in resellersPage" :key="index">
+        <NeTableRow v-for="item in resellersPage" :key="item.logto_id">
           <NeTableCell :data-label="$t('organizations.name')">
             <router-link
               v-if="!item.deleted_at"

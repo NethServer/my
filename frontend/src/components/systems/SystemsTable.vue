@@ -348,7 +348,11 @@ const onSort = (payload: SortEvent) => {
 }
 
 const goToSystemDetails = (system: System) => {
-  router.push({ name: 'system_detail', params: { systemId: system.id } })
+  router.push({ name: 'system_detail', params: { systemId: system.id } }).catch((error) => {
+    // router.push() swallows navigation failures by default; log them so an
+    // intermittent "URL changes but the page doesn't" report leaves a trace
+    console.error('[goToSystemDetails]', error)
+  })
 }
 
 function onSecretRegenerated(secret: string) {
@@ -536,7 +540,7 @@ function onCloseSecretRegeneratedModal() {
         </NeTableHeadCell>
       </NeTableHead>
       <NeTableBody>
-        <NeTableRow v-for="(item, index) in systemsPage" :key="index">
+        <NeTableRow v-for="item in systemsPage" :key="item.id">
           <NeTableCell :data-label="$t('systems.name')" class="break-all">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
               <SystemLogoAndLink

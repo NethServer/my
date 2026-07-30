@@ -179,7 +179,13 @@ const onSort = (payload: SortEvent) => {
 }
 
 const goToApplicationDetails = (application: Application) => {
-  router.push({ name: 'application_detail', params: { applicationId: application.id } })
+  router
+    .push({ name: 'application_detail', params: { applicationId: application.id } })
+    .catch((error) => {
+      // router.push() swallows navigation failures by default; log them so an
+      // intermittent "URL changes but the page doesn't" report leaves a trace
+      console.error('[goToApplicationDetails]', error)
+    })
 }
 </script>
 
@@ -318,7 +324,7 @@ const goToApplicationDetails = (application: Application) => {
           </NeTableHeadCell>
         </NeTableHead>
         <NeTableBody>
-          <NeTableRow v-for="(item, index) in applicationsPage" :key="index">
+          <NeTableRow v-for="item in applicationsPage" :key="item.id">
             <NeTableCell :data-label="$t('applications.name')">
               <router-link
                 :to="{ name: 'application_detail', params: { applicationId: item.id } }"

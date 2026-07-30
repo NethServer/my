@@ -96,7 +96,7 @@ const onSessionModalClose = () => {
           </NeTableHeadCell>
         </NeTableHead>
         <NeTableBody>
-          <NeTableRow v-for="(item, index) in sessionsPage" :key="index">
+          <NeTableRow v-for="item in sessionsPage" :key="item.session_id">
             <NeTableCell :data-label="$t('account.impersonation.session_start')">
               {{
                 item.start_time ? formatDateTimeNoSeconds(new Date(item.start_time), locale) : '-'
