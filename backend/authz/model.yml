@@ -1,0 +1,41 @@
+# Documented deviations between the declared permission model and the real one.
+#
+# config.yml plus AGENTS.md §4.3 state the model as:
+#
+#     effective = org_permissions (from org_role) ∪ user_permissions (from user_roles)
+#
+# That is not the whole truth. The backend applies corrections on top before it
+# signs the JWT. Each one is recorded here so that:
+#
+#   * expectations stay derived from the declared model plus explicit, reviewed
+#     exceptions — never silently bent to match whatever the code does;
+#   * `apitool authz personas` still verifies real tokens against the model, so
+#     removing one of these corrections from the code makes the suite fail
+#     instead of quietly widening everyone's permissions;
+#   * the list itself is the to-do: every entry here is a rule that lives in Go
+#     instead of in config.yml, where the rest of the model lives.
+
+permission_exceptions:
+  - roles: [Reader]
+    remove:
+      - manage:distributors
+      - manage:resellers
+      - manage:customers
+    code: backend/services/logto/roles.go — filterManagePermissionsForReader
+    reason: |
+      Organization permissions are granted by the organization's role, so on the
+      declared model every user of a Distributor organization — Reader included —
+      would hold manage:resellers and manage:customers. The backend subtracts
+      those three permissions from any user holding the Reader role.
+
+      The behaviour is the safe one and is almost certainly what the product
+      wants. What is wrong is where it lives: it is a hard-coded list of three
+      permission strings matched against one role name, invisible to anyone
+      reading config.yml.
+    action_required: |
+      Express it in config.yml instead. Until then: a new organization-level
+      permission is granted to Readers by default, and a new read-only role that
+      is not literally named "Reader" gets full manage rights on the hierarchy.
+      Note also that destroy:distributors|resellers|customers are NOT subtracted;
+      they only fail to matter today because no Reader can exist in the Owner
+      organization, which is the only one holding them.

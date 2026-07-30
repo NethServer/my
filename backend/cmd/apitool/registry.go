@@ -22,6 +22,9 @@ type Registry struct {
 	Owner  OwnerCreds      `json:"owner"`
 	Orgs   map[string]Org  `json:"orgs"`
 	Users  map[string]User `json:"users"`
+	// Systems is populated by the authz suite, which needs stable system ids to
+	// assert cross-organization access. `create-system` still only prints.
+	Systems map[string]System `json:"systems,omitempty"`
 }
 
 type Config struct {
@@ -44,11 +47,29 @@ type Org struct {
 }
 
 type User struct {
-	Email     string    `json:"email"`
-	Username  string    `json:"username,omitempty"`
-	Password  string    `json:"password"`
-	LogtoID   string    `json:"logto_id"`
-	OrgRole   string    `json:"org_role"`
+	Email    string `json:"email"`
+	Username string `json:"username,omitempty"`
+	Password string `json:"password"`
+	LogtoID  string `json:"logto_id"`
+	OrgRole  string `json:"org_role"`
+	// UserRoles holds the technical role names exactly as GET /api/roles
+	// exposes them ("Admin", "Support", "Backoffice", "Reader", "Super Admin").
+	// A persona is the pair (OrgRole, UserRoles), so the authz suite cannot
+	// build its matrix without this. Backfill older entries with
+	// `apitool refresh-roles`.
+	UserRoles []string  `json:"user_roles,omitempty"`
+	OrgID     string    `json:"org_id"`
+	OrgName   string    `json:"org_name"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// System is a provisioned appliance. Secret is kept because it is only ever
+// returned at creation time and collect authenticates pushes with it.
+type System struct {
+	Name      string    `json:"name"`
+	ID        string    `json:"id"`
+	SystemKey string    `json:"system_key"`
+	Secret    string    `json:"system_secret"`
 	OrgID     string    `json:"org_id"`
 	OrgName   string    `json:"org_name"`
 	CreatedAt time.Time `json:"created_at"`
@@ -75,8 +96,9 @@ func LoadRegistry() (*Registry, error) {
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return &Registry{
-				Orgs:  map[string]Org{},
-				Users: map[string]User{},
+				Orgs:    map[string]Org{},
+				Users:   map[string]User{},
+				Systems: map[string]System{},
 			}, nil
 		}
 		return nil, fmt.Errorf("reading registry: %w", err)
@@ -90,6 +112,9 @@ func LoadRegistry() (*Registry, error) {
 	}
 	if r.Users == nil {
 		r.Users = map[string]User{}
+	}
+	if r.Systems == nil {
+		r.Systems = map[string]System{}
 	}
 	return &r, nil
 }

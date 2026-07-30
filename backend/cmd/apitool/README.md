@@ -68,7 +68,26 @@ apitool register-system <system_secret>
 apitool oauth-probe <user-key> --all                # third-party app: portal vs IdP
 apitool oauth-probe <user-key> --app=<name>
 apitool oauth-probe <user-key> --client-id=<id> --redirect-uri=<uri>
+
+apitool refresh-roles                               # backfill user_roles in the registry
+
+apitool authz provision                             # authorization suite: create the fixture
+apitool authz personas                              # tokens vs config.yml (drift check)
+apitool authz run [--layer=gate|scope|apps|special] [--filter=] [--personas=]
+apitool authz coverage                              # every route has a declared intent?
+apitool authz teardown --yes
 ```
+
+## Authorization regression suite
+
+`apitool authz` is the harness that answers "can this role, in this organization,
+do this?" for every endpoint at once. It provisions a real hierarchy, mints a
+token per persona, and asserts allowed/denied from hand-written intent — never
+from the middleware wiring. See [backend/authz/README.md](../../authz/README.md)
+for the layers, the spec format, and what it deliberately does not cover.
+
+It refuses to run against a non-local backend: it creates organizations and users
+and fires destructive verbs.
 
 ## Third-party apps: visibility is not authorization
 

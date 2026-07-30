@@ -29,6 +29,14 @@ cd sync && make pre-commit         # fmt + lint + test
 cd frontend && npm run pre-commit  # format + lint + type-check + test + build
 ```
 
+**Touching authentication or authorization also requires `make test-authz`.** Before committing any change to routes, middleware, a handler's access check, the RBAC helpers, `sync/configs/config.yml`, or anything else in the auth/authz core, run:
+
+```bash
+cd backend && make test-authz      # ~3200 checks: every endpoint × every persona
+```
+
+`make pre-commit` does not cover this: unit tests cannot see a route wired to the wrong permission, a handler that compares organization ids instead of walking the hierarchy, or a list that leaks another tenant's rows. The suite fires the real API as real users of every (organization role × technical role) pair and fails on any unintended access. It needs a local backend and the fixture in place (`./apitool authz provision`, once). See §7.4 and `backend/authz/README.md`.
+
 Security updates: handled automatically by Dependabot/Renovate — do not chase them manually.
 
 ### 1.3 Skills
@@ -336,6 +344,23 @@ curl -s http://localhost:8080/api/customers/<logto_id> -H "Authorization: Bearer
 ```
 
 Conventions: org endpoints take the **logto_id** (from `apitool list` or API responses), not the internal UUID. To test hierarchy/RBAC behavior, act as users of different orgs (e.g. a reseller admin vs. a sibling reseller vs. a distributor admin) and assert both the allowed (2xx) and denied (403) paths. For test emails use plus sub-addressing on a real inbox you own (`<name>+<tag>@nethesis.it`) so messages actually arrive and stay sortable.
+
+### 7.4 Authorization regression suite (`backend/authz/`)
+
+**Mandatory before any commit that touches the auth/authz core — routes, middleware, a handler's access check, the RBAC helpers, `sync/configs/config.yml`, or the hierarchy logic (§1.2).** It fires all 170 endpoints as every (org role × user role) persona against a real provisioned hierarchy, plus hand-written cross-organization scenarios, third-party app visibility and the credential-type rules (API key masks, impersonation, self-modification). ~3200 checks, non-destructive, local-only.
+
+```bash
+cd backend && make test-authz          # coverage + persona drift + all four layers
+./apitool authz provision              # one-time: create the fixture (idempotent)
+./apitool authz run --layer=scope --verbose --filter=reseller
+```
+
+Two rules when touching it:
+
+- **Never derive an expectation from the middleware you just wrote.** `authz/routes.yml` states what an endpoint *should* require, from the permission vocabulary in `config.yml`, the documented behaviour and what the endpoint does. A disagreement with the code is the finding — copying the wiring in makes the suite prove nothing.
+- **A new endpoint needs an entry.** `./apitool authz coverage` fails when `main.go` has a route `routes.yml` does not mention.
+
+Deviations between the declared model (`effective = org_permissions ∪ user_permissions`) and what the backend really signs into the JWT live in `authz/model.yml`, each with the code that causes it. Full details, including known gaps and the findings from the first run, in `backend/authz/README.md`.
 
 ---
 

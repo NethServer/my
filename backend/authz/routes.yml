@@ -1,0 +1,792 @@
+# Hand-authored authorization intent, one entry per endpoint.
+#
+# HOW THIS FILE IS WRITTEN — and how it must stay written.
+#
+# `intent` is what the endpoint SHOULD require, decided from three sources:
+#   1. sync/configs/config.yml — the role→permission vocabulary and the comments
+#      that say what each permission is for. It is the source of truth `sync`
+#      pushes to Logto, so it is the product's own statement of intent.
+#   2. the documented product behaviour (docs/docs/features/*.md, AGENTS.md §4).
+#   3. the semantics of the endpoint: what object it touches and how.
+#
+# It is NOT read off the middleware chain in main.go. That is the whole point: if
+# a route is wired to the wrong permission, or to none, this file disagrees with
+# the running code and the suite reports it. Copying the wiring in here would
+# turn the suite into a tautology.
+#
+# Values for `intent`:
+#   <permission>   e.g. read:systems — the persona must hold it
+#   public         reachable with no token at all
+#   authenticated  any valid token, no permission needed
+#   owner_only     only users of the Owner organization, whatever their role
+# Extras:
+#   intent_any        any one of the listed permissions is enough
+#   self_org_get      a user may always read its own organization
+#   object_scoped     no route-level gate by design; the handler decides per object
+#   ids / body / query  shape the probe so it lands on the authorization decision
+#   expect_anonymous  for the endpoints that ARE the authenticator
+#   skip              excluded from the gate matrix, with the reason
+#
+# A NOTE ON THE PERMISSION MODEL: effective = org_permissions ∪ user_permissions.
+# Organization permissions come from the organization's role, so EVERY user of the
+# Owner organization — Reader included — holds manage:distributors. That is what
+# config.yml says, so the expectations below follow it. It is a design decision
+# worth revisiting, not a bug the suite can find.
+
+routes:
+  # ===========================================================================
+  # Public surface. No token required; these are the front door.
+  # ===========================================================================
+  - method: GET
+    path: /api/health
+    intent: public
+
+  - method: GET
+    path: /api/public/users/:id/avatar
+    intent: public
+    expect_authorized: [200, 404, 429]
+    note: |
+      Deliberately public so avatars render on the login screen. Rate-limited
+      (10/30s), so a run of 20 personas is expected to hit 429 — which still
+      proves the request was not blocked by authentication.
+
+  - method: POST
+    path: /api/auth/exchange
+    intent: public
+    expect_anonymous: [400, 401]
+    note: this endpoint IS the authenticator; an empty body is rejected on its merits
+
+  - method: POST
+    path: /api/auth/refresh
+    intent: public
+    expect_anonymous: [400, 401]
+    note: a missing refresh token legitimately yields 400/401 and says nothing about a gate
+
+  - method: POST
+    path: /api/systems/register
+    intent: public
+    expect_anonymous: [400, 401]
+    note: the system_secret in the body IS the credential; appliances have no JWT
+
+  # ===========================================================================
+  # Own session and own account. Any authenticated user acts on itself only;
+  # there is no object to scope, so no permission applies.
+  # ===========================================================================
+  - method: POST
+    path: /api/auth/logout
+    intent: authenticated
+    skip: revokes the caller's own session, which would invalidate the rest of the run
+
+  - method: GET
+    path: /api/me
+    intent: authenticated
+
+  - method: POST
+    path: /api/me/change-password
+    intent: authenticated
+
+  - method: POST
+    path: /api/me/change-info
+    intent: authenticated
+
+  - method: PUT
+    path: /api/me/avatar
+    intent: authenticated
+    note: multipart endpoint; a JSON body is rejected after the gate
+
+  - method: DELETE
+    path: /api/me/avatar
+    intent: authenticated
+
+  - method: POST
+    path: /api/me/api-keys
+    intent: authenticated
+    note: |
+      Creating a personal API key needs no permission — the key can never exceed
+      the creator's own rights. That ceiling is asserted in the special layer.
+      An empty body fails the required-field binding after the gate.
+
+  - method: GET
+    path: /api/me/api-keys
+    intent: authenticated
+
+  - method: GET
+    path: /api/me/api-keys/audit
+    intent: authenticated
+
+  - method: DELETE
+    path: /api/me/api-keys/:id
+    intent: authenticated
+    object_scoped: true
+    note: revoking somebody else's key must fail on ownership, not on a permission
+
+  # ===========================================================================
+  # Impersonation. Consent is the caller's own business; impersonating somebody
+  # requires the dedicated impersonate:users permission, which only Super Admin
+  # holds in config.yml.
+  # ===========================================================================
+  - method: GET
+    path: /api/impersonate/consent
+    intent: authenticated
+
+  - method: POST
+    path: /api/impersonate/consent
+    intent: authenticated
+    skip: mutates the caller's own consent state; exercised explicitly in the special layer
+
+  - method: DELETE
+    path: /api/impersonate/consent
+    intent: authenticated
+    skip: mutates the caller's own consent state; exercised explicitly in the special layer
+
+  - method: GET
+    path: /api/impersonate/status
+    intent: authenticated
+
+  - method: POST
+    path: /api/impersonate
+    intent: impersonate:users
+
+  - method: DELETE
+    path: /api/impersonate
+    intent: authenticated
+    note: exiting an impersonation the caller is not in is a no-op, not an authorization question
+
+  - method: GET
+    path: /api/impersonate/sessions
+    intent: authenticated
+    note: documented as "sessions for current user", so it is self-scoped
+
+  - method: GET
+    path: /api/impersonate/sessions/:session_id
+    intent: authenticated
+    object_scoped: true
+
+  - method: GET
+    path: /api/impersonate/sessions/:session_id/audit
+    intent: authenticated
+    object_scoped: true
+    note: |
+      The audit trail of an impersonation session is sensitive. Reading somebody
+      else's session must be refused on ownership; the scope layer asserts it.
+
+  # ===========================================================================
+  # Systems. read:systems to see, manage:systems to change, destroy:systems for
+  # the irreversible one. Soft-delete is manage because it is recoverable.
+  # ===========================================================================
+  - method: POST
+    path: /api/systems
+    intent: manage:systems
+  - method: GET
+    path: /api/systems
+    intent: read:systems
+  - method: GET
+    path: /api/systems/:id
+    intent: read:systems
+  - method: PUT
+    path: /api/systems/:id
+    intent: manage:systems
+  - method: DELETE
+    path: /api/systems/:id
+    intent: manage:systems
+    note: soft-delete, reversible via restore — hence manage and not destroy
+  - method: PATCH
+    path: /api/systems/:id/restore
+    intent: manage:systems
+  - method: DELETE
+    path: /api/systems/:id/destroy
+    intent: destroy:systems
+    note: permanent; config.yml gives destroy:systems to Super Admin only
+  - method: PATCH
+    path: /api/systems/:id/suspend
+    intent: manage:systems
+  - method: PATCH
+    path: /api/systems/:id/reactivate
+    intent: manage:systems
+  - method: GET
+    path: /api/systems/totals
+    intent: read:systems
+  - method: GET
+    path: /api/systems/trend
+    intent: read:systems
+  - method: POST
+    path: /api/systems/:id/regenerate-secret
+    intent: manage:systems
+    note: |
+      Rotating the credential breaks the appliance until it re-registers, so it
+      is a management action. Arguably it deserves its own permission.
+  - method: GET
+    path: /api/systems/:id/reachability
+    intent: read:systems
+  - method: GET
+    path: /api/systems/export
+    intent: read:systems
+    note: an export is a bulk read; same permission, and the scope layer checks the rows
+
+  # Inventory — the collected content of a system, so it follows read:systems.
+  - method: GET
+    path: /api/systems/:id/inventory
+    intent: read:systems
+  - method: GET
+    path: /api/systems/:id/inventory/:inventory_id
+    intent: read:systems
+  - method: GET
+    path: /api/systems/:id/inventory/latest
+    intent: read:systems
+  - method: GET
+    path: /api/systems/:id/inventory/changes
+    intent: read:systems
+  - method: GET
+    path: /api/systems/:id/inventory/changes/latest
+    intent: read:systems
+  - method: GET
+    path: /api/systems/:id/inventory/diffs
+    intent: read:systems
+  - method: GET
+    path: /api/systems/:id/inventory/diffs/latest
+    intent: read:systems
+  - method: GET
+    path: /api/systems/:id/inventory/timeline
+    intent: read:systems
+
+  # Alert data of one system. config.yml scopes read:alerts to alerting
+  # *configuration*; the alerts themselves belong to the system, so visibility
+  # follows read:systems and acting on them follows manage:systems.
+  - method: GET
+    path: /api/systems/:id/alerts
+    intent: read:systems
+  - method: GET
+    path: /api/systems/:id/alerts/silences
+    intent: read:systems
+  - method: POST
+    path: /api/systems/:id/alerts/silences
+    intent: manage:systems
+    note: silencing suppresses notifications — an operational change, not a config policy
+  - method: GET
+    path: /api/systems/:id/alerts/silences/:silence_id
+    intent: read:systems
+  - method: PUT
+    path: /api/systems/:id/alerts/silences/:silence_id
+    intent: manage:systems
+  - method: DELETE
+    path: /api/systems/:id/alerts/silences/:silence_id
+    intent: manage:systems
+  - method: GET
+    path: /api/systems/:id/alerts/history
+    intent: read:systems
+
+  # Backups of a system.
+  - method: GET
+    path: /api/systems/:id/backups
+    intent: read:systems
+  - method: GET
+    path: /api/systems/:id/backups/:backup_id/download
+    intent: read:systems
+    note: |
+      Returns a presigned URL to customer data. Read-level is consistent with the
+      rest of the system's content, but the scope layer must prove no
+      cross-organization download is possible.
+  - method: DELETE
+    path: /api/systems/:id/backups/:backup_id
+    intent: manage:systems
+
+  # ===========================================================================
+  # Alerts, cross-hierarchy. Same reasoning as above: alert data follows the
+  # systems permissions, alerting configuration follows the alerts permissions.
+  # ===========================================================================
+  - method: GET
+    path: /api/alerts
+    intent: read:systems
+  - method: GET
+    path: /api/alerts/history
+    intent: read:systems
+  - method: GET
+    path: /api/alerts/totals
+    intent: read:systems
+  - method: GET
+    path: /api/alerts/trend
+    intent: read:systems
+  - method: GET
+    path: /api/alerts/stats
+    intent: read:systems
+  - method: GET
+    path: /api/alerts/activity/:fingerprint
+    intent: read:systems
+  - method: POST
+    path: /api/alerts/notes
+    intent: manage:systems
+    note: annotating an alert is an operational action on the system's alert
+  - method: POST
+    path: /api/alerts/assignment
+    intent: manage:systems
+    note: taking charge of an alert is operational; Support must be able to do it
+  - method: GET
+    path: /api/alerts/silences
+    intent: read:systems
+  - method: POST
+    path: /api/alerts/silences
+    intent: manage:systems
+  - method: GET
+    path: /api/alerts/silences/:silence_id
+    intent: read:systems
+    query: organization_id={my_org}
+    note: |
+      The endpoint requires organization_id. It carries the caller's OWN
+      organization so the probe reaches the permission decision: with a foreign
+      one the handler would refuse on hierarchy first and the gate would never be
+      observed. Cross-organization access is asserted in the scope layer.
+  - method: PUT
+    path: /api/alerts/silences/:silence_id
+    intent: manage:systems
+    query: organization_id={my_org}
+  - method: DELETE
+    path: /api/alerts/silences/:silence_id
+    intent: manage:systems
+    query: organization_id={my_org}
+
+  # Alerting configuration. config.yml is explicit: read:alerts views the
+  # configuration, manage:alerts changes the policy, config:alerts is the
+  # Super-Admin-only view of the merged result.
+  - method: GET
+    path: /api/alerts/config
+    intent: read:alerts
+  - method: POST
+    path: /api/alerts/config
+    intent: manage:alerts
+  - method: DELETE
+    path: /api/alerts/config
+    intent: manage:alerts
+  - method: GET
+    path: /api/alerts/config/effective
+    intent: config:alerts
+    note: the merged view exposes ancestors' policy, which is why it has its own permission
+
+  # ===========================================================================
+  # Filters. Each aggregation mirrors the resource it filters: it enumerates
+  # distinct values of that resource, so it leaks exactly that resource.
+  # ===========================================================================
+  - method: GET
+    path: /api/filters/systems
+    intent: read:systems
+  - method: GET
+    path: /api/filters/applications
+    intent: read:applications
+  - method: GET
+    path: /api/filters/users
+    intent: read:users
+  - method: GET
+    path: /api/filters/alerts
+    intent: read:systems
+  - method: GET
+    path: /api/filters/distributors
+    intent: read:distributors
+  - method: GET
+    path: /api/filters/resellers
+    intent: read:resellers
+  - method: GET
+    path: /api/filters/customers
+    intent: read:customers
+
+  # ===========================================================================
+  # Distributors. In config.yml only the Owner organization holds any
+  # distributors permission, so every non-owner persona is expected out —
+  # except when reading its own organization.
+  # ===========================================================================
+  - method: POST
+    path: /api/distributors
+    intent: manage:distributors
+  - method: GET
+    path: /api/distributors
+    intent: read:distributors
+  - method: GET
+    path: /api/distributors/:id
+    intent: read:distributors
+    self_org_get: true
+  - method: PUT
+    path: /api/distributors/:id
+    intent: manage:distributors
+    note: |
+      A distributor editing its own company details would need manage:distributors,
+      which its organization role does not grant. Intent here is owner-only; if the
+      product wants self-service editing it needs a permission for it.
+  - method: DELETE
+    path: /api/distributors/:id
+    intent: manage:distributors
+  - method: PATCH
+    path: /api/distributors/:id/restore
+    intent: manage:distributors
+  - method: DELETE
+    path: /api/distributors/:id/destroy
+    intent: destroy:distributors
+  - method: PATCH
+    path: /api/distributors/:id/suspend
+    intent: manage:distributors
+  - method: PATCH
+    path: /api/distributors/:id/reactivate
+    intent: manage:distributors
+  - method: GET
+    path: /api/distributors/totals
+    intent: read:distributors
+  - method: GET
+    path: /api/distributors/trend
+    intent: read:distributors
+  - method: GET
+    path: /api/distributors/:id/stats
+    intent: read:distributors
+    self_org_get: true
+  - method: GET
+    path: /api/distributors/export
+    intent: read:distributors
+  - method: GET
+    path: /api/distributors/import/template
+    intent: read:distributors
+    note: |
+      Verified: the template is a static CSV with fictional sample rows (Acme
+      Corp) and contains no tenant data, so read level is right. The import
+      itself — validate and confirm — requires manage.
+  - method: POST
+    path: /api/distributors/import/validate
+    intent: manage:distributors
+  - method: POST
+    path: /api/distributors/import/confirm
+    intent: manage:distributors
+
+  # ===========================================================================
+  # Resellers. Owner and Distributor hold read/manage; only the Owner may destroy.
+  # ===========================================================================
+  - method: POST
+    path: /api/resellers
+    intent: manage:resellers
+  - method: GET
+    path: /api/resellers
+    intent: read:resellers
+  - method: GET
+    path: /api/resellers/:id
+    intent: read:resellers
+    self_org_get: true
+  - method: PUT
+    path: /api/resellers/:id
+    intent: manage:resellers
+  - method: DELETE
+    path: /api/resellers/:id
+    intent: manage:resellers
+  - method: PATCH
+    path: /api/resellers/:id/restore
+    intent: manage:resellers
+  - method: DELETE
+    path: /api/resellers/:id/destroy
+    intent: destroy:resellers
+  - method: PATCH
+    path: /api/resellers/:id/suspend
+    intent: manage:resellers
+  - method: PATCH
+    path: /api/resellers/:id/reactivate
+    intent: manage:resellers
+  - method: GET
+    path: /api/resellers/totals
+    intent: read:resellers
+  - method: GET
+    path: /api/resellers/trend
+    intent: read:resellers
+  - method: GET
+    path: /api/resellers/:id/stats
+    intent: read:resellers
+    self_org_get: true
+  - method: GET
+    path: /api/resellers/export
+    intent: read:resellers
+  - method: GET
+    path: /api/resellers/import/template
+    intent: read:resellers
+    note: static CSV sample, no tenant data — see the distributors template entry
+  - method: POST
+    path: /api/resellers/import/validate
+    intent: manage:resellers
+  - method: POST
+    path: /api/resellers/import/confirm
+    intent: manage:resellers
+  - method: PATCH
+    path: /api/resellers/:id/promote
+    intent: manage:distributors
+    enforced_by: handler
+    note: |
+      Enforced inside the handler ("access denied to promote reseller"), not by
+      route middleware — verified refused for all 15 non-owner personas.
+      Promotion MINTS A DISTRIBUTOR out of a reseller. Only the Owner may create
+      distributors, so manage:resellers must not be enough: a distributor could
+      otherwise manufacture a peer. This is the strictest reading and the one the
+      hierarchy implies.
+
+  # ===========================================================================
+  # Customers. Owner, Distributor and Reseller hold read/manage; destroy is
+  # Owner-only.
+  # ===========================================================================
+  - method: POST
+    path: /api/customers
+    intent: manage:customers
+  - method: GET
+    path: /api/customers
+    intent: read:customers
+  - method: GET
+    path: /api/customers/:id
+    intent: read:customers
+    self_org_get: true
+  - method: PUT
+    path: /api/customers/:id
+    intent: manage:customers
+  - method: DELETE
+    path: /api/customers/:id
+    intent: manage:customers
+  - method: PATCH
+    path: /api/customers/:id/restore
+    intent: manage:customers
+  - method: DELETE
+    path: /api/customers/:id/destroy
+    intent: destroy:customers
+  - method: PATCH
+    path: /api/customers/:id/suspend
+    intent: manage:customers
+  - method: PATCH
+    path: /api/customers/:id/reactivate
+    intent: manage:customers
+  - method: GET
+    path: /api/customers/totals
+    intent: read:customers
+  - method: GET
+    path: /api/customers/trend
+    intent: read:customers
+  - method: GET
+    path: /api/customers/:id/stats
+    intent: read:customers
+    self_org_get: true
+  - method: GET
+    path: /api/customers/export
+    intent: read:customers
+  - method: GET
+    path: /api/customers/import/template
+    intent: read:customers
+    note: static CSV sample, no tenant data — see the distributors template entry
+  - method: POST
+    path: /api/customers/import/validate
+    intent: manage:customers
+  - method: POST
+    path: /api/customers/import/confirm
+    intent: manage:customers
+
+  # ===========================================================================
+  # Users. read/manage:users are technical permissions (Admin, Backoffice,
+  # Reader for read); destroy:users is Super Admin only.
+  # ===========================================================================
+  - method: POST
+    path: /api/users
+    intent: manage:users
+  - method: GET
+    path: /api/users
+    intent: read:users
+  - method: GET
+    path: /api/users/:id
+    intent: read:users
+  - method: PUT
+    path: /api/users/:id
+    intent: manage:users
+  - method: DELETE
+    path: /api/users/:id
+    intent: manage:users
+  - method: PATCH
+    path: /api/users/:id/restore
+    intent: manage:users
+  - method: DELETE
+    path: /api/users/:id/destroy
+    intent: destroy:users
+  - method: PATCH
+    path: /api/users/:id/suspend
+    intent: manage:users
+  - method: PATCH
+    path: /api/users/:id/reactivate
+    intent: manage:users
+  - method: GET
+    path: /api/users/totals
+    intent: read:users
+  - method: GET
+    path: /api/users/trend
+    intent: read:users
+  - method: PATCH
+    path: /api/users/:id/password
+    intent: manage:users
+    note: |
+      Setting somebody else's password is account takeover if it lands on the
+      wrong person. manage:users is the documented level; the scope layer must
+      prove it cannot reach a user outside the caller's hierarchy.
+  - method: PUT
+    path: /api/users/:id/avatar
+    intent: manage:users
+  - method: DELETE
+    path: /api/users/:id/avatar
+    intent: manage:users
+  - method: GET
+    path: /api/users/export
+    intent: read:users
+  - method: GET
+    path: /api/users/import/template
+    intent: read:users
+    note: static CSV sample, no tenant data — see the distributors template entry
+  - method: POST
+    path: /api/users/import/validate
+    intent: manage:users
+  - method: POST
+    path: /api/users/import/confirm
+    intent: manage:users
+
+  # ===========================================================================
+  # Applications — inventory-derived software found on systems.
+  # ===========================================================================
+  - method: GET
+    path: /api/applications
+    intent: read:applications
+  - method: GET
+    path: /api/applications/:id
+    intent: read:applications
+  - method: PUT
+    path: /api/applications/:id
+    intent: manage:applications
+  - method: DELETE
+    path: /api/applications/:id
+    intent: manage:applications
+  - method: GET
+    path: /api/applications/totals
+    intent: read:applications
+  - method: GET
+    path: /api/applications/summary
+    intent: read:applications
+  - method: GET
+    path: /api/applications/trend
+    intent: read:applications
+  - method: PATCH
+    path: /api/applications/:id/assign
+    intent: manage:applications
+    note: |
+      Assignment moves an application under an organization. The organization in
+      the body must be inside the caller's hierarchy — asserted in the scope layer.
+  - method: PATCH
+    path: /api/applications/:id/unassign
+    intent: manage:applications
+
+  # ===========================================================================
+  # Rebranding. docs/docs/features/rebranding.md is explicit:
+  #   enable/disable and asset management  → Owner organization users only
+  #   view status                          → all levels, own organization only
+  # There is no rebranding resource in config.yml, so intent is expressed as
+  # owner_only. That also means a Reader of the Owner organization cannot be
+  # told apart from an Admin here: the permission vocabulary has no word for it.
+  # ===========================================================================
+  - method: GET
+    path: /api/rebranding/products
+    intent: authenticated
+    note: static catalogue of rebrandable products, no organization data in it
+
+  # The whole /rebranding group carries no route-level permission middleware: the
+  # decision lives in each handler. That is recorded with enforced_by: handler so
+  # the denial is still asserted — if a handler check went missing the probe would
+  # return 404 instead of 403 and the suite would report a fail-open.
+  - method: PATCH
+    path: /api/rebranding/:org_id/enable
+    intent: owner_only
+    enforced_by: handler
+  - method: PATCH
+    path: /api/rebranding/:org_id/disable
+    intent: owner_only
+    enforced_by: handler
+
+  - method: GET
+    path: /api/rebranding/:org_id/status
+    intent: authenticated
+    object_scoped: true
+    self_org_get: true
+  - method: GET
+    path: /api/rebranding/:org_id/products
+    intent: authenticated
+    object_scoped: true
+    self_org_get: true
+
+  - method: PUT
+    path: /api/rebranding/:org_id/products/:product_id
+    intent: owner_only
+    enforced_by: handler
+    object_scoped: true
+    ids: { product_id: nethvoice }
+    note: |
+      An authorized owner still gets 403 "rebranding is not enabled for this
+      organization" on an organization that has it disabled — a state answer, not
+      an authorization one, hence object_scoped.
+  - method: DELETE
+    path: /api/rebranding/:org_id/products/:product_id
+    intent: owner_only
+    enforced_by: handler
+    object_scoped: true
+    ids: { product_id: nethvoice }
+    note: |
+      As the owner, against an organization that does not exist, this answers 500
+      "failed to delete rebranding product" instead of 404. Reported as a
+      robustness finding: a 500 on an authorization path hides the real answer.
+  - method: DELETE
+    path: /api/rebranding/:org_id/products/:product_id/:asset
+    intent: owner_only
+    enforced_by: handler
+    object_scoped: true
+    ids: { product_id: nethvoice, asset: logo_light_rect }
+  - method: GET
+    path: /api/rebranding/:org_id/products/:product_id/:asset
+    intent: authenticated
+    object_scoped: true
+    self_org_get: true
+    ids: { product_id: nethvoice, asset: logo_light_rect }
+    note: serves the asset binary to any authenticated user of that organization
+
+  # ===========================================================================
+  # Catalogues and helpers.
+  # ===========================================================================
+  - method: GET
+    path: /api/roles
+    intent: authenticated
+    note: |
+      Role names are not sensitive and the list is already filtered by what the
+      caller may assign. Any authenticated user may see it.
+  - method: GET
+    path: /api/organization-roles
+    intent: authenticated
+
+  - method: GET
+    path: /api/organizations
+    intent: authenticated
+    object_scoped: true
+    note: |
+      Documented as "organizations the current user can assign users to". It is
+      reachable by any authenticated user — a Support persona, which holds no
+      read:users, gets 200 — so the only guarantee that matters is that the list
+      never reaches outside the caller's own hierarchy. That is asserted in the
+      scope layer ("organizations enumerator stays inside the hierarchy"), not
+      here. Were it gated on read:users instead, Support would lose a list it
+      legitimately uses; the scoping is the real boundary.
+
+  - method: GET
+    path: /api/third-party-applications
+    intent: authenticated
+    note: the list is filtered per user by access_control; the apps layer checks the filtering
+
+  - method: GET
+    path: /api/validators/vat/:entity_type
+    intent: authenticated
+    object_scoped: true
+    ids: { entity_type: customers }
+    query: vat=990000000000
+    note: |
+      Reports whether a VAT is already taken, so the concern is existence
+      disclosure rather than a permission. There is no route-level gate, and that
+      is fine: helpers.CheckVATExists scopes the lookup by organization role —
+      a customer-level caller always gets exists=false, a reseller only sees its
+      own customers, a distributor its whole subtree. Verified against the
+      fixture: d1r1-admin sees its own customer's VAT but NOT the sibling
+      reseller's nor the other branch's. Those five checks are asserted in the
+      scope layer; here we only require that the endpoint is reachable and
+      authenticated. (entity_type is plural — the singular form is rejected with
+      400 before any authorization decision.)

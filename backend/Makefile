@@ -313,6 +313,15 @@ apitool:
 	@echo "Create org:    ./apitool create-org distributor MyDist"
 	@echo "Create user:   ./apitool create-user --org=MyDist --email=u@example.com --name='User'"
 	@echo "List:          ./apitool list"
+	@echo "Authz suite:   ./apitool authz run        (see authz/README.md)"
+
+# Authorization regression suite: every endpoint, every persona, against a local
+# backend. Refuses non-local targets. See authz/README.md.
+.PHONY: test-authz
+test-authz: apitool
+	@./apitool authz coverage
+	@./apitool authz personas
+	@./apitool authz run
 
 # Pre-commit checks
 .PHONY: pre-commit
@@ -327,6 +336,7 @@ help:
 	@echo "Available targets:"
 	@echo "  build         - Build the binary"
 	@echo "  build-all     - Build for multiple platforms"
+	@echo "  test-authz    - Authorization regression suite (local backend only)"
 	@echo "  clean         - Clean build artifacts"
 	@echo "  fmt           - Format code"
 	@echo "  help          - Show this help"

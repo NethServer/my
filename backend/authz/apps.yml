@@ -1,0 +1,49 @@
+# Third-party application access.
+#
+# Expected portal visibility is evaluated from the per-app access_control in
+# sync/configs/config.yml — organization_ids AND organization_roles AND
+# user_roles, fail-closed — and compared with what my actually offers each
+# persona. Nothing here is derived from the backend's filtering code.
+#
+# The IdP half is a different question. Logto does not read our access_control,
+# so a persona the portal hides can still complete SSO by going straight to the
+# app's login URL, which is a public and predictable address. Whether that
+# matters depends on what the application itself checks on the token.
+#
+# idp_probe drives a real authorization-code flow per persona per app. That is a
+# full interactive login each time, so it is off by default; turn it on when
+# changing anything about third-party apps:
+#     ./apitool authz run --layer=apps --idp-probe
+
+idp_probe: false
+
+apps:
+  - name: nethshop.nethesis.it
+    idp_enforced: false
+    note: |
+      access_control admits Owner/Distributor/Reseller organizations with
+      Super Admin, Admin or Backoffice. Logto is not configured to enforce that,
+      so a hidden persona still gets an authorization code and only NethShop's own
+      checks stand in the way. Recorded as an accepted gap rather than a failure —
+      flip idp_enforced to true the day Logto is made to enforce it, and the suite
+      will then require refusals.
+
+  - name: stock.nethesis.it
+    idp_enforced: false
+    note: |
+      The only app that also pins organization_ids, to the Owner organization.
+      Note that the id in config.yml (guwy6opsll17) is the one from the
+      environment the config was written for, so on any other tenant — including
+      a local one — the app is expected to be visible to nobody at all. That is
+      the fail-closed behaviour and it is what the suite asserts.
+
+  - name: my.nethspot.com
+    idp_enforced: false
+    note: Owner/Reseller organizations with Super Admin or Admin.
+
+  - name: helpdesk.nethesis.it
+    idp_enforced: false
+    note: |
+      The widest of the four: Owner/Distributor/Reseller with Super Admin, Admin
+      or Support. Customer organizations are excluded, which is the boundary that
+      matters here.

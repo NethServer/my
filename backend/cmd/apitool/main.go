@@ -55,6 +55,10 @@ func main() {
 		err = cmdCleanupOrphans(args)
 	case "oauth-probe":
 		err = cmdOAuthProbe(args)
+	case "refresh-roles":
+		err = cmdRefreshRoles(args)
+	case "authz":
+		err = cmdAuthz(args)
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -134,6 +138,17 @@ Usage:
       contacted: the Location header is inspected, not followed.
       --all resolves the catalogue through the owner, so apps the probed user
       cannot see are still targeted.
+
+  apitool refresh-roles
+      Fill in the technical role names (user_roles) of every registered user by
+      reading GET /users/:id as the owner. Needed for entries created before the
+      registry tracked roles; the authz suite keys its personas off them.
+
+  apitool authz <provision|run|coverage|teardown> [flags]
+      Authorization regression suite. See backend/authz/README.md.
+      Refuses to run against anything but a local backend unless
+      --i-know-this-is-not-local is passed: it creates orgs/users and fires
+      every endpoint of the API.
 
 Registry: backend/.api-registry.json (gitignored, file mode 0600)`)
 }
@@ -372,6 +387,7 @@ func cmdCreateUser(args []string) error {
 		Password:  pw,
 		LogtoID:   userID,
 		OrgRole:   org.Type,
+		UserRoles: []string{roleName},
 		OrgID:     org.LogtoID,
 		OrgName:   org.Name,
 		CreatedAt: time.Now().UTC(),
@@ -434,7 +450,11 @@ func cmdList(_ []string) error {
 		sort.Strings(keys)
 		for _, k := range keys {
 			u := r.Users[k]
-			fmt.Printf("  %-30s %-30s %-12s in %s\n", k, u.Email, u.OrgRole, u.OrgName)
+			roles := strings.Join(u.UserRoles, ",")
+			if roles == "" {
+				roles = "?" // run: apitool refresh-roles
+			}
+			fmt.Printf("  %-30s %-30s %-12s %-12s in %s\n", k, u.Email, u.OrgRole, roles, u.OrgName)
 		}
 	}
 	return nil
@@ -515,11 +535,12 @@ func cmdCreateSystem(args []string) error {
 	if err != nil {
 		return err
 	}
-	systemKey, systemSecret, err := client.CreateSystem(systemName, org.LogtoID)
+	systemID, systemKey, systemSecret, err := client.CreateSystem(systemName, org.LogtoID)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("Created system %q in org %q\n", systemName, orgKey)
+	fmt.Printf("  id=%s\n", systemID)
 	fmt.Printf("  system_key=%s\n", systemKey)
 	fmt.Printf("  system_secret=%s\n", systemSecret)
 
@@ -760,6 +781,62 @@ func cmdCleanupOrphans(args []string) error {
 		}
 		fmt.Printf("  deleted %s (logto_id=%s)\n", u.Email, u.LogtoID)
 	}
+	return nil
+}
+
+// cmdRefreshRoles backfills User.UserRoles for registry entries that predate
+// the field. Roles are read one user at a time because the list endpoint does
+// not hydrate them.
+func cmdRefreshRoles(args []string) error {
+	flags, _ := parseFlags(args)
+
+	r, err := loadOrInit()
+	if err != nil {
+		return err
+	}
+	client, err := loginAs(r, flags["as"])
+	if err != nil {
+		return err
+	}
+
+	keys := make([]string, 0, len(r.Users))
+	for k := range r.Users {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	changed := 0
+	for _, k := range keys {
+		u := r.Users[k]
+		if u.LogtoID == "" {
+			fmt.Printf("  %-28s SKIP (no logto_id)\n", k)
+			continue
+		}
+		roles, err := client.GetUserRoles(u.LogtoID)
+		if err != nil {
+			fmt.Printf("  %-28s FAILED: %v\n", k, err)
+			continue
+		}
+		if len(roles) == 0 {
+			fmt.Printf("  %-28s no roles assigned\n", k)
+			continue
+		}
+		if strings.Join(u.UserRoles, ",") == strings.Join(roles, ",") {
+			fmt.Printf("  %-28s %s (unchanged)\n", k, strings.Join(roles, ","))
+			continue
+		}
+		u.UserRoles = roles
+		r.Users[k] = u
+		changed++
+		fmt.Printf("  %-28s %s\n", k, strings.Join(roles, ","))
+	}
+	if changed == 0 {
+		return nil
+	}
+	if err := r.Save(); err != nil {
+		return err
+	}
+	fmt.Printf("\nUpdated %d user(s)\n", changed)
 	return nil
 }
 

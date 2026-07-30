@@ -1,0 +1,304 @@
+# Authorization rules that are not "role X may call endpoint Y".
+#
+# Three families:
+#   self_modification — nobody may aim a dangerous verb at their own account
+#   api_key           — a myk_ token is bounded by BOTH its read/write mode and
+#                       the live permissions of the user who owns it, and is
+#                       refused outright on session-bound routes
+#   impersonate       — needs impersonate:users AND the target's consent
+#
+# IMPERSONATION IS DELIBERATELY CROSS-HIERARCHY. Nethesis Italia is itself a
+# distributor, and its staff must be able to support users of other distributors
+# and resellers. So the design has exactly two barriers, and neither of them is
+# the hierarchy:
+#
+#   1. the target must have consented;
+#   2. the caller must hold impersonate:users, which only the Super Admin role
+#      carries — and only the Owner organization can assign that role.
+#
+# Barrier 2 is therefore what protects the whole feature, and it is asserted in
+# scenarios.yml ("cannot promote a user to Super Admin"), not here.
+#
+# The cases below assert both barriers, in both directions: consent missing means
+# refused, consent present means allowed even across branches. The positive ones
+# open real sessions, which the runner closes immediately with the token the
+# response returns — otherwise a live session would block that persona with a 409
+# for an hour. setup/teardown exist to grant and revoke the target's consent.
+
+cases:
+  # ===========================================================================
+  # PreventSelfModification. A user must not be able to escalate, disable or
+  # take over its own account through the admin endpoints; /me is the only way.
+  # ===========================================================================
+  - name: admin cannot modify its own account through the users endpoint
+    kind: self_modification
+    as: d1r1-admin
+    method: PUT
+    path: /api/users/{my_user}
+    body: '{"name":"authz-self-probe"}'
+    expect: denied
+
+  - name: admin cannot delete its own account
+    kind: self_modification
+    as: d1r1-admin
+    method: DELETE
+    path: /api/users/{my_user}
+    expect: denied
+
+  - name: admin cannot suspend itself
+    kind: self_modification
+    as: d1r1-admin
+    method: PATCH
+    path: /api/users/{my_user}/suspend
+    expect: denied
+
+  - name: admin cannot reset its own password through the admin endpoint
+    kind: self_modification
+    as: d1r1-admin
+    method: PATCH
+    path: /api/users/{my_user}/password
+    body: '{"password":"Kq7!vTm4Zp9Wd"}'
+    expect: denied
+    note: |
+      /me/change-password exists for this and asks for the current password. The
+      admin endpoint does not, so allowing it on oneself would skip that step-up.
+
+  - name: super admin cannot destroy its own account
+    kind: self_modification
+    as: d1r1c1-super
+    method: DELETE
+    path: /api/users/{my_user}/destroy
+    expect: denied
+
+  - name: admin cannot replace its own avatar through the admin endpoint
+    kind: self_modification
+    as: d1r1-admin
+    method: PUT
+    path: /api/users/{my_user}/avatar
+    expect: denied
+
+  # ===========================================================================
+  # API keys. A key is a lesser credential than a session: capped by its mode,
+  # capped by its owner's live permissions, and refused on session-bound routes.
+  # ===========================================================================
+  - name: read-mode key can read systems
+    kind: api_key
+    as: d1r1-admin
+    mode: read
+    method: GET
+    path: /api/systems?page_size=1
+    expect: allowed
+
+  - name: read-mode key cannot create a system
+    kind: api_key
+    as: d1r1-admin
+    mode: read
+    method: POST
+    path: /api/systems
+    body: '{"name":"authz-apikey-probe","organization_id":"{my_org}"}'
+    expect: denied
+    note: |
+      The owner of this key holds manage:systems, so the refusal can only come
+      from the read mask. A body that WOULD have worked is used on purpose: were
+      the mask missing, the system would be created and the case would fail loudly.
+
+  - name: read-mode key cannot update a system
+    kind: api_key
+    as: d1r1-admin
+    mode: read
+    method: PUT
+    path: /api/systems/{system:s-d1r1c1}
+    body: '{"name":"authz-apikey-probe"}'
+    expect: denied
+
+  - name: read-mode key cannot delete a system
+    kind: api_key
+    as: d1r1-admin
+    mode: read
+    method: DELETE
+    path: /api/systems/{system:s-d1r1c1}
+    expect: denied
+
+  - name: write-mode key can act within its owner's permissions
+    kind: api_key
+    as: d1r1-admin
+    mode: write
+    method: PUT
+    path: /api/systems/{bogus}
+    body: '{"name":"authz-apikey-probe"}'
+    expect: allowed
+    note: 404 on a nonexistent system — the point is that the write mask let it through
+
+  - name: write-mode key of a Reader still cannot write
+    kind: api_key
+    as: d1r1-reader
+    mode: write
+    method: POST
+    path: /api/systems
+    body: '{"name":"authz-apikey-probe","organization_id":"{my_org}"}'
+    expect: denied
+    note: |
+      The ceiling that matters: mode is a mask over the owner's live permissions,
+      never a grant. A Reader asking for a write key must not thereby gain writes.
+
+  - name: write-mode key of a Reader can still read
+    kind: api_key
+    as: d1r1-reader
+    mode: write
+    method: GET
+    path: /api/systems?page_size=1
+    expect: allowed
+
+  - name: key of a reseller cannot reach another reseller's system
+    kind: api_key
+    as: d1r1-admin
+    mode: write
+    method: PUT
+    path: /api/systems/{system:s-d1r2c1}
+    body: '{"name":"authz-apikey-probe"}'
+    expect: denied
+    note: hierarchy scope applies to key credentials exactly as it does to sessions
+
+  - name: key cannot read the owner's own profile
+    kind: api_key
+    as: d1r1-admin
+    mode: read
+    method: GET
+    path: /api/me
+    expect: denied
+    note: |
+      /me is session-bound (RejectAPIKey): a key is not a person and must not be
+      able to read or change the account it belongs to.
+
+  - name: key cannot list or mint API keys
+    kind: api_key
+    as: d1r1-admin
+    mode: read
+    method: GET
+    path: /api/me/api-keys
+    expect: denied
+    note: otherwise a leaked read key could enumerate — or mint — further credentials
+
+  - name: key cannot log out the session
+    kind: api_key
+    as: d1r1-admin
+    mode: write
+    method: POST
+    path: /api/auth/logout
+    expect: denied
+
+  - name: key cannot start an impersonation
+    kind: api_key
+    as: d1r1c1-super
+    mode: write
+    method: POST
+    path: /api/impersonate
+    body: '{"user_id":"{user:d1r1c1-reader}"}'
+    expect: denied
+    note: the owner of this key holds impersonate:users, so only RejectAPIKey can stop it
+
+  - name: key cannot change the owner's password
+    kind: api_key
+    as: d1r1-admin
+    mode: write
+    method: POST
+    path: /api/me/change-password
+    body: '{"current_password":"x","new_password":"Kq7!vTm4Zp9Wd"}'
+    expect: denied
+
+  # ===========================================================================
+  # Impersonation. Consent is checked first, so every case here says explicitly
+  # which barrier it is testing.
+  # ===========================================================================
+  - name: impersonation without the target's consent is refused
+    kind: impersonate
+    as: d1r1-super
+    method: POST
+    path: /api/impersonate
+    body: '{"user_id":"{user:d1r1-reader}"}'
+    expect: denied
+    must_contain: ["consent"]
+    note: same organization, so consent is the only barrier left — and it must hold
+
+  - name: a consenting user of another organization CAN be impersonated
+    kind: impersonate
+    setup:
+      - as: d1r2-admin
+        method: POST
+        path: /api/impersonate/consent
+        body: '{"duration_hours":1}'
+    as: d1r1-super
+    method: POST
+    path: /api/impersonate
+    body: '{"user_id":"{user:d1r2-admin}"}'
+    expect: allowed
+    teardown:
+      - as: d1r2-admin
+        method: DELETE
+        path: /api/impersonate/consent
+    note: |
+      The feature this design exists for: reaching a user outside your own subtree
+      — here the sibling reseller's admin — with that user's consent. Asserted
+      positively so that adding a hierarchy check would show up as a regression in
+      legitimate support access rather than as a silent behaviour change.
+
+  - name: a consenting user of the parent organization CAN be impersonated
+    kind: impersonate
+    setup:
+      - as: d1-admin
+        method: POST
+        path: /api/impersonate/consent
+        body: '{"duration_hours":1}'
+    as: d1r1-super
+    method: POST
+    path: /api/impersonate
+    body: '{"user_id":"{user:d1-admin}"}'
+    expect: allowed
+    teardown:
+      - as: d1-admin
+        method: DELETE
+        path: /api/impersonate/consent
+    note: upward too — Nethesis Italia is a distributor, so its staff must reach peers and parents
+
+  - name: a consenting user of a different branch CAN be impersonated
+    kind: impersonate
+    setup:
+      - as: d2r1c1-admin
+        method: POST
+        path: /api/impersonate/consent
+        body: '{"duration_hours":1}'
+    as: d1r1c1-super
+    method: POST
+    path: /api/impersonate
+    body: '{"user_id":"{user:d2r1c1-admin}"}'
+    expect: allowed
+    teardown:
+      - as: d2r1c1-admin
+        method: DELETE
+        path: /api/impersonate/consent
+    note: |
+      Reach is platform-wide and does not depend on where the Super Admin sits:
+      this caller is a Super Admin of a CUSTOMER organization and still gets
+      there. Intended as written, but it means the containment is entirely in who
+      may assign the role — see the open question in authz/README.md.
+
+  - name: consent expiry is honoured — a revoked consent stops working
+    kind: impersonate
+    setup:
+      - as: d1r2-support
+        method: POST
+        path: /api/impersonate/consent
+        body: '{"duration_hours":1}'
+      - as: d1r2-support
+        method: DELETE
+        path: /api/impersonate/consent
+    as: d1r1-super
+    method: POST
+    path: /api/impersonate
+    body: '{"user_id":"{user:d1r2-support}"}'
+    expect: denied
+    must_contain: ["consent"]
+    note: |
+      Granting then revoking must leave the target protected. Without this, a
+      consent that is written but never actually enforced on revocation would look
+      identical to a working one.

@@ -1,0 +1,621 @@
+# Object-level scope. The gate layer proves who may CALL an endpoint; this proves
+# who may reach WHICH OBJECT through it — the question that actually decides
+# whether one customer can see another's data.
+#
+# Every scenario points a real persona at a real object belonging to somebody
+# else. `denied` accepts 403 or 404: hiding existence is a legitimate refusal and
+# is in fact the better one. `must_not_contain` is how leakage through a list,
+# aggregate, filter or export is caught, and it runs even on a 200.
+#
+# The fixture tree:
+#     owner ── d1 ── d1r1 ── d1r1c1, d1r1c2
+#              │     └ d1r2 ── d1r2c1
+#              └ d2 ── d2r1 ── d2r1c1
+# so "sibling reseller" is d1r1 vs d1r2 and "other branch" is d1 vs d2.
+
+scenarios:
+  # ===========================================================================
+  # Reading somebody else's organization by id.
+  # ===========================================================================
+  - name: reseller cannot read the sibling reseller's customer
+    as: d1r1-admin
+    method: GET
+    path: /api/customers/{org:d1r2c1}
+    expect: denied
+
+  - name: reseller cannot read a customer in the other distributor branch
+    as: d1r1-admin
+    method: GET
+    path: /api/customers/{org:d2r1c1}
+    expect: denied
+
+  - name: reseller can read its own customer
+    as: d1r1-admin
+    method: GET
+    path: /api/customers/{org:d1r1c1}
+    expect: allowed
+
+  - name: reseller cannot read the sibling reseller organization
+    as: d1r1-admin
+    method: GET
+    path: /api/resellers/{org:d1r2}
+    expect: denied
+
+  - name: reseller can read its own organization
+    as: d1r1-admin
+    method: GET
+    path: /api/resellers/{my_org}
+    expect: allowed
+    note: the "may always read its own organization" intent, at object level
+
+  - name: distributor cannot read a reseller of the other branch
+    as: d1-admin
+    method: GET
+    path: /api/resellers/{org:d2r1}
+    expect: denied
+
+  - name: distributor can read its own reseller
+    as: d1-admin
+    method: GET
+    path: /api/resellers/{org:d1r1}
+    expect: allowed
+
+  - name: distributor cannot read a peer distributor
+    as: d1-admin
+    method: GET
+    path: /api/distributors/{org:d2}
+    expect: denied
+
+  - name: distributor cannot read a customer of the other branch
+    as: d1-admin
+    method: GET
+    path: /api/customers/{org:d2r1c1}
+    expect: denied
+
+  - name: distributor can read a customer under its own reseller
+    as: d1-admin
+    method: GET
+    path: /api/customers/{org:d1r1c1}
+    expect: allowed
+
+  - name: customer cannot read a sibling customer of the same reseller
+    as: d1r1c1-admin
+    method: GET
+    path: /api/customers/{org:d1r1c2}
+    expect: denied
+
+  - name: customer can read its own organization
+    as: d1r1c1-reader
+    method: GET
+    path: /api/customers/{my_org}
+    expect: allowed
+    note: a Reader holds no manage rights but must still see its own company
+
+  - name: customer cannot read its own reseller
+    as: d1r1c1-admin
+    method: GET
+    path: /api/resellers/{org:d1r1}
+    expect: denied
+    note: visibility runs downward only; a customer has no business reading its parent
+
+  # ===========================================================================
+  # Lists, aggregates, filters and exports must not carry foreign rows.
+  # ===========================================================================
+  - name: customer list of a reseller excludes other resellers' customers
+    as: d1r1-admin
+    method: GET
+    path: /api/customers?page_size=200
+    must_contain: ["{org_name:d1r1c1}", "{org_name:d1r1c2}"]
+    must_not_contain: ["{org_name:d1r2c1}", "{org_name:d2r1c1}"]
+
+  - name: reseller list of a distributor excludes the other branch
+    as: d1-admin
+    method: GET
+    path: /api/resellers?page_size=200
+    must_contain: ["{org_name:d1r1}", "{org_name:d1r2}"]
+    must_not_contain: ["{org_name:d2r1}"]
+
+  - name: customer cannot list customers at all
+    as: d1r1c1-admin
+    method: GET
+    path: /api/customers?page_size=200
+    expect: denied
+    must_not_contain: ["{org_name:d1r1c2}", "{org_name:d1r2c1}", "{org_name:d2r1c1}"]
+    note: |
+      A customer organization holds no read:customers, so the list is refused
+      outright rather than returned empty. Both the refusal and the absence of
+      foreign rows are asserted, so the check still holds if the endpoint is ever
+      opened up to return just the caller's own organization.
+
+  - name: system list of a reseller excludes other resellers' systems
+    as: d1r1-admin
+    method: GET
+    path: /api/systems?page_size=200
+    must_contain: ["{system_name:s-d1r1c1}"]
+    must_not_contain: ["{system_name:s-d1r2c1}", "{system_name:s-d2r1c1}"]
+
+  - name: system list of a distributor spans its own resellers only
+    as: d1-admin
+    method: GET
+    path: /api/systems?page_size=200
+    must_contain: ["{system_name:s-d1r1c1}", "{system_name:s-d1r2c1}"]
+    must_not_contain: ["{system_name:s-d2r1c1}"]
+
+  - name: customer sees only its own system
+    as: d1r1c1-admin
+    method: GET
+    path: /api/systems?page_size=200
+    must_contain: ["{system_name:s-d1r1c1}"]
+    must_not_contain: ["{system_name:s-d1r1c2}", "{system_name:s-d1r2c1}"]
+
+  - name: user list of a reseller excludes users of other organizations
+    as: d1r1-admin
+    method: GET
+    path: /api/users?page_size=300
+    must_contain: ["{user_email:d1r1c1-admin}"]
+    must_not_contain: ["{user_email:d1r2-admin}", "{user_email:d2r1c1-admin}"]
+
+  - name: user list of a customer excludes the sibling customer's users
+    as: d1r1c1-admin
+    method: GET
+    path: /api/users?page_size=300
+    must_not_contain: ["{user_email:d1r1c2-admin}", "{user_email:d1r2-admin}"]
+
+  - name: systems filters aggregate does not name foreign organizations
+    as: d1r1-admin
+    method: GET
+    path: /api/filters/systems
+    must_not_contain: ["{org_name:d1r2c1}", "{org_name:d2r1c1}"]
+
+  - name: customers filters aggregate does not name foreign organizations
+    as: d1r1-admin
+    method: GET
+    path: /api/filters/customers
+    must_not_contain: ["{org_name:d1r2c1}", "{org_name:d2r1c1}"]
+
+  - name: users filters aggregate does not name foreign organizations
+    as: d1r1-admin
+    method: GET
+    path: /api/filters/users
+    must_not_contain: ["{org_name:d1r2}", "{org_name:d2r1}"]
+
+  - name: alerts filters aggregate does not name foreign systems
+    as: d1r1-admin
+    method: GET
+    path: /api/filters/alerts
+    must_not_contain: ["{system_name:s-d1r2c1}", "{system_name:s-d2r1c1}"]
+
+  - name: system export carries no foreign rows
+    as: d1r1-admin
+    method: GET
+    path: /api/systems/export?format=csv
+    must_not_contain: ["{system_name:s-d1r2c1}", "{system_name:s-d2r1c1}"]
+
+  - name: customer export carries no foreign rows
+    as: d1r1-admin
+    method: GET
+    path: /api/customers/export?format=csv
+    must_not_contain: ["{org_name:d1r2c1}", "{org_name:d2r1c1}"]
+
+  - name: user export carries no foreign rows
+    as: d1r1-admin
+    method: GET
+    path: /api/users/export?format=csv
+    must_not_contain: ["{user_email:d1r2-admin}", "{user_email:d2r1c1-admin}"]
+
+  - name: organizations enumerator stays inside the hierarchy
+    as: d1r1-admin
+    method: GET
+    path: /api/organizations?page_size=200
+    must_not_contain: ["{org_name:d1r2}", "{org_name:d2}", "{org_name:d2r1}"]
+    note: |
+      This endpoint has no permission gate (see routes.yml), so its scoping is
+      the only boundary it has.
+
+  - name: organizations enumerator gives a customer nothing but itself
+    as: d1r1c1-support
+    method: GET
+    path: /api/organizations?page_size=200
+    must_not_contain: ["{org_name:d1r1c2}", "{org_name:d1r2c1}", "{org_name:d1r1}"]
+
+  # ===========================================================================
+  # ?organization_id= is the classic escalation vector: only the Owner may aim
+  # at an arbitrary organization. For everybody else the parameter must not
+  # widen what comes back — whether it is refused or quietly ignored.
+  # ===========================================================================
+  - name: organization_id does not let a reseller read another reseller's systems
+    as: d1r1-admin
+    method: GET
+    path: /api/systems?page_size=200&organization_id={org:d1r2c1}
+    must_not_contain: ["{system_name:s-d1r2c1}"]
+
+  - name: organization_id does not let a customer read the sibling's systems
+    as: d1r1c1-admin
+    method: GET
+    path: /api/systems?page_size=200&organization_id={org:d1r1c2}
+    must_not_contain: ["{system_name:s-d1r1c2}"]
+
+  - name: organization_id does not let a reseller read another branch's customers
+    as: d1r1-admin
+    method: GET
+    path: /api/customers?page_size=200&organization_id={org:d2r1}
+    must_not_contain: ["{org_name:d2r1c1}"]
+
+  - name: organization_id does not let a reseller read another org's users
+    as: d1r1-admin
+    method: GET
+    path: /api/users?page_size=300&organization_id={org:d1r2}
+    must_not_contain: ["{user_email:d1r2-admin}", "{user_email:d1r2-support}"]
+
+  - name: owner may target any organization explicitly
+    as: owner
+    method: GET
+    path: /api/systems?page_size=200&organization_id={org:d2r1c1}
+    must_contain: ["{system_name:s-d2r1c1}"]
+    note: the counterpart — the Owner is the one role for which this parameter works
+
+  # ===========================================================================
+  # Writing to somebody else's objects.
+  # ===========================================================================
+  - name: reseller cannot rename the sibling reseller's customer
+    as: d1r1-admin
+    method: PUT
+    path: /api/customers/{org:d1r2c1}
+    body: '{"name":"authz-scope-probe"}'
+    expect: denied
+
+  - name: reseller cannot delete the sibling reseller's customer
+    as: d1r1-admin
+    method: DELETE
+    path: /api/customers/{org:d1r2c1}
+    expect: denied
+
+  - name: reseller cannot suspend the sibling reseller's customer
+    as: d1r1-admin
+    method: PATCH
+    path: /api/customers/{org:d1r2c1}/suspend
+    expect: denied
+
+  - name: reseller cannot restore an organization outside its hierarchy
+    as: d1r1-admin
+    method: PATCH
+    path: /api/customers/{org:d2r1c1}/restore
+    expect: denied
+    note: restore once bypassed the hierarchy check by filtering on deleted_at
+
+  - name: reseller cannot read the stats of a foreign customer
+    as: d1r1-admin
+    method: GET
+    path: /api/customers/{org:d1r2c1}/stats
+    expect: denied
+
+  - name: reseller cannot update another reseller's system
+    as: d1r1-admin
+    method: PUT
+    path: /api/systems/{system:s-d1r2c1}
+    body: '{"name":"authz-scope-probe"}'
+    expect: denied
+
+  - name: reseller cannot delete a system of the other branch
+    as: d1r1-admin
+    method: DELETE
+    path: /api/systems/{system:s-d2r1c1}
+    expect: denied
+
+  - name: reseller cannot suspend another reseller's system
+    as: d1r1-admin
+    method: PATCH
+    path: /api/systems/{system:s-d1r2c1}/suspend
+    expect: denied
+
+  - name: customer cannot touch the sibling customer's system
+    as: d1r1c1-admin
+    method: PUT
+    path: /api/systems/{system:s-d1r1c2}
+    body: '{"name":"authz-scope-probe"}'
+    expect: denied
+
+  - name: reseller cannot rotate the credential of a foreign system
+    as: d1r1-admin
+    method: POST
+    path: /api/systems/{system:s-d1r2c1}/regenerate-secret
+    expect: denied
+    note: rotating a secret is a denial of service against that appliance
+
+  - name: reseller cannot create a system inside another reseller's customer
+    as: d1r1-admin
+    method: POST
+    path: /api/systems
+    body: '{"name":"authz-scope-probe-system","organization_id":"{org:d1r2c1}"}'
+    expect: denied
+    note: |
+      Creation is the mirror image of reading: the organization_id in the body
+      must be inside the caller's hierarchy.
+
+  # ===========================================================================
+  # Somebody else's users. A password reset landing on the wrong account is
+  # account takeover, so these are the sharpest checks in the suite.
+  # ===========================================================================
+  - name: reseller cannot read a user of the sibling reseller
+    as: d1r1-admin
+    method: GET
+    path: /api/users/{user:d1r2-admin}
+    expect: denied
+
+  - name: reseller cannot modify a user of the sibling reseller
+    as: d1r1-admin
+    method: PUT
+    path: /api/users/{user:d1r2-admin}
+    body: '{"name":"authz-scope-probe"}'
+    expect: denied
+
+  - name: reseller cannot reset the password of a foreign user
+    as: d1r1-admin
+    method: PATCH
+    path: /api/users/{user:d1r2-admin}/password
+    body: '{"password":"Kq7!vTm4Zp9Wd"}'
+    expect: denied
+
+  - name: reseller cannot reset the password of a user in the other branch
+    as: d1r1-admin
+    method: PATCH
+    path: /api/users/{user:d2r1c1-admin}/password
+    body: '{"password":"Kq7!vTm4Zp9Wd"}'
+    expect: denied
+
+  - name: customer cannot reset the password of a sibling customer's user
+    as: d1r1c1-admin
+    method: PATCH
+    path: /api/users/{user:d1r1c2-admin}/password
+    body: '{"password":"Kq7!vTm4Zp9Wd"}'
+    expect: denied
+
+  - name: reseller cannot delete a user of the other branch
+    as: d1r1-admin
+    method: DELETE
+    path: /api/users/{user:d2r1-admin}
+    expect: denied
+
+  - name: reseller cannot suspend a foreign user
+    as: d1r1-admin
+    method: PATCH
+    path: /api/users/{user:d1r2-admin}/suspend
+    expect: denied
+
+  - name: reseller can read a user of its own customer
+    as: d1r1-admin
+    method: GET
+    path: /api/users/{user:d1r1c1-admin}
+    expect: allowed
+    note: |
+      GET /users lists this user, so the detail endpoint must not refuse it. It
+      did: the handler compared organization ids directly instead of walking the
+      hierarchy. Fixed with local.CanReadUser.
+
+  - name: distributor can read a user two levels down
+    as: d1-admin
+    method: GET
+    path: /api/users/{user:d1r1c1-admin}
+    expect: allowed
+    note: the same bug, one level deeper — a customer's user under its own reseller
+
+  - name: reseller can read a user of its own organization
+    as: d1r1-admin
+    method: GET
+    path: /api/users/{user:d1r1-support}
+    expect: allowed
+
+  # ===========================================================================
+  # System-level data: inventory, alerts, reachability, backups.
+  # ===========================================================================
+  - name: reseller cannot read the inventory of a foreign system
+    as: d1r1-admin
+    method: GET
+    path: /api/systems/{system:s-d1r2c1}/inventory
+    expect: denied
+
+  - name: reseller cannot read the latest inventory of a foreign system
+    as: d1r1-admin
+    method: GET
+    path: /api/systems/{system:s-d1r2c1}/inventory/latest
+    expect: denied
+
+  - name: reseller cannot read inventory diffs of a foreign system
+    as: d1r1-admin
+    method: GET
+    path: /api/systems/{system:s-d2r1c1}/inventory/diffs
+    expect: denied
+
+  - name: reseller cannot read the alerts of a foreign system
+    as: d1r1-admin
+    method: GET
+    path: /api/systems/{system:s-d1r2c1}/alerts
+    expect: denied
+
+  - name: reseller cannot read the alert history of a foreign system
+    as: d1r1-admin
+    method: GET
+    path: /api/systems/{system:s-d1r2c1}/alerts/history
+    expect: denied
+
+  - name: reseller cannot probe the reachability of a foreign system
+    as: d1r1-admin
+    method: GET
+    path: /api/systems/{system:s-d1r2c1}/reachability
+    expect: denied
+
+  - name: reseller cannot list the backups of a foreign system
+    as: d1r1-admin
+    method: GET
+    path: /api/systems/{system:s-d1r2c1}/backups
+    expect: denied
+    note: the download endpoint hands out a presigned URL, so the list is the first gate
+
+  - name: customer cannot read the inventory of the sibling customer's system
+    as: d1r1c1-admin
+    method: GET
+    path: /api/systems/{system:s-d1r1c2}/inventory/latest
+    expect: denied
+
+  - name: reseller can read the inventory of its own customer's system
+    as: d1r1-admin
+    method: GET
+    path: /api/systems/{system:s-d1r1c1}/inventory
+    expect: allowed
+
+  # ===========================================================================
+  # Alerting: silences and configuration are addressed by organization_id.
+  # ===========================================================================
+  - name: reseller cannot read a silence of a foreign organization
+    as: d1r1-admin
+    method: GET
+    path: /api/alerts/silences/{bogus}?organization_id={org:d1r2c1}
+    expect: denied
+
+  - name: reseller cannot delete a silence of a foreign organization
+    as: d1r1-admin
+    method: DELETE
+    path: /api/alerts/silences/{bogus}?organization_id={org:d1r2c1}
+    expect: denied
+
+  - name: reseller cannot update a silence of a foreign organization
+    as: d1r1-admin
+    method: PUT
+    path: /api/alerts/silences/{bogus}?organization_id={org:d1r2c1}
+    body: '{"comment":"authz-scope-probe"}'
+    expect: denied
+
+  - name: customer cannot read a silence of the sibling customer
+    as: d1r1c1-admin
+    method: GET
+    path: /api/alerts/silences/{bogus}?organization_id={org:d1r1c2}
+    expect: denied
+
+  # ===========================================================================
+  # Rebranding: every level may read its own status, nobody else's.
+  # ===========================================================================
+  - name: reseller can read its own rebranding status
+    as: d1r1-admin
+    method: GET
+    path: /api/rebranding/{my_org}/status
+    expect: allowed
+
+  - name: reseller cannot read the sibling reseller's rebranding status
+    as: d1r1-admin
+    method: GET
+    path: /api/rebranding/{org:d1r2}/status
+    expect: denied
+
+  - name: customer cannot read the sibling customer's rebranding products
+    as: d1r1c1-admin
+    method: GET
+    path: /api/rebranding/{org:d1r1c2}/products
+    expect: denied
+
+  # ===========================================================================
+  # VAT existence disclosure. There is no permission gate on the validator, so
+  # the scoping inside helpers.CheckVATExists is the whole boundary.
+  # ===========================================================================
+  - name: reseller detects the VAT of its own customer
+    as: d1r1-admin
+    method: GET
+    path: /api/validators/vat/customers?vat=990000000002
+    must_contain: ['"exists":true']
+    note: the positive control — without it the four negatives below would be vacuous
+
+  - name: reseller cannot detect the VAT of the sibling reseller's customer
+    as: d1r1-admin
+    method: GET
+    path: /api/validators/vat/customers?vat=990000000005
+    must_contain: ['"exists":false']
+
+  - name: reseller cannot detect the VAT of a customer in the other branch
+    as: d1r1-admin
+    method: GET
+    path: /api/validators/vat/customers?vat=990000000008
+    must_contain: ['"exists":false']
+
+  - name: distributor detects the VAT of a customer under its own reseller
+    as: d1-admin
+    method: GET
+    path: /api/validators/vat/customers?vat=990000000002
+    must_contain: ['"exists":true']
+
+  - name: distributor cannot detect the VAT of the other branch's customer
+    as: d1-admin
+    method: GET
+    path: /api/validators/vat/customers?vat=990000000008
+    must_contain: ['"exists":false']
+
+  - name: customer level detects nothing at all
+    as: d1r1c1-admin
+    method: GET
+    path: /api/validators/vat/customers?vat=990000000002
+    must_contain: ['"exists":false']
+    note: even its own VAT — the helper refuses the whole lookup below reseller level
+
+  # ===========================================================================
+  # The Super Admin role is the key to platform-wide impersonation (see
+  # special.yml), so who may HAND IT OUT is the boundary that protects the whole
+  # design. config.yml restricts it to the Owner organization
+  # (`access_control.organization_roles: [owner]`). Hiding it from GET /roles is
+  # not enough — these pass the role id explicitly, which is what an attacker
+  # would do.
+  # ===========================================================================
+  - name: distributor admin cannot promote a user to Super Admin
+    as: d1-admin
+    method: PUT
+    path: /api/users/{user:d1r1-support}
+    body: '{"user_role_ids":["{role:Super Admin}"]}'
+    expect: denied
+    note: |
+      The target is inside the caller's hierarchy and the caller holds
+      manage:users, so only the role access control can refuse this. If it ever
+      stops refusing, any distributor admin can mint itself platform-wide
+      impersonation rights.
+
+  - name: reseller admin cannot promote a user to Super Admin
+    as: d1r1-admin
+    method: PUT
+    path: /api/users/{user:d1r1-support}
+    body: '{"user_role_ids":["{role:Super Admin}"]}'
+    expect: denied
+
+  - name: customer admin cannot promote a user to Super Admin
+    as: d1r1c1-admin
+    method: PUT
+    path: /api/users/{user:d1r1c1-reader}
+    body: '{"user_role_ids":["{role:Super Admin}"]}'
+    expect: denied
+
+  - name: distributor admin cannot create a Super Admin user
+    as: d1-admin
+    method: POST
+    path: /api/users
+    body: '{"email":"edoardo.spadoni+authz-escalation-probe@nethesis.it","name":"authz escalation probe","organization_id":"{my_org}","user_role_ids":["{role:Super Admin}"]}'
+    expect: denied
+    note: the creation path must refuse the role too, not just the update path
+
+  - name: reseller admin cannot create a Super Admin user
+    as: d1r1-admin
+    method: POST
+    path: /api/users
+    body: '{"email":"edoardo.spadoni+authz-escalation-probe2@nethesis.it","name":"authz escalation probe","organization_id":"{my_org}","user_role_ids":["{role:Super Admin}"]}'
+    expect: denied
+
+  - name: backoffice cannot promote a user to Super Admin
+    as: d1-backoffice
+    method: PUT
+    path: /api/users/{user:d1r1-support}
+    body: '{"user_role_ids":["{role:Super Admin}"]}'
+    expect: denied
+    note: Backoffice holds manage:users too, so it is a second route to the same escalation
+
+  - name: the Super Admin role is not even offered below the owner organization
+    as: d1-admin
+    method: GET
+    path: /api/roles
+    must_not_contain: ["Super Admin"]
+    note: |
+      Defence in depth rather than the boundary itself — the checks above prove
+      the refusal happens even when the id is supplied directly.

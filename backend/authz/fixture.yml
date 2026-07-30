@@ -1,0 +1,112 @@
+# Authorization suite fixture.
+#
+# Everything here is created through the public API by `apitool authz provision`,
+# in dependency order, and is idempotent: re-running only creates what is missing.
+#
+# Two things matter about the shape of this tree:
+#
+#  1. created_by decides the hierarchy. Organization scope walks custom_data
+#     .createdBy, so a reseller created by the owner would NOT be inside its
+#     distributor's subtree. Every org is therefore created by a user of its
+#     intended parent.
+#  2. It has siblings and a second branch. Isolation can only be proved against
+#     an organization that is at the same level but on the other side of the
+#     tree — d1r1 vs d1r2 (same distributor) and d1 vs d2 (different branch).
+#
+#            owner (Nethesis)
+#            ├── d1 ─────────── d1r1 ──┬── d1r1c1
+#            │     │                   └── d1r1c2
+#            │     └────────── d1r2 ───── d1r2c1
+#            └── d2 ─────────── d2r1 ───── d2r1c1
+
+prefix: authz
+email_template: edoardo.spadoni+authz-{key}@nethesis.it
+
+orgs:
+  # Branch 1 — the branch the matrix personas live in.
+  - key: d1
+    type: distributor
+    created_by: owner
+  - key: d1r1
+    type: reseller
+    created_by: d1-admin
+    note: reseller under d1; hosts the reseller-level matrix personas
+  - key: d1r1c1
+    type: customer
+    created_by: d1r1-admin
+    note: customer under d1r1; hosts the customer-level matrix personas
+  - key: d1r1c2
+    type: customer
+    created_by: d1r1-admin
+    note: sibling customer under the same reseller
+  - key: d1r2
+    type: reseller
+    created_by: d1-admin
+    note: sibling reseller under the same distributor — the isolation target
+  - key: d1r2c1
+    type: customer
+    created_by: d1r2-admin
+
+  # Branch 2 — a completely separate distributor subtree.
+  - key: d2
+    type: distributor
+    created_by: owner
+  - key: d2r1
+    type: reseller
+    created_by: d2-admin
+  - key: d2r1c1
+    type: customer
+    created_by: d2r1-admin
+
+users:
+  # ---------------------------------------------------------------------------
+  # Matrix personas: one per (organization role × technical role).
+  #
+  # The Owner organization contributes only one persona — the bootstrap owner
+  # itself, which is Super Admin. POST /api/users refuses any other:
+  #   "cannot create users in the Owner organization - this is managed by the
+  #    system"
+  # and `sync init` seeds exactly one owner user. So owner/Admin, owner/Support,
+  # owner/Backoffice and owner/Reader cannot be provisioned through any supported
+  # flow and are out of this suite's reach. Note what that implies: since
+  # effective = org_permissions ∪ user_permissions, ANY user of the Owner
+  # organization would hold destroy:distributors|resellers|customers regardless
+  # of its technical role. If such accounts exist in production they were created
+  # out of band, and nothing here covers them.
+  # ---------------------------------------------------------------------------
+  - { key: d1-super, org: d1, role: Super Admin, matrix: true }
+  - { key: d1-admin, org: d1, role: Admin, matrix: true }
+  - { key: d1-support, org: d1, role: Support, matrix: true }
+  - { key: d1-backoffice, org: d1, role: Backoffice, matrix: true }
+  - { key: d1-reader, org: d1, role: Reader, matrix: true }
+
+  - { key: d1r1-super, org: d1r1, role: Super Admin, matrix: true }
+  - { key: d1r1-admin, org: d1r1, role: Admin, matrix: true }
+  - { key: d1r1-support, org: d1r1, role: Support, matrix: true }
+  - { key: d1r1-backoffice, org: d1r1, role: Backoffice, matrix: true }
+  - { key: d1r1-reader, org: d1r1, role: Reader, matrix: true }
+
+  - { key: d1r1c1-super, org: d1r1c1, role: Super Admin, matrix: true }
+  - { key: d1r1c1-admin, org: d1r1c1, role: Admin, matrix: true }
+  - { key: d1r1c1-support, org: d1r1c1, role: Support, matrix: true }
+  - { key: d1r1c1-backoffice, org: d1r1c1, role: Backoffice, matrix: true }
+  - { key: d1r1c1-reader, org: d1r1c1, role: Reader, matrix: true }
+
+  # ---------------------------------------------------------------------------
+  # Helper personas: only used as actors or targets by the scope layer.
+  # ---------------------------------------------------------------------------
+  - { key: d1r1c2-admin, org: d1r1c2, role: Admin, note: sibling customer, same reseller }
+  - { key: d1r2-admin, org: d1r2, role: Admin, note: sibling reseller, same distributor }
+  - { key: d1r2-support, org: d1r2, role: Support }
+  - { key: d1r2c1-admin, org: d1r2c1, role: Admin }
+  - { key: d2-admin, org: d2, role: Admin, note: other distributor branch }
+  - { key: d2r1-admin, org: d2r1, role: Admin }
+  - { key: d2r1c1-admin, org: d2r1c1, role: Admin }
+
+systems:
+  # One system per customer org, so every "can X see Y's system" question has a
+  # concrete target. Registered ones can also push through collect.
+  - { key: s-d1r1c1, org: d1r1c1, register: true }
+  - { key: s-d1r1c2, org: d1r1c2, register: true }
+  - { key: s-d1r2c1, org: d1r2c1, register: true, note: sibling reseller's system }
+  - { key: s-d2r1c1, org: d2r1c1, register: true, note: other branch's system }

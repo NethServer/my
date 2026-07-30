@@ -612,17 +612,17 @@ func (c *Client) RegisterSystem(secret string) (string, error) {
 // CreateSystem creates a system under an org. Returns the system_key and the
 // full system_secret token (my_<public>.<secret>), the latter only ever
 // returned by the API at creation time.
-func (c *Client) CreateSystem(name, orgID string) (key, secret string, err error) {
+func (c *Client) CreateSystem(name, orgID string) (id, key, secret string, err error) {
 	payload := map[string]interface{}{
 		"name":            name,
 		"organization_id": orgID,
 	}
 	r, err := c.api("POST", "/systems", payload)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	if r.status >= 400 {
-		return "", "", fmt.Errorf("create system failed (%d): %s", r.status, r.body)
+		return "", "", "", fmt.Errorf("create system failed (%d): %s", r.status, r.body)
 	}
 	var resp struct {
 		Data struct {
@@ -632,12 +632,24 @@ func (c *Client) CreateSystem(name, orgID string) (key, secret string, err error
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(r.body, &resp); err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	if resp.Data.SystemKey == "" {
-		return "", "", fmt.Errorf("no system_key in response: %s", r.body)
+		return "", "", "", fmt.Errorf("no system_key in response: %s", r.body)
 	}
-	return resp.Data.SystemKey, resp.Data.SystemSecret, nil
+	return resp.Data.ID, resp.Data.SystemKey, resp.Data.SystemSecret, nil
+}
+
+// DeleteSystem soft-deletes a system by its internal UUID.
+func (c *Client) DeleteSystem(systemID string) error {
+	r, err := c.api("DELETE", "/systems/"+systemID, nil)
+	if err != nil {
+		return err
+	}
+	if r.status >= 400 {
+		return fmt.Errorf("delete system failed (%d): %s", r.status, r.body)
+	}
+	return nil
 }
 
 func (c *Client) ResetPassword(userID, password string) error {
@@ -726,6 +738,33 @@ func (c *Client) GetRoles() (map[string]string, error) {
 	out := map[string]string{}
 	for _, role := range resp.Data.Roles {
 		out[role.Name] = role.ID
+	}
+	return out, nil
+}
+
+// GetUserRoles returns the technical role names assigned to a user. The list
+// endpoint does not hydrate roles, so this reads the single-user endpoint.
+func (c *Client) GetUserRoles(logtoID string) ([]string, error) {
+	r, err := c.api("GET", "/users/"+logtoID, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.status >= 400 {
+		return nil, fmt.Errorf("get user %s failed (%d): %s", logtoID, r.status, r.body)
+	}
+	var resp struct {
+		Data struct {
+			Roles []struct {
+				Name string `json:"name"`
+			} `json:"roles"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(r.body, &resp); err != nil {
+		return nil, fmt.Errorf("parse user %s: %w", logtoID, err)
+	}
+	out := make([]string, 0, len(resp.Data.Roles))
+	for _, role := range resp.Data.Roles {
+		out = append(out, role.Name)
 	}
 	return out, nil
 }

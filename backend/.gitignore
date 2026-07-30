@@ -1,3 +1,5 @@
 token-*
 .api-registry.json
 /apitool
+# Output of `apitool authz run`: fixture ids and response snippets, per-run.
+authz-report.json
