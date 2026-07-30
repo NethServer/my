@@ -27,6 +27,8 @@ export const useCustomers = defineQuery(() => {
     { id: 'suspended', label: 'suspended' },
   ])
   const createdByFilter = ref<NeDropdownFilterV2Option[]>([])
+  // parent company: the reseller or distributor the customer belongs to
+  const organizationFilter = ref<NeDropdownFilterV2Option[]>([])
   const sortBy = ref<keyof Customer>('name')
   const sortDescending = ref(false)
 
@@ -39,6 +41,7 @@ export const useCustomers = defineQuery(() => {
         textFilter: debouncedTextFilter.value,
         statusFilter: statusFilter.value.map((o) => o.id),
         createdByFilter: createdByFilter.value.map((o) => o.id),
+        organizationFilter: organizationFilter.value.map((o) => o.id),
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -51,6 +54,7 @@ export const useCustomers = defineQuery(() => {
         debouncedTextFilter.value,
         statusFilter.value.map((o) => o.id) as CustomerStatus[],
         createdByFilter.value.map((o) => o.id),
+        organizationFilter.value.map((o) => o.id),
         sortBy.value,
         sortDescending.value,
       ),
@@ -63,7 +67,8 @@ export const useCustomers = defineQuery(() => {
       statusFilter.value.some((o) => o.id === 'enabled') &&
       statusFilter.value.some((o) => o.id === 'suspended') &&
       !statusFilter.value.some((o) => o.id === 'deleted') &&
-      createdByFilter.value.length === 0
+      createdByFilter.value.length === 0 &&
+      organizationFilter.value.length === 0
     )
   })
 
@@ -116,9 +121,19 @@ export const useCustomers = defineQuery(() => {
     { deep: true },
   )
 
+  // reset to first page when parent company filter changes
+  watch(
+    () => organizationFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+    { deep: true },
+  )
+
   const resetFilters = () => {
     textFilter.value = ''
     createdByFilter.value = []
+    organizationFilter.value = []
     resetStatusFilter()
   }
 
@@ -139,6 +154,7 @@ export const useCustomers = defineQuery(() => {
     debouncedTextFilter,
     statusFilter,
     createdByFilter,
+    organizationFilter,
     sortBy,
     sortDescending,
     areDefaultFiltersApplied,

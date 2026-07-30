@@ -54,6 +54,7 @@ import { useCustomers } from '@/queries/organizations/customers'
 import { canManageCustomers, canDestroyCustomers } from '@/lib/permissions'
 import router from '@/router'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
+import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 
 const { isShownCreateCustomerDrawer = false } = defineProps<{
   isShownCreateCustomerDrawer: boolean
@@ -70,6 +71,7 @@ const {
   textFilter,
   statusFilter,
   createdByFilter,
+  organizationFilter,
   sortBy,
   sortDescending,
   areDefaultFiltersApplied,
@@ -317,6 +319,12 @@ const goToCustomerDetails = (customer: Customer) => {
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             :custom-action-label="t('ne_dropdown_filter.reset_selection')"
             @custom-action="resetStatusFilter"
+          />
+          <!-- parent company filter: the reseller the customer belongs to -->
+          <OrganizationDropdownFilter
+            v-model="organizationFilter"
+            organization-type="reseller"
+            :label="t('organizations.parent_company')"
           />
           <!-- created by filter -->
           <NeDropdownFilterV2

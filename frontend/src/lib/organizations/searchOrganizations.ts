@@ -23,7 +23,13 @@ interface OrganizationsSearchResponse {
   }
 }
 
-export const searchOrganizations = (search: string) => {
+/**
+ * @param type restricts the results to a single company type (distributor,
+ *   reseller, customer). Scoping server-side keeps the paginated option list
+ *   meaningful: filtering by type on the client would drop entries from an
+ *   already-truncated page.
+ */
+export const searchOrganizations = (search: string, type?: string) => {
   const loginStore = useLoginStore()
   const params = new URLSearchParams({
     page: '1',
@@ -32,6 +38,10 @@ export const searchOrganizations = (search: string) => {
 
   if (search.trim()) {
     params.append('search', search)
+  }
+
+  if (type) {
+    params.append('type', type)
   }
 
   return axios

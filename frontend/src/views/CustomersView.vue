@@ -29,9 +29,31 @@ import {
   type CustomerStatus,
 } from '@/lib/organizations/customers'
 import { downloadFile } from '@/lib/common'
+import { useRoute, useRouter } from 'vue-router'
 
 const { t } = useI18n()
-const { state, debouncedTextFilter, statusFilter, sortBy, sortDescending } = useCustomers()
+const route = useRoute()
+const router = useRouter()
+const {
+  state,
+  debouncedTextFilter,
+  statusFilter,
+  organizationFilter,
+  sortBy,
+  sortDescending,
+  resetFilters,
+} = useCustomers()
+
+// apply the parent company filter requested via query params, then clean the URL
+const { organization_id: orgId, organization_name: orgName } = route.query
+
+if (typeof orgId === 'string' && orgId && typeof orgName === 'string' && orgName) {
+  resetFilters()
+  // the filter renders the label carried by the selection: pass the organization
+  // name, as it may not be among the options the dropdown has loaded
+  organizationFilter.value = [{ id: orgId, label: orgName }]
+  router.replace({ query: {} })
+}
 
 const isShownCreateCustomerDrawer = ref(false)
 const isShownImportCustomersModal = ref(false)

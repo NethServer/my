@@ -57,6 +57,7 @@ import { useResellers } from '@/queries/organizations/resellers'
 import { canManageResellers, canDestroyResellers, canPromoteOrganizations } from '@/lib/permissions'
 import router from '@/router'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
+import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 
 const { isShownCreateResellerDrawer = false } = defineProps<{
   isShownCreateResellerDrawer: boolean
@@ -73,6 +74,7 @@ const {
   textFilter,
   statusFilter,
   createdByFilter,
+  organizationFilter,
   sortBy,
   sortDescending,
   areDefaultFiltersApplied,
@@ -339,6 +341,12 @@ const goToResellerDetails = (reseller: Reseller) => {
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             @custom-action="resetStatusFilter"
           />
+          <!-- parent company filter: the distributor the reseller belongs to -->
+          <OrganizationDropdownFilter
+            v-model="organizationFilter"
+            organization-type="distributor"
+            :label="t('organizations.parent_company')"
+          />
           <!-- created by filter -->
           <NeDropdownFilterV2
             v-model="createdByFilter"
@@ -443,7 +451,27 @@ const goToResellerDetails = (reseller: Reseller) => {
             {{ item.custom_data?.vat || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('customers.title')">
-            <div class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
+            <!-- links to the Customers page filtered by this reseller as parent company -->
+            <router-link
+              v-if="!item.deleted_at && item.customers_count > 0"
+              :to="{
+                name: 'customers',
+                query: {
+                  organization_id: item.logto_id,
+                  organization_name: item.name,
+                },
+              }"
+              class="flex items-center gap-2 hover:underline"
+              :aria-label="$t('resellers.show_reseller_customers', { name: item.name })"
+            >
+              <FontAwesomeIcon
+                :icon="faBuilding"
+                class="size-4 text-gray-700 dark:text-gray-400"
+                aria-hidden="true"
+              />
+              {{ item.customers_count }}
+            </router-link>
+            <div v-else class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
               <FontAwesomeIcon
                 :icon="faBuilding"
                 class="size-4 text-gray-700 dark:text-gray-400"

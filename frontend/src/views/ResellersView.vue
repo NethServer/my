@@ -29,9 +29,31 @@ import {
   type ResellerStatus,
 } from '@/lib/organizations/resellers'
 import { downloadFile } from '@/lib/common'
+import { useRoute, useRouter } from 'vue-router'
 
 const { t } = useI18n()
-const { state, debouncedTextFilter, statusFilter, sortBy, sortDescending } = useResellers()
+const route = useRoute()
+const router = useRouter()
+const {
+  state,
+  debouncedTextFilter,
+  statusFilter,
+  organizationFilter,
+  sortBy,
+  sortDescending,
+  resetFilters,
+} = useResellers()
+
+// apply the parent company filter requested via query params, then clean the URL
+const { organization_id: orgId, organization_name: orgName } = route.query
+
+if (typeof orgId === 'string' && orgId && typeof orgName === 'string' && orgName) {
+  resetFilters()
+  // the filter renders the label carried by the selection: pass the organization
+  // name, as it may not be among the options the dropdown has loaded
+  organizationFilter.value = [{ id: orgId, label: orgName }]
+  router.replace({ query: {} })
+}
 
 const isShownCreateResellerDrawer = ref(false)
 const isShownImportResellersModal = ref(false)

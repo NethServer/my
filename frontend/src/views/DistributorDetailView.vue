@@ -24,6 +24,23 @@ const { state: distributorStats } = useDistributorStats()
 const { state: distributorSystems } = useDistributorSystems()
 const { state: applicationsSummary } = useApplicationsSummaryByCompany()
 
+// link to the Resellers page filtered by this distributor as parent company.
+// No include_hierarchy: the parent company filter matches exactly, so only the
+// resellers this distributor owns are listed.
+const resellersRoute = computed(() => {
+  if (!distributorDetail.value.data || !distributorStats.value.data?.resellers_count) {
+    return undefined
+  }
+
+  return {
+    name: 'resellers',
+    query: {
+      organization_id: distributorDetail.value.data.logto_id,
+      organization_name: distributorDetail.value.data.name,
+    },
+  }
+})
+
 // link to the Systems page filtered by the whole distributor hierarchy
 const hierarchySystemsRoute = computed(() => {
   if (!distributorDetail.value.data || !distributorStats.value.data?.systems_hierarchy_count) {
@@ -72,6 +89,7 @@ const hierarchySystemsRoute = computed(() => {
         :counter="distributorStats.data?.resellers_count ?? 0"
         :icon="faCity"
         :loading="distributorStats.status === 'pending'"
+        :to="resellersRoute"
       />
       <!-- total systems -->
       <CounterCard

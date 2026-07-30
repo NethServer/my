@@ -123,7 +123,8 @@
     "total_customers": "Total customers",
     "import_distributors": "Import distributors",
     "distributors_imported": "Distributors imported",
-    "show_distributor_systems": "Show systems of {name} and its hierarchy"
+    "show_distributor_systems": "Show systems of {name} and its hierarchy",
+    "show_distributor_resellers": "Show resellers of {name}"
   },
   "distributor_detail": {
     "title": "Distributor detail",
@@ -162,6 +163,7 @@
     "import_resellers": "Import resellers",
     "resellers_imported": "Resellers imported",
     "show_reseller_systems": "Show systems of {name} and its hierarchy",
+    "show_reseller_customers": "Show customers of {name}",
     "reseller_promoted": "Reseller promoted",
     "reseller_promoted_successfully": "{name} is now a distributor",
     "promote_reseller": "Promote to distributor",
@@ -216,6 +218,7 @@
     "custom_data_email_invalid": "Invalid email address",
     "custom_data_phone_invalid_format": "Invalid phone number",
     "organization": "Company",
+    "parent_company": "Parent company",
     "no_company": "No company",
     "choose_organization": "Choose company",
     "no_organizations": "No companies",

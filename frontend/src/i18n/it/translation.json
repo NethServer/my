@@ -122,7 +122,8 @@
     "total_customers": "Clienti totali",
     "import_distributors": "Importa distributori",
     "distributors_imported": "Distributori importati",
-    "show_distributor_systems": "Mostra i sistemi di {name} e della sua gerarchia"
+    "show_distributor_systems": "Mostra i sistemi di {name} e della sua gerarchia",
+    "show_distributor_resellers": "Mostra i rivenditori di {name}"
   },
   "distributor_detail": {
     "title": "Dettaglio distributore",
@@ -160,7 +161,8 @@
     "export_resellers_to_csv": "Esporta rivenditori in CSV",
     "import_resellers": "Importa rivenditori",
     "resellers_imported": "Rivenditori importati",
-    "show_reseller_systems": "Mostra i sistemi di {name} e della sua gerarchia"
+    "show_reseller_systems": "Mostra i sistemi di {name} e della sua gerarchia",
+    "show_reseller_customers": "Mostra i clienti di {name}"
   },
   "customers": {
     "title": "Clienti",
@@ -207,6 +209,7 @@
     "custom_data_email_invalid": "Indirizzo email non valido",
     "custom_data_phone_invalid_format": "Numero di telefono non valido",
     "organization": "Azienda",
+    "parent_company": "Azienda di appartenenza",
     "choose_organization": "Scegli azienda",
     "no_organizations": "Nessuna azienda",
     "email": "Email",
