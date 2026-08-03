@@ -2,6 +2,7 @@
   "common": {
     "access_denied": "Accesso negato",
     "this_section_is_accessible_only_by_owner": "Questa sezione è accessibile solo dall'organizzazione owner.",
+    "breadcrumb": "Breadcrumb",
     "save": "Salva",
     "cancel": "Annulla",
     "search": "Cerca",
@@ -47,6 +48,7 @@
     "suspend": "Sospendi",
     "suspended": "Sospeso",
     "reactivate": "Riattiva",
+    "promote": "Promuovi",
     "notes": "Note",
     "show_notes": "Mostra note",
     "plus_n_more": "+{count} altro | +{count} altri",
@@ -123,7 +125,8 @@
     "import_distributors": "Importa distributori",
     "distributors_imported": "Distributori importati",
     "show_distributor_systems": "Mostra i sistemi di {name} e della sua gerarchia",
-    "show_distributor_resellers": "Mostra i rivenditori di {name}"
+    "show_distributor_resellers": "Mostra i rivenditori di {name}",
+    "show_distributor_customers": "Mostra i clienti di {name} e della sua gerarchia"
   },
   "distributor_detail": {
     "title": "Dettaglio distributore",
@@ -162,7 +165,12 @@
     "import_resellers": "Importa rivenditori",
     "resellers_imported": "Rivenditori importati",
     "show_reseller_systems": "Mostra i sistemi di {name} e della sua gerarchia",
-    "show_reseller_customers": "Mostra i clienti di {name}"
+    "show_reseller_customers": "Mostra i clienti di {name}",
+    "reseller_promoted": "Rivenditore promosso",
+    "reseller_promoted_successfully": "{name} è ora un distributore",
+    "promote_reseller": "Promuovi a distributore",
+    "cannot_promote_reseller": "Impossibile promuovere il rivenditore",
+    "promote_reseller_confirmation": "Il rivenditore {name} verrà promosso a distributore. Manterrà i propri clienti, utenti e sistemi, ma il suo distributore attuale perderà l'accesso ad essi."
   },
   "customers": {
     "title": "Clienti",
@@ -188,7 +196,10 @@
     "export_customers_to_pdf": "Esporta clienti in PDF",
     "export_customers_to_csv": "Esporta clienti in CSV",
     "import_customers": "Importa clienti",
-    "customers_imported": "Clienti importati"
+    "customers_imported": "Clienti importati",
+    "hierarchy_filter_title": "Filtro per gerarchia aziendale",
+    "hierarchy_filter_description": "Sono mostrati i clienti di {name} e di tutte le aziende della sua gerarchia. Modificare il filtro Azienda di appartenenza rimuoverà il filtro per gerarchia.",
+    "hierarchy_filter_exact": "Filtra solo per questa azienda"
   },
   "organizations": {
     "name": "Nome azienda",
@@ -232,6 +243,9 @@
     "organization_restored": "Azienda ripristinata",
     "organization_restored_successfully": "{name} ripristinata con successo",
     "restore_organization_confirmation": "Sei sicuro di voler ripristinare {name}?",
+    "promote_organization_is_suspended": "Questa azienda è sospesa. Riattivala prima di promuoverla.",
+    "promote_organization_not_synced": "Questa azienda non è ancora sincronizzata con l'identity provider. Riprova più tardi.",
+    "promote_owner_organization_not_found": "Non è stato possibile determinare l'azienda owner, quindi l'azienda promossa non può essere collegata ad essa.",
     "promoted_to_distributor": "Promosso a distributore",
     "promoted_by_name": "Promosso da {name}",
     "no_company": "Nessuna azienda",
@@ -726,7 +740,10 @@
     "cannot_set_notes": "Impossibile impostare le note dell'applicazione",
     "total_applications": "Applicazioni totali",
     "organization_applications": "Applicazioni dell'azienda",
-    "system_applications": "Applicazioni del sistema"
+    "system_applications": "Applicazioni del sistema",
+    "hierarchy_filter_title": "Filtro per gerarchia aziendale",
+    "hierarchy_filter_description": "Sono mostrate le applicazioni di {name} e di tutte le aziende della sua gerarchia. Modificare il filtro Azienda rimuoverà il filtro per gerarchia.",
+    "hierarchy_filter_exact": "Filtra solo per questa azienda"
   },
   "forbidden": {
     "title": "Pagina riservata",
