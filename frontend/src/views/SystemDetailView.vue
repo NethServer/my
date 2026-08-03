@@ -4,15 +4,11 @@
 -->
 
 <script setup lang="ts">
-import {
-  NeButton,
-  NeHeading,
-  NeInlineNotification,
-  NeSkeleton,
-  NeTabs,
-} from '@nethesis/vue-components'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faArrowLeft /*, faArrowUpRightFromSquare*/ } from '@fortawesome/free-solid-svg-icons'
+import { NeHeading, NeInlineNotification, NeSkeleton, NeTabs } from '@nethesis/vue-components'
+/*//// import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { faArrowUpRightFromSquare } from '@fortawesome/free-solid-svg-icons' */
+import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
+import { canReadSystems } from '@/lib/permissions'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { useTabs } from '@/composables/useTabs'
 import { useI18n } from 'vue-i18n'
@@ -50,14 +46,12 @@ const { tabs, selectedTab } = useTabs([
 
 <template>
   <div>
-    <router-link to="/systems">
-      <NeButton kind="tertiary" size="sm" class="mb-4 -ml-2">
-        <template #prefix>
-          <FontAwesomeIcon :icon="faArrowLeft" />
-        </template>
-        {{ $t('systems.title') }}
-      </NeButton>
-    </router-link>
+    <PageBreadcrumb
+      :section="$t('systems.title')"
+      :to="canReadSystems() ? '/systems' : undefined"
+      :current="systemDetail.data?.name"
+      :loading="systemDetail.status === 'pending'"
+    />
     <!-- get system detail error notification -->
     <NeInlineNotification
       v-if="systemDetail.status === 'error'"

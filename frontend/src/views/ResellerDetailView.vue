@@ -4,9 +4,9 @@
 -->
 
 <script setup lang="ts">
-import { NeButton, NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faArrowLeft, faServer, faBuilding } from '@fortawesome/free-solid-svg-icons'
+import { NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
+import { faServer, faBuilding } from '@fortawesome/free-solid-svg-icons'
+import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import { useResellerDetail } from '@/queries/organizations/resellerDetail'
 import ResellerInfoCard from '@/components/resellers/ResellerInfoCard.vue'
 import CounterCard from '@/components/common/CounterCard.vue'
@@ -60,14 +60,12 @@ const hierarchySystemsRoute = computed(() => {
 
 <template>
   <div>
-    <router-link v-if="canReadResellers()" to="/resellers">
-      <NeButton kind="tertiary" size="sm" class="mb-4 -ml-2">
-        <template #prefix>
-          <FontAwesomeIcon :icon="faArrowLeft" />
-        </template>
-        {{ $t('resellers.title') }}
-      </NeButton>
-    </router-link>
+    <PageBreadcrumb
+      :section="$t('resellers.title')"
+      :to="canReadResellers() ? '/resellers' : undefined"
+      :current="resellerDetail.data?.name"
+      :loading="resellerDetail.status === 'pending'"
+    />
     <!-- get reseller detail error notification -->
     <NeInlineNotification
       v-if="resellerDetail.status === 'error'"

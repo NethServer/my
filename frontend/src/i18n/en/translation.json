@@ -2,6 +2,7 @@
   "common": {
     "access_denied": "Access denied",
     "this_section_is_accessible_only_by_owner": "This section is accessible only by the owner organization.",
+    "breadcrumb": "Breadcrumb",
     "save": "Save",
     "cancel": "Cancel",
     "search": "Search",

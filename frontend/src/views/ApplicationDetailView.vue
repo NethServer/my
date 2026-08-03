@@ -4,13 +4,13 @@
 -->
 
 <script setup lang="ts">
-import { NeButton, NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faArrowLeft } from '@fortawesome/free-solid-svg-icons'
+import { NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
+import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import { useApplicationDetail } from '@/queries/applications/applicationDetail'
 import ApplicationInfoCard from '@/components/applications/ApplicationInfoCard.vue'
 import ApplicationSystemCard from '@/components/applications/ApplicationSystemCard.vue'
 import { getDisplayName } from '@/lib/applications/applications'
+import { canReadApplications } from '@/lib/permissions'
 import { computed } from 'vue'
 
 const { state: applicationDetail } = useApplicationDetail()
@@ -25,14 +25,12 @@ const applicationName = computed(() => {
 
 <template>
   <div>
-    <router-link to="/applications">
-      <NeButton kind="tertiary" size="sm" class="mb-4 -ml-2">
-        <template #prefix>
-          <FontAwesomeIcon :icon="faArrowLeft" />
-        </template>
-        {{ $t('applications.title') }}
-      </NeButton>
-    </router-link>
+    <PageBreadcrumb
+      :section="$t('applications.title')"
+      :to="canReadApplications() ? '/applications' : undefined"
+      :current="applicationName"
+      :loading="applicationDetail.status === 'pending'"
+    />
     <NeInlineNotification
       v-if="applicationDetail.status === 'error'"
       kind="error"

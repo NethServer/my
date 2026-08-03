@@ -4,9 +4,9 @@
 -->
 
 <script setup lang="ts">
-import { NeButton, NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faArrowLeft, faCity, faServer } from '@fortawesome/free-solid-svg-icons'
+import { NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
+import { faCity, faServer } from '@fortawesome/free-solid-svg-icons'
+import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import { useDistributorDetail } from '@/queries/organizations/distributorDetail'
 import DistributorInfoCard from '@/components/distributors/DistributorInfoCard.vue'
 import CounterCard from '@/components/common/CounterCard.vue'
@@ -60,14 +60,12 @@ const hierarchySystemsRoute = computed(() => {
 
 <template>
   <div>
-    <router-link v-if="canReadDistributors()" to="/distributors">
-      <NeButton kind="tertiary" size="sm" class="mb-4 -ml-2">
-        <template #prefix>
-          <FontAwesomeIcon :icon="faArrowLeft" />
-        </template>
-        {{ $t('distributors.title') }}
-      </NeButton>
-    </router-link>
+    <PageBreadcrumb
+      :section="$t('distributors.title')"
+      :to="canReadDistributors() ? '/distributors' : undefined"
+      :current="distributorDetail.data?.name"
+      :loading="distributorDetail.status === 'pending'"
+    />
     <!-- get distributor detail error notification -->
     <NeInlineNotification
       v-if="distributorDetail.status === 'error'"
