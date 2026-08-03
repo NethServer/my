@@ -4,11 +4,10 @@
 -->
 
 <script setup lang="ts">
-import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 import { useImpersonationConsent } from '@/queries/impersonationConsent'
 import { faUserSecret } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { NeBadgeV2, NeLink, NeTooltip } from '@nethesis/vue-components'
+import { NeBadgeV2, NeLink, NeTooltip, formatDateTimeNoSeconds } from '@nethesis/vue-components'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import router from '@/router'

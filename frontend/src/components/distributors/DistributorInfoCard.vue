@@ -12,6 +12,7 @@ import {
   NeSkeleton,
   NeTooltip,
   type NeDropdownItem,
+  formatDateTimeNoSeconds,
 } from '@nethesis/vue-components'
 import { useDistributorDetail } from '@/queries/organizations/distributorDetail'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -34,7 +35,6 @@ import ReactivateDistributorModal from './ReactivateDistributorModal.vue'
 import { getLanguageLabel } from '@/lib/locale'
 import { formatPhoneForDisplay } from '@/lib/phone'
 import UserAvatar from '../users/UserAvatar.vue'
-import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 
 const { t, locale } = useI18n()
 const { state: distributorDetail, asyncStatus } = useDistributorDetail()

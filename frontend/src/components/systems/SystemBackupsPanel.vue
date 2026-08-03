@@ -18,6 +18,7 @@ import {
   NeTableHeadCell,
   NeTableRow,
   byteFormat1024,
+  formatDateTimeNoSeconds,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -37,7 +38,6 @@ import {
   SYSTEM_BACKUPS_KEY,
   type BackupMetadata,
 } from '@/lib/backups'
-import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 import { useSystemBackups } from '@/queries/systems/backups'
 import { useNotificationsStore } from '@/stores/notifications'
 import DeleteObjectModal from '@/components/common/DeleteObjectModal.vue'

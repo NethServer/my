@@ -9,6 +9,8 @@ import {
   NeInlineNotification,
   NeSkeleton,
   NeTooltip,
+  formatDateTimeNoSeconds,
+  formatRelativeTime,
 } from '@nethesis/vue-components'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -16,7 +18,6 @@ import { useAlertActivity } from '@/queries/alerts/alertActivity'
 import type { Alert } from '@/lib/alerts'
 import UserAvatar from '@/components/users/UserAvatar.vue'
 import AlertCommentText from '@/components/alerts/AlertCommentText.vue'
-import { formatDateTimeNoSeconds, formatRelativeTime } from '@/lib/dateTime'
 
 const props = defineProps<{
   alert: Alert | undefined
@@ -107,7 +108,7 @@ function getEventText(details: Record<string, unknown>): string | null {
         <NeTooltip placement="top" trigger-event="mouseenter focus">
           <template #trigger>
             <span class="text-tertiary-neutral w-fit cursor-default">
-              {{ formatRelativeTime(event.created_at, locale) }}
+              {{ formatRelativeTime(new Date(event.created_at), locale) }}
             </span>
           </template>
           <template #content>

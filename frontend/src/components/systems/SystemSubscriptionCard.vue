@@ -11,10 +11,10 @@ import {
   NeInlineNotification,
   NeSkeleton,
   type NeDropdownItem,
+  formatDateTimeNoSeconds,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faAward, faKey } from '@fortawesome/free-solid-svg-icons'
-import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 import { canManageSystems } from '@/lib/permissions'
 import { useI18n } from 'vue-i18n'
 import { useSystemDetail } from '@/queries/systems/systemDetail'

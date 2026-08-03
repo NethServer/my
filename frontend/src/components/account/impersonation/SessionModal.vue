@@ -16,12 +16,14 @@ import {
   NeTableHeadCell,
   NeTableRow,
   NeTooltip,
+  formatDateTime,
+  formatDateTimeNoSeconds,
 } from '@nethesis/vue-components'
 import {
   useImpersonationSessionAudit,
   useImpersonationSessionAuditStore,
 } from '@/queries/impersonationSessionAudit'
-import { formatDateTime, formatDateTimeNoSeconds, formatMinutes } from '@/lib/dateTime'
+import { formatMinutes } from '@/lib/dateTime'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { SESSION_AUDIT_TABLE_ID } from '@/lib/impersonationSessions'

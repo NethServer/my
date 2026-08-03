@@ -40,6 +40,7 @@ import {
   NeDropdownFilterV2,
   NeTooltip,
   type NeDropdownItem,
+  formatRelativeTime,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -66,7 +67,6 @@ import OrganizationDropdownFilter from '@/components/organizations/OrganizationD
 import { isUserCustomer } from '@/lib/organizations/organizations.ts'
 import OrganizationIconAndLink from '../organizations/OrganizationIconAndLink.vue'
 import SystemLogoAndLink from './SystemLogoAndLink.vue'
-import { formatRelativeTime } from '@/lib/dateTime'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -633,7 +633,9 @@ function onCloseSecretRegeneratedModal() {
                     <template v-else>
                       {{
                         $t('system_detail.last_heartbeat_time', {
-                          time: formatRelativeTime(item.last_heartbeat ?? '', locale),
+                          time: item.last_heartbeat
+                            ? formatRelativeTime(new Date(item.last_heartbeat), locale)
+                            : '-',
                         })
                       }}
                     </template>
