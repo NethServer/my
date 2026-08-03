@@ -168,7 +168,7 @@
     "reseller_promoted_successfully": "{name} is now a distributor",
     "promote_reseller": "Promote to distributor",
     "cannot_promote_reseller": "Cannot promote reseller",
-    "promote_reseller_confirmation": "Are you sure you want to promote {name} to distributor? It keeps its customers, users and systems, but the distributor that manages it today loses access to them. This action cannot be undone."
+    "promote_reseller_confirmation": "Reseller {name} will be promoted to distributor. It will keep its own customers, users, and systems, but its current distributor will lose access to them."
   },
   "customers": {
     "title": "Customers",
@@ -244,7 +244,9 @@
     "restore_organization_confirmation": "Are you sure you want to restore {name}?",
     "promote_organization_is_suspended": "This company is suspended. Reactivate it before promoting it.",
     "promote_organization_not_synced": "This company is not synchronised with the identity provider yet. Try again later.",
-    "promote_owner_organization_not_found": "The owner company could not be determined, so the promoted company cannot be attached to it."
+    "promote_owner_organization_not_found": "The owner company could not be determined, so the promoted company cannot be attached to it.",
+    "promoted_to_distributor": "Promoted to distributor",
+    "promoted_by_name": "Promoted by {name}"
   },
   "import": {
     "download_the_template": "Download the template",

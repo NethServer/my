@@ -232,6 +232,8 @@
     "organization_restored": "Azienda ripristinata",
     "organization_restored_successfully": "{name} ripristinata con successo",
     "restore_organization_confirmation": "Sei sicuro di voler ripristinare {name}?",
+    "promoted_to_distributor": "Promosso a distributore",
+    "promoted_by_name": "Promosso da {name}",
     "no_company": "Nessuna azienda",
     "distributors_lc": "distributore | distributori",
     "resellers_lc": "rivenditore | rivenditori",

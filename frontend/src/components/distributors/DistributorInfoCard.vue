@@ -10,6 +10,7 @@ import {
   NeHeading,
   NeLink,
   NeSkeleton,
+  NeTooltip,
   type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { useDistributorDetail } from '@/queries/organizations/distributorDetail'
@@ -32,8 +33,10 @@ import SuspendDistributorModal from './SuspendDistributorModal.vue'
 import ReactivateDistributorModal from './ReactivateDistributorModal.vue'
 import { getLanguageLabel } from '@/lib/locale'
 import { formatPhoneForDisplay } from '@/lib/phone'
+import UserAvatar from '../users/UserAvatar.vue'
+import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { state: distributorDetail, asyncStatus } = useDistributorDetail()
 const isNotesModalShown = ref(false)
 const isShownCreateOrEditDistributorDrawer = ref(false)
@@ -213,6 +216,40 @@ function getKebabMenuItems() {
                 ? getLanguageLabel(distributorDetail.data.custom_data.language, $i18n.locale)
                 : '-'
             }}
+          </template>
+        </DataItem>
+        <!-- promoted to distributor -->
+        <DataItem v-if="distributorDetail.data.promoted_from">
+          <template #label>
+            {{ $t('organizations.promoted_to_distributor') }}
+          </template>
+          <template #data>
+            <div class="flex items-center gap-2">
+              <NeTooltip
+                v-if="distributorDetail.data.promoted_from.by"
+                trigger-event="mouseenter focus"
+                placement="top"
+              >
+                <template #trigger>
+                  <UserAvatar
+                    size="xs"
+                    :is-owner="distributorDetail.data.promoted_from.by.username === 'owner'"
+                    :name="distributorDetail.data.promoted_from.by.name"
+                    :logto-id="distributorDetail.data.promoted_from.by.user_id"
+                  />
+                </template>
+                <template #content>
+                  {{
+                    $t('organizations.promoted_by_name', {
+                      name: distributorDetail.data.promoted_from.by.name,
+                    })
+                  }}
+                </template>
+              </NeTooltip>
+              {{
+                formatDateTimeNoSeconds(new Date(distributorDetail.data.promoted_from.at), locale)
+              }}
+            </div>
           </template>
         </DataItem>
         <!-- notes -->
