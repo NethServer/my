@@ -65,6 +65,7 @@ const goToSystems = () => {
     :icon="faServer"
     :loading="statsStatus === 'pending' || systemsStatus === 'pending'"
     :centeredCounter="!systemsCount"
+    @counter-click="goToSystems"
   >
     <div class="divide-y divide-gray-200 dark:divide-gray-700">
       <div

@@ -453,7 +453,7 @@ const goToResellerDetails = (reseller: Reseller) => {
           <NeTableCell :data-label="$t('customers.title')">
             <!-- links to the Customers page filtered by this reseller as parent company -->
             <router-link
-              v-if="!item.deleted_at && item.customers_count > 0"
+              v-if="!item.deleted_at"
               :to="{
                 name: 'customers',
                 query: {
@@ -471,7 +471,7 @@ const goToResellerDetails = (reseller: Reseller) => {
               />
               {{ item.customers_count }}
             </router-link>
-            <div v-else class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
+            <div v-else class="flex items-center gap-2 opacity-50">
               <FontAwesomeIcon
                 :icon="faBuilding"
                 class="size-4 text-gray-700 dark:text-gray-400"
@@ -482,7 +482,7 @@ const goToResellerDetails = (reseller: Reseller) => {
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.total_systems')">
             <router-link
-              v-if="!item.deleted_at && item.systems_count > 0"
+              v-if="!item.deleted_at"
               :to="{
                 name: 'systems',
                 query: {
@@ -501,7 +501,7 @@ const goToResellerDetails = (reseller: Reseller) => {
               />
               {{ item.systems_count }}
             </router-link>
-            <div v-else class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
+            <div v-else class="flex items-center gap-2 opacity-50">
               <FontAwesomeIcon
                 :icon="faServer"
                 class="size-4 text-gray-700 dark:text-gray-400"

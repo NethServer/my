@@ -72,6 +72,7 @@ const {
   statusFilter,
   createdByFilter,
   organizationFilter,
+  includeHierarchy,
   sortBy,
   sortDescending,
   areDefaultFiltersApplied,
@@ -291,6 +292,18 @@ const goToCustomerDetails = (customer: Customer) => {
       :description="state.error.message"
       class="mb-6"
     />
+    <!-- company hierarchy filter notification -->
+    <NeInlineNotification
+      v-if="includeHierarchy && organizationFilter.length === 1"
+      kind="info"
+      :title="$t('customers.hierarchy_filter_title')"
+      :description="
+        $t('customers.hierarchy_filter_description', { name: organizationFilter[0].label })
+      "
+      :secondary-button-label="$t('customers.hierarchy_filter_exact')"
+      class="mb-6"
+      @secondary-click="includeHierarchy = false"
+    />
     <!-- table toolbar -->
     <div class="mb-6 flex items-center gap-4">
       <div class="flex w-full items-end justify-between gap-4">
@@ -430,7 +443,7 @@ const goToCustomerDetails = (customer: Customer) => {
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.title')">
             <router-link
-              v-if="!item.deleted_at && item.systems_count > 0"
+              v-if="!item.deleted_at"
               :to="{
                 name: 'systems',
                 query: { organization_id: item.logto_id, organization_name: item.name },
@@ -445,7 +458,7 @@ const goToCustomerDetails = (customer: Customer) => {
               />
               {{ item.systems_count }}
             </router-link>
-            <div v-else class="flex items-center gap-2">
+            <div v-else class="flex items-center gap-2 opacity-50">
               <FontAwesomeIcon
                 :icon="faServer"
                 class="size-4 text-gray-700 dark:text-gray-400"

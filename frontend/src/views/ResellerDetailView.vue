@@ -28,7 +28,7 @@ const { state: applicationsSummary } = useApplicationsSummaryByCompany()
 // No include_hierarchy: the parent company filter matches exactly, so only the
 // customers this reseller owns are listed.
 const customersRoute = computed(() => {
-  if (!resellerDetail.value.data || !resellerStats.value.data?.customers_count) {
+  if (!resellerDetail.value.data) {
     return undefined
   }
 
@@ -43,12 +43,28 @@ const customersRoute = computed(() => {
 
 // link to the Systems page filtered by the whole reseller hierarchy
 const hierarchySystemsRoute = computed(() => {
-  if (!resellerDetail.value.data || !resellerStats.value.data?.systems_hierarchy_count) {
+  if (!resellerDetail.value.data) {
     return undefined
   }
 
   return {
     name: 'systems',
+    query: {
+      organization_id: resellerDetail.value.data.logto_id,
+      organization_name: resellerDetail.value.data.name,
+      include_hierarchy: 'true',
+    },
+  }
+})
+
+// link to the Applications page filtered by the whole reseller hierarchy
+const hierarchyApplicationsRoute = computed(() => {
+  if (!resellerDetail.value.data) {
+    return undefined
+  }
+
+  return {
+    name: 'applications',
     query: {
       organization_id: resellerDetail.value.data.logto_id,
       organization_name: resellerDetail.value.data.name,
@@ -103,6 +119,7 @@ const hierarchySystemsRoute = computed(() => {
         :counter="resellerStats.data?.applications_hierarchy_count ?? 0"
         :icon="faGridOne"
         :loading="resellerStats.status === 'pending'"
+        :to="hierarchyApplicationsRoute"
       />
       <!-- organization systems -->
       <OrganizationSystemsCard

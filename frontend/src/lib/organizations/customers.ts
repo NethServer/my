@@ -93,6 +93,7 @@ export const getQueryStringParams = (
   statusFilter: CustomerStatus[],
   createdByFilter: string[],
   organizationFilter: string[],
+  includeHierarchy: boolean,
   sortBy: string | null,
   sortDescending: boolean,
 ) => {
@@ -116,11 +117,16 @@ export const getQueryStringParams = (
   })
 
   // Parent company filter: matched exactly against the customer's owning
-  // organization. include_hierarchy is deliberately not sent, so selecting a
-  // reseller never pulls in the customers of its descendants.
+  // organization, so selecting a reseller in the dropdown never pulls in the
+  // customers of its descendants. include_hierarchy widens it to the whole
+  // subtree, and only the explicit hierarchy entry points set that flag.
   organizationFilter.forEach((organizationId) => {
     searchParams.append('organization_id', organizationId)
   })
+
+  if (includeHierarchy) {
+    searchParams.append('include_hierarchy', 'true')
+  }
 
   return searchParams.toString()
 }
@@ -132,6 +138,7 @@ export const getCustomers = (
   statusFilter: CustomerStatus[],
   createdByFilter: string[],
   organizationFilter: string[],
+  includeHierarchy: boolean,
   sortBy: string,
   sortDescending: boolean,
 ) => {
@@ -143,6 +150,7 @@ export const getCustomers = (
     statusFilter,
     createdByFilter,
     organizationFilter,
+    includeHierarchy,
     sortBy,
     sortDescending,
   )

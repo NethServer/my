@@ -83,6 +83,7 @@ export const getQueryStringParams = (
   versionFilter: string[],
   systemFilter: string[],
   organizationFilter: string[],
+  includeHierarchy: boolean,
   sortBy: string | null,
   sortDescending: boolean,
 ) => {
@@ -112,6 +113,10 @@ export const getQueryStringParams = (
   organizationFilter.forEach((orgId) => {
     searchParams.append('organization_id', orgId)
   })
+
+  if (includeHierarchy) {
+    searchParams.append('include_hierarchy', 'true')
+  }
   return searchParams.toString()
 }
 
@@ -147,6 +152,7 @@ export const getApplications = (
   versionFilter: string[],
   systemFilter: string[],
   organizationFilter: string[],
+  includeHierarchy: boolean,
   sortBy: string,
   sortDescending: boolean,
 ) => {
@@ -159,6 +165,7 @@ export const getApplications = (
     versionFilter,
     systemFilter,
     organizationFilter,
+    includeHierarchy,
     sortBy,
     sortDescending,
   )

@@ -41,17 +41,26 @@ const {
   organizationFilter,
   sortBy,
   sortDescending,
+  applyHierarchyFilter,
   resetFilters,
 } = useCustomers()
 
 // apply the parent company filter requested via query params, then clean the URL
-const { organization_id: orgId, organization_name: orgName } = route.query
+const {
+  organization_id: orgId,
+  organization_name: orgName,
+  include_hierarchy: includeHierarchyParam,
+} = route.query
 
 if (typeof orgId === 'string' && orgId && typeof orgName === 'string' && orgName) {
-  resetFilters()
-  // the filter renders the label carried by the selection: pass the organization
-  // name, as it may not be among the options the dropdown has loaded
-  organizationFilter.value = [{ id: orgId, label: orgName }]
+  if (includeHierarchyParam === 'true') {
+    applyHierarchyFilter({ id: orgId, label: orgName })
+  } else {
+    resetFilters()
+    // the filter renders the label carried by the selection: pass the organization
+    // name, as it may not be among the options the dropdown has loaded
+    organizationFilter.value = [{ id: orgId, label: orgName }]
+  }
   router.replace({ query: {} })
 }
 

@@ -431,7 +431,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
           <NeTableCell :data-label="$t('resellers.title')">
             <!-- links to the Resellers page filtered by this distributor as parent company -->
             <router-link
-              v-if="!item.deleted_at && item.resellers_count > 0"
+              v-if="!item.deleted_at"
               :to="{
                 name: 'resellers',
                 query: {
@@ -449,7 +449,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
               />
               {{ item.resellers_count }}
             </router-link>
-            <div v-else class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
+            <div v-else class="flex items-center gap-2 opacity-50">
               <FontAwesomeIcon
                 :icon="faCity"
                 class="size-4 text-gray-700 dark:text-gray-400"
@@ -459,7 +459,28 @@ const goToDistributorDetails = (distributor: Distributor) => {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('distributors.total_customers')">
-            <div class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
+            <!-- links to the Customers page filtered by the whole distributor hierarchy -->
+            <router-link
+              v-if="!item.deleted_at"
+              :to="{
+                name: 'customers',
+                query: {
+                  organization_id: item.logto_id,
+                  organization_name: item.name,
+                  include_hierarchy: 'true',
+                },
+              }"
+              class="flex items-center gap-2 hover:underline"
+              :aria-label="$t('distributors.show_distributor_customers', { name: item.name })"
+            >
+              <FontAwesomeIcon
+                :icon="faBuilding"
+                class="size-4 text-gray-700 dark:text-gray-400"
+                aria-hidden="true"
+              />
+              {{ item.customers_count }}
+            </router-link>
+            <div v-else class="flex items-center gap-2 opacity-50">
               <FontAwesomeIcon
                 :icon="faBuilding"
                 class="size-4 text-gray-700 dark:text-gray-400"
@@ -470,7 +491,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.total_systems')">
             <router-link
-              v-if="!item.deleted_at && item.systems_count > 0"
+              v-if="!item.deleted_at"
               :to="{
                 name: 'systems',
                 query: {
@@ -489,7 +510,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
               />
               {{ item.systems_count }}
             </router-link>
-            <div v-else class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
+            <div v-else class="flex items-center gap-2 opacity-50">
               <FontAwesomeIcon
                 :icon="faServer"
                 class="size-4 text-gray-700 dark:text-gray-400"

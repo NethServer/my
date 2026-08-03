@@ -125,7 +125,8 @@
     "import_distributors": "Import distributors",
     "distributors_imported": "Distributors imported",
     "show_distributor_systems": "Show systems of {name} and its hierarchy",
-    "show_distributor_resellers": "Show resellers of {name}"
+    "show_distributor_resellers": "Show resellers of {name}",
+    "show_distributor_customers": "Show customers of {name} and its hierarchy"
   },
   "distributor_detail": {
     "title": "Distributor detail",
@@ -195,7 +196,10 @@
     "export_customers_to_pdf": "Export customers to PDF",
     "export_customers_to_csv": "Export customers to CSV",
     "import_customers": "Import customers",
-    "customers_imported": "Customers imported"
+    "customers_imported": "Customers imported",
+    "hierarchy_filter_title": "Filtering by company hierarchy",
+    "hierarchy_filter_description": "Showing customers of {name} and of all companies in its hierarchy. Changing the Parent company filter will remove this hierarchy filtering.",
+    "hierarchy_filter_exact": "Filter by this company only"
   },
   "organizations": {
     "name": "Company name",
@@ -809,7 +813,10 @@
     "cannot_set_notes": "Cannot set application notes",
     "total_applications": "Total applications",
     "organization_applications": "Company applications",
-    "system_applications": "System applications"
+    "system_applications": "System applications",
+    "hierarchy_filter_title": "Filtering by company hierarchy",
+    "hierarchy_filter_description": "Showing applications of {name} and of all companies in its hierarchy. Changing the Company filter will remove this hierarchy filtering.",
+    "hierarchy_filter_exact": "Filter by this company only"
   },
   "forbidden": {
     "title": "Restricted page",

@@ -62,6 +62,7 @@ const {
   versionFilter,
   systemFilter,
   organizationFilter,
+  includeHierarchy,
   sortBy,
   sortDescending,
   clearFilters,
@@ -198,6 +199,18 @@ const goToApplicationDetails = (application: Application) => {
       :title="$t('applications.cannot_retrieve_applications')"
       :description="state.error.message"
       class="mb-6"
+    />
+    <!-- company hierarchy filter notification -->
+    <NeInlineNotification
+      v-if="includeHierarchy && organizationFilter.length === 1"
+      kind="info"
+      :title="$t('applications.hierarchy_filter_title')"
+      :description="
+        $t('applications.hierarchy_filter_description', { name: organizationFilter[0].label })
+      "
+      :secondary-button-label="$t('applications.hierarchy_filter_exact')"
+      class="mb-6"
+      @secondary-click="includeHierarchy = false"
     />
     <!-- empty state -->
     <NeEmptyState
