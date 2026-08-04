@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { NeSkeleton } from '@nethesis/vue-components'
+import { NeLink, NeSkeleton } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faAngleRight } from '@fortawesome/free-solid-svg-icons'
 import { RouterLink, type RouteLocationRaw } from 'vue-router'
@@ -30,10 +30,12 @@ const { t } = useI18n()
 
 <template>
   <nav :aria-label="t('common.breadcrumb')" class="mb-7">
-    <ol class="flex items-center gap-2 text-sm">
+    <ol class="flex items-center gap-2 text-xs">
       <li>
-        <RouterLink v-if="to" :to="to" class="hover:underline">
-          {{ section }}
+        <RouterLink v-if="to" v-slot="{ href, navigate }" :to="to" custom>
+          <NeLink :href="href" @click="navigate">
+            {{ section }}
+          </NeLink>
         </RouterLink>
         <span v-else>
           {{ section }}
