@@ -9,7 +9,10 @@ import {
   NeSideDrawer,
   NeTextInput,
   NeInlineNotification,
+  NePasswordRequirements,
   focusElement,
+  usePasswordRequirements,
+  type NePasswordRequirement,
 } from '@nethesis/vue-components'
 import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import * as v from 'valibot'
@@ -19,6 +22,12 @@ import { useI18n } from 'vue-i18n'
 import { getValidationIssues, isValidationError } from '../../lib/validation'
 import { useLoginStore } from '@/stores/login'
 import { ChangePasswordSchema, postChangePassword, type ChangePassword } from '@/lib/account'
+import {
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_MAX_LENGTH,
+  hasNoWeakPatterns,
+  hasSpecialCharacter,
+} from '@/lib/password'
 import type { AxiosError } from 'axios'
 import { useRoute } from 'vue-router'
 import router from '@/router'
@@ -74,6 +83,60 @@ const newPasswordRef = useTemplateRef<HTMLInputElement>('newPasswordRef')
 const confirmPassword = ref('')
 const confirmPasswordRef = useTemplateRef<HTMLInputElement>('confirmPasswordRef')
 const validationIssues = ref<Record<string, string[]>>({})
+// unmet requirements look pending while the user types, and failed after a submit attempt
+const showPasswordRequirementErrors = ref(false)
+
+// the requirements the backend checks, in the order the checklist shows them. The library ships no
+// i18n, so every label comes from our translations.
+const passwordRequirementDefinitions = computed<NePasswordRequirement[]>(() => [
+  {
+    key: 'minLength',
+    label: t('account.password_requirements.min_length', { minLength: PASSWORD_MIN_LENGTH }),
+    validate: (password) => password.length >= PASSWORD_MIN_LENGTH,
+  },
+  {
+    key: 'uppercase',
+    label: t('account.password_requirements.uppercase'),
+    validate: (password) => /[A-Z]/.test(password),
+  },
+  {
+    key: 'lowercase',
+    label: t('account.password_requirements.lowercase'),
+    validate: (password) => /[a-z]/.test(password),
+  },
+  {
+    key: 'number',
+    label: t('account.password_requirements.number'),
+    validate: (password) => /[0-9]/.test(password),
+  },
+  {
+    key: 'specialCharacter',
+    label: t('account.password_requirements.special_character'),
+    validate: hasSpecialCharacter,
+  },
+  {
+    key: 'weakPatterns',
+    label: t('account.password_requirements.no_weak_patterns'),
+    validate: hasNoWeakPatterns,
+  },
+])
+
+const { requirements: passwordRequirements, isValid: isNewPasswordStrongEnough } =
+  usePasswordRequirements(newPassword, { requirements: passwordRequirementDefinitions })
+
+const newPasswordInvalidMessage = computed(() => {
+  const validationIssue = validationIssues.value.new_password?.[0]
+
+  if (validationIssue) {
+    // extra params are ignored by messages that don't use them
+    return t(validationIssue, { minLength: PASSWORD_MIN_LENGTH, maxLength: PASSWORD_MAX_LENGTH })
+  }
+
+  if (showPasswordRequirementErrors.value && !isNewPasswordStrongEnough.value) {
+    return t('account.new_password_requirements_not_met')
+  }
+  return ''
+})
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
   currentPassword: currentPasswordRef,
@@ -105,6 +168,7 @@ function closeDrawer() {
 function clearErrors() {
   changePasswordReset()
   validationIssues.value = {}
+  showPasswordRequirementErrors.value = false
 }
 
 function validate(changePasswordData: ChangePassword): boolean {
@@ -139,6 +203,17 @@ async function validateAndChangePassword() {
   }
 
   const isValidationOk = validate(changePasswordData)
+
+  if (!isNewPasswordStrongEnough.value) {
+    showPasswordRequirementErrors.value = true
+
+    if (isValidationOk) {
+      // no field error stole the focus, point the user at the requirements
+      focusElement(newPasswordRef)
+    }
+    return
+  }
+
   if (!isValidationOk) {
     return
   }
@@ -186,17 +261,23 @@ async function validateAndChangePassword() {
           :disabled="changePasswordLoading"
         />
         <!-- new password -->
-        <NeTextInput
-          ref="newPasswordRef"
-          v-model="newPassword"
-          is-password
-          autocomplete="new-password"
-          :label="$t('account.new_password')"
-          :invalid-message="
-            validationIssues.new_password?.[0] ? $t(validationIssues.new_password[0]) : ''
-          "
-          :disabled="changePasswordLoading"
-        />
+        <div class="space-y-3">
+          <NeTextInput
+            ref="newPasswordRef"
+            v-model="newPassword"
+            is-password
+            autocomplete="new-password"
+            :label="$t('account.new_password')"
+            :invalid-message="newPasswordInvalidMessage"
+            :disabled="changePasswordLoading"
+          />
+          <NePasswordRequirements
+            :requirements="passwordRequirements"
+            :show-errors="showPasswordRequirementErrors"
+            :met-label="$t('account.password_requirements.requirement_met')"
+            :unmet-label="$t('account.password_requirements.requirement_not_met')"
+          />
+        </div>
         <!-- confirm password -->
         <NeTextInput
           ref="confirmPasswordRef"
