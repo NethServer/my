@@ -24,6 +24,11 @@ const props = withDefaults(
     allowedTypes?: string[]
     // Exclude these organization ids from the options (e.g. the caller's own org).
     excludeOrganizationIds?: string[]
+    // The organization already assigned to the entity being edited. The options
+    // are a single page of a server-side search, so a company that falls outside
+    // it has no option to resolve its label from — pass it here and the field can
+    // still show its name.
+    selectedOrganization?: { logto_id?: string; name: string; type: string }
   }>(),
   {
     isShown: true,
@@ -56,6 +61,20 @@ const organizationOptions = computed(() => {
   }))
 })
 
+// Skipped when the name is empty (owner-org entities, whose name the API leaves
+// blank) so the field stays blank instead of showing an unlabelled selection.
+const selectedOption = computed(() => {
+  const org = props.selectedOrganization
+  if (!props.modelValue || org?.logto_id !== props.modelValue || !org.name) {
+    return undefined
+  }
+  return {
+    id: props.modelValue,
+    label: org.name,
+    description: t(`organizations.${org.type}`),
+  }
+})
+
 const isLoading = loading
 
 const isInitiallyLoading = computed(
@@ -80,6 +99,7 @@ defineExpose({
     ref="comboboxRef"
     :model-value="props.modelValue"
     :options="organizationOptions"
+    :selected-option="selectedOption"
     :label="props.label"
     :placeholder="computedPlaceholder"
     :invalid-message="props.invalidMessage"

@@ -6,7 +6,13 @@
 <script lang="ts" setup>
 import { useLoginStore } from '@/stores/login'
 import { useNotificationsStore } from '@/stores/notifications'
-import { NeButton, NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
+import {
+  NeButton,
+  NeHeading,
+  NeInlineNotification,
+  NeSkeleton,
+  formatDateTimeNoSeconds,
+} from '@nethesis/vue-components'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useI18n } from 'vue-i18n'
 import { useImpersonationConsent } from '@/queries/impersonationConsent'
@@ -14,7 +20,6 @@ import { deleteConsent, IMPERSONATION_CONSENT_KEY } from '@/lib/impersonation'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faCircleCheck, faCircleInfo } from '@fortawesome/free-solid-svg-icons'
 import { computed, ref } from 'vue'
-import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 import EnableImpersonationConsentModal from './EnableImpersonationConsentModal.vue'
 import SessionsTable from './SessionsTable.vue'
 

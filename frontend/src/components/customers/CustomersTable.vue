@@ -54,6 +54,7 @@ import { useCustomers } from '@/queries/organizations/customers'
 import { canManageCustomers, canDestroyCustomers } from '@/lib/permissions'
 import router from '@/router'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
+import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 
 const { isShownCreateCustomerDrawer = false } = defineProps<{
   isShownCreateCustomerDrawer: boolean
@@ -70,6 +71,8 @@ const {
   textFilter,
   statusFilter,
   createdByFilter,
+  organizationFilter,
+  includeHierarchy,
   sortBy,
   sortDescending,
   areDefaultFiltersApplied,
@@ -269,7 +272,13 @@ const onSort = (payload: SortEvent) => {
 }
 
 const goToCustomerDetails = (customer: Customer) => {
-  router.push({ name: 'customer_detail', params: { companyId: customer.logto_id } })
+  router
+    .push({ name: 'customer_detail', params: { companyId: customer.logto_id } })
+    .catch((error) => {
+      // router.push() swallows navigation failures by default; log them so an
+      // intermittent "URL changes but the page doesn't" report leaves a trace
+      console.error('[goToCustomerDetails]', error)
+    })
 }
 </script>
 
@@ -282,6 +291,18 @@ const goToCustomerDetails = (customer: Customer) => {
       :title="$t('customers.cannot_retrieve_customers')"
       :description="state.error.message"
       class="mb-6"
+    />
+    <!-- company hierarchy filter notification -->
+    <NeInlineNotification
+      v-if="includeHierarchy && organizationFilter.length === 1"
+      kind="info"
+      :title="$t('customers.hierarchy_filter_title')"
+      :description="
+        $t('customers.hierarchy_filter_description', { name: organizationFilter[0].label })
+      "
+      :secondary-button-label="$t('customers.hierarchy_filter_exact')"
+      class="mb-6"
+      @secondary-click="includeHierarchy = false"
     />
     <!-- table toolbar -->
     <div class="mb-6 flex items-center gap-4">
@@ -311,6 +332,12 @@ const goToCustomerDetails = (customer: Customer) => {
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             :custom-action-label="t('ne_dropdown_filter.reset_selection')"
             @custom-action="resetStatusFilter"
+          />
+          <!-- parent company filter: the reseller the customer belongs to -->
+          <OrganizationDropdownFilter
+            v-model="organizationFilter"
+            organization-type="reseller"
+            :label="t('organizations.parent_company')"
           />
           <!-- created by filter -->
           <NeDropdownFilterV2
@@ -395,7 +422,7 @@ const goToCustomerDetails = (customer: Customer) => {
         </NeTableHeadCell>
       </NeTableHead>
       <NeTableBody>
-        <NeTableRow v-for="(item, index) in customersPage" :key="index">
+        <NeTableRow v-for="item in customersPage" :key="item.logto_id">
           <NeTableCell :data-label="$t('organizations.name')">
             <router-link
               v-if="!item.deleted_at"
@@ -416,7 +443,7 @@ const goToCustomerDetails = (customer: Customer) => {
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.title')">
             <router-link
-              v-if="!item.deleted_at && item.systems_count > 0"
+              v-if="!item.deleted_at"
               :to="{
                 name: 'systems',
                 query: { organization_id: item.logto_id, organization_name: item.name },
@@ -431,7 +458,7 @@ const goToCustomerDetails = (customer: Customer) => {
               />
               {{ item.systems_count }}
             </router-link>
-            <div v-else class="flex items-center gap-2">
+            <div v-else class="flex items-center gap-2 opacity-50">
               <FontAwesomeIcon
                 :icon="faServer"
                 class="size-4 text-gray-700 dark:text-gray-400"

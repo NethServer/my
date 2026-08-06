@@ -16,12 +16,14 @@ import {
   NeTableHeadCell,
   NeTableRow,
   NeTooltip,
+  formatDateTime,
+  formatDateTimeNoSeconds,
 } from '@nethesis/vue-components'
 import {
   useImpersonationSessionAudit,
   useImpersonationSessionAuditStore,
 } from '@/queries/impersonationSessionAudit'
-import { formatDateTime, formatDateTimeNoSeconds, formatMinutes } from '@/lib/dateTime'
+import { formatMinutes } from '@/lib/dateTime'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { SESSION_AUDIT_TABLE_ID } from '@/lib/impersonationSessions'
@@ -152,7 +154,7 @@ const copyRequestDataToClipboard = (jsonString: string) => {
         <NeTableHeadCell>{{ $t('account.impersonation.response_status') }}</NeTableHeadCell>
       </NeTableHead>
       <NeTableBody>
-        <NeTableRow v-for="(item, index) in sessionsPage" :key="index">
+        <NeTableRow v-for="item in sessionsPage" :key="item.session_id">
           <NeTableCell :data-label="$t('account.impersonation.timestamp')">
             {{ item.timestamp ? formatDateTime(new Date(item.timestamp), locale) : '-' }}
           </NeTableCell>

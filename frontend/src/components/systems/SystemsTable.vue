@@ -40,6 +40,7 @@ import {
   NeDropdownFilterV2,
   NeTooltip,
   type NeDropdownItem,
+  formatRelativeTime,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -66,7 +67,6 @@ import OrganizationDropdownFilter from '@/components/organizations/OrganizationD
 import { isUserCustomer } from '@/lib/organizations/organizations.ts'
 import OrganizationIconAndLink from '../organizations/OrganizationIconAndLink.vue'
 import SystemLogoAndLink from './SystemLogoAndLink.vue'
-import { formatRelativeTime } from '@/lib/dateTime'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -348,7 +348,11 @@ const onSort = (payload: SortEvent) => {
 }
 
 const goToSystemDetails = (system: System) => {
-  router.push({ name: 'system_detail', params: { systemId: system.id } })
+  router.push({ name: 'system_detail', params: { systemId: system.id } }).catch((error) => {
+    // router.push() swallows navigation failures by default; log them so an
+    // intermittent "URL changes but the page doesn't" report leaves a trace
+    console.error('[goToSystemDetails]', error)
+  })
 }
 
 function onSecretRegenerated(secret: string) {
@@ -536,7 +540,7 @@ function onCloseSecretRegeneratedModal() {
         </NeTableHeadCell>
       </NeTableHead>
       <NeTableBody>
-        <NeTableRow v-for="(item, index) in systemsPage" :key="index">
+        <NeTableRow v-for="item in systemsPage" :key="item.id">
           <NeTableCell :data-label="$t('systems.name')" class="break-all">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
               <SystemLogoAndLink
@@ -629,7 +633,9 @@ function onCloseSecretRegeneratedModal() {
                     <template v-else>
                       {{
                         $t('system_detail.last_heartbeat_time', {
-                          time: formatRelativeTime(item.last_heartbeat ?? '', locale),
+                          time: item.last_heartbeat
+                            ? formatRelativeTime(new Date(item.last_heartbeat), locale)
+                            : '-',
                         })
                       }}
                     </template>

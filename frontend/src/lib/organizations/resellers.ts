@@ -92,6 +92,7 @@ export const getQueryStringParams = (
   textFilter: string | null,
   statusFilter: ResellerStatus[],
   createdByFilter: string[],
+  organizationFilter: string[],
   sortBy: string | null,
   sortDescending: boolean,
 ) => {
@@ -114,6 +115,13 @@ export const getQueryStringParams = (
     searchParams.append('created_by', userId)
   })
 
+  // Parent company filter: matched exactly against the reseller's owning
+  // organization. include_hierarchy is deliberately not sent, so selecting a
+  // distributor never pulls in the resellers of its descendants.
+  organizationFilter.forEach((organizationId) => {
+    searchParams.append('organization_id', organizationId)
+  })
+
   return searchParams.toString()
 }
 
@@ -123,6 +131,7 @@ export const getResellers = (
   textFilter: string,
   statusFilter: ResellerStatus[],
   createdByFilter: string[],
+  organizationFilter: string[],
   sortBy: string,
   sortDescending: boolean,
 ) => {
@@ -133,6 +142,7 @@ export const getResellers = (
     textFilter,
     statusFilter,
     createdByFilter,
+    organizationFilter,
     sortBy,
     sortDescending,
   )

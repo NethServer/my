@@ -15,7 +15,7 @@ import {
   faCircleQuestion,
   faCircleUser,
   faMoon,
-  faRightFromBracket,
+  faArrowRightFromBracket,
   faSun,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -50,7 +50,7 @@ const accountMenuOptions = computed(() => {
     {
       id: 'logout',
       label: t('shell.sign_out'),
-      icon: faRightFromBracket,
+      icon: faArrowRightFromBracket,
       action: () => loginStore.logout(),
       disabled: loginStore.isImpersonating,
     },

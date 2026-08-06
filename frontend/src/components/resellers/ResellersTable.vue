@@ -57,6 +57,7 @@ import { useResellers } from '@/queries/organizations/resellers'
 import { canManageResellers, canDestroyResellers, canPromoteOrganizations } from '@/lib/permissions'
 import router from '@/router'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
+import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 
 const { isShownCreateResellerDrawer = false } = defineProps<{
   isShownCreateResellerDrawer: boolean
@@ -73,6 +74,7 @@ const {
   textFilter,
   statusFilter,
   createdByFilter,
+  organizationFilter,
   sortBy,
   sortDescending,
   areDefaultFiltersApplied,
@@ -290,7 +292,13 @@ const onSort = (payload: SortEvent) => {
 }
 
 const goToResellerDetails = (reseller: Reseller) => {
-  router.push({ name: 'reseller_detail', params: { companyId: reseller.logto_id } })
+  router
+    .push({ name: 'reseller_detail', params: { companyId: reseller.logto_id } })
+    .catch((error) => {
+      // router.push() swallows navigation failures by default; log them so an
+      // intermittent "URL changes but the page doesn't" report leaves a trace
+      console.error('[goToResellerDetails]', error)
+    })
 }
 </script>
 
@@ -332,6 +340,12 @@ const goToResellerDetails = (reseller: Reseller) => {
             :custom-action-label="t('ne_dropdown_filter.reset_selection')"
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             @custom-action="resetStatusFilter"
+          />
+          <!-- parent company filter: the distributor the reseller belongs to -->
+          <OrganizationDropdownFilter
+            v-model="organizationFilter"
+            organization-type="distributor"
+            :label="t('organizations.parent_company')"
           />
           <!-- created by filter -->
           <NeDropdownFilterV2
@@ -417,7 +431,7 @@ const goToResellerDetails = (reseller: Reseller) => {
         </NeTableHeadCell>
       </NeTableHead>
       <NeTableBody>
-        <NeTableRow v-for="(item, index) in resellersPage" :key="index">
+        <NeTableRow v-for="item in resellersPage" :key="item.logto_id">
           <NeTableCell :data-label="$t('organizations.name')">
             <router-link
               v-if="!item.deleted_at"
@@ -437,7 +451,27 @@ const goToResellerDetails = (reseller: Reseller) => {
             {{ item.custom_data?.vat || '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('customers.title')">
-            <div class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
+            <!-- links to the Customers page filtered by this reseller as parent company -->
+            <router-link
+              v-if="!item.deleted_at"
+              :to="{
+                name: 'customers',
+                query: {
+                  organization_id: item.logto_id,
+                  organization_name: item.name,
+                },
+              }"
+              class="flex items-center gap-2 hover:underline"
+              :aria-label="$t('resellers.show_reseller_customers', { name: item.name })"
+            >
+              <FontAwesomeIcon
+                :icon="faBuilding"
+                class="size-4 text-gray-700 dark:text-gray-400"
+                aria-hidden="true"
+              />
+              {{ item.customers_count }}
+            </router-link>
+            <div v-else class="flex items-center gap-2 opacity-50">
               <FontAwesomeIcon
                 :icon="faBuilding"
                 class="size-4 text-gray-700 dark:text-gray-400"
@@ -448,7 +482,7 @@ const goToResellerDetails = (reseller: Reseller) => {
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.total_systems')">
             <router-link
-              v-if="!item.deleted_at && item.systems_count > 0"
+              v-if="!item.deleted_at"
               :to="{
                 name: 'systems',
                 query: {
@@ -467,7 +501,7 @@ const goToResellerDetails = (reseller: Reseller) => {
               />
               {{ item.systems_count }}
             </router-link>
-            <div v-else class="flex items-center gap-2" :class="{ 'opacity-50': item.deleted_at }">
+            <div v-else class="flex items-center gap-2 opacity-50">
               <FontAwesomeIcon
                 :icon="faServer"
                 class="size-4 text-gray-700 dark:text-gray-400"

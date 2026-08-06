@@ -27,6 +27,8 @@ export const useResellers = defineQuery(() => {
     { id: 'suspended', label: 'suspended' },
   ])
   const createdByFilter = ref<NeDropdownFilterV2Option[]>([])
+  // parent company: the distributor the reseller belongs to
+  const organizationFilter = ref<NeDropdownFilterV2Option[]>([])
   const sortBy = ref<keyof Reseller>('name')
   const sortDescending = ref(false)
 
@@ -39,6 +41,7 @@ export const useResellers = defineQuery(() => {
         textFilter: debouncedTextFilter.value,
         statusFilter: statusFilter.value.map((o) => o.id),
         createdByFilter: createdByFilter.value.map((o) => o.id),
+        organizationFilter: organizationFilter.value.map((o) => o.id),
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -51,6 +54,7 @@ export const useResellers = defineQuery(() => {
         debouncedTextFilter.value,
         statusFilter.value.map((o) => o.id) as ResellerStatus[],
         createdByFilter.value.map((o) => o.id),
+        organizationFilter.value.map((o) => o.id),
         sortBy.value,
         sortDescending.value,
       ),
@@ -63,7 +67,8 @@ export const useResellers = defineQuery(() => {
       statusFilter.value.some((o) => o.id === 'enabled') &&
       statusFilter.value.some((o) => o.id === 'suspended') &&
       !statusFilter.value.some((o) => o.id === 'deleted') &&
-      createdByFilter.value.length === 0
+      createdByFilter.value.length === 0 &&
+      organizationFilter.value.length === 0
     )
   })
 
@@ -117,6 +122,15 @@ export const useResellers = defineQuery(() => {
     { deep: true },
   )
 
+  // reset to first page when parent company filter changes
+  watch(
+    () => organizationFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+    { deep: true },
+  )
+
   // reset to first page when sorting changes
   watch(
     () => [sortBy.value, sortDescending.value],
@@ -128,6 +142,7 @@ export const useResellers = defineQuery(() => {
   const resetFilters = () => {
     textFilter.value = ''
     createdByFilter.value = []
+    organizationFilter.value = []
     resetStatusFilter()
   }
 
@@ -148,6 +163,7 @@ export const useResellers = defineQuery(() => {
     debouncedTextFilter,
     statusFilter,
     createdByFilter,
+    organizationFilter,
     sortBy,
     sortDescending,
     areDefaultFiltersApplied,

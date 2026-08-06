@@ -494,7 +494,7 @@ const goToAccount = () => {
         </NeTableHeadCell>
       </NeTableHead>
       <NeTableBody>
-        <NeTableRow v-for="(item, index) in usersPage" :key="index">
+        <NeTableRow v-for="item in usersPage" :key="item.username">
           <NeTableCell :data-label="$t('users.name')" :class="{ 'opacity-50': item.deleted_at }">
             <div class="flex items-center gap-2">
               <UserAvatar

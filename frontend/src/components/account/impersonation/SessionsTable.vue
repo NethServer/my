@@ -16,6 +16,7 @@ import {
   NeButton,
   NeEmptyState,
   NeInlineNotification,
+  formatDateTimeNoSeconds,
 } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -23,7 +24,7 @@ import { savePageSizeToStorage, PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import { useImpersonationSessions } from '@/queries/impersonationSessions'
 import { SESSIONS_TABLE_ID, type Session } from '@/lib/impersonationSessions'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
-import { formatDateTimeNoSeconds, formatMinutes } from '@/lib/dateTime'
+import { formatMinutes } from '@/lib/dateTime'
 import SessionModal from './SessionModal.vue'
 import { useImpersonationSessionAuditStore } from '@/queries/impersonationSessionAudit'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -96,7 +97,7 @@ const onSessionModalClose = () => {
           </NeTableHeadCell>
         </NeTableHead>
         <NeTableBody>
-          <NeTableRow v-for="(item, index) in sessionsPage" :key="index">
+          <NeTableRow v-for="item in sessionsPage" :key="item.session_id">
             <NeTableCell :data-label="$t('account.impersonation.session_start')">
               {{
                 item.start_time ? formatDateTimeNoSeconds(new Date(item.start_time), locale) : '-'

@@ -24,7 +24,7 @@ const loginStore = useLoginStore()
 
 const { state: applicationsTotal } = useApplicationsTotal()
 
-const { organizationFilter } = useApplications()
+const { organizationFilter, applyHierarchyFilter, clearFilters } = useApplications()
 
 const justHiddenUnassignedAppsNotification = ref(false)
 
@@ -49,9 +49,27 @@ const showUnassignedApps = () => {
   organizationFilter.value = [{ id: 'no_org', label: t('organizations.no_company') }]
 }
 
-// apply the unassigned filter requested via query params, then clean the URL
+// apply the filters requested via query params, then clean the URL
 if (route.query.unassigned === 'true') {
   showUnassignedApps()
+  router.replace({ query: {} })
+}
+
+const {
+  organization_id: orgId,
+  organization_name: orgName,
+  include_hierarchy: includeHierarchyParam,
+} = route.query
+
+if (typeof orgId === 'string' && orgId && typeof orgName === 'string' && orgName) {
+  if (includeHierarchyParam === 'true') {
+    applyHierarchyFilter({ id: orgId, label: orgName })
+  } else {
+    clearFilters()
+    // the filter renders the label carried by the selection: pass the organization
+    // name, as it may not be among the options the dropdown has loaded
+    organizationFilter.value = [{ id: orgId, label: orgName }]
+  }
   router.replace({ query: {} })
 }
 

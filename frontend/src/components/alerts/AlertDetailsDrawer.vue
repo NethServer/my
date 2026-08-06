@@ -12,6 +12,7 @@ import {
   NeSideDrawer,
   NeFormItemLabel,
   NeRoundedIcon,
+  formatDateTimeNoSeconds,
 } from '@nethesis/vue-components'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -28,7 +29,6 @@ import ProcessingAlertBadge from '@/components/alerts/ProcessingAlertBadge.vue'
 import SystemLogoAndLink from '@/components/systems/SystemLogoAndLink.vue'
 import AlertAssignee from '@/components/alerts/AlertAssignee.vue'
 import AlertEventsTimeline from '@/components/alerts/AlertEventsTimeline.vue'
-import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 
 interface Props {
   isShown: boolean

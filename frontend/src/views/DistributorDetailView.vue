@@ -4,9 +4,9 @@
 -->
 
 <script setup lang="ts">
-import { NeButton, NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faArrowLeft, faCity, faServer } from '@fortawesome/free-solid-svg-icons'
+import { NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
+import { faCity, faServer } from '@fortawesome/free-solid-svg-icons'
+import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import { useDistributorDetail } from '@/queries/organizations/distributorDetail'
 import DistributorInfoCard from '@/components/distributors/DistributorInfoCard.vue'
 import CounterCard from '@/components/common/CounterCard.vue'
@@ -24,9 +24,26 @@ const { state: distributorStats } = useDistributorStats()
 const { state: distributorSystems } = useDistributorSystems()
 const { state: applicationsSummary } = useApplicationsSummaryByCompany()
 
+// link to the Resellers page filtered by this distributor as parent company.
+// No include_hierarchy: the parent company filter matches exactly, so only the
+// resellers this distributor owns are listed.
+const resellersRoute = computed(() => {
+  if (!distributorDetail.value.data) {
+    return undefined
+  }
+
+  return {
+    name: 'resellers',
+    query: {
+      organization_id: distributorDetail.value.data.logto_id,
+      organization_name: distributorDetail.value.data.name,
+    },
+  }
+})
+
 // link to the Systems page filtered by the whole distributor hierarchy
 const hierarchySystemsRoute = computed(() => {
-  if (!distributorDetail.value.data || !distributorStats.value.data?.systems_hierarchy_count) {
+  if (!distributorDetail.value.data) {
     return undefined
   }
 
@@ -39,18 +56,32 @@ const hierarchySystemsRoute = computed(() => {
     },
   }
 })
+
+// link to the Applications page filtered by the whole distributor hierarchy
+const hierarchyApplicationsRoute = computed(() => {
+  if (!distributorDetail.value.data) {
+    return undefined
+  }
+
+  return {
+    name: 'applications',
+    query: {
+      organization_id: distributorDetail.value.data.logto_id,
+      organization_name: distributorDetail.value.data.name,
+      include_hierarchy: 'true',
+    },
+  }
+})
 </script>
 
 <template>
   <div>
-    <router-link v-if="canReadDistributors()" to="/distributors">
-      <NeButton kind="tertiary" size="sm" class="mb-4 -ml-2">
-        <template #prefix>
-          <FontAwesomeIcon :icon="faArrowLeft" />
-        </template>
-        {{ $t('distributors.title') }}
-      </NeButton>
-    </router-link>
+    <PageBreadcrumb
+      :section="$t('distributors.title')"
+      :to="canReadDistributors() ? '/distributors' : undefined"
+      :current="distributorDetail.data?.name"
+      :loading="distributorDetail.status === 'pending'"
+    />
     <!-- get distributor detail error notification -->
     <NeInlineNotification
       v-if="distributorDetail.status === 'error'"
@@ -72,6 +103,7 @@ const hierarchySystemsRoute = computed(() => {
         :counter="distributorStats.data?.resellers_count ?? 0"
         :icon="faCity"
         :loading="distributorStats.status === 'pending'"
+        :to="resellersRoute"
       />
       <!-- total systems -->
       <CounterCard
@@ -87,6 +119,7 @@ const hierarchySystemsRoute = computed(() => {
         :counter="distributorStats.data?.applications_hierarchy_count ?? 0"
         :icon="faGridOne"
         :loading="distributorStats.status === 'pending'"
+        :to="hierarchyApplicationsRoute"
       />
       <!-- organization systems -->
       <OrganizationSystemsCard
@@ -94,12 +127,14 @@ const hierarchySystemsRoute = computed(() => {
         :systems-status="distributorSystems.status"
         :systems-data="distributorSystems.data"
         :stats-status="distributorStats.status"
+        :organization-name="distributorDetail.data?.name"
       />
       <!-- organization applications -->
       <OrganizationApplicationsCard
         :applications-count="applicationsSummary.data?.total ?? 0"
         :applications-status="applicationsSummary.status"
         :summary-data="applicationsSummary.data"
+        :organization-name="distributorDetail.data?.name"
       />
     </div>
   </div>

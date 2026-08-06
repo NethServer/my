@@ -33,6 +33,8 @@ import {
   type NeDropdownFilterV2Option,
   type NeDropdownItem,
   type SortEvent,
+  formatDateTime,
+  formatRelativeTime,
 } from '@nethesis/vue-components'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import capitalize from 'lodash/capitalize'
@@ -59,7 +61,6 @@ import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useSystemAlerts } from '@/queries/systemAlerts/systemAlerts'
 import { useAlertFilters } from '@/queries/alerts/alertFilters'
 import { type AlertFilterAlert } from '@/lib/alertFilters'
-import { formatDateTime, formatRelativeTime } from '@/lib/dateTime'
 import { canManageSystems } from '@/lib/permissions'
 import MuteAlertDrawer from '@/components/alerts/MuteAlertDrawer.vue'
 import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
@@ -524,7 +525,7 @@ function onMuteDrawerClose(): void {
           <!-- Started at -->
           <NeTableCell :data-label="$t('alerts.started')">
             <div>
-              <p>{{ formatRelativeTime(alert.startsAt, locale) }}</p>
+              <p>{{ formatRelativeTime(new Date(alert.startsAt), locale) }}</p>
               <p class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5">
                 {{ formatDateTime(new Date(alert.startsAt), locale) }}
               </p>

@@ -9,7 +9,7 @@ import {
   isAlertSilenced,
   type Alert,
 } from './alerts'
-import { formatDateTimeNoSeconds } from './dateTime'
+import { formatDateTimeNoSeconds } from '@nethesis/vue-components'
 
 const baseAlert: Alert = {
   labels: {},

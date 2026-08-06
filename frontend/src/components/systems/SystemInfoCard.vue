@@ -14,6 +14,7 @@ import {
   NeSkeleton,
   NeTooltip,
   type NeDropdownItem,
+  formatDateTimeNoSeconds,
 } from '@nethesis/vue-components'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { exportSystem, getProductName } from '@/lib/systems/systems'
@@ -43,7 +44,6 @@ import ReactivateSystemModal from './ReactivateSystemModal.vue'
 import DestroySystemModal from './DestroySystemModal.vue'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import UserAvatar from '../users/UserAvatar.vue'
-import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import type { Ns8Facts } from '@/lib/systems/ns8Facts'
 import type { NsecFacts } from '@/lib/systems/nsecFacts'

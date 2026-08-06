@@ -4,9 +4,9 @@
 -->
 
 <script setup lang="ts">
-import { NeButton, NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faArrowLeft, faServer, faBuilding } from '@fortawesome/free-solid-svg-icons'
+import { NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
+import { faServer, faBuilding } from '@fortawesome/free-solid-svg-icons'
+import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import { useResellerDetail } from '@/queries/organizations/resellerDetail'
 import ResellerInfoCard from '@/components/resellers/ResellerInfoCard.vue'
 import CounterCard from '@/components/common/CounterCard.vue'
@@ -24,9 +24,26 @@ const { state: resellerStats } = useResellerStats()
 const { state: resellerSystems } = useResellerSystems()
 const { state: applicationsSummary } = useApplicationsSummaryByCompany()
 
+// link to the Customers page filtered by this reseller as parent company.
+// No include_hierarchy: the parent company filter matches exactly, so only the
+// customers this reseller owns are listed.
+const customersRoute = computed(() => {
+  if (!resellerDetail.value.data) {
+    return undefined
+  }
+
+  return {
+    name: 'customers',
+    query: {
+      organization_id: resellerDetail.value.data.logto_id,
+      organization_name: resellerDetail.value.data.name,
+    },
+  }
+})
+
 // link to the Systems page filtered by the whole reseller hierarchy
 const hierarchySystemsRoute = computed(() => {
-  if (!resellerDetail.value.data || !resellerStats.value.data?.systems_hierarchy_count) {
+  if (!resellerDetail.value.data) {
     return undefined
   }
 
@@ -39,18 +56,32 @@ const hierarchySystemsRoute = computed(() => {
     },
   }
 })
+
+// link to the Applications page filtered by the whole reseller hierarchy
+const hierarchyApplicationsRoute = computed(() => {
+  if (!resellerDetail.value.data) {
+    return undefined
+  }
+
+  return {
+    name: 'applications',
+    query: {
+      organization_id: resellerDetail.value.data.logto_id,
+      organization_name: resellerDetail.value.data.name,
+      include_hierarchy: 'true',
+    },
+  }
+})
 </script>
 
 <template>
   <div>
-    <router-link v-if="canReadResellers()" to="/resellers">
-      <NeButton kind="tertiary" size="sm" class="mb-4 -ml-2">
-        <template #prefix>
-          <FontAwesomeIcon :icon="faArrowLeft" />
-        </template>
-        {{ $t('resellers.title') }}
-      </NeButton>
-    </router-link>
+    <PageBreadcrumb
+      :section="$t('resellers.title')"
+      :to="canReadResellers() ? '/resellers' : undefined"
+      :current="resellerDetail.data?.name"
+      :loading="resellerDetail.status === 'pending'"
+    />
     <!-- get reseller detail error notification -->
     <NeInlineNotification
       v-if="resellerDetail.status === 'error'"
@@ -72,6 +103,7 @@ const hierarchySystemsRoute = computed(() => {
         :counter="resellerStats.data?.customers_count ?? 0"
         :icon="faBuilding"
         :loading="resellerStats.status === 'pending'"
+        :to="customersRoute"
       />
       <!-- total systems -->
       <CounterCard
@@ -87,6 +119,7 @@ const hierarchySystemsRoute = computed(() => {
         :counter="resellerStats.data?.applications_hierarchy_count ?? 0"
         :icon="faGridOne"
         :loading="resellerStats.status === 'pending'"
+        :to="hierarchyApplicationsRoute"
       />
       <!-- organization systems -->
       <OrganizationSystemsCard
@@ -94,12 +127,14 @@ const hierarchySystemsRoute = computed(() => {
         :systems-status="resellerSystems.status"
         :systems-data="resellerSystems.data"
         :stats-status="resellerStats.status"
+        :organization-name="resellerDetail.data?.name"
       />
       <!-- organization applications -->
       <OrganizationApplicationsCard
         :applications-count="applicationsSummary.data?.total ?? 0"
         :applications-status="applicationsSummary.status"
         :summary-data="applicationsSummary.data"
+        :organization-name="resellerDetail.data?.name"
       />
     </div>
   </div>

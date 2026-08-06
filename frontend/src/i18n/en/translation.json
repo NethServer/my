@@ -2,6 +2,7 @@
   "common": {
     "access_denied": "Access denied",
     "this_section_is_accessible_only_by_owner": "This section is accessible only by the owner organization.",
+    "breadcrumb": "Breadcrumb",
     "save": "Save",
     "cancel": "Cancel",
     "search": "Search",
@@ -123,7 +124,9 @@
     "total_customers": "Total customers",
     "import_distributors": "Import distributors",
     "distributors_imported": "Distributors imported",
-    "show_distributor_systems": "Show systems of {name} and its hierarchy"
+    "show_distributor_systems": "Show systems of {name} and its hierarchy",
+    "show_distributor_resellers": "Show resellers of {name}",
+    "show_distributor_customers": "Show customers of {name} and its hierarchy"
   },
   "distributor_detail": {
     "title": "Distributor detail",
@@ -162,11 +165,12 @@
     "import_resellers": "Import resellers",
     "resellers_imported": "Resellers imported",
     "show_reseller_systems": "Show systems of {name} and its hierarchy",
+    "show_reseller_customers": "Show customers of {name}",
     "reseller_promoted": "Reseller promoted",
     "reseller_promoted_successfully": "{name} is now a distributor",
     "promote_reseller": "Promote to distributor",
     "cannot_promote_reseller": "Cannot promote reseller",
-    "promote_reseller_confirmation": "Are you sure you want to promote {name} to distributor? It keeps its customers, users and systems, but the distributor that manages it today loses access to them. This action cannot be undone."
+    "promote_reseller_confirmation": "Reseller {name} will be promoted to distributor. It will keep its own customers, users, and systems, but its current distributor will lose access to them."
   },
   "customers": {
     "title": "Customers",
@@ -192,7 +196,10 @@
     "export_customers_to_pdf": "Export customers to PDF",
     "export_customers_to_csv": "Export customers to CSV",
     "import_customers": "Import customers",
-    "customers_imported": "Customers imported"
+    "customers_imported": "Customers imported",
+    "hierarchy_filter_title": "Filtering by company hierarchy",
+    "hierarchy_filter_description": "Showing customers of {name} and of all companies in its hierarchy. Changing the Parent company filter will remove this hierarchy filtering.",
+    "hierarchy_filter_exact": "Filter by this company only"
   },
   "organizations": {
     "name": "Company name",
@@ -216,6 +223,7 @@
     "custom_data_email_invalid": "Invalid email address",
     "custom_data_phone_invalid_format": "Invalid phone number",
     "organization": "Company",
+    "parent_company": "Parent company",
     "no_company": "No company",
     "choose_organization": "Choose company",
     "no_organizations": "No companies",
@@ -241,7 +249,9 @@
     "restore_organization_confirmation": "Are you sure you want to restore {name}?",
     "promote_organization_is_suspended": "This company is suspended. Reactivate it before promoting it.",
     "promote_organization_not_synced": "This company is not synchronised with the identity provider yet. Try again later.",
-    "promote_owner_organization_not_found": "The owner company could not be determined, so the promoted company cannot be attached to it."
+    "promote_owner_organization_not_found": "The owner company could not be determined, so the promoted company cannot be attached to it.",
+    "promoted_to_distributor": "Promoted to distributor",
+    "promoted_by_name": "Promoted by {name}"
   },
   "import": {
     "download_the_template": "Download the template",
@@ -803,7 +813,10 @@
     "cannot_set_notes": "Cannot set application notes",
     "total_applications": "Total applications",
     "organization_applications": "Company applications",
-    "system_applications": "System applications"
+    "system_applications": "System applications",
+    "hierarchy_filter_title": "Filtering by company hierarchy",
+    "hierarchy_filter_description": "Showing applications of {name} and of all companies in its hierarchy. Changing the Company filter will remove this hierarchy filtering.",
+    "hierarchy_filter_exact": "Filter by this company only"
   },
   "forbidden": {
     "title": "Restricted page",

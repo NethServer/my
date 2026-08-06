@@ -4,7 +4,6 @@
 -->
 
 <script setup lang="ts">
-import { formatRelativeTime } from '@/lib/dateTime'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import { faCircleCheck, faEye, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -25,6 +24,8 @@ import {
   NeTableRow,
   type NeDropdownFilterV2Option,
   type SortEvent,
+  formatRelativeTime,
+  formatDateTime,
 } from '@nethesis/vue-components'
 import capitalize from 'lodash/capitalize'
 import { computed, ref } from 'vue'
@@ -41,7 +42,6 @@ import { useSystemAlertHistory } from '@/queries/systemAlerts/systemAlertHistory
 import { useAlertFilters } from '@/queries/alerts/alertFilters'
 import { type AlertFilterAlert } from '@/lib/alertFilters'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
-import { formatDateTime } from '@/lib/dateTime'
 import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
 
 const { t, locale } = useI18n()
@@ -287,7 +287,7 @@ function showDetails(alert: Alert): void {
           <!-- Started at -->
           <NeTableCell :data-label="$t('alerts.started')">
             <div v-if="record.starts_at">
-              <p>{{ formatRelativeTime(record.starts_at, locale) }}</p>
+              <p>{{ formatRelativeTime(new Date(record.starts_at), locale) }}</p>
               <p class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5">
                 {{ formatDateTime(new Date(record.starts_at), locale) }}
               </p>
@@ -297,7 +297,7 @@ function showDetails(alert: Alert): void {
           <!-- Ended at -->
           <NeTableCell :data-label="$t('alerts.ends_at')">
             <div v-if="record.ends_at">
-              <p>{{ formatRelativeTime(record.ends_at, locale) }}</p>
+              <p>{{ formatRelativeTime(new Date(record.ends_at), locale) }}</p>
               <p class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5">
                 {{ formatDateTime(new Date(record.ends_at), locale) }}
               </p>

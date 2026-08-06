@@ -10,6 +10,8 @@ import {
   NeInlineNotification,
   NeSkeleton,
   NeTooltip,
+  formatDateTimeNoSeconds,
+  formatRelativeTime,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
@@ -18,7 +20,7 @@ import {
   faCircleInfo,
   faTriangleExclamation,
 } from '@fortawesome/free-solid-svg-icons'
-import { formatDateTimeNoSeconds, formatRelativeTime, formatUptime } from '@/lib/dateTime'
+import { formatUptime } from '@/lib/dateTime'
 import { useI18n } from 'vue-i18n'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { useSystemActiveAlerts } from '@/queries/systems/activeAlerts'
@@ -148,7 +150,9 @@ const timezone = computed(() => {
                   <template v-else>
                     {{
                       $t('system_detail.last_heartbeat_time', {
-                        time: formatRelativeTime(systemDetail.data?.last_heartbeat ?? '', locale),
+                        time: systemDetail.data?.last_heartbeat
+                          ? formatRelativeTime(new Date(systemDetail.data.last_heartbeat), locale)
+                          : '-',
                       })
                     }}
                   </template>
@@ -180,7 +184,7 @@ const timezone = computed(() => {
           </div>
           <NeTooltip v-else trigger-event="mouseenter focus" placement="left">
             <template #trigger>
-              {{ formatRelativeTime(latestInventory.data?.timestamp, locale) }}
+              {{ formatRelativeTime(new Date(latestInventory.data?.timestamp), locale) }}
             </template>
             <template #content>
               {{ formatDateTimeNoSeconds(new Date(latestInventory.data?.timestamp), locale) }}

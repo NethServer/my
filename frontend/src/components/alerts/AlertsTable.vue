@@ -35,6 +35,8 @@ import {
   type NeDropdownFilterV2Option,
   type NeDropdownItem,
   type SortEvent,
+  formatDateTime,
+  formatRelativeTime,
 } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -58,7 +60,6 @@ import {
 import { setPendingAlertState, isProcessing } from '@/lib/alertPendingStates'
 import { type AlertFilterAlert } from '@/lib/alertFilters'
 import { useNotificationsStore } from '@/stores/notifications'
-import { formatDateTime, formatRelativeTime } from '@/lib/dateTime'
 import { canManageSystems, canReadUsers } from '@/lib/permissions'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import MuteAlertDrawer from '@/components/alerts/MuteAlertDrawer.vue'
@@ -589,7 +590,7 @@ function goToSystems() {
           <!-- Started at -->
           <NeTableCell :data-label="$t('alerts.started')">
             <div>
-              <p>{{ formatRelativeTime(alert.startsAt, locale) }}</p>
+              <p>{{ formatRelativeTime(new Date(alert.startsAt), locale) }}</p>
               <p class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5">
                 {{ formatDateTime(new Date(alert.startsAt), locale) }}
               </p>

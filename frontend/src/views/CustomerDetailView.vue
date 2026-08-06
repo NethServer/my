@@ -4,9 +4,8 @@
 -->
 
 <script setup lang="ts">
-import { NeButton, NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faArrowLeft } from '@fortawesome/free-solid-svg-icons'
+import { NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
+import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import { useCustomerDetail } from '@/queries/organizations/customerDetail'
 import CustomerInfoCard from '@/components/customers/CustomerInfoCard.vue'
 import { useCustomerStats } from '@/queries/organizations/customerStats'
@@ -22,14 +21,12 @@ const { state: customerSystems } = useCustomerSystems()
 
 <template>
   <div>
-    <router-link v-if="canReadCustomers()" to="/customers">
-      <NeButton kind="tertiary" size="sm" class="mb-4 -ml-2">
-        <template #prefix>
-          <FontAwesomeIcon :icon="faArrowLeft" />
-        </template>
-        {{ $t('customers.title') }}
-      </NeButton>
-    </router-link>
+    <PageBreadcrumb
+      :section="$t('customers.title')"
+      :to="canReadCustomers() ? '/customers' : undefined"
+      :current="customerDetail.data?.name"
+      :loading="customerDetail.status === 'pending'"
+    />
     <!-- get customer detail error notification -->
     <NeInlineNotification
       v-if="customerDetail.status === 'error'"
@@ -51,9 +48,10 @@ const { state: customerSystems } = useCustomerSystems()
         :systems-status="customerSystems.status"
         :systems-data="customerSystems.data"
         :stats-status="customerStats.status"
+        :organization-name="customerDetail.data?.name"
       />
       <!-- organization applications -->
-      <OrganizationApplicationsCard />
+      <OrganizationApplicationsCard :organization-name="customerDetail.data?.name" />
     </div>
   </div>
 </template>

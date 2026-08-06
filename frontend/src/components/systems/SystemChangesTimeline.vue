@@ -15,11 +15,7 @@ import {
   type InventoryDiffSeverity,
   type InventoryDiffType,
 } from '@/lib/systems/inventoryDiffs'
-import {
-  formatDateTimeNoSeconds,
-  formatTimeNoSeconds,
-  getDateTimeFormatPattern,
-} from '@/lib/dateTime'
+import { formatTimeNoSeconds, getDateTimeFormatPattern } from '@/lib/dateTime'
 import { computed, onWatcherCleanup, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -36,6 +32,7 @@ import {
   type NeBadgeV2Kind,
   getDateFnsLocale,
   NeTooltip,
+  formatDateTimeNoSeconds,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'

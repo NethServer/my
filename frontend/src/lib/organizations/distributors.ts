@@ -72,6 +72,26 @@ export const DistributorSchema = v.object({
       on_behalf_of: v.optional(v.boolean()),
     }),
   ),
+  // Set only when the distributor was promoted up from a lower level (e.g. a
+  // reseller promoted to distributor). Absent for distributors created as such.
+  promoted_from: v.optional(
+    v.object({
+      level: v.string(),
+      at: v.string(),
+      detached_from_organization_id: v.optional(v.string()),
+      by: v.optional(
+        v.object({
+          user_id: v.string(),
+          username: v.string(),
+          name: v.string(),
+          email: v.string(),
+          organization_id: v.string(),
+          organization_name: v.string(),
+          on_behalf_of: v.optional(v.boolean()),
+        }),
+      ),
+    }),
+  ),
 })
 
 export type CreateDistributor = v.InferOutput<typeof CreateDistributorSchema>

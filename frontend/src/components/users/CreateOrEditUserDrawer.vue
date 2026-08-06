@@ -354,6 +354,7 @@ function getEmailInvalidMessage(): string {
           ref="organizationIdRef"
           v-model="organizationId"
           :is-shown="isShown"
+          :selected-organization="currentUser?.organization"
           :label="$t('users.organization')"
           :invalid-message="
             validationIssues.organization_id?.[0] ? $t(validationIssues.organization_id[0]) : ''
