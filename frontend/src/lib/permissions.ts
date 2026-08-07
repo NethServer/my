@@ -23,7 +23,19 @@ const DESTROY_USERS = 'destroy:users'
 const DESTROY_SYSTEMS = 'destroy:systems'
 const READ_ALERTS = 'read:alerts'
 const MANAGE_ALERTS = 'manage:alerts'
+// The add-on permissions are still spelled "entitlements" on the wire
+const READ_ADDONS = 'read:entitlements'
+const MANAGE_ADDONS = 'manage:entitlements'
 const SUPER_ADMIN_ROLE = 'Super Admin'
+
+// "Owner-level authority": the Owner organization, or a Super Admin user
+// (Nethesis). Not a permission — it is the threshold above the manage:* scopes
+// every distributor already holds. Named once because several unrelated gates
+// happen to sit at it; each keeps its own function so it can move alone.
+const hasOwnerLevelAuthority = () => {
+  const loginStore = useLoginStore()
+  return loginStore.isOwner || (loginStore.userInfo?.user_roles ?? []).includes(SUPER_ADMIN_ROLE)
+}
 
 export const canReadDistributors = () => {
   const loginStore = useLoginStore()
@@ -127,9 +139,27 @@ export const canReadAlerts = () => {
 
 // Moving an organization between hierarchy levels takes it out of the scope of
 // the company that manages it, so it answers to owner-level authority rather
-// than to a manage:* permission every distributor holds. Mirrors the backend
-// gate on PATCH /resellers/:id/promote.
-export const canPromoteOrganizations = () => {
+// than to a manage:* permission every distributor holds. Coarse pre-filter for
+// the button: the backend gate on PATCH /resellers/:id/promote additionally
+// keeps a Super Admin outside the Owner org within its own hierarchy.
+export const canPromoteOrganizations = () => hasOwnerLevelAuthority()
+
+export const canReadAddons = () => {
   const loginStore = useLoginStore()
-  return loginStore.isOwner || (loginStore.userInfo?.user_roles || []).includes(SUPER_ADMIN_ROLE)
+  return loginStore.permissions.includes(READ_ADDONS)
 }
+
+export const canManageAddons = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(MANAGE_ADDONS)
+}
+
+// The add-on catalog is a licensing back-office duty, not something every
+// distributor takes part in: owner organization or Super Admin only. Mirrors
+// the backend isEntitlementAdmin gate on the catalog write endpoints.
+export const isAddonAdmin = () => hasOwnerLevelAuthority()
+
+// Buying an add-on on NethShop is what a distributor, reseller or customer
+// does; owner-level users grant it outright instead, so offering them the shop
+// on top would be a second way to do a thing they already did better.
+export const canBuyAddons = () => canManageAddons() && !isAddonAdmin()

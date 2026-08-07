@@ -22,6 +22,7 @@ import {
   faUserGroup as fasUserGroup,
   faServer as fasServer,
   faTriangleExclamation,
+  faPuzzlePiece,
 } from '@fortawesome/free-solid-svg-icons'
 import { faGridOne as fasGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import {
@@ -41,6 +42,7 @@ import {
   canReadResellers,
   canReadSystems,
   canReadUsers,
+  isAddonAdmin,
 } from '@/lib/permissions'
 import { isUserCustomer } from '@/lib/organizations/organizations'
 
@@ -67,7 +69,7 @@ const menuExpanded: Ref<Record<string, boolean>> = ref({
   resellers: false,
 })
 
-const systemsManagementRoutes = ['alerts', 'systems', 'applications']
+const systemsManagementRoutes = ['alerts', 'systems', 'applications', 'addons']
 const companiesAndUsersRoutes = ['distributors', 'resellers', 'customers', 'users']
 
 const navigation = computed(() => {
@@ -99,6 +101,18 @@ const navigation = computed(() => {
       to: 'applications',
       solidIcon: fasGridOne,
       lightIcon: falGrid2,
+    })
+  }
+
+  // Managing the add-on catalog is a licensing back-office duty, so the entry
+  // answers to owner-level authority rather than to read:entitlements, which
+  // every company holds to see its own add-ons.
+  if (isAddonAdmin()) {
+    menuItems.push({
+      name: 'addons.title',
+      to: 'addons',
+      solidIcon: faPuzzlePiece,
+      lightIcon: faPuzzlePiece,
     })
   }
 
