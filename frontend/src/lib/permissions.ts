@@ -23,6 +23,9 @@ const DESTROY_USERS = 'destroy:users'
 const DESTROY_SYSTEMS = 'destroy:systems'
 const READ_ALERTS = 'read:alerts'
 const MANAGE_ALERTS = 'manage:alerts'
+// The add-on permissions are still spelled "entitlements" on the wire
+const READ_ADDONS = 'read:entitlements'
+const MANAGE_ADDONS = 'manage:entitlements'
 const SUPER_ADMIN_ROLE = 'Super Admin'
 
 // "Owner-level authority": the Owner organization, or a Super Admin user
@@ -144,3 +147,18 @@ export const canReadAlerts = () => {
 // the button: the backend gate on PATCH /resellers/:id/promote additionally
 // keeps a Super Admin outside the Owner org within its own hierarchy.
 export const canPromoteOrganizations = () => hasOwnerLevelAuthority()
+
+export const canReadAddons = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(READ_ADDONS)
+}
+
+export const canManageAddons = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(MANAGE_ADDONS)
+}
+
+// The add-on catalog is a licensing back-office duty, not something every
+// distributor takes part in: owner organization or Super Admin only. Mirrors
+// the backend isEntitlementAdmin gate on the catalog write endpoints.
+export const isAddonAdmin = () => hasOwnerLevelAuthority()
