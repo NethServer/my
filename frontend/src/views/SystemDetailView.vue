@@ -8,26 +8,43 @@ import { NeHeading, NeInlineNotification, NeSkeleton, NeTabs } from '@nethesis/v
 /*//// import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faArrowUpRightFromSquare } from '@fortawesome/free-solid-svg-icons' */
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
-import { canReadSystems } from '@/lib/permissions'
+import { canReadAddons, canReadSystems } from '@/lib/permissions'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { useTabs } from '@/composables/useTabs'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import type { Tab } from '@nethesis/vue-components'
 import SystemOverviewPanel from '@/components/systems/SystemOverviewPanel.vue'
 import SystemChangeHistoryPanel from '@/components/systems/SystemChangeHistoryPanel.vue'
 import SystemBackupsPanel from '@/components/systems/SystemBackupsPanel.vue'
 import SystemAlertsPanel from '@/components/systems/SystemAlertsPanel.vue'
+import SystemAddonsPanel from '@/components/systems/SystemAddonsPanel.vue'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
+import { useLoginStore } from '@/stores/login'
 
 const { t } = useI18n()
+const loginStore = useLoginStore()
 const { state: systemDetail } = useSystemDetail()
 const { state: latestInventory } = useLatestInventory()
 // const { state: reachabilityState, asyncStatus: reachabilityAsyncStatus } = useSystemReachability() ////
-const { tabs, selectedTab } = useTabs([
-  { name: 'overview', label: t('system_detail.overview') },
-  { name: 'change_history', label: t('system_detail.change_history') },
-  { name: 'alert_history', label: t('alerts.title') },
-  { name: 'backups', label: t('backups.title') },
-])
+
+// Add-ons are only listed to companies allowed to see what they hold; every
+// other tab is available to anyone who can read the system.
+const tabsConfig = computed((): Tab[] => {
+  const tabs: Tab[] = [
+    { name: 'overview', label: t('system_detail.overview') },
+    { name: 'change_history', label: t('system_detail.change_history') },
+    { name: 'alert_history', label: t('alerts.title') },
+    { name: 'backups', label: t('backups.title') },
+  ]
+
+  if (canReadAddons()) {
+    tabs.push({ name: 'addons', label: t('addons.title') })
+  }
+  return tabs
+})
+
+const { tabs, selectedTab } = useTabs(tabsConfig)
 
 ////
 // const isSystemReachable = computed(() => !!reachabilityState.value.data?.reachable)
@@ -113,7 +130,12 @@ const { tabs, selectedTab } = useTabs([
       :description="$t('system_detail.no_inventory_available_description')"
       class="mb-4"
     />
+    <!-- The tab list is not final until permissions are in: NeTabs falls back
+         to the first tab when the selected one is missing, which would turn a
+         ?tab=addons deep link into ?tab=overview on a cold load. -->
+    <NeSkeleton v-if="loginStore.loadingUserInfo" size="sm" class="mb-8 w-md" />
     <NeTabs
+      v-else
       :tabs="tabs"
       :selected="selectedTab"
       :sr-tabs-label="t('ne_tabs.tabs')"
@@ -125,5 +147,6 @@ const { tabs, selectedTab } = useTabs([
     <SystemChangeHistoryPanel v-else-if="selectedTab === 'change_history'" />
     <SystemAlertsPanel v-else-if="selectedTab === 'alert_history'" />
     <SystemBackupsPanel v-else-if="selectedTab === 'backups'" />
+    <SystemAddonsPanel v-else-if="selectedTab === 'addons'" />
   </div>
 </template>
