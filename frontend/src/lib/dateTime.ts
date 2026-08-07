@@ -25,6 +25,18 @@ function getTimeZoneOptions(timeZone?: string): Intl.DateTimeFormatOptions {
   }
 }
 
+// The calendar day on its own, matching the date half of
+// formatDateTimeNoSeconds: "Aug 06, 2026" in English, "06 ago 2026" in
+// Italian. For values where the time of day carries no meaning.
+export function formatDateNoTime(dateTime: Date, locale: string, timeZone?: string): string {
+  return dateTime.toLocaleDateString(locale, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    ...getTimeZoneOptions(timeZone),
+  })
+}
+
 export function formatTimeNoSeconds(dateTime: Date, locale: string, timeZone?: string): string {
   return dateTime.toLocaleTimeString(locale, {
     hour: '2-digit',

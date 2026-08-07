@@ -158,3 +158,8 @@ export const canManageAddons = () => {
 // distributor takes part in: owner organization or Super Admin only. Mirrors
 // the backend isEntitlementAdmin gate on the catalog write endpoints.
 export const isAddonAdmin = () => hasOwnerLevelAuthority()
+
+// Buying an add-on on NethShop is what a distributor, reseller or customer
+// does; owner-level users grant it outright instead, so offering them the shop
+// on top would be a second way to do a thing they already did better.
+export const canBuyAddons = () => canManageAddons() && !isAddonAdmin()
