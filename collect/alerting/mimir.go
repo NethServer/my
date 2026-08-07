@@ -362,7 +362,18 @@ func PostAlerts(orgID string, alerts []models.AlertmanagerPostAlert) error {
 // alert for a recovered system. It reuses the exact firing label set — the same
 // three base labels plus EnrichAlerts(systemContext) — so Alertmanager recomputes
 // the identical fingerprint and clears the firing alert instead of opening a new
-// one. Annotations are omitted: they don't affect the fingerprint.
+// one.
+//
+// Annotations do not affect the fingerprint, but they must still be set:
+// Alertmanager's Alert.Merge copies the younger alert wholesale and only
+// special-cases StartsAt, so a resolve with no annotations blanks them on the
+// alert it clears. That left every normally-resolved LinkFailed with empty
+// annotations in both the resolved notification and alert_history.
+//
+// The text describes the recovery rather than replaying the firing alert's
+// "no heartbeat since X" line: system_heartbeats keeps only the latest beat, so
+// by the time we resolve, the timestamp that line referred to is already
+// overwritten by the beat that triggered the recovery.
 func BuildResolvedLinkFailedAlert(systemContext *SystemAlertContext) (models.AlertmanagerPostAlert, error) {
 	now := time.Now().UTC()
 	enriched, err := EnrichAlerts([]models.AlertmanagerPostAlert{
@@ -371,6 +382,12 @@ func BuildResolvedLinkFailedAlert(systemContext *SystemAlertContext) (models.Ale
 				"alertname":    LinkFailedAlert,
 				"severity":     "critical",
 				ManagedByLabel: ManagedByCollect,
+			},
+			Annotations: map[string]string{
+				"summary_en":     "System is communicating again",
+				"summary_it":     "Il sistema comunica di nuovo",
+				"description_en": "The system has resumed sending heartbeats to My Nethesis.",
+				"description_it": "Il sistema ha ripreso a inviare heartbeat a My Nethesis.",
 			},
 			StartsAt: now.Add(-time.Minute),
 			EndsAt:   now,

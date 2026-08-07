@@ -23,6 +23,13 @@ import (
 	"github.com/nethesis/my/collect/queue"
 )
 
+// heartbeatSummaryInterval bounds how often the worker reports throughput at
+// Info. The per-batch line stays at Debug because a 2s flush would emit ~43k
+// lines a day, but with no Info-level trace at all a heartbeat stall is
+// completely invisible in production (LOG_LEVEL=info), leaving nothing to
+// diagnose a fleet-wide ingest gap with except downstream alert timestamps.
+const heartbeatSummaryInterval = 5 * time.Minute
+
 // HeartbeatWorker processes heartbeat updates from Redis queue in batches
 type HeartbeatWorker struct {
 	id             int
@@ -32,6 +39,11 @@ type HeartbeatWorker struct {
 	isHealthy      int32
 	processedCount int64
 	failedCount    int64
+	// Throughput accumulators for the periodic Info summary. Only touched from
+	// the single run() goroutine.
+	summarySince    time.Time
+	summaryBatches  int
+	summaryUpserted int
 }
 
 // NewHeartbeatWorker creates a new heartbeat worker
@@ -82,6 +94,8 @@ func (hw *HeartbeatWorker) run(ctx context.Context, wg *sync.WaitGroup) {
 		Int("batch_size", hw.batchSize).
 		Dur("flush_interval", hw.flushInterval).
 		Msg("Heartbeat worker started")
+
+	hw.summarySince = time.Now()
 
 	ticker := time.NewTicker(hw.flushInterval)
 	defer ticker.Stop()
@@ -137,6 +151,24 @@ func (hw *HeartbeatWorker) processBatch(ctx context.Context) {
 		Int("dequeued", len(heartbeats)).
 		Int("unique_systems", len(latest)).
 		Msg("Heartbeat batch processed")
+
+	hw.summaryBatches++
+	hw.summaryUpserted += len(latest)
+	if since := time.Since(hw.summarySince); since >= heartbeatSummaryInterval {
+		queueDepth, depthErr := hw.queueManager.HeartbeatQueueDepth(ctx)
+		event := log.Info().
+			Int("batches", hw.summaryBatches).
+			Int("systems_upserted", hw.summaryUpserted).
+			Dur("window", since)
+		if depthErr == nil {
+			event = event.Int64("queue_depth", queueDepth)
+		}
+		event.Msg("Heartbeat throughput")
+
+		hw.summarySince = time.Now()
+		hw.summaryBatches = 0
+		hw.summaryUpserted = 0
+	}
 }
 
 // bulkUpsert writes multiple heartbeats in a single SQL statement

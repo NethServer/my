@@ -215,7 +215,7 @@ What Mimir delivers for this customer:
 On each system's detail page you can find two additional alerting widgets:
 
 :::note
-`LinkFailed` is the internal heartbeat alert created by Collect. It follows the configured heartbeat timeout (10 minutes by default), separate from the system-status threshold used in Systems, and can remain active for up to 10 minutes after the system starts sending heartbeats again.
+`LinkFailed` is the internal heartbeat alert created by Collect. It follows the configured heartbeat timeout (30 minutes by default), separate from the system-status threshold used in Systems, and can remain active for up to 10 minutes after the system starts sending heartbeats again.
 :::
 
 ### Active Alerts card

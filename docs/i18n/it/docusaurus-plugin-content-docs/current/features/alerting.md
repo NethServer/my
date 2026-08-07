@@ -215,7 +215,7 @@ Cosa consegna Mimir per questo customer:
 Nella pagina di dettaglio di ciascun sistema trovi due widget aggiuntivi:
 
 :::note
-`LinkFailed` è l'alert interno per l'heartbeat creato da Collect. Segue il timeout heartbeat configurato (10 minuti di default), separato dalla soglia di stato del sistema usata in Sistemi, e può restare attivo fino a 10 minuti dopo che il sistema torna a inviare heartbeat.
+`LinkFailed` è l'alert interno per l'heartbeat creato da Collect. Segue il timeout heartbeat configurato (30 minuti di default), separato dalla soglia di stato del sistema usata in Sistemi, e può restare attivo fino a 10 minuti dopo che il sistema torna a inviare heartbeat.
 :::
 
 ### Card Allarmi attivi
