@@ -19,6 +19,16 @@ export const isValidationError = (error: Error | null): boolean => {
   return isValidationErrorCode((error as AxiosError)?.response?.status)
 }
 
+////
+// The message the backend sent, falling back to the axios one. Axios leaves
+// error.message as "Request failed with status code 409", which tells the user
+// nothing: reach for response.data.message whenever the API bothered to explain
+// itself (e.g. "catalog item is referenced by existing grants").
+export const getBackendErrorMessage = (error: Error | null): string => {
+  const axiosError = error as AxiosError<{ message?: string }> | null
+  return axiosError?.response?.data?.message || axiosError?.message || ''
+}
+
 export const isValidationErrorCode = (errorCode: number | undefined) => {
   if (!errorCode) {
     return false
