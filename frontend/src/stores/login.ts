@@ -37,11 +37,15 @@ export type UserInfo = {
 }
 
 export const useLoginStore = defineStore('login', () => {
-  const { signIn, signOut, isAuthenticated, getAccessToken } = useLogto()
+  const { signIn, signOut, isAuthenticated, getAccessToken, getIdToken } = useLogto()
   const themeStore = useThemeStore()
 
   // The Logto opaque token is only used at exchange time; keep it in memory.
   const accessToken = ref<string>('')
+  // Raw Logto ID token (JWT with email): sent to third-party apps' info_url,
+  // which validate it against the shared Logto tenant. In memory only: the
+  // Logto SDK owns its lifecycle and re-issues it on the next token exchange.
+  const idToken = ref<string>('')
   // The custom JWT pair (and its expiry bookkeeping) is persisted in
   // sessionStorage so a page reload no longer drops the session and falls back
   // to a full Logto re-login. sessionStorage keeps the per-tab isolation the
@@ -122,12 +126,9 @@ export const useLoginStore = defineStore('login', () => {
     (isAuth, wasAuth) => {
       if (isAuth) {
         fetchTokenAndUserInfo()
-        const pathRequested = useStorage('pathRequested', '')
-
-        if (pathRequested.value) {
-          router.push(JSON.parse(pathRequested.value))
-          pathRequested.value = null // clear the local storage entry
-        }
+        // pathRequested (deep link saved by the router guard) is restored by
+        // LoginRedirectView's sign-in callback: doing it here too would race
+        // with that push and could bounce the user to the dashboard.
       } else if (wasAuth) {
         // Genuine logout (was authenticated, now not) — tear the session down.
         // On the initial boot tick isAuthenticated is transiently false while
@@ -136,6 +137,7 @@ export const useLoginStore = defineStore('login', () => {
         stopAutoRefresh()
         jwtToken.value = ''
         accessToken.value = ''
+        idToken.value = ''
         refreshToken.value = ''
         tokenRefreshedAt.value = 0
         tokenExpiresAt.value = 0
@@ -179,6 +181,13 @@ export const useLoginStore = defineStore('login', () => {
       }
 
       accessToken.value = token || ''
+
+      // Raw ID token for third-party info_url calls (best-effort).
+      try {
+        idToken.value = (await getIdToken()) || ''
+      } catch {
+        idToken.value = ''
+      }
     } catch (error) {
       console.error('Cannot fetch access token:', error)
       loadingUserInfo.value = false
@@ -370,6 +379,7 @@ export const useLoginStore = defineStore('login', () => {
   return {
     isAuthenticated,
     jwtToken,
+    idToken,
     userDisplayName,
     userInfo,
     loadingUserInfo,
