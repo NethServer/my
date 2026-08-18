@@ -59,6 +59,21 @@ type pendingAlert struct {
 	endsAt          time.Time
 }
 
+// alertSummary picks the summary to store in alert_history.summary.
+//
+// No producer actually writes a plain "summary" annotation: collect's own
+// LinkFailed alerts and the vmalert rules shipped by NS8 and NethSecurity all use
+// the localised summary_en/summary_it pair. Reading only "summary" therefore left
+// the column NULL for every row, so fall back to the localised keys.
+func alertSummary(annotations map[string]string) string {
+	for _, key := range []string{"summary", "summary_en", "summary_it"} {
+		if value := annotations[key]; value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 // ReceiveAlertHistory handles POST /api/alert_history.
 // It persists resolved alerts from Alertmanager webhook payloads.
 // Firing alerts are ignored; only resolved alerts contain valid startsAt/endsAt.
@@ -189,7 +204,7 @@ func preparePendingAlerts(alerts []models.AlertmanagerAlert) ([]pendingAlert, []
 			systemKey:       sk,
 			alertname:       alert.Labels["alertname"],
 			severity:        alert.Labels["severity"],
-			summary:         alert.Annotations["summary"],
+			summary:         alertSummary(alert.Annotations),
 			labelsJSON:      labelsJSON,
 			annotationsJSON: annotationsJSON,
 		}

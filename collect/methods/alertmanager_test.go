@@ -455,3 +455,52 @@ func TestReceiveAlertHistory_BulkSplitsLinkFailedAndOthers(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, w.Code)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
+
+// alert_history.summary was NULL for every row in production: the ingest read
+// annotations["summary"], but every producer (collect's own LinkFailed and the
+// NS8/NethSecurity rules alike) writes only the localised summary_en/summary_it
+// keys. Fall back to those instead of storing nothing.
+func TestAlertSummary_FallsBackToLocalisedKeys(t *testing.T) {
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		want        string
+	}{
+		{
+			name:        "plain summary wins",
+			annotations: map[string]string{"summary": "plain", "summary_en": "english"},
+			want:        "plain",
+		},
+		{
+			name:        "falls back to english",
+			annotations: map[string]string{"summary_en": "No heartbeat received from system"},
+			want:        "No heartbeat received from system",
+		},
+		{
+			name:        "falls back to italian when english absent",
+			annotations: map[string]string{"summary_it": "Nessun heartbeat ricevuto dal sistema"},
+			want:        "Nessun heartbeat ricevuto dal sistema",
+		},
+		{
+			name:        "empty plain summary does not mask a localised one",
+			annotations: map[string]string{"summary": "", "summary_en": "english"},
+			want:        "english",
+		},
+		{
+			name:        "no summary at all",
+			annotations: map[string]string{"description_en": "only a description"},
+			want:        "",
+		},
+		{
+			name:        "nil map",
+			annotations: nil,
+			want:        "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, alertSummary(tt.annotations))
+		})
+	}
+}
