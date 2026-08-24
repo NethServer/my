@@ -119,8 +119,9 @@ func (c *LogtoManagementClient) RequestImpersonationToken(impersonatedUserID, im
 func GetUserForImpersonation(logtoID string) (*models.User, error) {
 	// Get the local database ID from logto_id
 	var localUserID string
-	query := `SELECT id FROM users WHERE logto_id = $1 AND deleted_at IS NULL`
-	err := database.DB.QueryRow(query, logtoID).Scan(&localUserID)
+	var hasAvatar bool
+	query := `SELECT id, avatar IS NOT NULL FROM users WHERE logto_id = $1 AND deleted_at IS NULL`
+	err := database.DB.QueryRow(query, logtoID).Scan(&localUserID, &hasAvatar)
 	if err != nil {
 		logger.ComponentLogger("logto").Error().
 			Err(err).
@@ -146,11 +147,12 @@ func GetUserForImpersonation(logtoID string) (*models.User, error) {
 
 	// Create user model
 	user := models.User{
-		ID:       localUserID, // Local database ID
-		LogtoID:  &logtoID,    // Logto ID
-		Username: userProfile.Username,
-		Email:    userProfile.PrimaryEmail,
-		Name:     userProfile.Name,
+		ID:        localUserID, // Local database ID
+		LogtoID:   &logtoID,    // Logto ID
+		Username:  userProfile.Username,
+		Email:     userProfile.PrimaryEmail,
+		Name:      userProfile.Name,
+		HasAvatar: hasAvatar,
 	}
 
 	if userProfile.PrimaryPhone != "" {

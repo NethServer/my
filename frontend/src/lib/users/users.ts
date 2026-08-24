@@ -41,6 +41,8 @@ export const UserSchema = v.object({
   logto_id: v.optional(v.string()),
   username: v.string(),
   can_be_impersonated: v.boolean(),
+  // Whether a profile picture is stored, so the avatar request can be skipped
+  has_avatar: v.boolean(),
   logto_synced_at: v.optional(v.string()),
   suspended_at: v.optional(v.string()),
   deleted_at: v.optional(v.string()),

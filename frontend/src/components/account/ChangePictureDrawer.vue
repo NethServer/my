@@ -47,7 +47,7 @@ const {
 } = useMutation({
   mutation: (file: File) => putAvatar(file),
   onSuccess() {
-    loginStore.refreshAvatar()
+    loginStore.refreshAvatar(true)
     setTimeout(() => {
       notificationsStore.createNotification({
         kind: 'success',

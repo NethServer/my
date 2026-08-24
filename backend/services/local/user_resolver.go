@@ -77,7 +77,7 @@ func ResolveUserByLogtoID(logtoID string) (*models.User, error) {
 
 	var user models.User
 	if localUser, err := NewUserService().GetUserByLogtoID(logtoID); err == nil {
-		user = models.User{ID: localUser.ID, LogtoID: localUser.LogtoID}
+		user = models.User{ID: localUser.ID, LogtoID: localUser.LogtoID, HasAvatar: localUser.HasAvatar}
 	} else {
 		user = models.User{ID: "", LogtoID: &logtoID}
 	}

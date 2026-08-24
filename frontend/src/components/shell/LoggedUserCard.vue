@@ -37,6 +37,7 @@ const loginStore = useLoginStore()
           size="md"
           :logto-id="loginStore.userInfo.logto_id"
           :cache-key="loginStore.avatarVersion"
+          :has-avatar="loginStore.userInfo.has_avatar"
         />
         <div class="flex flex-col gap-1">
           <div>{{ loginStore.userInfo.name }}</div>

@@ -5,7 +5,6 @@
 
 <script lang="ts" setup>
 import { ProfileInfoSchema, postChangeInfo, type ProfileInfo } from '@/lib/account'
-import { API_URL } from '@/lib/config'
 import { getValidationIssues, isValidationError } from '@/lib/validation'
 import { useLoginStore } from '@/stores/login'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -23,8 +22,8 @@ import {
 } from '@nethesis/vue-components'
 import { combinePhoneParts, countryCodeComboOptions, parsePhoneForForm } from '@/lib/phone'
 import { useMutation, useQueryCache } from '@pinia/colada'
-import axios, { type AxiosError } from 'axios'
-import { ref, useTemplateRef, watch, type ShallowRef } from 'vue'
+import type { AxiosError } from 'axios'
+import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import * as v from 'valibot'
 import { USERS_KEY } from '@/lib/users/users'
@@ -65,8 +64,9 @@ const {
 
 const isChangePictureDrawerShown = ref(false)
 const isRemoveAvatarModalShown = ref(false)
-const hasCustomAvatar = ref(false)
-const loadingCustomAvatar = ref(false)
+// The profile payload already says whether a picture is stored, so there is no
+// need to probe the avatar endpoint just to enable/disable "Remove picture".
+const hasCustomAvatar = computed(() => loginStore.userInfo?.has_avatar ?? false)
 const name = ref('')
 const nameRef = useTemplateRef<HTMLInputElement>('nameRef')
 const email = ref('')
@@ -97,31 +97,6 @@ watch(
         countryCode.value = 'it'
         phone.value = ''
       }
-    }
-  },
-  { immediate: true },
-)
-
-watch(
-  [() => loginStore.userInfo?.logto_id, () => loginStore.avatarVersion],
-  async ([logtoId]) => {
-    if (!logtoId) {
-      hasCustomAvatar.value = false
-      return
-    }
-
-    loadingCustomAvatar.value = true
-
-    try {
-      const avatarResponse = await axios.get(`${API_URL}/public/users/${logtoId}/avatar`, {
-        validateStatus: (status) => status === 200 || status === 404,
-      })
-      hasCustomAvatar.value = avatarResponse.status === 200
-    } catch (error) {
-      console.error('Error checking avatar:', error)
-      hasCustomAvatar.value = false
-    } finally {
-      loadingCustomAvatar.value = false
     }
   },
   { immediate: true },
@@ -181,7 +156,7 @@ function getKebabMenuItems() {
       action: () => {
         isRemoveAvatarModalShown.value = true
       },
-      disabled: loadingCustomAvatar.value || !hasCustomAvatar.value,
+      disabled: !hasCustomAvatar.value,
     },
   ]
 }
@@ -200,6 +175,7 @@ function getKebabMenuItems() {
             :is-owner="loginStore.isOwner"
             :logto-id="loginStore.userInfo?.logto_id || ''"
             :cache-key="loginStore.avatarVersion"
+            :has-avatar="hasCustomAvatar"
           />
           <div class="flex shrink-0 items-center gap-2">
             <NeButton
@@ -218,12 +194,7 @@ function getKebabMenuItems() {
             <NeDropdown
               :items="getKebabMenuItems()"
               :align-to-right="true"
-              :disabled="
-                loginStore.isOwner ||
-                loginStore.isImpersonating ||
-                loadingCustomAvatar ||
-                !hasCustomAvatar
-              "
+              :disabled="loginStore.isOwner || loginStore.isImpersonating || !hasCustomAvatar"
             />
           </div>
         </div>

@@ -334,6 +334,7 @@ func GetCurrentUser(c *gin.Context) {
 		"org_permissions":   user.OrgPermissions,
 		"organization_id":   user.OrganizationID,
 		"organization_name": user.OrganizationName,
+		"has_avatar":        user.HasAvatar,
 	}
 
 	logger.RequestLogger(c, "auth").Info().

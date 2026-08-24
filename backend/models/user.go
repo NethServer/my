@@ -26,6 +26,7 @@ type User struct {
 	OrgPermissions   []string `json:"org_permissions" structs:"org_permissions"`     // Permissions derived from organization role
 	OrganizationID   string   `json:"organization_id" structs:"organization_id"`     // Which organization the user belongs to
 	OrganizationName string   `json:"organization_name" structs:"organization_name"` // Organization name for display
+	HasAvatar        bool     `json:"has_avatar" structs:"has_avatar"`               // Whether a profile picture is stored, so clients can skip the avatar request
 }
 
 // ChangePasswordRequest represents a request to change the current user's password

@@ -304,6 +304,7 @@ func GetUsers(c *gin.Context) {
 				"suspended_at":        account.SuspendedAt,
 				"suspended_by_org_id": account.SuspendedByOrgID,
 				"created_by":          account.CreatedBy,
+				"has_avatar":          account.HasAvatar,
 				"can_be_impersonated": canBeImpersonated,
 			}
 			enrichedUsers = append(enrichedUsers, userMap)
@@ -329,6 +330,7 @@ func GetUsers(c *gin.Context) {
 				"suspended_at":        account.SuspendedAt,
 				"suspended_by_org_id": account.SuspendedByOrgID,
 				"created_by":          account.CreatedBy,
+				"has_avatar":          account.HasAvatar,
 			}
 			enrichedUsers = append(enrichedUsers, userMap)
 		}

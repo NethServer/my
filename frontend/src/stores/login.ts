@@ -34,6 +34,7 @@ export type UserInfo = {
   user_permissions: string[]
   user_role_ids: string[]
   user_roles: string[]
+  has_avatar: boolean
 }
 
 export const useLoginStore = defineStore('login', () => {
@@ -161,8 +162,15 @@ export const useLoginStore = defineStore('login', () => {
     signOut(SIGN_OUT_REDIRECT_URI)
   }
 
-  const refreshAvatar = () => {
+  // Called after the picture is uploaded or removed: busts the avatar URL cache
+  // and keeps has_avatar in sync, so the shell doesn't wait for the next token
+  // refresh to start (or stop) rendering the image.
+  const refreshAvatar = (hasAvatar: boolean) => {
     avatarVersion.value = Date.now()
+
+    if (userInfo.value) {
+      userInfo.value.has_avatar = hasAvatar
+    }
   }
 
   const fetchTokenAndUserInfo = async () => {

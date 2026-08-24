@@ -33,7 +33,7 @@ const {
     return deleteAvatar()
   },
   onSuccess() {
-    loginStore.refreshAvatar()
+    loginStore.refreshAvatar(false)
 
     setTimeout(() => {
       notificationsStore.createNotification({

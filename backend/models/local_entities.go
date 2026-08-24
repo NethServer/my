@@ -300,6 +300,7 @@ type LocalUser struct {
 	SuspendedAt      *time.Time             `json:"suspended_at" db:"suspended_at"`               // Suspension timestamp
 	SuspendedByOrgID *string                `json:"suspended_by_org_id" db:"suspended_by_org_id"` // Organization that caused cascade suspension
 	DeletedByOrgID   *string                `json:"deleted_by_org_id" db:"deleted_by_org_id"`     // Organization that caused cascade soft-deletion
+	HasAvatar        bool                   `json:"has_avatar" db:"has_avatar"`                   // Whether a profile picture is stored, so clients can skip the avatar request
 
 	// Creator snapshot (set at creation, display/filter only - RBAC is by organization_id)
 	CreatedBy *OrgCreator `json:"created_by,omitempty" db:"created_by"`

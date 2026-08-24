@@ -1223,6 +1223,10 @@ components:
           type: string
           description: Organization name
           example: "ACME Distribution"
+        has_avatar:
+          type: boolean
+          description: Whether the user has a profile picture stored. False means GET /public/users/{logto_id}/avatar has nothing to serve, so clients can render initials without issuing the request.
+          example: false
 
     Organization:
       type: object
@@ -1436,6 +1440,10 @@ components:
           type: boolean
           description: Whether this user can currently be impersonated (only shown for users with impersonation permissions, based on active consent)
           example: true
+        has_avatar:
+          type: boolean
+          description: Whether the user has a profile picture stored. False means GET /public/users/{logto_id}/avatar has nothing to serve, so clients can render initials without issuing the request.
+          example: false
 
     UserInput:
       type: object
@@ -5226,8 +5234,19 @@ paths:
               schema:
                 type: string
                 format: binary
-        '404':
-          $ref: '#/components/responses/NotFound'
+        '204':
+          description: |
+            The user has no avatar (or the id is unknown). Deliberately not a 404:
+            most users have no picture, and an error status would make every
+            browser log a failed request. Check `has_avatar` on the user payload
+            to skip the call entirely.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: "no-store"
+        '400':
+          $ref: '#/components/responses/BadRequest'
 
   /auth/refresh:
     post:

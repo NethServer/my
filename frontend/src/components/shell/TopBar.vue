@@ -197,6 +197,7 @@ function openNotificationsDrawer() {
                       :name="loginStore.userDisplayName"
                       :logto-id="loginStore.userInfo.logto_id"
                       :cache-key="loginStore.avatarVersion"
+                      :has-avatar="loginStore.userInfo.has_avatar"
                     />
                     <FontAwesomeIcon
                       :icon="faChevronDown"

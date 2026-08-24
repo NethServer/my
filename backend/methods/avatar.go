@@ -58,7 +58,13 @@ func GetPublicAvatar(c *gin.Context) {
 	repo := entities.NewLocalUserRepository()
 	data, mime, err := repo.GetAvatar(userID)
 	if err != nil || data == nil {
-		c.JSON(http.StatusNotFound, response.NotFound("avatar not found", nil))
+		// Having no avatar is the normal case, not an error: answer 204 so the
+		// browser doesn't log a failed request for every user without a
+		// picture. The empty body still fails to decode, so NeAvatar falls back
+		// to its initials/crown placeholder. Not cached, so a freshly uploaded
+		// avatar shows up on the next page load.
+		c.Header("Cache-Control", "no-store")
+		c.Status(http.StatusNoContent)
 		return
 	}
 

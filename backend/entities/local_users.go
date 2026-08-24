@@ -124,6 +124,7 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 	query := `
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data, u.created_by,
 		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at, u.suspended_by_org_id,
+		       u.avatar IS NOT NULL as has_avatar,
 		       uo.name as organization_name,
 		       COALESCE(uo.db_id, '') as organization_local_id,
 		       COALESCE(uo.org_type, 'owner') as organization_type
@@ -141,6 +142,7 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 		&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name, &user.Phone,
 		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON, &createdByJSON,
 		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt, &user.SuspendedByOrgID,
+		&user.HasAvatar,
 		&user.OrganizationName, &user.OrganizationLocalID, &user.OrganizationType,
 	)
 
@@ -188,6 +190,7 @@ func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, e
 	query := `
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data, u.created_by,
 		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at, u.suspended_by_org_id,
+		       u.avatar IS NOT NULL as has_avatar,
 		       uo.name as organization_name,
 		       COALESCE(uo.db_id, '') as organization_local_id,
 		       COALESCE(uo.org_type, 'owner') as organization_type
@@ -205,6 +208,7 @@ func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, e
 		&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name, &user.Phone,
 		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON, &createdByJSON,
 		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt, &user.SuspendedByOrgID,
+		&user.HasAvatar,
 		&user.OrganizationName, &user.OrganizationLocalID, &user.OrganizationType,
 	)
 
@@ -792,6 +796,7 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, pageSi
 	mainQuery := fmt.Sprintf(`
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data, u.created_by,
 		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at, u.suspended_by_org_id,
+		       u.avatar IS NOT NULL as has_avatar,
 		       uo.name as organization_name,
 		       uo.db_id as organization_local_id,
 		       COALESCE(uo.org_type, 'owner') as organization_type,
@@ -889,6 +894,7 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, pag
 	mainQuery := fmt.Sprintf(`
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data, u.created_by,
 		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at, u.suspended_by_org_id,
+		       u.avatar IS NOT NULL as has_avatar,
 		       uo.name as organization_name,
 		       uo.db_id as organization_local_id,
 		       COALESCE(uo.org_type, 'owner') as organization_type,
@@ -927,6 +933,7 @@ func (r *LocalUserRepository) executeUserQuery(_ string, _ []interface{}, mainQu
 			&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name,
 			&user.Phone, &user.OrganizationID, &userRoleIDsJSON, &customDataJSON, &createdByJSON,
 			&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt, &user.SuspendedByOrgID,
+			&user.HasAvatar,
 			&user.OrganizationName, &user.OrganizationLocalID, &user.OrganizationType,
 			&totalCount,
 		)
@@ -1458,6 +1465,7 @@ func (r *LocalUserRepository) GetByIDIncludeDeleted(id string) (*models.LocalUse
 	query := `
 		SELECT u.id, u.logto_id, u.username, u.email, u.name, u.phone, u.organization_id, u.user_role_ids, u.custom_data, u.created_by,
 		       u.created_at, u.updated_at, u.logto_synced_at, u.latest_login_at, u.deleted_at, u.suspended_at, u.suspended_by_org_id,
+		       u.avatar IS NOT NULL as has_avatar,
 		       COALESCE(d.name, r.name, c.name) as organization_name,
 		       COALESCE(d.id, r.id, c.id) as organization_local_id,
 		       CASE
@@ -1482,6 +1490,7 @@ func (r *LocalUserRepository) GetByIDIncludeDeleted(id string) (*models.LocalUse
 		&user.ID, &user.LogtoID, &user.Username, &user.Email, &user.Name, &user.Phone,
 		&user.OrganizationID, &userRoleIDsJSON, &customDataJSON, &createdByJSON,
 		&user.CreatedAt, &user.UpdatedAt, &user.LogtoSyncedAt, &user.LatestLoginAt, &user.DeletedAt, &user.SuspendedAt, &user.SuspendedByOrgID,
+		&user.HasAvatar,
 		&user.OrganizationName, &user.OrganizationLocalID, &user.OrganizationType,
 	)
 

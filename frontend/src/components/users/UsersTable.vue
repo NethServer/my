@@ -502,6 +502,7 @@ const goToAccount = () => {
                 :is-owner="item.username === 'owner'"
                 :name="item.name"
                 :logto-id="item.logto_id || ''"
+                :has-avatar="item.has_avatar"
               />
               <div class="flex flex-col">
                 <div class="flex items-center gap-2">

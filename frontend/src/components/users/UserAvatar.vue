@@ -16,12 +16,21 @@ const {
   name,
   logtoId,
   cacheKey,
+  hasAvatar,
 } = defineProps<{
   size?: AvatarSize
   isOwner: boolean
   name: string
   logtoId: string
   cacheKey?: number | string
+  /**
+   * Whether the user has a picture stored, when the caller knows it (the
+   * has_avatar flag on /me and on the users list). False skips the request
+   * altogether; leave it undefined where only a denormalized snapshot of the
+   * user is available (created_by, alert actors) and the image is fetched
+   * optimistically instead.
+   */
+  hasAvatar?: boolean
 }>()
 
 const circleSizeStyle: Record<AvatarSize, string> = {
@@ -51,6 +60,10 @@ const userInitial = computed(() => {
 })
 
 const avatarUrl = computed(() => {
+  if (hasAvatar === false) {
+    // Nothing to serve: don't ask for it, NeAvatar renders the placeholder
+    return undefined
+  }
   const url = `${API_URL}/public/users/${logtoId}/avatar`
   return cacheKey ? `${url}?v=${encodeURIComponent(String(cacheKey))}` : url
 })
