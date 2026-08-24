@@ -116,7 +116,7 @@ route:
   group_by: ['organization_id', 'alertname', 'system_key']
   group_wait: 30s
   group_interval: 5m
-  repeat_interval: 12h
+  repeat_interval: 8760h
   routes:
 {{- if .HistoryWebhookURL }}
     - receiver: 'builtin-history'
