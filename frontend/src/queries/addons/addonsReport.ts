@@ -15,8 +15,13 @@ import {
   getAddonReportTiers,
 } from '@/lib/addons/addonsReport'
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
-import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
+import { loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
+
+// Both report tables sit among the cards rather than on a page of their own,
+// so they open on a short first page and let the reader ask for more. A page
+// size the user picks is still remembered per table.
+const PAGE_SIZE = 5
 
 // The aggregates arrive whole: totals, the per-add-on breakdown, the renewal
 // distribution and the activation trend are one response, with no parameters
@@ -40,7 +45,7 @@ export const useAddonReport = defineQuery(() => {
 export const useAddonReportOrganizations = defineQuery(() => {
   const loginStore = useLoginStore()
   const pageNum = ref(1)
-  const pageSize = ref(DEFAULT_PAGE_SIZE)
+  const pageSize = ref(PAGE_SIZE)
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
 
@@ -59,7 +64,7 @@ export const useAddonReportOrganizations = defineQuery(() => {
     () => loginStore.userInfo?.email,
     (email) => {
       if (email) {
-        pageSize.value = loadPageSizeFromStorage(ADDONS_REPORT_ORGANIZATIONS_TABLE_ID)
+        pageSize.value = loadPageSizeFromStorage(ADDONS_REPORT_ORGANIZATIONS_TABLE_ID, PAGE_SIZE)
       }
     },
     { immediate: true },
@@ -92,7 +97,7 @@ export const useAddonReportOrganizations = defineQuery(() => {
 export const useAddonReportTiers = defineQuery(() => {
   const loginStore = useLoginStore()
   const pageNum = ref(1)
-  const pageSize = ref(DEFAULT_PAGE_SIZE)
+  const pageSize = ref(PAGE_SIZE)
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
 
@@ -110,7 +115,7 @@ export const useAddonReportTiers = defineQuery(() => {
     () => loginStore.userInfo?.email,
     (email) => {
       if (email) {
-        pageSize.value = loadPageSizeFromStorage(ADDONS_REPORT_TIERS_TABLE_ID)
+        pageSize.value = loadPageSizeFromStorage(ADDONS_REPORT_TIERS_TABLE_ID, PAGE_SIZE)
       }
     },
     { immediate: true },
