@@ -18,9 +18,7 @@ const tabsConfig = computed(() => [
   { name: 'catalog', label: t('addons.catalog_tab') },
 ])
 
-// The report tab is still empty, so land on the catalog unless a ?tab= says
-// otherwise.
-const { tabs, selectedTab } = useTabs(tabsConfig, 'catalog')
+const { tabs, selectedTab } = useTabs(tabsConfig, 'report')
 </script>
 
 <template>

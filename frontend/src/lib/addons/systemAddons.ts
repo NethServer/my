@@ -1,8 +1,17 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
+import {
+  faBan,
+  faCircleCheck,
+  faCircleMinus,
+  faCirclePause,
+  faClock,
+  faHourglassEnd,
+} from '@fortawesome/free-solid-svg-icons'
 import axios from 'axios'
 import { API_URL, SHOP_BASE_URL } from '../config'
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import { useLoginStore } from '@/stores/login'
 import { getDisplayName, type Application } from '../applications/applications'
 import type { Addon } from './addons'
@@ -153,6 +162,44 @@ export type AddonRowStatus = (typeof ADDON_ROW_STATUSES)[number]
 // "inactive" would have the card contradict the table it opens onto.
 export const getRowStatus = (row: SystemAddonRow): AddonRowStatus =>
   row.grant?.status ?? 'not_purchased'
+
+// One look per status too, shared by the status icon and by the report's
+// stacked bars, so a state cannot be amber in one place and blue in another.
+// `expired` is amber rather than rose because buying again fixes it, unlike a
+// revocation; `suspended` borrows the grey of SystemStatusIcon, since what is
+// suspended is the system, not the grant.
+export const ADDON_STATUS_STYLE: Record<
+  AddonRowStatus,
+  { icon: IconDefinition; text: string; bar: string }
+> = {
+  active: { icon: faCircleCheck, text: 'text-icon-enabled', bar: 'bg-green-700 dark:bg-green-500' },
+  pending: {
+    icon: faClock,
+    text: 'text-blue-700 dark:text-blue-500',
+    bar: 'bg-blue-700 dark:bg-blue-500',
+  },
+  suspended: {
+    icon: faCirclePause,
+    text: 'text-gray-700 dark:text-gray-400',
+    bar: 'bg-gray-700 dark:bg-gray-400',
+  },
+  revoked: {
+    icon: faBan,
+    text: 'text-rose-700 dark:text-rose-500',
+    bar: 'bg-rose-700 dark:bg-rose-500',
+  },
+  expired: {
+    icon: faHourglassEnd,
+    text: 'text-amber-700 dark:text-amber-500',
+    bar: 'bg-amber-700 dark:bg-amber-500',
+  },
+  // never granted here: nothing has gone wrong, so nothing is coloured
+  not_purchased: {
+    icon: faCircleMinus,
+    text: 'text-icon-disabled',
+    bar: 'bg-gray-300 dark:bg-gray-600',
+  },
+}
 
 interface ComposeRowsArgs {
   availableAddons: Addon[]
