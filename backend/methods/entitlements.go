@@ -805,8 +805,26 @@ func GetEntitlementReport(c *gin.Context) {
 		return
 	}
 
+	// Add-ons nobody holds belong in the breakdown, but only the ones the
+	// caller is entitled to see: the whole catalog for the owner org and Super
+	// Admins, whatever its own organization may buy for everyone else. The
+	// counts themselves stay bound to the hierarchy scope either way.
+	var catalogScope []string
+	if !isEntitlementAdmin(u) {
+		items, err := entities.NewLocalEntitlementAvailabilityRepository().ListAvailableFor(u.OrgRole, u.OrganizationID)
+		if err != nil {
+			logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to resolve catalog visibility")
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve catalog visibility", nil))
+			return
+		}
+		catalogScope = make([]string, 0, len(items))
+		for _, item := range items {
+			catalogScope = append(catalogScope, item.ID)
+		}
+	}
+
 	repo := entities.NewLocalSystemEntitlementRepository()
-	report, err := repo.Report(scope)
+	report, err := repo.Report(scope, catalogScope)
 	if err != nil {
 		logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to build entitlement report")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to build entitlement report", nil))

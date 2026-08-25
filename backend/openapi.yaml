@@ -2569,6 +2569,15 @@ components:
             total_renewals: { type: integer, example: 60, description: "Sum of renewal_count over all grants" }
         by_entitlement:
           type: array
+          description: |
+            Lifecycle breakdown per add-on type. Includes add-ons with no grant
+            behind them (every count 0) so the report can surface what nobody
+            has bought yet: the whole catalog for the owner organization and
+            Super Admins, only what the caller's organization may buy for
+            everyone else. An add-on the caller holds is always listed, even
+            when it is no longer available or no longer in the catalog (then it
+            is labelled by id). Counts are always bound to the caller's
+            hierarchy.
           items:
             type: object
             properties:
@@ -11596,13 +11605,14 @@ paths:
       summary: /entitlements/report/tiers - Per-tier slice of the add-on report
       description: |
         Grants grouped by shop tier (variable products only), paginated and
-        searchable by add-on id or tier label. Restricted to the caller's
-        hierarchy (the whole fleet for the owner organization / a Super Admin).
+        searchable by add-on display name, add-on id or tier label. Restricted
+        to the caller's hierarchy (the whole fleet for the owner organization /
+        a Super Admin).
       parameters:
         - name: search
           in: query
           schema: { type: string }
-          description: Case-insensitive filter on the add-on id or tier label
+          description: Case-insensitive filter on the add-on display name, the add-on id or the tier label
         - name: page
           in: query
           schema: { type: integer, default: 1 }
@@ -11632,6 +11642,7 @@ paths:
                           type: object
                           properties:
                             entitlement: { type: string, example: "nsec-blacklist" }
+                            display_name: { type: string, example: "Advanced Threat Shield" }
                             label: { type: string, example: "16 - 30 device" }
                             count: { type: integer, example: 14 }
                       total: { type: integer, example: 12 }

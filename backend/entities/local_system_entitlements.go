@@ -739,12 +739,29 @@ func reportScopeClause(orgScope []string, args *[]interface{}) string {
 	return fmt.Sprintf(" AND s.organization_id = ANY($%d)", len(*args))
 }
 
+// reportCatalogVisibleExpr tells which catalog items may show up in the
+// per-type breakdown with no grant behind them. nil = the whole catalog
+// (owner org / Super Admin); otherwise the ids the caller's organization may
+// buy — an empty non-nil slice means none, which is the point. It is a flag
+// carried through the grouping rather than a filter on the join: an add-on
+// the caller HOLDS is always listed, and it still has to come out of the join
+// with its catalog row attached, or it would be labelled by raw id.
+func reportCatalogVisibleExpr(catalogScope []string, args *[]interface{}) string {
+	if catalogScope == nil {
+		return "TRUE"
+	}
+	*args = append(*args, pq.Array(catalogScope))
+	return fmt.Sprintf("id = ANY($%d)", len(*args))
+}
+
 // Report builds the add-on analytics within the caller's visibility:
 // lifecycle totals, per-type breakdown, renewal distribution and a 12-month
 // activation trend. orgScope nil = the whole fleet (owner org / Super Admin);
 // otherwise the caller's hierarchy — a distributor/reseller/customer sees the
 // grants of its own systems and of those below it. Deleted systems excluded.
-func (r *LocalSystemEntitlementRepository) Report(orgScope []string) (*models.EntitlementReport, error) {
+// catalogScope bounds the add-ons that appear with zero grants (nil = the
+// whole catalog); every count stays bound to orgScope either way.
+func (r *LocalSystemEntitlementRepository) Report(orgScope, catalogScope []string) (*models.EntitlementReport, error) {
 	report := &models.EntitlementReport{
 		ByEntitlement: []models.EntitlementReportByType{},
 		Trend:         []models.EntitlementReportTrendRow{},
@@ -810,22 +827,32 @@ func (r *LocalSystemEntitlementRepository) Report(orgScope []string) (*models.En
 		return nil, fmt.Errorf("failed to compute renewal distribution: %w", err)
 	}
 
-	// Per add-on type.
+	// Per add-on type. FULL JOIN so both sides show up: catalog items nobody
+	// holds yet (all counts 0 — the finding the card is there to surface) and
+	// grants whose type is no longer in the catalog (legacy imports), labelled
+	// by id. The org scope belongs to the inner join, not to a WHERE: there it
+	// would null out the catalog-only rows and collapse this back to "what
+	// someone holds". Catalog visibility is a flag filtered in HAVING for the
+	// same reason, one step later. COUNT(e.id), never COUNT(*), or an add-on
+	// with no grants would report one.
+	typeArgs := append([]interface{}{}, args...)
+	catalogVisible := reportCatalogVisibleExpr(catalogScope, &typeArgs)
 	rows, err := r.db.Query(`
-		SELECT e.entitlement, COALESCE(cat.display_name, e.entitlement),
-		       COUNT(*) FILTER (WHERE `+reportStatusExpr+` = 'active'),
-		       COUNT(*) FILTER (WHERE `+reportStatusExpr+` = 'expired'),
-		       COUNT(*) FILTER (WHERE `+reportStatusExpr+` = 'revoked'),
-		       COUNT(*) FILTER (WHERE `+reportStatusExpr+` = 'pending'),
-		       COUNT(*) FILTER (WHERE `+reportStatusExpr+` = 'suspended'),
-		       COUNT(*)
-		FROM system_entitlements e
-		JOIN systems s ON s.id = e.system_id
-		LEFT JOIN entitlement_catalog cat ON cat.id = e.entitlement
-		WHERE s.deleted_at IS NULL`+scope+`
-		GROUP BY e.entitlement, cat.display_name
-		ORDER BY COUNT(*) DESC, e.entitlement`,
-		args...)
+		SELECT COALESCE(cat.id, e.entitlement), COALESCE(cat.display_name, e.entitlement),
+		       COUNT(e.id) FILTER (WHERE `+reportStatusExpr+` = 'active'),
+		       COUNT(e.id) FILTER (WHERE `+reportStatusExpr+` = 'expired'),
+		       COUNT(e.id) FILTER (WHERE `+reportStatusExpr+` = 'revoked'),
+		       COUNT(e.id) FILTER (WHERE `+reportStatusExpr+` = 'pending'),
+		       COUNT(e.id) FILTER (WHERE `+reportStatusExpr+` = 'suspended'),
+		       COUNT(e.id)
+		FROM (SELECT id, display_name, `+catalogVisible+` AS visible FROM entitlement_catalog) cat
+		FULL JOIN (system_entitlements e
+		           JOIN systems s ON s.id = e.system_id AND s.deleted_at IS NULL`+scope+`)
+		       ON e.entitlement = cat.id
+		GROUP BY 1, 2, cat.visible
+		HAVING COUNT(e.id) > 0 OR cat.visible
+		ORDER BY COUNT(e.id) DESC, 1`,
+		typeArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute per-type report: %w", err)
 	}
@@ -927,12 +954,17 @@ func (r *LocalSystemEntitlementRepository) ReportVariants(search string, orgScop
 	args := []interface{}{search}
 	scope := reportScopeClause(orgScope, &args)
 
+	// The search matches what the table shows — the add-on display name and
+	// the tier label — plus the catalog id, which costs nothing extra.
 	where := `
 		FROM system_entitlements e
 		JOIN systems s ON s.id = e.system_id
+		LEFT JOIN entitlement_catalog cat ON cat.id = e.entitlement
 		WHERE s.deleted_at IS NULL AND e.variant->>'label' IS NOT NULL` + scope + `
-		  AND ($1 = '' OR e.entitlement ILIKE '%' || $1 || '%' OR e.variant->>'label' ILIKE '%' || $1 || '%')
-		GROUP BY e.entitlement, e.variant->>'label'`
+		  AND ($1 = '' OR e.entitlement ILIKE '%' || $1 || '%'
+		       OR COALESCE(cat.display_name, '') ILIKE '%' || $1 || '%'
+		       OR e.variant->>'label' ILIKE '%' || $1 || '%')
+		GROUP BY e.entitlement, COALESCE(cat.display_name, e.entitlement), e.variant->>'label'`
 
 	var total int
 	if err := r.db.QueryRow(`SELECT COUNT(*) FROM (SELECT 1 `+where+`) g`, args...).Scan(&total); err != nil {
@@ -941,9 +973,9 @@ func (r *LocalSystemEntitlementRepository) ReportVariants(search string, orgScop
 
 	args = append(args, limit, offset)
 	rows, err := r.db.Query(`
-		SELECT e.entitlement, e.variant->>'label', COUNT(*)
+		SELECT e.entitlement, COALESCE(cat.display_name, e.entitlement), e.variant->>'label', COUNT(*)
 		`+where+`
-		ORDER BY e.entitlement, COUNT(*) DESC
+		ORDER BY COALESCE(cat.display_name, e.entitlement), COUNT(*) DESC
 		LIMIT $`+fmt.Sprint(len(args)-1)+` OFFSET $`+fmt.Sprint(len(args)), args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to compute per-variant report: %w", err)
@@ -953,7 +985,7 @@ func (r *LocalSystemEntitlementRepository) ReportVariants(search string, orgScop
 	out := []models.EntitlementReportByVariant{}
 	for rows.Next() {
 		var row models.EntitlementReportByVariant
-		if err := rows.Scan(&row.Entitlement, &row.Label, &row.Count); err != nil {
+		if err := rows.Scan(&row.Entitlement, &row.DisplayName, &row.Label, &row.Count); err != nil {
 			return nil, 0, fmt.Errorf("failed to scan per-variant row: %w", err)
 		}
 		out = append(out, row)

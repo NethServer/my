@@ -179,6 +179,8 @@ type EntitlementReportTotals struct {
 }
 
 // EntitlementReportByType is the lifecycle breakdown of one add-on type.
+// Types nobody holds are listed too, with every count at zero — that an
+// add-on has no takers is itself a finding.
 type EntitlementReportByType struct {
 	Entitlement string `json:"entitlement"`
 	DisplayName string `json:"display_name"`
@@ -202,8 +204,12 @@ type EntitlementReportByOrg struct {
 }
 
 // EntitlementReportByVariant counts grants per shop tier of one add-on.
+// DisplayName is the catalog name, falling back to the id for types no longer
+// in the catalog: the tier search matches it, so it must be what the table
+// shows.
 type EntitlementReportByVariant struct {
 	Entitlement string `json:"entitlement"`
+	DisplayName string `json:"display_name"`
 	Label       string `json:"label"`
 	Count       int    `json:"count"`
 }
