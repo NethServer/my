@@ -96,7 +96,7 @@ Documentazione tecnica per sviluppatori e integratori:
 
 ## Informazioni Versione
 
-Versione corrente: **0.7.10** (Pre-produzione)
+Versione corrente: **0.7.11** (Pre-produzione)
 
 ## Stack Tecnologico
 
