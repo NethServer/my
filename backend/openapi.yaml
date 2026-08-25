@@ -2237,7 +2237,8 @@ components:
         One grantable add-on type. Ids are lowercase kebab-case; convention:
         `nsec-<service>` (firewall services), `ns8-<app>` (application
         enablement on a cluster) or `<app>-<module>` (per-application-instance
-        modules, `scoped: true`). `legacy_alias` is the old wire id the
+        modules, `scoped: true`; `applies_to` names the application, since the
+        id prefix is ambiguous for hyphenated app names). `legacy_alias` is the old wire id the
         appliance feeds still call on `GET /auth/service/{id}` — legacy ids
         are never renamed.
       properties:
@@ -2271,6 +2272,10 @@ components:
           type: string
           description: Old wire id consumers still call on GET /auth/service/{id} (only for types migrated from the legacy my)
           example: "ng-blacklist"
+        applies_to:
+          type: string
+          description: Application (applications.instance_of) a module add-on applies to. Empty for system-wide services. Stored explicitly because the <app>-<module> id prefix is ambiguous when the app name itself contains a hyphen (nethvoice-proxy).
+          example: "nethvoice"
         created_at:
           type: string
           format: date-time
@@ -2713,6 +2718,10 @@ components:
           type: string
           description: Old wire id (lowercase kebab-case) consumers still call on GET /auth/service/{id}
           example: "ng-blacklist"
+        applies_to:
+          type: string
+          description: "Application (applications.instance_of) the module applies to. Required in practice for kind=module: omitted, it falls back to the id prefix, which is wrong for hyphenated app names. Ignored for services."
+          example: "nethvoice"
 
     UpdateEntitlementCatalogRequest:
       type: object

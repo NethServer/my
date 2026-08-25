@@ -1221,6 +1221,7 @@ CREATE TABLE IF NOT EXISTS entitlement_catalog (
     kind         VARCHAR(20)  NOT NULL DEFAULT 'service',
     system_type  VARCHAR(50)  NOT NULL DEFAULT '',
     legacy_alias VARCHAR(100) NOT NULL DEFAULT '',
+    applies_to   VARCHAR(100) NOT NULL DEFAULT '',
     created_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
@@ -1233,6 +1234,7 @@ COMMENT ON COLUMN entitlement_catalog.scoped       IS 'TRUE = grantable per appl
 COMMENT ON COLUMN entitlement_catalog.kind         IS 'service (nsec-<service>, firewall add-on, system-wide) | module (<app>-<module>, add-on for one application instance of an NS8 cluster) — both sellable on the shop';
 COMMENT ON COLUMN entitlement_catalog.system_type  IS 'System type the add-on applies to: nsec | ns8; empty = any. Grants are refused on mismatching systems and the UI/shop only offer pertinent add-ons';
 COMMENT ON COLUMN entitlement_catalog.legacy_alias IS 'Legacy wire id the appliance feeds still call on /auth/service/<id>; collect resolves it to the canonical id';
+COMMENT ON COLUMN entitlement_catalog.applies_to   IS 'applications.instance_of the module add-on applies to (kind=module); empty for system-wide services. Explicit because the <app>-<module> id prefix is ambiguous for hyphenated app names (nethvoice-proxy)';
 
 INSERT INTO entitlement_catalog (id, display_name, description, scoped, kind, system_type, legacy_alias) VALUES
     ('nsec-blacklist', 'Advanced Threat Shield', 'Enterprise blacklist feeds (bl.nethesis.it)', FALSE, 'service', 'nsec', 'ng-blacklist'),

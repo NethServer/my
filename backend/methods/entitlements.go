@@ -233,6 +233,18 @@ func CreateEntitlementCatalogItem(c *gin.Context) {
 		return
 	}
 
+	// The application a module belongs to is explicit; clients that predate
+	// it fall back to the id prefix — the rule the column replaces — which is
+	// exact except for hyphenated app names (nethvoice-proxy), the very case
+	// the UI now sends applies_to for.
+	if req.Kind == models.EntitlementKindModule {
+		if req.AppliesTo == "" {
+			req.AppliesTo, _, _ = strings.Cut(req.ID, "-")
+		}
+	} else {
+		req.AppliesTo = ""
+	}
+
 	repo := entities.NewLocalEntitlementCatalogRepository()
 	item, err := repo.Create(&req)
 	if err == entities.ErrCatalogItemExists {

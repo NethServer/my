@@ -63,15 +63,19 @@ const (
 )
 
 type EntitlementCatalogItem struct {
-	ID          string    `json:"id"`
-	DisplayName string    `json:"display_name"`
-	Description string    `json:"description"`
-	Scoped      bool      `json:"scoped"`
-	Kind        string    `json:"kind"`
-	SystemType  string    `json:"system_type,omitempty"`
-	LegacyAlias string    `json:"legacy_alias,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          string `json:"id"`
+	DisplayName string `json:"display_name"`
+	Description string `json:"description"`
+	Scoped      bool   `json:"scoped"`
+	Kind        string `json:"kind"`
+	SystemType  string `json:"system_type,omitempty"`
+	LegacyAlias string `json:"legacy_alias,omitempty"`
+	// AppliesTo is the applications.instance_of a module add-on belongs to.
+	// Stored rather than parsed off the id prefix: app names may contain a
+	// hyphen (nethvoice-proxy), which makes the prefix ambiguous.
+	AppliesTo string    `json:"applies_to,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // CreateEntitlementCatalogRequest adds a new add-on type to the catalog.
@@ -85,6 +89,7 @@ type CreateEntitlementCatalogRequest struct {
 	Kind        string `json:"kind,omitempty"`
 	SystemType  string `json:"system_type,omitempty"`
 	LegacyAlias string `json:"legacy_alias,omitempty"`
+	AppliesTo   string `json:"applies_to,omitempty"`
 }
 
 // UpdateEntitlementCatalogRequest updates the display fields of a catalog

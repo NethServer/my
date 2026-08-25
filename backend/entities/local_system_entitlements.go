@@ -43,7 +43,7 @@ func NewLocalEntitlementCatalogRepository() *LocalEntitlementCatalogRepository {
 
 func scanCatalogItem(scanner interface{ Scan(...interface{}) error }) (*models.EntitlementCatalogItem, error) {
 	var item models.EntitlementCatalogItem
-	err := scanner.Scan(&item.ID, &item.DisplayName, &item.Description, &item.Scoped, &item.Kind, &item.SystemType, &item.LegacyAlias, &item.CreatedAt, &item.UpdatedAt)
+	err := scanner.Scan(&item.ID, &item.DisplayName, &item.Description, &item.Scoped, &item.Kind, &item.SystemType, &item.LegacyAlias, &item.AppliesTo, &item.CreatedAt, &item.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func scanCatalogItem(scanner interface{ Scan(...interface{}) error }) (*models.E
 // List returns the whole catalog ordered by id.
 func (r *LocalEntitlementCatalogRepository) List() ([]*models.EntitlementCatalogItem, error) {
 	rows, err := r.db.Query(
-		`SELECT id, display_name, description, scoped, kind, system_type, legacy_alias, created_at, updated_at
+		`SELECT id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, created_at, updated_at
 		 FROM entitlement_catalog ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list entitlement catalog: %w", err)
@@ -74,7 +74,7 @@ func (r *LocalEntitlementCatalogRepository) List() ([]*models.EntitlementCatalog
 // Get returns one catalog item by id.
 func (r *LocalEntitlementCatalogRepository) Get(id string) (*models.EntitlementCatalogItem, error) {
 	item, err := scanCatalogItem(r.db.QueryRow(
-		`SELECT id, display_name, description, scoped, kind, system_type, legacy_alias, created_at, updated_at
+		`SELECT id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, created_at, updated_at
 		 FROM entitlement_catalog WHERE id = $1`, id))
 	if err == sql.ErrNoRows {
 		return nil, ErrCatalogItemNotFound
@@ -90,7 +90,7 @@ func (r *LocalEntitlementCatalogRepository) Get(id string) (*models.EntitlementC
 // nsec-blacklist).
 func (r *LocalEntitlementCatalogRepository) Resolve(idOrAlias string) (*models.EntitlementCatalogItem, error) {
 	item, err := scanCatalogItem(r.db.QueryRow(
-		`SELECT id, display_name, description, scoped, kind, system_type, legacy_alias, created_at, updated_at
+		`SELECT id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, created_at, updated_at
 		 FROM entitlement_catalog WHERE id = $1 OR (legacy_alias <> '' AND legacy_alias = $1)`, idOrAlias))
 	if err == sql.ErrNoRows {
 		return nil, ErrCatalogItemNotFound
@@ -104,10 +104,10 @@ func (r *LocalEntitlementCatalogRepository) Resolve(idOrAlias string) (*models.E
 // Create adds a new add-on type.
 func (r *LocalEntitlementCatalogRepository) Create(req *models.CreateEntitlementCatalogRequest) (*models.EntitlementCatalogItem, error) {
 	item, err := scanCatalogItem(r.db.QueryRow(
-		`INSERT INTO entitlement_catalog (id, display_name, description, scoped, kind, system_type, legacy_alias)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
-		 RETURNING id, display_name, description, scoped, kind, system_type, legacy_alias, created_at, updated_at`,
-		req.ID, req.DisplayName, req.Description, req.Scoped, req.Kind, req.SystemType, req.LegacyAlias))
+		`INSERT INTO entitlement_catalog (id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		 RETURNING id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, created_at, updated_at`,
+		req.ID, req.DisplayName, req.Description, req.Scoped, req.Kind, req.SystemType, req.LegacyAlias, req.AppliesTo))
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
 			return nil, ErrCatalogItemExists
@@ -126,7 +126,7 @@ func (r *LocalEntitlementCatalogRepository) Update(id string, displayName, descr
 		     description  = COALESCE($3, description),
 		     updated_at   = NOW()
 		 WHERE id = $1
-		 RETURNING id, display_name, description, scoped, kind, system_type, legacy_alias, created_at, updated_at`,
+		 RETURNING id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, created_at, updated_at`,
 		id, displayName, description))
 	if err == sql.ErrNoRows {
 		return nil, ErrCatalogItemNotFound
@@ -208,7 +208,7 @@ func (r *LocalEntitlementAvailabilityRepository) ListByEntitlement(entitlement s
 // present for an item, RESTRICT it to the matching role/orgs.
 func (r *LocalEntitlementAvailabilityRepository) ListAvailableFor(orgRole, orgID string) ([]*models.EntitlementCatalogItem, error) {
 	rows, err := r.db.Query(
-		`SELECT c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.created_at, c.updated_at
+		`SELECT c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.created_at, c.updated_at
 		 FROM entitlement_catalog c
 		 WHERE c.kind IN ('service', 'module')
 		   AND (NOT EXISTS (SELECT 1 FROM entitlement_availability a WHERE a.entitlement = c.id)
