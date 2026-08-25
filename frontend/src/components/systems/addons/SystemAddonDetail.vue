@@ -392,18 +392,26 @@ function formatValidity(row: SystemAddonRow) {
             <!-- with no grant there is no order to name: the Status column is
                  where "not purchased" is said -->
             <span v-if="!row.grant">-</span>
-            <a
-              v-else-if="getOrderNumber(row.grant)"
-              :href="getOrderUrl(row.grant, isAddonAdmin())"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="text-primary-700 dark:text-primary-500 hover:underline"
-            >
-              #{{ getOrderNumber(row.grant) }}
-            </a>
-            <span v-else class="text-tertiary-neutral italic">
-              {{ $t('addons.manually_created') }}
-            </span>
+            <div v-else>
+              <a
+                v-if="getOrderNumber(row.grant)"
+                :href="getOrderUrl(row.grant, isAddonAdmin())"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-primary-700 dark:text-primary-500 hover:underline"
+              >
+                #{{ getOrderNumber(row.grant) }}
+              </a>
+              <span v-else class="text-tertiary-neutral italic">
+                {{ $t('addons.manually_created') }}
+              </span>
+              <!-- renewals are the paid orders beyond the first, so the count
+                   belongs to the order that carries it. Zero is the first
+                   period and says nothing worth a line of its own. -->
+              <div v-if="row.grant.renewal_count" class="text-tertiary-neutral mt-1">
+                {{ $t('addons.n_renewals', { count: row.grant.renewal_count }) }}
+              </div>
+            </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('addons.purchased_by')">
             <div v-if="getPurchaserName(row)" class="flex items-center gap-2">
@@ -426,7 +434,7 @@ function formatValidity(row: SystemAddonRow) {
                 :logto-id="row.grant.created_by.user_id ?? ''"
               />
               <div>
-                <div class="text-tertiary-neutral text-xs">{{ $t('addons.created_by') }}</div>
+                <div class="text-tertiary-neutral">{{ $t('addons.created_by') }}</div>
                 <div>{{ row.grant.created_by.user_name }}</div>
               </div>
             </div>

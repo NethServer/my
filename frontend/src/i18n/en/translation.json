@@ -862,6 +862,7 @@
     "n_in_60d": "{n} · 60d",
     "n_in_90d": "{n} · 90d",
     "n_perpetual": "{n} · perpetual",
+    "n_renewals": "{count} renewal | {count} renewals",
     "activations_last_12_months": "Activations (last 12 months)",
     "no_activations": "No add-ons activated in the last 12 months",
     "renewal_distribution": "Renewal distribution",

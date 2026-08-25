@@ -789,6 +789,7 @@
     "n_in_60d": "{n} · 60gg",
     "n_in_90d": "{n} · 90gg",
     "n_perpetual": "{n} · perpetui",
+    "n_renewals": "{count} rinnovo | {count} rinnovi",
     "activations_last_12_months": "Attivazioni (ultimi 12 mesi)",
     "no_activations": "Nessun add-on attivato negli ultimi 12 mesi",
     "renewal_distribution": "Distribuzione dei rinnovi",
