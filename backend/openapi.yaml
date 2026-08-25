@@ -3170,7 +3170,8 @@ components:
             $ref: '#/components/schemas/ApplicationType'
         pagination:
           description: Pagination metadata (only present when page_size query param is specified)
-          $ref: '#/components/schemas/Pagination'
+          allOf:
+            - $ref: '#/components/schemas/Pagination'
 
     AssignApplicationRequest:
       type: object
