@@ -25,6 +25,19 @@ const READ_ALERTS = 'read:alerts'
 const MANAGE_ALERTS = 'manage:alerts'
 const SUPER_ADMIN_ROLE = 'Super Admin'
 
+// "Owner-level authority": the Owner organization, or a Super Admin user
+// (Nethesis). Not a permission — it is the threshold above the manage:* scopes
+// every distributor already holds. Named once because several unrelated gates
+// happen to sit at it; each keeps its own function so it can move alone.
+const hasOwnerLevelAuthority = () => {
+  const loginStore = useLoginStore()
+  return loginStore.isOwner || (loginStore.userInfo?.user_roles ?? []).includes(SUPER_ADMIN_ROLE)
+}
+
+// Administrative surface (catalog, manual grants, fleet view): owner org or
+// Super Admin only — matches the backend isEntitlementAdmin gate.
+export const isEntitlementAdmin = () => hasOwnerLevelAuthority()
+
 export const canReadDistributors = () => {
   const loginStore = useLoginStore()
   return loginStore.permissions.includes(READ_DISTRIBUTORS)
@@ -127,9 +140,7 @@ export const canReadAlerts = () => {
 
 // Moving an organization between hierarchy levels takes it out of the scope of
 // the company that manages it, so it answers to owner-level authority rather
-// than to a manage:* permission every distributor holds. Mirrors the backend
-// gate on PATCH /resellers/:id/promote.
-export const canPromoteOrganizations = () => {
-  const loginStore = useLoginStore()
-  return loginStore.isOwner || (loginStore.userInfo?.user_roles || []).includes(SUPER_ADMIN_ROLE)
-}
+// than to a manage:* permission every distributor holds. Coarse pre-filter for
+// the button: the backend gate on PATCH /resellers/:id/promote additionally
+// keeps a Super Admin outside the Owner org within its own hierarchy.
+export const canPromoteOrganizations = () => hasOwnerLevelAuthority()

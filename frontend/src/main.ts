@@ -25,7 +25,17 @@ fontawesomeConfig.autoAddCss = false
 const logtoConfig: LogtoConfig = {
   endpoint: LOGTO_ENDPOINT,
   appId: LOGTO_APP_ID,
-  scopes: ['openid', 'profile', 'email', 'offline_access'],
+  scopes: [
+    'openid',
+    'profile',
+    'email',
+    'offline_access',
+    // Organization claims in the ID token: third-party app widgets (e.g.
+    // NethSpot /userinfo) resolve the user's company from these, with the
+    // same identity contract used by their OIDC login
+    'urn:logto:scope:organizations',
+    'urn:logto:scope:organization_roles',
+  ],
 }
 
 const app = createApp(App)

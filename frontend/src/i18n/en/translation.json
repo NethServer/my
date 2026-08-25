@@ -423,7 +423,19 @@
     "description_nethshop_nethesis_it": "Browse and order Nethesis products and services.",
     "description_my_nethspot_com": "Manage your hotspot devices.",
     "description_stock_nethesis_it": "Check product inventory and manage stock.",
-    "description_helpdesk_nethesis_it": "Get support, open and manage tickets."
+    "description_helpdesk_nethesis_it": "Get support, open and manage tickets.",
+    "nethshop_widget": {
+      "processing": "Processing",
+      "pending_payment": "Awaiting payment",
+      "renewing": "Renewing ({days} days)",
+      "completed_last_12m": "Completed (last 12 months)"
+    },
+    "nethspot_widget": {
+      "hotspots": "Hotspots",
+      "units": "Units",
+      "users": "Users",
+      "sms_remaining": "SMS remaining"
+    }
   },
   "ne_text_input": {
     "show_password": "Show password",
@@ -740,7 +752,7 @@
     "active_since": "Active since",
     "system_key": "System key",
     "cannot_determine_system_url_description": "Cannot access the system because its URL cannot be determined.",
-    "checking_reachability": "Checking system reachability\u2026",
+    "checking_reachability": "Checking system reachability…",
     "system_unreachable": "The system UI is not publicly reachable. This might happen due to network configuration or security measures.",
     "change_history_description": "The change history is based on the differences between the inventories sent by the system. If the system has not sent any inventory yet, no change history will be available.",
     "today": "Today",

@@ -26,18 +26,35 @@ export function useTabs(
   const selectedTab = ref('')
   const currentPath = route.path
 
+  // Deep-linked tab not (yet) present in a dynamic tabs list — e.g. tabs
+  // gated on fetched data. The tab component normalizes an unknown selection
+  // to the first tab, so without this the deep link would be lost before the
+  // data arrives.
+  const pendingTab = ref('')
+
   watch(
     () => route.query.tab,
     () => {
       if (route.path === currentPath) {
-        selectedTab.value =
+        const wanted =
           (route.query.tab as string) ??
           initialTabName ??
           (tabs.value.length > 0 ? tabs.value[0].name : '')
+        selectedTab.value = wanted
+        if (wanted && !tabs.value.some((tab) => tab.name === wanted)) {
+          pendingTab.value = wanted
+        }
       }
     },
     { immediate: true },
   )
+
+  watch(tabs, () => {
+    if (pendingTab.value && tabs.value.some((tab) => tab.name === pendingTab.value)) {
+      selectedTab.value = pendingTab.value
+      pendingTab.value = ''
+    }
+  })
 
   watch(selectedTab, () => {
     router.push({ path: route.path, query: { ...route.query, tab: selectedTab.value } })

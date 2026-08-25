@@ -49,8 +49,15 @@ echo "Search domain: ${SEARCH_DOMAIN:-none}"
 export LOGTO_ENDPOINT="${LOGTO_ENDPOINT:-https://id.nethesis.it}"
 echo "CSP Logto endpoint: $LOGTO_ENDPOINT"
 
+# Third-party app origins allowed in the CSP connect-src: the dashboard fetches
+# each app's info_url (e.g. the NethShop /userinfo widget) directly from the
+# browser. Space-separated list of scheme://host origins. Default to the prod
+# shop so a missing env var still yields a valid, working policy; QA overrides.
+export THIRD_PARTY_CONNECT_SRC="${THIRD_PARTY_CONNECT_SRC:-https://nethshop.nethesis.it}"
+echo "CSP third-party connect-src: $THIRD_PARTY_CONNECT_SRC"
+
 echo '==> Substituting nginx config...'
-envsubst '$PORT $BACKEND_SERVICE_NAME $COLLECT_SERVICE_NAME $FRONTEND_SERVICE_NAME $RESOLVER $LOGTO_ENDPOINT' < /etc/nginx/nginx.conf > /tmp/nginx.conf
+envsubst '$PORT $BACKEND_SERVICE_NAME $COLLECT_SERVICE_NAME $FRONTEND_SERVICE_NAME $RESOLVER $LOGTO_ENDPOINT $THIRD_PARTY_CONNECT_SRC' < /etc/nginx/nginx.conf > /tmp/nginx.conf
 
 echo '==> Generated upstream URLs:'
 grep -E 'set.*upstream' /tmp/nginx.conf || true
