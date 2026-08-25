@@ -11,12 +11,10 @@ import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import { canReadSystems } from '@/lib/permissions'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { useTabs } from '@/composables/useTabs'
-import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import SystemOverviewPanel from '@/components/systems/SystemOverviewPanel.vue'
 import SystemChangeHistoryPanel from '@/components/systems/SystemChangeHistoryPanel.vue'
 import SystemBackupsPanel from '@/components/systems/SystemBackupsPanel.vue'
-import SystemEntitlementsPanel from '@/components/systems/SystemEntitlementsPanel.vue'
 import SystemAlertsPanel from '@/components/systems/SystemAlertsPanel.vue'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 
@@ -24,24 +22,12 @@ const { t } = useI18n()
 const { state: systemDetail } = useSystemDetail()
 const { state: latestInventory } = useLatestInventory()
 // const { state: reachabilityState, asyncStatus: reachabilityAsyncStatus } = useSystemReachability() ////
-const { tabs, selectedTab } = useTabs(
-  computed(() => {
-    const list = [
-      { name: 'overview', label: t('system_detail.overview') },
-      { name: 'change_history', label: t('system_detail.change_history') },
-      { name: 'alert_history', label: t('alerts.title') },
-      { name: 'backups', label: t('backups.title') },
-    ]
-    // The entitlements tab only makes sense once the system has told us what
-    // it is (type comes from the first inventory): with an unknown type the
-    // catalog cannot be filtered and the tab would be misleading.
-    const systemType = systemDetail.value.data?.type
-    if (systemType === 'nsec' || systemType === 'ns8') {
-      list.push({ name: 'entitlements', label: t('entitlements.title') })
-    }
-    return list
-  }),
-)
+const { tabs, selectedTab } = useTabs([
+  { name: 'overview', label: t('system_detail.overview') },
+  { name: 'change_history', label: t('system_detail.change_history') },
+  { name: 'alert_history', label: t('alerts.title') },
+  { name: 'backups', label: t('backups.title') },
+])
 
 ////
 // const isSystemReachable = computed(() => !!reachabilityState.value.data?.reachable)
@@ -139,6 +125,5 @@ const { tabs, selectedTab } = useTabs(
     <SystemChangeHistoryPanel v-else-if="selectedTab === 'change_history'" />
     <SystemAlertsPanel v-else-if="selectedTab === 'alert_history'" />
     <SystemBackupsPanel v-else-if="selectedTab === 'backups'" />
-    <SystemEntitlementsPanel v-else-if="selectedTab === 'entitlements'" />
   </div>
 </template>

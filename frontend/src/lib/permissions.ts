@@ -23,19 +23,7 @@ const DESTROY_USERS = 'destroy:users'
 const DESTROY_SYSTEMS = 'destroy:systems'
 const READ_ALERTS = 'read:alerts'
 const MANAGE_ALERTS = 'manage:alerts'
-const READ_ENTITLEMENTS = 'read:entitlements'
-const MANAGE_ENTITLEMENTS = 'manage:entitlements'
 const SUPER_ADMIN_ROLE = 'Super Admin'
-
-export const canReadEntitlements = () => {
-  const loginStore = useLoginStore()
-  return loginStore.permissions.includes(READ_ENTITLEMENTS)
-}
-
-export const canManageEntitlements = () => {
-  const loginStore = useLoginStore()
-  return loginStore.permissions.includes(MANAGE_ENTITLEMENTS)
-}
 
 // "Owner-level authority": the Owner organization, or a Super Admin user
 // (Nethesis). Not a permission — it is the threshold above the manage:* scopes

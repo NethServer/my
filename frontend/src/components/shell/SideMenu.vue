@@ -22,7 +22,6 @@ import {
   faUserGroup as fasUserGroup,
   faServer as fasServer,
   faTriangleExclamation,
-  faCertificate,
 } from '@fortawesome/free-solid-svg-icons'
 import { faGridOne as fasGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import {
@@ -36,7 +35,6 @@ import {
   faTriangleExclamation as falTriangleExclamation,
 } from '@nethesis/nethesis-light-svg-icons'
 import {
-  canReadEntitlements,
   canReadApplications,
   canReadCustomers,
   canReadDistributors,
@@ -69,7 +67,7 @@ const menuExpanded: Ref<Record<string, boolean>> = ref({
   resellers: false,
 })
 
-const systemsManagementRoutes = ['alerts', 'systems', 'applications', 'entitlements-catalog']
+const systemsManagementRoutes = ['alerts', 'systems', 'applications']
 const companiesAndUsersRoutes = ['distributors', 'resellers', 'customers', 'users']
 
 const navigation = computed(() => {
@@ -101,15 +99,6 @@ const navigation = computed(() => {
       to: 'applications',
       solidIcon: fasGridOne,
       lightIcon: falGrid2,
-    })
-  }
-
-  if (canReadEntitlements()) {
-    menuItems.push({
-      name: 'entitlements-catalog.title',
-      to: 'entitlements-catalog',
-      solidIcon: faCertificate,
-      lightIcon: faCertificate,
     })
   }
 
