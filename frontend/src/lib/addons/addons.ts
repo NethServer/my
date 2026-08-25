@@ -77,6 +77,8 @@ export const AddonSchema = v.object({
   kind: AddonKindSchema,
   system_type: v.optional(v.string()),
   legacy_alias: v.optional(v.string()),
+  // the application a module add-on belongs to, empty for a system-wide service
+  applies_to: v.optional(v.string()),
   created_at: v.string(),
   updated_at: v.string(),
 })
@@ -91,6 +93,8 @@ export interface CreateAddon {
   kind: AddonKind
   system_type: AddonProduct
   scoped: boolean
+  // the application a module belongs to; ignored by the backend for services
+  applies_to: string
 }
 
 // What PUT /entitlements/catalog/:id accepts: the backend takes the display
@@ -126,6 +130,27 @@ export interface AddonForm {
   description: string
 }
 
+// A display name is usually the technical name in kebab-case, so the drawer
+// suggests one from the other. lib/common's normalize() cannot serve here: it
+// maps spaces to underscores and keeps symbols, both of which ADDON_ID_REGEX
+// rejects — it exists to build i18n keys, not ids.
+const MAX_TECHNICAL_NAME_LENGTH = 60
+
+export const slugifyAddonName = (displayName: string) => {
+  const slug = displayName
+    // split the accents off their letters, then drop them: "Antivírus" -> antivirus
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    // any run of what an id cannot carry collapses into a single hyphen
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  // Keeps the composed id — product or application prefix included — within the
+  // 99 characters the backend accepts, however long the display name is.
+  return slug.slice(0, MAX_TECHNICAL_NAME_LENGTH).replace(/-+$/, '')
+}
+
 // nsec-<service> for NethSecurity, <app>-<module> for NethServer, matching the
 // id convention the backend documents.
 export const composeAddonId = (
@@ -147,15 +172,14 @@ export const composeAddonId = (
   }
 }
 
-// The application is encoded in the id prefix; there is no application field on
-// the add-on. Longest match wins, so nethvoice-proxy-* is not read as nethvoice.
-const applicationIdsByLength = [...ADDON_APPLICATION_IDS].sort((a, b) => b.length - a.length)
-
+// The application a module belongs to is stored on the add-on: the id prefix
+// cannot be trusted for it, since an application name may itself contain a
+// hyphen (nethvoice-proxy).
 export const getAddonApplication = (addon: Addon) => {
   if (addon.kind !== 'module') {
     return ''
   }
-  return applicationIdsByLength.find((appId) => addon.id.startsWith(`${appId}-`)) ?? ''
+  return addon.applies_to ?? ''
 }
 
 // The technical name is the id without the product/application prefix — what

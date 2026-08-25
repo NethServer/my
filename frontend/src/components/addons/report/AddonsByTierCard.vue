@@ -27,11 +27,6 @@ import { PAGE_SIZE_OPTIONS, savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useAddonReportTiers } from '@/queries/addons/addonsReport'
 import ReportCard from './ReportCard.vue'
 
-const { displayNames } = defineProps<{
-  // catalog id -> display name: the endpoint returns tiers by add-on id
-  displayNames: Record<string, string>
-}>()
-
 const { state: tiers, pageNum, pageSize, textFilter } = useAddonReportTiers()
 
 const rows = computed(() => tiers.value.data?.tiers ?? [])
@@ -74,7 +69,7 @@ const loading = computed(() => tiers.value.status === 'pending')
         <NeTableBody>
           <NeTableRow v-for="row in rows" :key="`${row.entitlement} ${row.label}`">
             <NeTableCell :data-label="$t('addons.addon')">
-              {{ displayNames[row.entitlement] ?? row.entitlement }}
+              {{ row.display_name || row.entitlement }}
             </NeTableCell>
             <NeTableCell :data-label="$t('addons.tier')">{{ row.label }}</NeTableCell>
             <NeTableCell :data-label="$t('addons.count')">{{ row.count }}</NeTableCell>

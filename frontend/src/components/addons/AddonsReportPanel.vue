@@ -8,7 +8,8 @@
   companies — so nothing here needs a permission check of its own.
 
   The totals, the trend, the renewal split and the per-add-on breakdown arrive
-  in one response; the two tables page and search on their own.
+  in one response — including the add-ons nobody has bought yet, so nothing here
+  needs the catalog; the two tables page and search on their own.
 -->
 
 <script setup lang="ts">
@@ -22,7 +23,6 @@ import { NeBadgeV2, NeInlineNotification } from '@nethesis/vue-components'
 import { computed } from 'vue'
 import CounterCard from '@/components/common/CounterCard.vue'
 import { useAddonReport } from '@/queries/addons/addonsReport'
-import { useAddons } from '@/queries/addons/addons'
 import AddonActivationsCard from './report/AddonActivationsCard.vue'
 import AddonRenewalsCard from './report/AddonRenewalsCard.vue'
 import AddonsByAddonCard from './report/AddonsByAddonCard.vue'
@@ -30,9 +30,6 @@ import AddonsByOrganizationCard from './report/AddonsByOrganizationCard.vue'
 import AddonsByTierCard from './report/AddonsByTierCard.vue'
 
 const { state: report } = useAddonReport()
-// only the "by add-on" card needs this, to give add-ons nobody has bought a
-// row; the catalog query is shared with the Catalog tab
-const { state: catalog } = useAddons()
 
 const loading = computed(() => report.value.status === 'pending')
 const totals = computed(() => report.value.data?.totals)
@@ -67,15 +64,6 @@ const expiryBadges = computed(() =>
     .map(([field, label]) => ({ label, count: totals.value?.[field] ?? 0 }))
     .filter((badge) => badge.count > 0),
 )
-
-// catalog id -> display name, for the tier table: /report/tiers returns ids
-const addonDisplayNames = computed(() =>
-  Object.fromEntries([
-    ...(catalog.value.data ?? []).map((addon) => [addon.id, addon.display_name]),
-    // the report's own names win: they cover ids the catalog no longer has
-    ...(report.value.data?.by_entitlement ?? []).map((row) => [row.entitlement, row.display_name]),
-  ]),
-)
 </script>
 
 <template>
@@ -85,15 +73,6 @@ const addonDisplayNames = computed(() =>
       kind="error"
       :title="$t('addons.cannot_retrieve_report')"
       :description="report.error?.message"
-      class="mb-6"
-    />
-    <!-- without the catalog the report still stands: only the rows for add-ons
-         nobody has bought are missing -->
-    <NeInlineNotification
-      v-if="catalog.status === 'error'"
-      kind="warning"
-      :title="$t('addons.cannot_retrieve_catalog')"
-      :description="catalog.error?.message"
       class="mb-6"
     />
     <div
@@ -149,12 +128,11 @@ const addonDisplayNames = computed(() =>
       />
       <AddonsByAddonCard
         :by-addon="report.data?.by_entitlement ?? []"
-        :catalog="catalog.data ?? []"
         :loading="loading"
         class="sm:col-span-2"
       />
       <AddonsByOrganizationCard class="sm:col-span-2" />
-      <AddonsByTierCard :display-names="addonDisplayNames" class="sm:col-span-2" />
+      <AddonsByTierCard class="sm:col-span-2" />
     </div>
   </div>
 </template>

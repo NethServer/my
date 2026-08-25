@@ -2,10 +2,9 @@
   Copyright (C) 2026 Nethesis S.r.l.
   SPDX-License-Identifier: GPL-3.0-or-later
 
-  One bar per add-on type, split by the state its grants are in. The report
-  endpoint only knows about add-ons somebody has, so the catalog is merged in
-  to give the ones nobody has bought a row of their own — on this card that
-  absence is the finding.
+  One bar per add-on type, split by the state its grants are in. Add-ons nobody
+  has bought arrive from the endpoint too, with every count at zero — on this
+  card that absence is the finding — already limited to what the caller may buy.
 
   Segment colours come from ADDON_STATUS_STYLE, the same table the status icons
   read, so green means active here and everywhere else.
@@ -15,39 +14,20 @@
 import { computed } from 'vue'
 import { getStatusSegments, type AddonReportByType } from '@/lib/addons/addonsReport'
 import { ADDON_STATUS_STYLE } from '@/lib/addons/systemAddons'
-import type { Addon } from '@/lib/addons/addons'
 import ReportCard from './ReportCard.vue'
 
-const { byAddon, catalog, loading } = defineProps<{
+const { byAddon, loading } = defineProps<{
   byAddon: AddonReportByType[]
-  // the whole catalog, so add-ons with no grants at all still get a row;
-  // empty when it could not be loaded, which only costs those rows
-  catalog: Addon[]
   loading: boolean
 }>()
 
-const rows = computed(() => {
-  const granted = new Set(byAddon.map((row) => row.entitlement))
-  // the endpoint already orders these by total, busiest first
-  const ungranted: AddonReportByType[] = catalog
-    .filter((addon) => !granted.has(addon.id))
-    .map((addon) => ({
-      entitlement: addon.id,
-      display_name: addon.display_name,
-      active: 0,
-      expired: 0,
-      revoked: 0,
-      pending: 0,
-      suspended: 0,
-      total: 0,
-    }))
-    .sort((a, b) => a.display_name.localeCompare(b.display_name))
-
-  return [...byAddon, ...ungranted].map((row) => ({
+// the endpoint already orders these by total, busiest first
+const rows = computed(() =>
+  byAddon.map((row) => ({
     ...row,
     segments: getStatusSegments(row),
-  }))
-})
+  })),
+)
 </script>
 
 <template>

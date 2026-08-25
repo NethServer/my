@@ -87,6 +87,9 @@ export interface AddonReportByOrganization {
 
 export interface AddonReportByTier {
   entitlement: string
+  // the catalog name of the add-on, falling back server-side to the id for
+  // types no longer in the catalog — the search matches what this shows
+  display_name: string
   // the shop tier of the purchased product line, e.g. "16-30 device"
   label: string
   count: number

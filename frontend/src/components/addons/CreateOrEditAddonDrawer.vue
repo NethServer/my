@@ -17,7 +17,7 @@ import {
 import { useMutation, useQueryCache } from '@pinia/colada'
 import type { AxiosError } from 'axios'
 import * as v from 'valibot'
-import { computed, ref, useTemplateRef, type ShallowRef } from 'vue'
+import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   ADDON_APPLICATION_IDS,
@@ -30,6 +30,7 @@ import {
   getApplicationDisplayName,
   postAddon,
   putAddon,
+  slugifyAddonName,
   type Addon,
   type AddonForm,
   type AddonProduct,
@@ -115,6 +116,7 @@ const product = ref<AddonProduct | ''>('')
 const application = ref('')
 const applicationRef = useTemplateRef<HTMLInputElement>('applicationRef')
 const technicalName = ref('')
+const technicalNameEdited = ref(false)
 const technicalNameRef = useTemplateRef<HTMLInputElement>('technicalNameRef')
 const displayName = ref('')
 const displayNameRef = useTemplateRef<HTMLInputElement>('displayNameRef')
@@ -153,6 +155,24 @@ const composedId = computed(() =>
   }),
 )
 
+// One is usually the other in kebab-case, so the technical name follows the
+// display name while the user has not written one. It stays a real field: the id
+// it composes is immutable, and the feeds want terse ids (nsec-ha, not
+// nsec-high-availability), so a deliberate value has to win.
+watch(displayName, () => {
+  if (!isEditing.value && !technicalNameEdited.value) {
+    technicalName.value = slugifyAddonName(displayName.value)
+  }
+})
+
+// A value the display name would not have produced can only have been typed:
+// that is what stops the suggestion above, and clearing the field resumes it.
+// NeTextInput emits update:modelValue only, so this comparison — rather than an
+// @input listener — is what tells a manual edit from a suggested one.
+watch(technicalName, (value) => {
+  technicalNameEdited.value = !!value && value !== slugifyAddonName(displayName.value)
+})
+
 // A validation-code response with no field errors (e.g. the 409 raised when the
 // id already exists) would otherwise be swallowed: the axios interceptor stays
 // quiet for those and there is nothing to attach to a field.
@@ -176,12 +196,14 @@ function onShow() {
     technicalName.value = getAddonTechnicalName(currentAddon)
     displayName.value = currentAddon.display_name
     description.value = currentAddon.description
+    technicalNameEdited.value = false
     focusElement(displayNameRef)
   } else {
     // creating add-on, reset form to defaults
     product.value = ''
     application.value = ''
     technicalName.value = ''
+    technicalNameEdited.value = false
     displayName.value = ''
     description.value = ''
   }
@@ -263,6 +285,9 @@ async function saveAddon() {
       kind: form.product === 'ns8' ? 'module' : 'service',
       system_type: form.product as AddonProduct,
       scoped: form.product === 'ns8',
+      // the application the module belongs to, so the backend does not have to
+      // guess it from the id prefix
+      applies_to: form.application,
     })
   }
 }

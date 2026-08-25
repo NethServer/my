@@ -243,25 +243,16 @@ export const composeSystemAddonRows = ({
   }
 
   // Modules only exist on a NethServer cluster, one row per application
-  // instance: a module belongs to an application when its catalog id is
-  // prefixed with that application's type. Longest prefix wins, so a
-  // "nethvoice-proxy-*" module is not read as belonging to "nethvoice".
+  // instance: the add-on names the application it belongs to in `applies_to`,
+  // which is why the id prefix is never read for it — an application name may
+  // itself contain a hyphen ("nethvoice-proxy").
   if (systemType === 'ns8') {
     const modules = availableAddons.filter((addon) => addon.kind === 'module')
     const instances = [...applications].sort((a, b) => a.module_id.localeCompare(b.module_id))
-    const applicationTypes = [...new Set(instances.map((app) => app.instance_of))].sort(
-      (a, b) => b.length - a.length,
-    )
-    const ownerOf = new Map(
-      modules.map((module) => [
-        module.id,
-        applicationTypes.find((type) => module.id.startsWith(`${type}-`)) ?? '',
-      ]),
-    )
 
     for (const application of instances) {
       for (const addon of modules.filter(
-        (module) => ownerOf.get(module.id) === application.instance_of,
+        (module) => module.applies_to === application.instance_of,
       )) {
         rows.push({
           addon,
