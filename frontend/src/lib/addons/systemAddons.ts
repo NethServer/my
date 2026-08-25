@@ -163,6 +163,18 @@ export type AddonRowStatus = (typeof ADDON_ROW_STATUSES)[number]
 export const getRowStatus = (row: SystemAddonRow): AddonRowStatus =>
   row.grant?.status ?? 'not_purchased'
 
+// Who bought the grant, as far as this viewer is allowed to know: a purchaser
+// outside their hierarchy arrives redacted, and a manual grant has no buyer at
+// all. Callers fall back to the creator snapshot when this comes back empty.
+export const getPurchaserName = (row: SystemAddonRow) => {
+  const purchaser = row.grant?.purchased_by
+
+  if (!purchaser || purchaser.out_of_scope) {
+    return ''
+  }
+  return purchaser.name ?? purchaser.email ?? ''
+}
+
 // One look per status too, shared by the status icon and by the report's
 // stacked bars, so a state cannot be amber in one place and blue in another.
 // `expired` is amber rather than rose because buying again fixes it, unlike a

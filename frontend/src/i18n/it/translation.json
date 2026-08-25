@@ -841,6 +841,7 @@
     "technical_name_cannot_be_empty": "Il nome tecnico non può essere vuoto",
     "technical_name_is_invalid": "Il nome tecnico può contenere solo lettere minuscole, numeri e trattini",
     "system_addons_description": "Add-on disponibili per questo sistema. Gli acquisti effettuati su NethShop compaiono qui automaticamente. Apri un add-on per vederne stato, validità e ordine di origine.",
+    "system_addons_description_nsec": "Add-on disponibili per questo sistema. Gli acquisti effettuati su NethShop compaiono qui automaticamente.",
     "cannot_retrieve_system_addons": "Impossibile recuperare gli add-on di questo sistema",
     "cannot_retrieve_available_addons": "Impossibile recuperare gli add-on disponibili",
     "cannot_retrieve_applications": "Impossibile recuperare le applicazioni di questo sistema",

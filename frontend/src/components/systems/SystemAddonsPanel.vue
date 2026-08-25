@@ -80,9 +80,14 @@ function closeAddon() {
 
 <template>
   <div>
-    <!-- page description -->
+    <!-- page description: on a firewall the card states the add-on in full, so
+         there is nothing to open and the last sentence would be a dead end -->
     <div class="text-tertiary-neutral mb-8 max-w-3xl">
-      {{ $t('addons.system_addons_description') }}
+      {{
+        system?.type === 'nsec'
+          ? $t('addons.system_addons_description_nsec')
+          : $t('addons.system_addons_description')
+      }}
     </div>
     <!-- get add-ons error notification -->
     <NeInlineNotification
@@ -122,6 +127,7 @@ function closeAddon() {
         :rows="rows"
         :loading="isLoading"
         :refreshing="isRefreshing"
+        :system-type="system?.type ?? ''"
         @open="openAddon"
       />
     </template>

@@ -5,6 +5,10 @@
   The add-ons of one system, one card per add-on. Rows are grouped here and
   counted by status for the card to summarise; opening a card hands the add-on
   id up to the panel, which swaps in the detail table.
+
+  On a NethSecurity firewall an add-on has a single, system-wide row, so the
+  card states it in full and carries its action instead — the modal those
+  actions open lives here, once for the whole grid.
 -->
 
 <script setup lang="ts">
@@ -29,15 +33,19 @@ import {
   type SystemAddonRow,
 } from '@/lib/addons/systemAddons'
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
+import AddonActionModal, { type AddonAction } from './AddonActionModal.vue'
 import SystemAddonCard from './SystemAddonCard.vue'
 
 // enough cards to fill the widest row while the three queries land
 const SKELETON_CARDS = 4
 
-const { rows, loading, refreshing } = defineProps<{
+const { rows, loading, refreshing, systemType } = defineProps<{
   rows: SystemAddonRow[]
   loading: boolean
   refreshing: boolean
+  // 'nsec' puts the add-on's own row on the card; anything else keeps the card
+  // a summary that opens the detail table
+  systemType: string
 }>()
 
 const emit = defineEmits<{ open: [addonId: string] }>()
@@ -49,6 +57,10 @@ const debouncedTextFilter = ref('')
 const applicationFilter = ref<NeDropdownFilterV2Option[]>([])
 const statusFilter = ref<NeDropdownFilterV2Option[]>([])
 
+const currentRow = ref<SystemAddonRow | undefined>()
+const currentAction = ref<AddonAction>('activate')
+const isShownActionModal = ref(false)
+
 // One card per add-on, over every place it applies to.
 const cards = computed(() => {
   const groups = new Map<
@@ -58,6 +70,7 @@ const cards = computed(() => {
       applicationId: string
       scoped: boolean
       counts: Record<AddonRowStatus, number>
+      rows: SystemAddonRow[]
     }
   >()
 
@@ -74,10 +87,12 @@ const cards = computed(() => {
           AddonRowStatus,
           number
         >,
+        rows: [],
       }
       groups.set(row.addon.id, group)
     }
     group.counts[getRowStatus(row)] += 1
+    group.rows.push(row)
   }
 
   return [...groups.values()].sort((a, b) =>
@@ -138,6 +153,19 @@ watch(
   }, 500),
 )
 
+// The card shows the row itself only on a firewall, and only when the add-on
+// really has just the one: a legacy scoped grant there would make two, and
+// hiding one of them on a card would be worse than opening the table.
+function inlineRow(card: { rows: SystemAddonRow[] }) {
+  return systemType === 'nsec' && card.rows.length === 1 ? card.rows[0] : undefined
+}
+
+function showActionModal(row: SystemAddonRow, action: AddonAction) {
+  currentRow.value = row
+  currentAction.value = action
+  isShownActionModal.value = true
+}
+
 function clearFilters() {
   textFilter.value = ''
   debouncedTextFilter.value = ''
@@ -158,7 +186,10 @@ function clearFilters() {
           class="max-w-48 sm:max-w-sm"
           @blur="textFilter = textFilter.trim()"
         />
+        <!-- a firewall's add-ons are system-wide: there is no application to
+             filter by, so the dropdown would only ever offer an empty list -->
         <NeDropdownFilterV2
+          v-if="systemType !== 'nsec'"
           v-model="applicationFilter"
           kind="checkbox"
           :label="t('addons.application_type')"
@@ -220,8 +251,17 @@ function clearFilters() {
         :application-id="card.applicationId"
         :counts="card.counts"
         :scoped="card.scoped"
+        :row="inlineRow(card)"
         @details="emit('open', card.addon.id)"
+        @action="showActionModal"
       />
     </div>
+    <!-- activate / revoke / reactivate modal, for the cards that act in place -->
+    <AddonActionModal
+      :visible="isShownActionModal"
+      :action="currentAction"
+      :row="currentRow"
+      @close="isShownActionModal = false"
+    />
   </div>
 </template>

@@ -914,6 +914,7 @@
     "technical_name_cannot_be_empty": "Technical name cannot be empty",
     "technical_name_is_invalid": "Technical name can only contain lowercase letters, numbers and hyphens",
     "system_addons_description": "Add-ons available for this system. Purchases made on NethShop appear here automatically. Open an add-on to see its status, validity and originating order.",
+    "system_addons_description_nsec": "Add-ons available for this system. Purchases made on NethShop appear here automatically.",
     "cannot_retrieve_system_addons": "Cannot retrieve the add-ons of this system",
     "cannot_retrieve_available_addons": "Cannot retrieve available add-ons",
     "cannot_retrieve_applications": "Cannot retrieve the applications of this system",

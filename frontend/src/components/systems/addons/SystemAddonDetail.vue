@@ -15,8 +15,6 @@
 import {
   faArrowLeft,
   faArrowUpRightFromSquare,
-  faBan,
-  faCircleCheck,
   faMagnifyingGlass,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -35,7 +33,6 @@ import {
   NeTableRow,
   NeTextInput,
   type NeDropdownFilterV2Option,
-  type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { useDebounceFn } from '@vueuse/core'
 import { computed, ref, watch } from 'vue'
@@ -47,21 +44,21 @@ import UserAvatar from '@/components/users/UserAvatar.vue'
 import {
   ADDON_ROW_STATUSES,
   SYSTEM_ADDONS_TABLE_ID,
-  getBuyUrl,
   getOrderNumber,
   getOrderUrl,
+  getPurchaserName,
   getRowStatus,
   type SystemAddonRow,
 } from '@/lib/addons/systemAddons'
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
-import { formatDateNoTime } from '@/lib/dateTime'
-import { canBuyAddons, isAddonAdmin } from '@/lib/permissions'
+import { isAddonAdmin } from '@/lib/permissions'
 import {
   DEFAULT_PAGE_SIZE,
   PAGE_SIZE_OPTIONS,
   loadPageSizeFromStorage,
   savePageSizeToStorage,
 } from '@/lib/tablePageSize'
+import { useSystemAddonActions } from '@/composables/useSystemAddonActions'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { useLoginStore } from '@/stores/login'
 import AddonActionModal, { type AddonAction } from './AddonActionModal.vue'
@@ -76,9 +73,10 @@ const { rows, loading, refreshing } = defineProps<{
 
 const emit = defineEmits<{ back: [] }>()
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const loginStore = useLoginStore()
 const { state: systemDetail } = useSystemDetail()
+const { canBuy, openShop, getKebabMenuItems, formatValidity } = useSystemAddonActions()
 
 const textFilter = ref('')
 const debouncedTextFilter = ref('')
@@ -106,22 +104,6 @@ const firstColumnLabel = computed(() =>
 // Filtering one row is busywork: a firewall service has exactly one, and so
 // does a cluster running a single instance of the application.
 const areFiltersShown = computed(() => rows.length > 1)
-
-// A suspended or deleted system cannot use anything it holds — collect turns
-// its credentials away before it ever looks at the grants — so buying more is
-// pointless while it stays that way.
-const isSystemBlocked = computed(() =>
-  ['suspended', 'deleted'].includes(systemDetail.value.data?.status ?? ''),
-)
-
-const getPurchaserName = (row: SystemAddonRow) => {
-  const purchaser = row.grant?.purchased_by
-
-  if (!purchaser || purchaser.out_of_scope) {
-    return ''
-  }
-  return purchaser.name ?? purchaser.email ?? ''
-}
 
 const purchaserFilterOptions = computed((): NeDropdownFilterV2Option[] => {
   const names = new Set(rows.map(getPurchaserName).filter((name) => !!name))
@@ -216,78 +198,10 @@ function showActionModal(row: SystemAddonRow, action: AddonAction) {
   isShownActionModal.value = true
 }
 
-// Nothing is offered on a blocked system, and nothing can be bought that the
-// company is not allowed to have in the first place.
-function canBuy(row: SystemAddonRow) {
-  if (!canBuyAddons() || isSystemBlocked.value) {
-    return false
-  }
-  if (!row.grant) {
-    return true
-  }
-  // a shop-side revocation (cancelled subscription, failed payment) can be
-  // undone by buying again; a deliberate one cannot
-  return (
-    row.grant.status === 'expired' ||
-    (row.grant.status === 'revoked' && row.grant.revoked_source === 'shop')
-  )
-}
-
-function getKebabMenuItems(row: SystemAddonRow): NeDropdownItem[] {
-  const items: NeDropdownItem[] = []
-
-  if (!isAddonAdmin() || isSystemBlocked.value) {
-    return items
-  }
-
-  if (!row.grant) {
-    items.push({
-      id: 'activate',
-      label: t('addons.activate'),
-      icon: faCircleCheck,
-      action: () => showActionModal(row, 'activate'),
-    })
-  } else if (row.grant.status === 'active') {
-    items.push({
-      id: 'revoke',
-      label: t('addons.revoke'),
-      icon: faBan,
-      danger: true,
-      action: () => showActionModal(row, 'revoke'),
-    })
-  } else if (row.grant.status === 'revoked') {
-    // restoring only clears the revocation: on an expired grant it would
-    // change nothing, so it is not offered there
-    items.push({
-      id: 'reactivate',
-      label: t('addons.reactivate'),
-      icon: faCircleCheck,
-      action: () => showActionModal(row, 'reactivate'),
-    })
-  }
-
-  return items
-}
-
-function openShop(row: SystemAddonRow) {
-  window.open(getBuyUrl(systemDetail.value.data?.system_key ?? '', row), '_blank')
-}
-
-// Dates only: a licence period is counted in days, so the time of day is noise.
-function formatValidity(row: SystemAddonRow) {
-  // A grant awaiting payment has no period yet — the backend marks the stub by
-  // setting valid_until to valid_from, which would otherwise read as a licence
-  // that expired the day it started.
-  if (!row.grant || row.grant.status === 'pending') {
-    return '-'
-  }
-  const from = formatDateNoTime(new Date(row.grant.valid_from), locale.value)
-  const until = row.grant.valid_until
-    ? formatDateNoTime(new Date(row.grant.valid_until), locale.value)
-    : t('addons.never_expires')
-
-  return `${from} - ${until}`
-}
+// The kebab is the table's own: the composable hands back the items and this
+// component keeps the modal they open.
+const kebabMenuItems = (row: SystemAddonRow) =>
+  getKebabMenuItems(row, (action) => showActionModal(row, action))
 </script>
 
 <template>
@@ -434,7 +348,6 @@ function formatValidity(row: SystemAddonRow) {
                 :logto-id="row.grant.created_by.user_id ?? ''"
               />
               <div>
-                <div class="text-tertiary-neutral">{{ $t('addons.created_by') }}</div>
                 <div>{{ row.grant.created_by.user_name }}</div>
               </div>
             </div>
@@ -451,7 +364,7 @@ function formatValidity(row: SystemAddonRow) {
               <!-- when buying is the only thing on offer it gets a button of its
                    own rather than hiding inside a one-item kebab -->
               <NeButton
-                v-if="canBuy(row) && !getKebabMenuItems(row).length"
+                v-if="canBuy(row) && !kebabMenuItems(row).length"
                 kind="tertiary"
                 @click="openShop(row)"
               >
@@ -465,9 +378,9 @@ function formatValidity(row: SystemAddonRow) {
                 {{ $t('addons.buy') }}
               </NeButton>
               <NeDropdown
-                v-else-if="getKebabMenuItems(row).length || canBuy(row)"
+                v-else-if="kebabMenuItems(row).length || canBuy(row)"
                 :items="[
-                  ...getKebabMenuItems(row),
+                  ...kebabMenuItems(row),
                   ...(canBuy(row)
                     ? [
                         {
