@@ -73,7 +73,13 @@ type EntitlementCatalogItem struct {
 	// AppliesTo is the applications.instance_of a module add-on belongs to.
 	// Stored rather than parsed off the id prefix: app names may contain a
 	// hyphen (nethvoice-proxy), which makes the prefix ambiguous.
-	AppliesTo string    `json:"applies_to,omitempty"`
+	AppliesTo string `json:"applies_to,omitempty"`
+	// InUse is TRUE when at least one grant references the item — revoked
+	// and expired ones included, kept for audit: the foreign key refuses the
+	// DELETE all the same. Computed by the read paths that serve API
+	// responses, so clients can disable the delete action instead of letting
+	// it fail with 409.
+	InUse     bool      `json:"in_use"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

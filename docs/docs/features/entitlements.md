@@ -42,7 +42,7 @@ Distributors and resellers cannot self-activate add-ons: everything flows throug
 
 The **Add-ons** entry in the side menu is available to everyone holding the `read:entitlements` permission, but the **Configuration** tab with the catalog of add-on types is reserved to owner and Super Admin users. Creating a type takes a kind (Service or Module), the target application for modules (the id is composed automatically, e.g. `nethvoice` + `chat` → `nethvoice-chat`), a display name and a description. A newly created type is **immediately purchasable by everyone**; optional availability rules can restrict a type to specific hierarchy roles or organizations.
 
-Deleting a type is refused while grants reference it.
+Deleting a type is refused while grants reference it — revoked and expired ones included, since they are kept for audit. The catalog list flags those types with `in_use`, so the delete action is disabled instead of failing.
 
 ## Reporting
 

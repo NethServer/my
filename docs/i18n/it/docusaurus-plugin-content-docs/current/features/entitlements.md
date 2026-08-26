@@ -42,7 +42,7 @@ Distributori e reseller non possono auto-attivarsi add-on: tutto passa dallo sho
 
 La voce **Add-on** nel menu laterale è disponibile a chiunque abbia il permesso `read:entitlements`, ma la tab **Configurazione** con il catalogo dei tipi di add-on resta riservata agli utenti owner e Super Admin. La creazione richiede il kind (Service o Module), l'applicazione di destinazione per i moduli (l'id si compone automaticamente, es. `nethvoice` + `chat` → `nethvoice-chat`), nome e descrizione. Un tipo appena creato è **immediatamente acquistabile da tutti**; regole di disponibilità opzionali possono riservarlo a ruoli o organizzazioni specifiche.
 
-La cancellazione di un tipo è rifiutata finché esistono licenze che lo referenziano.
+La cancellazione di un tipo è rifiutata finché esistono licenze che lo referenziano — comprese quelle revocate o scadute, conservate per audit. L'elenco del catalogo marca questi tipi con `in_use`, così l'azione di eliminazione è disabilitata invece di fallire.
 
 ## Reportistica
 

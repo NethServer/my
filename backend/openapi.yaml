@@ -2292,6 +2292,14 @@ components:
           type: string
           description: Application (applications.instance_of) a module add-on applies to. Empty for system-wide services. Stored explicitly because the <app>-<module> id prefix is ambiguous when the app name itself contains a hyphen (nethvoice-proxy).
           example: "nethvoice"
+        in_use:
+          type: boolean
+          description: |
+            True when at least one grant references the item — revoked and
+            expired grants included, since they are kept for audit and block
+            the delete all the same. Clients should disable the delete action
+            for these items: `DELETE /entitlements/catalog/{id}` answers 409.
+          example: true
         created_at:
           type: string
           format: date-time
@@ -10972,7 +10980,11 @@ paths:
       tags:
         - Backend - Entitlements
       summary: /entitlements/catalog - List the add-on catalog
-      description: List all grantable add-on types. Available to any authenticated user with entitlements resource access.
+      description: |
+        List all grantable add-on types. Available to any authenticated user
+        with entitlements resource access. Each item carries `in_use`, so the
+        delete action can be disabled for types that already have grants
+        instead of failing with 409.
       responses:
         '200':
           description: Entitlement catalog retrieved successfully
@@ -11119,8 +11131,9 @@ paths:
       summary: /entitlements/catalog/{id} - Delete an add-on type
       description: |
         Delete a catalog item. Refused while grants (including revoked ones,
-        kept for audit) still reference it. Only the owner organization or a
-        Super Admin can manage the catalog.
+        kept for audit) still reference it — `in_use` on the catalog list
+        tells this upfront. Only the owner organization or a Super Admin can
+        manage the catalog.
       parameters:
         - name: id
           in: path

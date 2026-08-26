@@ -41,20 +41,43 @@ func NewLocalEntitlementCatalogRepository() *LocalEntitlementCatalogRepository {
 	return &LocalEntitlementCatalogRepository{db: database.DB}
 }
 
+func catalogScanDest(item *models.EntitlementCatalogItem) []interface{} {
+	return []interface{}{&item.ID, &item.DisplayName, &item.Description, &item.Scoped, &item.Kind, &item.SystemType, &item.LegacyAlias, &item.AppliesTo, &item.CreatedAt, &item.UpdatedAt}
+}
+
 func scanCatalogItem(scanner interface{ Scan(...interface{}) error }) (*models.EntitlementCatalogItem, error) {
 	var item models.EntitlementCatalogItem
-	err := scanner.Scan(&item.ID, &item.DisplayName, &item.Description, &item.Scoped, &item.Kind, &item.SystemType, &item.LegacyAlias, &item.AppliesTo, &item.CreatedAt, &item.UpdatedAt)
+	err := scanner.Scan(catalogScanDest(&item)...)
 	if err != nil {
 		return nil, err
 	}
 	return &item, nil
 }
 
+// scanCatalogItemWithUsage scans a row carrying the extra in_use column
+// (catalogInUseColumn) after the catalog columns.
+func scanCatalogItemWithUsage(scanner interface{ Scan(...interface{}) error }) (*models.EntitlementCatalogItem, error) {
+	var item models.EntitlementCatalogItem
+	err := scanner.Scan(append(catalogScanDest(&item), &item.InUse)...)
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+// catalogInUseColumn tells whether any grant still references the catalog
+// item — revoked and expired rows included, since the foreign key blocks the
+// DELETE regardless. Cheap: idx_system_entitlements_entitlement makes it an
+// index-only lookup, on a table of a few dozen catalog rows. Queries using it
+// must alias entitlement_catalog as c.
+const catalogInUseColumn = `EXISTS (SELECT 1 FROM system_entitlements se WHERE se.entitlement = c.id) AS in_use`
+
 // List returns the whole catalog ordered by id.
 func (r *LocalEntitlementCatalogRepository) List() ([]*models.EntitlementCatalogItem, error) {
 	rows, err := r.db.Query(
-		`SELECT id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, created_at, updated_at
-		 FROM entitlement_catalog ORDER BY id`)
+		`SELECT c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.created_at, c.updated_at,
+		        ` + catalogInUseColumn + `
+		 FROM entitlement_catalog c ORDER BY c.id`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list entitlement catalog: %w", err)
 	}
@@ -62,7 +85,7 @@ func (r *LocalEntitlementCatalogRepository) List() ([]*models.EntitlementCatalog
 
 	out := []*models.EntitlementCatalogItem{}
 	for rows.Next() {
-		item, err := scanCatalogItem(rows)
+		item, err := scanCatalogItemWithUsage(rows)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan catalog item: %w", err)
 		}
@@ -120,13 +143,14 @@ func (r *LocalEntitlementCatalogRepository) Create(req *models.CreateEntitlement
 // Update changes the display fields of a catalog item (id and scoped are
 // immutable).
 func (r *LocalEntitlementCatalogRepository) Update(id string, displayName, description *string) (*models.EntitlementCatalogItem, error) {
-	item, err := scanCatalogItem(r.db.QueryRow(
-		`UPDATE entitlement_catalog SET
+	item, err := scanCatalogItemWithUsage(r.db.QueryRow(
+		`UPDATE entitlement_catalog c SET
 		     display_name = COALESCE($2, display_name),
 		     description  = COALESCE($3, description),
 		     updated_at   = NOW()
-		 WHERE id = $1
-		 RETURNING id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, created_at, updated_at`,
+		 WHERE c.id = $1
+		 RETURNING c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.created_at, c.updated_at,
+		           `+catalogInUseColumn,
 		id, displayName, description))
 	if err == sql.ErrNoRows {
 		return nil, ErrCatalogItemNotFound
@@ -208,7 +232,8 @@ func (r *LocalEntitlementAvailabilityRepository) ListByEntitlement(entitlement s
 // present for an item, RESTRICT it to the matching role/orgs.
 func (r *LocalEntitlementAvailabilityRepository) ListAvailableFor(orgRole, orgID string) ([]*models.EntitlementCatalogItem, error) {
 	rows, err := r.db.Query(
-		`SELECT c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.created_at, c.updated_at
+		`SELECT c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.created_at, c.updated_at,
+		        `+catalogInUseColumn+`
 		 FROM entitlement_catalog c
 		 WHERE c.kind IN ('service', 'module')
 		   AND (NOT EXISTS (SELECT 1 FROM entitlement_availability a WHERE a.entitlement = c.id)
@@ -223,7 +248,7 @@ func (r *LocalEntitlementAvailabilityRepository) ListAvailableFor(orgRole, orgID
 
 	out := []*models.EntitlementCatalogItem{}
 	for rows.Next() {
-		item, err := scanCatalogItem(rows)
+		item, err := scanCatalogItemWithUsage(rows)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan catalog item: %w", err)
 		}
