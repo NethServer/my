@@ -110,6 +110,7 @@ func (hw *HeartbeatWorker) run(ctx context.Context, wg *sync.WaitGroup) {
 
 		case <-ticker.C:
 			hw.processBatch(ctx)
+			hw.reportThroughput(ctx)
 		}
 	}
 }
@@ -154,21 +155,35 @@ func (hw *HeartbeatWorker) processBatch(ctx context.Context) {
 
 	hw.summaryBatches++
 	hw.summaryUpserted += len(latest)
-	if since := time.Since(hw.summarySince); since >= heartbeatSummaryInterval {
-		queueDepth, depthErr := hw.queueManager.HeartbeatQueueDepth(ctx)
-		event := log.Info().
-			Int("batches", hw.summaryBatches).
-			Int("systems_upserted", hw.summaryUpserted).
-			Dur("window", since)
-		if depthErr == nil {
+}
+
+// reportThroughput emits the periodic summary. It runs from the loop rather than
+// from processBatch so that a window in which nothing was flushed still reports:
+// zero batches and a queue that is not draining is the shape of a stalled
+// ingest, and it is precisely then that processBatch returns early and would
+// never reach a summary of its own.
+func (hw *HeartbeatWorker) reportThroughput(ctx context.Context) {
+	since := time.Since(hw.summarySince)
+	if since < heartbeatSummaryInterval {
+		return
+	}
+
+	event := logger.ComponentLogger("heartbeat-worker").Info().
+		Int("batches", hw.summaryBatches).
+		Int("systems_upserted", hw.summaryUpserted).
+		Dur("window", since)
+	// The depth is supplementary context, so the summary goes out without it
+	// rather than not at all.
+	if hw.queueManager != nil {
+		if queueDepth, err := hw.queueManager.HeartbeatQueueDepth(ctx); err == nil {
 			event = event.Int64("queue_depth", queueDepth)
 		}
-		event.Msg("Heartbeat throughput")
-
-		hw.summarySince = time.Now()
-		hw.summaryBatches = 0
-		hw.summaryUpserted = 0
 	}
+	event.Msg("Heartbeat throughput")
+
+	hw.summarySince = time.Now()
+	hw.summaryBatches = 0
+	hw.summaryUpserted = 0
 }
 
 // bulkUpsert writes multiple heartbeats in a single SQL statement
