@@ -11,6 +11,13 @@ import { formatDateNoTime } from '@/lib/dateTime'
 import { canBuyAddons, isAddonAdmin } from '@/lib/permissions'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 
+// The actions of one row, split the way they are rendered: buying gets a button
+// of its own, the administrative actions live in a kebab.
+export type AddonRowActions = {
+  buy: NeDropdownItem | undefined
+  menu: NeDropdownItem[]
+}
+
 // What a viewer may do with one add-on of one system, and how a grant reads.
 // Shared by the NethSecurity card and the NethServer detail table so the rules
 // cannot drift apart: which revocations can be undone by buying again, and what
@@ -89,27 +96,25 @@ export const useSystemAddonActions = () => {
     return items
   }
 
-  // Everything on offer for one row, in one list. It holds AT MOST ONE entry:
-  // buying needs manage:addons WITHOUT owner-level authority (canBuyAddons),
-  // the administrative three need exactly that authority (isAddonAdmin), and
-  // the chain above pushes one of them at a time. Callers may render it as a
-  // single button on that basis.
+  // Only one side is ever filled: buying needs manage:addons WITHOUT owner-level
+  // authority (canBuyAddons), the administrative three need exactly that
+  // authority (isAddonAdmin). Callers render the two independently all the
+  // same, so an action added to the other side appears beside it instead of
+  // being silently dropped.
   const getAddonActions = (
     row: SystemAddonRow,
     onSelect: (action: AddonAction) => void,
-  ): NeDropdownItem[] => [
-    ...getKebabMenuItems(row, onSelect),
-    ...(canBuy(row)
-      ? [
-          {
-            id: 'buy',
-            label: t('addons.buy'),
-            icon: faArrowUpRightFromSquare,
-            action: () => openShop(row),
-          },
-        ]
-      : []),
-  ]
+  ): AddonRowActions => ({
+    buy: canBuy(row)
+      ? {
+          id: 'buy',
+          label: t('addons.buy'),
+          icon: faArrowUpRightFromSquare,
+          action: () => openShop(row),
+        }
+      : undefined,
+    menu: getKebabMenuItems(row, onSelect),
+  })
 
   // Dates only: a licence period is counted in days, so the time of day is noise.
   const formatValidity = (row: SystemAddonRow) => {
@@ -128,10 +133,6 @@ export const useSystemAddonActions = () => {
   }
 
   return {
-    isSystemBlocked,
-    canBuy,
-    openShop,
-    getKebabMenuItems,
     getAddonActions,
     formatValidity,
   }

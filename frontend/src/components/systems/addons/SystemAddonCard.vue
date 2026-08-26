@@ -16,13 +16,13 @@
 <script setup lang="ts">
 import { faArrowRightLong } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { NeButton, NeCard } from '@nethesis/vue-components'
+import { NeButton, NeCard, NeDropdown } from '@nethesis/vue-components'
 import { computed } from 'vue'
 import ApplicationLogo from '@/components/applications/ApplicationLogo.vue'
 import DataItem from '@/components/common/DataItem.vue'
 import SystemLogo from '@/components/systems/SystemLogo.vue'
 import UserAvatar from '@/components/users/UserAvatar.vue'
-import { useSystemAddonActions } from '@/composables/useSystemAddonActions'
+import { useSystemAddonActions, type AddonRowActions } from '@/composables/useSystemAddonActions'
 import {
   ADDON_ROW_STATUSES,
   getOrderNumber,
@@ -66,12 +66,14 @@ const statusLines = computed(() =>
   })),
 )
 
-// At most one entry, by construction — see getAddonActions. Rendered as a list
-// all the same, so that a second one would appear beside the first instead of
-// being silently dropped. Buying opens the shop from the item itself; the
+// Buying gets a button at the foot of the card, the administrative actions a
+// kebab in its corner. Buying opens the shop from the item itself; the
 // administrative actions travel up to the grid, which owns the modal.
-const actions = computed(() =>
-  row ? getAddonActions(row, (action) => emit('action', row, action)) : [],
+const actions = computed(
+  (): AddonRowActions =>
+    row
+      ? getAddonActions(row, (action) => emit('action', row, action))
+      : { buy: undefined, menu: [] },
 )
 </script>
 
@@ -80,10 +82,19 @@ const actions = computed(() =>
     <div class="flex h-full flex-col gap-5">
       <!-- logo + name + description -->
       <div class="flex flex-col gap-2">
-        <div class="flex items-center gap-3">
-          <ApplicationLogo v-if="applicationId" :app="applicationId" />
-          <SystemLogo v-else system="nsec" />
-          <p class="font-medium text-gray-900 dark:text-gray-100">{{ addon.display_name }}</p>
+        <div class="flex min-h-10 items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <ApplicationLogo v-if="applicationId" :app="applicationId" />
+            <SystemLogo v-else system="nsec" />
+            <p class="font-medium text-gray-900 dark:text-gray-100">{{ addon.display_name }}</p>
+          </div>
+          <!-- kebab menu -->
+          <NeDropdown
+            v-if="actions.menu.length"
+            :items="actions.menu"
+            :align-to-right="true"
+            :open-menu-aria-label="$t('ne_dropdown.open_menu')"
+          />
         </div>
         <p v-if="addon.description" class="text-tertiary-neutral">{{ addon.description }}</p>
       </div>
@@ -170,15 +181,14 @@ const actions = computed(() =>
       </div>
       <!-- pushed to the bottom so cards of differing height line their buttons up -->
       <div class="mt-auto flex justify-end gap-2">
-        <template v-if="row">
-          <NeButton v-for="item in actions" :key="item.id" kind="tertiary" @click="item.action?.()">
-            <template v-if="item.icon" #prefix>
-              <FontAwesomeIcon :icon="item.icon" class="size-4" aria-hidden="true" />
-            </template>
-            {{ item.label }}
-          </NeButton>
-        </template>
-        <NeButton v-else kind="tertiary" @click="emit('details')">
+        <NeButton v-if="actions.buy" kind="tertiary" @click="actions.buy.action?.()">
+          <template v-if="actions.buy.icon" #prefix>
+            <FontAwesomeIcon :icon="actions.buy.icon" class="size-4" aria-hidden="true" />
+          </template>
+          {{ actions.buy.label }}
+        </NeButton>
+        <!-- a card that only summarises hands off to the detail table instead -->
+        <NeButton v-else-if="!row" kind="tertiary" @click="emit('details')">
           {{ $t('addons.details') }}
           <template #suffix>
             <FontAwesomeIcon :icon="faArrowRightLong" class="size-4" aria-hidden="true" />

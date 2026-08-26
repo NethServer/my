@@ -12,11 +12,7 @@
 -->
 
 <script setup lang="ts">
-import {
-  faArrowLeft,
-  faArrowUpRightFromSquare,
-  faMagnifyingGlass,
-} from '@fortawesome/free-solid-svg-icons'
+import { faArrowLeft, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   NeButton,
@@ -76,7 +72,7 @@ const emit = defineEmits<{ back: [] }>()
 const { t } = useI18n()
 const loginStore = useLoginStore()
 const { state: systemDetail } = useSystemDetail()
-const { canBuy, openShop, getKebabMenuItems, formatValidity } = useSystemAddonActions()
+const { getAddonActions, formatValidity } = useSystemAddonActions()
 
 const textFilter = ref('')
 const debouncedTextFilter = ref('')
@@ -134,8 +130,22 @@ const filteredRows = computed(() => {
   })
 })
 
-const paginatedRows = computed(() =>
-  filteredRows.value.slice((pageNum.value - 1) * pageSize.value, pageNum.value * pageSize.value),
+function showActionModal(row: SystemAddonRow, action: AddonAction) {
+  currentRow.value = row
+  currentAction.value = action
+  isShownActionModal.value = true
+}
+
+// Every visible row with what it offers, built once here rather than on each
+// reference from the template. The modal those actions open stays with this
+// component; the composable only hands back the items.
+const pageRows = computed(() =>
+  filteredRows.value
+    .slice((pageNum.value - 1) * pageSize.value, pageNum.value * pageSize.value)
+    .map((row) => ({
+      row,
+      actions: getAddonActions(row, (action) => showActionModal(row, action)),
+    })),
 )
 
 const isFiltered = computed(
@@ -191,17 +201,6 @@ function clearFilters() {
   purchaserFilter.value = []
   statusFilter.value = []
 }
-
-function showActionModal(row: SystemAddonRow, action: AddonAction) {
-  currentRow.value = row
-  currentAction.value = action
-  isShownActionModal.value = true
-}
-
-// The kebab is the table's own: the composable hands back the items and this
-// component keeps the modal they open.
-const kebabMenuItems = (row: SystemAddonRow) =>
-  getKebabMenuItems(row, (action) => showActionModal(row, action))
 </script>
 
 <template>
@@ -294,7 +293,7 @@ const kebabMenuItems = (row: SystemAddonRow) =>
         </NeTableHeadCell>
       </NeTableHead>
       <NeTableBody>
-        <NeTableRow v-for="row in paginatedRows" :key="`${row.addon.id} ${row.scope}`">
+        <NeTableRow v-for="{ row, actions } in pageRows" :key="`${row.addon.id} ${row.scope}`">
           <NeTableCell :data-label="firstColumnLabel">
             <div class="flex items-center gap-2">
               <ApplicationLogo v-if="row.applicationId" :app="row.applicationId" />
@@ -360,38 +359,18 @@ const kebabMenuItems = (row: SystemAddonRow) =>
             <AddonStatusIcon :status="getRowStatus(row)" />
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
-              <!-- when buying is the only thing on offer it gets a button of its
-                   own rather than hiding inside a one-item kebab -->
-              <NeButton
-                v-if="canBuy(row) && !kebabMenuItems(row).length"
-                kind="tertiary"
-                @click="openShop(row)"
-              >
-                <template #prefix>
-                  <FontAwesomeIcon
-                    :icon="faArrowUpRightFromSquare"
-                    class="size-4"
-                    aria-hidden="true"
-                  />
+            <div class="-ml-2.5 flex items-center gap-2 2xl:ml-0 2xl:justify-end">
+              <!-- buying gets a button of its own rather than hiding inside a
+                   one-item kebab -->
+              <NeButton v-if="actions.buy" kind="tertiary" @click="actions.buy.action?.()">
+                <template v-if="actions.buy.icon" #prefix>
+                  <FontAwesomeIcon :icon="actions.buy.icon" class="size-4" aria-hidden="true" />
                 </template>
-                {{ $t('addons.buy') }}
+                {{ actions.buy.label }}
               </NeButton>
               <NeDropdown
-                v-else-if="kebabMenuItems(row).length || canBuy(row)"
-                :items="[
-                  ...kebabMenuItems(row),
-                  ...(canBuy(row)
-                    ? [
-                        {
-                          id: 'buy',
-                          label: t('addons.buy'),
-                          icon: faArrowUpRightFromSquare,
-                          action: () => openShop(row),
-                        },
-                      ]
-                    : []),
-                ]"
+                v-if="actions.menu.length"
+                :items="actions.menu"
                 :align-to-right="true"
                 :open-menu-aria-label="$t('ne_dropdown.open_menu')"
               />
