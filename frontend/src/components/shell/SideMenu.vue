@@ -34,6 +34,7 @@ import {
   faServer as falServer,
   faGrid2 as falGrid2,
   faTriangleExclamation as falTriangleExclamation,
+  faPuzzlePiece as falPuzzlePiece,
 } from '@nethesis/nethesis-light-svg-icons'
 import {
   canReadApplications,
@@ -112,7 +113,7 @@ const navigation = computed(() => {
       name: 'addons.title',
       to: 'addons',
       solidIcon: faPuzzlePiece,
-      lightIcon: faPuzzlePiece,
+      lightIcon: falPuzzlePiece,
     })
   }
 
