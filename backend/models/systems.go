@@ -71,6 +71,12 @@ type System struct {
 	LastHeartbeat    *time.Time        `json:"last_heartbeat,omitempty"` // Last heartbeat timestamp
 	LastInventory    *time.Time        `json:"last_inventory,omitempty"` // Last inventory timestamp (NULL = never received)
 
+	// First contact timestamps, populated by the single-system read only
+	// (GetByID): they need per-system lookups that a list query cannot
+	// afford. NULL = that kind of data never arrived.
+	FirstHeartbeat *time.Time `json:"first_heartbeat,omitempty"` // First heartbeat received
+	FirstInventory *time.Time `json:"first_inventory,omitempty"` // First inventory received
+
 	// Rebranding info (populated by handler)
 	RebrandingEnabled bool    `json:"rebranding_enabled"`
 	RebrandingOrgID   *string `json:"rebranding_org_id,omitempty"`

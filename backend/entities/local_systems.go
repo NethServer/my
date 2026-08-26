@@ -57,9 +57,17 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 	if includeDeleted {
 		whereClause = "WHERE s.id = $1"
 	}
+	// first_heartbeat: the heartbeat row is inserted by the first beat and
+	// upserted by every later one, so its created_at marks the first contact.
+	// first_inventory: the oldest surviving snapshot is the first one ever
+	// received — inventory retention always keeps the per-system baseline
+	// (MIN(id)) — and MIN(created_at) is served by
+	// idx_inventory_records_system_id_created_at.
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
 		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, s.suspended_at, s.suspended_by_org_id, h.last_heartbeat, s.last_inventory_at,
+		       h.created_at as first_heartbeat,
+		       (SELECT MIN(ir.created_at) FROM inventory_records ir WHERE ir.system_id = s.id) as first_inventory,
 		       COALESCE(uo.name, 'Owner') as organization_name,
 		       COALESCE(uo.org_type, 'owner') as organization_type,
 		       COALESCE(uo.db_id, '') as organization_db_id
@@ -73,6 +81,7 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 	var createdByJSON []byte
 	var fqdn, ipv4Address, ipv6Address, version sql.NullString
 	var registeredAt, suspendedAt, lastHeartbeat, lastInventory sql.NullTime
+	var firstHeartbeat, firstInventory sql.NullTime
 	var suspendedByOrgID sql.NullString
 	var organizationName, organizationType, organizationDBID sql.NullString
 
@@ -80,6 +89,7 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 		&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 		&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.LogtoID,
 		&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &suspendedAt, &suspendedByOrgID, &lastHeartbeat, &lastInventory,
+		&firstHeartbeat, &firstInventory,
 		&organizationName, &organizationType, &organizationDBID,
 	)
 
@@ -132,6 +142,12 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 	}
 	if lastInventory.Valid {
 		system.LastInventory = &lastInventory.Time
+	}
+	if firstHeartbeat.Valid {
+		system.FirstHeartbeat = &firstHeartbeat.Time
+	}
+	if firstInventory.Valid {
+		system.FirstInventory = &firstInventory.Time
 	}
 
 	return system, nil

@@ -1998,6 +1998,22 @@ components:
           nullable: true
           description: Last inventory received timestamp. NULL means no inventory received yet.
           example: "2025-07-21T10:20:00Z"
+        first_heartbeat:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            First heartbeat received timestamp. Only returned by GET /systems/{id};
+            the list endpoint omits it. NULL means no heartbeat received yet.
+          example: "2025-07-02T08:15:00Z"
+        first_inventory:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            First inventory received timestamp. Only returned by GET /systems/{id};
+            the list endpoint omits it. NULL means no inventory received yet.
+          example: "2025-07-02T08:20:00Z"
         registered_at:
           type: string
           format: date-time
