@@ -12,6 +12,7 @@ package queue
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -141,7 +142,13 @@ func (qm *QueueManager) DequeueHeartbeatBatch(ctx context.Context, batchSize int
 	for i := 0; i < batchSize; i++ {
 		cmds[i] = pipe.RPop(ctx, configuration.Config.QueueHeartbeatName)
 	}
-	_, _ = pipe.Exec(ctx) // errors are per-command (redis.Nil when empty)
+	// redis.Nil is how an empty queue reports itself, one per unfilled RPOP.
+	// Anything else means the pipeline never reached Redis, and that must not be
+	// reported as a quiet queue: callers read a successful dequeue as evidence
+	// that the ingest is running, and an unreachable Redis is the opposite.
+	if _, err := pipe.Exec(ctx); err != nil && !errors.Is(err, redis.Nil) {
+		return nil, fmt.Errorf("dequeue heartbeat batch: %w", err)
+	}
 
 	var heartbeats []*models.SystemHeartbeat
 	for _, cmd := range cmds {
