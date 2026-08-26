@@ -244,6 +244,9 @@ export const getQueryStringParamsForExport = (
   format: string,
   textFilter: string | undefined,
   statusFilter: CustomerStatus[] | undefined,
+  createdByFilter: string[] | undefined,
+  organizationFilter: string[] | undefined,
+  includeHierarchy: boolean | undefined,
   sortBy: string | undefined,
   sortDescending: boolean | undefined,
 ) => {
@@ -261,6 +264,24 @@ export const getQueryStringParamsForExport = (
     })
   }
 
+  if (createdByFilter) {
+    createdByFilter.forEach((userId) => {
+      searchParams.append('created_by', userId)
+    })
+  }
+
+  // Parent company filter: same exact match as the list query, widened to the
+  // whole subtree only when the hierarchy entry point set includeHierarchy.
+  if (organizationFilter) {
+    organizationFilter.forEach((organizationId) => {
+      searchParams.append('organization_id', organizationId)
+    })
+  }
+
+  if (includeHierarchy) {
+    searchParams.append('include_hierarchy', 'true')
+  }
+
   if (sortBy) {
     searchParams.append('sort_by', sortBy)
   }
@@ -276,6 +297,9 @@ export const getExport = (
   format: 'csv' | 'pdf',
   textFilter: string | undefined = undefined,
   statusFilter: CustomerStatus[] | undefined = undefined,
+  createdByFilter: string[] | undefined = undefined,
+  organizationFilter: string[] | undefined = undefined,
+  includeHierarchy: boolean | undefined = undefined,
   sortBy: string | undefined = undefined,
   sortDescending: boolean | undefined = undefined,
 ) => {
@@ -284,6 +308,9 @@ export const getExport = (
     format,
     textFilter,
     statusFilter,
+    createdByFilter,
+    organizationFilter,
+    includeHierarchy,
     sortBy,
     sortDescending,
   )

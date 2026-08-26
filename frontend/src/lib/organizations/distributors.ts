@@ -247,6 +247,7 @@ export const getQueryStringParamsForExport = (
   format: string,
   textFilter: string | undefined,
   statusFilter: DistributorStatus[] | undefined,
+  createdByFilter: string[] | undefined,
   sortBy: string | undefined,
   sortDescending: boolean | undefined,
 ) => {
@@ -261,6 +262,12 @@ export const getQueryStringParamsForExport = (
   if (statusFilter) {
     statusFilter.forEach((status) => {
       searchParams.append('status', status)
+    })
+  }
+
+  if (createdByFilter) {
+    createdByFilter.forEach((userId) => {
+      searchParams.append('created_by', userId)
     })
   }
 
@@ -279,6 +286,7 @@ export const getExport = (
   format: 'csv' | 'pdf',
   textFilter: string | undefined = undefined,
   statusFilter: DistributorStatus[] | undefined = undefined,
+  createdByFilter: string[] | undefined = undefined,
   sortBy: string | undefined = undefined,
   sortDescending: boolean | undefined = undefined,
 ) => {
@@ -287,6 +295,7 @@ export const getExport = (
     format,
     textFilter,
     statusFilter,
+    createdByFilter,
     sortBy,
     sortDescending,
   )

@@ -206,7 +206,6 @@ export const getQueryStringParamsForExport = (
     })
   }
 
-  // appended before the statusFilter block because that block returns early
   if (organizationFilter) {
     organizationFilter.forEach((orgId) => {
       searchParams.append('organization_id', orgId)
@@ -221,7 +220,6 @@ export const getQueryStringParamsForExport = (
     statusFilter.forEach((status) => {
       searchParams.append('status', status)
     })
-    return searchParams.toString()
   }
 
   if (sortBy) {
