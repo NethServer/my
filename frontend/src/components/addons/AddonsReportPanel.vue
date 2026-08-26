@@ -8,8 +8,9 @@
   companies — so nothing here needs a permission check of its own.
 
   The totals, the trend, the renewal split and the per-add-on breakdown arrive
-  in one response — including the add-ons nobody has bought yet, so nothing here
-  needs the catalog; the two tables page and search on their own.
+  in one response — including the add-ons nobody has bought yet; the two tables
+  page and search on their own. The catalog is read for one thing only: the
+  report rows name an add-on by id, and its logo hangs off the catalog entry.
 -->
 
 <script setup lang="ts">

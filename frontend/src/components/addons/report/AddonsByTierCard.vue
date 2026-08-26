@@ -25,6 +25,7 @@ import { computed } from 'vue'
 import { ADDONS_REPORT_TIERS_TABLE_ID } from '@/lib/addons/addonsReport'
 import { PAGE_SIZE_OPTIONS, savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useAddonReportTiers } from '@/queries/addons/addonsReport'
+import AddonLogo from '../AddonLogo.vue'
 import ReportCard from './ReportCard.vue'
 
 const { state: tiers, pageNum, pageSize, textFilter } = useAddonReportTiers()
@@ -69,7 +70,10 @@ const loading = computed(() => tiers.value.status === 'pending')
         <NeTableBody>
           <NeTableRow v-for="row in rows" :key="`${row.entitlement} ${row.label}`">
             <NeTableCell :data-label="$t('addons.addon')">
-              {{ row.display_name || row.entitlement }}
+              <div class="flex items-center gap-2">
+                <AddonLogo :addon-id="row.entitlement" />
+                <span>{{ row.display_name || row.entitlement }}</span>
+              </div>
             </NeTableCell>
             <NeTableCell :data-label="$t('addons.tier')">{{ row.label }}</NeTableCell>
             <NeTableCell :data-label="$t('addons.count')">{{ row.count }}</NeTableCell>

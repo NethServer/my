@@ -14,6 +14,7 @@
 import { computed } from 'vue'
 import { getStatusSegments, type AddonReportByType } from '@/lib/addons/addonsReport'
 import { ADDON_STATUS_STYLE } from '@/lib/addons/systemAddons'
+import AddonLogo from '../AddonLogo.vue'
 import ReportCard from './ReportCard.vue'
 
 const { byAddon, loading } = defineProps<{
@@ -32,10 +33,13 @@ const rows = computed(() =>
 
 <template>
   <ReportCard :title="$t('addons.by_addon')" :loading="loading">
-    <div class="flex flex-col gap-5">
+    <div class="flex flex-col gap-6">
       <div v-for="row in rows" :key="row.entitlement" class="flex flex-col gap-2">
-        <div class="flex items-baseline justify-between gap-4">
-          <span class="font-medium text-gray-900 dark:text-gray-100">{{ row.display_name }}</span>
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <AddonLogo :addon-id="row.entitlement" />
+            <span class="font-medium text-gray-900 dark:text-gray-100">{{ row.display_name }}</span>
+          </div>
           <span
             :class="[
               'shrink-0 font-medium',

@@ -41,7 +41,7 @@ const rows = computed(() =>
 
 <template>
   <ReportCard :title="$t('addons.renewal_distribution')" :loading="loading">
-    <div class="flex flex-col gap-5">
+    <div class="flex flex-col gap-6">
       <div v-for="row in rows" :key="row.bucket" class="flex flex-col gap-2">
         <div class="flex items-baseline justify-between gap-4">
           <span class="font-medium text-gray-900 dark:text-gray-100">{{ row.label }}</span>
