@@ -851,6 +851,8 @@
     "cannot_retrieve_applications": "Impossibile recuperare le applicazioni di questo sistema",
     "no_system_addons": "Nessun add-on disponibile",
     "no_system_addons_description": "Non ci sono add-on disponibili per questo sistema.",
+    "no_addons_configured": "Nessun add-on configurato",
+    "no_addons_configured_description": "Gli add-on possono essere configurati solo su sistemi registrati che hanno inviato almeno un inventario.",
     "no_applications_found": "Nessuna applicazione trovata",
     "filter_applications": "Filtra applicazioni",
     "application_type": "Tipo di applicazione",

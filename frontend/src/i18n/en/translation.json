@@ -924,6 +924,8 @@
     "cannot_retrieve_applications": "Cannot retrieve the applications of this system",
     "no_system_addons": "No add-ons available",
     "no_system_addons_description": "There are no add-ons available for this system.",
+    "no_addons_configured": "No add-ons configured",
+    "no_addons_configured_description": "Add-ons can be configured only on registered systems that have sent at least one inventory.",
     "no_applications_found": "No applications found",
     "filter_applications": "Filter applications",
     "application_type": "Application type",

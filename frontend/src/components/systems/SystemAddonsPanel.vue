@@ -13,7 +13,8 @@
 -->
 
 <script setup lang="ts">
-import { NeInlineNotification } from '@nethesis/vue-components'
+import { faPuzzlePiece } from '@fortawesome/free-solid-svg-icons'
+import { NeEmptyState, NeInlineNotification } from '@nethesis/vue-components'
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { composeSystemAddonRows } from '@/lib/addons/systemAddons'
@@ -40,9 +41,19 @@ const selectedAddonId = computed(() => (route.query.addon as string) ?? '')
 
 const isLoading = computed(
   () =>
+    systemDetail.value.status === 'pending' ||
     addonsState.value.status === 'pending' ||
     availableState.value.status === 'pending' ||
     applicationsState.value.status === 'pending',
+)
+
+// Add-ons need a system that has registered and sent an inventory: the API
+// blanks system_key until registration, so there is nothing to buy against,
+// and the product type is only learned from the first inventory — before that
+// the set of add-ons that apply cannot be worked out, and a NethServer
+// cluster has no application instances to scope a module add-on to either.
+const isSystemReady = computed(
+  () => !!system.value?.registered_at && !!system.value?.first_inventory,
 )
 
 const isRefreshing = computed(
@@ -82,7 +93,7 @@ function closeAddon() {
   <div>
     <!-- page description: on a firewall the card states the add-on in full, so
          there is nothing to open and the last sentence would be a dead end -->
-    <div class="text-tertiary-neutral mb-8 max-w-3xl">
+    <div v-if="isLoading || isSystemReady" class="text-tertiary-neutral mb-8 max-w-3xl">
       {{
         system?.type === 'nsec'
           ? $t('addons.system_addons_description_nsec')
@@ -113,7 +124,16 @@ function closeAddon() {
       :description="applicationsState.error.message"
       class="mb-6"
     />
-    <template v-if="isGridShown">
+    <!-- nothing to show yet: the system has not registered or has never sent
+         an inventory, so no add-on can be listed or configured for it -->
+    <NeEmptyState
+      v-if="!isLoading && !isSystemReady"
+      :title="$t('addons.no_addons_configured')"
+      :description="$t('addons.no_addons_configured_description')"
+      :icon="faPuzzlePiece"
+      class="bg-white dark:bg-gray-950"
+    />
+    <template v-else-if="isGridShown">
       <SystemAddonDetail
         v-if="selectedAddonId"
         :addon-id="selectedAddonId"
