@@ -136,7 +136,11 @@ function openNotificationsDrawer() {
           <NeTooltip trigger-event="mouseenter focus" placement="bottom" class="flex">
             <template #trigger>
               <button type="button" :class="topBarButtonClasses" @click="themeStore.toggleTheme">
-                <span class="sr-only">{{ $t('shell.toggle_theme') }}</span>
+                <span class="sr-only">{{
+                  themeStore.isLight
+                    ? $t('shell.switch_to_dark_theme')
+                    : $t('shell.switch_to_light_theme')
+                }}</span>
                 <FontAwesomeIcon
                   :icon="themeStore.isLight ? faMoon : faSun"
                   class="h-6 w-6 shrink-0"

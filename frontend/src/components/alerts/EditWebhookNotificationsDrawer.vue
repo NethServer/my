@@ -215,7 +215,7 @@ function closeDrawer() {
   <NeSideDrawer
     :is-shown="props.isShown"
     :title="t('alerts.configure_webhook_notifications')"
-    :close-aria-label="$t('common.shell.close_side_drawer')"
+    :close-aria-label="$t('shell.close_side_drawer')"
     @close="closeDrawer"
   >
     <div class="space-y-6">

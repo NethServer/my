@@ -109,7 +109,7 @@ async function saveApplication() {
     :title="
       currentApplication?.notes ? $t('applications.edit_notes') : $t('applications.add_notes')
     "
-    :close-aria-label="$t('common.shell.close_side_drawer')"
+    :close-aria-label="$t('shell.close_side_drawer')"
     @show="onShow"
     @close="closeDrawer"
   >
