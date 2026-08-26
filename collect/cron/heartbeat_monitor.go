@@ -26,6 +26,10 @@ type HeartbeatMonitor struct {
 	db               *sql.DB
 	timeoutMinutes   int
 	checkIntervalSec int
+	// observedChecks counts consecutive checks in which My was visibly recording
+	// heartbeats; see canJudgeSilence. Only touched from the single
+	// checkAndUpdateStatuses goroutine.
+	observedChecks int
 	// postAlerts resolves LinkFailed alerts when a system recovers. Injectable
 	// for tests; defaults to the real Mimir client.
 	postAlerts postAlertsFunc
@@ -35,6 +39,13 @@ type HeartbeatMonitor struct {
 // (config not loaded, e.g. in tests) so the ticker never gets a non-positive
 // duration.
 const defaultHeartbeatCheckIntervalSec = 300
+
+// fleetSilenceTolerance is how old the newest heartbeat in the whole fleet may
+// be before a check counts as unobserved. Thousands of systems beat every few
+// minutes, so the newest of them is normally seconds old; minutes of silence
+// across the entire fleet means My was not recording, whatever the reason —
+// collect stopped, Postgres or Redis went away, or nothing reached us at all.
+const fleetSilenceTolerance = 3 * time.Minute
 
 // NewHeartbeatMonitor creates a new heartbeat monitor instance
 func NewHeartbeatMonitor() *HeartbeatMonitor {
@@ -141,6 +152,14 @@ func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 	// the heartbeat interval flirts with the timeout, so it never clears.
 	h.resolveRecovered(ctx, recoveredIDs)
 
+	// A LinkFailed asserts that a system has not talked to us for the timeout,
+	// and that is only true if we were listening for the whole window. Marking
+	// systems inactive is what raises it, so hold the transition until we have
+	// watched long enough to make the claim.
+	if !h.canJudgeSilence(ctx) {
+		return
+	}
+
 	// Update systems to 'inactive' if they have old heartbeat and are currently 'active'
 	queryInactive := `
 		UPDATE systems s
@@ -168,6 +187,92 @@ func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 	logger.Debug().
 		Time("cutoff", cutoff).
 		Msg("Heartbeat status check completed")
+}
+
+// canJudgeSilence reports whether the monitor has watched long enough to say
+// that a system has gone quiet.
+//
+// Time in which My was down is time nobody observed: a heartbeat that never
+// arrived because we were not there to take it says nothing about the system
+// that sent it. So the monitor watches the newest heartbeat in the fleet — with
+// thousands of systems beating, it is seconds old whenever recording works —
+// and counts consecutive checks in which recording was visibly happening. Only
+// once those checks span a whole timeout has any system had a fully observed
+// window in which to report, and only then can silence be held against it.
+//
+// The counter lives in memory on purpose: collect restarting is itself a window
+// nobody observed, so losing the count on restart is the correct behaviour.
+func (h *HeartbeatMonitor) canJudgeSilence(ctx context.Context) bool {
+	// Read the newest beat among the systems this transition can actually touch.
+	// Taken over the whole table the reading answers "is anyone beating at all",
+	// which is a different question: once every row belongs to a system that is
+	// already offline, the newest beat is frozen for good and the check would
+	// hold the transition forever.
+	var newest sql.NullTime
+	if err := h.db.QueryRowContext(ctx, `
+		SELECT MAX(h.last_heartbeat)
+		FROM system_heartbeats h
+		INNER JOIN systems s ON s.id = h.system_id
+		WHERE s.status = 'active'
+			AND s.deleted_at IS NULL
+	`).Scan(&newest); err != nil {
+		// Without the reading there is no evidence either way. Carry on: the
+		// update below runs on the same connection and will fail too if the
+		// database is the problem, and a spurious alert beats a missed one.
+		logger.Error().Err(err).Msg("Failed to read the newest heartbeat in the fleet")
+		return true
+	}
+
+	required := h.requiredObservedChecks()
+
+	if !newest.Valid {
+		// No active system has ever beaten, so the transition below has nothing
+		// to act on and there is nothing to withhold judgement about.
+		return true
+	}
+
+	if time.Since(newest.Time) > fleetSilenceTolerance {
+		if h.observedChecks > 0 {
+			logger.Error().
+				Time("newest_heartbeat", newest.Time).
+				Dur("tolerance", fleetSilenceTolerance).
+				Int("checks_required", required).
+				Msg("My is not recording heartbeats: no system will be marked offline until recording has been observed again for a full timeout")
+		}
+		h.observedChecks = 0
+		return false
+	}
+
+	if h.observedChecks < required {
+		h.observedChecks++
+		if h.observedChecks < required {
+			logger.Debug().
+				Int("checks_observed", h.observedChecks).
+				Int("checks_required", required).
+				Msg("Waiting to observe a full timeout of heartbeat recording before judging silence")
+			return false
+		}
+		logger.Info().
+			Int("checks_required", required).
+			Msg("Heartbeat recording observed for a full timeout: systems can be marked offline again")
+	}
+
+	return true
+}
+
+// requiredObservedChecks is how many consecutive checks cover a whole timeout,
+// rounded up so the observed window is never shorter than the one a LinkFailed
+// claims to have watched.
+func (h *HeartbeatMonitor) requiredObservedChecks() int {
+	intervalSec := h.checkIntervalSec
+	if intervalSec <= 0 {
+		intervalSec = defaultHeartbeatCheckIntervalSec
+	}
+	checks := (h.timeoutMinutes*60 + intervalSec - 1) / intervalSec
+	if checks < 1 {
+		checks = 1
+	}
+	return checks
 }
 
 // resolveRecovered posts a resolved LinkFailed alert for each system that just

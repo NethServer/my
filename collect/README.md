@@ -85,6 +85,7 @@ LOG_LEVEL=info
   - `active` → `inactive` when the heartbeat is stale (older than `HEARTBEAT_TIMEOUT_MINUTES`)
   - `unknown` → `active` as a safety net for the inline flip
 - Configurable timeout via `HEARTBEAT_TIMEOUT_MINUTES` (default: 20 minutes)
+- A system reaches `inactive` only if My was recording heartbeats for the whole window it is judged on. The monitor watches the newest beat among active systems and counts consecutive checks in which recording was visibly happening; until those checks span a full `HEARTBEAT_TIMEOUT_MINUTES`, nothing is marked offline and no `LinkFailed` is raised. Systems already `inactive` keep their alerts throughout. The count resets when collect restarts, since that is a window nobody observed.
 
 **7. LinkFailed Synchronization**
 - **LinkFailed Monitor Cron** runs every 5 minutes

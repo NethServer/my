@@ -11,6 +11,7 @@ package cron
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -85,6 +86,7 @@ func TestCheckAndUpdateStatuses_ResolvesRecoveredSystem(t *testing.T) {
 		db:               db,
 		timeoutMinutes:   10,
 		checkIntervalSec: 60,
+		observedChecks:   observedWindowMet,
 		postAlerts: func(orgID string, alerts []models.AlertmanagerPostAlert) error {
 			posted[orgID] = append(posted[orgID], alerts...)
 			return nil
@@ -107,6 +109,7 @@ func TestCheckAndUpdateStatuses_ResolvesRecoveredSystem(t *testing.T) {
 			"org_name", "org_vat", "org_type", "reseller_org_id",
 		}).AddRow("sys-uuid-1", "org-1", "SYS-001", "web-01", "ns8", "", "", "Reseller X", "", "reseller", "reseller-1"))
 	// 4. active -> inactive
+	expectFleetObserved(mock)
 	mock.ExpectExec(`SET status = 'inactive'`).
 		WithArgs(sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 0))
@@ -137,6 +140,7 @@ func TestCheckAndUpdateStatuses_NoRecovery_NoResolve(t *testing.T) {
 		db:               db,
 		timeoutMinutes:   10,
 		checkIntervalSec: 60,
+		observedChecks:   observedWindowMet,
 		postAlerts: func(string, []models.AlertmanagerPostAlert) error {
 			called = true
 			return nil
@@ -149,6 +153,7 @@ func TestCheckAndUpdateStatuses_NoRecovery_NoResolve(t *testing.T) {
 	mock.ExpectExec(`s\.status = 'unknown'`).
 		WithArgs(sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 0))
+	expectFleetObserved(mock)
 	mock.ExpectExec(`SET status = 'inactive'`).
 		WithArgs(sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 0))
@@ -157,4 +162,156 @@ func TestCheckAndUpdateStatuses_NoRecovery_NoResolve(t *testing.T) {
 
 	require.NoError(t, mock.ExpectationsWereMet())
 	assert.False(t, called, "postAlerts must not be called when nothing recovered")
+}
+
+// expectFleetObserved queues the one fleet-freshness read a warmed-up monitor
+// makes, so a test can get straight to the transition it is really about.
+func expectFleetObserved(mock sqlmock.Sqlmock) {
+	mock.ExpectQuery(`MAX\(h\.last_heartbeat\).+s\.status = 'active'`).
+		WillReturnRows(sqlmock.NewRows([]string{"max"}).AddRow(time.Now()))
+}
+
+// observedWindowMet is an observedChecks value past any required count, for
+// tests whose subject is not the observation window itself.
+const observedWindowMet = 1 << 20
+
+func TestRequiredObservedChecks(t *testing.T) {
+	tests := []struct {
+		name        string
+		timeoutMin  int
+		intervalSec int
+		want        int
+	}{
+		{"production defaults", 20, 300, 4},
+		{"the PR timeout", 30, 300, 6},
+		{"rounds up rather than short-changing the window", 7, 300, 2},
+		{"interval longer than the timeout still checks once", 1, 300, 1},
+		{"unconfigured interval falls back", 20, 0, 4},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &HeartbeatMonitor{timeoutMinutes: tt.timeoutMin, checkIntervalSec: tt.intervalSec}
+			assert.Equal(t, tt.want, m.requiredObservedChecks())
+		})
+	}
+}
+
+// The requirement in one test: while My is not recording, nothing is marked
+// offline, so no LinkFailed can be raised for a fault on our side.
+func TestCanJudgeSilence_RefusesWhileTheFleetIsUnrecorded(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	monitor := &HeartbeatMonitor{db: db, timeoutMinutes: 20, checkIntervalSec: 300, observedChecks: 4}
+
+	mock.ExpectQuery(`MAX\(h\.last_heartbeat\).+s\.status = 'active'`).
+		WillReturnRows(sqlmock.NewRows([]string{"max"}).AddRow(time.Now().Add(-9 * time.Minute)))
+
+	assert.False(t, monitor.canJudgeSilence(context.Background()))
+	assert.Zero(t, monitor.observedChecks, "an unobserved check restarts the window")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// Recording alone is not enough: the window must be as long as the one a
+// LinkFailed claims to have watched, which is what stops the storm on recovery.
+func TestCanJudgeSilence_WaitsForAFullTimeoutOfRecording(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	monitor := &HeartbeatMonitor{db: db, timeoutMinutes: 20, checkIntervalSec: 300}
+	require.Equal(t, 4, monitor.requiredObservedChecks())
+
+	for i := 0; i < 5; i++ {
+		mock.ExpectQuery(`MAX\(h\.last_heartbeat\).+s\.status = 'active'`).
+			WillReturnRows(sqlmock.NewRows([]string{"max"}).AddRow(time.Now()))
+	}
+
+	var verdicts []bool
+	for i := 0; i < 5; i++ {
+		verdicts = append(verdicts, monitor.canJudgeSilence(context.Background()))
+	}
+
+	assert.Equal(t, []bool{false, false, false, true, true}, verdicts)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// A single unrecorded check restarts the window: a flapping ingest never
+// accumulates the evidence it needs.
+func TestCanJudgeSilence_OneUnrecordedCheckRestartsTheWindow(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	monitor := &HeartbeatMonitor{db: db, timeoutMinutes: 20, checkIntervalSec: 300}
+
+	fresh := func() *sqlmock.Rows {
+		return sqlmock.NewRows([]string{"max"}).AddRow(time.Now())
+	}
+	stale := func() *sqlmock.Rows {
+		return sqlmock.NewRows([]string{"max"}).AddRow(time.Now().Add(-10 * time.Minute))
+	}
+	for _, rows := range []*sqlmock.Rows{fresh(), fresh(), fresh(), stale(), fresh()} {
+		mock.ExpectQuery(`MAX\(h\.last_heartbeat\).+s\.status = 'active'`).WillReturnRows(rows)
+	}
+
+	for i := 0; i < 5; i++ {
+		assert.False(t, monitor.canJudgeSilence(context.Background()), "check %d", i)
+	}
+	assert.Equal(t, 1, monitor.observedChecks, "counting starts over after the gap")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// With no active system that has ever beaten there is nothing to judge and
+// nothing the transition could touch. Withholding here would be a trap: once
+// every remaining beat belongs to a system that is already offline, the reading
+// can never come back and the check would hold the transition for good.
+func TestCanJudgeSilence_NoActiveSystemToJudge(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	monitor := &HeartbeatMonitor{db: db, timeoutMinutes: 20, checkIntervalSec: 300}
+
+	mock.ExpectQuery(`MAX\(h\.last_heartbeat\).+s\.status = 'active'`).
+		WillReturnRows(sqlmock.NewRows([]string{"max"}).AddRow(nil))
+
+	assert.True(t, monitor.canJudgeSilence(context.Background()))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// The reading must ignore systems that are already offline: their beats are
+// frozen by definition, and letting them set the newest-beat reading is what
+// turns a fleet of dead systems into a permanently closed gate.
+func TestCanJudgeSilence_IgnoresAlreadyOfflineSystems(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	monitor := &HeartbeatMonitor{db: db, timeoutMinutes: 20, checkIntervalSec: 300}
+
+	// An active system beat a moment ago; whatever the offline ones last did is
+	// none of this check's business, so the query filters them out in SQL.
+	mock.ExpectQuery(`MAX\(h\.last_heartbeat\).+INNER JOIN systems.+s\.status = 'active'.+s\.deleted_at IS NULL`).
+		WillReturnRows(sqlmock.NewRows([]string{"max"}).AddRow(time.Now()))
+
+	assert.False(t, monitor.canJudgeSilence(context.Background()), "first observed check of a fresh window")
+	assert.Equal(t, 1, monitor.observedChecks)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// Losing the reading is not evidence of an outage. A spurious alert can be
+// resolved; one that never fires cannot, so the check fails open.
+func TestCanJudgeSilence_FailsOpenOnError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	monitor := &HeartbeatMonitor{db: db, timeoutMinutes: 20, checkIntervalSec: 300}
+
+	mock.ExpectQuery(`MAX\(h\.last_heartbeat\).+s\.status = 'active'`).WillReturnError(errors.New("connection reset"))
+
+	assert.True(t, monitor.canJudgeSilence(context.Background()))
+	require.NoError(t, mock.ExpectationsWereMet())
 }
