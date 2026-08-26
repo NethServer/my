@@ -463,7 +463,7 @@ const localizedDateRange = computed(() => {
           <template #trigger>
             <div class="inline-block">
               <button
-                class="focus:ring-primary-500 dark:focus:ring-primary-300 dark:focus:ring-offset-primary-950 rounded-md px-2.5 py-1.5 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-gray-300 transition-colors duration-200 hover:bg-gray-200/70 hover:text-gray-800 focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-100 dark:ring-gray-500 dark:hover:bg-gray-600/30 dark:hover:text-gray-50"
+                class="focus:ring-primary-500 dark:focus:ring-primary-300 dark:focus:ring-offset-primary-950 rounded-md px-2.5 py-1.5 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-gray-300 transition-colors duration-(--duration-small) hover:bg-gray-200/70 hover:text-gray-800 focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-100 dark:ring-gray-500 dark:hover:bg-gray-600/30 dark:hover:text-gray-50"
                 type="button"
               >
                 <span class="flex items-center justify-center">
