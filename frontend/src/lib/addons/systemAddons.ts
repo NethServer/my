@@ -304,6 +304,9 @@ export const composeSystemAddonRows = ({
         description: '',
         scoped: !!scope,
         kind: scope ? 'module' : 'service',
+        // the row exists because a grant references it, which is precisely what
+        // in_use means
+        in_use: true,
         created_at: '',
         updated_at: '',
       },

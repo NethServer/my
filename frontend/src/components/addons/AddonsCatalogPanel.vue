@@ -17,6 +17,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
+  NeBadgeV2,
   NeButton,
   NeDropdown,
   NeDropdownFilterV2,
@@ -58,6 +59,7 @@ import {
 } from '@/lib/tablePageSize'
 import { useAddons } from '@/queries/addons/addons'
 import { useLoginStore } from '@/stores/login'
+import AddonInUseModal from './AddonInUseModal.vue'
 import CreateOrEditAddonDrawer from './CreateOrEditAddonDrawer.vue'
 import DeleteAddonModal from './DeleteAddonModal.vue'
 
@@ -79,6 +81,7 @@ const pageSize = ref(DEFAULT_PAGE_SIZE)
 const currentAddon = ref<Addon | undefined>()
 const isShownCreateOrEditAddonDrawer = ref(false)
 const isShownDeleteAddonModal = ref(false)
+const isShownAddonInUseModal = ref(false)
 
 const addons = computed(() => state.value.data ?? [])
 
@@ -235,6 +238,11 @@ function showDeleteAddonModal(addon: Addon) {
   isShownDeleteAddonModal.value = true
 }
 
+function showAddonInUseModal(addon: Addon) {
+  currentAddon.value = addon
+  isShownAddonInUseModal.value = true
+}
+
 function getKebabMenuItems(addon: Addon): NeDropdownItem[] {
   return [
     {
@@ -242,7 +250,9 @@ function getKebabMenuItems(addon: Addon): NeDropdownItem[] {
       label: t('common.delete'),
       icon: faTrash,
       danger: true,
-      action: () => showDeleteAddonModal(addon),
+      // an add-on any system was ever granted cannot be deleted: explain the
+      // refusal instead of asking to confirm a delete that would fail
+      action: () => (addon.in_use ? showAddonInUseModal(addon) : showDeleteAddonModal(addon)),
     },
   ]
 }
@@ -381,7 +391,12 @@ const onSort = (payload: SortEvent) => {
         <NeTableBody>
           <NeTableRow v-for="row in paginatedRows" :key="row.addon.id">
             <NeTableCell :data-label="$t('addons.addon_name')">
-              <div class="font-medium">{{ row.addon.display_name }}</div>
+              <div class="flex items-center gap-2">
+                <span class="font-medium">{{ row.addon.display_name }}</span>
+                <NeBadgeV2 v-if="!row.addon.in_use" kind="gray" size="xs">
+                  {{ $t('addons.unused') }}
+                </NeBadgeV2>
+              </div>
               <div v-if="row.addon.description" class="text-tertiary-neutral truncate">
                 {{ row.addon.description }}
               </div>
@@ -460,6 +475,12 @@ const onSort = (payload: SortEvent) => {
       :visible="isShownDeleteAddonModal"
       :addon="currentAddon"
       @close="isShownDeleteAddonModal = false"
+    />
+    <!-- add-on in use modal -->
+    <AddonInUseModal
+      :visible="isShownAddonInUseModal"
+      :addon="currentAddon"
+      @close="isShownAddonInUseModal = false"
     />
   </div>
 </template>

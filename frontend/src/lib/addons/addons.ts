@@ -79,6 +79,10 @@ export const AddonSchema = v.object({
   legacy_alias: v.optional(v.string()),
   // the application a module add-on belongs to, empty for a system-wide service
   applies_to: v.optional(v.string()),
+  // true when any grant references the add-on — revoked and expired ones
+  // included: they are kept for audit and the foreign key blocks the delete all
+  // the same. Lets the catalog explain the refusal before asking to confirm.
+  in_use: v.boolean(),
   created_at: v.string(),
   updated_at: v.string(),
 })
