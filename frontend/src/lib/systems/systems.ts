@@ -49,6 +49,8 @@ export const SystemSchema = v.object({
   suspended_at: v.optional(v.string()),
   last_heartbeat: v.optional(v.string()),
   last_inventory: v.optional(v.string()),
+  first_heartbeat: v.optional(v.string()),
+  first_inventory: v.optional(v.string()),
   rebranding_enabled: v.optional(v.boolean()),
   organization: v.object({
     id: v.string(),

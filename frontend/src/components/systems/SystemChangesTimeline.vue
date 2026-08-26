@@ -8,7 +8,6 @@ import { useInventoryTimeline } from '@/queries/systems/inventoryTimeline'
 import { useInventoryChanges } from '@/queries/systems/inventoryChanges'
 import { useInventoryDiffs } from '@/queries/systems/inventoryDiffs'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
-import { useLatestInventory } from '@/queries/systems/latestInventory'
 import {
   type InventoryDiff,
   type InventoryDiffCategory,
@@ -73,7 +72,6 @@ const {
 
 const { state: inventoryChangesState } = useInventoryChanges()
 const { state: systemDetailState } = useSystemDetail()
-const { state: latestInventoryState } = useLatestInventory()
 
 // ── Local state ──────────────────────────────────────────────────────────────
 const expandedGroups = ref<Set<string>>(new Set())
@@ -303,6 +301,34 @@ function getSeverityCustomKindClasses(severity: InventoryDiffSeverity): string |
 function getCategoryLabel(category: InventoryDiffCategory): string {
   return t(`system_detail.category_${category}`)
 }
+
+// ── Static milestones (rendered after the paginated timeline) ────────────────
+interface Milestone {
+  key: string
+  date: string
+  label: string
+}
+
+const milestones = computed<Milestone[]>(() => {
+  const system = systemDetailState.value.data
+  if (!system) return []
+
+  return [
+    {
+      key: 'first_inventory',
+      date: system.first_inventory,
+      label: t('system_detail.first_inventory_sent'),
+    },
+    {
+      key: 'registered',
+      date: system.registered_at,
+      label: t('system_detail.system_registered'),
+    },
+    { key: 'created', date: system.created_at, label: t('system_detail.system_created') },
+  ]
+    .filter((m): m is Milestone => !!m.date)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+})
 
 // ── Date range model (bridges fromDate/toDate refs to VueDatePicker range) ────
 const dateRangeModel = computed<string[] | null>({
@@ -757,78 +783,28 @@ const localizedDateRange = computed(() => {
     </div>
 
     <!-- Static milestone events: first inventory sent, system registration and creation -->
-    <template v-if="latestInventoryState.data?.created_at">
-      <!-- First inventory sent -->
-      <div class="relative mb-8 flex items-start">
-        <div class="hidden w-36 shrink-0 pt-0.5 pr-6 text-right md:block">
-          <span class="text-tertiary-neutral font-medium">
-            {{ formatGroupDate(latestInventoryState.data.created_at.slice(0, 10)) }}
-          </span>
-        </div>
-        <div
-          class="absolute top-1.75 left-0.75 z-10 size-2 rounded-full bg-gray-300 ring-4 ring-gray-50 md:left-34.75 dark:bg-gray-600 dark:ring-gray-900"
-        ></div>
-        <div class="min-w-0 flex-1 pl-6 md:pl-10">
-          <span class="text-tertiary-neutral mb-4 block text-sm font-medium md:hidden">
-            {{ formatGroupDate(latestInventoryState.data.created_at.slice(0, 10)) }}
-          </span>
-          <span class="text-secondary-neutral font-medium">
-            {{ t('system_detail.first_inventory_sent') }}
-          </span>
-          <p class="text-tertiary-neutral mt-0.5">
-            {{ formatTimeNoSeconds(new Date(latestInventoryState.data.created_at), locale, 'UTC') }}
-          </p>
-        </div>
+    <div
+      v-for="milestone in milestones"
+      :key="milestone.key"
+      class="relative mb-8 flex items-start"
+    >
+      <div class="hidden w-36 shrink-0 pt-0.5 pr-6 text-right md:block">
+        <span class="text-tertiary-neutral font-medium">
+          {{ formatGroupDate(milestone.date.slice(0, 10)) }}
+        </span>
       </div>
-    </template>
-
-    <!-- Static milestone events: system registration and creation -->
-    <template v-if="systemDetailState.data">
-      <!-- System registration -->
-      <div v-if="systemDetailState.data.registered_at" class="relative mb-8 flex items-start">
-        <div class="hidden w-36 shrink-0 pt-0.5 pr-6 text-right md:block">
-          <span class="text-tertiary-neutral font-medium">
-            {{ formatGroupDate(systemDetailState.data.registered_at.slice(0, 10)) }}
-          </span>
-        </div>
-        <div
-          class="absolute top-1.75 left-0.75 z-10 size-2 rounded-full bg-gray-300 ring-4 ring-gray-50 md:left-34.75 dark:bg-gray-600 dark:ring-gray-900"
-        ></div>
-        <div class="min-w-0 flex-1 pl-6 md:pl-10">
-          <span class="text-tertiary-neutral mb-4 block text-sm font-medium md:hidden">
-            {{ formatGroupDate(systemDetailState.data.registered_at.slice(0, 10)) }}
-          </span>
-          <span class="text-secondary-neutral font-medium">
-            {{ t('system_detail.system_registered') }}
-          </span>
-          <p class="text-tertiary-neutral mt-0.5">
-            {{ formatTimeNoSeconds(new Date(systemDetailState.data.registered_at), locale, 'UTC') }}
-          </p>
-        </div>
+      <div
+        class="absolute top-1.75 left-0.75 z-10 size-2 rounded-full bg-gray-300 ring-4 ring-gray-50 md:left-34.75 dark:bg-gray-600 dark:ring-gray-900"
+      ></div>
+      <div class="min-w-0 flex-1 pl-6 md:pl-10">
+        <span class="text-tertiary-neutral mb-4 block text-sm font-medium md:hidden">
+          {{ formatGroupDate(milestone.date.slice(0, 10)) }}
+        </span>
+        <span class="text-secondary-neutral font-medium">{{ milestone.label }}</span>
+        <p class="text-tertiary-neutral mt-0.5">
+          {{ formatTimeNoSeconds(new Date(milestone.date), locale, 'UTC') }}
+        </p>
       </div>
-
-      <!-- System creation -->
-      <div v-if="systemDetailState.data.created_at" class="relative mb-8 flex items-start">
-        <div class="hidden w-36 shrink-0 pt-0.5 pr-6 text-right md:block">
-          <span class="text-tertiary-neutral font-medium">
-            {{ formatGroupDate(systemDetailState.data.created_at.slice(0, 10)) }}
-          </span>
-        </div>
-        <div
-          class="absolute top-1.75 left-0.75 z-10 size-2 rounded-full bg-gray-300 ring-4 ring-gray-50 md:left-34.75 dark:bg-gray-600 dark:ring-gray-900"
-        ></div>
-        <div class="min-w-0 flex-1 pl-6 md:pl-10">
-          <span class="text-tertiary-neutral mb-4 block text-sm font-medium md:hidden">
-            {{ formatGroupDate(systemDetailState.data.created_at.slice(0, 10)) }}
-          </span>
-          <span class="text-secondary-neutral font-medium">
-            {{ t('system_detail.system_created') }}
-          </span>
-          <p class="text-tertiary-neutral mt-0.5">
-            {{ formatTimeNoSeconds(new Date(systemDetailState.data.created_at), locale, 'UTC') }}
-          </p>
-        </div>
-      </div>
-    </template>
+    </div>
   </div>
 </template>
