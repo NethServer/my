@@ -81,7 +81,7 @@ function closeDrawer() {
   <NeSideDrawer
     :is-shown="isShown"
     :title="t('alerts.alert_details')"
-    :close-aria-label="$t('common.shell.close_side_drawer')"
+    :close-aria-label="$t('shell.close_side_drawer')"
     @close="closeDrawer"
   >
     <div v-if="alert" class="space-y-7">

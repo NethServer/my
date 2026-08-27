@@ -248,6 +248,8 @@ export const getQueryStringParamsForExport = (
   format: string,
   textFilter: string | undefined,
   statusFilter: ResellerStatus[] | undefined,
+  createdByFilter: string[] | undefined,
+  organizationFilter: string[] | undefined,
   sortBy: string | undefined,
   sortDescending: boolean | undefined,
 ) => {
@@ -262,6 +264,20 @@ export const getQueryStringParamsForExport = (
   if (statusFilter) {
     statusFilter.forEach((status) => {
       searchParams.append('status', status)
+    })
+  }
+
+  if (createdByFilter) {
+    createdByFilter.forEach((userId) => {
+      searchParams.append('created_by', userId)
+    })
+  }
+
+  // Parent company filter: same exact match as the list query, so the export of
+  // a distributor's resellers never pulls in the resellers of its descendants.
+  if (organizationFilter) {
+    organizationFilter.forEach((organizationId) => {
+      searchParams.append('organization_id', organizationId)
     })
   }
 
@@ -280,6 +296,8 @@ export const getExport = (
   format: 'csv' | 'pdf',
   textFilter: string | undefined = undefined,
   statusFilter: ResellerStatus[] | undefined = undefined,
+  createdByFilter: string[] | undefined = undefined,
+  organizationFilter: string[] | undefined = undefined,
   sortBy: string | undefined = undefined,
   sortDescending: boolean | undefined = undefined,
 ) => {
@@ -288,6 +306,8 @@ export const getExport = (
     format,
     textFilter,
     statusFilter,
+    createdByFilter,
+    organizationFilter,
     sortBy,
     sortDescending,
   )

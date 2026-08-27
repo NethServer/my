@@ -43,6 +43,13 @@
   --breakpoint-6xl: 192rem;
   --breakpoint-7xl: 224rem;
 
+  /* motion durations, scaled by how far the animated element travels: state
+     feedback and small components are quick, while large panels get more time
+     to enter than to leave */
+  --duration-small: 200ms;
+  --duration-large-enter: 300ms;
+  --duration-large-leave: 200ms;
+
   /* animations */
   --animate-spin-relaxed: spin 1.5s linear infinite;
   --animate-fade-in: fade-in 0.3s ease-in;
@@ -83,7 +90,7 @@
   /* fade transition */
   .fade-enter-active,
   .fade-leave-active {
-    transition: all 0.3s ease;
+    transition: all var(--duration-small) ease;
   }
 
   .fade-enter-from,
@@ -94,7 +101,7 @@
   /* slide-down transition */
   .slide-down-enter-active,
   .slide-down-leave-active {
-    transition: all 0.3s ease;
+    transition: all var(--duration-small) ease;
   }
 
   .slide-down-enter-from,

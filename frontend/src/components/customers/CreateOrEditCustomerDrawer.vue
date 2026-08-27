@@ -338,7 +338,7 @@ async function saveCustomer() {
   <NeSideDrawer
     :is-shown="isShown"
     :title="currentCustomer ? $t('customers.edit_customer') : $t('customers.create_customer')"
-    :close-aria-label="$t('common.shell.close_side_drawer')"
+    :close-aria-label="$t('shell.close_side_drawer')"
     @show="onShow"
     @close="closeDrawer"
   >

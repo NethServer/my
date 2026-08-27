@@ -22,6 +22,7 @@ import {
   faUserGroup as fasUserGroup,
   faServer as fasServer,
   faTriangleExclamation,
+  faPuzzlePiece,
 } from '@fortawesome/free-solid-svg-icons'
 import { faGridOne as fasGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import {
@@ -33,6 +34,7 @@ import {
   faServer as falServer,
   faGrid2 as falGrid2,
   faTriangleExclamation as falTriangleExclamation,
+  faPuzzlePiece as falPuzzlePiece,
 } from '@nethesis/nethesis-light-svg-icons'
 import {
   canReadApplications,
@@ -41,6 +43,7 @@ import {
   canReadResellers,
   canReadSystems,
   canReadUsers,
+  isAddonAdmin,
 } from '@/lib/permissions'
 import { isUserCustomer } from '@/lib/organizations/organizations'
 
@@ -67,7 +70,7 @@ const menuExpanded: Ref<Record<string, boolean>> = ref({
   resellers: false,
 })
 
-const systemsManagementRoutes = ['alerts', 'systems', 'applications']
+const systemsManagementRoutes = ['alerts', 'systems', 'applications', 'addons']
 const companiesAndUsersRoutes = ['distributors', 'resellers', 'customers', 'users']
 
 const navigation = computed(() => {
@@ -99,6 +102,18 @@ const navigation = computed(() => {
       to: 'applications',
       solidIcon: fasGridOne,
       lightIcon: falGrid2,
+    })
+  }
+
+  // Managing the add-on catalog is a licensing back-office duty, so the entry
+  // answers to owner-level authority rather than to read:entitlements, which
+  // every company holds to see its own add-ons.
+  if (isAddonAdmin()) {
+    menuItems.push({
+      name: 'addons.title',
+      to: 'addons',
+      solidIcon: faPuzzlePiece,
+      lightIcon: falPuzzlePiece,
     })
   }
 
@@ -214,7 +229,7 @@ function loadMenuItemsExpanded() {
         isCurrentRoute(dashboardItem.to)
           ? 'border-primary-700 dark:border-primary-500 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50'
           : 'text-tertiary-neutral dark:text-tertiary-neutral border-transparent hover:text-gray-900 dark:hover:text-gray-50',
-        'group flex cursor-pointer items-center gap-x-3 rounded-md border-l-4 px-3 py-2 text-sm leading-6 font-semibold hover:bg-gray-100 dark:hover:bg-gray-800',
+        'group flex cursor-pointer items-center gap-x-3 rounded-md border-l-4 px-3 py-2 text-sm leading-6 font-semibold transition-colors duration-(--duration-small) hover:bg-gray-100 dark:hover:bg-gray-800',
       ]"
     >
       <FontAwesomeIcon
@@ -241,7 +256,7 @@ function loadMenuItemsExpanded() {
               isCurrentRoute(item.to)
                 ? 'border-primary-700 dark:border-primary-500 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50'
                 : 'text-tertiary-neutral dark:text-tertiary-neutral border-transparent hover:text-gray-900 dark:hover:text-gray-50',
-              'group flex cursor-pointer items-center gap-x-3 rounded-md border-l-4 px-3 py-2 text-sm leading-6 font-semibold hover:bg-gray-100 dark:hover:bg-gray-800',
+              'group flex cursor-pointer items-center gap-x-3 rounded-md border-l-4 px-3 py-2 text-sm leading-6 font-semibold transition-colors duration-(--duration-small) hover:bg-gray-100 dark:hover:bg-gray-800',
             ]"
           >
             <FontAwesomeIcon
@@ -259,7 +274,7 @@ function loadMenuItemsExpanded() {
               isCurrentRoute(item.to)
                 ? 'text-gray-900 dark:text-gray-50'
                 : 'text-tertiary-neutral dark:text-tertiary-neutral hover:text-gray-900 dark:hover:text-gray-50',
-              'group flex cursor-pointer items-center justify-between rounded-md border-l-4 border-transparent px-3 py-2 text-sm leading-6 font-semibold hover:bg-gray-100 dark:hover:bg-gray-800',
+              'group flex cursor-pointer items-center justify-between rounded-md border-l-4 border-transparent px-3 py-2 text-sm leading-6 font-semibold transition-colors duration-(--duration-small) hover:bg-gray-100 dark:hover:bg-gray-800',
             ]"
             @click="toggleExpand(item)"
           >
@@ -289,7 +304,7 @@ function loadMenuItemsExpanded() {
                       isCurrentRoute(child.to)
                         ? 'border-primary-700 dark:border-primary-500 border-l-4 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50'
                         : 'text-tertiary-neutral dark:text-tertiary-neutral hover:text-gray-900 dark:hover:text-gray-50',
-                      'group flex cursor-pointer items-center gap-x-3 rounded-md px-3 py-1 text-sm leading-6 font-semibold hover:bg-gray-100 dark:hover:bg-gray-800',
+                      'group flex cursor-pointer items-center gap-x-3 rounded-md px-3 py-1 text-sm leading-6 font-semibold transition-colors duration-(--duration-small) hover:bg-gray-100 dark:hover:bg-gray-800',
                     ]"
                   >
                     {{ t(child.name) }}

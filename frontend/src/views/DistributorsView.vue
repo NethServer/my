@@ -31,7 +31,8 @@ import {
 import { downloadFile } from '@/lib/common'
 
 const { t } = useI18n()
-const { state, debouncedTextFilter, statusFilter, sortBy, sortDescending } = useDistributors()
+const { state, debouncedTextFilter, statusFilter, createdByFilter, sortBy, sortDescending } =
+  useDistributors()
 
 const isShownCreateDistributorDrawer = ref(false)
 const isShownImportDistributorsModal = ref(false)
@@ -53,14 +54,14 @@ function getBulkActionsMenuItems() {
       label: t('distributors.export_distributors_to_pdf'),
       icon: faFilePdf,
       action: () => exportDistributors('pdf'),
-      disabled: !state.value.data?.distributors,
+      disabled: !state.value.data?.distributors.length,
     },
     {
       id: 'exportFilteredToCsv',
       label: t('distributors.export_distributors_to_csv'),
       icon: faFileCsv,
       action: () => exportDistributors('csv'),
-      disabled: !state.value.data?.distributors,
+      disabled: !state.value.data?.distributors.length,
     },
   ]
 }
@@ -71,6 +72,7 @@ async function exportDistributors(format: 'pdf' | 'csv') {
       format,
       debouncedTextFilter.value,
       statusFilter.value.map((o) => o.id) as DistributorStatus[],
+      createdByFilter.value.map((o) => o.id),
       sortBy.value,
       sortDescending.value,
     )

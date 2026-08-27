@@ -86,6 +86,11 @@ const router = createRouter({
       component: () => import('../views/ApplicationsView.vue'),
     },
     {
+      path: '/addons',
+      name: 'addons',
+      component: () => import('../views/AddonsView.vue'),
+    },
+    {
       path: '/applications/:applicationId',
       name: 'application_detail',
       component: () => import('../views/ApplicationDetailView.vue'),

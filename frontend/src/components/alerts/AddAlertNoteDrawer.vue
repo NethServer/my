@@ -110,7 +110,7 @@ function handleSubmit() {
   <NeSideDrawer
     :is-shown="isShown"
     :title="t('alerts.add_comment_title', { alertname: alert?.labels?.alertname ?? '' })"
-    :close-aria-label="$t('common.shell.close_side_drawer')"
+    :close-aria-label="$t('shell.close_side_drawer')"
     @show="onShow"
     @close="closeDrawer"
   >

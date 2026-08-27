@@ -1,7 +1,13 @@
 //  Copyright (C) 2025 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { formatMinutes, formatSeconds, formatTimeNoSeconds, formatUptime } from './dateTime'
+import {
+  formatDateNoTime,
+  formatMinutes,
+  formatSeconds,
+  formatTimeNoSeconds,
+  formatUptime,
+} from './dateTime'
 import { expect, it, describe, vi, beforeEach } from 'vitest'
 
 // Create a simple mock function for translation
@@ -22,6 +28,25 @@ const mockT = vi.fn((key: string, count?: number) => {
   }
 
   return key
+})
+
+describe('formatDateNoTime', () => {
+  it('should format the date without any time', () => {
+    const date = new Date('2025-10-03T09:30:45Z')
+    const result = formatDateNoTime(date, 'en-US', 'UTC')
+
+    expect(result).toContain('2025')
+    expect(result).toContain('Oct')
+    expect(result).toContain('03')
+    expect(result).not.toContain('09')
+    expect(result).not.toContain('30')
+  })
+
+  it('should localize the month name', () => {
+    const date = new Date('2025-08-06T12:00:00Z')
+
+    expect(formatDateNoTime(date, 'it-IT', 'UTC')).toContain('ago')
+  })
 })
 
 describe('formatTimeNoSeconds', () => {

@@ -312,7 +312,7 @@ function copySecretAndCloseDrawer() {
   <NeSideDrawer
     :is-shown="isShown"
     :title="currentSystem ? $t('systems.edit_system') : $t('systems.create_system')"
-    :close-aria-label="$t('common.shell.close_side_drawer')"
+    :close-aria-label="$t('shell.close_side_drawer')"
     @show="onShow"
     @close="closeDrawer"
   >

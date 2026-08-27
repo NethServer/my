@@ -35,8 +35,8 @@ const loginStore = useLoginStore()
 const notificationsStore = useNotificationsStore()
 const { state: impersonationConsentState } = useImpersonationConsent()
 
-const topBarButtonsColorClasses =
-  'text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-gray-50 transition-colors duration-300'
+const topBarButtonClasses =
+  'flex rounded-full p-2.5 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-50 transition-colors duration-(--duration-small)'
 const shakeNotificationsIcon = ref(false)
 
 const accountMenuOptions = computed(() => {
@@ -84,7 +84,7 @@ function openNotificationsDrawer() {
   >
     <button
       type="button"
-      class="text-tertiary-neutral dark:text-tertiary-neutral -m-2.5 p-2.5 transition-colors duration-300 hover:text-gray-900 lg:hidden dark:hover:text-gray-50"
+      class="text-tertiary-neutral dark:text-tertiary-neutral -mx-2.5 rounded-full p-2.5 transition-colors duration-(--duration-small) hover:bg-gray-100 hover:text-gray-900 lg:hidden dark:hover:bg-gray-800 dark:hover:text-gray-50"
       @click="emit('openSidebar')"
     >
       <span class="sr-only">{{ $t('shell.open_sidebar') }}</span>
@@ -97,7 +97,7 @@ function openNotificationsDrawer() {
     <div class="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
       <div class="relative flex flex-1 items-center"></div>
       <!-- right-aligned before separator -->
-      <div class="flex items-center gap-x-4 lg:gap-x-6">
+      <div class="flex items-center gap-x-4">
         <!-- impersonation badge -->
         <ImpersonationBadge v-if="loginStore.isImpersonating" />
         <ImpersonationConsentBadge
@@ -109,124 +109,123 @@ function openNotificationsDrawer() {
           aria-hidden="true"
         />
 
-        <!-- help -->
-        <NeTooltip trigger-event="mouseenter focus" placement="bottom">
-          <template #trigger>
-            <a
-              href="https://nethserver.github.io/my/"
-              target="_blank"
-              rel="noreferrer"
-              :class="['-m-2.5 flex items-center gap-3 p-2.5', topBarButtonsColorClasses]"
-            >
-              <FontAwesomeIcon
-                :icon="faCircleQuestion"
-                class="h-6 w-6 shrink-0"
-                aria-hidden="true"
-              />
-            </a>
-          </template>
-          <template #content>
-            {{ $t('shell.help') }}
-          </template>
-        </NeTooltip>
+        <!-- icon controls -->
+        <div class="-mr-2.5 flex items-center gap-x-1">
+          <!-- help -->
+          <NeTooltip trigger-event="mouseenter focus" placement="bottom" class="flex">
+            <template #trigger>
+              <a
+                href="https://nethserver.github.io/my/"
+                target="_blank"
+                rel="noreferrer"
+                :class="[topBarButtonClasses, 'items-center gap-3']"
+              >
+                <FontAwesomeIcon
+                  :icon="faCircleQuestion"
+                  class="h-6 w-6 shrink-0"
+                  aria-hidden="true"
+                />
+              </a>
+            </template>
+            <template #content>
+              {{ $t('shell.help') }}
+            </template>
+          </NeTooltip>
 
-        <!-- toggle theme -->
-        <NeTooltip trigger-event="mouseenter focus" placement="bottom">
-          <template #trigger>
-            <button
-              type="button"
-              :class="['-m-2.5 flex p-2.5', topBarButtonsColorClasses]"
-              @click="themeStore.toggleTheme"
-            >
-              <span class="sr-only">{{ $t('shell.toggle_theme') }}</span>
-              <FontAwesomeIcon
-                :icon="themeStore.isLight ? faMoon : faSun"
-                class="h-6 w-6 shrink-0"
-                aria-hidden="true"
-              />
-            </button>
-          </template>
-          <template #content>
-            {{
-              themeStore.isLight
-                ? $t('shell.switch_to_dark_theme')
-                : $t('shell.switch_to_light_theme')
-            }}
-          </template>
-        </NeTooltip>
+          <!-- toggle theme -->
+          <NeTooltip trigger-event="mouseenter focus" placement="bottom" class="flex">
+            <template #trigger>
+              <button type="button" :class="topBarButtonClasses" @click="themeStore.toggleTheme">
+                <span class="sr-only">{{
+                  themeStore.isLight
+                    ? $t('shell.switch_to_dark_theme')
+                    : $t('shell.switch_to_light_theme')
+                }}</span>
+                <FontAwesomeIcon
+                  :icon="themeStore.isLight ? faMoon : faSun"
+                  class="h-6 w-6 shrink-0"
+                  aria-hidden="true"
+                />
+              </button>
+            </template>
+            <template #content>
+              {{
+                themeStore.isLight
+                  ? $t('shell.switch_to_dark_theme')
+                  : $t('shell.switch_to_light_theme')
+              }}
+            </template>
+          </NeTooltip>
 
-        <!-- notifications -->
-        <NeTooltip trigger-event="mouseenter focus" placement="bottom">
-          <template #trigger>
-            <button
-              type="button"
-              :class="['-m-2.5 flex p-2.5', topBarButtonsColorClasses]"
-              @click="openNotificationsDrawer"
-            >
-              <span class="sr-only">{{ $t('shell.show_notifications') }}</span>
-              <FontAwesomeIcon
-                :icon="faBell"
-                :class="['h-6 w-6 shrink-0', { 'fa-shake': shakeNotificationsIcon }]"
-                style="--fa-animation-duration: 2s"
-                aria-hidden="true"
-              />
-            </button>
-          </template>
-          <template #content>
-            {{ $t('notifications.title') }}
-          </template>
-        </NeTooltip>
+          <!-- notifications -->
+          <NeTooltip trigger-event="mouseenter focus" placement="bottom" class="flex">
+            <template #trigger>
+              <button type="button" :class="topBarButtonClasses" @click="openNotificationsDrawer">
+                <span class="sr-only">{{ $t('shell.show_notifications') }}</span>
+                <FontAwesomeIcon
+                  :icon="faBell"
+                  :class="['h-6 w-6 shrink-0', { 'fa-shake': shakeNotificationsIcon }]"
+                  style="--fa-animation-duration: 2s"
+                  aria-hidden="true"
+                />
+              </button>
+            </template>
+            <template #content>
+              {{ $t('notifications.title') }}
+            </template>
+          </NeTooltip>
 
-        <!-- account dropdown -->
-        <NeTooltip trigger-event="mouseenter focus" placement="bottom">
-          <template #trigger>
-            <NeDropdown
-              :items="accountMenuOptions"
-              :align-to-right="true"
-              :open-menu-aria-label="$t('shell.open_account_menu')"
-              menu-classes="z-150!"
-              class="relative"
-            >
-              <template #button>
-                <button type="button" :class="['-m-2.5 flex p-2.5', topBarButtonsColorClasses]">
-                  <div class="flex items-center gap-2">
-                    <UserAvatar
-                      v-if="loginStore.userInfo"
-                      size="sm"
-                      :is-owner="loginStore.isOwner"
-                      :name="loginStore.userDisplayName"
-                      :logto-id="loginStore.userInfo.logto_id"
-                      :cache-key="loginStore.avatarVersion"
-                      :has-avatar="loginStore.userInfo.has_avatar"
-                    />
-                    <FontAwesomeIcon
-                      :icon="faChevronDown"
-                      class="h-3 w-3 shrink-0"
-                      aria-hidden="true"
-                    />
-                  </div>
-                </button>
-              </template>
-              <template #menuHeader>
-                <div class="space-y-1 px-4 py-2 text-sm">
-                  <NeSkeleton v-if="loginStore.loadingUserInfo" :lines="2" class="w-full" />
-                  <div v-else class="flex flex-col gap-1">
-                    <div class="font-medium text-gray-900 dark:text-gray-100">
-                      {{ loginStore.userDisplayName }}
+          <!-- account dropdown -->
+          <NeTooltip trigger-event="mouseenter focus" placement="bottom" class="flex">
+            <template #trigger>
+              <NeDropdown
+                :items="accountMenuOptions"
+                :align-to-right="true"
+                :open-menu-aria-label="$t('shell.open_account_menu')"
+                menu-classes="z-150!"
+                class="relative"
+              >
+                <template #button>
+                  <button type="button" :class="topBarButtonClasses">
+                    <div class="flex items-center gap-2">
+                      <UserAvatar
+                        v-if="loginStore.userInfo"
+                        size="sm"
+                        :is-owner="loginStore.isOwner"
+                        :name="loginStore.userDisplayName"
+                        :logto-id="loginStore.userInfo.logto_id"
+                        :cache-key="loginStore.avatarVersion"
+                        :has-avatar="loginStore.userInfo.has_avatar"
+                      />
+                      <FontAwesomeIcon
+                        :icon="faChevronDown"
+                        class="h-3 w-3 shrink-0"
+                        aria-hidden="true"
+                      />
                     </div>
-                    <div class="mb-1 text-gray-500 dark:text-gray-400">
-                      {{ loginStore.userInfo?.email }}
+                  </button>
+                </template>
+                <template #menuHeader>
+                  <div class="space-y-1 px-4 py-2 text-sm">
+                    <NeSkeleton v-if="loginStore.loadingUserInfo" :lines="2" class="w-full" />
+                    <div v-else class="flex flex-col gap-1">
+                      <div class="font-medium text-gray-900 dark:text-gray-100">
+                        {{ loginStore.userDisplayName }}
+                      </div>
+                      <div class="mb-1 text-gray-500 dark:text-gray-400">
+                        {{ loginStore.userInfo?.email }}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <hr class="my-1" />
-              </template>
-            </NeDropdown>
-          </template>
-          <template #content>
-            {{ $t('shell.account') }}
-          </template>
-        </NeTooltip>
+                  <hr class="my-1" />
+                </template>
+              </NeDropdown>
+            </template>
+            <template #content>
+              {{ $t('shell.account') }}
+            </template>
+          </NeTooltip>
+        </div>
       </div>
     </div>
   </div>

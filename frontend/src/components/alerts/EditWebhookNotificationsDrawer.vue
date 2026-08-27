@@ -215,7 +215,7 @@ function closeDrawer() {
   <NeSideDrawer
     :is-shown="props.isShown"
     :title="t('alerts.configure_webhook_notifications')"
-    :close-aria-label="$t('common.shell.close_side_drawer')"
+    :close-aria-label="$t('shell.close_side_drawer')"
     @close="closeDrawer"
   >
     <div class="space-y-6">
@@ -254,7 +254,7 @@ function closeDrawer() {
             </div>
             <FontAwesomeIcon
               :icon="faChevronDown"
-              class="ml-3 size-4 shrink-0 text-gray-500 transition-transform duration-200 dark:text-gray-400"
+              class="ml-3 size-4 shrink-0 text-gray-500 transition-transform duration-(--duration-small) dark:text-gray-400"
               :style="{ transform: expandedIndex === index ? 'rotate(180deg)' : 'rotate(0deg)' }"
             />
           </button>
@@ -349,8 +349,8 @@ function closeDrawer() {
 .accordion-leave-active {
   overflow: hidden;
   transition:
-    max-height 0.25s ease,
-    opacity 0.2s ease;
+    max-height var(--duration-small) ease,
+    opacity var(--duration-small) ease;
 }
 
 .accordion-enter-from,

@@ -49,6 +49,8 @@ export const SystemSchema = v.object({
   suspended_at: v.optional(v.string()),
   last_heartbeat: v.optional(v.string()),
   last_inventory: v.optional(v.string()),
+  first_heartbeat: v.optional(v.string()),
+  first_inventory: v.optional(v.string()),
   rebranding_enabled: v.optional(v.boolean()),
   organization: v.object({
     id: v.string(),
@@ -204,7 +206,6 @@ export const getQueryStringParamsForExport = (
     })
   }
 
-  // appended before the statusFilter block because that block returns early
   if (organizationFilter) {
     organizationFilter.forEach((orgId) => {
       searchParams.append('organization_id', orgId)
@@ -219,7 +220,6 @@ export const getQueryStringParamsForExport = (
     statusFilter.forEach((status) => {
       searchParams.append('status', status)
     })
-    return searchParams.toString()
   }
 
   if (sortBy) {

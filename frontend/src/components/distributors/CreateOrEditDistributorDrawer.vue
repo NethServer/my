@@ -320,7 +320,7 @@ async function saveDistributor() {
         ? $t('distributors.edit_distributor')
         : $t('distributors.create_distributor')
     "
-    :close-aria-label="$t('common.shell.close_side_drawer')"
+    :close-aria-label="$t('shell.close_side_drawer')"
     @show="onShow"
     @close="closeDrawer"
   >

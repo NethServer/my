@@ -338,7 +338,7 @@ async function saveReseller() {
   <NeSideDrawer
     :is-shown="isShown"
     :title="currentReseller ? $t('resellers.edit_reseller') : $t('resellers.create_reseller')"
-    :close-aria-label="$t('common.shell.close_side_drawer')"
+    :close-aria-label="$t('shell.close_side_drawer')"
     @show="onShow"
     @close="closeDrawer"
   >

@@ -38,10 +38,10 @@ const logoFile = computed(() => {
       <Dialog as="div" class="relative z-50 lg:hidden" @close="sidebarOpen = false">
         <TransitionChild
           as="template"
-          enter="transition-opacity ease-linear duration-300"
+          enter="transition-opacity ease-linear duration-(--duration-large-enter)"
           enter-from="opacity-0"
           enter-to="opacity-100"
-          leave="transition-opacity ease-linear duration-300"
+          leave="transition-opacity ease-linear duration-(--duration-large-leave)"
           leave-from="opacity-100"
           leave-to="opacity-0"
         >
@@ -51,20 +51,20 @@ const logoFile = computed(() => {
         <div class="fixed inset-0 flex">
           <TransitionChild
             as="template"
-            enter="transition ease-in-out duration-300 transform"
+            enter="transition ease-in-out transform duration-(--duration-large-enter)"
             enter-from="-translate-x-full"
             enter-to="translate-x-0"
-            leave="transition ease-in-out duration-300 transform"
+            leave="transition ease-in-out transform duration-(--duration-large-leave)"
             leave-from="translate-x-0"
             leave-to="-translate-x-full"
           >
             <DialogPanel class="relative mr-16 flex w-full max-w-xs flex-1">
               <TransitionChild
                 as="template"
-                enter="ease-in-out duration-300"
+                enter="ease-in-out duration-(--duration-large-enter)"
                 enter-from="opacity-0"
                 enter-to="opacity-100"
-                leave="ease-in-out duration-300"
+                leave="ease-in-out duration-(--duration-large-leave)"
                 leave-from="opacity-100"
                 leave-to="opacity-0"
               >

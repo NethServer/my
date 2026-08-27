@@ -111,7 +111,7 @@ async function saveApplication() {
   <NeSideDrawer
     :is-shown="isShown"
     :title="$t('applications.assign_organization')"
-    :close-aria-label="$t('common.shell.close_side_drawer')"
+    :close-aria-label="$t('shell.close_side_drawer')"
     @show="onShow"
     @close="closeDrawer"
   >
