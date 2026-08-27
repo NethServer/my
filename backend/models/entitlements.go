@@ -300,6 +300,12 @@ type CreateSystemEntitlementRequest struct {
 	// import backfill): resolved to a my user for the purchased_by snapshot,
 	// kept raw when no user matches. See ActivateEntitlementRequest.
 	BuyerEmail string `json:"buyer_email,omitempty"`
+	// Variant carries the tier of the originating shop order line, same shape
+	// as ActivateEntitlementRequest. The purchase path already stores it; the
+	// import needs it too because the tier of an existing grant can only be
+	// written by an activation, so a grant created without it stays untiered
+	// until the system's first renewal.
+	Variant map[string]interface{} `json:"variant,omitempty"`
 }
 
 // ActivateEntitlementRequest is the shop-facing activation/renewal call

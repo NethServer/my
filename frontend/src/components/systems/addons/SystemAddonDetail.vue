@@ -279,12 +279,13 @@ function clearFilters() {
       :aria-label="addonName"
       card-breakpoint="2xl"
       :loading="loading"
-      :skeleton-columns="6"
+      :skeleton-columns="7"
       :skeleton-rows="7"
     >
       <NeTableHead>
         <NeTableHeadCell>{{ firstColumnLabel }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('addons.order') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('addons.tier') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('addons.purchased_by') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('addons.validity') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('addons.status') }}</NeTableHeadCell>
@@ -325,6 +326,11 @@ function clearFilters() {
                 {{ $t('addons.n_renewals', { count: row.grant.renewal_count }) }}
               </div>
             </div>
+          </NeTableCell>
+          <!-- only a tiered product carries one: a simple product and a manual
+               grant leave the cell empty -->
+          <NeTableCell :data-label="$t('addons.tier')">
+            {{ row.grant?.variant?.label ?? '-' }}
           </NeTableCell>
           <NeTableCell :data-label="$t('addons.purchased_by')">
             <div v-if="getPurchaserName(row)" class="flex items-center gap-2">

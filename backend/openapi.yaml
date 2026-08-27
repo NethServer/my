@@ -2693,6 +2693,8 @@ components:
             backfill): resolved to a my user for the `purchased_by` snapshot,
             kept raw when no user matches.
           example: "mario.rossi@example.com"
+        variant:
+          $ref: '#/components/schemas/EntitlementVariant'
 
     UpdateSystemEntitlementRequest:
       type: object

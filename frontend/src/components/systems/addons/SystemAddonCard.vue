@@ -135,6 +135,12 @@ const actions = computed(
               </div>
             </template>
           </DataItem>
+          <!-- only a tiered product carries one, and a manual grant never
+               does: no row rather than an empty one -->
+          <DataItem v-if="row.grant.variant?.label">
+            <template #label>{{ $t('addons.tier') }}</template>
+            <template #data>{{ row.grant.variant.label }}</template>
+          </DataItem>
           <DataItem>
             <template #label>{{ $t('addons.purchased_by') }}</template>
             <template #data>

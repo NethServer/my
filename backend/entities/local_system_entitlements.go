@@ -397,7 +397,7 @@ func (r *LocalSystemEntitlementRepository) Get(systemID, entitlement, scope stri
 // scope) tuples return ErrEntitlementExists — renewals must Update the
 // existing row. purchasedBy carries the buyer snapshot when the caller has
 // one (legacy-import backfill with the order email); nil otherwise.
-func (r *LocalSystemEntitlementRepository) Create(systemID, entitlement, scope, source, sourceRef string, validFrom, validUntil *time.Time, createdBy, purchasedBy map[string]interface{}) (*models.SystemEntitlement, error) {
+func (r *LocalSystemEntitlementRepository) Create(systemID, entitlement, scope, source, sourceRef string, validFrom, validUntil *time.Time, createdBy, purchasedBy, variant map[string]interface{}) (*models.SystemEntitlement, error) {
 	var createdByJSON []byte
 	if createdBy != nil {
 		createdByJSON, _ = json.Marshal(createdBy)
@@ -408,14 +408,18 @@ func (r *LocalSystemEntitlementRepository) Create(systemID, entitlement, scope, 
 	if purchasedBy != nil {
 		purchasedByJSON, _ = json.Marshal(purchasedBy)
 	}
+	var variantJSON interface{}
+	if variant != nil {
+		variantJSON, _ = json.Marshal(variant)
+	}
 
 	// validFrom NULL → DB default now(); set for legacy imports to preserve
 	// the original order date.
 	e, err := scanEntitlement(r.db.QueryRow(
-		`INSERT INTO system_entitlements (system_id, entitlement, scope, source, source_ref, valid_from, valid_until, created_by, purchased_by)
-		 VALUES ($1, $2, $3, $4, NULLIF($5, ''), COALESCE($6, now()), $7, $8, $9)
+		`INSERT INTO system_entitlements (system_id, entitlement, scope, source, source_ref, valid_from, valid_until, created_by, purchased_by, variant)
+		 VALUES ($1, $2, $3, $4, NULLIF($5, ''), COALESCE($6, now()), $7, $8, $9, $10)
 		 RETURNING `+entitlementColumns,
-		systemID, entitlement, scope, source, sourceRef, validFrom, validUntil, createdByJSON, purchasedByJSON))
+		systemID, entitlement, scope, source, sourceRef, validFrom, validUntil, createdByJSON, purchasedByJSON, variantJSON))
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
 			switch pqErr.Code {

@@ -1039,7 +1039,7 @@ func CreateSystemEntitlement(c *gin.Context) {
 	}
 
 	repo := entities.NewLocalSystemEntitlementRepository()
-	entitlement, err := repo.Create(systemID, req.Entitlement, req.Scope, source, req.SourceRef, req.ValidFrom, req.ValidUntil, createdBy, resolvePurchaser(req.BuyerEmail))
+	entitlement, err := repo.Create(systemID, req.Entitlement, req.Scope, source, req.SourceRef, req.ValidFrom, req.ValidUntil, createdBy, resolvePurchaser(req.BuyerEmail), req.Variant)
 	if err == entities.ErrEntitlementExists {
 		c.JSON(http.StatusConflict, response.Conflict("entitlement already exists for this system", nil))
 		return
