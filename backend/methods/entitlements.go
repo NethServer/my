@@ -279,7 +279,7 @@ func UpdateEntitlementCatalogItem(c *gin.Context) {
 	}
 
 	repo := entities.NewLocalEntitlementCatalogRepository()
-	item, err := repo.Update(c.Param("id"), req.DisplayName, req.Description)
+	item, err := repo.Update(c.Param("id"), req.DisplayName, req.Description, req.Purchasable)
 	if err == entities.ErrCatalogItemNotFound {
 		c.JSON(http.StatusNotFound, response.NotFound("catalog item not found", nil))
 		return

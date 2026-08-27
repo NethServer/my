@@ -970,7 +970,11 @@
     "cannot_activate_addon": "Cannot activate add-on",
     "cannot_revoke_addon": "Cannot revoke add-on",
     "cannot_reactivate_addon": "Cannot reactivate add-on",
-    "addon_already_granted": "This add-on has already been granted here. Reload the page to see the current state."
+    "addon_already_granted": "This add-on has already been granted here. Reload the page to see the current state.",
+    "on_sale": "On sale",
+    "not_on_sale": "Not on sale",
+    "on_sale_label": "Availability on NethShop",
+    "on_sale_helper": "An add-on not on sale cannot be bought, but stays visible where it is granted."
   },
   "forbidden": {
     "title": "Restricted page",

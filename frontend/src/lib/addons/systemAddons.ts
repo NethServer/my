@@ -304,6 +304,8 @@ export const composeSystemAddonRows = ({
         description: '',
         scoped: !!scope,
         kind: scope ? 'module' : 'service',
+        // an add-on we cannot even name is certainly not one to offer for sale
+        purchasable: false,
         // the row exists because a grant references it, which is precisely what
         // in_use means
         in_use: true,

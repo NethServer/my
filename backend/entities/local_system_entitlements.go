@@ -42,7 +42,7 @@ func NewLocalEntitlementCatalogRepository() *LocalEntitlementCatalogRepository {
 }
 
 func catalogScanDest(item *models.EntitlementCatalogItem) []interface{} {
-	return []interface{}{&item.ID, &item.DisplayName, &item.Description, &item.Scoped, &item.Kind, &item.SystemType, &item.LegacyAlias, &item.AppliesTo, &item.CreatedAt, &item.UpdatedAt}
+	return []interface{}{&item.ID, &item.DisplayName, &item.Description, &item.Scoped, &item.Kind, &item.SystemType, &item.LegacyAlias, &item.AppliesTo, &item.Purchasable, &item.CreatedAt, &item.UpdatedAt}
 }
 
 func scanCatalogItem(scanner interface{ Scan(...interface{}) error }) (*models.EntitlementCatalogItem, error) {
@@ -75,7 +75,7 @@ const catalogInUseColumn = `EXISTS (SELECT 1 FROM system_entitlements se WHERE s
 // List returns the whole catalog ordered by id.
 func (r *LocalEntitlementCatalogRepository) List() ([]*models.EntitlementCatalogItem, error) {
 	rows, err := r.db.Query(
-		`SELECT c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.created_at, c.updated_at,
+		`SELECT c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.purchasable, c.created_at, c.updated_at,
 		        ` + catalogInUseColumn + `
 		 FROM entitlement_catalog c ORDER BY c.id`)
 	if err != nil {
@@ -97,7 +97,7 @@ func (r *LocalEntitlementCatalogRepository) List() ([]*models.EntitlementCatalog
 // Get returns one catalog item by id.
 func (r *LocalEntitlementCatalogRepository) Get(id string) (*models.EntitlementCatalogItem, error) {
 	item, err := scanCatalogItem(r.db.QueryRow(
-		`SELECT id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, created_at, updated_at
+		`SELECT id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, purchasable, created_at, updated_at
 		 FROM entitlement_catalog WHERE id = $1`, id))
 	if err == sql.ErrNoRows {
 		return nil, ErrCatalogItemNotFound
@@ -113,7 +113,7 @@ func (r *LocalEntitlementCatalogRepository) Get(id string) (*models.EntitlementC
 // nsec-blacklist).
 func (r *LocalEntitlementCatalogRepository) Resolve(idOrAlias string) (*models.EntitlementCatalogItem, error) {
 	item, err := scanCatalogItem(r.db.QueryRow(
-		`SELECT id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, created_at, updated_at
+		`SELECT id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, purchasable, created_at, updated_at
 		 FROM entitlement_catalog WHERE id = $1 OR (legacy_alias <> '' AND legacy_alias = $1)`, idOrAlias))
 	if err == sql.ErrNoRows {
 		return nil, ErrCatalogItemNotFound
@@ -127,10 +127,10 @@ func (r *LocalEntitlementCatalogRepository) Resolve(idOrAlias string) (*models.E
 // Create adds a new add-on type.
 func (r *LocalEntitlementCatalogRepository) Create(req *models.CreateEntitlementCatalogRequest) (*models.EntitlementCatalogItem, error) {
 	item, err := scanCatalogItem(r.db.QueryRow(
-		`INSERT INTO entitlement_catalog (id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		 RETURNING id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, created_at, updated_at`,
-		req.ID, req.DisplayName, req.Description, req.Scoped, req.Kind, req.SystemType, req.LegacyAlias, req.AppliesTo))
+		`INSERT INTO entitlement_catalog (id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, purchasable)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, TRUE))
+		 RETURNING id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, purchasable, created_at, updated_at`,
+		req.ID, req.DisplayName, req.Description, req.Scoped, req.Kind, req.SystemType, req.LegacyAlias, req.AppliesTo, req.Purchasable))
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
 			return nil, ErrCatalogItemExists
@@ -142,16 +142,17 @@ func (r *LocalEntitlementCatalogRepository) Create(req *models.CreateEntitlement
 
 // Update changes the display fields of a catalog item (id and scoped are
 // immutable).
-func (r *LocalEntitlementCatalogRepository) Update(id string, displayName, description *string) (*models.EntitlementCatalogItem, error) {
+func (r *LocalEntitlementCatalogRepository) Update(id string, displayName, description *string, purchasable *bool) (*models.EntitlementCatalogItem, error) {
 	item, err := scanCatalogItemWithUsage(r.db.QueryRow(
 		`UPDATE entitlement_catalog c SET
 		     display_name = COALESCE($2, display_name),
 		     description  = COALESCE($3, description),
+		     purchasable  = COALESCE($4, purchasable),
 		     updated_at   = NOW()
 		 WHERE c.id = $1
-		 RETURNING c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.created_at, c.updated_at,
+		 RETURNING c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.purchasable, c.created_at, c.updated_at,
 		           `+catalogInUseColumn,
-		id, displayName, description))
+		id, displayName, description, purchasable))
 	if err == sql.ErrNoRows {
 		return nil, ErrCatalogItemNotFound
 	}
@@ -232,7 +233,7 @@ func (r *LocalEntitlementAvailabilityRepository) ListByEntitlement(entitlement s
 // present for an item, RESTRICT it to the matching role/orgs.
 func (r *LocalEntitlementAvailabilityRepository) ListAvailableFor(orgRole, orgID string) ([]*models.EntitlementCatalogItem, error) {
 	rows, err := r.db.Query(
-		`SELECT c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.created_at, c.updated_at,
+		`SELECT c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.purchasable, c.created_at, c.updated_at,
 		        `+catalogInUseColumn+`
 		 FROM entitlement_catalog c
 		 WHERE c.kind IN ('service', 'module')

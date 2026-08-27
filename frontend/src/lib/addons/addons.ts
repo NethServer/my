@@ -79,6 +79,10 @@ export const AddonSchema = v.object({
   legacy_alias: v.optional(v.string()),
   // the application a module add-on belongs to, empty for a system-wide service
   applies_to: v.optional(v.string()),
+  // false when the add-on is not on sale: it stays visible wherever it is
+  // granted, only the buy action is withheld. Defaults to true so a frontend
+  // running ahead of its backend keeps offering what used to be on sale.
+  purchasable: v.optional(v.boolean(), true),
   // true when any grant references the add-on — revoked and expired ones
   // included: they are kept for audit and the foreign key blocks the delete all
   // the same. Lets the catalog explain the refusal before asking to confirm.
@@ -99,6 +103,7 @@ export interface CreateAddon {
   scoped: boolean
   // the application a module belongs to; ignored by the backend for services
   applies_to: string
+  purchasable: boolean
 }
 
 // What PUT /entitlements/catalog/:id accepts: the backend takes the display
@@ -107,6 +112,7 @@ export interface EditAddon {
   id: string
   display_name: string
   description: string
+  purchasable: boolean
 }
 
 interface AddonsResponse {
@@ -253,7 +259,11 @@ export const putAddon = (addon: EditAddon) => {
   return axios
     .put<AddonResponse>(
       `${API_URL}/${ADDONS_PATH}/${addon.id}`,
-      { display_name: addon.display_name, description: addon.description },
+      {
+        display_name: addon.display_name,
+        description: addon.description,
+        purchasable: addon.purchasable,
+      },
       { headers: { Authorization: `Bearer ${loginStore.jwtToken}` } },
     )
     .then((res) => res.data.data)

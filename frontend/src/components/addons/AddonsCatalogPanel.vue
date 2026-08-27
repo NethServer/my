@@ -393,6 +393,9 @@ const onSort = (payload: SortEvent) => {
             <NeTableCell :data-label="$t('addons.addon_name')">
               <div class="flex items-center gap-2">
                 <span class="font-medium">{{ row.addon.display_name }}</span>
+                <NeBadgeV2 v-if="!row.addon.purchasable" kind="gray" size="xs">
+                  {{ $t('addons.not_on_sale') }}
+                </NeBadgeV2>
                 <NeBadgeV2 v-if="!row.addon.in_use" kind="gray" size="xs">
                   {{ $t('addons.unused') }}
                 </NeBadgeV2>

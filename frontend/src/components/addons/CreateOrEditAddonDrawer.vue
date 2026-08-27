@@ -11,6 +11,7 @@ import {
   NeSideDrawer,
   NeTextArea,
   NeTextInput,
+  NeToggle,
   focusElement,
   type NeComboboxOption,
 } from '@nethesis/vue-components'
@@ -122,6 +123,7 @@ const displayName = ref('')
 const displayNameRef = useTemplateRef<HTMLInputElement>('displayNameRef')
 const description = ref('')
 const descriptionRef = useTemplateRef<HTMLInputElement>('descriptionRef')
+const purchasable = ref(true)
 const validationIssues = ref<Record<string, string[]>>({})
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
@@ -196,6 +198,7 @@ function onShow() {
     technicalName.value = getAddonTechnicalName(currentAddon)
     displayName.value = currentAddon.display_name
     description.value = currentAddon.description
+    purchasable.value = currentAddon.purchasable
     technicalNameEdited.value = false
     focusElement(displayNameRef)
   } else {
@@ -206,6 +209,8 @@ function onShow() {
     technicalNameEdited.value = false
     displayName.value = ''
     description.value = ''
+    // a new add-on is on sale unless it is deliberately withheld
+    purchasable.value = true
   }
 }
 
@@ -260,7 +265,7 @@ async function saveAddon() {
     if (!validate(EditAddonFormSchema, form)) {
       return
     }
-    editAddonMutate({ ...form, id: currentAddon.id })
+    editAddonMutate({ ...form, id: currentAddon.id, purchasable: purchasable.value })
   } else {
     // creating add-on
     const form: AddonForm = {
@@ -288,6 +293,7 @@ async function saveAddon() {
       // the application the module belongs to, so the backend does not have to
       // guess it from the id prefix
       applies_to: form.application,
+      purchasable: purchasable.value,
     })
   }
 }
@@ -376,6 +382,17 @@ async function saveAddon() {
           :optional="true"
           :optional-label="t('common.optional')"
         />
+        <!-- on sale: withholding it keeps the add-on everywhere it is granted
+             and only takes away the buy action -->
+        <NeToggle
+          v-model="purchasable"
+          :top-label="$t('addons.on_sale_label')"
+          :label="purchasable ? $t('addons.on_sale') : $t('addons.not_on_sale')"
+          :disabled="saving"
+        />
+        <p class="text-tertiary-neutral text-sm">
+          {{ $t('addons.on_sale_helper') }}
+        </p>
         <!-- create add-on error notification -->
         <NeInlineNotification
           v-if="createErrorMessage"

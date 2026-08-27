@@ -74,6 +74,12 @@ type EntitlementCatalogItem struct {
 	// Stored rather than parsed off the id prefix: app names may contain a
 	// hyphen (nethvoice-proxy), which makes the prefix ambiguous.
 	AppliesTo string `json:"applies_to,omitempty"`
+	// Purchasable is FALSE when the add-on exists but is not on sale: the shop
+	// product is unpublished, or it is sold off-line only. The add-on stays
+	// visible wherever it is granted — only the buy action is withheld. This
+	// is deliberately separate from the per-organization allowlist, which
+	// answers who may buy rather than whether it is on sale at all.
+	Purchasable bool `json:"purchasable"`
 	// InUse is TRUE when at least one grant references the item — revoked
 	// and expired ones included, kept for audit: the foreign key refuses the
 	// DELETE all the same. Computed by the read paths that serve API
@@ -96,6 +102,9 @@ type CreateEntitlementCatalogRequest struct {
 	SystemType  string `json:"system_type,omitempty"`
 	LegacyAlias string `json:"legacy_alias,omitempty"`
 	AppliesTo   string `json:"applies_to,omitempty"`
+	// Purchasable defaults to TRUE when omitted: a new add-on is on sale
+	// unless it is deliberately withheld.
+	Purchasable *bool `json:"purchasable,omitempty"`
 }
 
 // UpdateEntitlementCatalogRequest updates the display fields of a catalog
@@ -104,6 +113,8 @@ type CreateEntitlementCatalogRequest struct {
 type UpdateEntitlementCatalogRequest struct {
 	DisplayName *string `json:"display_name,omitempty"`
 	Description *string `json:"description,omitempty"`
+	// Purchasable toggles the buy action; omitted leaves it as it is.
+	Purchasable *bool `json:"purchasable,omitempty"`
 }
 
 // EntitlementAvailability is one commercial unlock: the catalog item can be

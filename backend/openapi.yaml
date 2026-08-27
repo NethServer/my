@@ -2292,6 +2292,15 @@ components:
           type: string
           description: Application (applications.instance_of) a module add-on applies to. Empty for system-wide services. Stored explicitly because the <app>-<module> id prefix is ambiguous when the app name itself contains a hyphen (nethvoice-proxy).
           example: "nethvoice"
+        purchasable:
+          type: boolean
+          description: |
+            False when the add-on exists but is not on sale: the shop product
+            is unpublished, or it is sold off-line only. The add-on stays
+            visible wherever it is granted — only the buy action is withheld.
+            Separate from the per-organization allowlist, which answers who may
+            buy rather than whether it is on sale at all.
+          example: true
         in_use:
           type: boolean
           description: |
@@ -2757,6 +2766,11 @@ components:
           type: string
           description: "Application (applications.instance_of) the module applies to. Required in practice for kind=module: omitted, it falls back to the id prefix, which is wrong for hyphenated app names. Ignored for services."
           example: "nethvoice"
+        purchasable:
+          type: boolean
+          description: Whether the add-on is on sale. Defaults to true when omitted.
+          default: true
+          example: true
 
     UpdateEntitlementCatalogRequest:
       type: object
@@ -2770,6 +2784,10 @@ components:
           type: string
           description: Optional longer description
           example: "IP and DNS blacklist feed for NethSecurity"
+        purchasable:
+          type: boolean
+          description: Toggles the buy action. Omitted leaves it as it is.
+          example: false
 
     CreateEntitlementAvailabilityRequest:
       type: object

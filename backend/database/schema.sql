@@ -1222,6 +1222,7 @@ CREATE TABLE IF NOT EXISTS entitlement_catalog (
     system_type  VARCHAR(50)  NOT NULL DEFAULT '',
     legacy_alias VARCHAR(100) NOT NULL DEFAULT '',
     applies_to   VARCHAR(100) NOT NULL DEFAULT '',
+    purchasable  BOOLEAN NOT NULL DEFAULT TRUE,
     created_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
@@ -1229,6 +1230,7 @@ CREATE TABLE IF NOT EXISTS entitlement_catalog (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_entitlement_catalog_legacy_alias
     ON entitlement_catalog(legacy_alias) WHERE legacy_alias <> '';
 
+COMMENT ON COLUMN entitlement_catalog.purchasable  IS 'FALSE hides the buy action while keeping the add-on visible wherever it is granted: the shop product is not on sale (unpublished, or sold off-line only)';
 COMMENT ON TABLE  entitlement_catalog              IS 'Grantable add-on types. Id convention: nsec-<service> / ns8-<app> / <app>-<module> (scoped)';
 COMMENT ON COLUMN entitlement_catalog.scoped       IS 'TRUE = grantable per application instance of a system (scope on the grant); FALSE = system-wide only';
 COMMENT ON COLUMN entitlement_catalog.kind         IS 'service (nsec-<service>, firewall add-on, system-wide) | module (<app>-<module>, add-on for one application instance of an NS8 cluster) — both sellable on the shop';

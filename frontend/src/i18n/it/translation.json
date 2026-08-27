@@ -897,7 +897,11 @@
     "cannot_activate_addon": "Impossibile attivare l'add-on",
     "cannot_revoke_addon": "Impossibile revocare l'add-on",
     "cannot_reactivate_addon": "Impossibile riattivare l'add-on",
-    "addon_already_granted": "Questo add-on è già assegnato qui. Ricarica la pagina per vedere lo stato attuale."
+    "addon_already_granted": "Questo add-on è già assegnato qui. Ricarica la pagina per vedere lo stato attuale.",
+    "on_sale": "Disponibile",
+    "not_on_sale": "Non disponibile",
+    "on_sale_label": "Disponibilità su NethShop",
+    "on_sale_helper": "Un add-on non disponibile non si può acquistare, ma resta visibile dove è assegnato."
   },
   "forbidden": {
     "title": "Pagina riservata",

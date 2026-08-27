@@ -42,6 +42,11 @@ export const useSystemAddonActions = () => {
     if (!canBuyAddons() || isSystemBlocked.value) {
       return false
     }
+    // an add-on that is not on sale keeps its card — a system may well hold it
+    // already — but there is nowhere to send the buyer
+    if (!row.addon.purchasable) {
+      return false
+    }
     if (!row.grant) {
       return true
     }
