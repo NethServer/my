@@ -75,11 +75,20 @@ export type ThirdPartyAppInfo = {
   sms?: { count: number; max: number; remaining: number }
 }
 
+// A third-party app answers on its own host with its own error semantics, and
+// the shared interceptor logs the user out on any 401 whatever the host: an app
+// that says "no account of mine" that way would end a perfectly good my
+// session. This bare instance carries no interceptor, so an app's failure can
+// only cost its own widget. It also skips the access-token refresh, which this
+// call does not use — it sends the ID token, and a stale one just hides the
+// widget.
+const thirdPartyClient = axios.create()
+
 // Fetch an app's info_url with the user's Logto ID token (same tenant as the
 // app), reusing the OAuth identity instead of a bespoke credential.
 export const getThirdPartyAppInfo = (app: ThirdPartyApp) => {
   const loginStore = useLoginStore()
-  return axios
+  return thirdPartyClient
     .get<ThirdPartyAppInfo>(app.info_url as string, {
       headers: { Authorization: `Bearer ${loginStore.idToken}` },
     })
