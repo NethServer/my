@@ -100,7 +100,7 @@ Versione corrente: **0.7.11** (Pre-produzione)
 
 ## Stack Tecnologico
 
-- **Backend**: Go 1.24+ con framework Gin
+- **Backend**: Go 1.25+ con framework Gin
 - **Database**: PostgreSQL con migrazioni
 - **Cache**: Redis per caching ad alte prestazioni
 - **Identity**: Logto per autenticazione e RBAC

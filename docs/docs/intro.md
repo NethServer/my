@@ -65,7 +65,7 @@ graph LR
 
 ## Technology Stack
 
-- **Backend**: Go 1.24+ with Gin framework
+- **Backend**: Go 1.25+ with Gin framework
 - **Database**: PostgreSQL with migrations
 - **Cache**: Redis for high-performance caching
 - **Identity**: Logto for authentication and RBAC

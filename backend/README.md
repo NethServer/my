@@ -5,7 +5,7 @@ Go REST API server for My Nethesis with Logto JWT authentication and Role-Based 
 ## Quick Start
 
 ### Prerequisites
-- Go 1.24+
+- Go 1.25+
 - Docker/Podman (for PostgreSQL and Redis)
 - Logto instance with M2M app configured
 

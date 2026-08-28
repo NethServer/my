@@ -47,7 +47,7 @@ go install github.com/nethesis/my/sync/cmd/sync@latest
 ## Quick Start
 
 ### Prerequisites
-- Go 1.24+
+- Go 1.25+
 - Logto instance with M2M app configured
 
 ### Setup

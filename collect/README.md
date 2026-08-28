@@ -5,7 +5,7 @@ High-performance inventory collection service that handles thousands of systems 
 ## Quick Start
 
 ### Prerequisites
-- Go 1.24+
+- Go 1.25+
 - PostgreSQL 15+
 - Redis 7+
 - Docker/Podman
