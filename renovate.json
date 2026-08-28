@@ -6,14 +6,6 @@
   "ignoreTests": false,
   "packageRules": [
     {
-      "description": "Bump both node version files in one PR",
-      "matchManagers": [
-        "nvm",
-        "nodenv"
-      ],
-      "groupName": "node version"
-    },
-    {
       "description": "Docusaurus requires all @docusaurus/* packages at the same version",
       "matchPackagePrefixes": [
         "@docusaurus/"

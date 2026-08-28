@@ -27,14 +27,10 @@ One version is pinned for the whole repo, at the **root** rather than here, beca
 nvm, fnm and mise all search *upward* from the current directory — so a single pin
 covers `frontend/` and `docs/` alike.
 
-Two files hold the same string, because managers disagree on which one to read:
-
-| Manager | `.nvmrc` | `.node-version` |
-| --- | --- | --- |
-| nvm | yes | no |
-| fnm, mise | yes | yes |
-| nodenv | no | yes |
-| asdf | no (uses `.tool-versions`) | only with `legacy_version_file = yes` |
+`.nvmrc` is the only version file, because every manager in practical use here
+reads it: nvm, fnm and mise all do. (nodenv reads only `.node-version`, and asdf
+needs `legacy_version_file = yes` in `~/.asdfrc` — with which it reads `.nvmrc`
+too. If someone actually needs nodenv, add `.node-version` then.)
 
 - **nvm**: `nvm install`, then `nvm use` in every new shell. nvm does **not** switch
   automatically; add the `cd` hook from nvm's "Deeper Shell Integration" section to
