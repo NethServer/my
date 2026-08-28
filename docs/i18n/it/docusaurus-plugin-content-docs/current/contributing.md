@@ -46,8 +46,8 @@ docs/
 
 ## Prerequisiti
 
-- **Node.js** 20 o superiore
-- **npm** (incluso con Node.js)
+- **Node.js** — la versione indicata in `.nvmrc` nella radice del repository
+  (`nvm install && nvm use`). npm è incluso in Node.js, non serve installarlo a parte.
 
 ## Sviluppo Locale
 
