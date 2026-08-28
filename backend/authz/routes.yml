@@ -44,11 +44,24 @@ routes:
   - method: GET
     path: /api/public/users/:id/avatar
     intent: public
-    expect_authorized: [200, 404, 429]
+    expect_authorized: [200, 204, 429]
     note: |
       Deliberately public so avatars render on the login screen. Rate-limited
       (10/30s), so a run of 20 personas is expected to hit 429 — which still
-      proves the request was not blocked by authentication.
+      proves the request was not blocked by authentication. A user with no
+      picture answers 204, not 404: the empty body is the normal case and an
+      error status would make every browser log a failed request.
+
+  - method: GET
+    path: /api/public/rebranding/:org_id/products/:product_id/:asset
+    intent: public
+    expect_authorized: [200, 400, 404, 429]
+    ids: { product_id: nethvoice, asset: logo_light_rect }
+    note: |
+      Deliberately public so a login screen can render a partner's logo without a
+      token. Branding is what that partner already shows to its own customers.
+      Rate-limited (10/30s) like the avatar, and the response carries a CSP that
+      neutralises an uploaded SVG.
 
   - method: POST
     path: /api/auth/exchange
@@ -289,6 +302,149 @@ routes:
   - method: DELETE
     path: /api/systems/:id/backups/:backup_id
     intent: manage:systems
+
+  # ===========================================================================
+  # Entitlements. config.yml splits the vocabulary in two and the code follows
+  # it (methods/entitlements.go):
+  #   read:entitlements    — "See add-on licenses and expirations". Every
+  #                          technical role holds it; what it returns is bound
+  #                          to the caller's hierarchy, which is the scope
+  #                          layer's business, not the gate's.
+  #   manage:entitlements  — the transactional surface: buy on the shop, cancel
+  #                          a subscription (Admin, Backoffice, Super Admin).
+  # On top of that the code carves out an ADMINISTRATIVE surface — the catalog,
+  # its availability rules and manual grants — reserved to the owner
+  # organization or a Super Admin (isEntitlementAdmin), because those are
+  # Nethesis product management, not a partner's purchase. That is the
+  # org_role + or_user_role pair below, ANDed with the permission.
+  #
+  # OPEN QUESTION, not something this file can settle: config.yml gives
+  # Backoffice "manage:entitlements # Grant/revoke add-on licenses (backoffice
+  # duty)", but the manual-grant routes live under /api/systems and therefore
+  # require manage:systems, which Backoffice does not hold. A Backoffice of the
+  # owner organization would be refused by the route before the handler ever
+  # decides. No persona in the matrix has that shape, so nothing here fails;
+  # it is recorded so the next reader does not have to rediscover it.
+  # ===========================================================================
+  - method: GET
+    path: /api/systems/:id/entitlements
+    intent: read:systems
+    object_scoped: true
+    note: |
+      The object is a system, so it follows the systems permissions; every role
+      that holds read:systems holds read:entitlements too, so the two readings
+      are indistinguishable here. The handler resolves the system within the
+      caller's hierarchy — a system of another branch answers 404.
+  - method: POST
+    path: /api/systems/:id/entitlements
+    intent: manage:entitlements
+    org_role: owner
+    or_user_role: Super Admin
+    enforced_by: handler
+    object_scoped: true
+    note: granting a licence by hand is licensing administration, not a purchase
+  - method: PUT
+    path: /api/systems/:id/entitlements/:entitlement
+    intent: manage:entitlements
+    org_role: owner
+    or_user_role: Super Admin
+    enforced_by: handler
+    object_scoped: true
+    ids: { entitlement: ng-antivirus }
+  - method: DELETE
+    path: /api/systems/:id/entitlements/:entitlement
+    intent: manage:entitlements
+    org_role: owner
+    or_user_role: Super Admin
+    enforced_by: handler
+    object_scoped: true
+    ids: { entitlement: ng-antivirus }
+
+  - method: GET
+    path: /api/entitlements/catalog
+    intent: read:entitlements
+    note: the catalogue names the add-ons; it carries no tenant data
+  - method: POST
+    path: /api/entitlements/catalog
+    intent: manage:entitlements
+    org_role: owner
+    or_user_role: Super Admin
+    enforced_by: handler
+  - method: PUT
+    path: /api/entitlements/catalog/:id
+    intent: manage:entitlements
+    org_role: owner
+    or_user_role: Super Admin
+    enforced_by: handler
+  - method: DELETE
+    path: /api/entitlements/catalog/:id
+    intent: manage:entitlements
+    org_role: owner
+    or_user_role: Super Admin
+    enforced_by: handler
+
+  - method: GET
+    path: /api/entitlements/catalog/:id/availability
+    intent: read:entitlements
+    note: |
+      Who may buy a given add-on. Readable at read level like the catalogue it
+      belongs to; changing it is product management, below.
+  - method: POST
+    path: /api/entitlements/catalog/:id/availability
+    intent: manage:entitlements
+    org_role: owner
+    or_user_role: Super Admin
+    enforced_by: handler
+  - method: DELETE
+    path: /api/entitlements/catalog/:id/availability/:rule_id
+    intent: manage:entitlements
+    org_role: owner
+    or_user_role: Super Admin
+    enforced_by: handler
+
+  - method: GET
+    path: /api/entitlements/available
+    intent: read:entitlements
+    note: what the caller's own organization may buy — self-scoped by definition
+  - method: GET
+    path: /api/entitlements/grants
+    intent: read:entitlements
+    object_scoped: true
+  - method: GET
+    path: /api/entitlements/stats
+    intent: read:entitlements
+    object_scoped: true
+  - method: GET
+    path: /api/entitlements/report
+    intent: read:entitlements
+    object_scoped: true
+    note: |
+      Aggregates over the caller's hierarchy. The owner organization and Super
+      Admins additionally see the add-ons nobody holds; everyone else sees only
+      what their organization may buy. Both are scope answers, not gate answers.
+  - method: GET
+    path: /api/entitlements/report/organizations
+    intent: read:entitlements
+    object_scoped: true
+  - method: GET
+    path: /api/entitlements/report/tiers
+    intent: read:entitlements
+    object_scoped: true
+
+  - method: POST
+    path: /api/entitlements/activate
+    intent: manage:entitlements
+    note: |
+      The shop webhook, called server-to-server with an owner API key, and the
+      same path the back office uses. Purely transactional: no administrative
+      carve-out, so manage:entitlements is the whole gate.
+  - method: POST
+    path: /api/entitlements/deactivate
+    intent: manage:entitlements
+  - method: POST
+    path: /api/entitlements/pending
+    intent: manage:entitlements
+    note: checkout started, payment not confirmed yet
 
   # ===========================================================================
   # Alerts, cross-hierarchy. Same reasoning as above: alert data follows the
@@ -673,74 +829,104 @@ routes:
 
   # ===========================================================================
   # Rebranding. docs/docs/features/rebranding.md is explicit:
-  #   enable/disable and asset management  → Owner organization users only
-  #   view status                          → all levels, own organization only
-  # There is no rebranding resource in config.yml, so intent is expressed as
-  # owner_only. That also means a Reader of the Owner organization cannot be
-  # told apart from an Admin here: the permission vocabulary has no word for it.
+  #   deciding which organizations may brand  → Owner organization only
+  #   configuring the branding of one's own organization → its own administrators
+  #   reading status and assets               → the organization and its parents
+  # config.yml carries the vocabulary: read:rebranding on every technical role,
+  # manage:rebranding on Admin and Super Admin. The two enable/disable routes
+  # are the owner's decision on top of that permission, expressed as org_role.
   # ===========================================================================
   - method: GET
     path: /api/rebranding/products
-    intent: authenticated
+    intent: read:rebranding
     note: static catalogue of rebrandable products, no organization data in it
 
-  # The whole /rebranding group carries no route-level permission middleware: the
-  # decision lives in each handler. That is recorded with enforced_by: handler so
-  # the denial is still asserted — if a handler check went missing the probe would
-  # return 404 instead of 403 and the suite would report a fail-open.
+  - method: GET
+    path: /api/rebranding/organizations
+    intent: read:rebranding
+    note: |
+      Scoped in the service: the owner sees every enabled organization, everyone
+      else only their own subtree. A partner reading this list cannot enumerate
+      another partner's.
+  - method: GET
+    path: /api/rebranding/organizations/available
+    intent: read:rebranding
+  - method: GET
+    path: /api/rebranding/summary
+    intent: read:rebranding
+
+  - method: POST
+    path: /api/rebranding/organizations
+    intent: manage:rebranding
+    org_role: owner
+    enforced_by: handler
+    note: |
+      Adds a selection of organizations at once. Who may brand is the owner's
+      decision, so the permission is not enough on its own — the handler adds
+      the organization check.
   - method: PATCH
     path: /api/rebranding/:org_id/enable
-    intent: owner_only
+    intent: manage:rebranding
+    org_role: owner
     enforced_by: handler
   - method: PATCH
     path: /api/rebranding/:org_id/disable
-    intent: owner_only
+    intent: manage:rebranding
+    org_role: owner
     enforced_by: handler
+    note: removing an organization deletes its assets (ON DELETE CASCADE)
 
   - method: GET
     path: /api/rebranding/:org_id/status
-    intent: authenticated
+    intent: read:rebranding
     object_scoped: true
     self_org_get: true
   - method: GET
     path: /api/rebranding/:org_id/products
-    intent: authenticated
+    intent: read:rebranding
     object_scoped: true
     self_org_get: true
 
   - method: PUT
+    path: /api/rebranding/:org_id/config
+    intent: manage:rebranding
+    object_scoped: true
+    note: |
+      The whole configuration form in one write. Two answers here are not gate
+      answers: an organization without rebranding enabled is refused whatever
+      the caller holds, and a partner may only write its own organization —
+      the organizations below inherit the branding rather than being written to.
+
+  - method: PUT
     path: /api/rebranding/:org_id/products/:product_id
-    intent: owner_only
-    enforced_by: handler
+    intent: manage:rebranding
     object_scoped: true
     ids: { product_id: nethvoice }
     note: |
-      An authorized owner still gets 403 "rebranding is not enabled for this
+      An authorized caller still gets 403 "rebranding is not enabled for this
       organization" on an organization that has it disabled — a state answer, not
       an authorization one, hence object_scoped.
   - method: DELETE
     path: /api/rebranding/:org_id/products/:product_id
-    intent: owner_only
-    enforced_by: handler
+    intent: manage:rebranding
     object_scoped: true
     ids: { product_id: nethvoice }
-    note: |
-      As the owner, against an organization that does not exist, this answers 500
-      "failed to delete rebranding product" instead of 404. Reported as a
-      robustness finding: a 500 on an authorization path hides the real answer.
   - method: DELETE
     path: /api/rebranding/:org_id/products/:product_id/:asset
-    intent: owner_only
-    enforced_by: handler
+    intent: manage:rebranding
     object_scoped: true
     ids: { product_id: nethvoice, asset: logo_light_rect }
   - method: GET
     path: /api/rebranding/:org_id/products/:product_id/:asset
-    intent: authenticated
+    intent: read:rebranding
     object_scoped: true
     self_org_get: true
     ids: { product_id: nethvoice, asset: logo_light_rect }
-    note: serves the asset binary to any authenticated user of that organization
+    note: |
+      Serves the asset binary to a reader of that organization, and to an
+      organization below that inherits its branding from it — branding is
+      resolved upwards, so the downward hierarchy check alone would deny a
+      customer the logo it actually displays.
 
   # ===========================================================================
   # Catalogues and helpers.

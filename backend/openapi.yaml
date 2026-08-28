@@ -3416,6 +3416,34 @@ components:
           type: string
           format: date-time
 
+    RebrandingAssetInfo:
+      type: object
+      description: |
+        One uploaded asset. The upload form renders what it already holds from
+        these fields, and updated_at is the cache-busting key for the binary
+        endpoint (which also answers with an ETag).
+      properties:
+        name:
+          type: string
+          enum: [logo_light_rect, logo_dark_rect, logo_light_square, logo_dark_square, favicon, background_image]
+          example: "logo_light_rect"
+        filename:
+          type: string
+          nullable: true
+          description: Name of the file as uploaded
+          example: "logo-light.svg"
+        mime_type:
+          type: string
+          example: "image/svg+xml"
+        size:
+          type: integer
+          format: int64
+          description: Size in bytes
+          example: 356352
+        updated_at:
+          type: string
+          format: date-time
+
     RebrandingProductStatus:
       type: object
       properties:
@@ -3435,8 +3463,85 @@ components:
         assets:
           type: array
           items:
-            type: string
-          example: ["logo_light_rect", "logo_dark_rect", "favicon"]
+            $ref: '#/components/schemas/RebrandingAssetInfo'
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When this product's configuration was last written; null if the product is not configured
+
+    RebrandingOrganizationProduct:
+      type: object
+      properties:
+        product_id:
+          type: string
+          example: "nethvoice"
+        product_display_name:
+          type: string
+          example: "NethVoice"
+        product_name:
+          type: string
+          nullable: true
+          example: "UrbanGrid"
+
+    RebrandingOrganization:
+      type: object
+      description: An organization with rebranding enabled, and the products it has branded.
+      properties:
+        id:
+          type: string
+          description: Database UUID of the organization
+        logto_id:
+          type: string
+          description: Logto organization ID
+        name:
+          type: string
+          example: "CloudPoint srl"
+        organization_type:
+          type: string
+          enum: [distributor, reseller, customer]
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/RebrandingOrganizationProduct'
+        enabled_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Most recent write across the organization's products; null if nothing is configured yet
+
+    RebrandingAvailableOrganization:
+      type: object
+      description: An organization that can still be added to rebranding.
+      properties:
+        id:
+          type: string
+        logto_id:
+          type: string
+        name:
+          type: string
+        organization_type:
+          type: string
+          enum: [distributor, reseller, customer]
+
+    RebrandingSummary:
+      type: object
+      properties:
+        total:
+          type: integer
+          example: 4
+        distributors:
+          type: integer
+          example: 2
+        resellers:
+          type: integer
+          example: 2
+        customers:
+          type: integer
+          example: 0
 
     RebrandingOrgStatus:
       type: object
@@ -3922,6 +4027,16 @@ components:
         enum: ["name", "description", "created_at", "updated_at", "suspended_at", "creator_name"]
         example: "name"
 
+    RebrandingSortByParam:
+      name: sort_by
+      in: query
+      description: Field to sort the organizations with rebranding by
+      required: false
+      schema:
+        type: string
+        enum: ["name", "organization_type", "enabled_at", "updated_at"]
+        example: "name"
+
     OrganizationSortByParam:
       name: sort_by
       in: query
@@ -4247,6 +4362,67 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+
+    RebrandingValidationFailed:
+      description: |
+        Validation failed. `data.type` is always `validation_error`.
+        `data.errors[]` lists per-field failures with stable `message`
+        codes the UI consumes for i18n: `at_least_one_required` (no
+        product selected), `unknown` (product id, asset name or
+        organization id that does not exist), `max` (brand name longer
+        than 100 characters).
+
+        A malformed multipart body, a file over its size limit or an
+        unsupported content type answer 400 with a plain message instead:
+        they are not field validation, they are a request the server
+        could not read.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            NoProductSelected:
+              summary: the form was saved with no product selected
+              value:
+                code: 400
+                message: "validation failed"
+                data:
+                  type: "validation_error"
+                  errors:
+                    - key: "products"
+                      message: "at_least_one_required"
+            UnknownProduct:
+              summary: a product id that is not in the catalogue
+              value:
+                code: 400
+                message: "validation failed"
+                data:
+                  type: "validation_error"
+                  errors:
+                    - key: "products"
+                      message: "unknown"
+                      value: "nethvoice-pro"
+            UnknownOrganizations:
+              summary: organizations that cannot be resolved; nothing is written
+              value:
+                code: 400
+                message: "validation failed"
+                data:
+                  type: "validation_error"
+                  errors:
+                    - key: "organization_ids"
+                      message: "unknown"
+                      value: "org-che-non-esiste"
+            BrandNameTooLong:
+              summary: brand name over 100 characters
+              value:
+                code: 400
+                message: "validation failed"
+                data:
+                  type: "validation_error"
+                  errors:
+                    - key: "brand_name"
+                      message: "max"
 
     SilenceValidationFailed:
       description: |
@@ -5929,6 +6105,65 @@ paths:
                 example: "no-store"
         '400':
           $ref: '#/components/responses/BadRequest'
+
+  /public/rebranding/{org_id}/products/{product_id}/{asset}:
+    get:
+      operationId: getPublicRebrandingAsset
+      tags:
+        - Backend - Public
+      summary: /public/rebranding/{org_id}/products/{product_id}/{asset} - Get a rebranding asset image
+      description: |
+        Serves a rebranding asset as binary data, with no authentication, so a
+        page can point an `<img>` straight at it. Branding is what a partner
+        already shows to its own customers on a login screen.
+
+        Rate-limited to 10 requests / 30s per client. The response carries an
+        ETag and Last-Modified (conditional requests answer 304), and a
+        Content-Security-Policy that neutralises an uploaded SVG.
+      security: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          description: Logto organization ID that owns the branding
+          schema:
+            type: string
+        - name: product_id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "nethvoice"
+        - name: asset
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [logo_light_rect, logo_dark_rect, logo_light_square, logo_dark_square, favicon, background_image]
+      responses:
+        '200':
+          description: Asset binary
+          headers:
+            ETag:
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                example: "public, max-age=300, must-revalidate"
+          content:
+            image/svg+xml:
+              schema:
+                type: string
+                format: binary
+        '304':
+          description: Not modified
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          description: Rate limit exceeded
 
   /auth/refresh:
     post:
@@ -16044,6 +16279,196 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /rebranding/organizations:
+    get:
+      operationId: getRebrandingOrganizations
+      tags:
+        - Backend - Rebranding
+      summary: List organizations with rebranding enabled
+      description: |
+        Scoped to the caller: the owner sees every enabled organization,
+        everyone else only their own subtree.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/RebrandingSortByParam'
+        - $ref: '#/components/parameters/SortDirectionParam'
+        - name: search
+          in: query
+          description: Matches the organization name
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            example: "cloudpoint"
+        - name: type
+          in: query
+          description: Repeatable. Organization types to keep.
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [distributor, reseller, customer]
+        - name: product
+          in: query
+          description: Repeatable. Keeps organizations that have branded at least one of these products.
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        '200':
+          description: Organizations retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      organizations:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RebrandingOrganization'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: enableRebrandingBulk
+      tags:
+        - Backend - Rebranding
+      summary: Add organizations to rebranding
+      description: |
+        Owner-only. Enables rebranding for a whole selection at once. Either
+        every organization is added or none is: if any id cannot be resolved the
+        call answers 400 with the offending ids and writes nothing.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organization_ids]
+              properties:
+                organization_ids:
+                  type: array
+                  minItems: 1
+                  maxItems: 200
+                  items:
+                    type: string
+                  description: Logto organization IDs
+      responses:
+        '200':
+          description: Rebranding enabled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      enabled:
+                        type: integer
+                        description: How many organizations were newly enabled
+        '400':
+          $ref: '#/components/responses/RebrandingValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /rebranding/organizations/available:
+    get:
+      operationId: getAvailableRebrandingOrganizations
+      tags:
+        - Backend - Rebranding
+      summary: List organizations that can be added to rebranding
+      description: |
+        The organizations in the caller's scope that do not have rebranding
+        enabled yet, for the picker.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          description: Matches the organization name
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            example: "cloudpoint"
+        - name: limit
+          in: query
+          description: Clamped to 200; an unparsable value falls back to the default.
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 200
+      responses:
+        '200':
+          description: Available organizations retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      organizations:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RebrandingAvailableOrganization'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /rebranding/summary:
+    get:
+      operationId: getRebrandingSummary
+      tags:
+        - Backend - Rebranding
+      summary: Count the organizations with rebranding enabled, by type
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Summary retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/RebrandingSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /rebranding/{org_id}/enable:
     patch:
       operationId: enableRebranding
@@ -16074,7 +16499,10 @@ paths:
       tags:
         - Backend - Rebranding
       summary: Disable rebranding for an organization
-      description: Owner-only. Disables rebranding for a specific organization.
+      description: |
+        Owner-only. Removes the organization from rebranding. Its assets are
+        deleted with it, so re-adding the organization starts from an empty
+        configuration.
       security:
         - BearerAuth: []
       parameters:
@@ -16154,6 +16582,99 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /rebranding/{org_id}/config:
+    put:
+      operationId: saveRebrandingConfig
+      tags:
+        - Backend - Rebranding
+      summary: Save the whole rebranding configuration
+      description: |
+        The configuration form in one multipart request: the products the
+        branding applies to, the brand name, the assets being uploaded and the
+        ones being emptied. Written in a single transaction — products left out
+        of `products` lose their configuration, assets named in `clear` are
+        emptied, and assets that are neither uploaded nor cleared keep their
+        current value.
+
+        Requires rebranding to be enabled for the organization. A partner may
+        only write its own organization; the organizations below inherit the
+        branding.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: org_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Logto organization ID (logto_id, not the database UUID)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [products]
+              properties:
+                products:
+                  type: string
+                  description: |
+                    Product ids the branding applies to, comma-separated or
+                    repeated (e.g. `nethvoice,nsec`).
+                  example: "nethvoice,nsec"
+                brand_name:
+                  type: string
+                  maxLength: 100
+                  example: "UrbanGrid"
+                clear:
+                  type: string
+                  description: |
+                    Asset names to empty, comma-separated or repeated
+                    (e.g. `favicon,background_image`).
+                logo_light_rect:
+                  type: string
+                  format: binary
+                logo_dark_rect:
+                  type: string
+                  format: binary
+                logo_light_square:
+                  type: string
+                  format: binary
+                logo_dark_square:
+                  type: string
+                  format: binary
+                favicon:
+                  type: string
+                  format: binary
+                background_image:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Configuration saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      applied_to_organizations:
+                        type: integer
+                        description: |
+                          Organizations downstream that display this branding
+                          because they have none of their own.
+                        example: 45
+        '400':
+          $ref: '#/components/responses/RebrandingValidationFailed'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /rebranding/{org_id}/products/{product_id}:
     put:
       operationId: uploadRebrandingAssets
@@ -16161,9 +16682,13 @@ paths:
         - Backend - Rebranding
       summary: Upload rebranding assets for a product
       description: |
-        Multipart upload of logos, favicon, background, and product name.
-        All fields optional. Only provided fields are updated.
-        Requires rebranding to be enabled for the organization.
+        Multipart upload of logos, favicon, background, and product name for a
+        single product. Only the fields provided are written; the assets named
+        in `clear` are emptied. Requires rebranding to be enabled for the
+        organization.
+
+        The configuration form of the product uses `PUT /rebranding/{org_id}/config`
+        instead, which writes several products in one transaction.
       security:
         - BearerAuth: []
       parameters:
@@ -16187,6 +16712,11 @@ paths:
                 product_name:
                   type: string
                   maxLength: 100
+                clear:
+                  type: string
+                  description: |
+                    Asset names to empty, comma-separated or repeated
+                    (e.g. `favicon,background_image`).
                 logo_light_rect:
                   type: string
                   format: binary
@@ -16209,7 +16739,7 @@ paths:
         '200':
           description: Assets uploaded
         '400':
-          $ref: '#/components/responses/BadRequest'
+          $ref: '#/components/responses/RebrandingValidationFailed'
         '403':
           $ref: '#/components/responses/Forbidden'
     delete:
@@ -16245,6 +16775,11 @@ paths:
       tags:
         - Backend - Rebranding
       summary: Get a rebranding asset binary
+      description: |
+        Serves the asset to a reader of that organization. The response carries
+        an ETag and Last-Modified, so a preview that reloads its assets after a
+        save gets 304s. `GET /public/rebranding/...` serves the same binary
+        without a token, for use in an `<img>` tag.
       security:
         - BearerAuth: []
       parameters:

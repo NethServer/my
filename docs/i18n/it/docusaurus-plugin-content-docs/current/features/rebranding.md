@@ -4,142 +4,83 @@ sidebar_position: 4
 
 # Rebranding Organizzazione
 
-Il rebranding consente alle organizzazioni di personalizzare l'aspetto dei prodotti software con il proprio marchio, inclusi loghi, favicon e sfondi.
+Il rebranding consente a un'organizzazione di personalizzare l'aspetto dei prodotti con il proprio marchio: loghi, favicon, sfondo e nome.
 
 ## Panoramica
 
-La funzionalità di rebranding permette di:
+Il rebranding ha due lati. L'Owner decide **quali organizzazioni possono personalizzare il marchio**, e ognuna di quelle organizzazioni configura **il proprio branding**. L'identità di un'organizzazione scende lungo la gerarchia: i rivenditori e i clienti sotto di essa mostrano lo stesso marchio, a meno che non abbiano un branding proprio.
 
-- Personalizzare l'aspetto dei prodotti per ogni organizzazione
-- Caricare loghi, favicon e sfondi personalizzati
-- Gestire asset di rebranding per diversi prodotti
-- Monitorare lo stato del rebranding per ogni organizzazione
+La configurazione è per prodotto: un'organizzazione può usare gli stessi loghi per NethVoice e NethSecurity, oppure darne di diversi a ciascuno.
 
-## Abilitazione
-
-Il rebranding deve essere abilitato dall'Owner per ogni organizzazione.
+## Scelta delle Organizzazioni
 
 :::warning
-Solo gli utenti con ruolo Owner possono abilitare o disabilitare il rebranding per un'organizzazione.
+Solo gli utenti dell'organizzazione Owner decidono chi può personalizzare il marchio.
 :::
 
-Per abilitare il rebranding:
+Da **Impostazioni → Rebranding** l'Owner vede tutte le organizzazioni abilitate, i prodotti personalizzati da ciascuna e la data dell'ultima modifica. **Aggiungi aziende** apre un elenco con distributori, rivenditori e clienti non ancora abilitati: un'intera selezione viene aggiunta in un'unica operazione.
 
-1. Vai alla pagina di dettaglio dell'organizzazione
-2. Nella sezione **Rebranding**, attiva la funzionalità
-3. Seleziona i prodotti per cui abilitare il rebranding
-4. Salva le modifiche
+**Rimuovi dal rebranding** toglie un'organizzazione dall'elenco e ne **elimina anche gli asset**. Riaggiungendola si riparte da una configurazione vuota.
+
+## Configurazione del Branding
+
+Un amministratore di un'organizzazione abilitata configura il branding della propria organizzazione da **Impostazioni → Rebranding**:
+
+1. Seleziona i **prodotti da personalizzare**
+2. Inserisci il **nome del marchio** mostrato accanto al logo
+3. Carica solo gli asset che vuoi personalizzare
+4. **Salva**
+
+Il salvataggio scrive tutto in un'unica operazione: gli asset vengono applicati a ogni prodotto selezionato e un prodotto tolto dalla selezione perde la propria configurazione. La conferma indica quante organizzazioni a valle mostrano ora quel marchio.
 
 ## Prodotti Supportati
 
 Il rebranding è disponibile per i seguenti prodotti:
 
-- **NethServer** - Server Linux per piccole e medie imprese
-- **NethSecurity** - Soluzione di sicurezza di rete
-- **NethVoice** - Sistema di comunicazione unificata
+| Prodotto | Id a catalogo |
+|----------|---------------|
+| NethVoice | `nethvoice` |
+| NethSecurity | `nsec` |
+| NethService | `webtop` |
+| NS8 | `ns8` |
 
-Ogni prodotto ha i propri requisiti per gli asset di rebranding.
+Ogni prodotto ha il proprio insieme di asset. `GET /api/rebranding/products` restituisce la stessa lista, ed è da lì che nasce il selettore dei prodotti.
 
 ## Tipi di Asset
 
-### Logo
+Gli asset configurabili per ogni prodotto e organizzazione:
 
-Il logo principale dell'organizzazione, utilizzato nell'intestazione e nelle pagine di login.
+| Asset | Descrizione | Dimensione massima | Formati |
+|-------|-------------|--------------------|---------|
+| `logo_light_rect` | Logo rettangolare per sfondi chiari | 2 MB | PNG, SVG, WebP |
+| `logo_dark_rect` | Logo rettangolare per sfondi scuri | 2 MB | PNG, SVG, WebP |
+| `logo_light_square` | Logo quadrato per sfondi chiari | 2 MB | PNG, SVG, WebP |
+| `logo_dark_square` | Logo quadrato per sfondi scuri | 2 MB | PNG, SVG, WebP |
+| `favicon` | Icona della scheda del browser | 512 KB | PNG, ICO, SVG |
+| `background_image` | Immagine di sfondo | 5 MB | PNG, JPEG, WebP, SVG |
+| `product_name` | Nome del prodotto personalizzato | 100 caratteri | Testo (opzionale) |
 
-| Parametro | Valore |
-|-----------|--------|
-| Formati supportati | PNG, SVG |
-| Dimensione massima | 500 KB |
-| Dimensioni consigliate | Variabile per prodotto |
-| Sfondo | Trasparente consigliato |
-
-### Logo Chiaro
-
-Variante del logo per sfondi scuri.
-
-| Parametro | Valore |
-|-----------|--------|
-| Formati supportati | PNG, SVG |
-| Dimensione massima | 500 KB |
-| Uso | Modalità scura, intestazioni con sfondo scuro |
-
-### Favicon
-
-L'icona visualizzata nella barra del browser.
-
-| Parametro | Valore |
-|-----------|--------|
-| Formati supportati | PNG, ICO |
-| Dimensione massima | 100 KB |
-| Dimensioni consigliate | 32x32 pixel o 64x64 pixel |
-
-### Sfondo Login
-
-L'immagine di sfondo per la pagina di login.
-
-| Parametro | Valore |
-|-----------|--------|
-| Formati supportati | PNG, JPEG, WebP |
-| Dimensione massima | 2 MB |
-| Dimensioni consigliate | 1920x1080 pixel |
-
-## Gestione Asset
-
-### Upload
-
-Per caricare un asset di rebranding:
-
-1. Vai alla pagina di dettaglio dell'organizzazione
-2. Nella sezione **Rebranding**, seleziona il prodotto
-3. Clicca sull'area dell'asset da caricare (logo, favicon, sfondo)
-4. Seleziona il file dal dispositivo
-5. L'asset viene caricato e applicato
+Un asset lasciato vuoto usa il valore predefinito del prodotto. Rimuovere un singolo asset ripristina quel solo valore predefinito: il resto del branding resta.
 
 :::tip
 Per risultati ottimali:
-- Usa immagini con sfondo trasparente per i loghi (formato PNG o SVG)
-- Testa l'aspetto sia in modalità chiara che scura
-- Verifica che il favicon sia leggibile nelle dimensioni ridotte della barra del browser
+- Usa loghi con sfondo trasparente (SVG è il formato consigliato)
+- Verifica l'aspetto sia in tema chiaro sia in tema scuro
+- Controlla che la favicon resti leggibile alle dimensioni della scheda del browser
 :::
 
-### Eliminazione
+## Dove Vengono Serviti gli Asset
 
-Per rimuovere un asset di rebranding:
-
-1. Vai alla pagina di dettaglio dell'organizzazione
-2. Nella sezione **Rebranding**, trova l'asset da rimuovere
-3. Clicca su **Elimina** accanto all'asset
-4. Conferma l'operazione
-
-Quando un asset viene rimosso, il prodotto torna a utilizzare il branding predefinito di Nethesis.
-
-### Sostituzione
-
-Per sostituire un asset esistente, carica semplicemente un nuovo file. Il file precedente viene automaticamente sostituito.
-
-## Stato Rebranding
-
-Per ogni organizzazione, è possibile verificare lo stato del rebranding:
-
-| Stato | Descrizione |
-|-------|-------------|
-| **Non configurato** | Il rebranding non è stato abilitato |
-| **Parziale** | Alcuni asset sono stati caricati ma non tutti |
-| **Completo** | Tutti gli asset richiesti sono stati caricati |
-
-:::note
-Lo stato "Completo" viene raggiunto quando tutti gli asset obbligatori per i prodotti selezionati sono stati caricati.
-:::
+Gli asset sono serviti sia agli utenti autenticati sia, per le pagine che hanno bisogno di un semplice `<img>` come la schermata di login, da un endpoint pubblico con rate limit. Entrambi rispondono con un `ETag`, quindi un'anteprima che ricarica gli asset dopo ogni salvataggio non riscarica nulla.
 
 ## Permessi
 
 | Operazione | Super Admin | Admin | Backoffice | Support | Reader |
 |------------|:-----------:|:-----:|:----------:|:-------:|:------:|
-| Visualizza rebranding | Si | Si | Si | Si | Si |
-| Abilita/disabilita | Si | No | No | No | No |
-| Carica asset | Si | Si | Si | No | No |
-| Elimina asset | Si | Si | Si | No | No |
+| Visualizza branding e asset (propri, delle organizzazioni sotto e di quella da cui si eredita) | Sì | Sì | Sì | Sì | Sì |
+| Configura il branding della propria organizzazione | Sì | Sì | No | No | No |
+| Aggiungi/rimuovi organizzazioni dal rebranding | Sì | Sì | No | No | No |
 
 :::warning
-L'abilitazione e la disabilitazione del rebranding è riservata esclusivamente ai Super Admin dell'organizzazione Owner.
+Aggiungere o rimuovere organizzazioni dal rebranding è riservato all'organizzazione Owner. Un distributore o un rivenditore configura **solo** il proprio branding: le organizzazioni sotto di lui lo ereditano e non vengono mai sovrascritte, quindi chi ha un branding proprio lo mantiene.
 :::

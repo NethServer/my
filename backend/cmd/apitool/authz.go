@@ -111,6 +111,17 @@ type RouteSpec struct {
 	// decision belongs to the handler, per object. A handler refusal is then a
 	// correct answer rather than something to review.
 	ObjectScoped bool `yaml:"object_scoped"`
+	// OrgRole narrows the intent to one organization role, ANDed with the
+	// permission: "manage:rebranding, and only from the owner organization".
+	// Needed where a route-level permission is held across the hierarchy but the
+	// action belongs to one level only — owner_only alone would wrongly expect a
+	// Reader of that organization to pass the permission gate.
+	OrgRole string `yaml:"org_role"`
+	// OrUserRole widens OrgRole with a technical role that satisfies it from any
+	// organization: "the owner organization, or a Super Admin wherever they sit".
+	// That is how the entitlement administrative surface is defined — Nethesis
+	// staff hold Super Admin inside the Nethesis Italia distributor.
+	OrUserRole string `yaml:"or_user_role"`
 	// EnforcedBy names where the authorization decision is expected to live.
 	// "handler" means the check is deliberately inside the handler rather than in
 	// route middleware, so a handler refusal is the expected denial. The
@@ -276,6 +287,18 @@ type persona struct {
 }
 
 func (p *persona) has(perm string) bool { return p.perms[perm] }
+
+func (p *persona) hasUserRole(role string) bool {
+	if role == "" {
+		return false
+	}
+	for _, r := range p.userRoles {
+		if strings.EqualFold(r, role) {
+			return true
+		}
+	}
+	return false
+}
 
 func (p *persona) hasAny(perms []string) bool {
 	for _, perm := range perms {
@@ -606,6 +629,14 @@ func (s *AuthzSpec) validate() error {
 			if !known[rt.Intent] {
 				problems = append(problems, fmt.Sprintf("%s: unknown permission %q", rt.id(), rt.Intent))
 			}
+		}
+		switch rt.OrgRole {
+		case "", "owner", "distributor", "reseller", "customer":
+		default:
+			problems = append(problems, fmt.Sprintf("%s: unknown organization role %q", rt.id(), rt.OrgRole))
+		}
+		if rt.OrUserRole != "" && rt.OrgRole == "" {
+			problems = append(problems, fmt.Sprintf("%s: or_user_role without org_role", rt.id()))
 		}
 	}
 

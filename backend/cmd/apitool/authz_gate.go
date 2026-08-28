@@ -98,6 +98,9 @@ func (a *authzRunner) buildProbes(rt RouteSpec, p *persona) []gateProbe {
 // expectAllowed decides, from the hand-authored intent alone, whether this
 // persona is supposed to get past the gate.
 func expectAllowed(rt RouteSpec, p *persona, probe gateProbe) bool {
+	if rt.OrgRole != "" && !strings.EqualFold(p.orgRole, rt.OrgRole) && !p.hasUserRole(rt.OrUserRole) {
+		return false
+	}
 	switch rt.Intent {
 	case "public", "authenticated":
 		return true
@@ -114,6 +117,17 @@ func expectAllowed(rt RouteSpec, p *persona, probe gateProbe) bool {
 }
 
 func intentLabel(rt RouteSpec) string {
+	if rt.OrgRole != "" {
+		who := rt.OrgRole + " org"
+		if rt.OrUserRole != "" {
+			who += "/" + rt.OrUserRole
+		}
+		return who + " + " + intentPermissionLabel(rt)
+	}
+	return intentPermissionLabel(rt)
+}
+
+func intentPermissionLabel(rt RouteSpec) string {
 	switch {
 	case rt.Intent != "" && len(rt.IntentAny) > 0:
 		return rt.Intent + "|" + strings.Join(rt.IntentAny, "|")

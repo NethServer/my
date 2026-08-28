@@ -1030,6 +1030,15 @@ COMMENT ON COLUMN rebrandable_products.type IS 'Product type: application or sys
 ALTER TABLE rebrandable_products ADD CONSTRAINT chk_rebrandable_products_type
     CHECK (type IN ('application', 'system'));
 
+-- The catalogue itself: without these rows no asset can be stored, since
+-- rebranding_assets.product_id references this table.
+INSERT INTO rebrandable_products (id, display_name, type) VALUES
+    ('nethvoice', 'NethVoice', 'application'),
+    ('webtop', 'NethService', 'application'),
+    ('ns8', 'NS8', 'system'),
+    ('nsec', 'NethSecurity', 'system')
+ON CONFLICT (id) DO UPDATE SET display_name = EXCLUDED.display_name, type = EXCLUDED.type;
+
 -- =============================================================================
 -- REBRANDING ENABLED TABLE
 -- =============================================================================
@@ -1056,7 +1065,7 @@ ALTER TABLE rebranding_enabled ADD CONSTRAINT chk_rebranding_enabled_org_type
 
 CREATE TABLE IF NOT EXISTS rebranding_assets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    organization_id VARCHAR(255) NOT NULL,              -- Logto organization ID
+    organization_id VARCHAR(255) NOT NULL REFERENCES rebranding_enabled(organization_id) ON DELETE CASCADE,
     product_id VARCHAR(100) NOT NULL REFERENCES rebrandable_products(id) ON DELETE CASCADE,
 
     -- Custom product name
@@ -1078,6 +1087,14 @@ CREATE TABLE IF NOT EXISTS rebranding_assets (
     favicon_mime VARCHAR(50),
     background_image_mime VARCHAR(50),
 
+    -- Name of the uploaded file, shown back in the upload form
+    logo_light_rect_filename VARCHAR(255),
+    logo_dark_rect_filename VARCHAR(255),
+    logo_light_square_filename VARCHAR(255),
+    logo_dark_square_filename VARCHAR(255),
+    favicon_filename VARCHAR(255),
+    background_image_filename VARCHAR(255),
+
     -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -1090,6 +1107,7 @@ COMMENT ON TABLE rebranding_assets IS 'Rebranding assets (logos, favicon, backgr
 COMMENT ON COLUMN rebranding_assets.organization_id IS 'Logto organization ID that owns these assets';
 COMMENT ON COLUMN rebranding_assets.product_id IS 'Product being rebranded (FK to rebrandable_products)';
 COMMENT ON COLUMN rebranding_assets.product_name IS 'Custom product name (e.g., CustomVoice instead of NethVoice)';
+COMMENT ON COLUMN rebranding_assets.logo_light_rect_filename IS 'Name of the uploaded file, shown back in the upload form';
 
 -- Performance indexes
 CREATE INDEX IF NOT EXISTS idx_rebranding_assets_organization_id ON rebranding_assets(organization_id);

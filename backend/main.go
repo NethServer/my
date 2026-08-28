@@ -152,6 +152,11 @@ func main() {
 	// ===========================================
 	api.GET("/public/users/:id/avatar", middleware.RateLimit(10, 30), methods.GetPublicAvatar)
 
+	// Rebranding assets, unauthenticated so a page can point an <img> at them.
+	// Branding is what a partner shows on its own login screens; the endpoint is
+	// rate-limited and serves nothing but the image.
+	api.GET("/public/rebranding/:org_id/products/:product_id/:asset", middleware.RateLimit(10, 30), methods.GetPublicRebrandingAsset)
+
 	// ===========================================
 	// PUBLIC AUTH ENDPOINTS
 	// ===========================================
@@ -588,18 +593,28 @@ func main() {
 		// ===========================================
 		// REBRANDING - per-product rebranding management
 		// ===========================================
-		rebrandingGroup := customAuthWithAudit.Group("/rebranding")
+		rebrandingGroup := customAuthWithAudit.Group("/rebranding", middleware.RequireResourcePermission("rebranding"))
 		{
-			// Rebrandable products list (any authenticated user)
+			// Rebrandable products list
 			rebrandingGroup.GET("/products", methods.GetRebrandingProducts)
 
+			// Organizations with rebranding: the list, its counters, and the
+			// organizations that can still be added
+			rebrandingGroup.GET("/organizations", methods.GetRebrandingOrganizations)
+			rebrandingGroup.GET("/organizations/available", methods.GetAvailableRebrandingOrganizations)
+			rebrandingGroup.GET("/summary", methods.GetRebrandingSummary)
+
 			// Enable/disable rebranding (Owner only, checked in handler)
+			rebrandingGroup.POST("/organizations", methods.EnableRebrandingBulk)
 			rebrandingGroup.PATCH("/:org_id/enable", methods.EnableRebranding)
 			rebrandingGroup.PATCH("/:org_id/disable", methods.DisableRebranding)
 
 			// Rebranding status and products for an organization
 			rebrandingGroup.GET("/:org_id/status", methods.GetRebrandingStatus)
 			rebrandingGroup.GET("/:org_id/products", methods.GetRebrandingOrgProducts)
+
+			// The configuration form: products, brand name and assets in one write
+			rebrandingGroup.PUT("/:org_id/config", methods.SaveRebrandingConfig)
 
 			// Asset management
 			rebrandingGroup.PUT("/:org_id/products/:product_id", methods.UploadRebrandingAssets)

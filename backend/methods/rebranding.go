@@ -11,14 +11,18 @@ package methods
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
+	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
 	local "github.com/nethesis/my/backend/services/local"
 )
@@ -29,6 +33,9 @@ const (
 	maxFaviconSize    = 512 * 1024      // 512KB
 	maxBackgroundSize = 5 * 1024 * 1024 // 5MB
 	maxProductName    = 100
+	maxFilename       = 255
+
+	maxAvailableOrganizations = 200
 )
 
 var allowedLogoMimes = map[string]bool{
@@ -81,7 +88,89 @@ func GetRebrandingProducts(c *gin.Context) {
 	}))
 }
 
-// EnableRebranding enables rebranding for an organization (Owner + Admin only)
+// GetRebrandingOrganizations handles GET /api/rebranding/organizations - the
+// organizations that have rebranding enabled, with the products each has branded.
+func GetRebrandingOrganizations(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	page, pageSize, sortBy, sortDirection := helpers.GetPaginationAndSortingFromQuery(c)
+
+	filters := local.RebrandingOrganizationFilters{
+		Search:        c.Query("search"),
+		Types:         c.QueryArray("type"),
+		ProductIDs:    c.QueryArray("product"),
+		Page:          page,
+		PageSize:      pageSize,
+		SortBy:        sortBy,
+		SortDirection: sortDirection,
+	}
+
+	service := local.NewRebrandingService()
+	organizations, totalCount, err := service.ListOrganizations(strings.ToLower(user.OrgRole), user.OrganizationID, filters)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to list rebranding organizations")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to list rebranding organizations", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("rebranding organizations retrieved successfully", gin.H{
+		"organizations": helpers.EnsureSlice(organizations),
+		"pagination":    helpers.BuildPaginationInfoWithSorting(page, pageSize, totalCount, sortBy, sortDirection),
+	}))
+}
+
+// GetRebrandingSummary handles GET /api/rebranding/summary - the counters shown
+// above the organizations list.
+func GetRebrandingSummary(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	service := local.NewRebrandingService()
+	summary, err := service.Summary(strings.ToLower(user.OrgRole), user.OrganizationID)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to summarize rebranding organizations")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to summarize rebranding organizations", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("rebranding summary retrieved successfully", summary))
+}
+
+// GetAvailableRebrandingOrganizations handles GET /api/rebranding/organizations/available -
+// the organizations that can still be added, for the picker.
+func GetAvailableRebrandingOrganizations(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	// Clamped rather than rejected, the way helpers.GetPaginationFromQuery treats
+	// page_size: an out-of-range limit on a picker is not worth an error.
+	limit := 50
+	if parsed, err := strconv.Atoi(c.Query("limit")); err == nil && parsed > 0 {
+		limit = min(parsed, maxAvailableOrganizations)
+	}
+
+	service := local.NewRebrandingService()
+	organizations, err := service.ListAvailableOrganizations(
+		strings.ToLower(user.OrgRole), user.OrganizationID, c.Query("search"), limit)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to list organizations available for rebranding")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to list organizations available for rebranding", nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("available organizations retrieved successfully", gin.H{
+		"organizations": helpers.EnsureSlice(organizations),
+	}))
+}
+
+// EnableRebranding enables rebranding for an organization (Owner only)
 func EnableRebranding(c *gin.Context) {
 	orgID := c.Param("org_id")
 	if orgID == "" {
@@ -119,7 +208,52 @@ func EnableRebranding(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("rebranding enabled successfully", nil))
 }
 
-// DisableRebranding disables rebranding for an organization (Owner + Admin only)
+// EnableRebrandingBulk handles POST /api/rebranding/organizations - adds the
+// whole selection of the picker in one call. Either every organization is
+// added or none is, so a partial failure cannot leave the caller with half a
+// selection enabled and no error to show.
+func EnableRebrandingBulk(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	if strings.ToLower(user.OrgRole) != "owner" {
+		c.JSON(http.StatusForbidden, response.Forbidden("only owner organization can enable rebranding", nil))
+		return
+	}
+
+	var request models.EnableRebrandingBulkRequest
+	if err := c.ShouldBindBodyWith(&request, binding.JSON); err != nil {
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+		return
+	}
+
+	service := local.NewRebrandingService()
+	enabled, invalid, err := service.EnableRebrandingBulk(request.OrganizationIDs)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to enable rebranding for organizations")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to enable rebranding", nil))
+		return
+	}
+	if len(invalid) > 0 {
+		validationErrors := make([]response.ValidationError, 0, len(invalid))
+		for _, id := range invalid {
+			validationErrors = append(validationErrors, response.ValidationError{
+				Key: "organization_ids", Message: "unknown", Value: id,
+			})
+		}
+		c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", validationErrors))
+		return
+	}
+
+	logger.LogBusinessOperation(c, "rebranding", "enable", "organizations",
+		strings.Join(request.OrganizationIDs, ","), true, nil)
+	c.JSON(http.StatusOK, response.OK("rebranding enabled successfully", gin.H{"enabled": enabled}))
+}
+
+// DisableRebranding disables rebranding for an organization (Owner only).
+// The organization's assets are deleted with it.
 func DisableRebranding(c *gin.Context) {
 	orgID := c.Param("org_id")
 	if orgID == "" {
@@ -156,18 +290,8 @@ func GetRebrandingStatus(c *gin.Context) {
 		return
 	}
 
-	user, ok := helpers.GetUserFromContext(c)
-	if !ok {
+	if !canReadRebranding(c, orgID) {
 		return
-	}
-
-	// Check access: owner can see all, others can see their own org
-	if strings.ToLower(user.OrgRole) != "owner" {
-		userService := local.NewUserService()
-		if !userService.IsOrganizationInHierarchy(strings.ToLower(user.OrgRole), user.OrganizationID, orgID) {
-			c.JSON(http.StatusForbidden, response.Forbidden("access denied", nil))
-			return
-		}
 	}
 
 	service := local.NewRebrandingService()
@@ -189,18 +313,8 @@ func GetRebrandingOrgProducts(c *gin.Context) {
 		return
 	}
 
-	user, ok := helpers.GetUserFromContext(c)
-	if !ok {
+	if !canReadRebranding(c, orgID) {
 		return
-	}
-
-	// Check access
-	if strings.ToLower(user.OrgRole) != "owner" {
-		userService := local.NewUserService()
-		if !userService.IsOrganizationInHierarchy(strings.ToLower(user.OrgRole), user.OrganizationID, orgID) {
-			c.JSON(http.StatusForbidden, response.Forbidden("access denied", nil))
-			return
-		}
 	}
 
 	service := local.NewRebrandingService()
@@ -214,6 +328,73 @@ func GetRebrandingOrgProducts(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("rebranding products retrieved successfully", status))
 }
 
+// SaveRebrandingConfig handles PUT /api/rebranding/:org_id/config - the whole
+// configuration form in one multipart request: the products the branding
+// applies to, the brand name, the assets being uploaded and the ones being
+// emptied. Products left out of the selection lose their configuration.
+func SaveRebrandingConfig(c *gin.Context) {
+	orgID := c.Param("org_id")
+	if orgID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("organization id is required", nil))
+		return
+	}
+
+	if !canWriteRebranding(c, orgID) {
+		return
+	}
+
+	service := local.NewRebrandingService()
+	if !requireRebrandingEnabled(c, service, orgID) {
+		return
+	}
+
+	if !parseRebrandingForm(c) {
+		return
+	}
+
+	products := formList(c, "products")
+	if len(products) == 0 {
+		c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+			{Key: "products", Message: "at_least_one_required"},
+		}))
+		return
+	}
+
+	brandName, ok := formBrandName(c, "brand_name")
+	if !ok {
+		return
+	}
+
+	uploads, ok := parseRebrandingUploads(c)
+	if !ok {
+		return
+	}
+
+	cfg := models.RebrandingConfig{
+		Products:  products,
+		BrandName: brandName,
+		Uploads:   uploads,
+		Clear:     formList(c, "clear"),
+	}
+
+	if err := service.SaveConfig(orgID, cfg); err != nil {
+		writeRebrandingWriteError(c, err, orgID, strings.Join(products, ","))
+		return
+	}
+
+	// What the confirmation reports: the organizations downstream that display
+	// this branding because they have none of their own.
+	applied, err := service.CountInheritingOrganizations(orgID)
+	if err != nil {
+		logger.Warn().Err(err).Str("organization_id", orgID).Msg("failed to count organizations inheriting rebranding")
+	}
+
+	logger.LogBusinessOperation(c, "rebranding", "save", "config", orgID, true, nil)
+	c.JSON(http.StatusOK, response.OK("rebranding configuration saved successfully", gin.H{
+		"applied_to_organizations": applied,
+	}))
+}
+
 // UploadRebrandingAssets handles multipart upload of rebranding assets for an org+product
 func UploadRebrandingAssets(c *gin.Context) {
 	orgID := c.Param("org_id")
@@ -224,100 +405,38 @@ func UploadRebrandingAssets(c *gin.Context) {
 		return
 	}
 
-	user, ok := helpers.GetUserFromContext(c)
+	if !canWriteRebranding(c, orgID) {
+		return
+	}
+
+	service := local.NewRebrandingService()
+	if !requireRebrandingEnabled(c, service, orgID) {
+		return
+	}
+
+	if !parseRebrandingForm(c) {
+		return
+	}
+
+	uploads, ok := parseRebrandingUploads(c)
 	if !ok {
 		return
 	}
 
-	// Check access: owner can upload for any org, others for their own org only
-	userOrgRole := strings.ToLower(user.OrgRole)
-	if userOrgRole != "owner" {
-		userService := local.NewUserService()
-		if !userService.IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, orgID) {
-			c.JSON(http.StatusForbidden, response.Forbidden("access denied", nil))
-			return
-		}
-	}
-
-	// Check rebranding is enabled for this org
-	service := local.NewRebrandingService()
-	enabled, err := service.IsRebrandingEnabled(orgID)
-	if err != nil {
-		logger.Error().Err(err).Msg("failed to check rebranding status")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to check rebranding status", nil))
-		return
-	}
-	if !enabled {
-		c.JSON(http.StatusForbidden, response.Forbidden("rebranding is not enabled for this organization", nil))
+	productName, ok := formBrandName(c, "product_name")
+	if !ok {
 		return
 	}
 
-	// Parse multipart form
-	if err := c.Request.ParseMultipartForm(maxBackgroundSize + maxLogoSize*4 + maxFaviconSize); err != nil {
-		c.JSON(http.StatusBadRequest, response.BadRequest("invalid multipart form", nil))
-		return
-	}
+	clear := formList(c, "clear")
 
-	fields := make(map[string][]byte)
-	mimeTypes := make(map[string]string)
-
-	// Process each asset field
-	for fieldName, config := range assetConfigs {
-		file, header, err := c.Request.FormFile(fieldName)
-		if err != nil {
-			continue // Field not provided, skip
-		}
-		defer func() { _ = file.Close() }()
-
-		// Validate size
-		if header.Size > config.maxSize {
-			c.JSON(http.StatusBadRequest, response.BadRequest(
-				fieldName+" exceeds maximum size",
-				gin.H{"field": fieldName, "max_size": config.maxSize, "actual_size": header.Size},
-			))
-			return
-		}
-
-		// Validate MIME type
-		contentType := header.Header.Get("Content-Type")
-		if !config.allowedMimes[contentType] {
-			c.JSON(http.StatusBadRequest, response.BadRequest(
-				fieldName+" has invalid content type",
-				gin.H{"field": fieldName, "content_type": contentType},
-			))
-			return
-		}
-
-		// Read file data
-		data, err := io.ReadAll(file)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to read "+fieldName, nil))
-			return
-		}
-
-		fields[fieldName] = data
-		mimeTypes[fieldName] = contentType
-	}
-
-	// Get product_name from form
-	var productName *string
-	if pn := c.Request.FormValue("product_name"); pn != "" {
-		if len(pn) > maxProductName {
-			c.JSON(http.StatusBadRequest, response.BadRequest("product name exceeds maximum length", gin.H{"max_length": maxProductName}))
-			return
-		}
-		productName = &pn
-	}
-
-	// Must have at least one field
-	if len(fields) == 0 && productName == nil {
+	if len(uploads) == 0 && productName == nil && len(clear) == 0 {
 		c.JSON(http.StatusBadRequest, response.BadRequest("at least one asset or product_name is required", nil))
 		return
 	}
 
-	if err := service.UpsertAssets(orgID, productID, productName, fields, mimeTypes); err != nil {
-		logger.Error().Err(err).Str("organization_id", orgID).Str("product_id", productID).Msg("failed to upload rebranding assets")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to upload rebranding assets", nil))
+	if err := service.UpsertAssets(orgID, productID, productName, uploads, clear); err != nil {
+		writeRebrandingWriteError(c, err, orgID, productID)
 		return
 	}
 
@@ -335,18 +454,8 @@ func DeleteRebrandingProduct(c *gin.Context) {
 		return
 	}
 
-	user, ok := helpers.GetUserFromContext(c)
-	if !ok {
+	if !canWriteRebranding(c, orgID) {
 		return
-	}
-
-	userOrgRole := strings.ToLower(user.OrgRole)
-	if userOrgRole != "owner" {
-		userService := local.NewUserService()
-		if !userService.IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, orgID) {
-			c.JSON(http.StatusForbidden, response.Forbidden("access denied", nil))
-			return
-		}
 	}
 
 	service := local.NewRebrandingService()
@@ -377,18 +486,8 @@ func DeleteRebrandingAsset(c *gin.Context) {
 		return
 	}
 
-	user, ok := helpers.GetUserFromContext(c)
-	if !ok {
+	if !canWriteRebranding(c, orgID) {
 		return
-	}
-
-	userOrgRole := strings.ToLower(user.OrgRole)
-	if userOrgRole != "owner" {
-		userService := local.NewUserService()
-		if !userService.IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, orgID) {
-			c.JSON(http.StatusForbidden, response.Forbidden("access denied", nil))
-			return
-		}
 	}
 
 	service := local.NewRebrandingService()
@@ -422,29 +521,231 @@ func GetRebrandingAsset(c *gin.Context) {
 		return
 	}
 
-	user, ok := helpers.GetUserFromContext(c)
-	if !ok {
+	if !canReadRebranding(c, orgID) {
 		return
 	}
 
-	// Check access
-	userOrgRole := strings.ToLower(user.OrgRole)
-	if userOrgRole != "owner" {
-		userService := local.NewUserService()
-		if !userService.IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, orgID) {
-			c.JSON(http.StatusForbidden, response.Forbidden("access denied", nil))
-			return
-		}
+	serveRebrandingAsset(c, orgID, productID, assetName, "private, max-age=300, must-revalidate")
+}
+
+// GetPublicRebrandingAsset serves an asset with no token, so a page can point an
+// <img> straight at it. Branding is what a partner shows on its own login
+// screens, so the binary is not a secret; the endpoint is rate-limited and
+// serves nothing but the image.
+func GetPublicRebrandingAsset(c *gin.Context) {
+	orgID := c.Param("org_id")
+	productID := c.Param("product_id")
+	assetName := c.Param("asset")
+
+	if orgID == "" || productID == "" || assetName == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("organization id, product id, and asset name are required", nil))
+		return
 	}
 
+	serveRebrandingAsset(c, orgID, productID, assetName, "public, max-age=300, must-revalidate")
+}
+
+func serveRebrandingAsset(c *gin.Context, orgID, productID, assetName, cacheControl string) {
 	service := local.NewRebrandingService()
-	data, mimeType, err := service.GetAssetBinary(orgID, productID, assetName)
+	data, mimeType, updatedAt, err := service.GetAssetBinary(orgID, productID, assetName)
 	if err != nil {
+		if errors.Is(err, local.ErrInvalidRebrandingAsset) {
+			c.JSON(http.StatusBadRequest, response.BadRequest("invalid asset name", nil))
+			return
+		}
 		c.JSON(http.StatusNotFound, response.NotFound("asset not found", nil))
 		return
 	}
 
+	etag := fmt.Sprintf(`"%d-%d"`, updatedAt.UnixNano(), len(data))
+	c.Header("ETag", etag)
+	c.Header("Last-Modified", updatedAt.UTC().Format(http.TimeFormat))
+	c.Header("Cache-Control", cacheControl)
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Disposition", "inline")
+	// An uploaded SVG is markup, and SVG is the recommended format here. Served
+	// from the API origin it would be a place to run script against that origin,
+	// so the response is stripped of every capability an image does not need.
+	c.Header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
+
+	if c.GetHeader("If-None-Match") == etag {
+		c.Status(http.StatusNotModified)
+		return
+	}
+
 	c.Data(http.StatusOK, mimeType, data)
+}
+
+// canReadRebranding allows the owner everywhere and everyone else within their
+// own hierarchy. It answers 403 itself when access is denied.
+func canReadRebranding(c *gin.Context, orgID string) bool {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return false
+	}
+
+	if strings.ToLower(user.OrgRole) == "owner" {
+		return true
+	}
+
+	userService := local.NewUserService()
+	if userService.IsOrganizationInHierarchy(strings.ToLower(user.OrgRole), user.OrganizationID, orgID) {
+		return true
+	}
+
+	// The hierarchy check only looks downwards, but branding is inherited
+	// upwards: a customer displays the branding of the organization above it and
+	// has to be able to read those assets. Only that one organization, though —
+	// the one the caller actually inherits from.
+	if enabled, resolved := resolveRebranding(user.OrganizationID); enabled && resolved != nil && *resolved == orgID {
+		return true
+	}
+
+	c.JSON(http.StatusForbidden, response.Forbidden("access denied", nil))
+	return false
+}
+
+// canWriteRebranding allows the owner everywhere and everyone else on their own
+// organization only. A partner configures its own branding and the
+// organizations below inherit it; writing into one of them directly would
+// override a configuration its own administrators own.
+func canWriteRebranding(c *gin.Context, orgID string) bool {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return false
+	}
+
+	if strings.ToLower(user.OrgRole) == "owner" || user.OrganizationID == orgID {
+		return true
+	}
+
+	c.JSON(http.StatusForbidden, response.Forbidden("rebranding can only be configured for your own organization", nil))
+	return false
+}
+
+func requireRebrandingEnabled(c *gin.Context, service *local.RebrandingService, orgID string) bool {
+	enabled, err := service.IsRebrandingEnabled(orgID)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to check rebranding status")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to check rebranding status", nil))
+		return false
+	}
+	if !enabled {
+		c.JSON(http.StatusForbidden, response.Forbidden("rebranding is not enabled for this organization", nil))
+		return false
+	}
+	return true
+}
+
+func parseRebrandingForm(c *gin.Context) bool {
+	if err := c.Request.ParseMultipartForm(maxBackgroundSize + maxLogoSize*4 + maxFaviconSize); err != nil {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid multipart form", nil))
+		return false
+	}
+	return true
+}
+
+// parseRebrandingUploads reads the asset fields of the form, validating size and
+// content type. It answers the request itself on the first invalid asset.
+func parseRebrandingUploads(c *gin.Context) (map[string]models.RebrandingUpload, bool) {
+	uploads := make(map[string]models.RebrandingUpload)
+
+	for fieldName, config := range assetConfigs {
+		file, header, err := c.Request.FormFile(fieldName)
+		if err != nil {
+			continue // Field not provided, skip
+		}
+		defer func() { _ = file.Close() }()
+
+		if header.Size > config.maxSize {
+			c.JSON(http.StatusBadRequest, response.BadRequest(
+				fieldName+" exceeds maximum size",
+				gin.H{"field": fieldName, "max_size": config.maxSize, "actual_size": header.Size},
+			))
+			return nil, false
+		}
+
+		contentType := header.Header.Get("Content-Type")
+		if !config.allowedMimes[contentType] {
+			c.JSON(http.StatusBadRequest, response.BadRequest(
+				fieldName+" has invalid content type",
+				gin.H{"field": fieldName, "content_type": contentType},
+			))
+			return nil, false
+		}
+
+		data, err := io.ReadAll(file)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to read "+fieldName, nil))
+			return nil, false
+		}
+
+		filename := header.Filename
+		if len(filename) > maxFilename {
+			filename = filename[:maxFilename]
+		}
+
+		uploads[fieldName] = models.RebrandingUpload{Data: data, MimeType: contentType, Filename: filename}
+	}
+
+	return uploads, true
+}
+
+// formList reads a repeatable form field that also accepts a comma-separated
+// list, so "products=nethvoice,nsec" and two products fields mean the same.
+func formList(c *gin.Context, field string) []string {
+	values := make([]string, 0)
+	if c.Request.MultipartForm == nil {
+		return values
+	}
+	for _, raw := range c.Request.MultipartForm.Value[field] {
+		for _, item := range strings.Split(raw, ",") {
+			if trimmed := strings.TrimSpace(item); trimmed != "" {
+				values = append(values, trimmed)
+			}
+		}
+	}
+	return values
+}
+
+func formBrandName(c *gin.Context, field string) (*string, bool) {
+	value := c.Request.FormValue(field)
+	if value == "" {
+		return nil, true
+	}
+	if len(value) > maxProductName {
+		// "max" is the code the binding validator emits for a max=N tag, so the
+		// frontend handles one code whether the limit is checked here or there.
+		c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+			{Key: field, Message: "max", Value: value},
+		}))
+		return nil, false
+	}
+	return &value, true
+}
+
+func writeRebrandingWriteError(c *gin.Context, err error, orgID, productIDs string) {
+	// An unknown product id or asset name is a field the caller got wrong, and
+	// the caller needs to know which one: answer in the validation shape, with
+	// the value that was rejected.
+	var fieldErr *local.RebrandingFieldError
+	if errors.As(err, &fieldErr) {
+		c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+			{Key: fieldErr.Field, Message: "unknown", Value: fieldErr.Value},
+		}))
+		return
+	}
+
+	if errors.Is(err, local.ErrNoRebrandingProducts) {
+		c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+			{Key: "products", Message: "at_least_one_required"},
+		}))
+		return
+	}
+
+	logger.Error().Err(err).Str("organization_id", orgID).Str("product_id", productIDs).
+		Msg("failed to save rebranding configuration")
+	c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to save rebranding configuration", nil))
 }
 
 // resolveRebranding resolves rebranding status for a given organization ID.

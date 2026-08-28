@@ -619,3 +619,80 @@ scenarios:
     note: |
       Defence in depth rather than the boundary itself — the checks above prove
       the refusal happens even when the id is supplied directly.
+
+  # ===========================================================================
+  # Rebranding. Branding is inherited downwards and configured only on one's own
+  # organization, so the object question here is sharper than "is it in my
+  # subtree": holding manage:rebranding must not let a distributor write into
+  # the reseller below it either.
+  # ===========================================================================
+  - name: rebranding — reseller cannot configure the sibling reseller
+    as: d1r1-admin
+    method: PUT
+    path: /api/rebranding/{org:d1r2}/config
+    expect: denied
+
+  - name: rebranding — distributor cannot configure its own reseller
+    as: d1-admin
+    method: PUT
+    path: /api/rebranding/{org:d1r1}/config
+    expect: denied
+    note: |
+      The reseller inherits the distributor's branding when it has none of its
+      own; it is never written into. Otherwise a distributor could overwrite a
+      configuration the reseller's own administrators own.
+
+  - name: rebranding — customer cannot configure the organization it inherits from
+    as: d1r1c1-admin
+    method: PUT
+    path: /api/rebranding/{org:d1r1}/config
+    expect: denied
+
+  - name: rebranding — reseller cannot delete the distributor's assets
+    as: d1r1-admin
+    method: DELETE
+    path: /api/rebranding/{org:d1}/products/nethvoice
+    expect: denied
+
+  - name: rebranding — reseller cannot read the sibling reseller's configuration
+    as: d1r1-admin
+    method: GET
+    path: /api/rebranding/{org:d1r2}/status
+    expect: denied
+
+  - name: rebranding — reseller cannot read the sibling reseller's asset
+    as: d1r1-admin
+    method: GET
+    path: /api/rebranding/{org:d1r2}/products/nethvoice/logo_light_rect
+    expect: denied
+
+  - name: rebranding — distributor cannot read the other branch
+    as: d1-admin
+    method: GET
+    path: /api/rebranding/{org:d2}/status
+    expect: denied
+
+  - name: rebranding — reseller reads its own configuration
+    as: d1r1-admin
+    method: GET
+    path: /api/rebranding/{my_org}/status
+    expect: allowed
+
+  - name: rebranding — distributor reads the reseller below it
+    as: d1-admin
+    method: GET
+    path: /api/rebranding/{org:d1r1}/status
+    expect: allowed
+    note: reading downwards is fine; it is writing downwards that is refused
+
+  - name: rebranding — the organizations list stops at the caller's subtree
+    as: d1r1-admin
+    method: GET
+    path: /api/rebranding/organizations?page_size=100
+    must_not_contain: ["{org:d2}", "{org:d1r2}", "{org_name:d1r2}"]
+
+  - name: rebranding — the picker stops at the caller's subtree
+    as: d1r1-admin
+    method: GET
+    path: /api/rebranding/organizations/available?limit=200
+    must_not_contain: ["{org:d2}", "{org:d1r2}", "{org_name:d1r2}"]

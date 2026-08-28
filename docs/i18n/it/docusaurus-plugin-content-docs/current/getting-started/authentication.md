@@ -135,7 +135,7 @@ I ruoli utente determinano le capacità tecniche all'interno della piattaforma, 
 |-------|-------------|---------------------|
 | **Super Admin** | Amministrazione completa della piattaforma | Tutte le operazioni, incluse quelle pericolose. Solo nell'organizzazione Owner |
 | **Admin** | Gestione sistemi e utenti | Gestione sistemi, utenti, operazioni pericolose |
-| **Backoffice** | Operazioni di backoffice | Gestione organizzazioni, applicazioni, rebranding |
+| **Backoffice** | Operazioni di backoffice | Gestione organizzazioni, applicazioni, licenze add-on |
 | **Support** | Operazioni di supporto standard | Accesso lettura ai sistemi, operazioni di supporto |
 | **Reader** | Sola lettura | Visualizzazione dati senza possibilità di modifica |
 

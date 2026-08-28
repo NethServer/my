@@ -437,7 +437,8 @@ Authoritative: `backend/openapi.yaml` (also `make docs` / redocly). High-level r
 /api/alerts/silences/*                  cross-system silences (mute/unmute) — parallel to /systems/:id/alerts/silences
 /api/alerts/activity/:fingerprint       per-alert audit timeline (silence created/updated/removed)
 /api/filters/{systems,applications,users,alerts}  UI filter aggregation (alerts: static catalog + data-driven systems/severities/orgs)
-/api/rebranding/*                   per-org per-product asset management
+/api/rebranding/*                   organizations list/summary + enablement + per-org per-product assets
+/api/public/rebranding/*            unauthenticated, rate-limited asset binaries for <img> tags
 /api/organizations, /api/roles, /api/organization-roles  metadata
 /api/validators/vat/:entity_type    VAT validation
 /api/stats                          Owner-only platform stats
