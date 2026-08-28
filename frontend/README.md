@@ -107,32 +107,6 @@ npm run preview
 ./dev.sh bash
 ```
 
-#### VSCode Dev Containers
-
-**Important Notes:**
-- Modifying `dev.containers.dockerPath` setting affects all projects globally
-- This procedure may not work on [VSCodium](https://vscodium.com/)
-
-**Setup:**
-1. Install [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
-2. Configure Podman support:
-   - Go to `File > Preferences > Settings`
-   - Search for `dev.containers.dockerPath`
-   - Set the value to `podman`
-3. Open the frontend directory in VSCode
-4. Open Command Palette (`CTRL+SHIFT+P`) → "Reopen in Container" (or "Rebuild and Reopen in Container")
-5. Open integrated terminal: `View > Terminal`
-6. Run development commands:
-   ```bash
-   npm install          # Install dependencies
-   npm run dev          # Start development server
-   npm run lint-fix     # Fix linting issues
-   npm run format-fix   # Format source files
-   npm run qa           # Start QA environment server
-   ```
-
-Container configuration is in `.devcontainer/devcontainer.json`.
-
 ## Testing
 
 ### Manual Testing
@@ -167,7 +141,6 @@ frontend/
 │   ├── views/             # Page components
 │   └── i18n/              # Internationalization
 ├── public/                # Static assets
-├── .devcontainer/         # VSCode Dev Container config
 ├── dev.sh                 # Podman development script
 └── build.sh               # Production build script
 ```

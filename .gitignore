@@ -45,8 +45,9 @@ config.yaml
 proxy/*.pem
 
 # IDE
-.vscode/
 .idea/
+.vscode/*
+!.vscode/extensions.json
 
 # Logs
 *.log
