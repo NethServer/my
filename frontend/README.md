@@ -115,21 +115,16 @@ npm run qa
 npm run preview
 ```
 
-### Container Development
+### Running without installing Node
 
-#### Podman Development
-```bash
-# Start development container
-./dev.sh
+There is no container-based dev server: `npm run dev` on the host is the only
+development path, because a bind-mounted container installs `node_modules` with
+container-resolved native binaries and breaks editor tooling (Volar, ESLint,
+`vue-tsc`), which must resolve `node_modules` from the host.
 
-# Build container image
-./dev.sh build
-
-# Run commands in container
-./dev.sh npm run lint-fix
-./dev.sh npm run format-fix
-./dev.sh bash
-```
+To run the app without installing anything, use the full stack from the repo
+root — `docker-compose up -d`, app on http://localhost:9090. That builds the
+frontend's `production` target, so it is a build, not a live-reload server.
 
 ## Testing
 
@@ -165,7 +160,6 @@ frontend/
 │   ├── views/             # Page components
 │   └── i18n/              # Internationalization
 ├── public/                # Static assets
-├── dev.sh                 # Podman development script
 └── build.sh               # Production build script
 ```
 
