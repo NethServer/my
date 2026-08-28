@@ -108,6 +108,16 @@ npm run qa
 npm run preview
 ```
 
+### Running without installing Node
+
+There is no container-based dev server: `npm run dev` on the host is the only
+development path.
+
+To run the app without installing anything, use the full stack from the repo
+root — `docker-compose up -d`, app on http://localhost:9090. It needs a root `.env`
+supplying the `VITE_LOGTO_*` values, which compose declares mandatory. That builds the
+frontend's `production` target, so it is a build, not a live-reload server.
+
 ## Testing
 
 ### Manual Testing
