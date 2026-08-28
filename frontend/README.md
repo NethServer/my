@@ -5,9 +5,8 @@ Vue.js web application for My Nethesis with Logto authentication and Role-Based 
 ## Quick Start
 
 ### Prerequisites
-- Node.js 20+ LTS
-- NPM
-- Backend API running
+- Node.js — the exact version in [`.nvmrc`](../.nvmrc) at the repo root. See [Node version](#node-version).
+- Backend API running on port 8080
 - Logto instance configured
 
 ### Setup
@@ -16,12 +15,37 @@ Vue.js web application for My Nethesis with Logto authentication and Role-Based 
 > Start it first with `cd backend && make dev-up && make run`.
 
 ```bash
-# Install dependencies
-npm ci
-
-# Start development server (port 5173)
-npm run dev
+nvm install    # no argument: reads ../.nvmrc, installs that version and switches to it
+node -v        # must match ../.nvmrc
+npm ci         # npm ships inside Node — nothing separate to install
+npm run dev    # development server on port 5173
 ```
+
+### Node version
+
+One version is pinned for the whole repo, at the **root** rather than here, because
+nvm, fnm and mise all search *upward* from the current directory — so a single pin
+covers `frontend/` and `docs/` alike.
+
+Two files hold the same string, because managers disagree on which one to read:
+
+| Manager | `.nvmrc` | `.node-version` |
+| --- | --- | --- |
+| nvm | yes | no |
+| fnm, mise | yes | yes |
+| nodenv | no | yes |
+| asdf | no (uses `.tool-versions`) | only with `legacy_version_file = yes` |
+
+- **nvm**: `nvm install`, then `nvm use` in every new shell. nvm does **not** switch
+  automatically; add the `cd` hook from nvm's "Deeper Shell Integration" section to
+  your shell rc if you want it to.
+- **fnm**: `fnm install && fnm use`, or `eval "$(fnm env --use-on-cd)"` to automate it.
+- **mise**: `mise install` — it reads `.nvmrc` with no extra configuration.
+
+`engines` in `package.json` is the backstop. On the wrong Node, `npm ci` still
+succeeds but prints `EBADENGINE` — treat that as an error, because `npm run
+type-check` would then check against `@types/node` for a runtime you are not
+actually running.
 
 ### Required Environment Variables
 

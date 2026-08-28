@@ -280,7 +280,7 @@ Build pagination with `helpers.BuildPaginationInfoWithSorting(...)`. Reference `
 
 ### 6.5 Go style
 
-- Go 1.24 across all components. `gofmt -s` compliant. `golangci-lint` clean.
+- Go 1.25 across all components (the `go` directive in each `go.mod` is the source of truth). `gofmt -s` compliant. `golangci-lint` clean.
 - Structured logging with zerolog (backend/collect) or custom logger (sync). Automatic redaction of secrets/tokens/passwords.
 - No comments that explain WHAT the code does — identifiers do that. Only comment non-obvious WHY.
 

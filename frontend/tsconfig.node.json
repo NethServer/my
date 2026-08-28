@@ -1,4 +1,8 @@
 {
+  // Runtime is pinned to Node 24 (/.nvmrc) and @types/node tracks it, but the base
+  // config stays on node22: @tsconfig/node24 uses lib "ESNext.Error", which needs
+  // TypeScript >= 5.9, and this repo pins typescript ~5.8.0. Only affects the
+  // lib/target used to check the build config files below, so the gap is harmless.
   "extends": "@tsconfig/node22/tsconfig.json",
   "include": [
     "vite.config.*",

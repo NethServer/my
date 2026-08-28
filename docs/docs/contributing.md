@@ -103,8 +103,8 @@ Common problems and solutions.
 
 ### Prerequisites
 
-- Node.js 20+
-- npm
+- Node.js — the version in `.nvmrc` at the repo root (`nvm install && nvm use`).
+  npm ships with Node, so there is nothing separate to install.
 
 ```bash
 # Install dependencies

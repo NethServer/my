@@ -59,7 +59,7 @@ Web application providing centralized authentication and management using Logto 
 ## 🚀 Quick Start
 
 ### Requirements
-- **Development**: Go 1.24+, Node.js 20+ LTS, Make
+- **Development**: Go 1.25+ (see each `go.mod`), Node.js per `.nvmrc` at the repo root, Make
 - **Containers**: Docker OR Podman (optional, for full infrastructure)
 - **External**: Logto instance with M2M app and Management API permissions
 - **Deploy**: Render account with GitHub integration
