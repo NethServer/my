@@ -121,6 +121,9 @@ func (m *LinkFailedMonitor) loadInactiveSystems(ctx context.Context) (map[string
 		  -- already-suspended org).
 		  AND s.suspended_at IS NULL
 		  AND COALESCE(d.suspended_at, r.suspended_at, c.suspended_at) IS NULL
+		  -- Never alert on a system that announced its unregistration: it is
+		  -- silent by design, and the alert would have nobody to clear it.
+		  AND s.unregistered_at IS NULL
 		  AND s.organization_id IS NOT NULL
 		  AND s.organization_id <> ''
 	`)

@@ -64,6 +64,7 @@ type System struct {
 	UpdatedAt        time.Time         `json:"updated_at" structs:"updated_at"`
 	DeletedAt        *time.Time        `json:"deleted_at" structs:"deleted_at"`                   // Soft delete timestamp
 	RegisteredAt     *time.Time        `json:"registered_at" structs:"registered_at"`             // Registration timestamp
+	UnregisteredAt   *time.Time        `json:"unregistered_at" structs:"unregistered_at"`         // Terminal: the system gave up its credentials
 	SuspendedAt      *time.Time        `json:"suspended_at" structs:"suspended_at"`               // Suspension timestamp
 	SuspendedByOrgID *string           `json:"suspended_by_org_id" structs:"suspended_by_org_id"` // Organization that caused cascade suspension
 	DeletedByOrgID   *string           `json:"deleted_by_org_id" structs:"deleted_by_org_id"`     // Organization that caused cascade soft-deletion

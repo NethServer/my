@@ -268,6 +268,9 @@ CREATE TABLE IF NOT EXISTS systems (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     registered_at TIMESTAMP WITH TIME ZONE, -- When system completed registration (NULL = not registered)
 
+    -- Unregistration (terminal: the system key is spent)
+    unregistered_at TIMESTAMP WITH TIME ZONE, -- NULL = credentials valid, non-NULL = credentials refused
+
     -- Suspension
     suspended_at TIMESTAMP WITH TIME ZONE,      -- NULL = active, non-NULL = suspended
     suspended_by_org_id VARCHAR(255),            -- Organization that caused cascade suspension
@@ -291,7 +294,7 @@ ALTER TABLE systems SET (autovacuum_analyze_scale_factor = 0.02);
 -- Table documentation
 COMMENT ON TABLE systems IS 'NS8/NethSecurity systems registered for monitoring and inventory collection';
 COMMENT ON COLUMN systems.type IS 'System type from inventory: ns8 (NethServer 8), nsec (NethSecurity)';
-COMMENT ON COLUMN systems.status IS 'Heartbeat status: unknown (no data), active (heartbeat recent), inactive (heartbeat stale), deleted';
+COMMENT ON COLUMN systems.status IS 'Heartbeat status: unknown (no data), active (heartbeat recent), inactive (heartbeat stale), unregistered (credentials refused), deleted';
 COMMENT ON COLUMN systems.last_inventory_at IS 'Timestamp of last inventory received. NULL means no inventory received yet';
 COMMENT ON COLUMN systems.suspended_at IS 'Suspension timestamp: NULL = active, non-NULL = suspended';
 COMMENT ON COLUMN systems.suspended_by_org_id IS 'Organization that caused cascade suspension (for targeted reactivation)';
@@ -299,6 +302,7 @@ COMMENT ON COLUMN systems.system_key IS 'Unique system key for identification (u
 COMMENT ON COLUMN systems.system_secret_public IS 'Public part of token (my_<public>.<secret>) for fast DB lookup';
 COMMENT ON COLUMN systems.system_secret_sha256 IS 'SHA256 hash of secret part (hex_salt:hex_hash)';
 COMMENT ON COLUMN systems.registered_at IS 'Timestamp when system first sent inventory. NULL = not yet registered';
+COMMENT ON COLUMN systems.unregistered_at IS 'Timestamp when the system announced its unregistration. NULL = credentials still valid; non-NULL = credentials refused, row kept until deleted';
 COMMENT ON COLUMN systems.created_by IS 'JSON object: {user_id, username, name, email, organization_id, organization_name, on_behalf_of} who created the system; display/audit only, not used for RBAC';
 COMMENT ON COLUMN systems.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted';
 COMMENT ON COLUMN systems.deleted_by_org_id IS 'Organization that caused cascade soft-deletion (for tracking cascade source)';
@@ -324,7 +328,7 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_systems_status') THEN
         ALTER TABLE systems ADD CONSTRAINT chk_systems_status
-            CHECK (status IN ('unknown', 'active', 'inactive', 'deleted'));
+            CHECK (status IN ('unknown', 'active', 'inactive', 'unregistered', 'deleted'));
     END IF;
 END $$;
 

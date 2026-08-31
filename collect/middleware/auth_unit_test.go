@@ -188,3 +188,18 @@ func TestMiddlewareContextSetting(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 }
+
+// Every appliance request is authorised by systemCredentialsQuery alone.
+// Losing one of its lifecycle filters hands a revoked credential back its
+// access to heartbeat, inventory, backups, the alert proxy and the enterprise
+// feeds, and no other test would notice.
+func TestSystemCredentialsQuery_KeepsEveryRevocationFilter(t *testing.T) {
+	for _, filter := range []string{
+		"deleted_at IS NULL",
+		"suspended_at IS NULL",
+		"unregistered_at IS NULL",
+	} {
+		assert.Containsf(t, systemCredentialsQuery, filter,
+			"credential lookup must refuse systems matching %q", filter)
+	}
+}

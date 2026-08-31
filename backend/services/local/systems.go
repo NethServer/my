@@ -151,7 +151,7 @@ func (s *LocalSystemsService) CreateSystem(request *models.CreateSystemRequest, 
 func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRole, userRole string) ([]*models.System, error) {
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
-		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, s.suspended_at, s.suspended_by_org_id, h.last_heartbeat, s.last_inventory_at,
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, s.unregistered_at, s.suspended_at, s.suspended_by_org_id, h.last_heartbeat, s.last_inventory_at,
 		       COALESCE(d.name, r.name, c.name, 'Owner') as organization_name,
 		       CASE
 		           WHEN d.logto_id IS NOT NULL THEN 'distributor'
@@ -183,14 +183,14 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 		var customDataJSON []byte
 		var createdByJSON []byte
 		var fqdn, ipv4Address, ipv6Address, version sql.NullString
-		var registeredAt, suspendedAt, lastHeartbeat, lastInventory sql.NullTime
+		var registeredAt, unregisteredAt, suspendedAt, lastHeartbeat, lastInventory sql.NullTime
 		var suspendedByOrgID sql.NullString
 		var organizationName, organizationType, organizationDBID sql.NullString
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.LogtoID,
-			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &suspendedAt, &suspendedByOrgID, &lastHeartbeat, &lastInventory,
+			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &unregisteredAt, &suspendedAt, &suspendedByOrgID, &lastHeartbeat, &lastInventory,
 			&organizationName, &organizationType, &organizationDBID,
 		)
 		if err != nil {
@@ -209,6 +209,10 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 		// Convert registered_at
 		if registeredAt.Valid {
 			system.RegisteredAt = &registeredAt.Time
+		}
+
+		if unregisteredAt.Valid {
+			system.UnregisteredAt = &unregisteredAt.Time
 		}
 
 		// Convert suspended_at
@@ -699,7 +703,14 @@ func (s *LocalSystemsService) RestoreSystem(systemID, userID, userOrgID, userOrg
 	}
 
 	// Restore system in database (set deleted_at to NULL and status to 'unknown')
-	restoreQuery := `UPDATE systems SET deleted_at = NULL, updated_at = NOW(), status = 'unknown' WHERE id = $1 AND deleted_at IS NOT NULL`
+	// A restored system that had announced its unregistration goes back to that
+	// terminal state, not to 'unknown': its credentials stay refused.
+	restoreQuery := `
+		UPDATE systems
+		SET deleted_at = NULL,
+		    updated_at = NOW(),
+		    status = CASE WHEN unregistered_at IS NOT NULL THEN 'unregistered' ELSE 'unknown' END
+		WHERE id = $1 AND deleted_at IS NOT NULL`
 
 	result, err := database.DB.Exec(restoreQuery, systemID)
 	if err != nil {
@@ -1036,13 +1047,21 @@ func (s *LocalSystemsService) CanDeleteSystem(system *models.System, userOrgRole
 // =============================================================================
 
 // applyUnifiedStatus overrides the DB status with the unified status.
-// Priority: deleted > suspended > DB status (unknown/active/inactive).
+// Priority: deleted > unregistered > suspended > DB status
+// (unknown/active/inactive).
 // Deleted wins over suspended (same convention as orgs/users): a system
 // suspended and then archived must read as "deleted" so the frontend offers
 // restore, not reactivate (which 404s on soft-deleted rows).
+// Unregistered outranks suspended because it is terminal: a system whose org
+// is also suspended would otherwise read as "suspended" and promise that
+// reactivating the org brings the machine back, which no action can do.
 func (s *LocalSystemsService) applyUnifiedStatus(system *models.System) {
 	if system.DeletedAt != nil {
 		system.Status = "deleted"
+		return
+	}
+	if system.UnregisteredAt != nil {
+		system.Status = "unregistered"
 		return
 	}
 	if system.SuspendedAt != nil {

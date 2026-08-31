@@ -79,6 +79,11 @@ func (h *HeartbeatMonitor) Start(ctx context.Context) {
 func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 	cutoff := time.Now().Add(-time.Duration(h.timeoutMinutes) * time.Minute)
 
+	// Unregistered systems are out of every branch below: their status is a
+	// terminal 'unregistered' and they will never report again, so letting the
+	// liveness flag move would both overwrite that state and fire LinkFailed
+	// forever on a machine that announced its own departure.
+	//
 	// Note: updated_at is intentionally NOT touched here. Status is a
 	// system-driven liveness flag, not a user edit; bumping updated_at on every
 	// flip would churn idx_systems_updated_at each cycle for no benefit.
@@ -97,6 +102,7 @@ func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 			AND h.last_heartbeat > $1
 			AND s.status = 'inactive'
 			AND s.deleted_at IS NULL
+			AND s.unregistered_at IS NULL
 		RETURNING s.id::text
 	`
 
@@ -129,6 +135,7 @@ func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 			AND h.last_heartbeat > $1
 			AND s.status = 'unknown'
 			AND s.deleted_at IS NULL
+			AND s.unregistered_at IS NULL
 	`
 	if resultWake, wakeErr := h.db.ExecContext(ctx, queryWake, cutoff); wakeErr != nil {
 		logger.Error().Err(wakeErr).Msg("Failed to update pending systems to active status")
@@ -150,6 +157,7 @@ func (h *HeartbeatMonitor) checkAndUpdateStatuses(ctx context.Context) {
 			AND h.last_heartbeat <= $1
 			AND s.status = 'active'
 			AND s.deleted_at IS NULL
+			AND s.unregistered_at IS NULL
 	`
 	resultInactive, err := h.db.ExecContext(ctx, queryInactive, cutoff)
 	if err != nil {

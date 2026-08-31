@@ -65,7 +65,7 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 	// idx_inventory_records_system_id_created_at.
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
-		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, s.suspended_at, s.suspended_by_org_id, h.last_heartbeat, s.last_inventory_at,
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, s.unregistered_at, s.suspended_at, s.suspended_by_org_id, h.last_heartbeat, s.last_inventory_at,
 		       h.created_at as first_heartbeat,
 		       (SELECT MIN(ir.created_at) FROM inventory_records ir WHERE ir.system_id = s.id) as first_inventory,
 		       COALESCE(uo.name, 'Owner') as organization_name,
@@ -80,7 +80,7 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 	var customDataJSON []byte
 	var createdByJSON []byte
 	var fqdn, ipv4Address, ipv6Address, version sql.NullString
-	var registeredAt, suspendedAt, lastHeartbeat, lastInventory sql.NullTime
+	var registeredAt, unregisteredAt, suspendedAt, lastHeartbeat, lastInventory sql.NullTime
 	var firstHeartbeat, firstInventory sql.NullTime
 	var suspendedByOrgID sql.NullString
 	var organizationName, organizationType, organizationDBID sql.NullString
@@ -88,7 +88,7 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 	err := r.db.QueryRow(query, id).Scan(
 		&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 		&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.LogtoID,
-		&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &suspendedAt, &suspendedByOrgID, &lastHeartbeat, &lastInventory,
+		&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &unregisteredAt, &suspendedAt, &suspendedByOrgID, &lastHeartbeat, &lastInventory,
 		&firstHeartbeat, &firstInventory,
 		&organizationName, &organizationType, &organizationDBID,
 	)
@@ -112,6 +112,10 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 	// Convert registered_at
 	if registeredAt.Valid {
 		system.RegisteredAt = &registeredAt.Time
+	}
+
+	if unregisteredAt.Valid {
+		system.UnregisteredAt = &unregisteredAt.Time
 	}
 
 	// Convert suspended_at
@@ -391,7 +395,7 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	// Single query with COUNT(*) OVER() to get total count + paginated results
 	query := fmt.Sprintf(`
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
-		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.deleted_at, s.registered_at, s.suspended_at, s.suspended_by_org_id, s.created_by, h.last_heartbeat, s.last_inventory_at,
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.deleted_at, s.registered_at, s.unregistered_at, s.suspended_at, s.suspended_by_org_id, s.created_by, h.last_heartbeat, s.last_inventory_at,
 		       COALESCE(uo.name, 'Owner') as organization_name,
 		       COALESCE(uo.org_type, 'owner') as organization_type,
 		       COALESCE(uo.db_id, '') as organization_db_id,
@@ -421,14 +425,14 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		system := &models.System{}
 		var customDataJSON, createdByJSON []byte
 		var fqdn, ipv4Address, ipv6Address, version sql.NullString
-		var deletedAt, registeredAt, suspendedAt, lastHeartbeat, lastInventory sql.NullTime
+		var deletedAt, registeredAt, unregisteredAt, suspendedAt, lastHeartbeat, lastInventory sql.NullTime
 		var suspendedByOrgID sql.NullString
 		var organizationName, organizationType, organizationDBID sql.NullString
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.LogtoID,
-			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &deletedAt, &registeredAt, &suspendedAt, &suspendedByOrgID, &createdByJSON, &lastHeartbeat, &lastInventory,
+			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &deletedAt, &registeredAt, &unregisteredAt, &suspendedAt, &suspendedByOrgID, &createdByJSON, &lastHeartbeat, &lastInventory,
 			&organizationName, &organizationType, &organizationDBID,
 			&totalCount,
 		)
@@ -453,6 +457,10 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		// Set registered_at if present
 		if registeredAt.Valid {
 			system.RegisteredAt = &registeredAt.Time
+		}
+
+		if unregisteredAt.Valid {
+			system.UnregisteredAt = &unregisteredAt.Time
 		}
 
 		// Set suspended_at if present
@@ -718,7 +726,10 @@ func (r *LocalSystemRepository) RestoreSystemsByDeletedByOrgID(deletedByOrgID st
 
 	query := `
 		UPDATE systems
-		SET deleted_at = NULL, deleted_by_org_id = NULL, status = 'unknown', updated_at = $2
+		SET deleted_at = NULL,
+		    deleted_by_org_id = NULL,
+		    status = CASE WHEN unregistered_at IS NOT NULL THEN 'unregistered' ELSE 'unknown' END,
+		    updated_at = $2
 		WHERE deleted_by_org_id = $1 AND deleted_at IS NOT NULL
 	`
 

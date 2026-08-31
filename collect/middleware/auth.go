@@ -198,6 +198,18 @@ type systemCredentialsRow struct {
 	registeredAt sql.NullTime
 }
 
+// systemCredentialsQuery is the single gate every appliance request passes
+// through. Each of the three lifecycle filters revokes access on its own, so
+// dropping one silently brings a revoked credential back to life.
+const systemCredentialsQuery = `
+	SELECT id, system_secret_public, system_secret_sha256, registered_at
+	FROM systems
+	WHERE system_key = $1
+	  AND deleted_at IS NULL
+	  AND suspended_at IS NULL
+	  AND unregistered_at IS NULL
+`
+
 // validateSystemCredentials validates system credentials against database and cache
 // Returns the internal system_id and a boolean indicating success
 func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (string, bool) {
@@ -263,17 +275,15 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 	// auth-cache invalidation (cache.InvalidateSystemAuth) so this takes effect
 	// immediately instead of after SystemAuthCacheTTL, the same way DeleteSystem
 	// handles credential revocation.
+	// unregistered_at is the appliance's own departure (POST /systems/unregister):
+	// the pair is refused from that moment on, so a copy of the credentials kept
+	// outside the machine stops working the instant the machine gives them up.
 	var creds systemCredentialsRow
-	query := `
-		SELECT id, system_secret_public, system_secret_sha256, registered_at
-		FROM systems
-		WHERE system_key = $1 AND deleted_at IS NULL AND suspended_at IS NULL
-	`
 
 	queryCtx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	err := database.DB.QueryRowContext(queryCtx, query, systemKey).Scan(
+	err := database.DB.QueryRowContext(queryCtx, systemCredentialsQuery, systemKey).Scan(
 		&creds.systemID,
 		&creds.secretPublic,
 		&creds.secretSHA256,

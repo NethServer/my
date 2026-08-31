@@ -375,6 +375,30 @@ func PostAlerts(orgID string, alerts []models.AlertmanagerPostAlert) error {
 // by the time we resolve, the timestamp that line referred to is already
 // overwritten by the beat that triggered the recovery.
 func BuildResolvedLinkFailedAlert(systemContext *SystemAlertContext) (models.AlertmanagerPostAlert, error) {
+	return buildResolvedLinkFailedAlert(systemContext, map[string]string{
+		"summary_en":     "System is communicating again",
+		"summary_it":     "Il sistema comunica di nuovo",
+		"description_en": "The system has resumed sending heartbeats to My Nethesis.",
+		"description_it": "Il sistema ha ripreso a inviare heartbeat a My Nethesis.",
+	})
+}
+
+// BuildUnregisteredLinkFailedAlert clears the LinkFailed alert of a system that
+// announced its unregistration. The system is not back, it is gone, so the
+// timeline reads as a departure instead of a recovery.
+func BuildUnregisteredLinkFailedAlert(systemContext *SystemAlertContext) (models.AlertmanagerPostAlert, error) {
+	return buildResolvedLinkFailedAlert(systemContext, map[string]string{
+		"summary_en":     "System has been unregistered",
+		"summary_it":     "Il sistema è stato deregistrato",
+		"description_en": "The system gave up its credentials and no longer reports to My Nethesis.",
+		"description_it": "Il sistema ha rilasciato le proprie credenziali e non comunica più con My Nethesis.",
+	})
+}
+
+// buildResolvedLinkFailedAlert builds the resolution of a LinkFailed alert.
+// Alertmanager fingerprints on the label set, which is the same whatever
+// cleared the alert; the annotations carry the reason into the timeline.
+func buildResolvedLinkFailedAlert(systemContext *SystemAlertContext, annotations map[string]string) (models.AlertmanagerPostAlert, error) {
 	now := time.Now().UTC()
 	enriched, err := EnrichAlerts([]models.AlertmanagerPostAlert{
 		{
@@ -383,14 +407,9 @@ func BuildResolvedLinkFailedAlert(systemContext *SystemAlertContext) (models.Ale
 				"severity":     "critical",
 				ManagedByLabel: ManagedByCollect,
 			},
-			Annotations: map[string]string{
-				"summary_en":     "System is communicating again",
-				"summary_it":     "Il sistema comunica di nuovo",
-				"description_en": "The system has resumed sending heartbeats to My Nethesis.",
-				"description_it": "Il sistema ha ripreso a inviare heartbeat a My Nethesis.",
-			},
-			StartsAt: now.Add(-time.Minute),
-			EndsAt:   now,
+			Annotations: annotations,
+			StartsAt:    now.Add(-time.Minute),
+			EndsAt:      now,
 		},
 	}, systemContext)
 	if err != nil {

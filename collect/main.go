@@ -157,6 +157,10 @@ func main() {
 		systemsGroup.POST("/inventory", methods.CollectInventory)
 		systemsGroup.POST("/heartbeat", methods.ReceiveHeartbeat)
 
+		// The appliance gives up its credentials: terminal, one-way, and the
+		// only path that revokes a system's own access from the machine itself.
+		systemsGroup.POST("/unregister", methods.UnregisterSystem)
+
 		// Rebranding endpoints (system fetches its own rebranding config)
 		systemsGroup.GET("/rebranding", methods.GetSystemRebranding)
 		systemsGroup.GET("/rebranding/:product_id/:asset", methods.GetSystemRebrandingAsset)

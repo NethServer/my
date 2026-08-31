@@ -155,14 +155,10 @@ func StartAuthInvalidator(ctx context.Context) {
 	}()
 }
 
-// purgeSystemAuthCache drops every cached credential entry for the given
-// system_key from both the in-process sync.Map (see auth.go) and from
-// Redis. In-process entries are keyed as `<systemKey>:<secretHash>`;
-// Redis entries use `auth:system:<systemKey>:<secretHash>`.
-func purgeSystemAuthCache(ctx context.Context, rdb *redis.Client, systemKey string) {
-	// In-process: iterate and delete every entry whose key starts with
-	// the system_key prefix. sync.Map.Range is safe against concurrent
-	// modification.
+// purgeInProcessAuthCache deletes every entry of this instance's in-process
+// cache whose key starts with the system_key prefix. sync.Map.Range is safe
+// against concurrent modification.
+func purgeInProcessAuthCache(systemKey string) {
 	prefix := systemKey + ":"
 	inProcessAuthCache.Range(func(key, _ any) bool {
 		if k, ok := key.(string); ok && strings.HasPrefix(k, prefix) {
@@ -170,6 +166,14 @@ func purgeSystemAuthCache(ctx context.Context, rdb *redis.Client, systemKey stri
 		}
 		return true
 	})
+}
+
+// purgeSystemAuthCache drops every cached credential entry for the given
+// system_key from both the in-process sync.Map (see auth.go) and from
+// Redis. In-process entries are keyed as `<systemKey>:<secretHash>`;
+// Redis entries use `auth:system:<systemKey>:<secretHash>`.
+func purgeSystemAuthCache(ctx context.Context, rdb *redis.Client, systemKey string) {
+	purgeInProcessAuthCache(systemKey)
 
 	// Redis: SCAN through every auth cache entry for this system_key and
 	// delete it. Use a modest batch size so the scan does not block
@@ -192,4 +196,50 @@ func purgeSystemAuthCache(ctx context.Context, rdb *redis.Client, systemKey stri
 		Str("system_key", systemKey).
 		Int("redis_keys_deleted", count).
 		Msg("auth cache invalidated")
+}
+
+// signInvalidationPayload mirrors the producer side in
+// backend/cache/system_auth.go: with a shared HMAC secret the wire payload is
+// `<systemKey>|<hex(hmac)>`, otherwise the bare system_key.
+func signInvalidationPayload(systemKey string) string {
+	secret := configuration.Config.InternalHMACSecret
+	if secret == "" {
+		return systemKey
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(systemKey))
+	return systemKey + "|" + hex.EncodeToString(mac.Sum(nil))
+}
+
+// InvalidateSystemAuth revokes a system's cached credentials: it purges this
+// instance synchronously, so the caller's own next request cannot be served
+// from a stale entry, and publishes on the invalidation channel so the other
+// replicas purge too. Backend publishes on the same channel for the changes it
+// owns (delete, suspend, secret rotation); this is the collect-side entry point
+// for the revocations collect itself performs.
+//
+// Best effort on the publish: a Redis outage leaves the other replicas to
+// expire their entries within SystemAuthCacheTTL.
+func InvalidateSystemAuth(ctx context.Context, systemKey string) {
+	if systemKey == "" {
+		return
+	}
+
+	rdb := queue.GetClient()
+	if rdb == nil {
+		logger.Warn().Str("system_key", systemKey).Msg("Redis unavailable, auth cache invalidation is local only")
+		lastInvalidatedAt.Store(systemKey, time.Now())
+		purgeInProcessAuthCache(systemKey)
+		return
+	}
+
+	// Stamp before purging so a concurrent insert is detectable by
+	// checkInProcessCache, the same ordering the subscriber uses.
+	lastInvalidatedAt.Store(systemKey, time.Now())
+	purgeSystemAuthCache(ctx, rdb, systemKey)
+
+	channel := authInvalidationChannel()
+	if err := rdb.Publish(ctx, channel, signInvalidationPayload(systemKey)).Err(); err != nil {
+		logger.Warn().Err(err).Str("system_key", systemKey).Msg("failed to publish auth invalidation")
+	}
 }

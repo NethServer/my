@@ -1934,8 +1934,8 @@ components:
           example: "nsec"
         status:
           type: string
-          enum: [unknown, active, inactive, suspended, deleted]
-          description: "Unified system status. Priority: suspended > deleted > unknown/active/inactive. Computed from heartbeat + suspension state."
+          enum: [unknown, active, inactive, unregistered, suspended, deleted]
+          description: "Unified system status. Priority: deleted > unregistered > suspended > unknown/active/inactive. Computed from heartbeat, unregistration and suspension state."
           example: "active"
         fqdn:
           type: string
@@ -2020,6 +2020,18 @@ components:
           nullable: true
           description: Registration timestamp. NULL means not yet registered, non-NULL means system registered at that time. When NULL, system_key is hidden.
           example: "2025-11-06T10:30:00Z"
+        unregistered_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Unregistration timestamp, set when the appliance gives up its
+            credentials via POST /systems/unregister on collect. NULL means the
+            credentials are still accepted; non-NULL means they are refused from
+            that moment on. Terminal: a system key is one-shot, so the row stays
+            as the record of a spent key, still counted against the licences,
+            until the system is deleted.
+          example: "2026-02-04T09:12:00Z"
         suspended_at:
           type: string
           format: date-time
@@ -16011,6 +16023,63 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /systems/unregister:
+    post:
+      operationId: unregisterSystem
+      servers:
+        - url: https://collect.your-domain.com/api
+          description: Collect API server (port 8081)
+      tags:
+        - Collect - Systems
+      summary: /systems/unregister - Give up the system credentials
+      description: |
+        The appliance announces that it is giving up its credentials, and
+        collect stops accepting them: heartbeat, inventory, backups, the alert
+        proxy and the enterprise feed authorization all answer 401 from that
+        moment on. Whoever kept a copy of the pair loses it along with the
+        machine that gave it up.
+
+        The state is terminal. A system key is one-shot, so this system cannot
+        be registered again and stays counted against the licences until it is
+        deleted on my; a machine that needs a subscription again is given a new
+        system with a new secret.
+
+        Only the first call answers 200. Its own revocation makes every later
+        request from the same credentials, this one included, fail
+        authentication.
+      security:
+        - BasicAuth: [system_key:system_secret]
+      responses:
+        '200':
+          description: Credentials given up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system unregistered"
+                  data:
+                    type: object
+                    properties:
+                      system_key:
+                        type: string
+                        description: System KEY
+                        example: "NETH-4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
+                      unregistered_at:
+                        type: string
+                        format: date-time
+                        description: Moment the credentials stopped being accepted
+                        example: "2026-02-04T09:12:00Z"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
