@@ -15,7 +15,9 @@ The configuration is per product: an organization can brand NethVoice and NethSe
 ## Choosing the Organizations
 
 :::note
-Only Owner organization users decide who may brand.
+Who may brand is decided by the Owner organization, or by a Super Admin —
+the role is assignable only by the Owner, so the two are one population in
+practice. It is the same rule the entitlement catalog follows.
 :::
 
 From **Settings → Rebranding**, the Owner sees every organization with rebranding enabled, the products each has branded, and when its configuration was last written. **Add companies** opens a picker with the distributors, resellers and customers that are not enabled yet; a whole selection is added in one action.
@@ -72,8 +74,8 @@ Assets are served both to signed-in users and, for pages that need a plain `<img
 
 | Action | Who Can Perform |
 |--------|----------------|
-| Add/remove organizations to rebranding | Owner organization users with `manage:rebranding` |
-| Configure the branding of an organization | `manage:rebranding` (Admin, Super Admin), own organization only |
+| Add/remove organizations to rebranding | `manage:rebranding`, from the Owner organization or as a Super Admin |
+| Configure the branding of an organization | `manage:rebranding` (Admin, Super Admin), own organization only — an Owner-organization user or a Super Admin may configure any of them, for support |
 | View rebranding status and assets | `read:rebranding`, own organization, the ones below it, and the one its branding is inherited from |
 
 :::warning

@@ -50,7 +50,7 @@ OWNER_ORG=""   # read from the owner token once it is minted
 PASS=0; FAIL=0; FAILED=()
 
 # --------------------------------------------------------------------- tokens
-PERSONAS="owner rb-dist-admin rb-dist-reader rb-res1-admin rb-res1-support rb-res2-admin rb-cust1-admin authz-d2-admin"
+PERSONAS="owner rb-dist-admin rb-dist-reader rb-res1-admin rb-res1-support rb-res2-admin rb-cust1-admin authz-d2-admin authz-d1-super"
 get_tokens() {
   for k in $PERSONAS; do
     cache=$CACHE/.tok-$k
@@ -137,7 +137,7 @@ expect "A3  owner legge la lista" 200 "'organizations' in d and 'pagination' in 
 req owner GET "/rebranding/organizations/available?search=rb-&limit=50"
 expect "A4  il picker propone le 5 org rb-*" 200 "len([o for o in d['organizations'] if o['name'].startswith('rb-')]) == 5"
 
-section "B. Abilitazione (solo owner)"
+section "B. Abilitazione (owner-level)"
 req rb-res1-admin POST /rebranding/organizations -H "Content-Type: application/json" -d "{\"organization_ids\":[\"$RES2\"]}"
 expect "B1  un reseller Admin non abilita nessuno" 403
 req rb-dist-admin PATCH "/rebranding/$DIST/enable"
@@ -351,6 +351,27 @@ print('\n'.join(k['id'] for k in keys if k['name'].startswith('rb-e2e-') and not
 " | while read -r id; do
   [[ -n $id ]] && curl -s -m 10 -o /dev/null -X DELETE -H "Authorization: Bearer $(tok rb-dist-admin)" "$API/me/api-keys/$id"
 done
+
+section "I. Autorità owner-level (Super Admin fuori dall'org owner)"
+# Chi decide quali aziende possono personalizzare il marchio è l'organizzazione
+# owner OPPURE un Super Admin, dovunque sieda: il ruolo lo assegna solo l'owner,
+# quindi la popolazione è lo staff Nethesis. Stessa definizione del catalogo
+# entitlements (hasOwnerLevelAuthority). authz-d1-super è Super Admin dentro un
+# distributore, cioè esattamente il caso limite.
+req authz-d1-super POST /rebranding/organizations -H "Content-Type: application/json" -d "{\"organization_ids\":[\"$RES2\"]}"
+expect "I1  un Super Admin di un distributore abilita un'azienda" 200 "d['enabled'] == 1"
+req authz-d1-super PUT "/rebranding/$RES2/config" -F "products=nethvoice" -F "brand_name=SupportBrand"
+expect "I2  ...e ne configura il branding, pur essendo fuori dalla sua gerarchia" 200
+req authz-d1-super GET /rebranding/organizations
+expect "I3  ...e le vede tutte, non solo il proprio sottoalbero" 200 "
+    {'$DIST', '$RES1', '$RES2'} <= {o['logto_id'] for o in d['organizations']}"
+req rb-res2-admin GET "/rebranding/$RES2/status"
+expect "I4  l'azienda abilitata vede la configurazione ricevuta" 200 "
+    [p for p in d['products'] if p['product_id']=='nethvoice'][0]['product_name'] == 'SupportBrand'"
+req authz-d1-super PATCH "/rebranding/$RES2/disable"
+expect "I5  ...e la rimuove dal rebranding" 200
+req rb-res1-admin POST /rebranding/organizations -H "Content-Type: application/json" -d "{\"organization_ids\":[\"$RES2\"]}"
+expect "I6  un Admin (non Super) resta fuori" 403
 
 printf '\n\033[1mRisultato: %d passati, %d falliti\033[0m\n' "$PASS" "$FAIL"
 if (( FAIL > 0 )); then printf 'Falliti:\n'; printf '  - %s\n' "${FAILED[@]}"; exit 1; fi

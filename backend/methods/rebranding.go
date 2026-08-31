@@ -109,7 +109,7 @@ func GetRebrandingOrganizations(c *gin.Context) {
 	}
 
 	service := local.NewRebrandingService()
-	organizations, totalCount, err := service.ListOrganizations(strings.ToLower(user.OrgRole), user.OrganizationID, filters)
+	organizations, totalCount, err := service.ListOrganizations(rebrandingScopeRole(user), user.OrganizationID, filters)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to list rebranding organizations")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to list rebranding organizations", nil))
@@ -131,7 +131,7 @@ func GetRebrandingSummary(c *gin.Context) {
 	}
 
 	service := local.NewRebrandingService()
-	summary, err := service.Summary(strings.ToLower(user.OrgRole), user.OrganizationID)
+	summary, err := service.Summary(rebrandingScopeRole(user), user.OrganizationID)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to summarize rebranding organizations")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to summarize rebranding organizations", nil))
@@ -158,7 +158,7 @@ func GetAvailableRebrandingOrganizations(c *gin.Context) {
 
 	service := local.NewRebrandingService()
 	organizations, err := service.ListAvailableOrganizations(
-		strings.ToLower(user.OrgRole), user.OrganizationID, c.Query("search"), limit)
+		rebrandingScopeRole(user), user.OrganizationID, c.Query("search"), limit)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to list organizations available for rebranding")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to list organizations available for rebranding", nil))
@@ -170,7 +170,7 @@ func GetAvailableRebrandingOrganizations(c *gin.Context) {
 	}))
 }
 
-// EnableRebranding enables rebranding for an organization (Owner only)
+// EnableRebranding enables rebranding for an organization (owner-level only)
 func EnableRebranding(c *gin.Context) {
 	orgID := c.Param("org_id")
 	if orgID == "" {
@@ -183,9 +183,12 @@ func EnableRebranding(c *gin.Context) {
 		return
 	}
 
-	// Only Owner org role can enable rebranding
-	if strings.ToLower(user.OrgRole) != "owner" {
-		c.JSON(http.StatusForbidden, response.Forbidden("only owner organization can enable rebranding", nil))
+	// Deciding who may brand is administrative: owner-level authority, the same
+	// population that manages the entitlement catalog and grants. Unlike
+	// promotion, the reach is not limited to the caller's own hierarchy —
+	// licensing and branding are Nethesis-side duties over the whole fleet.
+	if !IsOwnerOrSuperAdmin(user) {
+		c.JSON(http.StatusForbidden, response.Forbidden("only the owner organization or a Super Admin can enable rebranding", nil))
 		return
 	}
 
@@ -218,8 +221,8 @@ func EnableRebrandingBulk(c *gin.Context) {
 		return
 	}
 
-	if strings.ToLower(user.OrgRole) != "owner" {
-		c.JSON(http.StatusForbidden, response.Forbidden("only owner organization can enable rebranding", nil))
+	if !IsOwnerOrSuperAdmin(user) {
+		c.JSON(http.StatusForbidden, response.Forbidden("only the owner organization or a Super Admin can enable rebranding", nil))
 		return
 	}
 
@@ -252,7 +255,7 @@ func EnableRebrandingBulk(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("rebranding enabled successfully", gin.H{"enabled": enabled}))
 }
 
-// DisableRebranding disables rebranding for an organization (Owner only).
+// DisableRebranding disables rebranding for an organization (owner-level only).
 // The organization's assets are deleted with it.
 func DisableRebranding(c *gin.Context) {
 	orgID := c.Param("org_id")
@@ -266,8 +269,8 @@ func DisableRebranding(c *gin.Context) {
 		return
 	}
 
-	if strings.ToLower(user.OrgRole) != "owner" {
-		c.JSON(http.StatusForbidden, response.Forbidden("only owner organization can disable rebranding", nil))
+	if !IsOwnerOrSuperAdmin(user) {
+		c.JSON(http.StatusForbidden, response.Forbidden("only the owner organization or a Super Admin can disable rebranding", nil))
 		return
 	}
 
@@ -576,15 +579,26 @@ func serveRebrandingAsset(c *gin.Context, orgID, productID, assetName, cacheCont
 	c.Data(http.StatusOK, mimeType, data)
 }
 
-// canReadRebranding allows the owner everywhere and everyone else within their
-// own hierarchy. It answers 403 itself when access is denied.
+// rebrandingScopeRole widens the lists to the whole fleet for an owner-level
+// caller: a Super Admin who may add an organization to rebranding has to see it
+// in the list afterwards, and in the picker before. Everyone else stays scoped
+// to their own subtree.
+func rebrandingScopeRole(user *models.User) string {
+	if IsOwnerOrSuperAdmin(user) {
+		return "owner"
+	}
+	return strings.ToLower(user.OrgRole)
+}
+
+// canReadRebranding allows an owner-level caller everywhere and everyone else
+// within their own hierarchy. It answers 403 itself when access is denied.
 func canReadRebranding(c *gin.Context, orgID string) bool {
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
 		return false
 	}
 
-	if strings.ToLower(user.OrgRole) == "owner" {
+	if IsOwnerOrSuperAdmin(user) {
 		return true
 	}
 
@@ -605,8 +619,8 @@ func canReadRebranding(c *gin.Context, orgID string) bool {
 	return false
 }
 
-// canWriteRebranding allows the owner everywhere and everyone else on their own
-// organization only. A partner configures its own branding and the
+// canWriteRebranding allows an owner-level caller everywhere and everyone else
+// on their own organization only. A partner configures its own branding and the
 // organizations below inherit it; writing into one of them directly would
 // override a configuration its own administrators own.
 func canWriteRebranding(c *gin.Context, orgID string) bool {
@@ -615,7 +629,7 @@ func canWriteRebranding(c *gin.Context, orgID string) bool {
 		return false
 	}
 
-	if strings.ToLower(user.OrgRole) == "owner" || user.OrganizationID == orgID {
+	if IsOwnerOrSuperAdmin(user) || user.OrganizationID == orgID {
 		return true
 	}
 

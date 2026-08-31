@@ -841,12 +841,14 @@ routes:
 
   # ===========================================================================
   # Rebranding. docs/docs/features/rebranding.md is explicit:
-  #   deciding which organizations may brand  → Owner organization only
+  #   deciding which organizations may brand  → owner organization or Super Admin
   #   configuring the branding of one's own organization → its own administrators
   #   reading status and assets               → the organization and its parents
   # config.yml carries the vocabulary: read:rebranding on every technical role,
-  # manage:rebranding on Admin and Super Admin. The two enable/disable routes
-  # are the owner's decision on top of that permission, expressed as org_role.
+  # manage:rebranding on Admin and Super Admin. The enable/disable routes add the
+  # administrative population on top of that permission — the same one the
+  # entitlement catalog uses (hasOwnerLevelAuthority: the owner organization, or
+  # a Super Admin wherever they sit, since only the owner can assign that role).
   # ===========================================================================
   - method: GET
     path: /api/rebranding/products
@@ -871,20 +873,23 @@ routes:
     path: /api/rebranding/organizations
     intent: manage:rebranding
     org_role: owner
+    or_user_role: Super Admin
     enforced_by: handler
     note: |
-      Adds a selection of organizations at once. Who may brand is the owner's
-      decision, so the permission is not enough on its own — the handler adds
-      the organization check.
+      Adds a selection of organizations at once. Who may brand is an
+      administrative decision, so the permission is not enough on its own — the
+      handler adds the owner-level check.
   - method: PATCH
     path: /api/rebranding/:org_id/enable
     intent: manage:rebranding
     org_role: owner
+    or_user_role: Super Admin
     enforced_by: handler
   - method: PATCH
     path: /api/rebranding/:org_id/disable
     intent: manage:rebranding
     org_role: owner
+    or_user_role: Super Admin
     enforced_by: handler
     note: removing an organization deletes its assets (ON DELETE CASCADE)
 
@@ -908,6 +913,8 @@ routes:
       answers: an organization without rebranding enabled is refused whatever
       the caller holds, and a partner may only write its own organization —
       the organizations below inherit the branding rather than being written to.
+      An owner-level caller (owner organization or Super Admin) writes any of
+      them, for support.
 
   - method: PUT
     path: /api/rebranding/:org_id/products/:product_id

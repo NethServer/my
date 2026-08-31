@@ -39,7 +39,7 @@ func isSystemBlocked(system *models.System) bool {
 // management, manual grants via API, fleet-wide visibility: only the owner
 // organization or a Super Admin user (Nethesis).
 func isEntitlementAdmin(u *models.User) bool {
-	return strings.EqualFold(u.OrgRole, "owner") || slices.Contains(u.UserRoles, "Super Admin")
+	return IsOwnerOrSuperAdmin(u)
 }
 
 // canTransactEntitlements returns true for the TRANSACTIONAL surface — buy
