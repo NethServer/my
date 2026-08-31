@@ -197,8 +197,8 @@ func main() {
 		mimirGroup.POST("/alertmanager/api/v2/alerts", methods.ProxyMimir)
 		mimirGroup.GET("/alertmanager/api/v2/silences", methods.ProxyMimir)
 		mimirGroup.POST("/alertmanager/api/v2/silences", methods.ProxyMimir)
-		mimirGroup.GET("/alertmanager/api/v2/silences/:silenceID", methods.ProxyMimir)
-		mimirGroup.DELETE("/alertmanager/api/v2/silences/:silenceID", methods.ProxyMimir)
+		mimirGroup.GET("/alertmanager/api/v2/silences/:silence_id", methods.ProxyMimir)
+		mimirGroup.DELETE("/alertmanager/api/v2/silences/:silence_id", methods.ProxyMimir)
 	}
 
 	// ===========================================

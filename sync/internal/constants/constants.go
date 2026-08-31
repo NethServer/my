@@ -53,11 +53,8 @@ const (
 	// Default Password Settings
 	DefaultPasswordLength = 16
 
-	// Organization Scopes
-	ScopeCreateDistributors = "create:distributors"
-	ScopeManageDistributors = "manage:distributors"
-	ScopeCreateResellers    = "create:resellers"
-	ScopeManageResellers    = "manage:resellers"
-	ScopeCreateCustomers    = "create:customers"
-	ScopeManageCustomers    = "manage:customers"
+	// Organization scopes are not listed here on purpose: the vocabulary lives
+	// in the RBAC config file, which is what sync reconciles against. A second
+	// copy in Go could only ever drift from it — as it had, still naming the
+	// create:* scopes the model dropped.
 )

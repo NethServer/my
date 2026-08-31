@@ -25,7 +25,7 @@ I ruoli utente determinano le capacità tecniche:
 
 | Ruolo | Descrizione | Capacità Principali |
 |-------|-------------|---------------------|
-| **Super Admin** | Amministrazione completa | Tutte le operazioni, incluse quelle critiche. Solo nell'organizzazione Owner |
+| **Super Admin** | Amministrazione completa | Tutte le operazioni, incluse quelle critiche. Assegnabile solo da un utente dell'organizzazione Owner, ma può risiedere in qualunque organizzazione |
 | **Admin** | Gestione avanzata | Gestione sistemi, utenti, operazioni pericolose |
 | **Backoffice** | Operazioni di backoffice | Gestione organizzazioni, applicazioni, licenze add-on |
 | **Support** | Supporto tecnico | Accesso lettura sistemi, operazioni di supporto |
@@ -221,6 +221,8 @@ Per maggiori dettagli, consulta la pagina [Impostazioni Account](../getting-star
 | Gestione sistemi | Si | Si | No | Si | No |
 | Gestione organizzazioni | Si | Si | Si | No | No |
 | Gestione applicazioni | Si | Si | Si | No | No |
+| Configurazione alert | Si | Si | No | Si | No |
+| Licenze add-on (acquisto/revoca) | Si | Si | Si | No | No |
 | Visualizza rebranding | Si | Si | Si | Si | Si |
 | Gestione rebranding | Si | Si | No | No | No |
 | Impersonificazione | Si | No | No | No | No |

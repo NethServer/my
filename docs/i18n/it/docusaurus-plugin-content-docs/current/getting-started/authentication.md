@@ -133,7 +133,7 @@ I ruoli utente determinano le capacità tecniche all'interno della piattaforma, 
 
 | Ruolo | Descrizione | Capacità Principali |
 |-------|-------------|---------------------|
-| **Super Admin** | Amministrazione completa della piattaforma | Tutte le operazioni, incluse quelle pericolose. Solo nell'organizzazione Owner |
+| **Super Admin** | Amministrazione completa della piattaforma | Tutte le operazioni, incluse quelle pericolose. Assegnabile solo da un utente dell'organizzazione Owner, ma può risiedere in qualunque organizzazione |
 | **Admin** | Gestione sistemi e utenti | Gestione sistemi, utenti, operazioni pericolose |
 | **Backoffice** | Operazioni di backoffice | Gestione organizzazioni, applicazioni, licenze add-on |
 | **Support** | Operazioni di supporto standard | Accesso lettura ai sistemi, operazioni di supporto |

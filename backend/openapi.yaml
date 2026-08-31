@@ -62,6 +62,8 @@ tags:
     description: System statistics, trends and exports
   - name: Backend - Systems Inventory
     description: System inventory history, diffs and timeline
+  - name: Backend - Systems Backups
+    description: "Stored backups of a system: listing, download URLs and deletion"
   - name: Backend - Entitlements
     description: "Granular add-on licensing: catalog, grants, availability and shop activation"
 
@@ -1218,7 +1220,7 @@ components:
           items:
             type: string
           description: Organization permissions
-          example: ["create:distributors", "manage:distributors"]
+          example: ["read:distributors", "manage:distributors", "destroy:distributors"]
         organization_id:
           type: string
           description: Organization ID
@@ -7494,7 +7496,10 @@ paths:
       tags:
         - Backend - Distributors
       summary: /distributors/{id} - Get single distributor
-      description: Get a specific distributor by ID (Owner only)
+      description: |
+        Get a specific distributor by ID. Requires `read:distributors`, which
+        only the Owner organization role grants — with one exception the route
+        makes on purpose: a distributor may always read its own organization.
       parameters:
         - name: id
           in: path
@@ -14908,6 +14913,7 @@ paths:
         '503':
           description: Backup storage is not configured
 
+  /systems/{id}/backups/{backup_id}:
     delete:
       operationId: deleteSystemBackup
       tags:
@@ -16418,9 +16424,11 @@ paths:
         - Backend - Rebranding
       summary: Add organizations to rebranding
       description: |
-        Owner-only. Enables rebranding for a whole selection at once. Either
-        every organization is added or none is: if any id cannot be resolved the
-        call answers 400 with the offending ids and writes nothing.
+        Enables rebranding for a whole selection at once. Reserved to the owner
+        organization or a Super Admin, wherever they sit — the same population
+        that manages the entitlement catalog. Either every organization is added
+        or none is: if any id cannot be resolved the call answers 400 with the
+        offending ids and writes nothing.
       security:
         - BearerAuth: []
       requestBody:
@@ -16544,7 +16552,9 @@ paths:
       tags:
         - Backend - Rebranding
       summary: Enable rebranding for an organization
-      description: Owner-only. Enables rebranding capability for a specific organization.
+      description: |
+        Enables rebranding capability for a specific organization. Reserved to
+        the owner organization or a Super Admin.
       security:
         - BearerAuth: []
       parameters:
@@ -16569,9 +16579,9 @@ paths:
         - Backend - Rebranding
       summary: Disable rebranding for an organization
       description: |
-        Owner-only. Removes the organization from rebranding. Its assets are
-        deleted with it, so re-adding the organization starts from an empty
-        configuration.
+        Removes the organization from rebranding. Reserved to the owner
+        organization or a Super Admin. The organization's assets are deleted
+        with it, so re-adding it starts from an empty configuration.
       security:
         - BearerAuth: []
       parameters:

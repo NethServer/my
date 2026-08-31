@@ -192,9 +192,13 @@ Owner (Nethesis) > Distributors > Resellers > Customers
 
 ### 4.2 User roles (technical capability)
 
-- **Super Admin** — Owner org only, full platform admin
-- **Admin** — system/user management, dangerous operations
-- **Support** — standard operations, read-focused
+- **Super Admin** — full platform admin, including the dangerous verbs. Assignable **only by a user of the Owner organization** (`access_control` on the role in `sync/configs/config.yml`, enforced in `methods/users.go` on create and update), but it **lives in any organization**: Nethesis staff hold it inside the Nethesis Italia distributor. That is why `methods.IsOwnerOrSuperAdmin` exists — the administrative surfaces (entitlement catalog and grants, rebranding enablement) accept the Owner organization *or* a Super Admin, wherever they sit.
+- **Admin** — system/user/application management, add-on purchases, rebranding of its own organization
+- **Backoffice** — user and application management, add-on licensing
+- **Support** — systems, applications and alerts; read-focused elsewhere
+- **Reader** — read-only
+
+Careful: owner-level **authority** and owner-level **reach** are different questions. `PromoteReseller` grants the first and withholds the second (a Super Admin promotes only within its own hierarchy); the entitlement and rebranding admin surfaces grant both.
 
 ### 4.3 Effective permissions
 
@@ -207,7 +211,8 @@ Embedded in the custom JWT at exchange time. No external calls during request ha
 ### 4.4 Route protection
 
 - `middleware.RequirePermission("read:systems")` — single permission gate
-- `middleware.RequireResourcePermission("systems")` — HTTP-verb-aware (read on GET, manage on POST/PUT/PATCH, destroy on DELETE)
+- `middleware.RequireResourcePermission("systems")` — HTTP-verb-aware: `read:` on GET, `manage:` on **POST/PUT/PATCH/DELETE alike** (`middleware/rbac.go`). `destroy:` is never derived from the verb — an endpoint that needs it says so explicitly, e.g. `middleware.RequirePermission("destroy:systems")` on `/systems/:id/destroy`
+- `middleware.RequireResourcePermissionOrSelf("resellers")` — as above, plus a GET on the caller's own organization is always allowed (org roles carry permissions for the levels *below*, so without this a reseller could not read itself)
 - `middleware.PreventSelfModification()` — blocks a user from acting on their own account for dangerous verbs
 - Hierarchy check for cross-org reads/writes: `local.UserService.IsOrganizationInHierarchy(orgRole, userOrgID, targetOrgID)`
 - RBAC filtering in SQL: `helpers.AppendOrgFilter(query, orgRole, orgID, tableAlias, args, nextArgIdx)` uses `GetAllowedOrgIDsForFilter` (cached org-ID set) for non-owner roles

@@ -129,17 +129,23 @@ func createUserRoleIfNotExists(client *client.LogtoClient, roleID, roleName, des
 func createEssentialOrgScopes(client *client.LogtoClient) error {
 	logger.Info("Creating essential organization scopes...")
 
-	// Organization scopes from config.yml for owner role
+	// The organization scopes config.yml gives the Owner role, so a freshly
+	// initialised tenant matches the vocabulary `sync sync` will reconcile
+	// against. Anything else here is drift the first sync has to clean up:
+	// create:* belonged to an older model and is not a scope any more.
 	scopes := []struct {
 		name        string
 		description string
 	}{
-		{"create:distributors", "Create distributor organizations"},
+		{"read:distributors", "Read distributor organizations"},
 		{"manage:distributors", "Manage distributor organizations"},
-		{"create:resellers", "Create reseller organizations"},
+		{"destroy:distributors", "Permanently delete distributor organizations"},
+		{"read:resellers", "Read reseller organizations"},
 		{"manage:resellers", "Manage reseller organizations"},
-		{"create:customers", "Create customer organizations"},
+		{"destroy:resellers", "Permanently delete reseller organizations"},
+		{"read:customers", "Read customer organizations"},
 		{"manage:customers", "Manage customer organizations"},
+		{"destroy:customers", "Permanently delete customer organizations"},
 	}
 
 	for _, scope := range scopes {
@@ -209,7 +215,11 @@ func assignScopesToOwnerRole(client *client.LogtoClient) error {
 	}
 
 	// Assign all owner-related scopes
-	ownerScopeNames := []string{"create:distributors", "manage:distributors", "create:resellers", "manage:resellers", "create:customers", "manage:customers"}
+	ownerScopeNames := []string{
+		"read:distributors", "manage:distributors", "destroy:distributors",
+		"read:resellers", "manage:resellers", "destroy:resellers",
+		"read:customers", "manage:customers", "destroy:customers",
+	}
 
 	for _, scopeName := range ownerScopeNames {
 		var scopeID string

@@ -280,6 +280,12 @@ Email changes may require re-authentication.
 
 ### Super Admin Role Permissions
 
+The role is assignable only by a user of the Owner organization, but it lives in
+any organization — Nethesis staff hold it inside a distributor. It carries
+owner-level authority on the administrative surfaces (entitlement catalog and
+grants, rebranding enablement); reaching outside its own hierarchy is a separate
+question, and promotion deliberately does not.
+
 Can perform:
 - All Admin capabilities
 - User impersonation for troubleshooting
@@ -314,20 +320,19 @@ Cannot perform:
 ### Backoffice Role Permissions
 
 Can perform:
-- View users and organizations
-- View systems and inventory
+- Create and edit users
+- Manage applications and assign them to organizations
+- Grant and revoke add-on licences
+- View users, organizations, systems and inventory
 - Generate reports and analytics
-- View statistics and dashboards
 - Export data
-- View audit logs
 
 Cannot perform:
-- Create or edit users
-- Manage organizations
 - Create or edit systems
-- Delete any resources
-- Suspend users
-- Reset passwords
+- Delete any resource
+- Impersonate users
+- Configure alerting
+- Configure rebranding
 
 ### Support Role Permissions
 

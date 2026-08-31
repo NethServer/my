@@ -197,11 +197,16 @@ After pruning Owner/owner, run `sync init` to reinitialize.
 ## Configuration
 
 RBAC configuration uses a YAML file with business/technical separation.
-See [`configs/config.yml`](configs/config.yml) for the full annotated example.
+See [`configs/config.yml.example`](configs/config.yml.example) for the full
+annotated reference — it carries the same roles, permissions and resources the
+deployed tenants run on. The per-environment files (`configs/config.yml`,
+`config.qa.yml`, `config.production.yml`) are gitignored: each of them holds
+tenant ids, application URLs and SMTP credentials, so they live only on the
+machine that runs the sync. Copy the example and fill those in.
 
 Key sections:
 - `organization_roles` - Business hierarchy (Owner, Distributor, Reseller, Customer)
-- `user_roles` - Technical capabilities (Admin, Support)
+- `user_roles` - Technical capabilities (Super Admin, Admin, Backoffice, Support, Reader)
 - `resources` - API resources and actions
 - `third_party_apps` - External application access control (optional)
 - `sign_in_experience` - Branding, colors, sign-in methods (optional)

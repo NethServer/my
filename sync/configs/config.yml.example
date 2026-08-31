@@ -3,73 +3,169 @@ metadata:
   version: "1.0.0"
   description: "RBAC configuration for my application"
 
+# HOW TO USE THIS FILE
+#
+# Roles, permissions and resources below are the real vocabulary the deployed
+# tenants run on: `sync sync` reconciles a Logto tenant against exactly this,
+# and backend/authz/routes.yml states each endpoint's intent in the same terms.
+# Keep them in step — a permission that exists only here, or only there, is a
+# permission nobody enforces.
+#
+# What is NOT real here is everything from `third_party_apps` down: tenant ids,
+# application URLs, SMTP credentials and branding are per-environment, and the
+# files that hold them (config.yml, config.qa.yml, config.production.yml) are
+# gitignored. Copy this file, fill those sections in, and keep the vocabulary
+# identical across environments.
+
 # Business hierarchy: owner -> distributor -> reseller -> customer.
 # Each role sees only what sits below it in the commercial chain.
 organization_roles:
-    - id: owner
-      name: "Owner"
-      type: org
-      priority: 0
-      permissions:
-        - id: "read:customers"
-        - id: "manage:customers"
+  - id: owner
+    name: "Owner"
+    priority: 1
+    type: org
+    permissions:
+      # Complete control over commercial hierarchy
+      - id: read:distributors
+      - id: manage:distributors
+      - id: destroy:distributors
+      - id: read:resellers
+      - id: manage:resellers
+      - id: destroy:resellers
+      - id: read:customers
+      - id: manage:customers
+      - id: destroy:customers
 
-    - id: distributor
-      name: "Distributor"
-      type: org
-      priority: 1
-      permissions:
-        - id: "read:customers"
-        - id: "manage:customers"
+  - id: distributor
+    name: "Distributor"
+    priority: 2
+    type: org
+    permissions:
+      # Can manage downstream in hierarchy resellers and customers
+      - id: read:resellers
+      - id: manage:resellers
+      - id: read:customers
+      - id: manage:customers
 
-    - id: reseller
-      name: "Reseller"
-      type: org
-      priority: 2
-      permissions:
-        - id: "read:customers"
-        - id: "manage:customers"
+  - id: reseller
+    name: "Reseller"
+    priority: 3
+    type: org
+    permissions:
+      # Can only manage customers
+      - id: read:customers
+      - id: manage:customers
 
-    - id: customer
-      name: "Customer"
-      type: org
-      priority: 3
-      permissions:
+  - id: customer
+    name: "Customer"
+    priority: 4
+    type: org
+    permissions:
+      # Read-only access to own organization data
 
+# User roles define TECHNICAL CAPABILITIES
+# Independent of business hierarchy - define what technical operations a user can perform
 user_roles:
-    - id: super
-      name: "Super Admin"
-      type: user
-      priority: 0
-      permissions:
-        - id: "impersonate:users"
-        - id: "destroy:systems"
-        - id: "read:systems"
-        - id: "manage:systems"
-        - id: "read:users"
-        - id: "manage:users"
-      # Access control: only Owner users can assign this role
-      access_control:
-        organization_roles:
-          - "owner"
+  - id: admin
+    name: "Admin"
+    priority: 1
+    type: user
+    permissions:
+      # Full technical control including dangerous operations
+      - id: read:systems        # Simple read operation
+      - id: manage:systems      # Standard system management
 
-    - id: admin
-      name: "Admin"
-      type: user
-      priority: 1
-      permissions:
-        - id: "read:systems"
-        - id: "manage:systems"
-        - id: "read:users"
-        - id: "manage:users"
+      - id: read:users          # Simple read operation
+      - id: manage:users        # Standard account management
 
-    - id: support
-      name: "Support"
-      type: user
-      priority: 2
-      permissions:
-        - id: "read:systems"
-        - id: "manage:systems"
+      - id: read:applications   # Simple read operation
+      - id: manage:applications # Standard applications management
+
+      - id: read:alerts         # View alerting configuration (own + inherited)
+      - id: manage:alerts       # Manage alerting configuration policy (recipients, language, severity/system overrides)
+
+      - id: read:entitlements   # See add-on licenses and expirations
+      - id: manage:entitlements # Buy/cancel add-on subscriptions on the shop
+
+      - id: read:rebranding     # See the branding of own organization
+      - id: manage:rebranding   # Configure logos, favicon and brand name
+
+  - id: support
+    name: "Support"
+    priority: 2
+    type: user
+    permissions:
+      # Standard technical operations (no dangerous operations)
+      - id: read:systems         # Simple read operation
+      - id: manage:systems       # Standard system management
+
+      - id: read:applications    # Simple read operation
+      - id: manage:applications  # Standard applications management
+
+      - id: read:alerts          # View alerting configuration (own + inherited)
+      - id: manage:alerts        # Manage alerting configuration policy (recipients, language, severity/system overrides)
+
+      - id: read:entitlements    # See add-on licenses and expirations
+
+      - id: read:rebranding      # See the branding of own organization
+
+  - id: backoffice
+    name: "Backoffice"
+    priority: 2
+    type: user
+    permissions:
+      # Standard technical operations (no dangerous operations)
+      - id: read:users           # Simple read operation
+      - id: manage:users         # Standard user management
+
+      - id: read:systems         # Simple read systems
+      - id: read:applications    # Simple read operation
+      - id: manage:applications  # Standard applications management
+
+      - id: read:entitlements    # See add-on licenses and expirations
+      - id: manage:entitlements  # Grant/revoke add-on licenses (backoffice duty)
+
+      - id: read:rebranding      # See the branding of own organization
+
+  - id: reader
+    name: "Reader"
+    priority: 2
+    type: user
+    permissions:
+      # Only readable resources
+        - id: read:systems
+        - id: read:users
+        - id: read:applications
+        - id: read:entitlements
+        - id: read:rebranding
+
+  - id: super
+    name: "Super Admin"
+    priority: 0
+    type: user
+    permissions:
+      # Complete control including most dangerous operations
+      - id: read:systems
+      - id: manage:systems
+      - id: destroy:systems
+      - id: read:users
+      - id: manage:users
+      - id: destroy:users
+      - id: impersonate:users
+      - id: connect:systems
+      - id: read:applications
+      - id: manage:applications
+      - id: read:alerts
+      - id: manage:alerts
+      - id: config:alerts
+      - id: read:entitlements
+      - id: manage:entitlements
+      - id: read:rebranding
+      - id: manage:rebranding
+    # Access control: only Owner users can assign this role
+    access_control:
+      organization_roles:
+        - "owner"
 
 # Resources and their available actions.
 #
@@ -78,23 +174,47 @@ user_roles:
 # bills per API resource and includes 3 in the Pro plan, so everything shares a
 # single container. Omitting it creates one Logto resource per entry.
 resources:
-    - name: "customers"
-      actions: ["read", "manage"]
-      container: "permissions"
+  - name: "distributors"
+    actions: ["read", "manage", "destroy"]
+    container: "permissions"
 
-    - name: "systems"
-      actions: ["read", "manage", "destroy"]
-      container: "permissions"
+  - name: "resellers"
+    actions: ["read", "manage", "destroy"]
+    container: "permissions"
 
-    - name: "users"
-      actions: ["read", "manage", "impersonate"]
-      container: "permissions"
+  - name: "customers"
+    actions: ["read", "manage", "destroy"]
+    container: "permissions"
 
-    - name: "role-access-control"
-      actions: ["owner", "distributor", "reseller"]
-      container: "permissions"
+  - name: "systems"
+    actions: ["read", "manage", "destroy", "connect"]
+    container: "permissions"
 
-# Third-party applications (optional)
+  - name: "entitlements"
+    actions: ["read", "manage"]
+    container: "permissions"
+
+  - name: "users"
+    actions: ["read", "manage", "destroy", "impersonate"]
+    container: "permissions"
+
+  - name: "applications"
+    actions: ["read", "manage"]
+    container: "permissions"
+
+  - name: "alerts"
+    actions: ["read", "manage", "config"]
+    container: "permissions"
+
+  - name: "rebranding"
+    actions: ["read", "manage"]
+    container: "permissions"
+
+  - name: "role-access-control"
+    actions: ["owner", "distributor", "reseller"]
+    container: "permissions"
+
+# Third-party applications
 third_party_apps:
     # Example: Management app - only accessible by specific organizations and roles
     - name: "management.company.com"
