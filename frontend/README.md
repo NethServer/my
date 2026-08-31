@@ -5,9 +5,8 @@ Vue.js web application for My Nethesis with Logto authentication and Role-Based 
 ## Quick Start
 
 ### Prerequisites
-- Node.js 20+ LTS
-- NPM
-- Backend API running
+- Node.js — the exact version in [`.nvmrc`](../.nvmrc) at the repo root. See [Node version](#node-version).
+- Backend API running on port 8080
 - Logto instance configured
 
 ### Setup
@@ -16,12 +15,30 @@ Vue.js web application for My Nethesis with Logto authentication and Role-Based 
 > Start it first with `cd backend && make dev-up && make run`.
 
 ```bash
-# Install dependencies
-npm ci
-
-# Start development server (port 5173)
-npm run dev
+nvm install    # no argument: reads ../.nvmrc, installs that version and switches to it
+node -v        # must match ../.nvmrc
+npm ci         # npm ships inside Node — nothing separate to install
+npm run dev    # development server on port 5173
 ```
+
+### Node version
+
+One version is pinned for the whole repo, at the **root** rather than here, because
+nvm and fnm both search *upward* from the current directory — so a single pin
+covers `frontend/` and `docs/` alike.
+
+`.nvmrc` is the only version file, because every manager in practical use here
+reads it: both nvm and fnm do.
+
+- **nvm**: `nvm install`, then `nvm use` in every new shell. nvm does **not** switch
+  automatically; add the `cd` hook from nvm's "Deeper Shell Integration" section to
+  your shell rc if you want it to.
+- **fnm**: `fnm install && fnm use`, or `eval "$(fnm env --use-on-cd)"` to automate it.
+
+`engines` in `package.json` is the backstop. On the wrong Node, `npm ci` still
+succeeds but prints `EBADENGINE` — treat that as an error, because `npm run
+type-check` would then check against `@types/node` for a runtime you are not
+actually running.
 
 ### Required Environment Variables
 
@@ -91,47 +108,15 @@ npm run qa
 npm run preview
 ```
 
-### Container Development
+### Running without installing Node
 
-#### Podman Development
-```bash
-# Start development container
-./dev.sh
+There is no container-based dev server: `npm run dev` on the host is the only
+development path.
 
-# Build container image
-./dev.sh build
-
-# Run commands in container
-./dev.sh npm run lint-fix
-./dev.sh npm run format-fix
-./dev.sh bash
-```
-
-#### VSCode Dev Containers
-
-**Important Notes:**
-- Modifying `dev.containers.dockerPath` setting affects all projects globally
-- This procedure may not work on [VSCodium](https://vscodium.com/)
-
-**Setup:**
-1. Install [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
-2. Configure Podman support:
-   - Go to `File > Preferences > Settings`
-   - Search for `dev.containers.dockerPath`
-   - Set the value to `podman`
-3. Open the frontend directory in VSCode
-4. Open Command Palette (`CTRL+SHIFT+P`) → "Reopen in Container" (or "Rebuild and Reopen in Container")
-5. Open integrated terminal: `View > Terminal`
-6. Run development commands:
-   ```bash
-   npm install          # Install dependencies
-   npm run dev          # Start development server
-   npm run lint-fix     # Fix linting issues
-   npm run format-fix   # Format source files
-   npm run qa           # Start QA environment server
-   ```
-
-Container configuration is in `.devcontainer/devcontainer.json`.
+To run the app without installing anything, use the full stack from the repo
+root — `docker-compose up -d`, app on http://localhost:9090. It needs a root `.env`
+supplying the `VITE_LOGTO_*` values, which compose declares mandatory. That builds the
+frontend's `production` target, so it is a build, not a live-reload server.
 
 ## Testing
 
@@ -167,8 +152,6 @@ frontend/
 │   ├── views/             # Page components
 │   └── i18n/              # Internationalization
 ├── public/                # Static assets
-├── .devcontainer/         # VSCode Dev Container config
-├── dev.sh                 # Podman development script
 └── build.sh               # Production build script
 ```
 
