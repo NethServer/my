@@ -700,9 +700,17 @@ func upsertRebrandingAssets(db rebrandingExecer, orgID, productID string, produc
 // are set, cleared ones are nulled, and the rest are left out of the SET clause
 // so they keep their value.
 func buildRebrandingUpsert(orgID, productID string, productName *string, uploads map[string]models.RebrandingUpload, clear []string) (string, []interface{}) {
+	// A brand name sent empty means "clear it": the column goes to NULL and the
+	// product falls back to its own name. A nil pointer means the form did not
+	// send the field at all, and the stored name is left alone.
+	var nameArg interface{}
+	if productName != nil && *productName != "" {
+		nameArg = *productName
+	}
+
 	columns := []string{"organization_id", "product_id", "product_name"}
 	values := []string{"$1", "$2", "$3"}
-	args := []interface{}{orgID, productID, productName}
+	args := []interface{}{orgID, productID, nameArg}
 	updates := []string{}
 
 	if productName != nil {

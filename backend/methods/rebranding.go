@@ -708,10 +708,23 @@ func formList(c *gin.Context, field string) []string {
 	return values
 }
 
+// formBrandName tells "the form did not send this field" from "the form sent it
+// empty". The first leaves the stored name alone; the second clears it, which is
+// what emptying the input and saving has to mean. The distinction is the key's
+// presence in the multipart form, not the value.
 func formBrandName(c *gin.Context, field string) (*string, bool) {
-	value := c.Request.FormValue(field)
-	if value == "" {
+	if c.Request.MultipartForm == nil {
 		return nil, true
+	}
+	values, present := c.Request.MultipartForm.Value[field]
+	if !present || len(values) == 0 {
+		return nil, true
+	}
+
+	value := values[0]
+	if value == "" {
+		empty := ""
+		return &empty, true
 	}
 	if len(value) > maxProductName {
 		// "max" is the code the binding validator emits for a max=N tag, so the

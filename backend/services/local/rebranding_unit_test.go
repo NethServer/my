@@ -29,7 +29,7 @@ func TestBuildRebrandingUpsert(t *testing.T) {
 		assert.Contains(t, query, "logo_light_rect_mime = $5")
 		assert.Contains(t, query, "logo_light_rect_filename = $6")
 		assert.Equal(t, []interface{}{
-			"org1", "nethvoice", (*string)(nil),
+			"org1", "nethvoice", nil,
 			[]byte("svg"), "image/svg+xml", "logo-light.svg",
 		}, args)
 	})
@@ -64,12 +64,24 @@ func TestBuildRebrandingUpsert(t *testing.T) {
 	})
 
 	t.Run("the brand name is left alone when the form does not send it", func(t *testing.T) {
-		query, _ := buildRebrandingUpsert("org1", "nethvoice", nil, nil, nil)
+		query, args := buildRebrandingUpsert("org1", "nethvoice", nil, nil, nil)
 		assert.NotContains(t, query, "product_name = $3")
+		assert.Nil(t, args[2])
 
 		brand := "UrbanGrid"
-		query, args := buildRebrandingUpsert("org1", "nethvoice", &brand, nil, nil)
+		query, args = buildRebrandingUpsert("org1", "nethvoice", &brand, nil, nil)
 		assert.Contains(t, query, "product_name = $3")
-		assert.Equal(t, &brand, args[2])
+		assert.Equal(t, brand, args[2])
+	})
+
+	t.Run("a brand name sent empty clears the stored one", func(t *testing.T) {
+		empty := ""
+		query, args := buildRebrandingUpsert("org1", "nethvoice", &empty, nil, nil)
+
+		// The column is written, and what is written is NULL — not an empty
+		// string, which would render as a blank custom name instead of falling
+		// back to the product's own.
+		assert.Contains(t, query, "product_name = $3")
+		assert.Nil(t, args[2])
 	})
 }

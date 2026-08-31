@@ -33,6 +33,8 @@ Un amministratore di un'organizzazione abilitata configura il branding della pro
 
 Il salvataggio scrive tutto in un'unica operazione: gli asset vengono applicati a ogni prodotto selezionato e un prodotto tolto dalla selezione perde la propria configurazione. La conferma indica quante organizzazioni a valle mostrano ora quel marchio.
 
+Svuotare il nome del marchio e salvare lo rimuove: il prodotto torna a mostrare il proprio nome.
+
 ## Prodotti Supportati
 
 Il rebranding è disponibile per i seguenti prodotti:

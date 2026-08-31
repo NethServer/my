@@ -22,9 +22,21 @@
 # Extras:
 #   intent_any        any one of the listed permissions is enough
 #   self_org_get      a user may always read its own organization
-#   object_scoped     no route-level gate by design; the handler decides per object
+#   org_role          narrows the intent to one organization role, ANDed with the
+#                     permission ("manage:rebranding, from the owner org only")
+#   or_user_role      widens org_role with a technical role that satisfies it from
+#                     any organization ("the owner org, or a Super Admin anywhere")
+#   enforced_by       where the decision is expected to live; "handler" means a
+#                     handler refusal is the expected denial, not route middleware
+#   object_scoped     the endpoint addresses one object, and a handler refusal for
+#                     an object outside the caller's scope IS the expected answer.
+#                     Orthogonal to whether a route-level gate exists: with
+#                     `intent: authenticated` it says the handler is the only
+#                     gate, and next to a permission it says the permission gets
+#                     you to the endpoint while the object still has to be yours.
 #   ids / body / query  shape the probe so it lands on the authorization decision
 #   expect_anonymous  for the endpoints that ARE the authenticator
+#   expect_authorized tightens the statuses accepted for personas that pass the gate
 #   skip              excluded from the gate matrix, with the reason
 #
 # A NOTE ON THE PERMISSION MODEL: effective = org_permissions ∪ user_permissions.

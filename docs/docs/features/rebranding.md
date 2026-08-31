@@ -33,6 +33,8 @@ An administrator of an enabled organization configures the branding of their own
 
 Saving writes everything in one step: the assets are stored for every selected product, and a product removed from the selection loses its configuration. The confirmation reports how many organizations downstream now display the branding.
 
+Emptying the brand name and saving removes it, and the product goes back to showing its own name.
+
 ## Supported Products
 
 Rebranding is available for the following products:

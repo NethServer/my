@@ -221,9 +221,19 @@ expect "C17 un brand name troppo lungo è un errore di campo" 400 "
     d['errors'][0]['key'] == 'brand_name' and d['errors'][0]['message'] == 'max'"
 req rb-dist-admin PUT "/rebranding/$DIST/config" -F "products=nethvoice" -F "logo_light_rect=@$ASSETS/not-an-image.txt;type=text/plain"
 expect "C18 un content type non ammesso viene rifiutato" 400
+req rb-dist-admin PUT "/rebranding/$DIST/config" -F "products=nethvoice"
+expect "C19 senza il campo, il brand name resta quello di prima" 200
+req rb-dist-admin GET "/rebranding/$DIST/status"
+expect "C20 ...infatti è ancora UrbanGrid" 200 "
+    [p for p in d['products'] if p['product_id']=='nethvoice'][0]['product_name'] == 'UrbanGrid'"
+req rb-dist-admin PUT "/rebranding/$DIST/config" -F "products=nethvoice" -F "brand_name="
+expect "C21 col campo vuoto, il brand name si cancella" 200
+req rb-dist-admin GET "/rebranding/$DIST/status"
+expect "C22 ...ed è tornato nullo, non stringa vuota" 200 "
+    [p for p in d['products'] if p['product_id']=='nethvoice'][0]['product_name'] is None"
 req rb-res1-admin PUT "/rebranding/$RES1/config" -F "products=nethvoice" -F "brand_name=Res1Brand" \
   -F "logo_light_rect=@$ASSETS/logo-dark.svg;type=image/svg+xml"
-expect "C19 il reseller configura la propria org (1 cliente a valle)" 200 "d['applied_to_organizations'] == 1"
+expect "C23 il reseller configura la propria org (1 cliente a valle)" 200 "d['applied_to_organizations'] == 1"
 
 section "D. Autorizzazione in scrittura"
 req rb-res1-admin PUT "/rebranding/$RES2/config" -F "products=nethvoice"

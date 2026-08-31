@@ -16694,6 +16694,10 @@ paths:
                 brand_name:
                   type: string
                   maxLength: 100
+                  description: |
+                    Sent empty, it clears the stored name and the product falls
+                    back to its own. Omitted entirely, the stored name is left
+                    unchanged.
                   example: "UrbanGrid"
                 clear:
                   type: string
@@ -16781,6 +16785,9 @@ paths:
                 product_name:
                   type: string
                   maxLength: 100
+                  description: |
+                    Sent empty, it clears the stored name. Omitted entirely, the
+                    stored name is left unchanged.
                 clear:
                   type: string
                   description: |
