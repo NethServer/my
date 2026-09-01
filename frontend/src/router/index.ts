@@ -91,6 +91,11 @@ const router = createRouter({
       component: () => import('../views/AddonsView.vue'),
     },
     {
+      path: '/rebranding',
+      name: 'rebranding',
+      component: () => import('../views/RebrandingView.vue'),
+    },
+    {
       path: '/applications/:applicationId',
       name: 'application_detail',
       component: () => import('../views/ApplicationDetailView.vue'),

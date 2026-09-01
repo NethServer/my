@@ -26,6 +26,8 @@ const MANAGE_ALERTS = 'manage:alerts'
 // The add-on permissions are still spelled "entitlements" on the wire
 const READ_ADDONS = 'read:entitlements'
 const MANAGE_ADDONS = 'manage:entitlements'
+const READ_REBRANDING = 'read:rebranding'
+const MANAGE_REBRANDING = 'manage:rebranding'
 const SUPER_ADMIN_ROLE = 'Super Admin'
 
 // "Owner-level authority": the Owner organization, or a Super Admin user
@@ -167,3 +169,21 @@ export const isAddonAdmin = () => hasOwnerLevelAuthority()
 // does; owner-level users grant it outright instead, so offering them the shop
 // on top would be a second way to do a thing they already did better.
 export const canBuyAddons = () => canManageAddons() && !isAddonAdmin()
+
+export const canReadRebranding = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(READ_REBRANDING)
+}
+
+export const canManageRebranding = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(MANAGE_REBRANDING)
+}
+
+// Deciding which companies may rebrand is an administrative duty, not something
+// every distributor takes part in: owner organization or Super Admin, the same
+// population the add-on catalog answers to. The scope is checked alongside it
+// because the route sits behind manage:rebranding as well, and an owner-org
+// user holding only a read role would otherwise be offered a button the API
+// refuses.
+export const isRebrandingAdmin = () => hasOwnerLevelAuthority() && canManageRebranding()

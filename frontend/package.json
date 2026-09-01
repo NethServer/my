@@ -82,5 +82,11 @@
     "vite-plugin-vue-devtools": "^7.7.2",
     "vitest": "^3.2.4",
     "vue-tsc": "^2.2.8"
+  },
+  "allowScripts": {
+    "vue-demi@0.14.10": true,
+    "github:nethesis/Font-Awesome#16419000ca62bc35db676d033ef00b8ef9771024": true,
+    "esbuild@0.25.9": true,
+    "github:nethesis/Font-Awesome#581a497e2f8e45634e9aef3f5cfc199489cc455f": true
   }
 }
