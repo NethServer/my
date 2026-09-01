@@ -58,6 +58,9 @@ export const DistributorSchema = v.object({
   systems_count: v.number(),
   resellers_count: v.number(),
   customers_count: v.number(),
+  // Resolved rebranding flag: true when this organization inherits or holds a
+  // rebranding grant. Populated by the detail and list handlers alike.
+  rebranding_enabled: v.optional(v.boolean()),
   created_by: v.optional(
     v.object({
       user_id: v.string(),
