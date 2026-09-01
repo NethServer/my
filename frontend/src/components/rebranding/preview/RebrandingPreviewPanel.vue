@@ -21,6 +21,7 @@ import type { RebrandingAssetName } from '@/lib/rebranding/rebranding'
 import type { RebrandingAssetUrls } from '@/composables/useRebrandingAssetUrls'
 import TopBarPreview from './TopBarPreview.vue'
 import LoginScreenPreview from './LoginScreenPreview.vue'
+import BrowserChrome from './BrowserChrome.vue'
 // Stock NethVoice artwork, exported from the design file, standing in until the
 // partner uploads their own. Bound by the background each one is drawn on,
 // because the rect filenames name the colour of the ink rather than the theme:
@@ -150,23 +151,35 @@ function toggleTheme() {
       :aria-label="canvasAriaLabel"
       class="aspect-16/10 w-full overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
     >
-      <LoginScreenPreview
-        v-if="view === 'login'"
-        :palette="palette"
-        :accent-classes="accentClasses"
-        :accent-text-classes="accentTextClasses"
-        :subtitle="productSubtitle"
-        :logo-src="rectLogoSrc"
-        :background-src="backgroundSrc"
-        :favicon-src="faviconSrc"
-        :tab-title="displayedBrandName"
-      />
-      <TopBarPreview
-        v-else
-        :palette="palette"
-        :brand-name="displayedBrandName"
-        :square-logo-src="squareLogoSrc"
-      />
+      <!-- The browser frame belongs to both views: the product is a web app
+           either way, and the favicon has nowhere else to show. -->
+      <div :class="['flex h-full w-full flex-col', palette.canvas]" aria-hidden="true">
+        <BrowserChrome
+          :palette="palette"
+          :favicon-src="faviconSrc"
+          :tab-title="displayedBrandName"
+        />
+        <!-- Hairline between the chrome and the page, in the chrome's own
+             colour: invisible against the bar, a clean edge against the page. -->
+        <div :class="['h-px shrink-0', palette.chrome]"></div>
+        <div class="min-h-0 flex-1">
+          <LoginScreenPreview
+            v-if="view === 'login'"
+            :palette="palette"
+            :accent-classes="accentClasses"
+            :accent-text-classes="accentTextClasses"
+            :subtitle="productSubtitle"
+            :logo-src="rectLogoSrc"
+            :background-src="backgroundSrc"
+          />
+          <TopBarPreview
+            v-else
+            :palette="palette"
+            :brand-name="displayedBrandName"
+            :square-logo-src="squareLogoSrc"
+          />
+        </div>
+      </div>
     </div>
   </div>
 </template>
