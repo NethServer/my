@@ -17,12 +17,13 @@ import { useI18n } from 'vue-i18n'
  *
  * @param enabled gates the underlying request; pass the field's visibility so
  *   the query doesn't fire while the host drawer is closed. Defaults to always on.
- * @param type restricts the options to a single company type. It is part of the
- *   query key, so a scoped caller never reads an unscoped result from the cache.
+ * @param types restricts the options to these company types, OR-ed. They are
+ *   part of the query key, so a scoped caller never reads an unscoped result
+ *   from the cache.
  */
 export function useOrganizationFilter(
   enabled?: MaybeRefOrGetter<boolean>,
-  type?: MaybeRefOrGetter<string | undefined>,
+  types?: MaybeRefOrGetter<string[] | undefined>,
 ) {
   const { t } = useI18n()
   const loginStore = useLoginStore()
@@ -37,9 +38,11 @@ export function useOrganizationFilter(
   )
 
   const { state, asyncStatus } = useQuery({
-    key: () => [ORGANIZATIONS_SEARCH_KEY, debouncedSearch.value, toValue(type) ?? ''],
+    // the types are joined for keying only: the key must be a stable value, not
+    // the array reference the caller re-creates on every render
+    key: () => [ORGANIZATIONS_SEARCH_KEY, debouncedSearch.value, (toValue(types) ?? []).join(',')],
     enabled: () => !!loginStore.jwtToken && toValue(enabled ?? true),
-    query: () => searchOrganizations(debouncedSearch.value, toValue(type)),
+    query: () => searchOrganizations(debouncedSearch.value, toValue(types)),
   })
 
   const organizations = computed(() => state.value.data ?? [])

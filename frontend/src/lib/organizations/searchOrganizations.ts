@@ -24,13 +24,12 @@ interface OrganizationsSearchResponse {
 }
 
 /**
- * @param type restricts the results to a single company type (distributor,
- *   reseller, customer). Scoping server-side keeps the paginated option list
- *   meaningful: filtering by type on the client would drop entries from an
- *   already-truncated page.
+ * @param types restricts the results to these company types (distributor,
+ *   reseller, customer); the values are OR-ed. Scoping server-side keeps the
+ *   paginated option list meaningful: filtering by type on the client would drop
+ *   entries from an already-truncated page.
  */
-export const searchOrganizations = (search: string, type?: string) => {
-  const loginStore = useLoginStore()
+export const getOrganizationsSearchQueryString = (search: string, types?: string[]): string => {
   const params = new URLSearchParams({
     page: '1',
     page_size: OPTIONS_PAGE_SIZE.toString(),
@@ -40,9 +39,19 @@ export const searchOrganizations = (search: string, type?: string) => {
     params.append('search', search)
   }
 
-  if (type) {
+  // `type` is a repeated parameter on the wire — the backend reads it with
+  // c.QueryArray and does not split on commas, so joining the values would send
+  // one literal "a,b" filter that matches nothing.
+  for (const type of types ?? []) {
     params.append('type', type)
   }
+
+  return params.toString()
+}
+
+export const searchOrganizations = (search: string, types?: string[]) => {
+  const loginStore = useLoginStore()
+  const params = getOrganizationsSearchQueryString(search, types)
 
   return axios
     .get<OrganizationsSearchResponse>(`${API_URL}/organizations?${params}`, {
