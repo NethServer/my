@@ -333,10 +333,10 @@ const goToCustomerDetails = (customer: Customer) => {
             :custom-action-label="t('ne_dropdown_filter.reset_selection')"
             @custom-action="resetStatusFilter"
           />
-          <!-- parent company filter: the reseller the customer belongs to -->
+          <!-- parent company filter: the reseller or distributor the customer belongs to -->
           <OrganizationDropdownFilter
             v-model="organizationFilter"
-            organization-type="reseller"
+            :organization-types="['distributor', 'reseller']"
             :label="t('organizations.parent_company')"
           />
           <!-- created by filter -->

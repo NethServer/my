@@ -344,7 +344,7 @@ const goToResellerDetails = (reseller: Reseller) => {
           <!-- parent company filter: the distributor the reseller belongs to -->
           <OrganizationDropdownFilter
             v-model="organizationFilter"
-            organization-type="distributor"
+            :organization-types="['distributor']"
             :label="t('organizations.parent_company')"
           />
           <!-- created by filter -->
