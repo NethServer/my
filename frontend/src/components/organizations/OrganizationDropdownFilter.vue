@@ -14,16 +14,16 @@ const {
   modelValue,
   label,
   showNoCompanyOption = false,
-  organizationType,
+  organizationTypes,
 } = defineProps<{
   modelValue: NeDropdownFilterV2Option[]
   label?: string
   showNoCompanyOption?: boolean
   /**
-   * Restricts the options to a single company type (distributor, reseller,
-   * customer). Omit to offer every company the user can see.
+   * Restricts the options to these company types (distributor, reseller,
+   * customer), OR-ed. Omit to offer every company the user can see.
    */
-  organizationType?: string
+  organizationTypes?: string[]
 }>()
 
 const emit = defineEmits<{
@@ -34,7 +34,7 @@ const { t } = useI18n()
 const computedLabel = label ?? t('organizations.organization')
 const { options, loading, onSearch, currentSearch } = useOrganizationFilter(
   undefined,
-  () => organizationType,
+  () => organizationTypes,
 )
 
 const noCompanyLabel = computed(() => t('organizations.no_company'))
