@@ -23,6 +23,7 @@ import {
   faServer as fasServer,
   faTriangleExclamation,
   faPuzzlePiece,
+  faPalette,
 } from '@fortawesome/free-solid-svg-icons'
 import { faGridOne as fasGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import {
@@ -35,17 +36,21 @@ import {
   faGrid2 as falGrid2,
   faTriangleExclamation as falTriangleExclamation,
   faPuzzlePiece as falPuzzlePiece,
+  faPalette as falPalette,
 } from '@nethesis/nethesis-light-svg-icons'
 import {
   canReadApplications,
   canReadCustomers,
   canReadDistributors,
+  canReadRebranding,
+  isRebrandingAdmin,
   canReadResellers,
   canReadSystems,
   canReadUsers,
   isAddonAdmin,
 } from '@/lib/permissions'
 import { isUserCustomer } from '@/lib/organizations/organizations'
+import { useMyRebrandingStatus } from '@/queries/rebranding/myRebrandingStatus'
 
 type MenuItem = {
   name: string
@@ -64,13 +69,14 @@ const { t } = useI18n()
 const route = useRoute()
 const loginStore = useLoginStore()
 const menuItemsExpandedLoaded = ref(false)
+const { isEnabled: isMyRebrandingEnabled } = useMyRebrandingStatus()
 
 const menuExpanded: Ref<Record<string, boolean>> = ref({
   distributors: false,
   resellers: false,
 })
 
-const systemsManagementRoutes = ['alerts', 'systems', 'applications', 'addons']
+const systemsManagementRoutes = ['alerts', 'systems', 'applications', 'addons', 'rebranding']
 const companiesAndUsersRoutes = ['distributors', 'resellers', 'customers', 'users']
 
 const navigation = computed(() => {
@@ -114,6 +120,17 @@ const navigation = computed(() => {
       to: 'addons',
       solidIcon: faPuzzlePiece,
       lightIcon: falPuzzlePiece,
+    })
+  }
+
+  // Owner-level users decide who may rebrand, so they always reach the page;
+  // everybody else only once their own company has been enabled.
+  if (canReadRebranding() && (isRebrandingAdmin() || isMyRebrandingEnabled.value)) {
+    menuItems.push({
+      name: 'rebranding.title',
+      to: 'rebranding',
+      solidIcon: faPalette,
+      lightIcon: falPalette,
     })
   }
 

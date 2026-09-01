@@ -16,7 +16,7 @@ import { useResellerDetail } from '@/queries/organizations/resellerDetail'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { getOrganizationIcon } from '@/lib/organizations/organizations'
 import DataItem from '../common/DataItem.vue'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import NotesModal from '../common/NotesModal.vue'
 import { canManageResellers, canPromoteOrganizations } from '@/lib/permissions'
 import {
@@ -24,6 +24,7 @@ import {
   faCirclePause,
   faCirclePlay,
   faCircleCheck,
+  faCircleXmark,
   faBoxArchive,
   faCircleUp,
 } from '@fortawesome/free-solid-svg-icons'
@@ -34,9 +35,23 @@ import ReactivateResellerModal from './ReactivateResellerModal.vue'
 import PromoteResellerModal from './PromoteResellerModal.vue'
 import { getLanguageLabel } from '@/lib/locale'
 import { formatPhoneForDisplay } from '@/lib/phone'
+import UserAvatar from '../users/UserAvatar.vue'
 
 const { t } = useI18n()
 const { state: resellerDetail, asyncStatus } = useResellerDetail()
+
+const rebrandingEnabled = computed(() => resellerDetail.value.data?.rebranding_enabled === true)
+const rebrandingText = computed(() =>
+  rebrandingEnabled.value ? t('common.enabled') : t('common.disabled'),
+)
+// Same icon-and-text shape as the status row above: green when on, the muted
+// neutral the row uses for every not-active state when off.
+const rebrandingIcon = computed(() => (rebrandingEnabled.value ? faCircleCheck : faCircleXmark))
+const rebrandingIconClasses = computed(() =>
+  rebrandingEnabled.value
+    ? 'text-green-600 dark:text-green-400'
+    : 'text-gray-700 dark:text-gray-400',
+)
 const isNotesModalShown = ref(false)
 const isShownCreateOrEditResellerDrawer = ref(false)
 const isShownSuspendResellerModal = ref(false)
@@ -230,9 +245,57 @@ function getKebabMenuItems() {
             }}
           </template>
         </DataItem>
+        <!-- rebranding -->
+        <DataItem>
+          <template #label>
+            {{ $t('organizations.rebranding') }}
+          </template>
+          <template #data>
+            <div class="flex items-center gap-2">
+              <FontAwesomeIcon
+                :icon="rebrandingIcon"
+                :class="['size-4', rebrandingIconClasses]"
+                aria-hidden="true"
+              />
+              <span>{{ rebrandingText }}</span>
+            </div>
+          </template>
+        </DataItem>
+        <!-- created by -->
+        <DataItem>
+          <template #label>
+            {{ $t('systems.created_by') }}
+          </template>
+          <template #data>
+            <div v-if="resellerDetail.data.created_by" class="flex items-center justify-end gap-2">
+              <UserAvatar
+                size="sm"
+                :is-owner="resellerDetail.data.created_by.username === 'owner'"
+                :name="resellerDetail.data.created_by.name"
+                :logto-id="resellerDetail.data.created_by.user_id"
+              />
+              <div class="space-y-0.5 text-start">
+                <div>{{ resellerDetail.data.created_by.name || '-' }}</div>
+                <div
+                  v-if="resellerDetail.data.created_by.organization_name"
+                  class="text-gray-500 dark:text-gray-400"
+                >
+                  {{
+                    resellerDetail.data.created_by.on_behalf_of
+                      ? $t('systems.on_behalf_of', {
+                          organization: resellerDetail.data.created_by.organization_name,
+                        })
+                      : resellerDetail.data.created_by.organization_name
+                  }}
+                </div>
+              </div>
+            </div>
+            <template v-else>-</template>
+          </template>
+        </DataItem>
         <!-- notes -->
         <div v-if="resellerDetail.data.custom_data.notes">
-          <div class="py-4 font-medium">
+          <div class="text-tertiary-neutral dark:text-tertiary-neutral py-4 font-medium">
             {{ $t('common.notes') }}
           </div>
           <pre ref="preElement" class="line-clamp-5 font-sans whitespace-pre-wrap">{{
