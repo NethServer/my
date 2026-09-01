@@ -102,11 +102,11 @@ type PaginationInfo struct {
 
 // OrganizationFilters represents filters for organization queries
 type OrganizationFilters struct {
-	Name        string `json:"name,omitempty"`        // exact match
-	Description string `json:"description,omitempty"` // from customData.type
-	Type        string `json:"type,omitempty"`        // from customData.type
-	CreatedBy   string `json:"created_by,omitempty"`  // from customData.createdBy
-	Search      string `json:"search,omitempty"`      // general search term
+	Name        string   `json:"name,omitempty"`        // exact match
+	Description string   `json:"description,omitempty"` // from customData.type
+	Types       []string `json:"types,omitempty"`       // from customData.type; multiple values are OR-ed
+	CreatedBy   string   `json:"created_by,omitempty"`  // from customData.createdBy
+	Search      string   `json:"search,omitempty"`      // general search term
 }
 
 // PaginatedOrganizations represents a paginated response of organizations

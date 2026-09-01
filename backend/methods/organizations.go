@@ -58,7 +58,7 @@ func GetOrganizations(c *gin.Context) {
 		Search:      c.Query("search"),
 		Name:        c.Query("name"),
 		Description: c.Query("description"),
-		Type:        c.Query("type"),
+		Types:       c.QueryArray("type"),
 		CreatedBy:   c.Query("created_by"),
 	}
 

@@ -2099,10 +2099,19 @@ func (s *LocalOrganizationService) GetAllOrganizationsPaginated(userOrgRole, use
 	var filterClauses []string
 	var filterArgs []interface{}
 
-	if filters.Type != "" {
-		filterClauses = append(filterClauses, fmt.Sprintf("type = $%d", nextIdx))
-		filterArgs = append(filterArgs, filters.Type)
-		nextIdx++
+	if len(filters.Types) > 0 {
+		placeholders := make([]string, 0, len(filters.Types))
+		for _, orgType := range filters.Types {
+			if orgType == "" {
+				continue
+			}
+			placeholders = append(placeholders, fmt.Sprintf("$%d", nextIdx))
+			filterArgs = append(filterArgs, orgType)
+			nextIdx++
+		}
+		if len(placeholders) > 0 {
+			filterClauses = append(filterClauses, fmt.Sprintf("type IN (%s)", strings.Join(placeholders, ", ")))
+		}
 	}
 	if filters.Name != "" {
 		filterClauses = append(filterClauses, fmt.Sprintf("name = $%d", nextIdx))

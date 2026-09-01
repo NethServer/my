@@ -182,14 +182,14 @@ func TestOrganizationFiltersStruct(t *testing.T) {
 	filters := OrganizationFilters{
 		Name:        "Test Org",
 		Description: "Test description",
-		Type:        "distributor",
+		Types:       []string{"distributor", "reseller"},
 		CreatedBy:   "admin_user",
 		Search:      "test search",
 	}
 
 	assert.Equal(t, "Test Org", filters.Name)
 	assert.Equal(t, "Test description", filters.Description)
-	assert.Equal(t, "distributor", filters.Type)
+	assert.Equal(t, []string{"distributor", "reseller"}, filters.Types)
 	assert.Equal(t, "admin_user", filters.CreatedBy)
 	assert.Equal(t, "test search", filters.Search)
 }
