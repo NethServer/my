@@ -7,7 +7,7 @@
   Same rule as the login preview: everything here is a decorative div, so the
   canvas can follow the previewed theme rather than the application one, and no
   dead control ends up in the tab order. The parent exposes the canvas as
-  role="img".
+  role="img" and hides this subtree from assistive tech.
 -->
 
 <script setup lang="ts">
@@ -24,7 +24,7 @@ defineProps<{
 </script>
 
 <template>
-  <div :class="['flex h-full w-full flex-col', palette.canvas]" aria-hidden="true">
+  <div class="flex h-full w-full flex-col">
     <!-- the product top bar: the square mark sits in its own cell -->
     <div :class="['flex h-16 shrink-0 items-center', palette.surface]">
       <div
