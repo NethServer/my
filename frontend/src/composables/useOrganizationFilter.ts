@@ -71,6 +71,10 @@ export function useOrganizationFilter(
  * instead of the combobox hiding itself. Never searches, so the result reflects
  * the full eligible set and stays stable while the user types in the combobox.
  *
+ * `allowedTypes` scopes the request itself, so the answer is not decided by
+ * whichever companies happen to sort into the first page — and passing the same
+ * types the field uses keeps both on one query key, hence one request.
+ *
  * @param enabled gates the request (e.g. drawer open AND caller may attribute).
  */
 export function useHasAttributableOrganizations(
@@ -78,13 +82,9 @@ export function useHasAttributableOrganizations(
   enabled?: MaybeRefOrGetter<boolean>,
 ) {
   const loginStore = useLoginStore()
-  const { organizations } = useOrganizationFilter(enabled)
+  const { organizations } = useOrganizationFilter(enabled, allowedTypes)
 
   return computed(() =>
-    organizations.value.some(
-      (org) =>
-        toValue(allowedTypes).includes(org.type) &&
-        org.logto_id !== loginStore.userInfo?.organization_id,
-    ),
+    organizations.value.some((org) => org.logto_id !== loginStore.userInfo?.organization_id),
   )
 }
