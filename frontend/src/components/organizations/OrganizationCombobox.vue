@@ -20,7 +20,11 @@ const props = withDefaults(
     helperText?: string
     placeholder?: string
     optional?: boolean
-    // Restrict the options to these organization types (e.g. ['distributor']).
+    // Scopes the server-side search to these organization types (e.g.
+    // ['distributor']). Filtering by type here rather than on the fetched page
+    // is what keeps the options meaningful: the page is truncated, so a
+    // client-side filter would drop to a handful of entries — or none — as soon
+    // as companies of other types sort ahead of them.
     allowedTypes?: string[]
     // Exclude these organization ids from the options (e.g. the caller's own org).
     excludeOrganizationIds?: string[]
@@ -44,13 +48,14 @@ const { t } = useI18n()
 
 const { organizations, loading, onSearch, currentSearch } = useOrganizationFilter(
   () => props.isShown,
+  () => props.allowedTypes,
 )
 
 const organizationOptions = computed(() => {
   let orgs = organizations.value
-  if (props.allowedTypes && props.allowedTypes.length > 0) {
-    orgs = orgs.filter((org) => props.allowedTypes!.includes(org.type))
-  }
+  // The excluded ids stay a client-side filter: the API has no equivalent
+  // parameter, and unlike a type filter this one only ever removes ids the
+  // caller already knows about, so it cannot silently empty the list.
   if (props.excludeOrganizationIds && props.excludeOrganizationIds.length > 0) {
     orgs = orgs.filter((org) => !props.excludeOrganizationIds!.includes(org.logto_id))
   }
