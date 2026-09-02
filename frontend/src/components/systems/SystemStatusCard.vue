@@ -250,7 +250,7 @@ const timezone = computed(() => {
             <template v-else>
               <FontAwesomeIcon
                 :icon="faCircleCheck"
-                class="size-4 text-green-700 dark:text-green-500"
+                class="text-icon-enabled size-4"
                 aria-hidden="true"
               />
               {{ $t('system_detail.no_active_alerts') }}
@@ -286,7 +286,7 @@ const timezone = computed(() => {
                 <template v-if="hasBackups">
                   <FontAwesomeIcon
                     :icon="faCircleCheck"
-                    class="size-4 text-green-700 dark:text-green-500"
+                    class="text-icon-enabled size-4"
                     aria-hidden="true"
                   />
                   {{ $t('system_detail.n_backups_stored', { n: backupsCount }, backupsCount) }}

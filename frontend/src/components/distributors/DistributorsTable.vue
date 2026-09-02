@@ -442,19 +442,11 @@ const goToDistributorDetails = (distributor: Distributor) => {
               class="flex items-center gap-2 hover:underline"
               :aria-label="$t('distributors.show_distributor_resellers', { name: item.name })"
             >
-              <FontAwesomeIcon
-                :icon="faCity"
-                class="size-4 text-gray-700 dark:text-gray-400"
-                aria-hidden="true"
-              />
+              <FontAwesomeIcon :icon="faCity" class="text-icon-neutral size-4" aria-hidden="true" />
               {{ item.resellers_count }}
             </router-link>
             <div v-else class="flex items-center gap-2 opacity-50">
-              <FontAwesomeIcon
-                :icon="faCity"
-                class="size-4 text-gray-700 dark:text-gray-400"
-                aria-hidden="true"
-              />
+              <FontAwesomeIcon :icon="faCity" class="text-icon-neutral size-4" aria-hidden="true" />
               {{ item.resellers_count }}
             </div>
           </NeTableCell>
@@ -475,7 +467,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
             >
               <FontAwesomeIcon
                 :icon="faBuilding"
-                class="size-4 text-gray-700 dark:text-gray-400"
+                class="text-icon-neutral size-4"
                 aria-hidden="true"
               />
               {{ item.customers_count }}
@@ -483,7 +475,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
             <div v-else class="flex items-center gap-2 opacity-50">
               <FontAwesomeIcon
                 :icon="faBuilding"
-                class="size-4 text-gray-700 dark:text-gray-400"
+                class="text-icon-neutral size-4"
                 aria-hidden="true"
               />
               {{ item.customers_count }}
@@ -505,7 +497,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
             >
               <FontAwesomeIcon
                 :icon="faServer"
-                class="size-4 text-gray-700 dark:text-gray-400"
+                class="text-icon-neutral size-4"
                 aria-hidden="true"
               />
               {{ item.systems_count }}
@@ -513,7 +505,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
             <div v-else class="flex items-center gap-2 opacity-50">
               <FontAwesomeIcon
                 :icon="faServer"
-                class="size-4 text-gray-700 dark:text-gray-400"
+                class="text-icon-neutral size-4"
                 aria-hidden="true"
               />
               {{ item.systems_count }}
@@ -554,7 +546,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
               <template v-if="item.deleted_at">
                 <FontAwesomeIcon
                   :icon="faBoxArchive"
-                  class="size-4 text-gray-700 dark:text-gray-400"
+                  class="text-icon-neutral size-4"
                   aria-hidden="true"
                 />
                 <span>
@@ -564,7 +556,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
               <template v-else-if="item.suspended_at">
                 <FontAwesomeIcon
                   :icon="faCirclePause"
-                  class="size-4 text-gray-700 dark:text-gray-400"
+                  class="text-icon-neutral size-4"
                   aria-hidden="true"
                 />
                 <span>
@@ -574,7 +566,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
               <template v-else>
                 <FontAwesomeIcon
                   :icon="faCircleCheck"
-                  class="size-4 text-green-600 dark:text-green-400"
+                  class="text-icon-enabled size-4"
                   aria-hidden="true"
                 />
                 <span>

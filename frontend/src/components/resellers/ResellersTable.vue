@@ -466,7 +466,7 @@ const goToResellerDetails = (reseller: Reseller) => {
             >
               <FontAwesomeIcon
                 :icon="faBuilding"
-                class="size-4 text-gray-700 dark:text-gray-400"
+                class="text-icon-neutral size-4"
                 aria-hidden="true"
               />
               {{ item.customers_count }}
@@ -474,7 +474,7 @@ const goToResellerDetails = (reseller: Reseller) => {
             <div v-else class="flex items-center gap-2 opacity-50">
               <FontAwesomeIcon
                 :icon="faBuilding"
-                class="size-4 text-gray-700 dark:text-gray-400"
+                class="text-icon-neutral size-4"
                 aria-hidden="true"
               />
               {{ item.customers_count }}
@@ -496,7 +496,7 @@ const goToResellerDetails = (reseller: Reseller) => {
             >
               <FontAwesomeIcon
                 :icon="faServer"
-                class="size-4 text-gray-700 dark:text-gray-400"
+                class="text-icon-neutral size-4"
                 aria-hidden="true"
               />
               {{ item.systems_count }}
@@ -504,7 +504,7 @@ const goToResellerDetails = (reseller: Reseller) => {
             <div v-else class="flex items-center gap-2 opacity-50">
               <FontAwesomeIcon
                 :icon="faServer"
-                class="size-4 text-gray-700 dark:text-gray-400"
+                class="text-icon-neutral size-4"
                 aria-hidden="true"
               />
               {{ item.systems_count }}
@@ -545,7 +545,7 @@ const goToResellerDetails = (reseller: Reseller) => {
               <template v-if="item.deleted_at">
                 <FontAwesomeIcon
                   :icon="faBoxArchive"
-                  class="size-4 text-gray-700 dark:text-gray-400"
+                  class="text-icon-neutral size-4"
                   aria-hidden="true"
                 />
                 <span>
@@ -555,7 +555,7 @@ const goToResellerDetails = (reseller: Reseller) => {
               <template v-else-if="item.suspended_at">
                 <FontAwesomeIcon
                   :icon="faCirclePause"
-                  class="size-4 text-gray-700 dark:text-gray-400"
+                  class="text-icon-neutral size-4"
                   aria-hidden="true"
                 />
                 <span>
@@ -565,7 +565,7 @@ const goToResellerDetails = (reseller: Reseller) => {
               <template v-else>
                 <FontAwesomeIcon
                   :icon="faCircleCheck"
-                  class="size-4 text-green-600 dark:text-green-400"
+                  class="text-icon-enabled size-4"
                   aria-hidden="true"
                 />
                 <span>

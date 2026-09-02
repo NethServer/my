@@ -579,7 +579,7 @@ const goToAccount = () => {
               <template v-if="item.deleted_at">
                 <FontAwesomeIcon
                   :icon="faBoxArchive"
-                  class="size-4 text-gray-700 dark:text-gray-400"
+                  class="text-icon-neutral size-4"
                   aria-hidden="true"
                 />
                 <span>
@@ -589,7 +589,7 @@ const goToAccount = () => {
               <template v-else-if="item.suspended_at">
                 <FontAwesomeIcon
                   :icon="faCirclePause"
-                  class="size-4 text-gray-700 dark:text-gray-400"
+                  class="text-icon-neutral size-4"
                   aria-hidden="true"
                 />
                 <span>
@@ -599,7 +599,7 @@ const goToAccount = () => {
               <template v-else>
                 <FontAwesomeIcon
                   :icon="faCircleCheck"
-                  class="size-4 text-green-600 dark:text-green-400"
+                  class="text-icon-enabled size-4"
                   aria-hidden="true"
                 />
                 <span>

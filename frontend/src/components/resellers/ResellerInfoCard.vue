@@ -18,13 +18,13 @@ import { getOrganizationIcon } from '@/lib/organizations/organizations'
 import DataItem from '../common/DataItem.vue'
 import { computed, ref } from 'vue'
 import NotesModal from '../common/NotesModal.vue'
+import EnabledStatus from '../common/EnabledStatus.vue'
 import { canManageResellers, canPromoteOrganizations } from '@/lib/permissions'
 import {
   faPenToSquare,
   faCirclePause,
   faCirclePlay,
   faCircleCheck,
-  faCircleXmark,
   faBoxArchive,
   faCircleUp,
 } from '@fortawesome/free-solid-svg-icons'
@@ -41,17 +41,6 @@ const { t } = useI18n()
 const { state: resellerDetail, asyncStatus } = useResellerDetail()
 
 const rebrandingEnabled = computed(() => resellerDetail.value.data?.rebranding_enabled === true)
-const rebrandingText = computed(() =>
-  rebrandingEnabled.value ? t('common.enabled') : t('common.disabled'),
-)
-// Same icon-and-text shape as the status row above: green when on, the muted
-// neutral the row uses for every not-active state when off.
-const rebrandingIcon = computed(() => (rebrandingEnabled.value ? faCircleCheck : faCircleXmark))
-const rebrandingIconClasses = computed(() =>
-  rebrandingEnabled.value
-    ? 'text-green-600 dark:text-green-400'
-    : 'text-gray-700 dark:text-gray-400',
-)
 const isNotesModalShown = ref(false)
 const isShownCreateOrEditResellerDrawer = ref(false)
 const isShownSuspendResellerModal = ref(false)
@@ -139,7 +128,7 @@ function getKebabMenuItems() {
               <template v-if="resellerDetail.data.deleted_at">
                 <FontAwesomeIcon
                   :icon="faBoxArchive"
-                  class="size-4 text-gray-700 dark:text-gray-400"
+                  class="text-icon-neutral size-4"
                   aria-hidden="true"
                 />
                 <span>{{ $t('common.archived') }}</span>
@@ -147,7 +136,7 @@ function getKebabMenuItems() {
               <template v-else-if="resellerDetail.data.suspended_at">
                 <FontAwesomeIcon
                   :icon="faCirclePause"
-                  class="size-4 text-gray-700 dark:text-gray-400"
+                  class="text-icon-neutral size-4"
                   aria-hidden="true"
                 />
                 <span>{{ $t('common.suspended') }}</span>
@@ -155,7 +144,7 @@ function getKebabMenuItems() {
               <template v-else>
                 <FontAwesomeIcon
                   :icon="faCircleCheck"
-                  class="size-4 text-green-600 dark:text-green-400"
+                  class="text-icon-enabled size-4"
                   aria-hidden="true"
                 />
                 <span>{{ $t('common.enabled') }}</span>
@@ -251,14 +240,7 @@ function getKebabMenuItems() {
             {{ $t('organizations.rebranding') }}
           </template>
           <template #data>
-            <div class="flex items-center gap-2">
-              <FontAwesomeIcon
-                :icon="rebrandingIcon"
-                :class="['size-4', rebrandingIconClasses]"
-                aria-hidden="true"
-              />
-              <span>{{ rebrandingText }}</span>
-            </div>
+            <EnabledStatus :enabled="rebrandingEnabled" />
           </template>
         </DataItem>
         <!-- created by -->
