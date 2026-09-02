@@ -134,7 +134,7 @@ const onSessionModalClose = () => {
                 <FontAwesomeIcon
                   v-else-if="item.status === 'completed'"
                   :icon="faCircleCheck"
-                  class="size-4 text-green-600 dark:text-green-400"
+                  class="text-icon-enabled size-4"
                   aria-hidden="true"
                 />
 
