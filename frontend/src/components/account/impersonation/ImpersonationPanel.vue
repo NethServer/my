@@ -120,7 +120,7 @@ async function disableConsent() {
             <div class="flex items-center gap-2">
               <FontAwesomeIcon
                 :icon="faCircleCheck"
-                class="size-4 text-green-600 dark:text-green-400"
+                class="text-icon-enabled size-4"
                 aria-hidden="true"
               />
               <span>

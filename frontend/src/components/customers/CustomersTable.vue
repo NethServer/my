@@ -453,7 +453,7 @@ const goToCustomerDetails = (customer: Customer) => {
             >
               <FontAwesomeIcon
                 :icon="faServer"
-                class="size-4 text-gray-700 dark:text-gray-400"
+                class="text-icon-neutral size-4"
                 aria-hidden="true"
               />
               {{ item.systems_count }}
@@ -461,7 +461,7 @@ const goToCustomerDetails = (customer: Customer) => {
             <div v-else class="flex items-center gap-2 opacity-50">
               <FontAwesomeIcon
                 :icon="faServer"
-                class="size-4 text-gray-700 dark:text-gray-400"
+                class="text-icon-neutral size-4"
                 aria-hidden="true"
               />
               {{ item.systems_count }}
@@ -502,7 +502,7 @@ const goToCustomerDetails = (customer: Customer) => {
               <template v-if="item.deleted_at">
                 <FontAwesomeIcon
                   :icon="faBoxArchive"
-                  class="size-4 text-gray-700 dark:text-gray-400"
+                  class="text-icon-neutral size-4"
                   aria-hidden="true"
                 />
                 <span>
@@ -512,7 +512,7 @@ const goToCustomerDetails = (customer: Customer) => {
               <template v-else-if="item.suspended_at">
                 <FontAwesomeIcon
                   :icon="faCirclePause"
-                  class="size-4 text-gray-700 dark:text-gray-400"
+                  class="text-icon-neutral size-4"
                   aria-hidden="true"
                 />
                 <span>
@@ -522,7 +522,7 @@ const goToCustomerDetails = (customer: Customer) => {
               <template v-else>
                 <FontAwesomeIcon
                   :icon="faCircleCheck"
-                  class="size-4 text-green-600 dark:text-green-400"
+                  class="text-icon-enabled size-4"
                   aria-hidden="true"
                 />
                 <span>

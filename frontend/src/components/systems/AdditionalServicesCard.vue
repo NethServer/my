@@ -12,7 +12,8 @@ import {
   NeSkeleton,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faCircleCheck, faCircleXmark, faFolderPlus } from '@fortawesome/free-solid-svg-icons'
+import { faFolderPlus } from '@fortawesome/free-solid-svg-icons'
+import EnabledStatus from '@/components/common/EnabledStatus.vue'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import { computed } from 'vue'
 import type { NsecFacts, NsecFeatures } from '@/lib/systems/inventory'
@@ -92,23 +93,10 @@ const sortedServices = computed<ServiceItem[]>(() =>
         <span class="font-medium text-gray-900 dark:text-gray-50">
           {{ service.label }}
         </span>
-        <div
-          class="text-tertiary-neutral dark:text-tertiary-neutral flex items-center gap-2 text-end"
-        >
-          <FontAwesomeIcon
-            :icon="service.enabled ? faCircleCheck : faCircleXmark"
-            class="size-4"
-            :class="
-              service.enabled
-                ? 'text-green-700 dark:text-green-500'
-                : 'text-gray-700 dark:text-gray-400'
-            "
-            aria-hidden="true"
-          />
-          <span class="font-medium">
-            {{ service.enabled ? $t('common.enabled') : $t('common.disabled') }}
-          </span>
-        </div>
+        <EnabledStatus
+          :enabled="service.enabled"
+          class="text-tertiary-neutral dark:text-tertiary-neutral font-medium"
+        />
       </div>
     </div>
     <NeEmptyState

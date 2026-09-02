@@ -4,16 +4,12 @@
 -->
 
 <script setup lang="ts">
-import {
-  faCircleCheck,
-  faCircleXmark,
-  faPenToSquare,
-  faWrench,
-} from '@fortawesome/free-solid-svg-icons'
+import { faPenToSquare, faWrench } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { NeButton, NeCard, NeRoundedIcon, NeTooltip } from '@nethesis/vue-components'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import { useI18n } from 'vue-i18n'
+import EnabledStatus from '@/components/common/EnabledStatus.vue'
 
 const { t } = useI18n()
 
@@ -87,18 +83,11 @@ const emit = defineEmits<{ edit: []; configure: [] }>()
           <span class="text-2xl font-medium text-gray-900 dark:text-gray-100">{{ count }}</span>
         </div>
       </div>
-      <div class="mt-3 flex items-center gap-1.5">
-        <FontAwesomeIcon
-          :icon="enabled ? faCircleCheck : faCircleXmark"
-          :class="[
-            'size-4',
-            enabled
-              ? 'text-icon-enabled dark:text-icon-enabled'
-              : 'text-icon-disabled dark:text-icon-disabled',
-          ]"
-        />
-        <span>{{ enabled ? enabledText : disabledText }}</span>
-      </div>
+      <EnabledStatus
+        :enabled="enabled"
+        :label="enabled ? enabledText : disabledText"
+        class="mt-3"
+      />
     </template>
   </NeCard>
 </template>
