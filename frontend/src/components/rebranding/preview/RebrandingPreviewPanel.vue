@@ -4,9 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { NeButton, NeCombobox, NeHeading } from '@nethesis/vue-components'
-import { faMoon, faSun } from '@fortawesome/free-solid-svg-icons'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { NeHeading, NeRadioSelection, type RadioOption } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -59,9 +57,14 @@ const previewTheme = ref<PreviewTheme>('light')
 
 const palette = computed(() => getPreviewPalette(previewTheme.value))
 
-const viewOptions = computed(() => [
+const viewOptions = computed<RadioOption[]>(() => [
   { id: 'login', label: t('rebranding.preview_login_screen') },
   { id: 'topBar', label: t('rebranding.preview_top_bar') },
+])
+
+const themeOptions = computed<RadioOption[]>(() => [
+  { id: 'light', label: t('rebranding.preview_light_theme') },
+  { id: 'dark', label: t('rebranding.preview_dark_theme') },
 ])
 
 // One stock asset per slot the preview draws.
@@ -111,40 +114,24 @@ const canvasAriaLabel = computed(() =>
         brand: displayedBrandName.value,
       }),
 )
-
-function toggleTheme() {
-  previewTheme.value = previewTheme.value === 'light' ? 'dark' : 'light'
-}
 </script>
 
 <template>
   <div>
     <NeHeading tag="h5" class="mb-6">{{ $t('rebranding.preview') }}</NeHeading>
-    <div class="mb-6 flex flex-wrap items-end gap-6">
-      <NeCombobox
+    <div class="mb-6 flex flex-wrap gap-10">
+      <NeRadioSelection
         v-model="view"
         :options="viewOptions"
         :label="$t('rebranding.preview_view')"
-        class="max-w-xs grow"
-        :no-results-label="$t('ne_combobox.no_results')"
-        :limited-options-label="$t('ne_combobox.limited_options_label')"
-        :no-options-label="$t('ne_combobox.no_options_label')"
-        :selected-label="$t('ne_combobox.selected')"
-        :user-input-label="$t('ne_combobox.user_input_label')"
-        :optional-label="$t('common.optional')"
       />
       <!-- the control renders in the application theme; only the canvas below
            follows the previewed one -->
-      <NeButton kind="tertiary" @click="toggleTheme">
-        <template #prefix>
-          <FontAwesomeIcon :icon="previewTheme === 'light' ? faMoon : faSun" aria-hidden="true" />
-        </template>
-        {{
-          previewTheme === 'light'
-            ? $t('rebranding.preview_dark_theme')
-            : $t('rebranding.preview_light_theme')
-        }}
-      </NeButton>
+      <NeRadioSelection
+        v-model="previewTheme"
+        :options="themeOptions"
+        :label="$t('rebranding.preview_theme')"
+      />
     </div>
     <div
       role="img"
