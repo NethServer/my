@@ -1,0 +1,8 @@
+{
+  "common": {
+    "access_denied": "Verboden toegang",
+    "this_section_is_accessible_only_by_owner": "Deze sectie is alleen toegankelijk door de eigenaar.",
+    "breadcrumb": "Broodkruimels",
+    "save": "Opslaan"
+  }
+}
