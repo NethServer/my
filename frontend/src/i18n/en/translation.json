@@ -1033,6 +1033,7 @@
     "cannot_save_configuration": "Cannot save rebranding configuration",
     "preview": "Preview",
     "preview_view": "View",
+    "preview_theme": "Theme",
     "preview_login_screen": "Login screen",
     "preview_top_bar": "Top bar",
     "preview_light_theme": "Light theme",
