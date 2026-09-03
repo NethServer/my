@@ -163,7 +163,11 @@ const actions = computed(
                 <span>{{ getPurchaserName(row) }}</span>
               </div>
               <span v-else-if="row.grant.purchased_by?.out_of_scope" class="text-tertiary-neutral">
-                {{ $t('addons.purchaser_not_visible') }}
+                {{
+                  row.grant?.source === 'legacy-import'
+                    ? $t('addons.purchaser_migrated')
+                    : $t('addons.purchaser_not_visible')
+                }}
               </span>
               <div
                 v-else-if="row.grant.created_by?.user_name"

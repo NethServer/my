@@ -940,6 +940,7 @@
     "created_by": "Created by",
     "never_expires": "Never expires",
     "purchaser_not_visible": "Not visible",
+    "purchaser_migrated": "Migrated \u2014 buyer not recorded",
     "status_active": "Active",
     "status_pending": "Pending payment",
     "status_suspended": "Suspended",
