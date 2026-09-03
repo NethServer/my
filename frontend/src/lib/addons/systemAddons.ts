@@ -13,6 +13,7 @@ import axios from 'axios'
 import { API_URL, SHOP_BASE_URL } from '../config'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import { useLoginStore } from '@/stores/login'
+import { isAddonAdmin } from '../permissions'
 import { getDisplayName, type Application } from '../applications/applications'
 import type { Addon } from './addons'
 
@@ -335,6 +336,54 @@ export const getGrantRef = (grant: AddonGrant) =>
 
 export const getOrderNumber = (grant: AddonGrant) =>
   getGrantRef(grant)?.match(/^wc-order-(\d+)$/)?.[1] ?? ''
+
+// Mirror of the shop's NETHESIS_SHOP_PURCHASE_ROLES: the same my roles that
+// enable buying for the organization are the ones the shop grants org-wide
+// order visibility to.
+const SHOP_ORG_ORDER_ROLES = ['Super Admin', 'Admin', 'Backoffice']
+
+// Whether the shop will actually show this order to the current user — the
+// link is only rendered when the answer is yes, because a link that lands on
+// "order not found" reads as a bug (and the beta testers filed it as one).
+//   - add-on admins open the wp-admin editor, always theirs to open;
+//   - the buyer opens their own order;
+//   - a colleague of the buyer's organization opens it when their my role is
+//     one the shop lets buy for the organization (same list, on purpose);
+//   - a buyer recorded out of the viewer's scope can never be their org;
+//   - a grant with no buyer snapshot predates the purchaser feature: the org
+//     rule on the shop decides, so the link stays and the shop answers.
+export const canOpenOrder = (grant: AddonGrant) => {
+  if (!getOrderNumber(grant)) {
+    return false
+  }
+  if (isAddonAdmin()) {
+    return true
+  }
+
+  const buyer = grant.purchased_by
+  const me = useLoginStore().userInfo
+  if (!me) {
+    return false
+  }
+  if (!buyer) {
+    return true
+  }
+  if (buyer.out_of_scope) {
+    return false
+  }
+  if (
+    (buyer.logto_id && buyer.logto_id === me.logto_id) ||
+    (buyer.email && buyer.email === me.email)
+  ) {
+    return true
+  }
+
+  return (
+    !!buyer.organization_id &&
+    buyer.organization_id === me.organization_id &&
+    me.user_roles.some((role) => SHOP_ORG_ORDER_ROLES.includes(role))
+  )
+}
 
 // Buyers open their own order in the customer area; add-on admins are shop
 // Administrators and open the backoffice editor, because the customer page

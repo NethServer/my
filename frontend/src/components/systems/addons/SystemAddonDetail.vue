@@ -40,6 +40,7 @@ import UserAvatar from '@/components/users/UserAvatar.vue'
 import {
   ADDON_ROW_STATUSES,
   SYSTEM_ADDONS_TABLE_ID,
+  canOpenOrder,
   getOrderNumber,
   getOrderUrl,
   getPurchaserName,
@@ -308,7 +309,7 @@ function clearFilters() {
             <span v-if="!row.grant">-</span>
             <div v-else>
               <a
-                v-if="getOrderNumber(row.grant)"
+                v-if="canOpenOrder(row.grant)"
                 :href="getOrderUrl(row.grant, isAddonAdmin())"
                 target="_blank"
                 rel="noopener noreferrer"
@@ -316,6 +317,10 @@ function clearFilters() {
               >
                 #{{ getOrderNumber(row.grant) }}
               </a>
+              <!-- an order the shop would refuse to show gets its number as
+                   plain text: a link landing on "order not found" reads as a
+                   bug -->
+              <span v-else-if="getOrderNumber(row.grant)"> #{{ getOrderNumber(row.grant) }} </span>
               <span v-else class="text-tertiary-neutral italic">
                 {{ $t('addons.manually_created') }}
               </span>
