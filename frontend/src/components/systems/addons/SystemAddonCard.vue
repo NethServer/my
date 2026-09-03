@@ -117,11 +117,15 @@ const actions = computed(
           <DataItem>
             <template #label>{{ $t('addons.order') }}</template>
             <template #data>
+              <!-- noopener, NOT noreferrer: the shop's auto-SSO on this
+                   link reads the my origin from the Referer, so stripping it
+                   leaves a first-time user logged out on the account page
+                   instead of signed in on the order -->
               <a
                 v-if="canOpenOrder(row.grant)"
                 :href="getOrderUrl(row.grant, isAddonAdmin())"
                 target="_blank"
-                rel="noopener noreferrer"
+                rel="noopener"
                 class="text-primary-700 dark:text-primary-500 hover:underline"
               >
                 #{{ getOrderNumber(row.grant) }}
