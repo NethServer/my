@@ -10,9 +10,15 @@
 package email
 
 import (
+	"crypto/rand"
 	"crypto/tls"
 	"fmt"
+	"mime"
+	"mime/quotedprintable"
+	"net/mail"
 	"net/smtp"
+	"strings"
+	"time"
 
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/logger"
@@ -61,46 +67,18 @@ func (e *EmailService) SendEmail(data EmailData) error {
 		return fmt.Errorf("SMTP configuration incomplete: host and from address are required")
 	}
 
-	// Prepare message
-	from := fmt.Sprintf("%s <%s>", e.fromName, e.from)
-
-	headers := make(map[string]string)
-	headers["From"] = from
-	headers["To"] = data.To
-	headers["Subject"] = data.Subject
-	headers["MIME-Version"] = "1.0"
-
-	// Multi-part message with HTML and text
-	boundary := "boundary-nethesis-email"
-	headers["Content-Type"] = fmt.Sprintf("multipart/alternative; boundary=%s", boundary)
-
-	// Build message
-	message := ""
-	for k, v := range headers {
-		message += fmt.Sprintf("%s: %s\r\n", k, v)
+	message, err := e.buildMessage(data, time.Now())
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("to", data.To).
+			Str("subject", data.Subject).
+			Msg("Failed to build email message")
+		return fmt.Errorf("failed to build email message: %w", err)
 	}
-	message += "\r\n"
-
-	// Text part
-	if data.TextBody != "" {
-		message += fmt.Sprintf("--%s\r\n", boundary)
-		message += "Content-Type: text/plain; charset=UTF-8\r\n"
-		message += "Content-Transfer-Encoding: 7bit\r\n\r\n"
-		message += data.TextBody + "\r\n\r\n"
-	}
-
-	// HTML part
-	if data.HTMLBody != "" {
-		message += fmt.Sprintf("--%s\r\n", boundary)
-		message += "Content-Type: text/html; charset=UTF-8\r\n"
-		message += "Content-Transfer-Encoding: 7bit\r\n\r\n"
-		message += data.HTMLBody + "\r\n\r\n"
-	}
-
-	message += fmt.Sprintf("--%s--\r\n", boundary)
 
 	// Send email
-	err := e.sendSMTP([]string{data.To}, []byte(message))
+	err = e.sendSMTP([]string{data.To}, message)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -130,6 +108,77 @@ func (e *EmailService) IsConfigured() bool {
 // =============================================================================
 // PRIVATE METHODS
 // =============================================================================
+
+// buildMessage renders the RFC 5322 message.
+//
+// Bodies are UTF-8 and go out as quoted-printable: the templates carry accented
+// text and emoji, which a 7bit declaration would misrepresent (mojibake for the
+// recipient, and a spam signal for the filters). Subject goes through RFC 2047
+// for the same reason, which also neutralizes header injection via the
+// organization name: control characters force the whole word to be encoded.
+func (e *EmailService) buildMessage(data EmailData, now time.Time) ([]byte, error) {
+	boundary := "nethesis-" + rand.Text()
+
+	headers := [][2]string{
+		{"Date", now.Format(time.RFC1123Z)},
+		{"Message-ID", e.messageID()},
+		{"From", (&mail.Address{Name: e.fromName, Address: e.from}).String()},
+		{"To", (&mail.Address{Address: data.To}).String()},
+		{"Subject", mime.QEncoding.Encode("UTF-8", data.Subject)},
+		{"MIME-Version", "1.0"},
+		{"Content-Type", fmt.Sprintf("multipart/alternative; boundary=%q", boundary)},
+	}
+
+	var message strings.Builder
+	for _, header := range headers {
+		message.WriteString(header[0] + ": " + header[1] + "\r\n")
+	}
+	message.WriteString("\r\n")
+
+	if data.TextBody != "" {
+		if err := writeBodyPart(&message, boundary, "text/plain", data.TextBody); err != nil {
+			return nil, err
+		}
+	}
+
+	if data.HTMLBody != "" {
+		if err := writeBodyPart(&message, boundary, "text/html", data.HTMLBody); err != nil {
+			return nil, err
+		}
+	}
+
+	message.WriteString("--" + boundary + "--\r\n")
+
+	return []byte(message.String()), nil
+}
+
+// messageID builds a Message-ID anchored on the sender domain
+func (e *EmailService) messageID() string {
+	domain := e.from
+	if at := strings.LastIndex(e.from, "@"); at != -1 {
+		domain = e.from[at+1:]
+	}
+
+	return "<" + rand.Text() + "@" + domain + ">"
+}
+
+// writeBodyPart appends a quoted-printable UTF-8 part to the multipart body
+func writeBodyPart(message *strings.Builder, boundary, contentType, body string) error {
+	message.WriteString("--" + boundary + "\r\n")
+	message.WriteString("Content-Type: " + contentType + "; charset=UTF-8\r\n")
+	message.WriteString("Content-Transfer-Encoding: quoted-printable\r\n\r\n")
+
+	encoder := quotedprintable.NewWriter(message)
+	if _, err := encoder.Write([]byte(body)); err != nil {
+		return fmt.Errorf("failed to encode %s part: %w", contentType, err)
+	}
+	if err := encoder.Close(); err != nil {
+		return fmt.Errorf("failed to encode %s part: %w", contentType, err)
+	}
+	message.WriteString("\r\n")
+
+	return nil
+}
 
 // sendSMTP handles the actual SMTP sending
 func (e *EmailService) sendSMTP(to []string, body []byte) error {

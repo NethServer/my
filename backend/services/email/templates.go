@@ -12,11 +12,13 @@ package email
 import (
 	"bytes"
 	"fmt"
-	"html/template"
+	htmltemplate "html/template"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	texttemplate "text/template"
 )
 
 // WelcomeEmailData contains data for welcome email template
@@ -107,7 +109,11 @@ func (ts *TemplateService) resolveTemplate(base, language, ext string) string {
 	return fmt.Sprintf("%s_en.%s", base, ext)
 }
 
-// renderTemplate loads and renders a template file
+// renderTemplate loads and renders a template file.
+//
+// Only the .html templates go through html/template: its contextual escaping is
+// wrong for the plain text part, where it would turn every "&", "+" or "<" of a
+// temporary password or address into an entity the reader then copies verbatim.
 func (ts *TemplateService) renderTemplate(templateName string, data interface{}) (string, error) {
 	// Load template file
 	templatePath := filepath.Join(ts.templateDir, templateName)
@@ -117,13 +123,21 @@ func (ts *TemplateService) renderTemplate(templateName string, data interface{})
 	}
 
 	// Create template with custom functions
-	funcMap := template.FuncMap{
+	funcMap := texttemplate.FuncMap{
 		"lower": strings.ToLower,
 		"upper": strings.ToUpper,
 	}
 
 	// Parse template
-	tmpl, err := template.New(templateName).Funcs(funcMap).Parse(string(templateContent))
+	var tmpl interface {
+		Execute(wr io.Writer, data any) error
+	}
+
+	if strings.HasSuffix(templateName, ".html") {
+		tmpl, err = htmltemplate.New(templateName).Funcs(funcMap).Parse(string(templateContent))
+	} else {
+		tmpl, err = texttemplate.New(templateName).Funcs(funcMap).Parse(string(templateContent))
+	}
 	if err != nil {
 		return "", fmt.Errorf("failed to parse template %s: %w", templateName, err)
 	}
