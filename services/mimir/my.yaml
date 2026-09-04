@@ -13,6 +13,12 @@ alertmanager_storage:
   s3:
     bucket_name: ${MIMIR_S3_ALERTMANAGER_BUCKET}
 
+# Defaults (15s poll, 15m persist) cost ~105 GB/month of Render egress to Spaces.
+# Trade-off: a crash can lose up to 6h of nflog/silences (duplicate notifications).
+alertmanager:
+  poll_interval: 5m
+  persist_interval: 6h
+
 server:
   http_listen_port: ${PORT}
   log_level: info
