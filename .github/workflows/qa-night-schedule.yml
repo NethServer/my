@@ -1,0 +1,89 @@
+name: QA - Nightly Suspend/Resume
+
+# Keeps the QA env down overnight (22:00-08:00 Europe/Rome) to stop paying compute.
+# Each run enforces the state the Rome wall clock demands, so DST and cron delays are harmless.
+
+on:
+  schedule:
+    # Both CET and CEST offsets for 22:00 and 08:00 Rome; the job derives the action from local time.
+    - cron: "0 20,21 * * *"
+    - cron: "0 6,7 * * *"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Force an action now (skips the wall-clock logic)"
+        required: true
+        type: choice
+        options: [suspend, resume]
+
+jobs:
+  toggle-qa:
+    name: Suspend or resume QA services
+    runs-on: ubuntu-latest
+
+    env:
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      # Not listed: my-mimir-qa (suspended for good, a resume would wake it),
+      # PR previews (own up/down lifecycle), QA Postgres/Key Value (not worth the resume risk).
+      SERVICES: "my-proxy-qa my-frontend-qa my-backend-qa my-collect-qa my-support-qa"
+
+    steps:
+      - name: Decide desired state
+        id: decide
+        env:
+          FORCED: ${{ inputs.action }}
+        run: |
+          set -euo pipefail
+          if [ -n "${FORCED:-}" ]; then
+            action="$FORCED"
+          else
+            hour=$(TZ=Europe/Rome date +%-H)
+            if [ "$hour" -ge 8 ] && [ "$hour" -lt 22 ]; then action=resume; else action=suspend; fi
+          fi
+          echo "action=$action" >> "$GITHUB_OUTPUT"
+          echo "Rome time: $(TZ=Europe/Rome date '+%H:%M') -> $action"
+
+      - name: Apply to Render services
+        env:
+          ACTION: ${{ steps.decide.outputs.action }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${RENDER_API_KEY:-}" ]; then
+            echo "::error::RENDER_API_KEY secret is not set. Add it under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+          API="https://api.render.com/v1"
+          AUTH="Authorization: Bearer ${RENDER_API_KEY}"
+          FAILED=0
+
+          for name in $SERVICES; do
+            # Exact-name match: "my-proxy-qa" must not catch previews named "my-proxy-qa PR #<N>".
+            row=$(curl -s -G -H "$AUTH" "${API}/services" \
+              --data-urlencode "name=${name}" --data "limit=20" \
+              | jq -r --arg n "$name" 'first(.[] | select(.service.name == $n) | "\(.service.id) \(.service.suspended)") // empty')
+
+            if [ -z "$row" ]; then
+              echo "::warning::$name not found — skipping"
+              continue
+            fi
+
+            id=${row% *}
+            suspended=${row#* }
+            if { [ "$ACTION" = "suspend" ] && [ "$suspended" = "suspended" ]; } || \
+               { [ "$ACTION" = "resume" ] && [ "$suspended" = "not_suspended" ]; }; then
+              echo "$name already in desired state"
+              continue
+            fi
+
+            code=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "$AUTH" "${API}/services/${id}/${ACTION}")
+            if [ "$code" = "200" ] || [ "$code" = "202" ]; then
+              echo "$name ${ACTION}d (HTTP $code)"
+            else
+              echo "::error::Failed to ${ACTION} $name (HTTP $code)"
+              FAILED=1
+            fi
+          done
+
+          exit $FAILED
