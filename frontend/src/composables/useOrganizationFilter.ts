@@ -17,12 +17,13 @@ import { useI18n } from 'vue-i18n'
  *
  * @param enabled gates the underlying request; pass the field's visibility so
  *   the query doesn't fire while the host drawer is closed. Defaults to always on.
- * @param type restricts the options to a single company type. It is part of the
- *   query key, so a scoped caller never reads an unscoped result from the cache.
+ * @param types restricts the options to these company types, OR-ed. They are
+ *   part of the query key, so a scoped caller never reads an unscoped result
+ *   from the cache.
  */
 export function useOrganizationFilter(
   enabled?: MaybeRefOrGetter<boolean>,
-  type?: MaybeRefOrGetter<string | undefined>,
+  types?: MaybeRefOrGetter<string[] | undefined>,
 ) {
   const { t } = useI18n()
   const loginStore = useLoginStore()
@@ -37,9 +38,11 @@ export function useOrganizationFilter(
   )
 
   const { state, asyncStatus } = useQuery({
-    key: () => [ORGANIZATIONS_SEARCH_KEY, debouncedSearch.value, toValue(type) ?? ''],
+    // the types are joined for keying only: the key must be a stable value, not
+    // the array reference the caller re-creates on every render
+    key: () => [ORGANIZATIONS_SEARCH_KEY, debouncedSearch.value, (toValue(types) ?? []).join(',')],
     enabled: () => !!loginStore.jwtToken && toValue(enabled ?? true),
-    query: () => searchOrganizations(debouncedSearch.value, toValue(type)),
+    query: () => searchOrganizations(debouncedSearch.value, toValue(types)),
   })
 
   const organizations = computed(() => state.value.data ?? [])
@@ -68,6 +71,10 @@ export function useOrganizationFilter(
  * instead of the combobox hiding itself. Never searches, so the result reflects
  * the full eligible set and stays stable while the user types in the combobox.
  *
+ * `allowedTypes` scopes the request itself, so the answer is not decided by
+ * whichever companies happen to sort into the first page — and passing the same
+ * types the field uses keeps both on one query key, hence one request.
+ *
  * @param enabled gates the request (e.g. drawer open AND caller may attribute).
  */
 export function useHasAttributableOrganizations(
@@ -75,13 +82,9 @@ export function useHasAttributableOrganizations(
   enabled?: MaybeRefOrGetter<boolean>,
 ) {
   const loginStore = useLoginStore()
-  const { organizations } = useOrganizationFilter(enabled)
+  const { organizations } = useOrganizationFilter(enabled, allowedTypes)
 
   return computed(() =>
-    organizations.value.some(
-      (org) =>
-        toValue(allowedTypes).includes(org.type) &&
-        org.logto_id !== loginStore.userInfo?.organization_id,
-    ),
+    organizations.value.some((org) => org.logto_id !== loginStore.userInfo?.organization_id),
   )
 }

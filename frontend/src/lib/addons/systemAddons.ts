@@ -193,7 +193,7 @@ export const ADDON_STATUS_STYLE: Record<
   },
   suspended: {
     icon: faCirclePause,
-    text: 'text-gray-700 dark:text-gray-400',
+    text: 'text-icon-neutral',
     bar: 'bg-gray-700 dark:bg-gray-400',
   },
   revoked: {
@@ -209,7 +209,7 @@ export const ADDON_STATUS_STYLE: Record<
   // never granted here: nothing has gone wrong, so nothing is coloured
   not_purchased: {
     icon: faCircleMinus,
-    text: 'text-icon-disabled',
+    text: 'text-icon-neutral',
     bar: 'bg-gray-300 dark:bg-gray-600',
   },
 }
