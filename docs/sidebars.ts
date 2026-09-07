@@ -30,6 +30,7 @@ const sidebars: SidebarsConfig = {
         'systems/registration',
         'systems/inventory-heartbeat',
         'systems/backups',
+        'systems/org-reassignment',
       ],
     },
     {
@@ -38,8 +39,10 @@ const sidebars: SidebarsConfig = {
       items: [
         'features/dashboard',
         'features/applications',
+        'features/entitlements',
         'features/avatar',
         'features/rebranding',
+        'features/import',
         'features/export',
         'features/alerting',
       ],
