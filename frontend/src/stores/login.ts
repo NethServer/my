@@ -164,6 +164,30 @@ export const useLoginStore = defineStore('login', () => {
     signOut(SIGN_OUT_REDIRECT_URI)
   }
 
+  // Failure-path re-auth: tears down the local session but keeps the Logto SSO
+  // session alive, then re-enters the sign-in flow — silent (no credentials)
+  // while that session is valid. The full signOut is reserved for the user's
+  // explicit logout: it revokes the Logto grant and session, forcing
+  // credentials + MFA on the next visit, which is never the right response to
+  // an internal error.
+  let reauthStarted = false
+  const forceReauth = () => {
+    // one redirect is enough, even if several requests fail at once
+    if (reauthStarted) {
+      return
+    }
+    reauthStarted = true
+    stopAutoRefresh()
+    jwtToken.value = ''
+    accessToken.value = ''
+    idToken.value = ''
+    refreshToken.value = ''
+    tokenRefreshedAt.value = 0
+    tokenExpiresAt.value = 0
+    userInfo.value = undefined
+    signIn(LOGIN_REDIRECT_URI)
+  }
+
   // Called after the picture is uploaded or removed: busts the avatar URL cache
   // and keeps has_avatar in sync, so the shell doesn't wait for the next token
   // refresh to start (or stop) rendering the image.
@@ -182,9 +206,11 @@ export const useLoginStore = defineStore('login', () => {
       const token = await getAccessToken()
 
       if (!token) {
-        console.error('Cannot fetch access token, logout')
+        // the Logto SDK cannot mint an access token: re-enter the sign-in
+        // flow, which completes silently while the Logto session is alive
+        console.error('Cannot fetch access token, re-authenticating')
         loadingUserInfo.value = false
-        logout()
+        forceReauth()
         return
       }
 
@@ -197,8 +223,11 @@ export const useLoginStore = defineStore('login', () => {
         idToken.value = ''
       }
     } catch (error) {
-      console.error('Cannot fetch access token:', error)
+      // same as the null-token case: the SDK throws when its refresh token is
+      // dead, and only a new sign-in flow can recover
+      console.error('Cannot fetch access token, re-authenticating:', error)
       loadingUserInfo.value = false
+      forceReauth()
       return
     }
 
@@ -259,8 +288,14 @@ export const useLoginStore = defineStore('login', () => {
 
   const shouldRefreshToken = () => {
     // impersonation tokens have their own lifecycle and cannot be refreshed
-    if (!jwtToken.value || isImpersonating.value) {
+    if (isImpersonating.value) {
       return false
+    }
+    // no access token but a surviving refresh token (a reload drops a
+    // near-expired token, see the rehydration above): a refresh can mint a
+    // fresh pair before the first request goes out
+    if (!jwtToken.value) {
+      return Boolean(refreshToken.value)
     }
     const now = Date.now()
 
@@ -298,12 +333,17 @@ export const useLoginStore = defineStore('login', () => {
 
   // deduplicate concurrent refreshes: the backend rotates the refresh token on
   // every use, so two parallel calls with the same token would look like theft
-  let refreshPromise: Promise<void> | null = null
+  let refreshPromise: Promise<boolean> | null = null
 
-  const doRefreshToken = () => {
+  // lets a request that already carries a token wait out a rotation another
+  // caller started, instead of racing it with a stale Authorization header
+  const pendingRefresh = (): Promise<boolean> => refreshPromise ?? Promise.resolve(true)
+
+  // resolves to true when a usable token pair is in place afterwards
+  const doRefreshToken = (): Promise<boolean> => {
     // don't refresh if we are impersonating
     if (isImpersonating.value) {
-      return Promise.resolve()
+      return Promise.resolve(false)
     }
 
     if (refreshPromise) {
@@ -312,6 +352,10 @@ export const useLoginStore = defineStore('login', () => {
 
     refreshPromise = (async () => {
       try {
+        if (!refreshToken.value) {
+          // no chain to rotate: mint a brand-new pair from the Logto session
+          return await reexchangeFromLogto()
+        }
         const res = await axios.post(`${API_URL}/auth/refresh`, {
           refresh_token: refreshToken.value,
         })
@@ -319,12 +363,13 @@ export const useLoginStore = defineStore('login', () => {
         refreshToken.value = res.data.data.refresh_token
         tokenRefreshedAt.value = Date.now()
         tokenExpiresAt.value = Date.now() + res.data.data.expires_in * 1000
+        return true
       } catch (error) {
         // the custom refresh chain is dead; try a silent Logto re-exchange
         // before surrendering, so a burned chain self-heals instead of the
         // next request 401-ing the user out
         console.warn('Refresh failed, falling back to Logto re-exchange:', error)
-        await reexchangeFromLogto()
+        return await reexchangeFromLogto()
       } finally {
         refreshPromise = null
       }
@@ -402,9 +447,11 @@ export const useLoginStore = defineStore('login', () => {
     fetchTokenAndUserInfo,
     shouldRefreshToken,
     doRefreshToken,
+    pendingRefresh,
     impersonateUser,
     exitImpersonation,
     login,
     logout,
+    forceReauth,
   }
 })
