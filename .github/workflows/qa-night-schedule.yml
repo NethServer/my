@@ -1,7 +1,9 @@
 name: QA - Nightly Suspend/Resume
 
-# Keeps the QA env down overnight (22:00-08:00 Europe/Rome) to stop paying compute.
-# Each run enforces the state the Rome wall clock demands, so DST and cron delays are harmless.
+# Keeps the QA env down outside working hours (Mon-Fri 08:00-22:00 Europe/Rome) to stop
+# paying compute. Each run enforces the state the Rome wall clock demands, so DST and cron
+# delays are harmless. Weekend work: dispatch action=resume, but the scheduled shots in the
+# 6-9/20-23 UTC windows will put it back down — re-dispatch if you're still working.
 
 on:
   schedule:
@@ -39,7 +41,8 @@ jobs:
             action="$FORCED"
           else
             hour=$(TZ=Europe/Rome date +%-H)
-            if [ "$hour" -ge 8 ] && [ "$hour" -lt 22 ]; then action=resume; else action=suspend; fi
+            dow=$(TZ=Europe/Rome date +%u)  # 1=Mon .. 7=Sun
+            if [ "$dow" -le 5 ] && [ "$hour" -ge 8 ] && [ "$hour" -lt 22 ]; then action=resume; else action=suspend; fi
           fi
           echo "action=$action" >> "$GITHUB_OUTPUT"
           echo "Rome time: $(TZ=Europe/Rome date '+%H:%M') -> $action"
