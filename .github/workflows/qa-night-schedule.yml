@@ -5,9 +5,10 @@ name: QA - Nightly Suspend/Resume
 
 on:
   schedule:
-    # Both CET and CEST offsets for 22:00 and 08:00 Rome; the job derives the action from local time.
-    - cron: "0 20,21 * * *"
-    - cron: "0 6,7 * * *"
+    # GitHub fires schedules hours late at times (seen: 3h50). Several offset shots
+    # per boundary window (CET and CEST both covered); late or extra runs are no-ops.
+    - cron: "7,37 20-23 * * *"
+    - cron: "7,37 6-9 * * *"
   workflow_dispatch:
     inputs:
       action:
