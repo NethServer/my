@@ -155,7 +155,7 @@ func GetSystems(c *gin.Context) {
 
 	// Parse filter parameters (supporting multiple values via checkbox, except name which is text input)
 	filterName := c.Query("name")                   // Name filter (single value, text input)
-	filterSystemKey := c.Query("system_key")        // System Key filter (single value, exact match)
+	filterSystemKey := c.QueryArray("system_key")   // System Key filter (multiple values, exact match)
 	filterTypes := c.QueryArray("type")             // Product/Type filter (multiple values)
 	filterCreatedBy := c.QueryArray("created_by")   // Created By filter (multiple user IDs)
 	filterVersions := c.QueryArray("version")       // Version filter (multiple values)

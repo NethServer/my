@@ -4146,11 +4146,18 @@ components:
     SystemKeyFilterParam:
       name: system_key
       in: query
-      description: Filter systems by system key (exact match). Useful for exporting a single system.
+      description: |
+        Filter systems by system key (exact match). Supports multiple values,
+        so it doubles as a batch lookup: `?system_key=KEY1&system_key=KEY2`
+        returns exactly the requested systems (within the caller's RBAC scope).
       required: false
       schema:
-        type: string
-        example: "NETH-DD09-3DB4-76E4-42A0-A6CC-6D30-9AE7-3216"
+        type: array
+        items:
+          type: string
+        example: ["NETH-DD09-3DB4-76E4-42A0-A6CC-6D30-9AE7-3216"]
+      style: form
+      explode: true
 
     SystemTypeFilterParam:
       name: type

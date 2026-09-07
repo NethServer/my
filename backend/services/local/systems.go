@@ -272,7 +272,7 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 }
 
 // GetSystemsByOrganizationPaginated retrieves systems filtered by organization with pagination, search, sorting and RBAC
-func (s *LocalSystemsService) GetSystemsByOrganizationPaginated(userID, userOrgID, userOrgRole string, page, pageSize int, search, sortBy, sortDirection, filterName, filterSystemKey string, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses []string) ([]*models.System, int, error) {
+func (s *LocalSystemsService) GetSystemsByOrganizationPaginated(userID, userOrgID, userOrgRole string, page, pageSize int, search, sortBy, sortDirection, filterName string, filterSystemKeys, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses []string) ([]*models.System, int, error) {
 	// Owner can access all systems - pass nil to skip RBAC filtering in query
 	var allowedOrgIDs []string
 	if strings.ToLower(userOrgRole) != "owner" {
@@ -286,7 +286,7 @@ func (s *LocalSystemsService) GetSystemsByOrganizationPaginated(userID, userOrgI
 
 	// Use repository layer for pagination, search, sorting and filters
 	systemRepo := entities.NewLocalSystemRepository()
-	systems, totalCount, err := systemRepo.ListByCreatedByOrganizations(allowedOrgIDs, page, pageSize, search, sortBy, sortDirection, filterName, filterSystemKey, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses)
+	systems, totalCount, err := systemRepo.ListByCreatedByOrganizations(allowedOrgIDs, page, pageSize, search, sortBy, sortDirection, filterName, filterSystemKeys, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses)
 	if err != nil {
 		return nil, 0, err
 	}

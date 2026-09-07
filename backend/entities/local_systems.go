@@ -239,7 +239,7 @@ func statusFilterClause(filterStatuses []string, argOffset int) (string, []inter
 }
 
 // ListByCreatedByOrganizations returns paginated list of systems created by users in specified organizations with filters
-func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection, filterName, filterSystemKey string, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses []string) ([]*models.System, int, error) {
+func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection, filterName string, filterSystemKeys, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses []string) ([]*models.System, int, error) {
 	// nil = owner (no RBAC filter), empty = no access
 	if allowedOrgIDs != nil && len(allowedOrgIDs) == 0 {
 		return []*models.System{}, 0, nil
@@ -293,9 +293,14 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 		args = append(args, "%"+filterName+"%")
 	}
 
-	if filterSystemKey != "" {
-		whereClause += fmt.Sprintf(" AND s.system_key = $%d", len(args)+1)
-		args = append(args, filterSystemKey)
+	if len(filterSystemKeys) > 0 {
+		keyPlaceholders := make([]string, len(filterSystemKeys))
+		baseIndex := len(args)
+		for i, key := range filterSystemKeys {
+			keyPlaceholders[i] = fmt.Sprintf("$%d", baseIndex+i+1)
+			args = append(args, key)
+		}
+		whereClause += fmt.Sprintf(" AND s.system_key IN (%s)", strings.Join(keyPlaceholders, ","))
 	}
 
 	// Add multiple value filters with IN clauses

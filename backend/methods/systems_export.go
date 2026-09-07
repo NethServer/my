@@ -54,7 +54,7 @@ func ExportSystems(c *gin.Context) {
 	// Parse filter parameters (same as GetSystems)
 	search := c.Query("search")
 	filterName := c.Query("name")
-	filterSystemKey := c.Query("system_key")
+	filterSystemKey := c.QueryArray("system_key")
 	filterTypes := c.QueryArray("type")
 	filterCreatedBy := c.QueryArray("created_by")
 	filterVersions := c.QueryArray("version")
@@ -184,7 +184,7 @@ func ExportSystems(c *gin.Context) {
 }
 
 // buildFiltersMap builds a map of applied filters for metadata
-func buildFiltersMap(search, filterName, filterSystemKey string, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses []string) map[string]interface{} {
+func buildFiltersMap(search, filterName string, filterSystemKey, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses []string) map[string]interface{} {
 	filters := make(map[string]interface{})
 
 	if search != "" {
@@ -193,8 +193,8 @@ func buildFiltersMap(search, filterName, filterSystemKey string, filterTypes, fi
 	if filterName != "" {
 		filters["name"] = filterName
 	}
-	if filterSystemKey != "" {
-		filters["system_key"] = filterSystemKey
+	if len(filterSystemKey) > 0 {
+		filters["system_key"] = strings.Join(filterSystemKey, ", ")
 	}
 	if len(filterTypes) > 0 {
 		filters["type"] = strings.Join(filterTypes, ", ")
