@@ -1,0 +1,172 @@
+name: E2E - Full Stack
+
+# The browser suite against a real stack: compose brings up postgres, redis,
+# backend, collect, frontend and proxy, and the specs drive the interface as
+# real personas signed in through the real Logto form.
+#
+# Not part of ci-main.yml on purpose. That workflow gates pull requests, while
+# this builds four images, boots six services and provisions a shared Logto
+# tenant — minutes rather than seconds, and it mutates external state. It is
+# paid once per merge instead of once per push to every branch.
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+  schedule:
+    # Weekly drift canary: catches breakage with no commit behind it, such as a
+    # Logto setting changed by hand. Weekly rather than nightly — a scheduled
+    # failure nobody caused is the fastest way to teach people to ignore a suite.
+    - cron: '0 4 * * 1'
+
+# Queue, never cancel. A run cancelled after `authz provision` would abandon
+# real organizations and users in the Logto tenant; queueing lets every run
+# reach its teardown.
+concurrency:
+  group: e2e-fullstack
+  cancel-in-progress: false
+
+jobs:
+  fullstack:
+    name: Full-stack browser suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      # The only origin registered as a Logto sign-in redirect URI, which is why
+      # docker-compose.e2e.yml publishes the proxy there.
+      APP_URL: http://localhost:5173
+      BACKEND_URL: http://127.0.0.1:18080/api
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v7
+      with:
+        node-version-file: .nvmrc
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.26'
+        cache: false
+
+    - name: Write service configuration
+      env:
+        LOGTO_TENANT_ID: ${{ secrets.E2E_LOGTO_TENANT_ID }}
+        LOGTO_TENANT_DOMAIN: ${{ secrets.E2E_LOGTO_TENANT_DOMAIN }}
+        LOGTO_BACKEND_APP_ID: ${{ secrets.E2E_LOGTO_BACKEND_APP_ID }}
+        LOGTO_BACKEND_APP_SECRET: ${{ secrets.E2E_LOGTO_BACKEND_APP_SECRET }}
+        JWT_SECRET: ${{ secrets.E2E_JWT_SECRET }}
+      run: |
+        set -euo pipefail
+
+        # Compose overrides DATABASE_URL and REDIS_URL itself; these files carry
+        # the identity provider configuration and the signing key.
+        cat > backend/.env <<EOF
+        LOGTO_TENANT_ID=${LOGTO_TENANT_ID}
+        LOGTO_TENANT_DOMAIN=${LOGTO_TENANT_DOMAIN}
+        LOGTO_BACKEND_APP_ID=${LOGTO_BACKEND_APP_ID}
+        LOGTO_BACKEND_APP_SECRET=${LOGTO_BACKEND_APP_SECRET}
+        JWT_SECRET=${JWT_SECRET}
+        APP_URL=${APP_URL}
+        API_BASE_URL=/api
+        EOF
+
+        cp backend/.env collect/.env
+
+        # Consumed by the frontend image build.
+        cat > .env <<EOF
+        VITE_LOGTO_ENDPOINT=${{ secrets.E2E_LOGTO_ENDPOINT }}
+        VITE_LOGTO_APP_ID=${{ secrets.E2E_LOGTO_APP_ID }}
+        EOF
+
+    - name: Start the stack
+      run: |
+        docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --build
+
+    - name: Wait for the stack to be ready
+      run: |
+        set -euo pipefail
+
+        for name in "backend ${BACKEND_URL}/health" "frontend ${APP_URL}/"; do
+          set -- $name
+          echo "Waiting for $1 at $2"
+          for attempt in $(seq 1 60); do
+            if curl -fsS -o /dev/null "$2"; then
+              echo "  $1 is up"
+              break
+            fi
+            if [ "$attempt" -eq 60 ]; then
+              echo "::error::$1 did not come up at $2"
+              docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs --tail=100
+              exit 1
+            fi
+            sleep 5
+          done
+        done
+
+    - name: Provision the persona fixture
+      env:
+        OWNER_EMAIL: ${{ secrets.E2E_OWNER_EMAIL }}
+        OWNER_PASSWORD: ${{ secrets.E2E_OWNER_PASSWORD }}
+      working-directory: backend
+      run: |
+        set -euo pipefail
+        make apitool
+
+        # `apitool init` is interactive, so write the registry directly. Only
+        # the configuration and owner credentials are needed; `authz provision`
+        # fills in the organizations, personas and their generated passwords.
+        jq -n \
+          --arg endpoint "${{ secrets.E2E_LOGTO_ENDPOINT }}" \
+          --arg appId "${{ secrets.E2E_LOGTO_APP_ID }}" \
+          --arg authBase "${APP_URL}" \
+          --arg backend "${BACKEND_URL}" \
+          --arg email "${OWNER_EMAIL}" \
+          --arg password "${OWNER_PASSWORD}" \
+          '{config: {logto_endpoint: $endpoint, logto_app_id: $appId, auth_base_url: $authBase, backend_url: $backend},
+            owner: {email: $email, password: $password},
+            orgs: {}, users: {}}' > .api-registry.json
+        chmod 600 .api-registry.json
+
+        ./apitool authz provision
+
+    - name: Install browser suite dependencies
+      working-directory: frontend
+      run: |
+        npm ci
+        npx playwright install --with-deps chromium
+
+    - name: Run the suite
+      working-directory: frontend
+      env:
+        E2E_BASE_URL: ${{ env.APP_URL }}
+      run: npx playwright test --project=fullstack
+
+    - name: Upload report, screenshots, video and traces
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: playwright-report
+        path: |
+          frontend/playwright-report/
+          frontend/test-results/
+        retention-days: 30
+
+    - name: Remove the fixture from the tenant
+      if: always()
+      working-directory: backend
+      run: |
+        # The specs clean up after themselves; this removes the persona fixture,
+        # so a failed run never leaves organizations or users behind.
+        ./apitool authz teardown --yes || echo "::warning::teardown failed, check the tenant for authz-* leftovers"
+
+    - name: Stop the stack
+      if: always()
+      run: |
+        docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs --tail=200 || true
+        docker compose -f docker-compose.yml -f docker-compose.e2e.yml down -v

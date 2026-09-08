@@ -16,11 +16,14 @@
     "type-check": "vue-tsc --build",
     "lint": "eslint .",
     "lint-fix": "eslint . --fix",
-    "format": "prettier --list-different src/",
-    "format-fix": "prettier --write src/",
-    "test": "vitest",
-    "audit": "../vuln-check.sh frontend",
-    "pre-commit": "npm run format-fix && npm run lint && npm run type-check && npm run test -- --run"
+    "format": "prettier --list-different src/ e2e/ playwright.config.ts",
+    "format-fix": "prettier --write src/ e2e/ playwright.config.ts",
+    "pre-commit": "npm run format-fix && npm run lint && npm run type-check && npm run test:unit -- --run",
+    "dev:e2e": "VITE_E2E=true vite --host --mode development",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:unit": "vitest",
+    "audit": "../vuln-check.sh frontend"
   },
   "dependencies": {
     "@fontsource/poppins": "^5.2.6",
@@ -62,6 +65,7 @@
   },
   "devDependencies": {
     "@pinia/colada-devtools": "^1.1.2",
+    "@playwright/test": "^1.63.0",
     "@tsconfig/node22": "^22.0.1",
     "@types/lodash": "^4.17.18",
     "@types/node": "^24.0.0",

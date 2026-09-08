@@ -1,0 +1,140 @@
+name: E2E - QA Smoke
+
+# A handful of read-only checks against the deployed QA environment after it
+# picks up a merge.
+#
+# This catches the one class of failure the full-stack job structurally cannot
+# see: that job builds its own stack from the checkout with its own
+# configuration, so a wrong variable in render.yaml, a missing Logto redirect
+# URI, a proxy route that differs from nginx.conf.local or a stale image tag
+# are all invisible there.
+#
+# Read-only by construction: QA shares a database and a Logto tenant with real
+# users, so nothing here creates, edits or deletes anything.
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: QA smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      E2E_BASE_URL: https://qa.my.nethesis.it
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Wait for QA to serve this commit
+      id: deployed
+      env:
+        RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        # Render names the QA backend this; see pr-preview-resume.yml.
+        SERVICE_NAME: my-backend-qa
+      run: |
+        set -uo pipefail
+
+        # QA is deployed by Render on push, not by Actions, so there is no
+        # workflow to depend on. The health endpoint cannot be used to identify
+        # the build either: Render builds from source (render.yaml sets
+        # runtime: docker) and nothing passes COMMIT, so /backend/api/health
+        # reports commit "unknown" for ever. Ask Render instead.
+        if [ -z "${RENDER_API_KEY:-}" ]; then
+          echo "::warning::RENDER_API_KEY is not set, cannot confirm which build QA is serving. Skipping."
+          echo "ready=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        API="https://api.render.com/v1"
+        AUTH="Authorization: Bearer ${RENDER_API_KEY}"
+
+        SERVICE_ID=$(curl -s -G -H "$AUTH" "${API}/services" \
+          --data-urlencode "name=${SERVICE_NAME}" --data "limit=20" \
+          | jq -r --arg n "$SERVICE_NAME" 'first(.[] | select(.service.name == $n) | .service.id) // empty')
+
+        if [ -z "$SERVICE_ID" ]; then
+          echo "::warning::No Render service named ${SERVICE_NAME}. Skipping the smoke run."
+          echo "ready=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        for attempt in $(seq 1 60); do
+          DEPLOY=$(curl -s -H "$AUTH" "${API}/services/${SERVICE_ID}/deploys?limit=20" \
+            | jq -r --arg sha "$GITHUB_SHA" \
+              'first(.[] | select(.deploy.commit.id == $sha) | .deploy) // empty')
+          STATUS=$(echo "$DEPLOY" | jq -r '.status // empty')
+
+          case "$STATUS" in
+            live)
+              # Deployed, but Render reports "live" the moment the instance
+              # accepts traffic; make sure it really answers before asserting.
+              if curl -fsS -o /dev/null --max-time 10 "${E2E_BASE_URL}/backend/api/health"; then
+                echo "QA is serving ${GITHUB_SHA}"
+                echo "ready=true" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              echo "attempt ${attempt}: deploy is live, waiting for the backend to answer"
+              ;;
+            build_failed|update_failed|canceled|pre_deploy_failed)
+              echo "::error::Render deploy for ${GITHUB_SHA} ended as '${STATUS}'."
+              exit 1
+              ;;
+            "")
+              echo "attempt ${attempt}: Render has no deploy for ${GITHUB_SHA} yet"
+              ;;
+            *)
+              echo "attempt ${attempt}: deploy is '${STATUS}'"
+              ;;
+          esac
+          sleep 30
+        done
+
+        # Not a failure. qa-night-schedule.yml suspends the QA services outside
+        # Mon-Fri 08:00-22:00 Europe/Rome, so an environment that never comes up
+        # is usually asleep — reporting that as a regression would train people
+        # to ignore this workflow.
+        echo "::warning::QA never came up for ${GITHUB_SHA}; it may be suspended. Skipping the smoke run."
+        echo "ready=false" >> "$GITHUB_OUTPUT"
+
+    - name: Set up Node.js
+      if: steps.deployed.outputs.ready == 'true'
+      uses: actions/setup-node@v7
+      with:
+        node-version-file: .nvmrc
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install browser suite dependencies
+      if: steps.deployed.outputs.ready == 'true'
+      working-directory: frontend
+      run: |
+        npm ci
+        npx playwright install --with-deps chromium
+
+    - name: Run the smoke suite
+      if: steps.deployed.outputs.ready == 'true'
+      working-directory: frontend
+      env:
+        # The dedicated account for this environment. Without it the
+        # authenticated checks skip and only the public surface is covered.
+        E2E_SMOKE_EMAIL: ${{ secrets.E2E_SMOKE_EMAIL }}
+        E2E_SMOKE_PASSWORD: ${{ secrets.E2E_SMOKE_PASSWORD }}
+      run: npx playwright test --project=smoke
+
+    - name: Upload report, screenshots, video and traces
+      if: always() && steps.deployed.outputs.ready == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: playwright-smoke-report
+        path: |
+          frontend/playwright-report/
+          frontend/test-results/
+        retention-days: 30
