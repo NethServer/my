@@ -38,6 +38,12 @@ the new owner's view.
 
 ## How to reassign
 
+:::note
+A system must be **registered** before it can be reassigned: an appliance
+that has never completed registration has no data to migrate, and the
+change is refused until it does.
+:::
+
 ### From the UI
 
 1. Open the system detail page.

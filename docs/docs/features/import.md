@@ -57,9 +57,9 @@ After confirmation, a summary shows how many records were created, skipped, or f
 
 | Column | Required | Description |
 |--------|----------|-------------|
-| `name` | Yes | Organization name (max 255 characters) |
+| `company_name` | Yes | Organization name (max 255 characters) |
 | `description` | No | Organization description |
-| `vat` | Yes | VAT number |
+| `vat_number` | Yes | VAT number |
 | `address` | No | Street address |
 | `city` | No | City |
 | `main_contact` | No | Primary contact person |
@@ -75,11 +75,11 @@ After confirmation, a summary shows how many records were created, skipped, or f
 | `email` | Yes | User email address (must be unique) |
 | `name` | Yes | Full name (max 255 characters) |
 | `phone` | No | Phone number (international format if provided) |
-| `organization` | Yes | Organization name (must exist and be in your hierarchy) |
+| `company_name` | Yes | Organization name (must exist and be in your hierarchy) |
 | `roles` | Yes | Role names separated by `;` (e.g., `Admin;Support`) |
 
 :::note
-When importing users, the organization is matched **by name** within your visible hierarchy. If the organization name does not exist or is outside your hierarchy, the row is marked as an error.
+When importing users, the `company_name` column is matched against existing organizations **by name** within your visible hierarchy. If the name does not exist or is outside your hierarchy, the row is marked as an error.
 :::
 
 ## Validation Rules
