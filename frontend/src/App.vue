@@ -9,7 +9,7 @@ import { computed, onMounted } from 'vue'
 import AppShell from '@/components/shell/AppShell.vue'
 import { useRoute } from 'vue-router'
 import { useTitle } from '@vueuse/core'
-import { PRODUCT_NAME } from './lib/config'
+import { IS_E2E, PRODUCT_NAME } from './lib/config'
 import { useI18n } from 'vue-i18n'
 import ToastNotificationsArea from '@/components/shell/ToastNotificationsArea.vue'
 import { PiniaColadaProdDevtools } from '@pinia/colada-devtools'
@@ -56,7 +56,8 @@ onMounted(() => {
     <ToastNotificationsArea />
   </div>
   <!-- <PiniaColadaDevtools /> //// -->
-  <PiniaColadaProdDevtools />
+  <!-- the panel injects itself into the DOM, where it would shadow e2e selectors -->
+  <PiniaColadaProdDevtools v-if="!IS_E2E" />
 </template>
 
 <style scoped></style>

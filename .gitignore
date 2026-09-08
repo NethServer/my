@@ -62,3 +62,11 @@ Thumbs.db
 
 # Claude Code local shim — points to AGENTS.md; each dev may keep their own
 CLAUDE.md
+
+# Playwright end-to-end suite: browsers, reports, traces and the per-persona
+# storageState files (which hold live Logto sessions).
+frontend/e2e/.auth/
+frontend/playwright-report/
+frontend/test-results/
+frontend/blob-report/
+frontend/.cache/ms-playwright/

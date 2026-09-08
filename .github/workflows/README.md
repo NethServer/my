@@ -38,6 +38,33 @@ These GitHub Actions automatically manage redirect URIs in your Logto applicatio
 **Trigger**: When a PR is closed or merged
 **Purpose**: Removes redirect URIs for the PR's Render deployments from Logto
 
+## End-to-end suite
+
+### `e2e-main.yml`
+**Trigger**: Push to `main` (i.e. a merged PR), manual dispatch, weekly cron
+**Purpose**: Runs the browser suite (`frontend/e2e/`, `--project=fullstack`) against the full
+compose stack, with personas provisioned by `apitool authz provision`
+
+Deliberately separate from `ci-main.yml`: it builds four images, boots six services and mutates a
+shared Logto tenant, so it is paid once per merge rather than once per push to every branch. Its
+concurrency group **queues rather than cancels** — a run cancelled after provisioning would abandon
+real organizations and users in the tenant. The weekly cron is a drift canary for breakage with no
+commit behind it, such as a tenant setting changed by hand.
+
+### `e2e-smoke.yml`
+**Trigger**: Push to `main`, manual dispatch
+**Purpose**: Read-only checks against QA (`--project=smoke`), covering the deployment-configuration
+failures the full-stack job cannot see
+
+QA is deployed by Render rather than by Actions, so the job asks the Render API (via the existing
+`RENDER_API_KEY`) for a deploy of the merge commit, waits for it to go `live`, and then confirms the
+backend actually answers. The health endpoint cannot identify the build: Render builds QA from
+source and nothing passes `COMMIT`, so it reports `"unknown"` permanently. A failed Render deploy
+fails the job; an environment that never comes up only warns and skips, since `qa-night-schedule.yml`
+suspends QA outside Mon–Fri 08:00–22:00 Europe/Rome.
+
+See `frontend/e2e/README.md` for the suite itself.
+
 ## Required GitHub Secrets
 
 Add these secrets to your repository settings (`Settings > Secrets and variables > Actions`):
@@ -49,6 +76,27 @@ Add these secrets to your repository settings (`Settings > Secrets and variables
 | `LOGTO_M2M_CLIENT_ID` | Machine-to-Machine application client ID | `abcd1234efgh5678ijkl` |
 | `LOGTO_M2M_CLIENT_SECRET` | Machine-to-Machine application secret | `your-secret-here` |
 | `LOGTO_FRONTEND_APP_ID` | Frontend application ID to update | `frontend-app-id-here` |
+
+### End-to-end suite
+
+These point at the **development** tenant, not QA: the full-stack specs create and delete
+organizations, and QA shares a database and a tenant with real users.
+
+| Secret Name | Description | Example Value |
+|-------------|-------------|---------------|
+| `E2E_LOGTO_ENDPOINT` | Logto endpoint for the e2e tenant | `https://your-tenant.logto.app` |
+| `E2E_LOGTO_APP_ID` | SPA application id the fixture is provisioned against | `p18mtn23wn87nvz1tscf7` |
+| `E2E_LOGTO_TENANT_ID` | Tenant id, for the backend | `your-tenant-id` |
+| `E2E_LOGTO_TENANT_DOMAIN` | Tenant domain, for the backend | `your-tenant.logto.app` |
+| `E2E_LOGTO_BACKEND_APP_ID` | M2M application id with Management API access | `abcd1234efgh5678ijkl` |
+| `E2E_LOGTO_BACKEND_APP_SECRET` | M2M application secret | `your-secret-here` |
+| `E2E_JWT_SECRET` | Signing key for the stack under test (min 32 chars) | `a-32-char-or-longer-random-string` |
+| `E2E_OWNER_EMAIL` | Owner account `apitool` acts as | `owner@example.com` |
+| `E2E_OWNER_PASSWORD` | Owner account password | `your-password-here` |
+| `E2E_SMOKE_EMAIL` | Dedicated read-only account in the **QA** tenant | `e2e@example.com` |
+| `E2E_SMOKE_PASSWORD` | That account's password | `your-password-here` |
+
+Without the two `E2E_SMOKE_*` values the smoke job still runs, covering only the public surface.
 
 ## Setup Instructions
 
