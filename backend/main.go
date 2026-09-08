@@ -246,23 +246,23 @@ func main() {
 
 			// Entitlements (granular add-on licensing; writes need the dedicated manage:entitlements permission)
 			systemsGroup.GET("/:id/entitlements", methods.ListSystemEntitlements)
-			systemsGroup.POST("/:id/entitlements", methods.CreateSystemEntitlement)                // owner org / Super Admin only (handler-gated)
-			systemsGroup.PUT("/:id/entitlements/:entitlement", methods.UpdateSystemEntitlement)    // owner org / Super Admin only (handler-gated)
-			systemsGroup.DELETE("/:id/entitlements/:entitlement", methods.DeleteSystemEntitlement) // owner org / Super Admin only (handler-gated)
+			systemsGroup.POST("/:id/entitlements", methods.CreateSystemEntitlement)                // Owner organization only (handler-gated)
+			systemsGroup.PUT("/:id/entitlements/:entitlement", methods.UpdateSystemEntitlement)    // Owner organization only (handler-gated)
+			systemsGroup.DELETE("/:id/entitlements/:entitlement", methods.DeleteSystemEntitlement) // Owner organization only (handler-gated)
 		}
 
 		// Entitlement catalog (DB-driven add-on types; writes need manage:entitlements — the licensing back-office duty)
 		entitlementsGroup := customAuthWithAudit.Group("/entitlements", middleware.RequireResourcePermission("entitlements"))
 		{
 			entitlementsGroup.GET("/catalog", methods.ListEntitlementCatalog)
-			entitlementsGroup.POST("/catalog", methods.CreateEntitlementCatalogItem)       // owner org / Super Admin only (handler-gated)
-			entitlementsGroup.PUT("/catalog/:id", methods.UpdateEntitlementCatalogItem)    // owner org / Super Admin only (handler-gated)
-			entitlementsGroup.DELETE("/catalog/:id", methods.DeleteEntitlementCatalogItem) // owner org / Super Admin only (handler-gated)
+			entitlementsGroup.POST("/catalog", methods.CreateEntitlementCatalogItem)       // Owner organization only (handler-gated)
+			entitlementsGroup.PUT("/catalog/:id", methods.UpdateEntitlementCatalogItem)    // Owner organization only (handler-gated)
+			entitlementsGroup.DELETE("/catalog/:id", methods.DeleteEntitlementCatalogItem) // Owner organization only (handler-gated)
 
 			// Commercial availability (who may buy/self-activate a type)
 			entitlementsGroup.GET("/catalog/:id/availability", methods.ListEntitlementAvailability)
-			entitlementsGroup.POST("/catalog/:id/availability", methods.CreateEntitlementAvailability)            // owner org / Super Admin only (handler-gated)
-			entitlementsGroup.DELETE("/catalog/:id/availability/:rule_id", methods.DeleteEntitlementAvailability) // owner org / Super Admin only (handler-gated)
+			entitlementsGroup.POST("/catalog/:id/availability", methods.CreateEntitlementAvailability)            // Owner organization only (handler-gated)
+			entitlementsGroup.DELETE("/catalog/:id/availability/:rule_id", methods.DeleteEntitlementAvailability) // Owner organization only (handler-gated)
 
 			// What the caller's org may buy (drives my UI / shop)
 			entitlementsGroup.GET("/available", methods.ListAvailableEntitlements)
@@ -358,10 +358,10 @@ func main() {
 			}
 
 			// Merged effective config + Mimir YAML for ANY tenant, secrets redacted.
-			// Gated on config:alerts, which only the Super Admin user role carries.
-			// Note this is deliberately not hierarchy-scoped: any Super Admin can
+			// Gated on config:alerts, which only the Owner and Staff user roles carry.
+			// Note this is deliberately not hierarchy-scoped: any Owner-organization user can
 			// read any organization's effective config, whatever org they sit in.
-			// Only an Owner can grant the Super Admin role (see role access control).
+			// Only an Owner can grant the Owner and Staff roles (see role access control).
 			alertsGroup.GET("/config/effective", middleware.RequirePermission("config:alerts"), methods.GetEffectiveAlertingConfig)
 		}
 
@@ -490,7 +490,7 @@ func main() {
 
 		// Reseller promotion sits outside the resellers permission group on
 		// purpose: the authority to move an organization between levels is the
-		// owner/Super Admin gate in the handler, not manage:resellers, which every
+		// Owner-organization gate in the handler, not manage:resellers, which every
 		// distributor holds.
 		customAuthWithAudit.PATCH("/resellers/:id/promote", middleware.ExtendDeadline(60*time.Second), methods.PromoteReseller) // Promote reseller to distributor keeping its hierarchy (slow: one Logto role switch per member)
 

@@ -22,6 +22,27 @@ import (
 	"github.com/nethesis/my/backend/services/local"
 )
 
+// denyOwnerOrgTargetWithoutOwnerRole answers 403 and returns true when the
+// target user belongs to the Owner organization and the caller lacks the Owner
+// user role. Every Owner-organization member shares the same org role, so
+// managing that membership (delete/suspend/reactivate/password reset) keys on
+// the technical role, not on the organization role. Fail-closed: an org type
+// the partner tables cannot vouch for (lookup error included) is treated as
+// the Owner organization.
+func denyOwnerOrgTargetWithoutOwnerRole(c *gin.Context, user *models.User, targetOrgID string) bool {
+	if targetOrgID == "" {
+		return false
+	}
+	if models.IsPartnerOrgType(local.NewUserService().GetOrganizationType(targetOrgID)) {
+		return false
+	}
+	if models.HasOwnerUserRole(user.UserRoles) {
+		return false
+	}
+	c.JSON(http.StatusForbidden, response.Forbidden("access denied: only the Owner role can manage users of the Owner organization", nil))
+	return true
+}
+
 // invalidateUserProfileCache removes the cached user profile from Redis.
 // This ensures that changes to roles, permissions, or profile data take effect immediately.
 func invalidateUserProfileCache(logtoID *string) {
@@ -121,7 +142,7 @@ func CreateUser(c *gin.Context) {
 	}
 
 	// Create user
-	account, err := service.CreateUser(&request, models.NewOrgCreatorFromUser(*user), user.OrganizationID)
+	account, err := service.CreateUser(&request, models.NewOrgCreatorFromUser(*user), user.OrganizationID, user.UserRoles)
 	if err != nil {
 		// Check if it's a validation error from service
 		if validationErr := getValidationError(err); validationErr != nil {
@@ -473,6 +494,16 @@ func UpdateUser(c *gin.Context) {
 
 		// Check each role being assigned
 		for _, roleID := range *request.UserRoleIDs {
+			// Reject unknown roles up front, exactly like the create path: an id
+			// the cache cannot vouch for would otherwise skip the access-control
+			// check below and fail mid-sync in Logto at best.
+			if !roleCache.HasRole(roleID) {
+				c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+					{Key: "user_role_ids", Message: "role not found", Value: roleID},
+				}))
+				return
+			}
+
 			accessControl, exists := roleCache.GetAccessControl(roleID)
 			if exists && accessControl.HasAccessControl {
 				// This role has access control restrictions
@@ -511,7 +542,7 @@ func UpdateUser(c *gin.Context) {
 	service := local.NewUserService()
 
 	// Update user
-	account, err := service.UpdateUser(userID, &request, user.ID, user.OrganizationID)
+	account, err := service.UpdateUser(userID, &request, user.ID, user.OrganizationID, user.UserRoles)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -595,6 +626,9 @@ func DeleteUser(c *gin.Context) {
 		c.JSON(http.StatusForbidden, response.Forbidden("access denied: "+reason, nil))
 		return
 	}
+	if denyOwnerOrgTargetWithoutOwnerRole(c, user, targetOrgID) {
+		return
+	}
 
 	// Delete user
 	err = service.DeleteUser(userID, user.ID, user.OrganizationID)
@@ -640,7 +674,7 @@ func RestoreUser(c *gin.Context) {
 
 	service := local.NewUserService()
 
-	err := service.RestoreUser(userID, user.ID, user.OrganizationID, strings.ToLower(user.OrgRole))
+	err := service.RestoreUser(userID, user.ID, user.OrganizationID, strings.ToLower(user.OrgRole), user.UserRoles)
 	if err != nil {
 		errMsg := err.Error()
 
@@ -790,6 +824,9 @@ func SuspendUser(c *gin.Context) {
 		c.JSON(http.StatusForbidden, response.Forbidden(reason, nil))
 		return
 	}
+	if denyOwnerOrgTargetWithoutOwnerRole(c, user, targetOrgID) {
+		return
+	}
 
 	// Suspend user
 	err = userService.SuspendUser(userID, user.ID, user.OrganizationID)
@@ -881,6 +918,9 @@ func ReactivateUser(c *gin.Context) {
 	canSuspend, reason := userService.CanSuspendUser(userOrgRole, user.OrganizationID, targetOrgID)
 	if !canSuspend {
 		c.JSON(http.StatusForbidden, response.Forbidden(reason, nil))
+		return
+	}
+	if denyOwnerOrgTargetWithoutOwnerRole(c, user, targetOrgID) {
 		return
 	}
 
@@ -1009,6 +1049,13 @@ func ResetUserPassword(c *gin.Context) {
 		}
 
 		canReset, _ = service.CanUpdateUser(userOrgRole, user.OrganizationID, targetOrgID)
+
+		// Resetting a colleague's password is an account takeover: for users of
+		// the Owner organization it stays an Owner-role exclusive, like every
+		// other mutation of that membership.
+		if canReset && denyOwnerOrgTargetWithoutOwnerRole(c, user, targetOrgID) {
+			return
+		}
 	}
 
 	if !canReset {

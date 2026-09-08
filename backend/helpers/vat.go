@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/nethesis/my/backend/database"
+	"github.com/nethesis/my/backend/models"
 )
 
 // CheckVATExists checks if a VAT exists in the specified entity table,
@@ -33,7 +34,7 @@ func CheckVATExists(vat, entityType, excludeID, userOrgRole, userOrgID string) (
 	scopeClause := ""
 	switch entityType {
 	case "distributors":
-		if role != "owner" {
+		if !models.IsGlobalOrgRole(role) {
 			return false, nil
 		}
 	case "resellers":

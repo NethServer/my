@@ -150,16 +150,45 @@ const saving = computed(() => {
   return createUserLoading.value || editUserLoading.value
 })
 
+// Roles reserved to the Owner organization: they are the only ones assignable
+// there, and they are never assignable anywhere else (the API enforces the
+// same pairing).
+const OWNER_ORG_ROLE_KEYS = ['owner', 'staff']
+
+// True when the selected company is the Owner organization itself (its
+// logto_id is the caller's own organization, since only Owner-org users can
+// see it among the options).
+const isOwnerOrgSelected = computed(
+  () =>
+    loginStore.isOwner &&
+    organizationId.value !== '' &&
+    organizationId.value === loginStore.userInfo?.organization_id,
+)
+
 const userRoleOptions = computed(() => {
   if (!allUserRoles.value.data) {
     return []
   }
 
-  return allUserRoles.value.data?.map((role) => ({
-    id: role.id,
-    label: t(`user_roles.${normalize(role.name)}`),
-    description: t(`user_roles.${normalize(role.name)}_description`),
-  }))
+  return allUserRoles.value.data
+    .filter((role) =>
+      isOwnerOrgSelected.value
+        ? OWNER_ORG_ROLE_KEYS.includes(normalize(role.name))
+        : !OWNER_ORG_ROLE_KEYS.includes(normalize(role.name)),
+    )
+    .map((role) => ({
+      id: role.id,
+      label: t(`user_roles.${normalize(role.name)}`),
+      description: t(`user_roles.${normalize(role.name)}_description`),
+    }))
+})
+
+// Moving the company selection across the Owner-organization boundary changes
+// the assignable roles: drop a selection that is no longer among the options.
+watch(isOwnerOrgSelected, () => {
+  if (userRoles.value && !userRoleOptions.value.some((option) => option.id === userRoles.value)) {
+    userRoles.value = ''
+  }
 })
 
 watch(

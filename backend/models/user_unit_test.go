@@ -343,3 +343,44 @@ func TestUserPointerOperations(t *testing.T) {
 	assert.Equal(t, user.Username, unmarshaledUser.Username)
 	assert.Equal(t, user.Email, unmarshaledUser.Email)
 }
+
+func TestIsGlobalOrgRole(t *testing.T) {
+	// Only the Owner organization role grants global reach, case-insensitively.
+	assert.True(t, IsGlobalOrgRole("Owner"))
+	assert.True(t, IsGlobalOrgRole("owner"))
+	assert.True(t, IsGlobalOrgRole("OWNER"))
+
+	assert.False(t, IsGlobalOrgRole("Distributor"))
+	assert.False(t, IsGlobalOrgRole("reseller"))
+	assert.False(t, IsGlobalOrgRole("customer"))
+	// Staff is a USER role, never an organization role: it must not widen reach.
+	assert.False(t, IsGlobalOrgRole("Staff"))
+	assert.False(t, IsGlobalOrgRole(""))
+}
+
+func TestHasOwnerUserRole(t *testing.T) {
+	// The break-glass tier is the "Owner" technical role, case-insensitively.
+	assert.True(t, HasOwnerUserRole([]string{"Owner"}))
+	assert.True(t, HasOwnerUserRole([]string{"owner"}))
+	assert.True(t, HasOwnerUserRole([]string{"Admin", "Owner"}))
+
+	// Staff must never satisfy the break-glass gates, nor must any partner role.
+	assert.False(t, HasOwnerUserRole([]string{"Staff"}))
+	assert.False(t, HasOwnerUserRole([]string{"Admin", "Staff"}))
+	assert.False(t, HasOwnerUserRole([]string{"Admin", "Support", "Backoffice", "Reader"}))
+	assert.False(t, HasOwnerUserRole(nil))
+	assert.False(t, HasOwnerUserRole([]string{}))
+	assert.False(t, HasOwnerUserRole([]string{""}))
+}
+
+func TestIsPartnerOrgType(t *testing.T) {
+	assert.True(t, IsPartnerOrgType("distributor"))
+	assert.True(t, IsPartnerOrgType("Reseller"))
+	assert.True(t, IsPartnerOrgType("CUSTOMER"))
+
+	// Everything the partner tables cannot vouch for counts as the Owner
+	// organization: the membership gates must fail closed on it.
+	assert.False(t, IsPartnerOrgType("owner"))
+	assert.False(t, IsPartnerOrgType(""))
+	assert.False(t, IsPartnerOrgType("unknown"))
+}

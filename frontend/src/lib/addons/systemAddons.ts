@@ -108,8 +108,8 @@ export const getAvailableAddons = () =>
     .get<Envelope<{ available: Addon[] }>>(`${API_URL}/${AVAILABLE_ADDONS_PATH}`, authHeaders())
     .then((res) => res.data.data.available)
 
-// Grant an add-on outright, skipping NethShop. Owner organization or Super
-// Admin only, enforced again by the backend. No expiry means perpetual.
+// Grant an add-on outright, skipping NethShop. Owner organization only,
+// enforced again by the backend. No expiry means perpetual.
 export const grantSystemAddon = (systemId: string, addonId: string, scope: string) =>
   axios
     .post<
@@ -340,7 +340,7 @@ export const getOrderNumber = (grant: AddonGrant) =>
 // Mirror of the shop's NETHESIS_SHOP_PURCHASE_ROLES: the same my roles that
 // enable buying for the organization are the ones the shop grants org-wide
 // order visibility to.
-const SHOP_ORG_ORDER_ROLES = ['Super Admin', 'Admin', 'Backoffice']
+const SHOP_ORG_ORDER_ROLES = ['Admin', 'Backoffice']
 
 // Whether the shop will actually show this order to the current user — the
 // link is only rendered when the answer is yes, because a link that lands on

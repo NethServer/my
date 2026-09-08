@@ -214,7 +214,7 @@ var rebrandingSortColumns = map[string]string{
 // see. The owner sees every enabled organization; everyone else sees their own
 // subtree, so a partner reading the list cannot enumerate another partner's.
 func scopeRebrandingOrgs(where, column, userOrgRole, userOrgID string, args []interface{}, nextArg int) (string, []interface{}, int) {
-	if strings.ToLower(userOrgRole) == "owner" {
+	if models.IsGlobalOrgRole(userOrgRole) {
 		return where, args, nextArg
 	}
 	allowed := helpers.GetAllowedOrgIDsForFilter(strings.ToLower(userOrgRole), userOrgID)

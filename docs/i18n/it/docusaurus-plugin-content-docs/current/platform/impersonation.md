@@ -19,13 +19,10 @@ L'impersonificazione è una funzionalità che permette a un amministratore Owner
 
 ## Chi Può Impersonificare
 
-L'impersonificazione è disponibile **esclusivamente** per gli utenti con:
-
-- **Ruolo Organizzazione**: Owner
-- **Ruolo Utente**: Super Admin
+L'impersonificazione è disponibile **esclusivamente** per il personale Nethesis, cioè gli utenti dell'organizzazione Owner (ruolo Staff o account `owner`), e opera su tutta la gerarchia.
 
 :::warning
-L'impersonificazione non è disponibile per nessun altro ruolo. Distributori, Rivenditori e Clienti non possono impersonificare utenti.
+L'impersonificazione non è disponibile per nessun altro utente. Distributori, Rivenditori e Clienti non possono impersonificare utenti.
 :::
 
 ## Flusso di Lavoro
@@ -183,7 +180,7 @@ Per mostrare a un utente come usare la piattaforma:
 
 ### Impossibile Impersonificare un Utente
 
-- Verifica di avere il ruolo Owner + Super Admin
+- Verifica di appartenere all'organizzazione Owner (ruolo Staff o account `owner`)
 - Verifica che l'utente target abbia dato il consenso
 - Verifica che l'utente target sia attivo (non sospeso)
 - Verifica di non essere già in una sessione di impersonificazione
@@ -231,7 +228,7 @@ Se un utente revoca il consenso:
 - Rivedi regolarmente le tracce audit
 
 **Sicurezza:**
-- Limita l'assegnazione del ruolo Super Admin
+- Ricorda che l'impersonificazione è riservata al personale Nethesis (organizzazione Owner)
 - Monitora l'uso dell'impersonificazione
 - Rivedi i log audit periodicamente
 - Investiga pattern inusuali di impersonificazione

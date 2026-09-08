@@ -95,7 +95,7 @@ func (c *LogtoClient) GetRolePermissions(roleID string) ([]LogtoScope, error) {
 	logger.Debug("Fetching permissions for user role: %s", roleID)
 
 	// Must page: a role can hold more than Logto's default 20 scopes
-	// (Super Admin already does), and a truncated list would make the sync
+	// (the Owner role already does), and a truncated list would make the sync
 	// re-add permissions the role already has.
 	scopes, err := fetchAllPages[LogtoScope](c, "/api/roles/"+roleID+"/scopes")
 	if err != nil {

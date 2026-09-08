@@ -275,7 +275,7 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 func (s *LocalSystemsService) GetSystemsByOrganizationPaginated(userID, userOrgID, userOrgRole string, page, pageSize int, search, sortBy, sortDirection, filterName string, filterSystemKeys, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses []string) ([]*models.System, int, error) {
 	// Owner can access all systems - pass nil to skip RBAC filtering in query
 	var allowedOrgIDs []string
-	if strings.ToLower(userOrgRole) != "owner" {
+	if !models.IsGlobalOrgRole(userOrgRole) {
 		userService := NewUserService()
 		var err error
 		allowedOrgIDs, err = userService.GetHierarchicalOrganizationIDs(strings.ToLower(userOrgRole), userOrgID)
@@ -965,9 +965,9 @@ func (s *LocalSystemsService) GetTotals(userOrgRole, userOrgID string, timeoutMi
 		return nil, fmt.Errorf("insufficient permissions to access system totals")
 	}
 
-	// Owner can access all systems - pass nil to skip RBAC filtering
+	// Owner-organization roles can access all systems - pass nil to skip RBAC filtering
 	var allowedOrgIDs []string
-	if normalizedRole != "owner" {
+	if !models.IsGlobalOrgRole(normalizedRole) {
 		userService := NewUserService()
 		var err error
 		allowedOrgIDs, err = userService.GetHierarchicalOrganizationIDs(normalizedRole, userOrgID)
@@ -1193,7 +1193,7 @@ func (s *LocalSystemsService) CanCreateSystemForOrganization(userOrgRole, userOr
 
 	switch normalizedOrgRole {
 	case "owner":
-		// Owner can assign to any organization in the hierarchy. We still
+		// Owner-organization roles can assign to any organization in the hierarchy. We still
 		// gate the assignment on existence so a typo or stale logto_id can't
 		// strand a system under a phantom organization (which would silently
 		// route its backups to an unreachable S3 prefix on reassignment).

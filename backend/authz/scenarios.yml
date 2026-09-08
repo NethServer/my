@@ -555,18 +555,18 @@ scenarios:
     note: even its own VAT — the helper refuses the whole lookup below reseller level
 
   # ===========================================================================
-  # The Super Admin role is the key to platform-wide impersonation (see
-  # special.yml), so who may HAND IT OUT is the boundary that protects the whole
-  # design. config.yml restricts it to the Owner organization
-  # (`access_control.organization_roles: [owner]`). Hiding it from GET /roles is
-  # not enough — these pass the role id explicitly, which is what an attacker
-  # would do.
+  # The Owner and Staff user roles are the keys to platform-wide reach and
+  # impersonation (see special.yml), so who may HAND THEM OUT is the boundary
+  # that protects the whole design. config.yml restricts assignment to the
+  # Owner organization (access_control) and the backend pairs them with the
+  # Owner organization fail-closed. Hiding them from GET /roles is not enough —
+  # these pass the role id explicitly, which is what an attacker would do.
   # ===========================================================================
-  - name: distributor admin cannot promote a user to Super Admin
+  - name: distributor admin cannot promote a user to Staff
     as: d1-admin
     method: PUT
     path: /api/users/{user:d1r1-support}
-    body: '{"user_role_ids":["{role:Super Admin}"]}'
+    body: '{"user_role_ids":["{role:Staff}"]}'
     expect: denied
     note: |
       The target is inside the caller's hierarchy and the caller holds
@@ -574,51 +574,112 @@ scenarios:
       stops refusing, any distributor admin can mint itself platform-wide
       impersonation rights.
 
-  - name: reseller admin cannot promote a user to Super Admin
+  - name: reseller admin cannot promote a user to Staff
     as: d1r1-admin
     method: PUT
     path: /api/users/{user:d1r1-support}
-    body: '{"user_role_ids":["{role:Super Admin}"]}'
+    body: '{"user_role_ids":["{role:Staff}"]}'
     expect: denied
 
-  - name: customer admin cannot promote a user to Super Admin
+  - name: customer admin cannot promote a user to Staff
     as: d1r1c1-admin
     method: PUT
     path: /api/users/{user:d1r1c1-reader}
-    body: '{"user_role_ids":["{role:Super Admin}"]}'
+    body: '{"user_role_ids":["{role:Staff}"]}'
     expect: denied
 
-  - name: distributor admin cannot create a Super Admin user
+  - name: distributor admin cannot create a Staff user
     as: d1-admin
     method: POST
     path: /api/users
-    body: '{"email":"edoardo.spadoni+authz-escalation-probe@nethesis.it","name":"authz escalation probe","organization_id":"{my_org}","user_role_ids":["{role:Super Admin}"]}'
+    body: '{"email":"edoardo.spadoni+authz-escalation-probe@nethesis.it","name":"authz escalation probe","organization_id":"{my_org}","user_role_ids":["{role:Staff}"]}'
     expect: denied
     note: the creation path must refuse the role too, not just the update path
 
-  - name: reseller admin cannot create a Super Admin user
+  - name: reseller admin cannot create a Staff user
     as: d1r1-admin
     method: POST
     path: /api/users
-    body: '{"email":"edoardo.spadoni+authz-escalation-probe2@nethesis.it","name":"authz escalation probe","organization_id":"{my_org}","user_role_ids":["{role:Super Admin}"]}'
+    body: '{"email":"edoardo.spadoni+authz-escalation-probe2@nethesis.it","name":"authz escalation probe","organization_id":"{my_org}","user_role_ids":["{role:Staff}"]}'
     expect: denied
 
-  - name: backoffice cannot promote a user to Super Admin
+  - name: backoffice cannot promote a user to Staff
     as: d1-backoffice
     method: PUT
     path: /api/users/{user:d1r1-support}
-    body: '{"user_role_ids":["{role:Super Admin}"]}'
+    body: '{"user_role_ids":["{role:Staff}"]}'
     expect: denied
     note: Backoffice holds manage:users too, so it is a second route to the same escalation
 
-  - name: the Super Admin role is not even offered below the owner organization
+  - name: the Owner and Staff roles are not even offered below the owner organization
     as: d1-admin
     method: GET
     path: /api/roles
-    must_not_contain: ["Super Admin"]
+    must_not_contain: ['"Owner"', '"Staff"']
     note: |
       Defence in depth rather than the boundary itself — the checks above prove
       the refusal happens even when the id is supplied directly.
+
+  - name: the Owner role is not offered to anyone, the owner included
+    as: owner
+    method: GET
+    path: /api/roles
+    must_not_contain: ['"Owner"']
+    note: |
+      The Owner role belongs to the bootstrap owner account only, seeded at
+      init: the API never offers it and refuses to assign it, so it cannot
+      spread even by an owner's mistake.
+
+  - name: staff cannot create a user in the Owner organization
+    as: owner-staff
+    method: POST
+    path: /api/users
+    body: '{"email":"edoardo.spadoni+authz-staff-probe@nethesis.it","name":"authz staff probe","organization_id":"{my_org}","user_role_ids":["{role:Staff}"]}'
+    expect: denied
+    note: |
+      Every Owner-organization member shares the org role, so managing that
+      membership keys on the technical role: only the Owner user role may add
+      people to the Owner organization. Without this, any Staff could mint
+      more Staff — or an Owner.
+
+  - name: staff cannot assign the Staff role outside the Owner organization
+    as: owner-staff
+    method: PUT
+    path: /api/users/{user:d1r1-support}
+    body: '{"user_role_ids":["{role:Staff}"]}'
+    expect: denied
+    note: the pairing must hold even for a caller that could otherwise assign roles
+
+  # Owner-organization membership mutations are an Owner-role exclusive: every
+  # member shares the org role, so only the technical role separates the
+  # break-glass tier from Staff. A Staff aiming any mutation at a fellow
+  # Owner-org user must be refused — password reset above all, since that is a
+  # same-tier account takeover that launders actions under another identity.
+  - name: staff cannot reset the password of a fellow Owner-organization user
+    as: owner-staff
+    method: PATCH
+    path: /api/users/{user:owner-staff2}/password
+    body: '{"password":"Kq7!vTm4Zp9Wd"}'
+    expect: denied
+
+  - name: staff cannot update a fellow Owner-organization user
+    as: owner-staff
+    method: PUT
+    path: /api/users/{user:owner-staff2}
+    body: '{"name":"authz staff probe"}'
+    expect: denied
+
+  - name: staff cannot delete a fellow Owner-organization user
+    as: owner-staff
+    method: DELETE
+    path: /api/users/{user:owner-staff2}
+    expect: denied
+
+  - name: staff cannot suspend a fellow Owner-organization user
+    as: owner-staff
+    method: PATCH
+    path: /api/users/{user:owner-staff2}/suspend
+    expect: denied
 
   # ===========================================================================
   # Rebranding. Branding is inherited downwards and configured only on one's own

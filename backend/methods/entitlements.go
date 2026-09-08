@@ -37,14 +37,14 @@ func isSystemBlocked(system *models.System) bool {
 
 // isEntitlementAdmin returns true for the ADMINISTRATIVE surface — catalog
 // management, manual grants via API, fleet-wide visibility: only the owner
-// organization or a Super Admin user (Nethesis).
+// organization (Owner and Staff users — Nethesis).
 func isEntitlementAdmin(u *models.User) bool {
-	return IsOwnerOrSuperAdmin(u)
+	return IsOwnerOrgMember(u)
 }
 
 // canTransactEntitlements returns true for the TRANSACTIONAL surface — buy
 // on the shop / cancel a subscription (activate/deactivate): the dedicated
-// manage:entitlements permission, held by the Backoffice and Super Admin
+// manage:entitlements permission, held by the Backoffice, Staff and Owner
 // user roles.
 func canTransactEntitlements(u *models.User) bool {
 	return slices.Contains(u.UserPermissions, "manage:entitlements") ||
@@ -72,7 +72,7 @@ func entitlementAccessCheck(c *gin.Context, write bool) (system *models.System, 
 	isAdmin := isEntitlementAdmin(u)
 
 	if write && !isAdmin {
-		c.JSON(http.StatusForbidden, response.Forbidden("only the owner organization or a Super Admin can manage grants directly", nil))
+		c.JSON(http.StatusForbidden, response.Forbidden("only the Owner organization can manage grants directly", nil))
 		return nil, nil, false
 	}
 
@@ -138,7 +138,7 @@ func resolvePurchaser(buyerEmail string) map[string]interface{} {
 }
 
 // redactPurchaser strips the buyer identity when the buyer's organization is
-// outside the viewer's hierarchy (orgScope nil = no restriction, owner/Super
+// outside the viewer's hierarchy (orgScope nil = no restriction, Owner-org
 // Admin): a reseller must not learn who sits above them — the UI renders a
 // generic "purchased by another organization" from the bare marker. Raw
 // email-only snapshots have no organization and are admin-only too.
@@ -169,7 +169,7 @@ func ListEntitlementCatalog(c *gin.Context) {
 }
 
 // catalogWriteGate rejects callers that are not entitlement admins (owner
-// org or Super Admin): the catalog and its availability rules are Nethesis
+// organization): the catalog and its availability rules are Nethesis
 // product management.
 func catalogWriteGate(c *gin.Context) (*models.User, bool) {
 	u, found := helpers.GetUserFromContext(c)
@@ -177,14 +177,14 @@ func catalogWriteGate(c *gin.Context) (*models.User, bool) {
 		return nil, false
 	}
 	if !isEntitlementAdmin(u) {
-		c.JSON(http.StatusForbidden, response.Forbidden("only the owner organization or a Super Admin can manage the entitlement catalog", nil))
+		c.JSON(http.StatusForbidden, response.Forbidden("only the Owner organization can manage the entitlement catalog", nil))
 		return nil, false
 	}
 	return u, true
 }
 
 // transactGate rejects callers without the manage:entitlements permission
-// (buy/cancel surface: Backoffice, Super Admin, shop owner key).
+// (buy/cancel surface: Backoffice, Staff, Owner, shop owner key).
 func transactGate(c *gin.Context) (*models.User, bool) {
 	u, found := helpers.GetUserFromContext(c)
 	if !found {
@@ -420,7 +420,7 @@ func DeleteEntitlementAvailability(c *gin.Context) {
 
 // ListAvailableEntitlements handles GET /api/entitlements/available — the
 // catalog items the CALLER's organization may buy/self-activate (drives the
-// my UI and, in fase 3, the shop). Owner and Super Admin see the whole
+// my UI and, in fase 3, the shop). Owner-organization users see the whole
 // catalog (they can grant anything manually anyway).
 func ListAvailableEntitlements(c *gin.Context) {
 	u, found := helpers.GetUserFromContext(c)
@@ -717,7 +717,7 @@ func PendingEntitlement(c *gin.Context) {
 // ===========================================
 
 // grantsOrgScope computes the org visibility set for the caller: nil (no
-// restriction) for owner org and Super Admin, the caller's hierarchy
+// restriction) for the Owner organization, the caller's hierarchy
 // otherwise — buyers see their own modules/expirations, owner sees the fleet.
 func grantsOrgScope(u *models.User) ([]string, error) {
 	if isEntitlementAdmin(u) {
@@ -790,7 +790,7 @@ func GetEntitlementGrants(c *gin.Context) {
 // GetEntitlementReport handles GET /api/entitlements/report — the add-on
 // analytics (lifecycle totals, per-type breakdown, renewal distribution,
 // 12-month activation trend) within the caller's visibility: fleet-wide for
-// the owner org / a Super Admin, own hierarchy for everyone else. Same scope
+// the Owner organization, own hierarchy for everyone else. Same scope
 // as /grants and /stats — the report is their aggregate, no wider.
 func GetEntitlementReport(c *gin.Context) {
 	u, found := helpers.GetUserFromContext(c)
@@ -806,7 +806,7 @@ func GetEntitlementReport(c *gin.Context) {
 	}
 
 	// Add-ons nobody holds belong in the breakdown, but only the ones the
-	// caller is entitled to see: the whole catalog for the owner org and Super
+	// caller is entitled to see: the whole catalog for the Owner organization
 	// Admins, whatever its own organization may buy for everyone else. The
 	// counts themselves stay bound to the hierarchy scope either way.
 	var catalogScope []string

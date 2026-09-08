@@ -19,7 +19,7 @@ import (
 
 // Promotion detaches an organization from the distributor that manages it, so
 // only owner-level authority may trigger it.
-func TestIsOwnerOrSuperAdmin(t *testing.T) {
+func TestIsOwnerOrgMember(t *testing.T) {
 	tests := []struct {
 		name     string
 		user     *models.User
@@ -36,9 +36,9 @@ func TestIsOwnerOrSuperAdmin(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:     "super admin outside the owner organization",
-			user:     &models.User{OrgRole: "Distributor", UserRoles: []string{"Super Admin"}},
-			expected: true,
+			name:     "owner user role does not rescue a partner org membership",
+			user:     &models.User{OrgRole: "Distributor", UserRoles: []string{"Owner"}},
+			expected: false,
 		},
 		{
 			name:     "distributor admin",
@@ -69,7 +69,7 @@ func TestIsOwnerOrSuperAdmin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, IsOwnerOrSuperAdmin(tt.user))
+			assert.Equal(t, tt.expected, IsOwnerOrgMember(tt.user))
 		})
 	}
 }

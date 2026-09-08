@@ -38,7 +38,7 @@ func (s *LocalApplicationsService) GetApplications(
 ) ([]*models.Application, int, error) {
 	// Owner can access all systems - pass nil to skip RBAC filtering in query
 	var allowedSystemIDs []string
-	if strings.ToLower(userOrgRole) != "owner" {
+	if !models.IsGlobalOrgRole(userOrgRole) {
 		var err error
 		allowedSystemIDs, err = s.getAllowedSystemIDs(userOrgRole, userOrgID)
 		if err != nil {
@@ -205,7 +205,7 @@ func (s *LocalApplicationsService) GetApplicationTotals(userOrgRole, userOrgID s
 
 	// Owner can access all systems - pass nil to skip RBAC filtering
 	var allowedSystemIDs []string
-	if strings.ToLower(userOrgRole) != "owner" {
+	if !models.IsGlobalOrgRole(userOrgRole) {
 		var err error
 		allowedSystemIDs, err = s.getAllowedSystemIDs(userOrgRole, userOrgID)
 		if err != nil {
@@ -232,7 +232,7 @@ func (s *LocalApplicationsService) GetApplicationTypes(userOrgRole, userOrgID st
 
 	// Owner can access all systems - pass nil to skip RBAC filtering
 	var allowedSystemIDs []string
-	if strings.ToLower(userOrgRole) != "owner" {
+	if !models.IsGlobalOrgRole(userOrgRole) {
 		var err error
 		allowedSystemIDs, err = s.getAllowedSystemIDs(userOrgRole, userOrgID)
 		if err != nil {
@@ -259,7 +259,7 @@ func (s *LocalApplicationsService) GetApplicationVersions(userOrgRole, userOrgID
 
 	// Owner can access all systems - pass nil to skip RBAC filtering
 	var allowedSystemIDs []string
-	if strings.ToLower(userOrgRole) != "owner" {
+	if !models.IsGlobalOrgRole(userOrgRole) {
 		var err error
 		allowedSystemIDs, err = s.getAllowedSystemIDs(userOrgRole, userOrgID)
 		if err != nil {
@@ -298,7 +298,7 @@ func (s *LocalApplicationsService) GetApplicationsTrend(userOrgRole, userOrgID s
 }, int, int, error) {
 	// Owner can access all systems - pass nil to skip RBAC filtering
 	var allowedSystemIDs []string
-	if strings.ToLower(userOrgRole) != "owner" {
+	if !models.IsGlobalOrgRole(userOrgRole) {
 		var err error
 		allowedSystemIDs, err = s.getAllowedSystemIDs(userOrgRole, userOrgID)
 		if err != nil {
@@ -403,7 +403,7 @@ func (s *LocalApplicationsService) computeAllowedOrganizationIDs(normalizedRole,
 
 	switch normalizedRole {
 	case "owner":
-		// Owner can access all organizations - single UNION query
+		// Owner-organization roles can access all organizations - single UNION query
 		query := `
 			SELECT logto_id FROM distributors WHERE deleted_at IS NULL AND logto_id IS NOT NULL
 			UNION ALL
@@ -593,7 +593,7 @@ func (s *LocalApplicationsService) getOrganizationType(orgID string) (string, er
 func (s *LocalApplicationsService) GetApplicationTypeSummary(userOrgRole, userOrgID, organizationID, systemID string, includeHierarchy bool, page, pageSize int, sortBy, sortDirection string) (*models.ApplicationTypeSummary, error) {
 	// Owner can access all systems - pass nil to skip RBAC filtering
 	var allowedSystemIDs []string
-	if strings.ToLower(userOrgRole) != "owner" {
+	if !models.IsGlobalOrgRole(userOrgRole) {
 		var err error
 		allowedSystemIDs, err = s.getAllowedSystemIDs(userOrgRole, userOrgID)
 		if err != nil {
@@ -622,7 +622,7 @@ func (s *LocalApplicationsService) GetApplicationTypeSummary(userOrgRole, userOr
 
 	if organizationID != "" {
 		// Validate that the requested organization is within the user's hierarchy (skip for owner)
-		if strings.ToLower(userOrgRole) != "owner" {
+		if !models.IsGlobalOrgRole(userOrgRole) {
 			allowedOrgIDs, err := s.getAllowedOrganizationIDs(userOrgRole, userOrgID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get allowed organizations: %w", err)
@@ -647,8 +647,8 @@ func (s *LocalApplicationsService) GetApplicationTypeSummary(userOrgRole, userOr
 				return nil, fmt.Errorf("failed to get child organizations: %w", err)
 			}
 
-			if strings.ToLower(userOrgRole) == "owner" {
-				// Owner can access all children
+			if models.IsGlobalOrgRole(userOrgRole) {
+				// Owner-organization roles can access all children
 				orgIDsToFilter = append(orgIDsToFilter, childIDs...)
 			} else {
 				// Intersect with allowed org IDs for safety

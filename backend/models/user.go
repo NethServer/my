@@ -9,7 +9,60 @@
 
 package models
 
-import "time"
+import (
+	"strings"
+	"time"
+)
+
+// OwnerOrgRole is the organization role of the Owner organization: every
+// member (the break-glass owner user and the Staff users) holds it. It grants
+// global reach (read/manage) over the whole hierarchy; destructive authority
+// lives on the "Owner" USER role, never on the organization.
+const OwnerOrgRole = "owner"
+
+// Technical (user) roles reserved to the Owner organization's members.
+const (
+	// OwnerUserRole carries the destroy:* permissions of the technical
+	// resources (systems, users) and the authority to manage the Owner
+	// organization's own membership (break-glass tier).
+	OwnerUserRole = "Owner"
+	// StaffUserRole is the non-destructive counterpart for the Nethesis
+	// cross-cutting employees.
+	StaffUserRole = "Staff"
+)
+
+// IsGlobalOrgRole reports whether orgRole grants global reach across the whole
+// hierarchy (every distributor/reseller/customer): the organization role of
+// the Owner organization. Reach only — destructive authority stays gated on
+// the destroy:* permissions of the caller's user role.
+func IsGlobalOrgRole(orgRole string) bool {
+	return strings.EqualFold(orgRole, OwnerOrgRole)
+}
+
+// IsPartnerOrgType reports whether orgType is one of the partner organization
+// types (distributor/reseller/customer). The gates protecting the Owner
+// organization's membership use it fail-closed: anything else — "owner", an
+// empty string from a lookup error, an unknown value — is treated as the Owner
+// organization and requires the Owner user role.
+func IsPartnerOrgType(orgType string) bool {
+	switch strings.ToLower(orgType) {
+	case "distributor", "reseller", "customer":
+		return true
+	}
+	return false
+}
+
+// HasOwnerUserRole reports whether any of the technical role names is "Owner":
+// the tier that manages the Owner organization's own membership and holds the
+// destroy:* permissions of the technical resources.
+func HasOwnerUserRole(roleNames []string) bool {
+	for _, name := range roleNames {
+		if strings.EqualFold(name, OwnerUserRole) {
+			return true
+		}
+	}
+	return false
+}
 
 type User struct {
 	ID               string   `json:"id" structs:"id"`                               // Local database ID

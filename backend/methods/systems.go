@@ -78,7 +78,7 @@ func CreateSystem(c *gin.Context) {
 	// never in the future.
 	if request.CreatedAt != nil || request.RegisteredAt != nil {
 		role := strings.ToLower(user.OrgRole)
-		if role != "owner" && role != "distributor" {
+		if !models.IsGlobalOrgRole(role) && role != "distributor" {
 			c.JSON(http.StatusForbidden, response.Forbidden("access denied: only owner or distributor can set created_at/registered_at", nil))
 			return
 		}

@@ -93,11 +93,13 @@ type APIKeyAuthResult struct {
 	Mode           string
 }
 
-// isOwnerAccount reports whether the user is an owner-account caller: keys for
-// these are anchored on the Logto ID (myo_ prefix) because the Owner
-// organization has no local users rows. Requires a Logto ID to anchor on.
+// isOwnerAccount reports whether the user is the bootstrap owner account: keys
+// for it are anchored on the Logto ID (myo_ prefix) because that account has
+// no local users row (empty local id). Staff users of the Owner organization
+// have a regular row and take the standard myk_ path. Requires a Logto ID to
+// anchor on.
 func isOwnerAccount(user *models.User) bool {
-	return strings.EqualFold(user.OrgRole, "owner") && user.LogtoID != nil && *user.LogtoID != ""
+	return user.ID == "" && strings.EqualFold(user.OrgRole, "owner") && user.LogtoID != nil && *user.LogtoID != ""
 }
 
 // APIKeyAnchor returns the identifier key and audit rows are keyed on for this

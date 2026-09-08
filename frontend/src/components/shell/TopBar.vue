@@ -191,7 +191,7 @@ function openNotificationsDrawer() {
                       <UserAvatar
                         v-if="loginStore.userInfo"
                         size="sm"
-                        :is-owner="loginStore.isOwner"
+                        :is-owner="loginStore.isOwnerAccount"
                         :name="loginStore.userDisplayName"
                         :logto-id="loginStore.userInfo.logto_id"
                         :cache-key="loginStore.avatarVersion"

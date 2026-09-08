@@ -187,8 +187,8 @@ func EnableRebranding(c *gin.Context) {
 	// population that manages the entitlement catalog and grants. Unlike
 	// promotion, the reach is not limited to the caller's own hierarchy —
 	// licensing and branding are Nethesis-side duties over the whole fleet.
-	if !IsOwnerOrSuperAdmin(user) {
-		c.JSON(http.StatusForbidden, response.Forbidden("only the owner organization or a Super Admin can enable rebranding", nil))
+	if !IsOwnerOrgMember(user) {
+		c.JSON(http.StatusForbidden, response.Forbidden("only the Owner organization can enable rebranding", nil))
 		return
 	}
 
@@ -221,8 +221,8 @@ func EnableRebrandingBulk(c *gin.Context) {
 		return
 	}
 
-	if !IsOwnerOrSuperAdmin(user) {
-		c.JSON(http.StatusForbidden, response.Forbidden("only the owner organization or a Super Admin can enable rebranding", nil))
+	if !IsOwnerOrgMember(user) {
+		c.JSON(http.StatusForbidden, response.Forbidden("only the Owner organization can enable rebranding", nil))
 		return
 	}
 
@@ -269,8 +269,8 @@ func DisableRebranding(c *gin.Context) {
 		return
 	}
 
-	if !IsOwnerOrSuperAdmin(user) {
-		c.JSON(http.StatusForbidden, response.Forbidden("only the owner organization or a Super Admin can disable rebranding", nil))
+	if !IsOwnerOrgMember(user) {
+		c.JSON(http.StatusForbidden, response.Forbidden("only the Owner organization can disable rebranding", nil))
 		return
 	}
 
@@ -580,11 +580,11 @@ func serveRebrandingAsset(c *gin.Context, orgID, productID, assetName, cacheCont
 }
 
 // rebrandingScopeRole widens the lists to the whole fleet for an owner-level
-// caller: a Super Admin who may add an organization to rebranding has to see it
+// caller: an Owner-organization user who may add an organization to rebranding has to see it
 // in the list afterwards, and in the picker before. Everyone else stays scoped
 // to their own subtree.
 func rebrandingScopeRole(user *models.User) string {
-	if IsOwnerOrSuperAdmin(user) {
+	if IsOwnerOrgMember(user) {
 		return "owner"
 	}
 	return strings.ToLower(user.OrgRole)
@@ -598,7 +598,7 @@ func canReadRebranding(c *gin.Context, orgID string) bool {
 		return false
 	}
 
-	if IsOwnerOrSuperAdmin(user) {
+	if IsOwnerOrgMember(user) {
 		return true
 	}
 
@@ -629,7 +629,7 @@ func canWriteRebranding(c *gin.Context, orgID string) bool {
 		return false
 	}
 
-	if IsOwnerOrSuperAdmin(user) || user.OrganizationID == orgID {
+	if IsOwnerOrgMember(user) || user.OrganizationID == orgID {
 		return true
 	}
 

@@ -233,7 +233,7 @@ func (r *LocalDistributorRepository) Reactivate(id string) error {
 // List returns paginated list of distributors visible to the user
 func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy []string) ([]*models.LocalDistributor, int, error) {
 	// Only Owner can see distributors
-	if userOrgRole != "owner" {
+	if !models.IsGlobalOrgRole(userOrgRole) {
 		return []*models.LocalDistributor{}, 0, nil
 	}
 
@@ -546,7 +546,7 @@ func (r *LocalDistributorRepository) foldOrgCounts(query string, orgToDist map[s
 // GetTotals returns total count of distributors visible to the user
 func (r *LocalDistributorRepository) GetTotals(userOrgRole, userOrgID string) (int, error) {
 	// Only Owner can see distributors
-	if userOrgRole != "owner" {
+	if !models.IsGlobalOrgRole(userOrgRole) {
 		return 0, nil
 	}
 
@@ -567,7 +567,7 @@ func (r *LocalDistributorRepository) GetTrend(userOrgRole, userOrgID string, per
 	Count int
 }, int, int, error) {
 	// Only Owner can see distributors
-	if userOrgRole != "owner" {
+	if !models.IsGlobalOrgRole(userOrgRole) {
 		return []struct {
 			Date  string
 			Count int

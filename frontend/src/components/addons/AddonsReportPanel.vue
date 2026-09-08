@@ -4,7 +4,7 @@
 
   The add-on report: what the fleet holds, where it sits and how it is
   trending. Every figure is scoped server-side to the caller's hierarchy — the
-  owner organization and Super Admins see everything, a reseller only its own
+  the Owner organization sees everything, a reseller only its own
   companies — so nothing here needs a permission check of its own.
 
   The totals, the trend, the renewal split and the per-add-on breakdown arrive

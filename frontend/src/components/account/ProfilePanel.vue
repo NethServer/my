@@ -172,7 +172,7 @@ function getKebabMenuItems() {
           <UserAvatar
             size="3xl"
             :name="loginStore.userDisplayName"
-            :is-owner="loginStore.isOwner"
+            :is-owner="loginStore.isOwnerAccount"
             :logto-id="loginStore.userInfo?.logto_id || ''"
             :cache-key="loginStore.avatarVersion"
             :has-avatar="hasCustomAvatar"
@@ -182,7 +182,7 @@ function getKebabMenuItems() {
               kind="secondary"
               type="button"
               size="lg"
-              :disabled="loginStore.isOwner || loginStore.isImpersonating"
+              :disabled="loginStore.isOwnerAccount || loginStore.isImpersonating"
               @click="isChangePictureDrawerShown = true"
             >
               <template #prefix>
@@ -194,7 +194,9 @@ function getKebabMenuItems() {
             <NeDropdown
               :items="getKebabMenuItems()"
               :align-to-right="true"
-              :disabled="loginStore.isOwner || loginStore.isImpersonating || !hasCustomAvatar"
+              :disabled="
+                loginStore.isOwnerAccount || loginStore.isImpersonating || !hasCustomAvatar
+              "
             />
           </div>
         </div>
@@ -207,7 +209,7 @@ function getKebabMenuItems() {
         @blur="name = name.trim()"
         :label="$t('users.name')"
         :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
-        :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
+        :disabled="editUserLoading || loginStore.isOwnerAccount || loginStore.isImpersonating"
       />
       <!-- email -->
       <NeTextInput
@@ -216,7 +218,7 @@ function getKebabMenuItems() {
         @blur="email = email.trim()"
         :label="$t('users.email')"
         :invalid-message="validationIssues.email?.[0] ? $t(validationIssues.email[0]) : ''"
-        :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
+        :disabled="editUserLoading || loginStore.isOwnerAccount || loginStore.isImpersonating"
       />
       <!-- phone -->
       <div>
@@ -229,7 +231,7 @@ function getKebabMenuItems() {
           <NeCombobox
             v-model="countryCode"
             :options="countryCodeComboOptions"
-            :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
+            :disabled="editUserLoading || loginStore.isOwnerAccount || loginStore.isImpersonating"
             :no-results-label="$t('ne_combobox.no_results')"
             :limited-options-label="$t('ne_combobox.limited_options_label')"
             :no-options-label="$t('ne_combobox.no_options_label')"
@@ -244,7 +246,7 @@ function getKebabMenuItems() {
             v-model="phone"
             @blur="phone = phone.trim()"
             :invalid-message="validationIssues.phone?.[0] ? $t(validationIssues.phone[0]) : ''"
-            :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
+            :disabled="editUserLoading || loginStore.isOwnerAccount || loginStore.isImpersonating"
             :optional="true"
             :optional-label="t('common.optional')"
           />
@@ -285,7 +287,7 @@ function getKebabMenuItems() {
         type="submit"
         kind="primary"
         size="lg"
-        :disabled="editUserLoading || loginStore.isOwner || loginStore.isImpersonating"
+        :disabled="editUserLoading || loginStore.isOwnerAccount || loginStore.isImpersonating"
         :loading="editUserLoading"
         @click.prevent="saveProfile"
       >

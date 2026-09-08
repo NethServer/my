@@ -54,9 +54,9 @@ func createEssentialRoles(client *client.LogtoClient) error {
 		return fmt.Errorf("failed to create owner organization role: %w", err)
 	}
 
-	// Create user role "super admin" (from config.yml) - needed for owner user
-	if err := createUserRoleIfNotExists(client, constants.SuperAdminRoleID, constants.SuperAdminRoleName, "super_role_description"); err != nil {
-		return fmt.Errorf("failed to create super admin user role: %w", err)
+	// Create user role "Owner" (from config.yml) - needed for owner user
+	if err := createUserRoleIfNotExists(client, constants.OwnerUserRoleID, constants.OwnerUserRoleName, "owner_role_description"); err != nil {
+		return fmt.Errorf("failed to create owner user role: %w", err)
 	}
 
 	// Assign scopes to owner organization role
@@ -345,16 +345,16 @@ func assignRolesToOwnerUser(client *client.LogtoClient, ownerUsername string) er
 		return fmt.Errorf("owner organization not found")
 	}
 
-	// Get user roles to assign (super admin)
+	// Get user roles to assign (Owner user role)
 	userRoles, err := client.GetRoles()
 	if err != nil {
 		return fmt.Errorf("failed to get user roles: %w", err)
 	}
 
-	var superAdminRoleID string
+	var ownerUserRoleID string
 	for _, role := range userRoles {
-		if role.Name == "Super Admin" {
-			superAdminRoleID = role.ID
+		if role.Name == constants.OwnerUserRoleName {
+			ownerUserRoleID = role.ID
 			break
 		}
 	}
@@ -373,12 +373,12 @@ func assignRolesToOwnerUser(client *client.LogtoClient, ownerUsername string) er
 		}
 	}
 
-	// Assign Super Admin user role
-	if superAdminRoleID != "" {
-		if err := client.AssignRoleToUser(ownerUserID, superAdminRoleID); err != nil {
-			logger.Warn("Failed to assign Super Admin user role: %v", err)
+	// Assign Owner user role
+	if ownerUserRoleID != "" {
+		if err := client.AssignRoleToUser(ownerUserID, ownerUserRoleID); err != nil {
+			logger.Warn("Failed to assign Owner user role: %v", err)
 		} else {
-			logger.Info("Assigned Super Admin user role to owner user")
+			logger.Info("Assigned Owner user role to owner user")
 		}
 	}
 

@@ -11,6 +11,7 @@ package helpers
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/nethesis/my/backend/models"
@@ -83,7 +84,7 @@ func GetEffectiveUserID(user *models.User) string {
 	}
 
 	userID := user.ID
-	if userID == "" && user.OrgRole == "Owner" {
+	if userID == "" && strings.EqualFold(user.OrgRole, "owner") {
 		return "owner"
 	}
 

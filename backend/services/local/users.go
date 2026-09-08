@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nethesis/my/backend/cache"
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/helpers"
@@ -58,8 +59,11 @@ func NewUserService() *LocalUserService {
 // CreateUser creates a user locally and syncs to Logto. creator is the
 // snapshot of the authenticated user performing the action, stored in the
 // dedicated users.created_by column (display/filter only - RBAC stays on
-// organization_id / custom_data.createdBy).
-func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, creator *models.OrgCreator, createdByOrgID string) (*models.LocalUser, error) {
+// organization_id / custom_data.createdBy). callerUserRoles are the technical
+// role names of the authenticated caller: creating users in the Owner
+// organization is restricted to the Owner user role (every Owner-org member
+// shares the same org role, so only the technical role can tell them apart).
+func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, creator *models.OrgCreator, createdByOrgID string, callerUserRoles []string) (*models.LocalUser, error) {
 	// Normalize phone to digits-only at the entry point so both the local DB write
 	// and the Logto call see the same shape — avoids drift where the local DB ends
 	// up with formatted values (e.g. "+39 333 1234567") while Logto stores the
@@ -90,24 +94,33 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, creato
 		}
 	}
 
-	// Security: Prevent creation of users in Owner organization
+	// Security: creating users in the Owner organization is restricted to org
+	// role Owner, and the technical roles must pair with the target org (Staff
+	// and owner-tier roles live only inside the Owner organization).
+	isOwnerOrgTarget := false
 	if req.OrganizationID != nil {
-		if isOwnerOrg, err := s.isOwnerOrganization(*req.OrganizationID); err != nil {
+		isOwnerOrg, err := s.isOwnerOrganization(*req.OrganizationID)
+		if err != nil {
 			return nil, fmt.Errorf("failed to validate organization: %w", err)
-		} else if isOwnerOrg {
+		}
+		if isOwnerOrg && !models.HasOwnerUserRole(callerUserRoles) {
 			return nil, &ValidationError{
 				StatusCode: 400,
 				ErrorData: response.ErrorData{
 					Errors: []response.ValidationError{
 						{
 							Key:     "organization_id",
-							Message: "cannot create users in the Owner organization - this is managed by the system",
+							Message: "only the Owner role can create users in the Owner organization",
 							Value:   *req.OrganizationID,
 						},
 					},
 				},
 			}
 		}
+		isOwnerOrgTarget = isOwnerOrg
+	}
+	if validationErr := s.validateOwnerOrgRolePairing(isOwnerOrgTarget, req.UserRoleIDs); validationErr != nil {
+		return nil, validationErr
 	}
 
 	// Always generate a temporary password for new users
@@ -258,7 +271,26 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, creato
 			Msg("User assigned to organization successfully")
 
 		// 6. Determine and assign organization role
-		orgRoleName := s.determineOrganizationRoleName(*req.OrganizationID)
+		orgRoleName, err := s.determineOrganizationRoleName(*req.OrganizationID)
+		if err != nil {
+			logger.Error().
+				Err(err).
+				Str("user_id", user.ID).
+				Str("logto_user_id", logtoUser.ID).
+				Str("organization_id", *req.OrganizationID).
+				Msg("Failed to determine organization role - rolling back local creation")
+
+			// Delete the created Logto user to keep consistency
+			if deleteErr := s.logtoClient.DeleteUser(logtoUser.ID); deleteErr != nil {
+				logger.Warn().
+					Err(deleteErr).
+					Str("logto_user_id", logtoUser.ID).
+					Msg("Failed to cleanup Logto user after organization role resolution failure")
+			}
+
+			// Transaction will be rolled back by defer
+			return nil, fmt.Errorf("failed to determine organization role: %w", err)
+		}
 		if orgRoleName != "" {
 			// Get the organization role ID from Logto by name
 			orgRole, err := s.logtoClient.GetOrganizationRoleByName(orgRoleName)
@@ -373,8 +405,11 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, creato
 				if enrichedUser.Organization.Name != "" {
 					orgName = enrichedUser.Organization.Name
 				}
-				// Determine organization type from the organization ID
-				orgType = s.determineOrganizationRoleName(enrichedUser.Organization.LogtoID)
+				// Determine organization type from the organization ID (best
+				// effort — the welcome email falls back to defaults on error)
+				if roleName, roleErr := s.determineOrganizationRoleName(enrichedUser.Organization.LogtoID); roleErr == nil {
+					orgType = roleName
+				}
 			}
 
 			// Extract user roles data from enriched user object
@@ -517,8 +552,12 @@ func (s *LocalUserService) GetUsersTrend(period int, userOrgRole, userOrgID stri
 	}, nil
 }
 
-// UpdateUser updates a user locally and syncs to Logto
-func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequest, updatedByUserID, updatedByOrgID string) (*models.LocalUser, error) {
+// UpdateUser updates a user locally and syncs to Logto. callerUserRoles are
+// the technical role names of the authenticated caller: updating users of the
+// Owner organization (or moving users into it) is restricted to the Owner user
+// role — every Owner-org member shares the same org role, so only the
+// technical role can tell the break-glass tier apart from Staff.
+func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequest, updatedByUserID, updatedByOrgID string, callerUserRoles []string) (*models.LocalUser, error) {
 	// Normalize phone at the entry point so both the local DB write and the Logto
 	// call see the same shape (digits-only). The empty-string case is preserved —
 	// it signals an explicit "clear the phone".
@@ -556,23 +595,48 @@ func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequ
 		}
 	}
 
-	// Security: Prevent updating users to Owner organization
+	// Security: managing the Owner organization's membership (updating one of
+	// its users, or moving a user into it) is restricted to the Owner user
+	// role, and the resulting (organization, technical roles) combination must
+	// respect the pairing: Staff and owner-tier roles live only inside the
+	// Owner organization.
+	targetIsOwnerOrg := false
 	if req.OrganizationID != nil {
-		if isOwnerOrg, err := s.isOwnerOrganization(*req.OrganizationID); err != nil {
+		isOwnerOrg, err := s.isOwnerOrganization(*req.OrganizationID)
+		if err != nil {
 			return nil, fmt.Errorf("failed to validate organization: %w", err)
-		} else if isOwnerOrg {
-			return nil, &ValidationError{
-				StatusCode: 400,
-				ErrorData: response.ErrorData{
-					Errors: []response.ValidationError{
-						{
-							Key:     "organization_id",
-							Message: "cannot move users to the Owner organization - this is managed by the system",
-							Value:   *req.OrganizationID,
-						},
+		}
+		targetIsOwnerOrg = isOwnerOrg
+	} else if currentUser.OrganizationID != nil && *currentUser.OrganizationID != "" {
+		// Org unchanged: the local tables are enough to recognise the Owner
+		// organization (the one absent from all three), no Logto round-trip.
+		// Fail-closed: a type the partner tables cannot vouch for (lookup
+		// error included) is treated as the Owner organization.
+		targetIsOwnerOrg = !models.IsPartnerOrgType(s.GetOrganizationType(*currentUser.OrganizationID))
+	}
+	currentIsOwnerOrg := currentUser.OrganizationID != nil && *currentUser.OrganizationID != "" &&
+		!models.IsPartnerOrgType(s.GetOrganizationType(*currentUser.OrganizationID))
+	if (targetIsOwnerOrg || currentIsOwnerOrg) && !models.HasOwnerUserRole(callerUserRoles) {
+		return nil, &ValidationError{
+			StatusCode: 400,
+			ErrorData: response.ErrorData{
+				Errors: []response.ValidationError{
+					{
+						Key:     "organization_id",
+						Message: "only the Owner role can manage users of the Owner organization",
 					},
 				},
-			}
+			},
+		}
+	}
+	if req.OrganizationID != nil || req.UserRoleIDs != nil {
+		// Validate the pairing on the effective state after the update.
+		effectiveRoleIDs := currentUser.UserRoleIDs
+		if req.UserRoleIDs != nil {
+			effectiveRoleIDs = *req.UserRoleIDs
+		}
+		if validationErr := s.validateOwnerOrgRolePairing(targetIsOwnerOrg, effectiveRoleIDs); validationErr != nil {
+			return nil, validationErr
 		}
 	}
 
@@ -873,7 +937,15 @@ func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequ
 					Msg("User assigned to new organization successfully")
 
 				// Determine and assign new organization role
-				newOrgRoleName := s.determineOrganizationRoleName(newOrgID)
+				newOrgRoleName, roleErr := s.determineOrganizationRoleName(newOrgID)
+				if roleErr != nil {
+					logger.Error().
+						Err(roleErr).
+						Str("user_id", id).
+						Str("logto_user_id", *user.LogtoID).
+						Str("new_org_id", newOrgID).
+						Msg("Failed to determine new organization role")
+				}
 				if newOrgRoleName != "" {
 					// Get the organization role ID from Logto by name
 					newOrgRole, err := s.logtoClient.GetOrganizationRoleByName(newOrgRoleName)
@@ -969,7 +1041,10 @@ func (s *LocalUserService) DeleteUser(id, deletedByUserID, deletedByOrgID string
 }
 
 // RestoreUser restores a soft-deleted user locally
-func (s *LocalUserService) RestoreUser(id, restoredByUserID, restoredByOrgID, restoredByOrgRole string) error {
+// RestoreUser restores a soft-deleted user. restoredByUserRoles are the
+// caller's technical role names: restoring an Owner-organization user is
+// restricted to the Owner user role.
+func (s *LocalUserService) RestoreUser(id, restoredByUserID, restoredByOrgID, restoredByOrgRole string, restoredByUserRoles []string) error {
 	// Get user including deleted
 	user, err := s.userRepo.GetByIDIncludeDeleted(id)
 	if err != nil {
@@ -1006,6 +1081,14 @@ func (s *LocalUserService) RestoreUser(id, restoredByUserID, restoredByOrgID, re
 		}
 		if orgArchived {
 			return fmt.Errorf("organization is deleted and must be restored first")
+		}
+
+		// Owner-organization membership stays an Owner-role exclusive: Staff
+		// cannot restore other Owner-organization users. Fail-closed: a type
+		// the partner tables cannot vouch for counts as the Owner organization
+		// (the org is alive here — the archived case returned above).
+		if !models.IsPartnerOrgType(s.GetOrganizationType(*user.OrganizationID)) && !models.HasOwnerUserRole(restoredByUserRoles) {
+			return fmt.Errorf("access denied: only the Owner role can restore users in the Owner organization")
 		}
 	}
 
@@ -1305,7 +1388,8 @@ func (s *LocalUserService) isOrganizationInHierarchy(userOrgRole, userOrgID, tar
 
 	switch userOrgRole {
 	case "owner":
-		// Owner can manage everything, but validate the organization exists
+		// Owner-organization roles can reach everything, but validate the
+		// organization exists
 		if database.DB == nil {
 			return false
 		}
@@ -1384,7 +1468,9 @@ func (s *LocalUserService) GetOrganizationType(orgID string) string {
 	`
 	err := database.DB.QueryRow(query, orgID).Scan(&orgType)
 	if err != nil {
-		return "owner" // Fail-safe: treat as highest level if query fails
+		// Fail closed: an unknown type denies every CanAccessOrgType check
+		// (the old fallback silently granted owner-level to the target).
+		return ""
 	}
 	return orgType
 }
@@ -1670,8 +1756,11 @@ func (s *LocalUserService) parseLogtoError(err error, context map[string]interfa
 	return err
 }
 
-// determineOrganizationRoleName determines the organization role name based on organization type in database
-func (s *LocalUserService) determineOrganizationRoleName(organizationID string) string {
+// determineOrganizationRoleName determines the organization role name based on
+// organization type in database. Every member of the Owner organization (the
+// one absent from all three partner tables) gets the "Owner" org role: the
+// Owner/Staff distinction lives entirely on the technical (user) roles.
+func (s *LocalUserService) determineOrganizationRoleName(organizationID string) (string, error) {
 	var orgType string
 	query := `
 		SELECT CASE
@@ -1683,20 +1772,99 @@ func (s *LocalUserService) determineOrganizationRoleName(organizationID string) 
 	`
 	err := database.DB.QueryRow(query, organizationID).Scan(&orgType)
 	if err != nil {
-		return "Owner"
+		// Fail closed: never guess an org role (the old fallback silently
+		// handed out "Owner").
+		return "", fmt.Errorf("failed to determine organization type: %w", err)
 	}
 
-	// Map to title case for role name
 	roleNames := map[string]string{
 		"distributor": "Distributor",
 		"reseller":    "Reseller",
 		"customer":    "Customer",
 		"owner":       "Owner",
 	}
-	if name, ok := roleNames[orgType]; ok {
-		return name
+	return roleNames[orgType], nil
+}
+
+// validateOwnerOrgRolePairing enforces the pairing between the Owner
+// organization and its technical roles: the "Owner" role is never assignable
+// (it belongs to the bootstrap owner account only, seeded at init); inside the
+// Owner organization only "Staff" is assignable; "Staff" is never assignable
+// outside it.
+func (s *LocalUserService) validateOwnerOrgRolePairing(targetIsOwnerOrg bool, userRoleIDs []string) *ValidationError {
+	if len(userRoleIDs) == 0 {
+		return nil
 	}
-	return "Owner"
+	names := cache.GetRoleNames().GetNames(userRoleIDs)
+
+	// Fail closed in every branch: an id the role cache cannot resolve (stale
+	// cache, role created after startup) must not slip past the name checks.
+	if len(names) != len(userRoleIDs) {
+		return &ValidationError{
+			StatusCode: 400,
+			ErrorData: response.ErrorData{
+				Errors: []response.ValidationError{
+					{Key: "user_role_ids", Message: "unable to validate roles"},
+				},
+			},
+		}
+	}
+
+	for _, name := range names {
+		if strings.EqualFold(name, models.OwnerUserRole) {
+			return &ValidationError{
+				StatusCode: 400,
+				ErrorData: response.ErrorData{
+					Errors: []response.ValidationError{
+						{
+							Key:     "user_role_ids",
+							Message: "the Owner role cannot be assigned",
+							Value:   name,
+						},
+					},
+				},
+			}
+		}
+	}
+
+	if targetIsOwnerOrg {
+		// Every role must be Staff.
+		for _, name := range names {
+			if !strings.EqualFold(name, models.StaffUserRole) {
+				return &ValidationError{
+					StatusCode: 400,
+					ErrorData: response.ErrorData{
+						Errors: []response.ValidationError{
+							{
+								Key:     "user_role_ids",
+								Message: "only the Staff role can be assigned in the Owner organization",
+								Value:   name,
+							},
+						},
+					},
+				}
+			}
+		}
+		return nil
+	}
+
+	for _, name := range names {
+		if strings.EqualFold(name, models.StaffUserRole) {
+			return &ValidationError{
+				StatusCode: 400,
+				ErrorData: response.ErrorData{
+					Errors: []response.ValidationError{
+						{
+							Key:     "user_role_ids",
+							Message: "this role can only be assigned to users of the Owner organization",
+							Value:   name,
+						},
+					},
+				},
+			}
+		}
+	}
+	return nil
 }
 
 // getOrganizationLanguage fetches the language from an organization's custom_data JSONB column.

@@ -132,7 +132,7 @@ func NormalizeLayerForRole(layer *models.AlertingConfigLayer, orgRole string) {
 	if layer == nil {
 		return
 	}
-	if strings.EqualFold(orgRole, "owner") {
+	if models.IsGlobalOrgRole(orgRole) {
 		return
 	}
 	if layer.Enabled.Email != nil && !*layer.Enabled.Email {

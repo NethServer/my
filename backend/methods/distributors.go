@@ -111,7 +111,7 @@ func GetDistributor(c *gin.Context) {
 	}
 
 	// Only Owner can access distributors; a distributor can access itself
-	if strings.ToLower(user.OrgRole) != "owner" && distributorID != user.OrganizationID {
+	if !models.IsGlobalOrgRole(user.OrgRole) && distributorID != user.OrganizationID {
 		c.JSON(http.StatusForbidden, response.Forbidden("access denied: only owners can access distributors", nil))
 		return
 	}
@@ -241,7 +241,7 @@ func UpdateDistributor(c *gin.Context) {
 	}
 
 	// Only Owner can update distributors
-	if strings.ToLower(user.OrgRole) != "owner" {
+	if !models.IsGlobalOrgRole(user.OrgRole) {
 		c.JSON(http.StatusForbidden, response.Forbidden("access denied: only owners can update distributors", nil))
 		return
 	}
@@ -300,7 +300,7 @@ func DeleteDistributor(c *gin.Context) {
 	}
 
 	// Only Owner can delete distributors
-	if strings.ToLower(user.OrgRole) != "owner" {
+	if !models.IsGlobalOrgRole(user.OrgRole) {
 		c.JSON(http.StatusForbidden, response.Forbidden("access denied: only owners can delete distributors", nil))
 		return
 	}
@@ -352,7 +352,7 @@ func RestoreDistributor(c *gin.Context) {
 		return
 	}
 
-	if strings.ToLower(user.OrgRole) != "owner" {
+	if !models.IsGlobalOrgRole(user.OrgRole) {
 		c.JSON(http.StatusForbidden, response.Forbidden("access denied: only owners can restore distributors", nil))
 		return
 	}
@@ -450,7 +450,7 @@ func GetDistributorStats(c *gin.Context) {
 	}
 
 	// Only Owner can access distributors; a distributor can access itself
-	if strings.ToLower(user.OrgRole) != "owner" && distributorID != user.OrganizationID {
+	if !models.IsGlobalOrgRole(user.OrgRole) && distributorID != user.OrganizationID {
 		c.JSON(http.StatusForbidden, response.Forbidden("access denied: only owners can access distributors", nil))
 		return
 	}
@@ -506,7 +506,7 @@ func SuspendDistributor(c *gin.Context) {
 	}
 
 	// Only Owner can suspend distributors
-	if strings.ToLower(user.OrgRole) != "owner" {
+	if !models.IsGlobalOrgRole(user.OrgRole) {
 		c.JSON(http.StatusForbidden, response.Forbidden("access denied: only owners can suspend distributors", nil))
 		return
 	}
@@ -564,7 +564,7 @@ func ReactivateDistributor(c *gin.Context) {
 	}
 
 	// Only Owner can reactivate distributors
-	if strings.ToLower(user.OrgRole) != "owner" {
+	if !models.IsGlobalOrgRole(user.OrgRole) {
 		c.JSON(http.StatusForbidden, response.Forbidden("access denied: only owners can reactivate distributors", nil))
 		return
 	}

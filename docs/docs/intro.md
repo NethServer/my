@@ -35,9 +35,9 @@ Each level manages only their downstream organizations.
 
 ## Dual-Role System
 
-**Organization Roles** (business hierarchy): Owner, Distributor, Reseller, Customer
+**Organization Roles** (business hierarchy): Owner, Distributor, Reseller, Customer. Every member of the Owner organization (Nethesis) has global visibility on all companies, systems and users.
 
-**User Roles** (technical capabilities): Super Admin, Admin, Backoffice, Support, Reader
+**User Roles** (technical capabilities): Admin, Backoffice, Support, Reader for partner organizations, plus Staff, reserved to the Owner organization
 
 Effective permissions = Organization Role + User Role
 

@@ -129,7 +129,7 @@ export const getThirdPartyAppDescription = (thirdPartyApp: ThirdPartyApp) => {
 
 export const openThirdPartyApp = (thirdPartyApp: ThirdPartyApp) => {
   let url = thirdPartyApp.login_url
-  // Entitlement admins (owner org / Super Admin) are Administrators on the
+  // Entitlement admins (Owner organization) are Administrators on the
   // shop: land them on the backoffice instead of the storefront. redirect_to
   // is honored by the shop's SSO handler (host-whitelisted).
   if (thirdPartyApp.name === 'nethshop.nethesis.it' && isEntitlementAdmin()) {

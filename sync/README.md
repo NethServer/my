@@ -13,7 +13,7 @@ CLI tool for complete Logto setup and RBAC synchronization. Provides zero-to-pro
 ### RBAC Synchronization
 - **Simplified RBAC Sync**: Clear separation between business hierarchy and technical capabilities
 - **Business Hierarchy**: Organization roles (Owner, Distributor, Reseller, Customer)
-- **Technical Capabilities**: User roles (Admin, Support)
+- **Technical Capabilities**: User roles (Admin, Support, Backoffice, Reader; Staff for the Owner organization)
 - **Third-Party Apps**: Automatic creation and management of external applications
 - **Dry Run Mode**: Preview changes before applying
 - **Cleanup Mode**: Remove resources/roles not in config
@@ -147,7 +147,7 @@ Run `./build/sync <command> --help` for the full flag reference.
 
 ### init
 
-Complete Logto initialization (custom domain, M2M app, frontend SPA, owner user, RBAC, MFA):
+Complete Logto initialization (custom domain, M2M app, frontend SPA, owner user, RBAC, MFA). The bootstrap `owner` account is seeded here with the Owner user role, which is never assignable via the API afterwards:
 
 ```bash
 ./build/sync init \
@@ -206,7 +206,7 @@ machine that runs the sync. Copy the example and fill those in.
 
 Key sections:
 - `organization_roles` - Business hierarchy (Owner, Distributor, Reseller, Customer)
-- `user_roles` - Technical capabilities (Super Admin, Admin, Backoffice, Support, Reader)
+- `user_roles` - Technical capabilities (Admin, Support, Backoffice, Reader, plus Staff for the Owner organization)
 - `resources` - API resources and actions
 - `third_party_apps` - External application access control (optional)
 - `sign_in_experience` - Branding, colors, sign-in methods (optional)

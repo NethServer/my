@@ -105,7 +105,7 @@ func TestResolveOwnerOrgID_CallerFromOwnerOrg(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-// A Super Admin signing in from a partner org is not the Owner: the parent comes
+// A caller signing in from a partner org is not the Owner: the parent comes
 // from the distributors, which the Owner creates.
 func TestResolveOwnerOrgID_FromExistingDistributors(t *testing.T) {
 	mock, cleanup := setupPromoteMock(t)

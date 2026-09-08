@@ -77,7 +77,7 @@ async function disableConsent() {
     </div>
     <div class="flex flex-col gap-6">
       <NeInlineNotification
-        v-if="loginStore.isOwner"
+        v-if="loginStore.isOwnerAccount"
         kind="info"
         :title="$t('account.impersonation.impersonation_consent_cant_be_modified')"
         :description="
@@ -135,7 +135,9 @@ async function disableConsent() {
             <NeButton
               kind="tertiary"
               size="lg"
-              :disabled="deleteConsentLoading || loginStore.isOwner || loginStore.isImpersonating"
+              :disabled="
+                deleteConsentLoading || loginStore.isOwnerAccount || loginStore.isImpersonating
+              "
               :loading="deleteConsentLoading"
               @click.prevent="disableConsent"
               class="-ml-2.5"
@@ -161,7 +163,9 @@ async function disableConsent() {
             <NeButton
               kind="secondary"
               size="lg"
-              :disabled="deleteConsentLoading || loginStore.isOwner || loginStore.isImpersonating"
+              :disabled="
+                deleteConsentLoading || loginStore.isOwnerAccount || loginStore.isImpersonating
+              "
               @click.prevent="isShownEnableConsentModal = true"
             >
               {{ $t('account.impersonation.consent_to_impersonation') }}

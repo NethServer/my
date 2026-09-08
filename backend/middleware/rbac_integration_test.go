@@ -510,7 +510,7 @@ func TestHelperFunctions(t *testing.T) {
 
 		assert.True(t, hasStringInList(roles, "Admin"))
 		assert.True(t, hasStringInList(roles, "Support"))
-		assert.False(t, hasStringInList(roles, "SuperAdmin"))
+		assert.False(t, hasStringInList(roles, "Owner"))
 		assert.False(t, hasStringInList([]string{}, "Admin"))
 	})
 }

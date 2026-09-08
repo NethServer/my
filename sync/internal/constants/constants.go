@@ -39,12 +39,14 @@ const (
 	OwnerOrgDescription = "Owner organization - complete control over commercial hierarchy"
 
 	// Role Names
-	AdminRoleName      = "Admin"
-	AdminRoleID        = "admin"
-	SuperAdminRoleName = "Super Admin"
-	SuperAdminRoleID   = "super"
-	OwnerRoleName      = "Owner"
-	OwnerRoleID        = "owner"
+	AdminRoleName = "Admin"
+	AdminRoleID   = "admin"
+	// OwnerUserRoleName is the technical (user) role of the break-glass owner
+	// user: full control, including the destroy:* of the technical resources.
+	OwnerUserRoleName = "Owner"
+	OwnerUserRoleID   = "owner"
+	OwnerRoleName     = "Owner"
+	OwnerRoleID       = "owner"
 
 	// Application Types
 	AppTypeSPA = "SPA"

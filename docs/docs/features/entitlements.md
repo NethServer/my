@@ -31,27 +31,27 @@ The **Buy on NethShop** button opens the shop with the system (and application i
 | Capability | Who |
 |---|---|
 | See add-ons and expirations (`read:entitlements`) | All user roles, within their hierarchy |
-| Buy on NethShop / cancel a subscription (`manage:entitlements`) | Admin, Backoffice, Super Admin |
-| Manage the catalog, manual grants, fleet-wide view | Owner organization or Super Admin (Nethesis) |
+| Buy on NethShop / cancel a subscription (`manage:entitlements`) | Admin, Backoffice — and Nethesis staff, across the whole fleet |
+| Manage the catalog, manual grants, fleet-wide view | Owner organization (Nethesis) |
 
 Distributors and resellers cannot self-activate add-ons: everything flows through the shop.
 
 ## Add-ons catalog (Nethesis)
 
-The **Add-ons** entry in the side menu is available to everyone holding the `read:entitlements` permission, but the **Configuration** tab with the catalog of add-on types is reserved to owner and Super Admin users. Creating a type takes a kind (Service or Module), the target application for modules (the id is composed automatically, e.g. `nethvoice` + `chat` → `nethvoice-chat`), a display name and a description.
+The **Add-ons** entry in the side menu is available to everyone holding the `read:entitlements` permission, but the **Configuration** tab with the catalog of add-on types is reserved to the Owner organization. Creating a type takes a kind (Service or Module), the target application for modules (the id is composed automatically, e.g. `nethvoice` + `chat` → `nethvoice-chat`), a display name and a description.
 
 Two switches govern whether a type can be bought:
 
-- **On sale** — when off, the add-on is still shown on the systems that hold it (so an existing base can be mapped) but the **Buy** button is hidden: nobody can purchase it any more. Useful for a private or discontinued add-on. Editable by owner and Super Admin.
+- **On sale** — when off, the add-on is still shown on the systems that hold it (so an existing base can be mapped) but the **Buy** button is hidden: nobody can purchase it any more. Useful for a private or discontinued add-on. Editable by the Owner organization.
 - **Availability rules** — optional restrictions that limit a type to specific hierarchy roles or organizations. A type with no rules is available to everyone (subject to the *On sale* switch).
 
 Deleting a type is refused while grants reference it — revoked and expired ones included, since they are kept for audit. The catalog list flags those types as *in use*, so the delete action is disabled instead of failing.
 
 ## Reporting
 
-`GET /api/entitlements/grants` (with filters by entitlement, organization, source, active state and expiry window) and `GET /api/entitlements/stats` provide the licensing report: buyers see their own hierarchy — every add-on with its expiry and renewal — while owner and Super Admin see the whole fleet.
+`GET /api/entitlements/grants` (with filters by entitlement, organization, source, active state and expiry window) and `GET /api/entitlements/stats` provide the licensing report: buyers see their own hierarchy — every add-on with its expiry and renewal — while the Owner organization sees the whole fleet.
 
-The **Add-ons** page shows the same data as a dashboard, on the **Report** tab: lifecycle counters, expiring add-ons, the per-add-on breakdown, the renewal distribution and the 12-month activation trend (`GET /api/entitlements/report`, plus the paginated `/report/organizations` and `/report/tiers`). Every aggregate follows the same visibility as the grants list — a distributor or reseller sees its own organizations, a customer only its own systems, owner and Super Admin the whole fleet. The per-organization table is omitted for customers, which have nothing below them.
+The **Add-ons** page shows the same data as a dashboard, on the **Report** tab: lifecycle counters, expiring add-ons, the per-add-on breakdown, the renewal distribution and the 12-month activation trend (`GET /api/entitlements/report`, plus the paginated `/report/organizations` and `/report/tiers`). Every aggregate follows the same visibility as the grants list — a distributor or reseller sees its own organizations, a customer only its own systems, the Owner organization the whole fleet. The per-organization table is omitted for customers, which have nothing below them.
 
 ## For developers
 

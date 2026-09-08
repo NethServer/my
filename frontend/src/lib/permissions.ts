@@ -26,19 +26,17 @@ const MANAGE_ALERTS = 'manage:alerts'
 // The add-on permissions are still spelled "entitlements" on the wire
 const READ_ADDONS = 'read:entitlements'
 const MANAGE_ADDONS = 'manage:entitlements'
-const SUPER_ADMIN_ROLE = 'Super Admin'
-
-// "Owner-level authority": the Owner organization, or a Super Admin user
-// (Nethesis). Not a permission — it is the threshold above the manage:* scopes
+// "Owner-level authority": any user of the Owner organization (Owner or Staff
+// role). Not a permission — it is the threshold above the manage:* scopes
 // every distributor already holds. Named once because several unrelated gates
 // happen to sit at it; each keeps its own function so it can move alone.
 const hasOwnerLevelAuthority = () => {
   const loginStore = useLoginStore()
-  return loginStore.isOwner || (loginStore.userInfo?.user_roles ?? []).includes(SUPER_ADMIN_ROLE)
+  return loginStore.isOwner
 }
 
-// Administrative surface (catalog, manual grants, fleet view): owner org or
-// Super Admin only — matches the backend isEntitlementAdmin gate.
+// Administrative surface (catalog, manual grants, fleet view): Owner
+// organization only — matches the backend isEntitlementAdmin gate.
 export const isEntitlementAdmin = () => hasOwnerLevelAuthority()
 
 export const canReadDistributors = () => {
@@ -144,8 +142,8 @@ export const canReadAlerts = () => {
 // Moving an organization between hierarchy levels takes it out of the scope of
 // the company that manages it, so it answers to owner-level authority rather
 // than to a manage:* permission every distributor holds. Coarse pre-filter for
-// the button: the backend gate on PATCH /resellers/:id/promote additionally
-// keeps a Super Admin outside the Owner org within its own hierarchy.
+// the button: the backend gate on PATCH /resellers/:id/promote enforces the
+// same Owner-organization threshold.
 export const canPromoteOrganizations = () => hasOwnerLevelAuthority()
 
 export const canReadAddons = () => {
@@ -159,7 +157,7 @@ export const canManageAddons = () => {
 }
 
 // The add-on catalog is a licensing back-office duty, not something every
-// distributor takes part in: owner organization or Super Admin only. Mirrors
+// distributor takes part in: Owner organization only. Mirrors
 // the backend isEntitlementAdmin gate on the catalog write endpoints.
 export const isAddonAdmin = () => hasOwnerLevelAuthority()
 

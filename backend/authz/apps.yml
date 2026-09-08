@@ -22,7 +22,7 @@ apps:
     idp_enforced: false
     note: |
       access_control admits Owner/Distributor/Reseller organizations with
-      Super Admin, Admin or Backoffice. Logto is not configured to enforce that,
+      Owner, Staff, Admin or Backoffice. Logto is not configured to enforce that,
       so a hidden persona still gets an authorization code and only NethShop's own
       checks stand in the way. Recorded as an accepted gap rather than a failure —
       flip idp_enforced to true the day Logto is made to enforce it, and the suite
@@ -39,11 +39,11 @@ apps:
 
   - name: my.nethspot.com
     idp_enforced: false
-    note: Owner/Reseller organizations with Super Admin or Admin.
+    note: Owner/Reseller organizations with Owner, Staff or Admin.
 
   - name: helpdesk.nethesis.it
     idp_enforced: false
     note: |
-      The widest of the four: Owner/Distributor/Reseller with Super Admin, Admin
+      The widest of the four: Owner/Distributor/Reseller with Owner, Staff, Admin
       or Support. Customer organizations are excluded, which is the boundary that
       matters here.

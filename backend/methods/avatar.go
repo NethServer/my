@@ -335,7 +335,16 @@ func canManageUserAvatar(currentUser *models.User, targetUser *models.LocalUser)
 
 	service := local.NewUserService()
 	canUpdate, _ := service.CanUpdateUser(userOrgRole, currentUser.OrganizationID, targetOrgID)
-	return canUpdate
+	if !canUpdate {
+		return false
+	}
+
+	// Mutating an Owner-organization user stays an Owner-role exclusive: the
+	// shared org role cannot tell Staff apart, the technical role does.
+	if targetOrgID != "" && !models.IsPartnerOrgType(service.GetOrganizationType(targetOrgID)) {
+		return models.HasOwnerUserRole(currentUser.UserRoles)
+	}
+	return true
 }
 
 // resizeImage resizes an image to fit within maxWidth x maxHeight, maintaining aspect ratio.

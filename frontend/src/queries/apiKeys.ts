@@ -12,7 +12,8 @@ export const useApiKeys = defineQuery(() => {
     key: () => [API_KEYS_KEY],
     // Owner has no local user row and key management is disabled while
     // impersonating, so the endpoint is unavailable in those cases.
-    enabled: () => !!loginStore.jwtToken && !loginStore.isOwner && !loginStore.isImpersonating,
+    enabled: () =>
+      !!loginStore.jwtToken && !loginStore.isOwnerAccount && !loginStore.isImpersonating,
     query: () => getApiKeys(),
   })
 

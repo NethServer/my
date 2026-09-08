@@ -129,7 +129,8 @@ Example:
 ```
 
 `--role=` for `create-user` accepts the role name as exposed by `GET /api/roles`
-(`Admin`, `Support`, `Backoffice`, `Reader`, `Super Admin`). Default `Admin`.
+(`Admin`, `Support`, `Backoffice`, `Reader`; inside the Owner organization only
+`Staff` is assignable). Default `Admin`.
 
 ## Get a token, hit the API
 

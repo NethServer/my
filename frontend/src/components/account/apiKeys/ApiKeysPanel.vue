@@ -66,7 +66,7 @@ const sortKey = ref<string | null>('status')
 const sortDescending = ref(false)
 
 const apiKeys = computed(() => state.value.data ?? [])
-const isManageable = computed(() => !loginStore.isOwner && !loginStore.isImpersonating)
+const isManageable = computed(() => !loginStore.isOwnerAccount && !loginStore.isImpersonating)
 
 function keyStatus(key: ApiKey): 'revoked' | 'expired' | 'active' {
   if (key.revoked_at) {
@@ -215,7 +215,7 @@ function confirmDelete() {
 
     <!-- not available for owner / while impersonating -->
     <NeInlineNotification
-      v-if="loginStore.isOwner"
+      v-if="loginStore.isOwnerAccount"
       kind="info"
       :title="$t('account.api_keys.not_available')"
       :description="$t('account.api_keys.not_available_owner_description')"

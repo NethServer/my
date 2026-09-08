@@ -2,7 +2,7 @@
 
 `AGENTS.md` is source of truth. `CLAUDE.md` is symlink to it.
 
-Centralized authentication and management platform. Logto as IdP, RBAC with business hierarchy (Owner > Distributor > Reseller > Customer) and technical user roles (Super Admin, Admin, Support).
+Centralized authentication and management platform. Logto as IdP, RBAC with business hierarchy (Owner > Distributor > Reseller > Customer) and technical user roles (Owner, Staff, Admin, Support, Backoffice, Reader).
 
 **Version**: v0.5.0 (pre-production). Canonical source: `version.json`.
 
@@ -83,7 +83,7 @@ Custom JWT claims: user_id, user_roles, user_permissions, org_role, org_permissi
 
 ### 2.3 Impersonation
 
-Owner-only. `POST /api/auth/impersonate` mints a 1h JWT with the target user's permissions. Requires the target to have opted-in via `POST /api/auth/impersonate/consent` (consent can be revoked with DELETE). All sessions and actions are audited via `impersonation_audit` middleware. No self-impersonation, no chaining.
+Owner organization only (Staff and Owner user roles carry `impersonate:users`). `POST /api/auth/impersonate` mints a 1h JWT with the target user's permissions. Requires the target to have opted-in via `POST /api/auth/impersonate/consent` (consent can be revoked with DELETE). All sessions and actions are audited via `impersonation_audit` middleware. No self-impersonation, no chaining.
 
 ---
 
@@ -192,13 +192,16 @@ Owner (Nethesis) > Distributors > Resellers > Customers
 
 ### 4.2 User roles (technical capability)
 
-- **Super Admin** — full platform admin, including the dangerous verbs. Assignable **only by a user of the Owner organization** (`access_control` on the role in `sync/configs/config.yml`, enforced in `methods/users.go` on create and update), but it **lives in any organization**: Nethesis staff hold it inside the Nethesis Italia distributor. That is why `methods.IsOwnerOrSuperAdmin` exists — the administrative surfaces (entitlement catalog and grants, rebranding enablement) accept the Owner organization *or* a Super Admin, wherever they sit.
+- **Owner** — the technical role of the bootstrap `owner` account only, seeded by `sync init`. **Never assignable**: `GET /api/roles` never returns it and create/update refuse it (`validateOwnerOrgRolePairing`). It carries everything Staff has plus `destroy:systems|users`, and it is the only role that may manage the Owner organization's own membership (create/move/update/delete/suspend/restore its users — `models.HasOwnerUserRole` gates).
+- **Staff** — Nethesis cross-cutting employees, **Owner organization only**. All non-destructive technical scopes (read/manage on systems, users, applications, alerts + `config:alerts`, entitlements, rebranding) plus `impersonate:users` and `connect:systems`. No `destroy:systems|users`. Assignable only into the Owner organization, and only by an Owner-role caller.
 - **Admin** — system/user/application management, add-on purchases, rebranding of its own organization
 - **Backoffice** — user and application management, add-on licensing
 - **Support** — systems, applications and alerts; read-focused elsewhere
 - **Reader** — read-only
 
-Careful: owner-level **authority** and owner-level **reach** are different questions. `PromoteReseller` grants the first and withholds the second (a Super Admin promotes only within its own hierarchy); the entitlement and rebranding admin surfaces grant both.
+Every member of the Owner organization shares the **Owner organization role** (global reach + `destroy:distributors|resellers|customers`): the org role no longer distinguishes the break-glass account from Staff — the **user role** does. `methods.IsOwnerOrgMember` is the owner-level-authority check used by the administrative surfaces (entitlement catalog and grants, rebranding enablement, promotion); the break-glass-only gates key on `models.HasOwnerUserRole` instead.
+
+Role/organization pairing is fail-closed (`services/local/users.go: validateOwnerOrgRolePairing`): inside the Owner organization only `Staff` is assignable; `Staff` is never assignable outside it; `Owner` is never assignable at all.
 
 ### 4.3 Effective permissions
 

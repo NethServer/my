@@ -10,6 +10,8 @@ package helpers
 import (
 	"fmt"
 	"strings"
+
+	"github.com/nethesis/my/backend/models"
 )
 
 // AppendOrgFilter appends RBAC hierarchical organization filtering to a SQL query.
@@ -28,9 +30,9 @@ func AppendOrgFilter(query string, orgRole, orgID, tableAlias string, args []int
 	orgRoleLower := strings.ToLower(orgRole)
 	colRef := tableAlias + "organization_id"
 
-	switch orgRoleLower {
-	case "owner":
-		// Owner sees everything — no filter added
+	switch {
+	case models.IsGlobalOrgRole(orgRoleLower):
+		// Owner-organization roles (Owner, Staff) see everything — no filter added
 		return query, args, nextArgIdx
 	default:
 		// For all non-owner roles, use pre-computed allowed org IDs from the RBAC cache.

@@ -25,7 +25,7 @@
 #   org_role          narrows the intent to one organization role, ANDed with the
 #                     permission ("manage:rebranding, from the owner org only")
 #   or_user_role      widens org_role with a technical role that satisfies it from
-#                     any organization ("the owner org, or a Super Admin anywhere")
+#                     any organization ("the owner org member, Owner or Staff")
 #   enforced_by       where the decision is expected to live; "handler" means a
 #                     handler refusal is the expected denial, not route middleware
 #   object_scoped     the endpoint addresses one object, and a handler refusal for
@@ -147,7 +147,8 @@ routes:
 
   # ===========================================================================
   # Impersonation. Consent is the caller's own business; impersonating somebody
-  # requires the dedicated impersonate:users permission, which only Super Admin
+  # requires the dedicated impersonate:users permission, which only the Owner
+  # and Staff user roles carry
   # holds in config.yml.
   # ===========================================================================
   - method: GET
@@ -221,7 +222,7 @@ routes:
   - method: DELETE
     path: /api/systems/:id/destroy
     intent: destroy:systems
-    note: permanent; config.yml gives destroy:systems to Super Admin only
+    note: permanent; config.yml gives destroy:systems to the Owner user role only
   - method: PATCH
     path: /api/systems/:id/suspend
     intent: manage:systems
@@ -323,10 +324,10 @@ routes:
   #                          to the caller's hierarchy, which is the scope
   #                          layer's business, not the gate's.
   #   manage:entitlements  — the transactional surface: buy on the shop, cancel
-  #                          a subscription (Admin, Backoffice, Super Admin).
+  #                          a subscription (Admin, Backoffice, Owner, Staff).
   # On top of that the code carves out an ADMINISTRATIVE surface — the catalog,
   # its availability rules and manual grants — reserved to the owner
-  # organization or a Super Admin (isEntitlementAdmin), because those are
+  # organization (isEntitlementAdmin), because those are
   # Nethesis product management, not a partner's purchase. That is the
   # org_role + or_user_role pair below, ANDed with the permission.
   #
@@ -351,7 +352,7 @@ routes:
     path: /api/systems/:id/entitlements
     intent: manage:entitlements
     org_role: owner
-    or_user_role: Super Admin
+    or_user_role: Owner
     enforced_by: handler
     object_scoped: true
     note: granting a licence by hand is licensing administration, not a purchase
@@ -359,7 +360,7 @@ routes:
     path: /api/systems/:id/entitlements/:entitlement
     intent: manage:entitlements
     org_role: owner
-    or_user_role: Super Admin
+    or_user_role: Owner
     enforced_by: handler
     object_scoped: true
     ids: { entitlement: ng-antivirus }
@@ -367,7 +368,7 @@ routes:
     path: /api/systems/:id/entitlements/:entitlement
     intent: manage:entitlements
     org_role: owner
-    or_user_role: Super Admin
+    or_user_role: Owner
     enforced_by: handler
     object_scoped: true
     ids: { entitlement: ng-antivirus }
@@ -380,19 +381,19 @@ routes:
     path: /api/entitlements/catalog
     intent: manage:entitlements
     org_role: owner
-    or_user_role: Super Admin
+    or_user_role: Owner
     enforced_by: handler
   - method: PUT
     path: /api/entitlements/catalog/:id
     intent: manage:entitlements
     org_role: owner
-    or_user_role: Super Admin
+    or_user_role: Owner
     enforced_by: handler
   - method: DELETE
     path: /api/entitlements/catalog/:id
     intent: manage:entitlements
     org_role: owner
-    or_user_role: Super Admin
+    or_user_role: Owner
     enforced_by: handler
 
   - method: GET
@@ -405,13 +406,13 @@ routes:
     path: /api/entitlements/catalog/:id/availability
     intent: manage:entitlements
     org_role: owner
-    or_user_role: Super Admin
+    or_user_role: Owner
     enforced_by: handler
   - method: DELETE
     path: /api/entitlements/catalog/:id/availability/:rule_id
     intent: manage:entitlements
     org_role: owner
-    or_user_role: Super Admin
+    or_user_role: Owner
     enforced_by: handler
 
   - method: GET
@@ -431,8 +432,8 @@ routes:
     intent: read:entitlements
     object_scoped: true
     note: |
-      Aggregates over the caller's hierarchy. The owner organization and Super
-      Admins additionally see the add-ons nobody holds; everyone else sees only
+      Aggregates over the caller's hierarchy. The Owner organization
+      additionally sees the add-ons nobody holds; everyone else sees only
       what their organization may buy. Both are scope answers, not gate answers.
   - method: GET
     path: /api/entitlements/report/organizations
@@ -514,7 +515,8 @@ routes:
 
   # Alerting configuration. config.yml is explicit: read:alerts views the
   # configuration, manage:alerts changes the policy, config:alerts is the
-  # Super-Admin-only view of the merged result.
+  # Owner-organization-only view of the merged result (config:alerts is on the
+  # Owner and Staff user roles).
   - method: GET
     path: /api/alerts/config
     intent: read:alerts
@@ -743,7 +745,7 @@ routes:
 
   # ===========================================================================
   # Users. read/manage:users are technical permissions (Admin, Backoffice,
-  # Reader for read); destroy:users is Super Admin only.
+  # Reader for read); destroy:users is the Owner user role only.
   # ===========================================================================
   - method: POST
     path: /api/users
@@ -841,14 +843,14 @@ routes:
 
   # ===========================================================================
   # Rebranding. docs/docs/features/rebranding.md is explicit:
-  #   deciding which organizations may brand  → owner organization or Super Admin
+  #   deciding which organizations may brand  → owner organization
   #   configuring the branding of one's own organization → its own administrators
   #   reading status and assets               → the organization and its parents
   # config.yml carries the vocabulary: read:rebranding on every technical role,
-  # manage:rebranding on Admin and Super Admin. The enable/disable routes add the
+  # manage:rebranding on Admin, Staff and Owner. The enable/disable routes add the
   # administrative population on top of that permission — the same one the
   # entitlement catalog uses (hasOwnerLevelAuthority: the owner organization, or
-  # a Super Admin wherever they sit, since only the owner can assign that role).
+  # an Owner-organization member, since only the owner can assign those roles).
   # ===========================================================================
   - method: GET
     path: /api/rebranding/products
@@ -873,7 +875,7 @@ routes:
     path: /api/rebranding/organizations
     intent: manage:rebranding
     org_role: owner
-    or_user_role: Super Admin
+    or_user_role: Owner
     enforced_by: handler
     note: |
       Adds a selection of organizations at once. Who may brand is an
@@ -883,13 +885,13 @@ routes:
     path: /api/rebranding/:org_id/enable
     intent: manage:rebranding
     org_role: owner
-    or_user_role: Super Admin
+    or_user_role: Owner
     enforced_by: handler
   - method: PATCH
     path: /api/rebranding/:org_id/disable
     intent: manage:rebranding
     org_role: owner
-    or_user_role: Super Admin
+    or_user_role: Owner
     enforced_by: handler
     note: removing an organization deletes its assets (ON DELETE CASCADE)
 
@@ -913,7 +915,7 @@ routes:
       answers: an organization without rebranding enabled is refused whatever
       the caller holds, and a partner may only write its own organization —
       the organizations below inherit the branding rather than being written to.
-      An owner-level caller (owner organization or Super Admin) writes any of
+      An owner-level caller (Owner organization member) writes any of
       them, for support.
 
   - method: PUT

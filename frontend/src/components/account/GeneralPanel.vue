@@ -21,7 +21,7 @@ const route = useRoute()
 const isShownChangePasswordDrawer = ref(false)
 
 onMounted(() => {
-  if (route.query['changePassword'] === 'true' && !loginStore.isOwner) {
+  if (route.query['changePassword'] === 'true' && !loginStore.isOwnerAccount) {
     isShownChangePasswordDrawer.value = true
   }
 })
@@ -38,7 +38,7 @@ onMounted(() => {
       <hr />
       <!-- profile -->
       <NeInlineNotification
-        v-if="loginStore.isOwner"
+        v-if="loginStore.isOwnerAccount"
         kind="info"
         :title="$t('account.cannot_edit_profile')"
         :description="$t('account.cannot_edit_profile_owner_description')"
@@ -56,7 +56,7 @@ onMounted(() => {
       <hr />
       <!-- change password -->
       <NeInlineNotification
-        v-if="loginStore.isOwner"
+        v-if="loginStore.isOwnerAccount"
         kind="info"
         :title="$t('account.password_change_disabled')"
         :description="$t('account.password_change_disabled_owner_description')"
@@ -71,7 +71,7 @@ onMounted(() => {
         <NeButton
           kind="secondary"
           size="lg"
-          :disabled="loginStore.isOwner || loginStore.isImpersonating"
+          :disabled="loginStore.isOwnerAccount || loginStore.isImpersonating"
           @click="isShownChangePasswordDrawer = true"
         >
           <template #prefix>

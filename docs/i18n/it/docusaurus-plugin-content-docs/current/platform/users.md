@@ -14,7 +14,7 @@ I ruoli organizzazione determinano la posizione nella gerarchia aziendale:
 
 | Ruolo | Descrizione | Visibilità |
 |-------|-------------|------------|
-| **Owner** | Proprietario della piattaforma | Tutte le organizzazioni |
+| **Owner** | Proprietario della piattaforma (Nethesis) | Tutte le organizzazioni: ogni membro dell'organizzazione Owner ha visibilità globale su aziende, sistemi e utenti, incluse archiviazione ed eliminazione di distributori, rivenditori e clienti |
 | **Distributore** | Partner di distribuzione | Rivenditori e clienti propri |
 | **Rivenditore** | Partner di rivendita | Clienti propri |
 | **Cliente** | Utente finale | Solo la propria organizzazione |
@@ -25,11 +25,15 @@ I ruoli utente determinano le capacità tecniche:
 
 | Ruolo | Descrizione | Capacità Principali |
 |-------|-------------|---------------------|
-| **Super Admin** | Amministrazione completa | Tutte le operazioni, incluse quelle critiche. Assegnabile solo da un utente dell'organizzazione Owner, ma può risiedere in qualunque organizzazione |
 | **Admin** | Gestione avanzata | Gestione sistemi, utenti, operazioni pericolose |
 | **Backoffice** | Operazioni di backoffice | Gestione organizzazioni, applicazioni, licenze add-on |
 | **Support** | Supporto tecnico | Accesso lettura sistemi, operazioni di supporto |
 | **Reader** | Sola lettura | Visualizzazione dati senza possibilità di modifica |
+| **Staff** | Personale trasversale Nethesis (solo organizzazione Owner) | Gestione completa su tutte le aziende: sistemi, utenti, applicazioni, allarmi (inclusi i template), add-on (grant manuali e catalogo), rebranding, impersonificazione con consenso, connessione remota ai sistemi. Non può eliminare definitivamente sistemi o utenti |
+
+:::note Regole di assegnazione
+Nell'organizzazione Owner l'unico ruolo assegnabile è **Staff**, che non può mai essere assegnato agli utenti delle altre aziende. L'account speciale `owner`, creato all'installazione, non compare nell'elenco dei ruoli e non è assegnabile: è l'unico con controllo completo — inclusa l'eliminazione definitiva di sistemi e utenti — ed è l'unico che può creare e gestire gli utenti dell'organizzazione Owner.
+:::
 
 ### Permessi Combinati
 
@@ -48,9 +52,9 @@ Permessi Effettivi = Permessi Ruolo Organizzazione + Permessi Ruolo Utente
 - Può visualizzare solo i dati della propria organizzazione
 - Nessuna possibilità di modifica
 
-**Esempio 3**: Owner + Super Admin
-- Accesso completo a tutta la piattaforma
-- Tutte le operazioni disponibili, inclusa l'impersonificazione
+**Esempio 3**: Owner + Staff
+- Visibilità e gestione su tutta la piattaforma
+- Tutte le operazioni disponibili, inclusa l'impersonificazione (ma non l'eliminazione definitiva di sistemi o utenti)
 
 ## Creazione Utenti
 
@@ -210,12 +214,12 @@ Per maggiori dettagli, consulta la pagina [Impostazioni Account](../getting-star
 
 ### Permessi per Ruolo Utente
 
-| Operazione | Super Admin | Admin | Backoffice | Support | Reader |
-|------------|:-----------:|:-----:|:----------:|:-------:|:------:|
+| Operazione | Staff | Admin | Backoffice | Support | Reader |
+|------------|:-----:|:-----:|:----------:|:-------:|:------:|
 | Visualizza utenti | Si | Si | Si | Si | Si |
 | Crea utenti | Si | Si | No | No | No |
 | Modifica utenti | Si | Si | No | No | No |
-| Elimina utenti | Si | Si | No | No | No |
+| Elimina utenti | No | Si | No | No | No |
 | Reset password | Si | Si | No | No | No |
 | Sospendi/Riattiva | Si | Si | No | No | No |
 | Gestione sistemi | Si | Si | No | Si | No |
@@ -228,11 +232,15 @@ Per maggiori dettagli, consulta la pagina [Impostazioni Account](../getting-star
 | Impersonificazione | Si | No | No | No | No |
 | Esportazione dati | Si | Si | Si | Si | Si |
 
+:::note
+L'eliminazione definitiva di sistemi e utenti è riservata all'account `owner`: nemmeno il ruolo Staff può eseguirla.
+:::
+
 ### Restrizioni Gerarchiche
 
 Le operazioni sui dati sono limitate dalla posizione nella gerarchia:
 
-- **Owner**: Può gestire tutti gli utenti di tutte le organizzazioni
+- **Owner**: Può gestire tutti gli utenti di tutte le organizzazioni. Gli utenti dell'organizzazione Owner, invece, possono essere creati e gestiti solo dall'account `owner`
 - **Distributore**: Può gestire gli utenti delle proprie organizzazioni subordinate (rivenditori e clienti)
 - **Rivenditore**: Può gestire gli utenti delle proprie organizzazioni subordinate (clienti)
 - **Cliente**: Può visualizzare solo gli utenti della propria organizzazione

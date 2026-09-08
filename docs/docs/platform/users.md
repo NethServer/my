@@ -14,7 +14,7 @@ My uses a dual-role system combining business hierarchy with technical capabilit
 
 Automatically inherited from user's organization:
 
-- **Owner**: Complete platform access (Nethesis only)
+- **Owner**: Complete platform access (Nethesis only). Every member of the Owner organization has global visibility on all companies, systems and users, including archiving and destroying distributors, resellers and customers
 - **Distributor**: Manages resellers and customers
 - **Reseller**: Manages customers
 - **Customer**: Views own organization data
@@ -22,12 +22,6 @@ Automatically inherited from user's organization:
 ### User Roles (Technical Capabilities)
 
 Manually assigned to users based on their job function:
-
-- **Super Admin**: Full platform administration with impersonation
-  - All Admin capabilities
-  - User impersonation for troubleshooting
-  - Advanced system operations
-  - Complete platform control
 
 - **Admin**: Platform administration
   - User management
@@ -52,6 +46,15 @@ Manually assigned to users based on their job function:
   - View systems and status
   - View inventory and heartbeat
   - No modification capabilities
+
+- **Staff** (Owner organization only): Nethesis cross-cutting staff
+  - Manage systems, users, applications, alerts (including alert template configuration), add-ons, rebranding across all companies
+  - User impersonation (with the user's consent) and remote connection to systems
+  - Cannot permanently destroy systems or users
+
+:::note Role assignment rules
+Inside the Owner organization the only assignable role is **Staff**, and Staff can never be assigned to users of other companies. The special `owner` account, seeded at installation, never appears in the roles list and cannot be assigned: it is the only account with complete control — including permanent deletion of systems and users — and the only one that can add and manage users of the Owner organization.
+:::
 
 ### Combined Permissions
 
@@ -90,7 +93,7 @@ User Role: Support
    - **Name**: User's display name (e.g., "Mario Rossi")
    - **Email**: User's email address (will be their username)
    - **Organization**: Select the organization
-   - **Roles**: Select one or more roles (Super Admin, Admin, Backoffice, Support, Reader)
+   - **Roles**: Select one or more roles (Admin, Backoffice, Support, Reader; Staff for the Owner organization only)
    - **Phone Number** (optional): Contact phone
 4. Click **Create user**
 
@@ -135,7 +138,7 @@ Use filters to find specific users:
 
 - **Search by name or email**: Type in the search box
 - **Search by organization**: Select one or more organizations
-- **Search by role**: Super Admin, Admin, Backoffice, Support, Reader
+- **Search by role**: Admin, Backoffice, Support, Reader, Staff
 - **Sort by**: Name, email, organization
 
 ### User Details
@@ -278,23 +281,22 @@ Email changes may require re-authentication.
 
 ## Permissions Reference
 
-### Super Admin Role Permissions
+### Staff Role Permissions
 
-The role is assignable only by a user of the Owner organization, but it lives in
-any organization — Nethesis staff hold it inside a distributor. It carries
-owner-level authority on the administrative surfaces (entitlement catalog and
-grants, rebranding enablement); reaching outside its own hierarchy is a separate
-question, and promotion deliberately does not.
+The Staff role identifies Nethesis cross-cutting staff. It exists only inside
+the Owner organization: it is the only role assignable there, and it can never
+be assigned to users of other companies.
 
 Can perform:
-- All Admin capabilities
-- User impersonation for troubleshooting
-- Advanced system operations
-- Platform-wide configuration
-- Complete audit trail access
-- Emergency operations
+- All Admin capabilities, across all companies
+- Manage systems, users, applications, alerts (including alert template configuration)
+- Manage add-ons: manual grants and the add-on catalog
+- Manage rebranding
+- User impersonation for troubleshooting (with the user's consent)
+- Remote connection to systems
 
 Cannot perform:
+- Permanently destroy systems or users (reserved to the `owner` account)
 - Modify own account status
 - Delete own account
 - Bypass audit logging
@@ -372,8 +374,9 @@ Cannot perform:
 
 Users can only manage other users within their organizational scope:
 
-**Owner users:**
+**Owner organization users:**
 - Can manage all users across all organizations
+- Users of the Owner organization itself are created and managed only by the `owner` account
 
 **Distributor users:**
 - Can manage users in their resellers and customers
@@ -395,7 +398,7 @@ Navigate to **Dashboard** to view:
 - **Total Users**: Count across all accessible organizations
 - **Active Users**: Users who logged in recently
 - **Users by Organization**: Distribution chart
-- **Users by Role**: Super Admin, Admin, Backoffice, Support, Reader count
+- **Users by Role**: Admin, Backoffice, Support, Reader, Staff count
 - **Growth Trend**: User creation trend (last 30/60/90 days)
 
 ### User Report
@@ -423,7 +426,6 @@ Generate reports:
 - Assign minimal required roles (principle of least privilege)
 - Document why users have specific roles
 - Review role assignments quarterly
-- Use Super Admin role only for platform administrators
 - Use Admin role sparingly for user management needs
 - Use Backoffice role for reporting and analytics personnel
 - Use Support role for most technical operations

@@ -35,9 +35,9 @@ Ogni livello gestisce solo le organizzazioni subordinate.
 
 ## Sistema a Doppio Ruolo
 
-**Ruoli Organizzazione** (gerarchia aziendale): Owner, Distributore, Rivenditore, Cliente
+**Ruoli Organizzazione** (gerarchia aziendale): Owner, Distributore, Rivenditore, Cliente. Ogni membro dell'organizzazione Owner (Nethesis) ha visibilità globale su tutte le aziende, i sistemi e gli utenti.
 
-**Ruoli Utente** (capacità tecniche): Super Admin, Admin, Backoffice, Support, Reader
+**Ruoli Utente** (capacità tecniche): Admin, Backoffice, Support, Reader per le organizzazioni partner, più Staff, riservato all'organizzazione Owner
 
 Permessi effettivi = Ruolo Organizzazione + Ruolo Utente
 

@@ -62,31 +62,31 @@ users:
   # ---------------------------------------------------------------------------
   # Matrix personas: one per (organization role × technical role).
   #
-  # The Owner organization contributes only one persona — the bootstrap owner
-  # itself, which is Super Admin. POST /api/users refuses any other:
-  #   "cannot create users in the Owner organization - this is managed by the
-  #    system"
-  # and `sync init` seeds exactly one owner user. So owner/Admin, owner/Support,
-  # owner/Backoffice and owner/Reader cannot be provisioned through any supported
-  # flow and are out of this suite's reach. Note what that implies: since
-  # effective = org_permissions ∪ user_permissions, ANY user of the Owner
-  # organization would hold destroy:distributors|resellers|customers regardless
-  # of its technical role. If such accounts exist in production they were created
-  # out of band, and nothing here covers them.
+  # The Owner organization contributes two personas: the bootstrap owner itself
+  # (user role "Owner": the break-glass tier, seeded at init and NEVER
+  # assignable through the API) and a provisioned Staff user (user role
+  # "Staff": everything non-destructive on the technical resources).
+  # POST /api/users pairs roles and organization fail-closed: inside the Owner
+  # organization only Staff is assignable (by an Owner-role caller), outside it
+  # never. Note that every member of the Owner organization holds
+  # destroy:distributors|resellers|customers through the shared "Owner"
+  # ORGANIZATION role: that is intended (hierarchy destroys are
+  # organization-level authority), while destroy:systems|users stay exclusive
+  # to the "Owner" USER role.
   # ---------------------------------------------------------------------------
-  - { key: d1-super, org: d1, role: Super Admin, matrix: true }
+  - { key: owner-staff, org: owner, role: Staff, matrix: true }
+  - { key: owner-staff2, org: owner, role: Staff, note: second Staff — the target of the Owner-org membership-mutation scenarios }
+
   - { key: d1-admin, org: d1, role: Admin, matrix: true }
   - { key: d1-support, org: d1, role: Support, matrix: true }
   - { key: d1-backoffice, org: d1, role: Backoffice, matrix: true }
   - { key: d1-reader, org: d1, role: Reader, matrix: true }
 
-  - { key: d1r1-super, org: d1r1, role: Super Admin, matrix: true }
   - { key: d1r1-admin, org: d1r1, role: Admin, matrix: true }
   - { key: d1r1-support, org: d1r1, role: Support, matrix: true }
   - { key: d1r1-backoffice, org: d1r1, role: Backoffice, matrix: true }
   - { key: d1r1-reader, org: d1r1, role: Reader, matrix: true }
 
-  - { key: d1r1c1-super, org: d1r1c1, role: Super Admin, matrix: true }
   - { key: d1r1c1-admin, org: d1r1c1, role: Admin, matrix: true }
   - { key: d1r1c1-support, org: d1r1c1, role: Support, matrix: true }
   - { key: d1r1c1-backoffice, org: d1r1c1, role: Backoffice, matrix: true }

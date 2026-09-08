@@ -17,7 +17,7 @@ import (
 )
 
 // TestReportScopeClause covers the org-visibility predicate every report
-// aggregate carries: absent for the owner org / a Super Admin (nil scope),
+// aggregate carries: absent for the Owner organization (nil scope),
 // present and numbered after the args already collected otherwise. An empty
 // (non-nil) scope must still restrict — a caller whose hierarchy resolved to
 // nothing sees nothing, not everything.

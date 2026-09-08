@@ -231,7 +231,7 @@ async function validateAndChangePassword() {
     <form @submit.prevent>
       <div class="space-y-6">
         <NeInlineNotification
-          v-if="loginStore.isOwner"
+          v-if="loginStore.isOwnerAccount"
           kind="info"
           :title="$t('account.password_change_disabled')"
           :description="$t('account.password_change_disabled_owner_description')"
@@ -308,7 +308,9 @@ async function validateAndChangePassword() {
           type="submit"
           kind="primary"
           size="lg"
-          :disabled="changePasswordLoading || loginStore.isOwner || loginStore.isImpersonating"
+          :disabled="
+            changePasswordLoading || loginStore.isOwnerAccount || loginStore.isImpersonating
+          "
           :loading="changePasswordLoading"
           @click.prevent="validateAndChangePassword"
         >

@@ -63,8 +63,8 @@ func resolveOrgID(c *gin.Context, user *models.User) (string, bool) {
 		return user.OrganizationID, true
 	}
 
-	if orgRole == "owner" {
-		// Owner may omit organization_id to operate across all tenants.
+	if models.IsGlobalOrgRole(orgRole) {
+		// Owner-organization roles may omit organization_id to operate across all tenants.
 		return orgID, true
 	}
 
@@ -140,7 +140,7 @@ func resolveOrgScope(c *gin.Context, user *models.User) ([]string, bool) {
 		if oid == "" {
 			continue
 		}
-		if orgRole != "owner" && !userService.IsOrganizationInHierarchy(orgRole, user.OrganizationID, oid) {
+		if !models.IsGlobalOrgRole(orgRole) && !userService.IsOrganizationInHierarchy(orgRole, user.OrganizationID, oid) {
 			c.JSON(http.StatusForbidden, response.Forbidden("access denied: organization not in your hierarchy", nil))
 			return nil, false
 		}
@@ -1159,7 +1159,7 @@ func GetAlertsTotals(c *gin.Context) {
 		return
 	}
 
-	ownerAllScope := strings.ToLower(user.OrgRole) == "owner" && len(c.QueryArray("organization_id")) == 0
+	ownerAllScope := models.IsGlobalOrgRole(user.OrgRole) && len(c.QueryArray("organization_id")) == 0
 
 	warnings := []string{}
 

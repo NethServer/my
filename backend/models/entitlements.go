@@ -138,7 +138,7 @@ type CreateEntitlementAvailabilityRequest struct {
 }
 
 // EntitlementGrantReportRow is one row of the fleet-wide grants report
-// (owner/Super Admin): the grant plus the system identity it belongs to.
+// (Owner organization): the grant plus the system identity it belongs to.
 type EntitlementGrantReportRow struct {
 	SystemEntitlement
 	SystemName       string `json:"system_name"`
@@ -156,7 +156,7 @@ type EntitlementStatsRow struct {
 }
 
 // EntitlementReport is the add-on analytics snapshot within the caller's
-// visibility — the whole fleet for the owner org / a Super Admin, the caller's
+// visibility — the whole fleet for the Owner organization, the caller's
 // own hierarchy otherwise: lifecycle totals, the per-type breakdown, the
 // renewal distribution and an activation trend. The per-organization and
 // per-tier breakdowns live on their own paginated+searchable endpoints

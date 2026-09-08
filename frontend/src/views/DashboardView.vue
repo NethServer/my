@@ -92,7 +92,7 @@ const { state: thirdPartyApps } = useQuery({
             </p>
             <!--
               App-provided summary widget (info_url), rendered generically.
-              Hidden for owner/Super Admin (Nethesis-internal): the shop
+              Hidden for the Owner organization (Nethesis-internal): the shop
               account data is meaningful for the transacting partners
               (distributor/reseller/customer), not for platform admins.
             -->

@@ -277,7 +277,7 @@ func TestCanUserAccessRoleCached(t *testing.T) {
 		},
 		{
 			name:   "owner can access owner-restricted role",
-			roleID: "super-admin-role-789",
+			roleID: "owner-role-789",
 			user:   ownerUser,
 			mockAccessControl: &cache.RoleAccessControl{
 				HasAccessControl: true,
@@ -289,7 +289,7 @@ func TestCanUserAccessRoleCached(t *testing.T) {
 		},
 		{
 			name:   "distributor cannot access owner-restricted role",
-			roleID: "super-admin-role-789",
+			roleID: "owner-role-789",
 			user:   distributorUser,
 			mockAccessControl: &cache.RoleAccessControl{
 				HasAccessControl: true,
@@ -301,7 +301,7 @@ func TestCanUserAccessRoleCached(t *testing.T) {
 		},
 		{
 			name:   "customer cannot access owner-restricted role",
-			roleID: "super-admin-role-789",
+			roleID: "owner-role-789",
 			user:   customerUser,
 			mockAccessControl: &cache.RoleAccessControl{
 				HasAccessControl: true,
@@ -414,9 +414,9 @@ func TestIsSystemRole(t *testing.T) {
 			reason:      "Should not detect business roles as system roles",
 		},
 		{
-			name:        "super admin not detected as system role",
-			roleName:    "Super Admin",
-			description: "Super administrator with highest privileges",
+			name:        "owner role not detected as system role",
+			roleName:    "Owner",
+			description: "Owner role with highest privileges",
 			expected:    false,
 			reason:      "Should not detect business admin roles as system roles",
 		},

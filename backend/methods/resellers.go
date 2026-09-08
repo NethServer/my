@@ -864,40 +864,19 @@ func PromoteReseller(c *gin.Context) {
 		return
 	}
 
-	if !IsOwnerOrSuperAdmin(user) {
+	// Promotion changes the shape of the commercial hierarchy: it stays an
+	// Owner-organization duty (Owner and Staff users), with global reach.
+	if !IsOwnerOrgMember(user) {
 		logger.RequestLogger(c, "resellers").Warn().
 			Str("operation", "promote_denied").
 			Str("user_id", user.ID).
 			Str("org_role", user.OrgRole).
 			Strs("user_roles", user.UserRoles).
 			Str("reseller_id", resellerID).
-			Msg("Promotion denied - owner or super admin required")
+			Msg("Promotion denied - Owner organization required")
 
 		c.JSON(http.StatusForbidden, response.Forbidden("access denied to promote reseller", nil))
 		return
-	}
-
-	// A Super Admin outside the Owner organization carries owner-level authority
-	// but not owner-level reach: it promotes the resellers its own organization
-	// manages, never a peer's, and never the organization it belongs to — that
-	// would be a self-granted level.
-	if !strings.EqualFold(user.OrgRole, "owner") {
-		userOrgRole := strings.ToLower(user.OrgRole)
-		inScope := resellerID != user.OrganizationID &&
-			local.NewUserService().IsOrganizationInHierarchy(userOrgRole, user.OrganizationID, resellerID)
-
-		if !inScope {
-			logger.RequestLogger(c, "resellers").Warn().
-				Str("operation", "promote_out_of_scope").
-				Str("user_id", user.ID).
-				Str("org_role", user.OrgRole).
-				Str("organization_id", user.OrganizationID).
-				Str("reseller_id", resellerID).
-				Msg("Promotion denied - target outside the caller's hierarchy")
-
-			c.JSON(http.StatusForbidden, response.Forbidden("access denied to promote reseller", nil))
-			return
-		}
 	}
 
 	service := local.NewOrganizationService()

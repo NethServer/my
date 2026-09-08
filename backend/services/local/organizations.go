@@ -587,8 +587,8 @@ func (s *LocalOrganizationService) markCustomerSynced(exec sqlExecer, id, logtoI
 
 // RBAC validation methods
 func (s *LocalOrganizationService) CanCreateDistributor(userOrgRole, userOrgID string) (bool, string) {
-	// Only Owner can create distributors
-	if userOrgRole != "owner" {
+	// Only the Owner organization (Owner or Staff role) can create distributors
+	if !models.IsGlobalOrgRole(userOrgRole) {
 		return false, "only owners can create distributors"
 	}
 	return true, ""
@@ -647,7 +647,7 @@ func (s *LocalOrganizationService) ResolveCreatedByOrg(userOrgRole, userOrgID, t
 	}
 
 	role := strings.ToLower(userOrgRole)
-	if role != "owner" && role != "distributor" {
+	if !models.IsGlobalOrgRole(role) && role != "distributor" {
 		return "", "", false, "only owner or distributor can set created_by_organization_id"
 	}
 
@@ -2077,7 +2077,7 @@ func (s *LocalOrganizationService) GetAllOrganizationsPaginated(userOrgRole, use
 	var scopeArgs []interface{}
 	nextIdx := 1
 
-	if strings.ToLower(userOrgRole) != "owner" {
+	if !models.IsGlobalOrgRole(userOrgRole) {
 		appsService := NewApplicationsService()
 		allowedIDs, err := appsService.GetAllowedOrganizationIDs(userOrgRole, userOrgID)
 		if err != nil {
@@ -2903,7 +2903,7 @@ func promotedCustomData(reseller *models.LocalReseller, parentOrgID string, prom
 
 // resolveOwnerOrgID returns the Logto id of the Owner organization, the
 // createdBy a distributor carries. The Owner has no row in the three org
-// tables, which is how callerOrgID is recognized as owner-level; a Super Admin
+// tables, which is how callerOrgID is recognized as owner-level; a caller
 // signing in from a partner org has to be resolved through the distributors,
 // which are all created by the Owner.
 func (s *LocalOrganizationService) resolveOwnerOrgID(callerOrgID string) (string, error) {

@@ -15,7 +15,7 @@ La configurazione è per prodotto: un'organizzazione può usare gli stessi loghi
 ## Scelta delle Organizzazioni
 
 :::warning
-Chi può personalizzare il marchio lo decide l'organizzazione Owner, oppure un Super Admin: il ruolo lo assegna solo l'Owner, quindi in pratica sono la stessa popolazione. È la stessa regola del catalogo add-on.
+Chi può personalizzare il marchio lo decide l'organizzazione Owner, cioè il personale Nethesis. È la stessa regola del catalogo add-on.
 :::
 
 Da **Impostazioni → Rebranding** l'Owner vede tutte le organizzazioni abilitate, i prodotti personalizzati da ciascuna e la data dell'ultima modifica. **Aggiungi aziende** apre un elenco con distributori, rivenditori e clienti non ancora abilitati: un'intera selezione viene aggiunta in un'unica operazione.
@@ -77,13 +77,13 @@ Gli asset sono serviti sia agli utenti autenticati sia, per le pagine che hanno 
 
 ## Permessi
 
-| Operazione | Super Admin | Admin | Backoffice | Support | Reader |
-|------------|:-----------:|:-----:|:----------:|:-------:|:------:|
+| Operazione | Staff (organizzazione Owner) | Admin | Backoffice | Support | Reader |
+|------------|:----------------------------:|:-----:|:----------:|:-------:|:------:|
 | Visualizza branding e asset (propri, delle organizzazioni sotto e di quella da cui si eredita) | Sì | Sì | Sì | Sì | Sì |
 | Configura il branding della propria organizzazione | Sì | Sì | No | No | No |
-| Aggiungi/rimuovi organizzazioni dal rebranding | Sì, da qualunque organizzazione | Solo nell'organizzazione Owner | No | No | No |
-| Configura il branding di un'altra organizzazione (supporto) | Sì | Solo nell'organizzazione Owner | No | No | No |
+| Aggiungi/rimuovi organizzazioni dal rebranding | Sì | No | No | No | No |
+| Configura il branding di un'altra organizzazione (supporto) | Sì | No | No | No | No |
 
 :::warning
-Aggiungere o rimuovere organizzazioni dal rebranding è riservato all'organizzazione Owner o a un Super Admin. Un distributore o un rivenditore configura **solo** il proprio branding: le organizzazioni sotto di lui lo ereditano e non vengono mai sovrascritte, quindi chi ha un branding proprio lo mantiene.
+Aggiungere o rimuovere organizzazioni dal rebranding è riservato all'organizzazione Owner. Un distributore o un rivenditore configura **solo** il proprio branding: le organizzazioni sotto di lui lo ereditano e non vengono mai sovrascritte, quindi chi ha un branding proprio lo mantiene.
 :::

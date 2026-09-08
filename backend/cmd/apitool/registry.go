@@ -53,7 +53,7 @@ type User struct {
 	LogtoID  string `json:"logto_id"`
 	OrgRole  string `json:"org_role"`
 	// UserRoles holds the technical role names exactly as GET /api/roles
-	// exposes them ("Admin", "Support", "Backoffice", "Reader", "Super Admin").
+	// exposes them ("Admin", "Support", "Backoffice", "Reader", "Staff", "Owner").
 	// A persona is the pair (OrgRole, UserRoles), so the authz suite cannot
 	// build its matrix without this. Backfill older entries with
 	// `apitool refresh-roles`.

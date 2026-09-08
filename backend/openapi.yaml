@@ -2473,7 +2473,7 @@ components:
         for manual grants and legacy rows without an order. When the email
         matches no my user only `email` is present. When the buyer's
         organization is outside the viewer's hierarchy the snapshot is
-        redacted to `{out_of_scope: true}` (owner org and Super Admin always
+        redacted to `{out_of_scope: true}` (the Owner organization always
         see it in full).
       properties:
         logto_id:
@@ -2592,7 +2592,7 @@ components:
 
     EntitlementReport:
       type: object
-      description: Fleet-wide add-on analytics (owner/Super Admin only)
+      description: Fleet-wide add-on analytics (Owner organization only)
       properties:
         totals:
           type: object
@@ -2620,7 +2620,7 @@ components:
             Lifecycle breakdown per add-on type. Includes add-ons with no grant
             behind them (every count 0) so the report can surface what nobody
             has bought yet: the whole catalog for the owner organization and
-            Super Admins, only what the caller's organization may buy for
+            the Owner organization, only what the caller's organization may buy for
             everyone else. An add-on the caller holds is always listed, even
             when it is no longer available or no longer in the catalog (then it
             is labelled by id). Counts are always bound to the caller's
@@ -6275,7 +6275,7 @@ paths:
         - Backend - Impersonation
       summary: /impersonate/consent - Enable impersonation consent
       description: |
-        Allows a user to enable consent for being impersonated by authorized users (Super Admin role or Owner organization users).
+        Allows a user to enable consent for being impersonated by authorized users (Owner organization users holding the Staff or Owner role).
         This is a **privacy-friendly** approach where users explicitly control
         if and for how long they can be impersonated.
 
@@ -6398,7 +6398,7 @@ paths:
         - Backend - Impersonation
       summary: /impersonate - Start impersonation (permission-based access)
       description: |
-        Allows users with `impersonate:users` permission (Super Admin role) or Owner organization role
+        Allows users with the `impersonate:users` permission (Staff and Owner roles, Owner organization only)
         to impersonate another user, but only if that user has active consent enabled.
         The impersonation token duration will match the user's consent settings.
       requestBody:
@@ -8661,6 +8661,13 @@ paths:
         (distributors + resellers + customers). Supports text search and
         per-field filters; intended for filter dropdowns and assignment
         pickers.
+
+        For callers with the Owner organization role, the first page is
+        prefixed with a synthetic entry for the Owner organization itself
+        (type "owner", empty database id): it exists only in Logto and is
+        the organization where Staff/Owner users are created. The entry
+        respects the active search/type filters and is excluded by
+        created_by or description filters.
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
@@ -8688,7 +8695,7 @@ paths:
             type: array
             items:
               type: string
-              enum: [distributor, reseller, customer]
+              enum: [owner, distributor, reseller, customer]
         - name: created_by
           in: query
           required: false
@@ -9094,11 +9101,9 @@ paths:
       summary: /resellers/{id}/promote - Promote reseller to distributor
       description: |
         Move a reseller one level up to distributor, in place. Restricted to
-        owner-level authority: a user of the Owner organization, or a Super
-        Admin. A Super Admin that does not belong to the Owner organization acts
-        within its own scope only — it can promote the resellers its own
-        organization manages, never a peer's and never the organization it
-        belongs to (403 otherwise).
+        the Owner organization (Staff or Owner user role), with global reach:
+        promotion changes the shape of the commercial hierarchy, so no partner
+        role can trigger it (403 otherwise).
 
         The organization keeps its `id` and `logto_id`, so its customers, users,
         systems, applications, alert history and Mimir tenant stay attached. Its
@@ -11059,8 +11064,8 @@ paths:
         - Backend - Entitlements
       summary: /systems/{id}/entitlements - Manually grant an add-on to a system
       description: |
-        Manually grant an add-on to a system. Only the owner organization or a
-        Super Admin can manage grants directly (403 otherwise); the shop goes
+        Manually grant an add-on to a system. Only the Owner organization can
+        manage grants directly (403 otherwise); the shop goes
         through `POST /entitlements/activate` instead.
 
         The entitlement must exist in the catalog; `scope` is only accepted
@@ -11137,7 +11142,7 @@ paths:
       description: |
         Extend/reduce the expiry of a grant or toggle its revoked state.
         Scoped grants are addressed with the `scope` query parameter. Only the
-        owner organization or a Super Admin can manage grants directly.
+        Owner organization can manage grants directly.
       parameters:
         - name: id
           in: path
@@ -11204,7 +11209,7 @@ paths:
       description: |
         Revoke a grant. The revocation is soft (sets `revoked_at`; the row is
         kept for audit) and idempotent. Scoped grants are addressed with the
-        `scope` query parameter. Only the owner organization or a Super Admin
+        `scope` query parameter. Only the Owner organization
         can manage grants directly.
       parameters:
         - name: id
@@ -11301,8 +11306,8 @@ paths:
         - Backend - Entitlements
       summary: /entitlements/catalog - Create an add-on type
       description: |
-        Add a new add-on type to the catalog. Only the owner organization or a
-        Super Admin can manage the catalog (403 otherwise).
+        Add a new add-on type to the catalog. Only the Owner organization can
+        manage the catalog (403 otherwise).
       requestBody:
         required: true
         content:
@@ -11363,8 +11368,8 @@ paths:
       summary: /entitlements/catalog/{id} - Update an add-on type
       description: |
         Update the display fields (display_name, description) of a catalog
-        item. The id and scoped flag are immutable. Only the owner
-        organization or a Super Admin can manage the catalog.
+        item. The id and scoped flag are immutable. Only the Owner
+        organization can manage the catalog.
       parameters:
         - name: id
           in: path
@@ -11414,7 +11419,7 @@ paths:
       description: |
         Delete a catalog item. Refused while grants (including revoked ones,
         kept for audit) still reference it — `in_use` on the catalog list
-        tells this upfront. Only the owner organization or a Super Admin can
+        tells this upfront. Only the Owner organization can
         manage the catalog.
       parameters:
         - name: id
@@ -11524,7 +11529,7 @@ paths:
         Restrict who may buy/self-activate the add-on: unlock it for a whole
         hierarchy role OR one specific organization (exactly one of the two).
         By default (no rules) an add-on is available to everyone. Only the
-        owner organization or a Super Admin can manage availability rules.
+        Owner organization can manage availability rules.
       parameters:
         - name: id
           in: path
@@ -11593,7 +11598,7 @@ paths:
       tags:
         - Backend - Entitlements
       summary: /entitlements/catalog/{id}/availability/{rule_id} - Remove a commercial availability rule
-      description: Remove one availability rule. Only the owner organization or a Super Admin can manage availability rules.
+      description: Remove one availability rule. Only the Owner organization can manage availability rules.
       parameters:
         - name: id
           in: path
@@ -11645,7 +11650,7 @@ paths:
       description: |
         The catalog items (services and modules) the CALLER's organization may
         buy/self-activate on the shop, with availability rules applied. The
-        owner organization and Super Admins see the whole catalog.
+        Owner organization sees the whole catalog.
       responses:
         '200':
           description: Available entitlements retrieved successfully
@@ -11681,7 +11686,7 @@ paths:
         - Backend - Entitlements
       summary: /entitlements/grants - Grants report with filters
       description: |
-        Paginated grants report. The owner organization and Super Admins see
+        Paginated grants report. The Owner organization sees
         the whole fleet; other users only the grants of systems in their
         hierarchy.
       parameters:
@@ -11823,7 +11828,7 @@ paths:
         distribution and a 12-month activation trend. The per-organization and
         per-tier breakdowns live on their own paginated endpoints. Scope
         matches /entitlements/grants: the whole fleet for the owner
-        organization / a Super Admin, the caller's own organization and its
+        organization, the caller's own organization and its
         descendants otherwise. Deleted systems are excluded.
       responses:
         '200':
@@ -11857,8 +11862,7 @@ paths:
       description: |
         Grants grouped by the organization owning the systems, most active
         first, paginated and searchable by organization name. Restricted to the
-        caller's hierarchy (the whole fleet for the owner organization / a
-        Super Admin).
+        caller's hierarchy (the whole fleet for the Owner organization).
       parameters:
         - name: search
           in: query
@@ -11917,8 +11921,7 @@ paths:
       description: |
         Grants grouped by shop tier (variable products only), paginated and
         searchable by add-on display name, add-on id or tier label. Restricted
-        to the caller's hierarchy (the whole fleet for the owner organization /
-        a Super Admin).
+        to the caller's hierarchy (the whole fleet for the Owner organization).
       parameters:
         - name: search
           in: query
@@ -11983,7 +11986,7 @@ paths:
         are safe. The grant is recorded with `source: shop`.
 
         Requires the `manage:entitlements` permission — held by the
-        Backoffice, Admin and Super Admin user roles, or an owner API key.
+        Backoffice, Admin and Staff user roles, or an owner API key.
       requestBody:
         required: true
         content:
@@ -13372,7 +13375,7 @@ paths:
         layer), this exposes the full inherited + merged view, so it is
         gated by the dedicated `config:alerts` permission. That permission
         lives solely on the `super` user role, which is owner-assignable
-        only — so in practice only an Owner-org Super Admin can reach this.
+        only — so in practice only the Owner organization can reach this.
         It is not reachable by Distributor/Reseller admins.
 
         Secrets are redacted in the response: telegram `bot_token` and
@@ -16434,8 +16437,8 @@ paths:
         - Backend - Rebranding
       summary: Add organizations to rebranding
       description: |
-        Enables rebranding for a whole selection at once. Reserved to the owner
-        organization or a Super Admin, wherever they sit — the same population
+        Enables rebranding for a whole selection at once. Reserved to the Owner
+        organization — the same population
         that manages the entitlement catalog. Either every organization is added
         or none is: if any id cannot be resolved the call answers 400 with the
         offending ids and writes nothing.
@@ -16564,7 +16567,7 @@ paths:
       summary: Enable rebranding for an organization
       description: |
         Enables rebranding capability for a specific organization. Reserved to
-        the owner organization or a Super Admin.
+        the Owner organization.
       security:
         - BearerAuth: []
       parameters:
@@ -16590,7 +16593,7 @@ paths:
       summary: Disable rebranding for an organization
       description: |
         Removes the organization from rebranding. Reserved to the owner
-        organization or a Super Admin. The organization's assets are deleted
+        organization. The organization's assets are deleted
         with it, so re-adding it starts from an empty configuration.
       security:
         - BearerAuth: []

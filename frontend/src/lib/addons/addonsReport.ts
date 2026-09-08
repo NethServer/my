@@ -19,7 +19,7 @@ const REPORT_ORGANIZATIONS_PATH = 'entitlements/report/organizations'
 const REPORT_TIERS_PATH = 'entitlements/report/tiers'
 
 // Every aggregate below is scoped server-side to the caller's hierarchy: the
-// owner organization and Super Admins see the whole fleet, everyone else only
+// the Owner organization sees the whole fleet, everyone else only
 // the systems at or below their own organization. Deleted systems are excluded
 // throughout.
 export interface AddonReportTotals {

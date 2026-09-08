@@ -74,9 +74,37 @@ func GetOrganizations(c *gin.Context) {
 		return
 	}
 
+	// Pin the Owner organization itself on the first page for callers holding
+	// the Owner user role (the only ones who can create users there): it exists
+	// only in Logto (never in the local tables), and it is the org where
+	// Staff/Owner users are created. Synthetic entry — no local UUID, logto_id
+	// is the caller's own organization. Skipped when the filters exclude it.
+	callerUserRoles := []string{}
+	if v, exists := c.Get("user_roles"); exists {
+		if roles, isSlice := v.([]string); isSlice {
+			callerUserRoles = roles
+		}
+	}
+	var ownerEntry []models.OrganizationSummary
+	if page == 1 && userOrgRole == "owner" && models.HasOwnerUserRole(callerUserRoles) && ownerEntryMatchesFilters(c, filters) {
+		ownerName := "Owner"
+		if n, exists := c.Get("organization_name"); exists {
+			if s, isStr := n.(string); isStr && s != "" {
+				ownerName = s
+			}
+		}
+		ownerEntry = []models.OrganizationSummary{{
+			ID:      "",
+			LogtoID: userOrgID,
+			Name:    ownerName,
+			Type:    "owner",
+		}}
+	}
+
 	// Convert to response format (no additional filtering needed - RBAC already applied by repositories)
-	organizations := make([]models.OrganizationSummary, len(result.Data))
-	for i, org := range result.Data {
+	organizations := make([]models.OrganizationSummary, 0, len(result.Data)+len(ownerEntry))
+	organizations = append(organizations, ownerEntry...)
+	for _, org := range result.Data {
 		// Extract database_id from CustomData
 		databaseID := ""
 		if org.CustomData != nil {
@@ -85,13 +113,13 @@ func GetOrganizations(c *gin.Context) {
 			}
 		}
 
-		organizations[i] = models.OrganizationSummary{
+		organizations = append(organizations, models.OrganizationSummary{
 			ID:          databaseID, // Database UUID
 			LogtoID:     org.ID,     // Logto ID
 			Name:        org.Name,
 			Description: org.Description,
 			Type:        getOrganizationType(org),
-		}
+		})
 	}
 
 	logger.ComponentLogger("organizations").Info().
@@ -110,6 +138,40 @@ func GetOrganizations(c *gin.Context) {
 		Organizations: organizations,
 		Pagination:    result.Pagination,
 	}))
+}
+
+// ownerEntryMatchesFilters reports whether the synthetic Owner entry survives
+// the active list filters: it is excluded by a type filter without "owner", by
+// a search/name term that does not match the org name, and by any created_by
+// or description filter (the Owner organization has neither).
+func ownerEntryMatchesFilters(c *gin.Context, filters models.OrganizationFilters) bool {
+	if filters.CreatedBy != "" || filters.Description != "" {
+		return false
+	}
+	if len(filters.Types) > 0 {
+		found := false
+		for _, t := range filters.Types {
+			if strings.EqualFold(t, "owner") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	ownerName := "Owner"
+	if n, exists := c.Get("organization_name"); exists {
+		if s, isStr := n.(string); isStr && s != "" {
+			ownerName = s
+		}
+	}
+	for _, term := range []string{filters.Search, filters.Name} {
+		if term != "" && !strings.Contains(strings.ToLower(ownerName), strings.ToLower(term)) {
+			return false
+		}
+	}
+	return true
 }
 
 // getOrganizationType determines the type of organization based on custom data

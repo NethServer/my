@@ -623,7 +623,7 @@ func (r *LocalSystemEntitlementRepository) FindSystemIDByKey(systemKey string) (
 }
 
 // GrantsReportFilter narrows the fleet-wide grants report. OrgScope nil =
-// no restriction (owner/Super Admin); otherwise only systems whose
+// no restriction (Owner organization); otherwise only systems whose
 // organization_id is in the set are returned (caller's hierarchy).
 type GrantsReportFilter struct {
 	Entitlement    string
@@ -757,7 +757,7 @@ const reportStatusExpr = `
 	END`
 
 // reportScopeClause is the org-visibility predicate shared by every report
-// query: nil orgScope means no restriction (owner org / Super Admin see the
+// query: nil orgScope means no restriction (the Owner organization sees the
 // whole fleet), otherwise only systems owned by the caller's hierarchy count.
 // Every aggregate in the report MUST carry it — a query left unscoped would
 // leak fleet numbers to a buyer.
@@ -771,7 +771,7 @@ func reportScopeClause(orgScope []string, args *[]interface{}) string {
 
 // reportCatalogVisibleExpr tells which catalog items may show up in the
 // per-type breakdown with no grant behind them. nil = the whole catalog
-// (owner org / Super Admin); otherwise the ids the caller's organization may
+// (Owner organization); otherwise the ids the caller's organization may
 // buy — an empty non-nil slice means none, which is the point. It is a flag
 // carried through the grouping rather than a filter on the join: an add-on
 // the caller HOLDS is always listed, and it still has to come out of the join
@@ -786,7 +786,7 @@ func reportCatalogVisibleExpr(catalogScope []string, args *[]interface{}) string
 
 // Report builds the add-on analytics within the caller's visibility:
 // lifecycle totals, per-type breakdown, renewal distribution and a 12-month
-// activation trend. orgScope nil = the whole fleet (owner org / Super Admin);
+// activation trend. orgScope nil = the whole fleet (Owner organization);
 // otherwise the caller's hierarchy — a distributor/reseller/customer sees the
 // grants of its own systems and of those below it. Deleted systems excluded.
 // catalogScope bounds the add-ons that appear with zero grants (nil = the

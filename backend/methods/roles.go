@@ -23,25 +23,10 @@ import (
 
 const rolesCacheTTL = 15 * time.Minute
 
-// SuperAdminUserRole is the technical role only the Owner can assign, carrying
-// owner-level authority on the operations that gate on it.
-const SuperAdminUserRole = "Super Admin"
-
-// IsOwnerOrSuperAdmin reports whether the caller holds owner-level authority:
-// a user of the Owner organization, or a Super Admin.
-func IsOwnerOrSuperAdmin(user *models.User) bool {
-	if user == nil {
-		return false
-	}
-	if strings.EqualFold(user.OrgRole, "owner") {
-		return true
-	}
-	for _, role := range user.UserRoles {
-		if strings.EqualFold(role, SuperAdminUserRole) {
-			return true
-		}
-	}
-	return false
+// IsOwnerOrgMember reports whether the caller holds owner-level authority:
+// any user of the Owner organization (Owner or Staff user role).
+func IsOwnerOrgMember(user *models.User) bool {
+	return user != nil && models.IsGlobalOrgRole(user.OrgRole)
 }
 
 // GetRoles returns all available user roles filtered by access control
@@ -100,6 +85,12 @@ func FetchFilteredRoles(user *models.User) ([]models.Role, error) {
 	for _, logtoRole := range logtoRoles {
 		// Skip system roles based on name patterns
 		if isSystemRole(logtoRole.Name, logtoRole.Description) {
+			continue
+		}
+
+		// The Owner role is never assignable: it belongs to the bootstrap owner
+		// account only (seeded at init), so it is never offered to anyone.
+		if strings.EqualFold(logtoRole.Name, models.OwnerUserRole) {
 			continue
 		}
 

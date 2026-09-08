@@ -52,7 +52,7 @@ type ScenarioSpec struct {
 
 var placeholderRe = regexp.MustCompile(`\{(\w+)(?::([\w -]+))?\}`)
 
-// roleIDByName resolves a technical role name ("Super Admin") to the id of the
+// roleIDByName resolves a technical role name ("Owner") to the id of the
 // current Logto tenant, reading the catalogue as the owner — the only caller that
 // sees every role. Cached for the run.
 func (a *authzRunner) roleIDByName(name string) (string, error) {

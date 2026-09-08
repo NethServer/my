@@ -54,10 +54,9 @@ func ResolveUserByLogtoID(logtoID string) (*models.User, error) {
 			// (user not yet present in the local DB when it was cached) would
 			// otherwise mask the now-existing local row for the whole TTL and
 			// break anything keyed on user.ID (e.g. listing API keys).
-			// Owner accounts are the exception: the Owner organization can
-			// never gain local users rows, so their empty ID is permanent and
-			// caching them is safe (and needed — owner API keys resolve here
-			// on every request).
+			// The bootstrap owner account is the exception: it never gains a
+			// local users row, so its empty ID is permanent and caching it is
+			// safe (and needed — owner API keys resolve here on every request).
 			if cached.Username != "" && cached.Email != "" && (cached.ID != "" || strings.EqualFold(cached.OrgRole, "owner")) {
 				return &cached, nil
 			}
@@ -106,14 +105,16 @@ func ResolveUserByLogtoID(logtoID string) (*models.User, error) {
 
 	// Cache only complete profiles with a resolved local ID, to avoid
 	// persisting transient Logto failures or a not-yet-synced user (empty ID)
-	// for the full TTL. Owner accounts never get a local ID and are cached
-	// anyway (see the read-side guard above), but with a shorter TTL: an owner
-	// API key rechecks the org role from this entry, and the owner is managed
-	// directly in Logto with no lifecycle hook to invalidate it, so a role
-	// downgrade must not linger the full window.
+	// for the full TTL. The bootstrap owner account never gets a local ID and
+	// is cached anyway (see the read-side guard above), but with a shorter
+	// TTL: an owner API key rechecks the org role from this entry, and that
+	// account is managed directly in Logto with no lifecycle hook to
+	// invalidate it, so a role downgrade must not linger the full window.
+	// Staff users of the Owner organization have a local row and lifecycle
+	// invalidation, so they take the regular TTL.
 	if rc != nil && userProfile != nil && user.Username != "" && (user.ID != "" || strings.EqualFold(user.OrgRole, "owner")) {
 		ttl := 10 * time.Minute
-		if strings.EqualFold(user.OrgRole, "owner") {
+		if user.ID == "" && strings.EqualFold(user.OrgRole, "owner") {
 			ttl = 1 * time.Minute
 		}
 		_ = rc.Set(cacheKey, user, ttl)

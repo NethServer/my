@@ -82,8 +82,8 @@ La pagina applicazioni mostra:
 
 ## Permessi
 
-| Operazione | Super Admin | Admin | Backoffice | Support | Reader |
-|------------|:-----------:|:-----:|:----------:|:-------:|:------:|
+| Operazione | Staff | Admin | Backoffice | Support | Reader |
+|------------|:-----:|:-----:|:----------:|:-------:|:------:|
 | Visualizza applicazioni | Si | Si | Si | Si | Si |
 | Assegna a organizzazioni | Si | Si | Si | No | No |
 | Modifica note | Si | Si | Si | No | No |

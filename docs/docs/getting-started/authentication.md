@@ -126,16 +126,16 @@ Once logged in, you can:
 Your permissions depend on your assigned roles:
 
 ### Organization Roles (Business Hierarchy)
-- **Owner**: Full platform access (Nethesis)
+- **Owner**: Full platform access (Nethesis) — every member of the Owner organization has global visibility on all companies, systems and users
 - **Distributor**: Can manage resellers and customers
 - **Reseller**: Can manage customers
 - **Customer**: Can view own organization data
 
 ### User Roles (Technical Capabilities)
-- **Super Admin**: Full platform administration
 - **Admin**: Organization administration, user management
 - **Support**: System management, technical operations
 - **Backoffice**: User management, backoffice operations
 - **Reader**: Reader mode
+- **Staff**: Nethesis cross-cutting staff (Owner organization only), manages everything across all companies
 
 Your effective permissions are the combination of both role types.

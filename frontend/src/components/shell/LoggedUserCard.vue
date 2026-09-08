@@ -33,7 +33,7 @@ const loginStore = useLoginStore()
       <div class="flex items-center gap-2">
         <UserAvatar
           :name="loginStore.userInfo.name"
-          :is-owner="loginStore.isOwner"
+          :is-owner="loginStore.isOwnerAccount"
           size="md"
           :logto-id="loginStore.userInfo.logto_id"
           :cache-key="loginStore.avatarVersion"

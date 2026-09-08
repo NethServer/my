@@ -26,7 +26,7 @@ User impersonation allows authorized administrators to temporarily access My pla
 
 ### Security Controls
 
-- **Permission-Based**: Only Super Admin or Owner organization users can impersonate
+- **Permission-Based**: Only Nethesis staff (Owner organization users) can impersonate
 - **No Self-Impersonation**: Cannot impersonate your own account
 - **No Chaining**: Cannot impersonate while already impersonating another user
 - **Automatic Expiration**: Consent automatically expires after user-defined duration
@@ -43,14 +43,9 @@ User impersonation allows authorized administrators to temporarily access My pla
 
 ### Required Permissions
 
-**Super Admin Role:**
-- Users with Super Admin role have `impersonate:users` permission
-- Can impersonate any user (with their consent)
-- Assigned by Owner organization users only
-
-**Owner Organization Users:**
-- Automatically have impersonation capability
-- Can impersonate users in their organization hierarchy
+**Nethesis Staff (Owner Organization):**
+- Users of the Owner organization — Staff role or the `owner` account — hold the `impersonate:users` permission
+- Can impersonate any user across the whole hierarchy (with their consent)
 - No additional role assignment needed
 
 **Everyone Else:**
@@ -85,7 +80,7 @@ Before impersonation can occur, the target user must enable consent.
 
 ### Step 2: Administrator Impersonates User
 
-**For Administrators (Super Admin or Owner):**
+**For Administrators (Nethesis staff):**
 
 1. Navigate to **Users**
 2. Find the target user
@@ -225,7 +220,7 @@ Users with active consent show:
 
 **Requirements:**
 - User has active consent
-- You have Super Admin role or Owner organization role
+- You belong to the Owner organization (Staff role or the `owner` account)
 - User is not deleted or suspended
 - You are not already impersonating someone
 
@@ -408,8 +403,7 @@ Impersonation automatically ends when:
    - Ask user to enable in Profile > Security
    - Verify consent hasn't expired
 2. Verify you have permissions:
-   - Super Admin role OR
-   - Owner organization role
+   - You belong to the Owner organization (Staff role or the `owner` account)
 3. Check user status:
    - User is not suspended
    - User is not deleted
@@ -506,7 +500,7 @@ Impersonation automatically ends when:
 - Review audit trails regularly
 
 **Security:**
-- Limit Super Admin role assignment
+- Remember impersonation is reserved to Nethesis staff (Owner organization)
 - Monitor impersonation usage
 - Review audit logs
 - Investigate unusual patterns

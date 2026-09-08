@@ -8,7 +8,6 @@ package methods
 import (
 	"net/http"
 	"sort"
-	"strings"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -39,7 +38,7 @@ func GetApplicationFilters(c *gin.Context) {
 
 	// Owner can access everything - pass nil to skip RBAC filtering in queries
 	var allowedSystemIDs []string
-	if strings.ToLower(userOrgRole) != "owner" {
+	if !models.IsGlobalOrgRole(userOrgRole) {
 		var err error
 		allowedSystemIDs, err = appsService.GetAllowedSystemIDs(userOrgRole, userOrgID)
 		if err != nil {

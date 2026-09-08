@@ -195,7 +195,7 @@ func queryOrgCreators(db *sql.DB, table, scopeClause string, args []interface{})
 // caller (owner sees all; no other role can see distributors), for the
 // created_by filter on GET /api/distributors.
 func (r *LocalDistributorRepository) ListCreators(userOrgRole, userOrgID string) ([]models.OrgCreator, error) {
-	if strings.ToLower(userOrgRole) != "owner" {
+	if !models.IsGlobalOrgRole(userOrgRole) {
 		return []models.OrgCreator{}, nil
 	}
 	return queryOrgCreators(r.db, "distributors", "", nil)

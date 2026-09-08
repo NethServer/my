@@ -122,7 +122,7 @@ I ruoli organizzazione determinano la posizione nella gerarchia aziendale e defi
 
 | Ruolo | Descrizione | Può Gestire |
 |-------|-------------|-------------|
-| **Owner** | Proprietario della piattaforma (Nethesis) | Tutto: distributori, rivenditori, clienti |
+| **Owner** | Proprietario della piattaforma (Nethesis): ogni membro dell'organizzazione Owner ha visibilità globale su aziende, sistemi e utenti | Tutto: distributori, rivenditori, clienti |
 | **Distributore** | Partner di distribuzione | Rivenditori e clienti sotto di sé |
 | **Rivenditore** | Partner di rivendita | Solo clienti sotto di sé |
 | **Cliente** | Utente finale | Solo i propri dati (sola lettura) |
@@ -133,11 +133,11 @@ I ruoli utente determinano le capacità tecniche all'interno della piattaforma, 
 
 | Ruolo | Descrizione | Capacità Principali |
 |-------|-------------|---------------------|
-| **Super Admin** | Amministrazione completa della piattaforma | Tutte le operazioni, incluse quelle pericolose. Assegnabile solo da un utente dell'organizzazione Owner, ma può risiedere in qualunque organizzazione |
 | **Admin** | Gestione sistemi e utenti | Gestione sistemi, utenti, operazioni pericolose |
 | **Backoffice** | Operazioni di backoffice | Gestione organizzazioni, applicazioni, licenze add-on |
 | **Support** | Operazioni di supporto standard | Accesso lettura ai sistemi, operazioni di supporto |
 | **Reader** | Sola lettura | Visualizzazione dati senza possibilità di modifica |
+| **Staff** | Personale trasversale Nethesis (solo organizzazione Owner) | Gestione completa su tutte le aziende; non può eliminare definitivamente sistemi o utenti |
 
 ### Permessi Combinati
 

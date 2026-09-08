@@ -43,9 +43,9 @@ exception, not silent adjustment.
 
 | Layer | Question | Checks |
 |---|---|---|
-| `gate` | May this persona CALL this endpoint? | 170 routes × 16 matrix personas + anonymous |
+| `gate` | May this persona CALL this endpoint? | 170 routes × 14 matrix personas + anonymous |
 | `scope` | May it reach THIS OBJECT through it? | hand-written cross-organization scenarios |
-| `apps` | Which third-party apps is it offered? | 4 apps × 23 personas, portal vs `access_control` |
+| `apps` | Which third-party apps is it offered? | 4 apps × 21 personas, portal vs `access_control` |
 | `special` | Rules enforced by middleware or credential type | self-modification, API key masks, impersonation |
 
 ### gate — non-destructive by construction
@@ -112,12 +112,14 @@ Available placeholders in `scenarios.yml`, `special.yml` and route
 
 ## What the suite cannot reach
 
-- **Owner-organization personas other than the bootstrap owner.** `POST /api/users`
-  refuses them ("managed by the system") and `sync init` seeds exactly one. So
-  owner/Admin, owner/Support, owner/Backoffice and owner/Reader are untested.
-  Note what that implies: since `effective = org_permissions ∪ user_permissions`,
-  any user of the Owner organization would hold
-  `destroy:distributors|resellers|customers` whatever its technical role.
+- **Owner-organization personas beyond `owner` and `owner-staff`.** The matrix
+  covers both roles that can exist there: the bootstrap `owner` (Owner user
+  role, seeded by `sync init` and never assignable) and a provisioned Staff
+  user. Nothing else can exist by construction — the API pairs roles and
+  organization fail-closed (only Staff inside the Owner org, never outside,
+  Owner never at all) and the scenarios assert those refusals directly, so an
+  owner/Admin or owner/Reader persona is not an untested case but an
+  impossible one.
 - **Applications.** They are derived from inventory pushed through `collect`, not
   created through the API, so application scope is covered only with
   nonexistent ids. Pushing an inventory in `provision` would close this.
@@ -129,49 +131,43 @@ Available placeholders in `scenarios.yml`, `special.yml` and route
 - **`collect`'s own endpoints.** A separate service with a separate credential
   model (system key/secret over Basic Auth).
 
-## Findings from the first full run
+## Findings from the full runs
 
-3186 checks, all expectations holding. Details in `authz-report.json`. Findings 2
+3231 checks, all expectations holding. Details in `authz-report.json`. Findings 2
 and 3 below are **fixed**; finding 1 turned out not to be a defect.
 
-### 1. Cross-hierarchy impersonation — INTENDED, spec corrected
+### 1. Cross-hierarchy impersonation — INTENDED, spec states it
 
-The first run flagged this as the worst hole in the platform: `POST /api/impersonate`
-checks the `impersonate:users` permission and the target's consent but **not**
-whether the target is inside the caller's hierarchy, so a Super Admin of a
-reseller reached the sibling reseller, its own distributor, and a customer in
-another branch — all 200.
+`POST /api/impersonate` checks the `impersonate:users` permission and the
+target's consent but **not** whether the target is inside the caller's
+hierarchy: an Owner-organization user reaches any consenting user of any
+distributor, reseller or customer — all 200.
 
-That is the design, not a defect. Nethesis Italia is itself a *distributor*, and
-its staff must be able to support users of other distributors and resellers. The
-feature therefore has two barriers, and the hierarchy is deliberately not one of
-them:
+That is the design, not a defect. The Owner organization's staff must be able
+to support users of every distributor and reseller. The feature therefore has
+two barriers, and the hierarchy is deliberately not one of them:
 
 1. the target must have consented;
-2. the caller must hold `impersonate:users`, which only the **Super Admin** role
-   carries — and only the Owner organization may assign that role.
+2. the caller must hold `impersonate:users`, which only the **Staff** and
+   **Owner** user roles carry — both confined to the Owner organization (Staff
+   is assignable only there, by an Owner-role caller; Owner is never
+   assignable at all).
 
-**Barrier 2 is what protects the whole feature**, so that is where the suite now
-asserts. Verified: a distributor Admin, a reseller Admin, a customer Admin and a
-Backoffice user are all refused with `insufficient privileges to assign this role`
-when promoting a user to Super Admin *or* creating one — including when the role
-id is supplied directly rather than picked from `GET /roles`, which only hides it.
-Those seven scenarios live in `scenarios.yml`; the three positive impersonation
-cases in `special.yml` assert the reach itself, so adding a hierarchy check would
-surface as a regression in legitimate support access instead of a silent change.
+**Barrier 2 is what protects the whole feature**, so that is where the suite
+asserts. Verified: a distributor Admin, a reseller Admin, a customer Admin and
+a Backoffice user are all refused when promoting a user to Staff *or* creating
+one — including when the role id is supplied directly rather than picked from
+`GET /roles`, which only hides it. A Staff caller is refused too, both when
+assigning Staff outside the Owner organization and when creating users inside
+it. Those scenarios live in `scenarios.yml`; the positive impersonation cases
+in `special.yml` assert the reach itself, so adding a hierarchy check would
+surface as a regression in legitimate support access instead of a silent
+change. Containment is structural: no partner user can hold
+`impersonate:users`.
 
-This is a good illustration of why expectations here are hand-written: the suite
-was right that the code allows platform-wide impersonation, and wrong about
-whether it should. What it could not know, it forced someone to state.
-
-**Open question worth a decision.** Reach does not depend on where the Super Admin
-sits: the third case is a Super Admin of a *customer* organization reaching
-another branch entirely. The stated intent is "members of Nethesis Italia, which
-is a distributor", so containment today is process (few people, owner-granted),
-not code. If that should be enforced, the narrowest change is to require the
-impersonator's organization to be the Owner or a distributor — leaving consent and
-the role gate exactly as they are. Until decided, the suite documents the current
-reach as intended.
+This is a good illustration of why expectations here are hand-written: the
+suite proves the code allows platform-wide impersonation, and the spec states
+whether it should. What the suite could not know, it forced someone to state.
 
 Two real defects did surface alongside it, both still open. Neither is an
 authorization hole; both are ways the feature can strand an operator or hide what
@@ -202,7 +198,7 @@ it touches the impersonation flow that is being reconsidered as a whole.
 **b. `GET /impersonate/sessions` answers a different question than its name.**
 `GetUserSessions` filters `WHERE impersonated_user_id = $1`, so it returns the
 sessions in which the caller **was impersonated** — the target's view. Verified:
-the target sees 8 sessions, the Super Admin who opened them sees 0, and the audit
+the target sees 8 sessions, the Owner-organization user who opened them sees 0, and the audit
 table itself is complete and correct. Nothing is lost; the endpoint is simply
 named and documented as *"all impersonation sessions for current user"* while
 meaning *"sessions where I was the target"*. The consequence is that there is no
@@ -271,12 +267,13 @@ robustness fix in a hot authorization path and deserves its own change.
 
 ### What held
 
-Everything else. 170 endpoints × 16 personas with no unintended access; the
-authentication boundary on all 165 non-public routes; cross-organization
+Everything else. 170 endpoints × 15 matrix personas with no unintended access;
+the authentication boundary on all 165 non-public routes; cross-organization
 isolation across reads, writes, lists, aggregates, filters, exports, password
 resets, system inventory, alert silences, rebranding and VAT existence
-disclosure; the `?organization_id=` override, which widens results for the owner
-and for nobody else; API keys, capped by both their read/write mode and their
-owner's live permissions and refused outright on session-bound routes; and the
-Super Admin role gate, which is the single thing standing between a distributor
-admin and platform-wide impersonation.
+disclosure; the `?organization_id=` override, which widens results for the
+Owner organization and for nobody else; API keys, capped by both their
+read/write mode and their owner's live permissions and refused outright on
+session-bound routes; and the Staff/Owner role assignment gate — access_control
+plus the role/organization pairing — which is the single thing standing between
+a partner admin and platform-wide reach.

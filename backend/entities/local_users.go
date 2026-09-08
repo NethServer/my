@@ -718,7 +718,7 @@ func (r *LocalUserRepository) UpdateLatestLogin(userID string) error {
 func (r *LocalUserRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses, roleFilter, createdByFilter []string) ([]*models.LocalUser, int, error) {
 	// Owner can access all users - pass nil to skip RBAC filtering in query
 	var allowedOrgIDs []string
-	if strings.ToLower(userOrgRole) != "owner" {
+	if !models.IsGlobalOrgRole(userOrgRole) {
 		var err error
 		allowedOrgIDs, err = r.GetHierarchicalOrganizationIDs(userOrgRole, userOrgID)
 		if err != nil {
@@ -1054,7 +1054,7 @@ func (r *LocalUserRepository) executeUserQuery(_ string, _ []interface{}, mainQu
 func (r *LocalUserRepository) ListCreators(userOrgRole, userOrgID string) ([]models.OrgCreator, error) {
 	// Owner sees all users - skip RBAC filtering
 	var allowedOrgIDs []string
-	if strings.ToLower(userOrgRole) != "owner" {
+	if !models.IsGlobalOrgRole(userOrgRole) {
 		var err error
 		allowedOrgIDs, err = r.GetHierarchicalOrganizationIDs(userOrgRole, userOrgID)
 		if err != nil {
@@ -1116,7 +1116,7 @@ func (r *LocalUserRepository) ListCreators(userOrgRole, userOrgID string) ([]mod
 func (r *LocalUserRepository) GetTotals(userOrgRole, userOrgID string) (*models.UserTotals, error) {
 	// Owner can access all users - pass nil to skip RBAC filtering
 	var allowedOrgIDs []string
-	if strings.ToLower(userOrgRole) != "owner" {
+	if !models.IsGlobalOrgRole(userOrgRole) {
 		var err error
 		allowedOrgIDs, err = r.GetHierarchicalOrganizationIDs(userOrgRole, userOrgID)
 		if err != nil {
@@ -1163,7 +1163,7 @@ func (r *LocalUserRepository) GetHierarchicalOrganizationIDs(userOrgRole, userOr
 
 	switch normalizedRole {
 	case "owner":
-		// Owner can manage all organizations - single UNION query
+		// Owner-organization roles can manage all organizations - single UNION query
 		query := `
 			SELECT logto_id FROM distributors WHERE logto_id IS NOT NULL AND deleted_at IS NULL
 			UNION ALL
@@ -1263,6 +1263,11 @@ func (r *LocalUserRepository) enrichUserWithRelations(user *models.LocalUser) er
 		// Set the organization type
 		if user.OrganizationType != nil {
 			user.Organization.Type = *user.OrganizationType
+		}
+		// The Owner organization lives only in Logto, so the partner-tables
+		// join leaves its name empty: give it its display name.
+		if user.Organization.Name == "" && user.Organization.Type == "owner" {
+			user.Organization.Name = "Owner"
 		}
 	}
 

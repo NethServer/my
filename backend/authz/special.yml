@@ -7,17 +7,16 @@
 #                       refused outright on session-bound routes
 #   impersonate       — needs impersonate:users AND the target's consent
 #
-# IMPERSONATION IS DELIBERATELY CROSS-HIERARCHY. Nethesis Italia is itself a
-# distributor, and its staff must be able to support users of other distributors
-# and resellers. So the design has exactly two barriers, and neither of them is
-# the hierarchy:
+# IMPERSONATION IS DELIBERATELY CROSS-HIERARCHY. The Owner organization's
+# staff must be able to support users of every distributor and reseller. So
+# the design has exactly two barriers, and neither of them is the hierarchy:
 #
 #   1. the target must have consented;
-#   2. the caller must hold impersonate:users, which only the Super Admin role
-#      carries — and only the Owner organization can assign that role.
+#   2. the caller must hold impersonate:users, which only the Owner and Staff
+#      user roles carry — both confined to the Owner organization.
 #
 # Barrier 2 is therefore what protects the whole feature, and it is asserted in
-# scenarios.yml ("cannot promote a user to Super Admin"), not here.
+# scenarios.yml ("cannot promote a user to Owner"), not here.
 #
 # The cases below assert both barriers, in both directions: consent missing means
 # refused, consent present means allowed even across branches. The positive ones
@@ -63,9 +62,9 @@ cases:
       /me/change-password exists for this and asks for the current password. The
       admin endpoint does not, so allowing it on oneself would skip that step-up.
 
-  - name: super admin cannot destroy its own account
+  - name: the owner cannot destroy its own account
     kind: self_modification
-    as: d1r1c1-super
+    as: owner
     method: DELETE
     path: /api/users/{my_user}/destroy
     expect: denied
@@ -189,7 +188,7 @@ cases:
 
   - name: key cannot start an impersonation
     kind: api_key
-    as: d1r1c1-super
+    as: owner-staff
     mode: write
     method: POST
     path: /api/impersonate
@@ -212,7 +211,7 @@ cases:
   # ===========================================================================
   - name: impersonation without the target's consent is refused
     kind: impersonate
-    as: d1r1-super
+    as: owner-staff
     method: POST
     path: /api/impersonate
     body: '{"user_id":"{user:d1r1-reader}"}'
@@ -227,7 +226,7 @@ cases:
         method: POST
         path: /api/impersonate/consent
         body: '{"duration_hours":1}'
-    as: d1r1-super
+    as: owner-staff
     method: POST
     path: /api/impersonate
     body: '{"user_id":"{user:d1r2-admin}"}'
@@ -249,7 +248,7 @@ cases:
         method: POST
         path: /api/impersonate/consent
         body: '{"duration_hours":1}'
-    as: d1r1-super
+    as: owner-staff
     method: POST
     path: /api/impersonate
     body: '{"user_id":"{user:d1-admin}"}'
@@ -267,7 +266,7 @@ cases:
         method: POST
         path: /api/impersonate/consent
         body: '{"duration_hours":1}'
-    as: d1r1c1-super
+    as: owner-staff
     method: POST
     path: /api/impersonate
     body: '{"user_id":"{user:d2r1c1-admin}"}'
@@ -277,10 +276,10 @@ cases:
         method: DELETE
         path: /api/impersonate/consent
     note: |
-      Reach is platform-wide and does not depend on where the Super Admin sits:
-      this caller is a Super Admin of a CUSTOMER organization and still gets
-      there. Intended as written, but it means the containment is entirely in who
-      may assign the role — see the open question in authz/README.md.
+      Reach is platform-wide by design: impersonate:users lives only on the
+      Owner and Staff user roles, both confined to the Owner organization, so
+      the containment is structural now — no partner user can hold it. Consent
+      remains the per-target barrier.
 
   - name: consent expiry is honoured — a revoked consent stops working
     kind: impersonate
@@ -292,7 +291,7 @@ cases:
       - as: d1r2-support
         method: DELETE
         path: /api/impersonate/consent
-    as: d1r1-super
+    as: owner-staff
     method: POST
     path: /api/impersonate
     body: '{"user_id":"{user:d1r2-support}"}'

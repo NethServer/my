@@ -73,7 +73,7 @@ type FixtureUser struct {
 	// Org is a fixture org key, or "owner" for the owner organization.
 	Org string `yaml:"org"`
 	// Role is the technical role name as GET /api/roles exposes it:
-	// Admin, Support, Backoffice, Reader, Super Admin.
+	// Admin, Support, Backoffice, Reader, Staff, Owner.
 	Role string `yaml:"role"`
 	// CreatedBy is the fixture user key that creates this user (default owner).
 	CreatedBy string `yaml:"created_by"`
@@ -118,9 +118,7 @@ type RouteSpec struct {
 	// Reader of that organization to pass the permission gate.
 	OrgRole string `yaml:"org_role"`
 	// OrUserRole widens OrgRole with a technical role that satisfies it from any
-	// organization: "the owner organization, or a Super Admin wherever they sit".
-	// That is how the entitlement administrative surface is defined — Nethesis
-	// staff hold Super Admin inside the Nethesis Italia distributor.
+	// organization (e.g. "Owner").
 	OrUserRole string `yaml:"or_user_role"`
 	// EnforcedBy names where the authorization decision is expected to live.
 	// "handler" means the check is deliberately inside the handler rather than in
@@ -235,7 +233,7 @@ func (c *rbacConfig) orgPerms(orgRole string) []string {
 }
 
 // userPermsByName resolves a technical role by the display name the API exposes
-// ("Super Admin") rather than by its config id ("super").
+// ("Owner") rather than by its config id ("owner").
 func (c *rbacConfig) userPermsByName(roleName string) ([]string, bool) {
 	for _, r := range c.UserRoles {
 		if strings.EqualFold(r.Name, roleName) || strings.EqualFold(r.ID, roleName) {
@@ -738,17 +736,17 @@ func (a *authzRunner) applyModelExceptions(p *persona) {
 func (a *authzRunner) ownerPersona() (*persona, error) {
 	p := &persona{
 		regKey:    "owner",
-		id:        "owner-super",
+		id:        "owner-owner",
 		orgRole:   "owner",
 		orgKey:    "owner",
-		userRoles: []string{"Super Admin"},
+		userRoles: []string{"Owner"},
 		matrix:    true,
 		perms:     map[string]bool{},
 	}
 	for _, perm := range a.spec.rbac.orgPerms("owner") {
 		p.perms[perm] = true
 	}
-	up, _ := a.spec.rbac.userPermsByName("Super Admin")
+	up, _ := a.spec.rbac.userPermsByName("Owner")
 	for _, perm := range up {
 		p.perms[perm] = true
 	}

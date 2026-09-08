@@ -125,17 +125,19 @@ Templates are in `services/email/templates/` and support Go template syntax.
 2. **Access Control**: Routes check permissions from user roles OR organization roles
 
 ### Permission Sources
-- **User Roles** (technical capabilities): Admin, Support
-- **Organization Roles** (business hierarchy): Owner, Distributor, Reseller, Customer
+- **User Roles** (technical capabilities): Admin, Support, Backoffice, Reader in partner organizations; Staff and Owner in the Owner organization only
+- **Organization Roles** (business hierarchy): Owner, Distributor, Reseller, Customer — every member of the Owner organization holds the Owner org role (global read/manage on the whole hierarchy plus destroy on distributors/resellers/customers)
+
+Role pairing is enforced fail-closed by the API: inside the Owner organization only Staff is assignable, Staff is never assignable outside it, and the Owner user role is never assignable at all — it belongs solely to the bootstrap `owner` account seeded by `sync init` and is not returned by `GET /api/roles`. Staff holds all non-destructive technical scopes (including `impersonate:users` and `connect:systems`) but no `destroy:systems|users` and cannot manage the Owner organization's own membership; the Owner role adds those.
 
 ### User Impersonation
-Owner-only feature: temporarily act as another user with 1-hour scoped JWT tokens. Prevents self-impersonation and token chaining. All actions are logged.
+Requires the `impersonate:users` permission, held only by the Staff and Owner user roles: temporarily act as another user with 1-hour scoped JWT tokens. Consent of the target user is mandatory; reach is platform-wide by design. Prevents self-impersonation and token chaining. All actions are logged.
 
 - `POST /api/auth/impersonate` - Start impersonation
 - `POST /api/auth/exit-impersonation` - Exit impersonation
 
 ### Personal API Keys
-Long-lived keys users issue for non-interactive integrations (CRM, ERP) that authenticate without the interactive Logto + 2FA login. Token format `myk_<public>.<secret>`: the public part is stored in clear (indexed for lookup), the secret as a salted SHA-256 hash (same scheme as system tokens). The plaintext is shown once at creation.
+Long-lived keys users issue for non-interactive integrations (CRM, ERP) that authenticate without the interactive Logto + 2FA login. Token format `myk_<public>.<secret>`: the public part is stored in clear (indexed for lookup), the secret as a salted SHA-256 hash (same scheme as system tokens). The plaintext is shown once at creation. All regular users, Staff included, get `myk_` keys anchored on their local user id; only the bootstrap `owner` account uses owner keys (`myo_`) anchored on its Logto ID.
 
 A key carries no permissions of its own: on each request the owner's current effective permissions are resolved (10-min Redis cache, no per-request Logto call) and masked to the key's mode — `read` keeps `read:*`, `write` keeps `read:*` + `manage:*`. Destructive/sensitive permissions (`destroy:*`, `impersonate:users`, `config:alerts`) are always excluded. Suspending or deleting the owner disables every key instantly (authoritative DB check); reactivating restores them.
 
