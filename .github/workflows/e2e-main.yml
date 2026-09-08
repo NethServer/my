@@ -120,6 +120,15 @@ jobs:
           done
         done
 
+    - name: Supply the RBAC vocabulary
+      run: |
+        # sync/configs/*.yml is gitignored (the per-environment files carry
+        # tenant ids and SMTP credentials), so a fresh checkout has no
+        # config.yml — and `apitool authz provision` reads the role vocabulary
+        # from it. config.ci.yml is tracked for exactly this: the same roles,
+        # permissions and resources as the deployed tenants, and nothing else.
+        cp sync/configs/config.ci.yml sync/configs/config.yml
+
     - name: Provision the persona fixture
       env:
         OWNER_EMAIL: ${{ secrets.E2E_OWNER_EMAIL }}
