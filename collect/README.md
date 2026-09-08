@@ -327,6 +327,7 @@ collect/
 │   ├── inventory_worker.go        # Batch inventory processing
 │   ├── diff_worker.go             # Change detection
 │   ├── notification_worker.go     # Alert notifications
+│   ├── alert_history_worker.go    # Alert-history retry queue drain
 │   ├── cleanup_worker.go          # Data maintenance
 │   ├── queue_monitor_worker.go    # Queue health monitoring
 │   ├── delayed_message_worker.go  # Retry handling

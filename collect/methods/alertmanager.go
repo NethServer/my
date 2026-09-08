@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,6 +22,7 @@ import (
 	"github.com/nethesis/my/collect/database"
 	"github.com/nethesis/my/collect/logger"
 	"github.com/nethesis/my/collect/models"
+	"github.com/nethesis/my/collect/queue"
 	"github.com/nethesis/my/collect/response"
 )
 
@@ -43,6 +45,20 @@ const alertHistoryMaxAlertsPerPayload = 1000
 
 // zeroTime is Alertmanager's sentinel for "no end time" on firing alerts.
 var zeroTime = time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC)
+
+var (
+	alertHistoryQueueManager     *queue.QueueManager
+	alertHistoryQueueManagerOnce sync.Once
+)
+
+// getAlertHistoryQueueManager returns a singleton QueueManager for the
+// alert-history retry queue.
+func getAlertHistoryQueueManager() *queue.QueueManager {
+	alertHistoryQueueManagerOnce.Do(func() {
+		alertHistoryQueueManager = queue.NewQueueManager()
+	})
+	return alertHistoryQueueManager
+}
 
 // pendingAlert is the per-alert state carried from JSON parsing through to
 // the bulk DB stage. labels/annotations are serialized once and reused.
@@ -101,17 +117,48 @@ func ReceiveAlertHistory(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), alertHistoryRequestTimeout)
 	defer cancel()
 
+	saved, err := StoreAlertHistory(ctx, &payload)
+	if err != nil {
+		// Park the payload on the durable retry queue before answering 500.
+		// Alertmanager retries 5xx on its own, but its retries are in-memory:
+		// if it restarts (it was OOM-killed mid-incident on 2026-09-08) the
+		// rows are lost for good, so the queue is what actually guarantees
+		// the history survives a Postgres outage. The insert path is
+		// idempotent, so queue retry + Alertmanager retry can overlap safely.
+		if qerr := getAlertHistoryQueueManager().EnqueueAlertHistory(c.Request.Context(), &payload); qerr != nil {
+			logger.Error().Err(qerr).Msg("alertmanager history: failed to queue payload for retry; rows depend on Alertmanager retrying")
+		} else {
+			logger.Warn().Err(err).Msg("alertmanager history: DB write failed; payload queued for retry")
+		}
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to save alert history", nil))
+		return
+	}
+
+	logger.Debug().
+		Str("receiver", payload.Receiver).
+		Str("status", payload.Status).
+		Int("total_alerts", len(payload.Alerts)).
+		Int("saved", saved).
+		Msg("alertmanager history: processed webhook payload")
+
+	c.Status(http.StatusNoContent)
+}
+
+// StoreAlertHistory runs the full DB pipeline for one webhook payload and
+// returns how many alerts were persisted. It is shared between the HTTP
+// handler and the alert-history retry worker, so it must stay side-effect
+// free on failure and idempotent on success (re-running a partially applied
+// payload must not duplicate rows).
+func StoreAlertHistory(ctx context.Context, payload *models.AlertmanagerWebhookPayload) (int, error) {
 	pending, systemKeys := preparePendingAlerts(payload.Alerts)
 	if len(pending) == 0 {
-		c.Status(http.StatusNoContent)
-		return
+		return 0, nil
 	}
 
 	orgByKey, err := resolveOrganizationIDs(ctx, systemKeys)
 	if err != nil {
 		logger.Error().Err(err).Msg("alertmanager history: failed to resolve organization_ids")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to save alert history", nil))
-		return
+		return 0, err
 	}
 
 	deliverable := pending[:0]
@@ -128,8 +175,7 @@ func ReceiveAlertHistory(c *gin.Context) {
 		deliverable = append(deliverable, p)
 	}
 	if len(deliverable) == 0 {
-		c.Status(http.StatusNoContent)
-		return
+		return 0, nil
 	}
 
 	var linkFailed, others []pendingAlert
@@ -146,8 +192,7 @@ func ReceiveAlertHistory(c *gin.Context) {
 		notUpdated, err := bulkUpdateLinkFailed(ctx, linkFailed, payload.Receiver)
 		if err != nil {
 			logger.Error().Err(err).Msg("alertmanager history: bulk update LinkFailed failed")
-			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to save alert history", nil))
-			return
+			return 0, err
 		}
 		insertBatch = append(insertBatch, notUpdated...)
 	}
@@ -155,21 +200,13 @@ func ReceiveAlertHistory(c *gin.Context) {
 	if len(insertBatch) > 0 {
 		if err := bulkInsertAlertHistory(ctx, insertBatch, payload.Receiver); err != nil {
 			logger.Error().Err(err).Msg("alertmanager history: bulk insert failed")
-			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to save alert history", nil))
-			return
+			return 0, err
 		}
 	}
 
 	releaseAlertAssignments(ctx, deliverable)
 
-	logger.Debug().
-		Str("receiver", payload.Receiver).
-		Str("status", payload.Status).
-		Int("total_alerts", len(payload.Alerts)).
-		Int("saved", len(deliverable)).
-		Msg("alertmanager history: processed webhook payload")
-
-	c.Status(http.StatusNoContent)
+	return len(deliverable), nil
 }
 
 // preparePendingAlerts filters the payload to resolved alerts with a usable
@@ -496,6 +533,12 @@ FROM unnest(
 ) AS t(
     system_key, organization_id, alertname, severity, fingerprint,
     starts_at, ends_at_text, summary, labels, annotations
+)
+WHERE NOT EXISTS (
+    SELECT 1 FROM alert_history h
+    WHERE h.fingerprint = t.fingerprint
+      AND h.starts_at = t.starts_at
+      AND h.system_key = t.system_key
 )`
 
 	_, err := database.DB.ExecContext(ctx, query,

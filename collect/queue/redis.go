@@ -188,6 +188,29 @@ func (qm *QueueManager) EnqueueProcessing(ctx context.Context, job *models.Inven
 	return qm.enqueueMessage(ctx, configuration.Config.QueueProcessingName, message)
 }
 
+// EnqueueAlertHistory queues an Alertmanager webhook payload whose DB write
+// failed, so the alert-history worker can retry it until Postgres recovers.
+// Alertmanager does retry 5xx on its own, but those retries live in its
+// process memory: when it was OOM-killed mid-incident (2026-09-08) the
+// pending history rows were lost for good. This queue is the durable side.
+func (qm *QueueManager) EnqueueAlertHistory(ctx context.Context, payload *models.AlertmanagerWebhookPayload) error {
+	message := &models.QueueMessage{
+		ID:          uuid.New().String(),
+		Type:        "alert_history",
+		Attempts:    0,
+		MaxAttempts: configuration.Config.AlertHistoryRetryAttempts,
+		CreatedAt:   time.Now(),
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal alert history payload: %w", err)
+	}
+	message.Data = data
+
+	return qm.enqueueMessage(ctx, configuration.Config.QueueAlertHistoryName, message)
+}
+
 // EnqueueNotification adds a notification job to the queue
 func (qm *QueueManager) EnqueueNotification(ctx context.Context, job *models.NotificationJob) error {
 	message := &models.QueueMessage{
@@ -211,6 +234,13 @@ func (qm *QueueManager) EnqueueNotification(ctx context.Context, job *models.Not
 
 // enqueueMessage adds a message to the specified queue
 func (qm *QueueManager) enqueueMessage(ctx context.Context, queueName string, message *models.QueueMessage) error {
+	// A nil client means InitRedis was never called (unit tests, or a broken
+	// startup); fail with a real error instead of a nil-pointer panic inside
+	// the request handler.
+	if qm.client == nil {
+		return fmt.Errorf("redis client not initialized")
+	}
+
 	// Serialize message
 	messageData, err := json.Marshal(message)
 	if err != nil {

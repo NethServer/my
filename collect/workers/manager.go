@@ -32,6 +32,7 @@ type Manager struct {
 	heartbeatWorker      *HeartbeatWorker
 	diffWorker           *DiffWorker
 	notificationWorker   *NotificationWorker
+	alertHistoryWorker   *AlertHistoryWorker
 	cleanupWorker        *CleanupWorker
 	queueMonitorWorker   *QueueMonitorWorker
 	delayedMessageWorker *DelayedMessageWorker
@@ -87,6 +88,7 @@ func NewManager() *Manager {
 		heartbeatWorker:      NewHeartbeatWorker(7, 500, 2*time.Second, queueManager), // 7 ID, batch 500, flush every 2s
 		diffWorker:           NewDiffWorker(2, 1, queueManager),                       // 2 ID, 1 worker for diff processing
 		notificationWorker:   NewNotificationWorker(3, 2, queueManager),               // 3 ID, 2 workers for notifications
+		alertHistoryWorker:   NewAlertHistoryWorker(8, 1, queueManager),               // 8 ID, 1 worker for alert history retries
 		cleanupWorker:        NewCleanupWorker(4),                                     // 4 ID for cleanup operations
 		queueMonitorWorker:   NewQueueMonitorWorker(5, queueManager, inventoryWorker), // 5 ID for queue monitoring
 		delayedMessageWorker: NewDelayedMessageWorker(6, queueManager),                // 6 ID for delayed message processing
@@ -138,6 +140,11 @@ func (m *Manager) Start(ctx context.Context) error {
 	// Start notification worker
 	if err := m.notificationWorker.Start(m.ctx, &m.wg); err != nil {
 		return fmt.Errorf("failed to start notification worker: %w", err)
+	}
+
+	// Start alert history retry worker
+	if err := m.alertHistoryWorker.Start(m.ctx, &m.wg); err != nil {
+		return fmt.Errorf("failed to start alert history worker: %w", err)
 	}
 
 	// Start cleanup worker
@@ -340,6 +347,7 @@ func (m *Manager) GetStatus() map[string]interface{} {
 		"heartbeat_worker_stats":       m.heartbeatWorker.GetStats(),
 		"diff_worker_stats":            m.diffWorker.GetStats(),
 		"notification_worker_stats":    m.notificationWorker.GetStats(),
+		"alert_history_worker_stats":   m.alertHistoryWorker.GetStats(),
 		"cleanup_worker_stats":         m.cleanupWorker.GetStats(),
 		"queue_monitor_stats":          m.queueMonitorWorker.GetStats(),
 		"delayed_message_worker_stats": m.delayedMessageWorker.GetStats(),
@@ -355,7 +363,7 @@ func (m *Manager) IsHealthy() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	return m.isStarted && m.inventoryWorker.IsHealthy() && m.heartbeatWorker.IsHealthy() && m.diffWorker.IsHealthy() && m.notificationWorker.IsHealthy() && m.cleanupWorker.IsHealthy() && m.queueMonitorWorker.IsHealthy() && m.delayedMessageWorker.IsHealthy() && !m.backpressure.circuitBreaker.IsOpen()
+	return m.isStarted && m.inventoryWorker.IsHealthy() && m.heartbeatWorker.IsHealthy() && m.diffWorker.IsHealthy() && m.notificationWorker.IsHealthy() && m.alertHistoryWorker.IsHealthy() && m.cleanupWorker.IsHealthy() && m.queueMonitorWorker.IsHealthy() && m.delayedMessageWorker.IsHealthy() && !m.backpressure.circuitBreaker.IsOpen()
 }
 
 // Circuit breaker methods

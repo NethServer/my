@@ -50,9 +50,16 @@ type Configuration struct {
 	QueueProcessingName   string        `json:"queue_processing_name"`
 	QueueNotificationName string        `json:"queue_notification_name"`
 	QueueHeartbeatName    string        `json:"queue_heartbeat_name"`
+	QueueAlertHistoryName string        `json:"queue_alert_history_name"`
 	QueueBatchSize        int           `json:"queue_batch_size"`
 	QueueRetryAttempts    int           `json:"queue_retry_attempts"`
 	QueueRetryDelay       time.Duration `json:"queue_retry_delay"`
+
+	// AlertHistoryRetryAttempts is deliberately higher than QueueRetryAttempts:
+	// the retry queue exists to survive a Postgres outage of many minutes
+	// (the delayed-queue backoff caps at 5 minutes per attempt), and giving up
+	// early silently loses history rows.
+	AlertHistoryRetryAttempts int `json:"alert_history_retry_attempts"`
 
 	// Worker configuration
 	WorkerInventoryCount    int           `json:"worker_inventory_count"`
@@ -173,9 +180,11 @@ func Init() {
 	Config.QueueProcessingName = getStringWithDefault("QUEUE_PROCESSING_NAME", "collect:processing")
 	Config.QueueNotificationName = getStringWithDefault("QUEUE_NOTIFICATION_NAME", "collect:notifications")
 	Config.QueueHeartbeatName = getStringWithDefault("QUEUE_HEARTBEAT_NAME", "collect:heartbeat")
+	Config.QueueAlertHistoryName = getStringWithDefault("QUEUE_ALERT_HISTORY_NAME", "collect:alert_history")
 	Config.QueueBatchSize = parseIntWithDefault("QUEUE_BATCH_SIZE", 10)
 	Config.QueueRetryAttempts = parseIntWithDefault("QUEUE_RETRY_ATTEMPTS", 3)
 	Config.QueueRetryDelay = parseDurationWithDefault("QUEUE_RETRY_DELAY", 5*time.Second)
+	Config.AlertHistoryRetryAttempts = parseIntWithDefault("ALERT_HISTORY_RETRY_ATTEMPTS", 20)
 
 	// Worker configuration
 	Config.WorkerInventoryCount = parseIntWithDefault("WORKER_INVENTORY_COUNT", 5)

@@ -14,6 +14,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"net/http"
@@ -166,7 +167,16 @@ func BasicAuthMiddleware() gin.HandlerFunc {
 		systemSecret := parts[1]
 
 		// Validate system credentials
-		systemID, valid := validateSystemCredentials(c, systemKey, systemSecret)
+		systemID, valid, err := validateSystemCredentials(c, systemKey, systemSecret)
+		if err != nil {
+			// Infrastructure failure (database down or timing out): the
+			// credentials were never actually checked, so answering 401
+			// would be a lie the appliance acts on by dropping its payload
+			// (heartbeat, inventory, ...). 503 tells it to retry instead.
+			c.JSON(http.StatusServiceUnavailable, response.Error(http.StatusServiceUnavailable, "authentication temporarily unavailable", nil))
+			c.Abort()
+			return
+		}
 		if !valid {
 			c.Header("WWW-Authenticate", `Basic realm="System Authentication"`)
 			c.JSON(http.StatusUnauthorized, response.Unauthorized("invalid system credentials", nil))
@@ -210,16 +220,22 @@ const systemCredentialsQuery = `
 	  AND unregistered_at IS NULL
 `
 
-// validateSystemCredentials validates system credentials against database and cache
-// Returns the internal system_id and a boolean indicating success
-func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (string, bool) {
+// validateSystemCredentials validates system credentials against database and cache.
+// Returns the internal system_id and a boolean indicating success. A non-nil
+// error means the credentials could NOT be checked at all (database
+// unreachable or timing out): the caller must answer 503, not 401 — during
+// the 2026-09-08 incident a saturated Postgres made this path time out and
+// the resulting mass 401s dropped a full fleet heartbeat cycle, firing ~370
+// false LinkFailed alerts. Infrastructure failures are never cached as
+// negative results for the same reason.
+func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (string, bool, error) {
 	// Validate token format: my_<public>.<secret>
 	parts := strings.Split(systemSecret, ".")
 	if len(parts) != 2 {
 		logger.Warn().
 			Str("system_key", systemKey).
 			Msg("Invalid system secret format: missing dot separator")
-		return "", false
+		return "", false, nil
 	}
 
 	// Extract public part (remove "my_" prefix)
@@ -228,7 +244,7 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 		logger.Warn().
 			Str("system_key", systemKey).
 			Msg("Invalid system secret format: missing 'my_' prefix")
-		return "", false
+		return "", false, nil
 	}
 	secretPart := parts[1]
 
@@ -239,15 +255,15 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 			Int("secret_length", len(secretPart)).
 			Int("min_length", configuration.Config.SystemSecretMinLength).
 			Msg("System secret part too short")
-		return "", false
+		return "", false, nil
 	}
 
 	// Check in-process cache first (fastest, no network)
 	if cachedID, valid, found := checkInProcessCache(systemKey, systemSecret); found {
 		if valid {
-			return cachedID, true
+			return cachedID, true, nil
 		}
-		return "", false
+		return "", false, nil
 	}
 
 	// Check Redis cache
@@ -255,7 +271,7 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 		if *cachedID != "" {
 			// Promote to in-process cache
 			setInProcessCache(systemKey, systemSecret, *cachedID, true)
-			return *cachedID, true
+			return *cachedID, true, nil
 		}
 		// If cached as invalid, still check database for updates
 	}
@@ -290,15 +306,24 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 		&creds.registeredAt,
 	)
 
-	if err != nil {
+	if errors.Is(err, sql.ErrNoRows) {
 		logger.Warn().
-			Err(err).
 			Str("system_key", systemKey).
 			Msg("System credentials not found")
 
 		// Cache negative result for short time to prevent brute force
 		cacheCredentialsResult(c, systemKey, systemSecret, "", false)
-		return "", false
+		return "", false, nil
+	}
+	if err != nil {
+		// Database unreachable or query timed out: the credentials are
+		// UNKNOWN, not invalid. Do not poison the negative caches and let
+		// the caller answer 503 so the appliance knows to retry.
+		logger.Error().
+			Err(err).
+			Str("system_key", systemKey).
+			Msg("System credentials lookup failed (database unavailable)")
+		return "", false, err
 	}
 
 	if !creds.registeredAt.Valid {
@@ -309,7 +334,7 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 
 		// Not cached: skipping the failure cache here avoids a stale-401
 		// window after the appliance registers.
-		return "", false
+		return "", false, nil
 	}
 
 	// Verify that public part matches system_secret_public in database
@@ -321,7 +346,7 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 
 		// Cache negative result
 		cacheCredentialsResult(c, systemKey, systemSecret, "", false)
-		return "", false
+		return "", false, nil
 	}
 
 	// Verify secret using SHA256
@@ -335,7 +360,7 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 
 		cacheCredentialsResult(c, systemKey, systemSecret, "", false)
 		setInProcessCache(systemKey, systemSecret, "", false)
-		return "", false
+		return "", false, nil
 	}
 	if !valid {
 		logger.Warn().
@@ -345,14 +370,14 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 
 		cacheCredentialsResult(c, systemKey, systemSecret, "", false)
 		setInProcessCache(systemKey, systemSecret, "", false)
-		return "", false
+		return "", false, nil
 	}
 
 	// Cache positive result in both caches
 	cacheCredentialsResult(c, systemKey, systemSecret, creds.systemID, true)
 	setInProcessCache(systemKey, systemSecret, creds.systemID, true)
 
-	return creds.systemID, true
+	return creds.systemID, true, nil
 }
 
 // checkCredentialsCache checks Redis cache for cached credentials
@@ -363,6 +388,11 @@ func checkCredentialsCache(c *gin.Context, systemKey, systemSecret string) *stri
 	cacheKey := fmt.Sprintf("auth:system:%s:%x", systemKey, hash)
 
 	rdb := queue.GetClient()
+	if rdb == nil {
+		// Redis not initialized (unit tests): behave as a cache miss so auth
+		// still resolves against the database.
+		return nil
+	}
 	result, err := rdb.Get(c.Request.Context(), cacheKey).Result()
 	if err == redis.Nil {
 		return nil // Not in cache
@@ -400,6 +430,9 @@ func cacheCredentialsResult(c *gin.Context, systemKey, systemSecret, systemID st
 	}
 
 	rdb := queue.GetClient()
+	if rdb == nil {
+		return
+	}
 	err := rdb.Set(c.Request.Context(), cacheKey, value, ttl).Err()
 	if err != nil {
 		logger.Warn().Err(err).Msg("Failed to cache auth result")

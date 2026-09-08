@@ -95,6 +95,7 @@ func (dmw *DelayedMessageWorker) processDelayedMessages(ctx context.Context, log
 		configuration.Config.QueueInventoryName,
 		configuration.Config.QueueProcessingName,
 		configuration.Config.QueueNotificationName,
+		configuration.Config.QueueAlertHistoryName,
 	}
 
 	successCount := 0
