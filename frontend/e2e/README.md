@@ -37,8 +37,15 @@ npx playwright show-report            # last run: screenshots, video, traces
 A single spec, watching it happen:
 
 ```bash
-npx playwright test e2e/fullstack/login.spec.ts --headed --debug
+npx playwright test e2e/fullstack/login.spec.ts --project=fullstack --no-deps --headed --debug
 ```
+
+`--no-deps` is what makes that one spec the only thing that runs. A file
+argument does not filter a project's dependencies, so without it the `setup`
+project runs whole first — and since `--debug` pauses before the first action of
+the first test in the queue, the browser opens on a blank page belonging to a
+persona login rather than to the spec you named. It reuses the sessions already
+in `e2e/.auth/`, so run the suite (or the `setup` project) at least once first.
 
 ### The dev server must be on port 5173
 
