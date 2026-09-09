@@ -16,7 +16,7 @@ La funzionalità di Alerting fornisce una vista centralizzata di tutti gli allar
 
 Dalla pagina Alerting puoi:
 
-- Visualizzare gli allarmi attivi filtrati per stato, severità o sistema specifico
+- Visualizzare gli allarmi attivi e restringerli per gravità, tipo di allarme, sistema, azienda, stato di silenziamento o assegnatario
 - Configurare notifiche email, webhook e Telegram per la tua organizzazione
 - Marcare ogni destinatario con le severità da ricevere (`critical`, `warning`, `info`, oppure tutte)
 - Scegliere lingua e formato del corpo email per ogni destinatario
@@ -31,25 +31,26 @@ La pagina Alerting è accessibile dal menu laterale alla voce **Alerting**. I du
 
 ## Selezione organizzazione
 
-Il selettore in cima al tab **Allarmi** è usato dall'Owner per filtrare la lista degli allarmi per tenant. Il tab **Configurazione alerting** invece opera **sempre** sulla propria organizzazione — non mostra mai la configurazione di un'altra organizzazione, indipendentemente dal valore del selettore.
+Il filtro **Azienda** in cima al tab **Allarmi** restringe la lista a una o più organizzazioni della tua gerarchia. Lo vedono Owner, distributori e reseller; i customer vedono solo i propri allarmi, quindi per loro il filtro non compare. Il tab **Configurazione alerting** invece opera **sempre** sulla propria organizzazione — non mostra mai la configurazione di un'altra organizzazione, indipendentemente dal valore del filtro.
 
 ## Allarmi attivi
 
-Il tab **Allarmi** mostra tutti gli allarmi attualmente attivi per l'organizzazione selezionata, recuperati in tempo reale da Alertmanager.
+Il tab **Allarmi** mostra tutti gli allarmi attualmente attivi per le organizzazioni nel tuo perimetro, recuperati in tempo reale da Alertmanager.
 
 ### Campi dell'allarme
 
-Ogni allarme mostra:
+Ogni riga della tabella mostra:
 
-| Campo | Descrizione |
-|-------|-------------|
-| **Nome allarme** | Identificatore del tipo di allarme (es. `DiskFull`, `BackupFailed`) |
-| **Severità** | Badge colorato: `critical` (rosso), `warning` (arancione), `info` (blu) |
-| **Stato** | Stato corrente: `active`, `suppressed` o `unprocessed` |
+| Colonna | Descrizione |
+|---------|-------------|
+| **Gravità** | Badge colorato: Critical (rosso), Warning (arancione), Info (blu) |
+| **Allarme** | Tipo di allarme (es. `ServiceDown`, `BackupFailed`) con il suo riepilogo; il badge **Silenziato** segnala gli allarmi silenziati |
 | **Sistema** | Sistema che ha generato l'allarme |
-| **Iniziato il** | Timestamp di quando l'allarme è stato scatenato |
-| **Riepilogo** | Descrizione leggibile dalle annotazioni dell'allarme |
-| **Label** | Metadata aggiuntivi in formato chiave-valore |
+| **Azienda** | Organizzazione a cui appartiene il sistema |
+| **Iniziato** | Quando l'allarme ha iniziato a scattare, come tempo relativo e assoluto |
+| **Assegnato a** | Utente che sta gestendo l'allarme, se presente |
+
+**Dettagli** apre un pannello laterale con la descrizione completa, il sistema, l'ora di inizio, l'assegnatario e, per gli allarmi silenziati, la scadenza del silenziamento. Il menu della riga contiene le azioni descritte in [Lavorare sugli allarmi](#lavorare-sugli-allarmi).
 
 ### Livelli di severità
 
@@ -61,13 +62,16 @@ Ogni allarme mostra:
 
 ### Filtri
 
-Puoi restringere la lista degli allarmi usando i filtri in cima alla pagina:
+I filtri in cima alla pagina si combinano tra loro: i valori scelti dentro uno stesso filtro sono alternativi, filtri diversi devono valere tutti.
 
-- **Filtro stato**: mostra solo allarmi in uno stato specifico (active, suppressed, unprocessed)
-- **Filtro severità**: mostra solo allarmi che corrispondono ai livelli di severità selezionati
-- **Ricerca system key**: campo di ricerca libera per filtrare gli allarmi di un sistema specifico
+- **Gravità**: uno o più tra Critical, Warning, Info
+- **Allarme**: uno o più tipi di allarme (es. `ServiceDown`, `BackupFailed`), con casella di ricerca
+- **Sistema**: uno o più sistemi, con casella di ricerca
+- **Azienda**: una o più organizzazioni della tua gerarchia (non compare ai customer)
+- **Stato**: Non silenziato, Silenziato o entrambi; di default sono elencati solo gli allarmi non silenziati
+- **Assegnato a**: Non assegnato, te stesso o utenti specifici (richiede `read:users`)
 
-Clicca **Reset filtri** per rimuovere tutti i filtri attivi, oppure **Aggiorna** per ricaricare manualmente la lista.
+**Ordina** dispone la lista per ora di inizio (default, i più recenti prima), gravità, nome dell'allarme o assegnatario. **Reimposta filtri** ripristina i valori di default. La lista si aggiorna da sola ogni 20 secondi mentre il tab è visibile.
 
 ## Lavorare sugli allarmi
 

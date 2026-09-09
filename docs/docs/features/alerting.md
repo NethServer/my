@@ -16,7 +16,7 @@ The Alerting feature provides a centralized view of all active alerts from your 
 
 From the Alerting page you can:
 
-- View active alerts filtered by state, severity, or specific system
+- View active alerts and narrow them by severity, alert type, system, company, mute status or assignee
 - Configure email, webhook, and Telegram notifications for your own organization
 - Tag each recipient with the severities it should receive (`critical`, `warning`, `info`, or all of them)
 - Choose per-recipient language and body format for email notifications
@@ -31,25 +31,26 @@ The Alerting page is accessible from the side menu at **Alerting**. The two tabs
 
 ## Organization selector
 
-The organization selector at the top of the **Alerts** tab is used by the Owner role to filter the alerts list by tenant. The **Alerting Configuration** tab is always scoped to the caller's own organization — the page never displays another organization's configuration, regardless of the selector value.
+The **Company** filter at the top of the **Alerts** tab narrows the list to one or more organizations in your hierarchy. Owner, distributor and reseller users see it; customers only ever see their own alerts, so the filter is not shown to them. The **Alerting Configuration** tab is always scoped to the caller's own organization — the page never displays another organization's configuration, regardless of the filter value.
 
 ## Active Alerts
 
-The **Alerts** tab shows all currently active alerts for the selected organization, fetched in real time from Alertmanager.
+The **Alerts** tab shows all currently active alerts for the organizations in your scope, fetched in real time from Alertmanager.
 
 ### Alert fields
 
-Each alert displays:
+Each row of the table shows:
 
-| Field | Description |
-|-------|-------------|
-| **Alert name** | Identifier of the alert type (e.g. `DiskFull`, `BackupFailed`) |
-| **Severity** | Colored badge: `critical` (red), `warning` (amber), `info` (blue) |
-| **State** | Current state: `active`, `suppressed`, or `unprocessed` |
-| **System** | System that generated the alert |
-| **Started at** | Timestamp when the alert was first triggered |
-| **Summary** | Human-readable description from the alert annotations |
-| **Labels** | Additional key-value metadata attached to the alert |
+| Column | Description |
+|--------|-------------|
+| **Severity** | Colored badge: Critical (red), Warning (amber), Info (blue) |
+| **Alert** | Alert type (e.g. `ServiceDown`, `BackupFailed`) with its summary; a **Muted** badge marks silenced alerts |
+| **System** | System that raised the alert |
+| **Company** | Organization the system belongs to |
+| **Started** | When the alert started firing, as relative and absolute time |
+| **Assigned to** | User currently handling the alert, if any |
+
+**Details** opens a side panel with the full description, the system, the start time, the assignee and, for muted alerts, when the silence ends. The row menu holds the actions described in [Working on alerts](#working-on-alerts).
 
 ### Severity levels
 
@@ -61,13 +62,16 @@ Each alert displays:
 
 ### Filtering
 
-You can narrow down the alert list using the filters at the top of the page:
+The filters at the top of the page combine with each other: values picked inside one filter are alternatives, different filters all have to match.
 
-- **State filter**: show only alerts in a specific state (active, suppressed, unprocessed)
-- **Severity filter**: show only alerts matching selected severity levels
-- **System key search**: free-text search to filter alerts by a specific system identifier
+- **Severity**: one or more of Critical, Warning, Info
+- **Alert**: one or more alert types (e.g. `ServiceDown`, `BackupFailed`), with a search box
+- **System**: one or more systems, with a search box
+- **Company**: one or more organizations in your hierarchy (not shown to customers)
+- **Status**: Unmuted, Muted or both; by default only unmuted alerts are listed
+- **Assigned to**: Unassigned, yourself or specific users (requires `read:users`)
 
-Click **Reset filters** to clear all active filters, or **Refresh** to manually reload the alerts list.
+**Sort** orders the list by start time (default, newest first), severity, alert name or assignee. **Reset filters** restores the defaults. The list refreshes itself every 20 seconds while the tab is visible.
 
 ## Working on alerts
 
