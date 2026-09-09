@@ -63,8 +63,7 @@ function rowOf(page: Page, name: string): Locator {
 }
 
 test('creates a distributor and lists it', async ({ page }) => {
-  await openAs(page, '/distributors')
-  await page.waitForResponse((r) => r.url().includes('/api/distributors'))
+  await openAs(page, '/distributors', /\/api\/distributors/)
 
   const name = e2eOrgName('dist')
   const vat = e2eVat()
@@ -87,8 +86,7 @@ test('creates a distributor and lists it', async ({ page }) => {
 })
 
 test('refuses a distributor with no VAT number', async ({ page }) => {
-  await openAs(page, '/distributors')
-  await page.waitForResponse((r) => r.url().includes('/api/distributors'))
+  await openAs(page, '/distributors', /\/api\/distributors/)
 
   const name = e2eOrgName('novat')
   const drawer = await openCreateDrawer(page)
@@ -106,8 +104,7 @@ test('refuses a distributor with no VAT number', async ({ page }) => {
 })
 
 test('edits a distributor and keeps the change', async ({ page }) => {
-  await openAs(page, '/distributors')
-  await page.waitForResponse((r) => r.url().includes('/api/distributors'))
+  await openAs(page, '/distributors', /\/api\/distributors/)
 
   const name = e2eOrgName('edit')
   created.push(name)

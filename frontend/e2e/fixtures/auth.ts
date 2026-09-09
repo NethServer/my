@@ -38,17 +38,39 @@ export function hasOwnerLevelAuthority(user: SignedInUser): boolean {
 }
 
 /**
+ * A promise for the next response whose URL matches `match`.
+ *
+ * Always arm this *before* the navigation, click or reload that triggers the
+ * request. `page.waitForResponse` only sees traffic that arrives after it
+ * starts listening, so arming it afterwards waits for a second request that
+ * never comes — and it only fails when the response is quick, which reads as
+ * flakiness rather than as the ordering bug it is.
+ */
+export function apiResponse(page: Page, match: RegExp) {
+  return page.waitForResponse((r) => match.test(r.url()), { timeout: 60_000 })
+}
+
+/**
  * Navigate to `path` as the persona whose session the test is using, and return
  * the signed-in user captured from the token exchange that boots the session.
+ *
+ * Pass `waitFor` to also wait for the request the page fires on mount, so the
+ * spec acts on a rendered list instead of a skeleton.
  */
-export async function openAs(page: Page, path = '/dashboard'): Promise<SignedInUser> {
+export async function openAs(
+  page: Page,
+  path = '/dashboard',
+  waitFor?: RegExp,
+): Promise<SignedInUser> {
   const exchange = page.waitForResponse(
     (r) => r.url().includes('/auth/exchange') && r.status() === 200,
     { timeout: 60_000 },
   )
+  const listed = waitFor ? apiResponse(page, waitFor) : undefined
 
   await page.goto(path)
 
   const body = (await (await exchange).json()) as { data: { user: SignedInUser } }
+  await listed
   return body.data.user
 }
