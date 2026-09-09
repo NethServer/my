@@ -22,6 +22,7 @@ import {
   e2eVat,
   listE2eOrganizations,
   sweepE2eOrganizations,
+  type OrgType,
 } from '../fixtures/organizations'
 
 // The owner can manage every tier, so one session covers the whole hierarchy.
@@ -37,9 +38,14 @@ test.beforeAll(async () => {
 })
 
 test.afterAll(async () => {
-  for (const org of await listE2eOrganizations('distributors')) {
-    if (created.includes(org.name)) {
-      await destroyE2eOrganization('distributors', org)
+  // Every type, not only the one these specs happen to create today: the
+  // beforeAll sweep already covers all three, and an afterAll that covers one
+  // would leak silently the first time a spec creates a reseller.
+  for (const type of ['distributors', 'resellers', 'customers'] as OrgType[]) {
+    for (const org of await listE2eOrganizations(type)) {
+      if (created.includes(org.name)) {
+        await destroyE2eOrganization(type, org)
+      }
     }
   }
 })
@@ -97,7 +103,10 @@ test('refuses a distributor with no VAT number', async ({ page }) => {
 
   await expect(drawer.getByText(t('organizations.custom_data_vat_cannot_be_empty'))).toBeVisible()
 
-  // Rejected in the browser: nothing reached the backend.
+  // The drawer stays open, so the form was rejected in the browser and nothing
+  // was submitted. The backend lookup that follows cannot fail while that
+  // holds: it guards against a form that starts submitting anyway, and is not
+  // evidence that the server refuses anything.
   await expect(drawer).toBeVisible()
   const stored = (await listE2eOrganizations('distributors')).find((o) => o.name === name)
   expect(stored, 'a rejected form must not create anything').toBeUndefined()

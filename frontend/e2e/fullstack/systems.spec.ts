@@ -13,10 +13,11 @@
  * out.
  */
 
-import { test, expect, type Page } from '@playwright/test'
-import { owner, persona, storageStatePath } from '../fixtures/personas'
+import { test, expect, type Locator, type Page } from '@playwright/test'
+import { fixtureOrg, owner, storageStatePath } from '../fixtures/personas'
 import { apiResponse, openAs } from '../fixtures/auth'
 import { t } from '../fixtures/i18n'
+import { E2E_PREFIX } from '../fixtures/organizations'
 import {
   createE2eSystem,
   destroyE2eSystem,
@@ -30,7 +31,7 @@ import {
 test.use({ storageState: storageStatePath(owner.key) })
 
 /** A customer organization from the authz fixture to hang systems off. */
-const CUSTOMER_ORG = persona('authz-d1r1c1-admin')
+const CUSTOMER_ORG = fixtureOrg('d1r1c1')
 
 const created: string[] = []
 
@@ -47,7 +48,7 @@ test.afterAll(async () => {
 })
 
 async function newSystem(): Promise<System> {
-  const system = await createE2eSystem(CUSTOMER_ORG.orgId)
+  const system = await createE2eSystem(CUSTOMER_ORG.logtoId)
   created.push(system.name)
   return system
 }
@@ -57,10 +58,23 @@ async function openSystems(page: Page) {
   await openAs(page, '/systems', /\/api\/systems(\?|$)/)
 }
 
-/** Narrow the list to one system, so its row is unambiguous. */
-async function filterTo(page: Page, name: string) {
+/**
+ * Narrow the list to one system, so its row is unambiguous.
+ *
+ * Waiting for the target row to be visible would prove nothing: it is already
+ * on screen before a character is typed, so the assertion passes at once and
+ * the helper returns over a list that has not been filtered yet. Wait for the
+ * *narrowed* state instead — one suite-owned row, and it is the right one.
+ * `hasText` is a substring match, which is also why the count matters: once a
+ * file creates ten of anything, `…-1` matches `…-10` too.
+ */
+async function filterTo(page: Page, name: string): Promise<Locator> {
   await page.getByPlaceholder(t('systems.filter_systems')).fill(name)
-  await expect(page.getByRole('row').filter({ hasText: name })).toBeVisible({ timeout: 30_000 })
+
+  const rows = page.getByRole('row').filter({ hasText: E2E_PREFIX })
+  await expect(rows).toHaveCount(1, { timeout: 30_000 })
+  await expect(rows.first()).toContainText(name)
+  return rows.first()
 }
 
 test('lists a newly created system and filters down to it', async ({ page }) => {
@@ -78,14 +92,10 @@ test('opens the detail view for a system', async ({ page }) => {
   const system = await newSystem()
 
   await openSystems(page)
-  await filterTo(page, system.name)
+  const row = await filterTo(page, system.name)
 
   // The row's own affordance, not a click anywhere on the row.
-  await page
-    .getByRole('row')
-    .filter({ hasText: system.name })
-    .getByRole('button', { name: t('common.details') })
-    .click()
+  await row.getByRole('button', { name: t('common.details') }).click()
 
   await expect(page).toHaveURL(new RegExp(`/systems/${system.id}$`), { timeout: 30_000 })
   await expect(page.getByText(system.name).first()).toBeVisible()
@@ -98,10 +108,8 @@ test('stops offering to regenerate the secret once the system registers', async 
   expect(system.registered_at ?? null).toBeNull()
 
   await openSystems(page)
-  await filterTo(page, system.name)
-
-  const row = () => page.getByRole('row').filter({ hasText: system.name })
-  await row().getByRole('button', { name: /menu/i }).click()
+  let row = await filterTo(page, system.name)
+  await row.getByRole('button', { name: /menu/i }).click()
   await expect(page.getByRole('menuitem', { name: t('systems.regenerate_secret') })).toBeVisible()
   await page.keyboard.press('Escape')
 
@@ -113,8 +121,14 @@ test('stops offering to regenerate the secret once the system registers', async 
   const listed = apiResponse(page, /\/api\/systems(\?|$)/)
   await page.reload()
   await listed
-  await filterTo(page, system.name)
+  row = await filterTo(page, system.name)
 
-  await row().getByRole('button', { name: /menu/i }).click()
+  await row.getByRole('button', { name: /menu/i }).click()
+
+  // Positive control before the absence. `getKebabMenuItems` in
+  // SystemsTable.vue offers the exports whatever state the system is in, so
+  // this proves the menu is genuinely open — without it, a kebab that failed to
+  // open would satisfy the assertion below and this test would pass for ever.
+  await expect(page.getByRole('menuitem', { name: t('systems.export_to_pdf') })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: t('systems.regenerate_secret') })).toHaveCount(0)
 })

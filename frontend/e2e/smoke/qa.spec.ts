@@ -24,6 +24,7 @@
  */
 
 import { test, expect } from '@playwright/test'
+import { t } from '../fixtures/i18n'
 
 /**
  * Where the backend sits behind the deployed proxy. NOT `/api`, which the proxy
@@ -101,9 +102,8 @@ test.describe('authenticated surface', () => {
     const systems = page.getByRole('navigation').locator('a[href="/systems"]')
     await expect(systems).toBeVisible()
 
-    // A rendered list, not a skeleton that never resolves. Armed before the
-    // click: waitForResponse only sees traffic that arrives after it starts
-    // listening.
+    // Armed before the click: waitForResponse only sees traffic that arrives
+    // after it starts listening.
     const listed = page.waitForResponse(
       (r) => r.url().includes(`${API}/systems`) && r.request().method() === 'GET',
       { timeout: 60_000 },
@@ -111,5 +111,16 @@ test.describe('authenticated surface', () => {
     await systems.click()
 
     expect((await listed).status()).toBe(200)
+
+    // And then the DOM, because a 200 is not a rendered list: a table that
+    // never leaves its skeleton, or a component that throws on the payload,
+    // looks identical on the wire. Either a row or the empty state — this
+    // environment's inventory is not ours to assume.
+    await expect(
+      page
+        .getByRole('row')
+        .first()
+        .or(page.getByText(t('systems.no_systems_found'))),
+    ).toBeVisible({ timeout: 60_000 })
   })
 })
