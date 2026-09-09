@@ -29,12 +29,14 @@ export function effectivePermissions(user: SignedInUser): string[] {
 }
 
 /**
- * "Owner-level authority" as `lib/permissions.ts` defines it: the Owner
- * organization, or a Super Admin user. Not a permission — a threshold above the
- * `manage:*` scopes every distributor already holds.
+ * "Owner-level authority" as `lib/permissions.ts` defines it: membership of the
+ * Owner organization, which both the Owner and the Staff user role imply. Not a
+ * permission — a threshold above the `manage:*` scopes every distributor
+ * already holds. Mirrors `loginStore.isOwner`, deliberately keyed on the
+ * organization role rather than on a technical role name.
  */
 export function hasOwnerLevelAuthority(user: SignedInUser): boolean {
-  return user.org_role === 'Owner' || (user.user_roles ?? []).includes('Super Admin')
+  return user.org_role === 'Owner'
 }
 
 /**
