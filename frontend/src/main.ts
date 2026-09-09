@@ -11,10 +11,9 @@ import { createLogto, type LogtoConfig } from '@logto/vue'
 import App from './App.vue'
 import router from './router'
 import i18n from './i18n'
-import { LOGTO_APP_ID, LOGTO_ENDPOINT } from './lib/config'
+import { IS_E2E, LOGTO_APP_ID, LOGTO_ENDPOINT } from './lib/config'
 import { PiniaColada } from '@pinia/colada'
 import { PiniaColadaAutoRefetch } from '@pinia/colada-plugin-auto-refetch'
-import { IS_E2E } from './lib/config'
 
 // prevent FontAwesome from automatically adding CSS (needed to fix icons style)
 fontawesomeConfig.autoAddCss = false
