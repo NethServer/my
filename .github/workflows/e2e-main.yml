@@ -12,6 +12,14 @@ name: E2E - Full Stack
 on:
   push:
     branches: [ main ]
+  # Every push to a pull request, so a regression is attributed to the commit
+  # that caused it rather than to a batch of merges. Docs-only pushes are
+  # skipped: the job costs minutes and holds the CI tenant for all of them.
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
   workflow_dispatch:
   schedule:
     # Weekly drift canary: catches breakage with no commit behind it, such as a
@@ -19,9 +27,18 @@ on:
     # failure nobody caused is the fastest way to teach people to ignore a suite.
     - cron: '0 4 * * 1'
 
-# Queue, never cancel. A run cancelled after `authz provision` would abandon
-# real organizations and users in the Logto tenant; queueing lets every run
-# reach its teardown.
+# One global queue, and never cancel.
+#
+# Global because every run provisions the same fixture keys, with the same
+# persona emails, in the same CI tenant: `prefix` comes from authz/fixture.yml
+# and has no per-run override, so two runs at once would fight over the same
+# Logto users. A per-ref group would let two pull requests collide.
+#
+# Never cancel because a run stopped after `authz provision` loses the registry
+# recording what it created — that lives on the runner — leaving orgs no
+# teardown can find, which the next provisioning trips over as a name
+# collision. Queueing lets every run reach its teardown. The cost is that a
+# burst of pushes serializes, a few minutes each.
 concurrency:
   group: e2e-fullstack
   cancel-in-progress: false
