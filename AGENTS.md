@@ -389,7 +389,7 @@ Playwright specs that drive the real UI against a real backend — the layer §7
 ```bash
 cd backend  && make dev-up && make run          # backend on :8080
 cd backend  && ./apitool authz provision        # personas + passwords, idempotent
-cd frontend && npm run test:e2e                 # or: -- --project=fullstack
+cd frontend && npm run test:e2e -- --project=fullstack   # name the project: a bare run includes smoke
 cd frontend && npx playwright show-report       # screenshots, video, traces
 ```
 
