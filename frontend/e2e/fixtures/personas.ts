@@ -2,7 +2,8 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 /**
- * Personas for the e2e suite, read from the registry that `apitool` writes.
+ * Personas and fixture organizations for the e2e suite, read from the registry
+ * that `apitool` writes.
  *
  * The authz suite already provisions a full organization hierarchy and a user
  * for every (organization role x technical role) pair, and `apitool` fixes a
@@ -15,6 +16,13 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const REGISTRY_PATH = fileURLToPath(new URL('../../../backend/.api-registry.json', import.meta.url))
+
+/**
+ * `prefix` in `backend/authz/fixture.yml`. Registry keys are the fixture key
+ * with this in front, which is how a fixture key from the tree in that file
+ * (`d1r1c1`) becomes a registry key (`authz-d1r1c1`).
+ */
+export const FIXTURE_PREFIX = 'authz'
 
 /** Organization role, i.e. the business hierarchy level. */
 export type OrgRole = 'owner' | 'distributor' | 'reseller' | 'customer'
@@ -35,6 +43,16 @@ export type Persona = {
   orgId: string
 }
 
+/** A fixture organization as the registry records it. */
+export type FixtureOrg = {
+  /** Registry key, e.g. `authz-d1r1`. */
+  key: string
+  name: string
+  logtoId: string
+  /** `distributor`, `reseller` or `customer`, as `fixture.yml` declares it. */
+  type: string
+}
+
 type RegistryUser = {
   email: string
   password: string
@@ -42,6 +60,12 @@ type RegistryUser = {
   user_roles?: string[] | null
   org_name?: string
   org_id?: string
+}
+
+type RegistryOrg = {
+  type?: string
+  logto_id?: string
+  name?: string
 }
 
 type Registry = {
@@ -52,6 +76,7 @@ type Registry = {
     backend_url: string
   }
   owner: { email: string; password: string }
+  orgs: Record<string, RegistryOrg>
   users: Record<string, RegistryUser>
 }
 
@@ -75,7 +100,13 @@ export const registryConfig = registry.config
 
 /**
  * The owner. Registered separately from `users` because it is the account
- * `apitool` itself acts as, and it carries no organization role of its own.
+ * `apitool` itself acts as.
+ *
+ * `orgName` and `orgId` are empty on purpose: the Owner organization predates
+ * the fixture and `authz provision` does not create it, so the registry holds
+ * no record of it and there is nothing here to read. Anything that needs its
+ * name must ask the API. `orgRole` and `userRoles` restate what
+ * `apitool`'s own owner persona claims (`cmd/apitool/authz.go`, `ownerPersona`).
  */
 export const owner: Persona = {
   key: 'owner',
@@ -83,11 +114,11 @@ export const owner: Persona = {
   password: registry.owner.password,
   orgRole: 'owner',
   userRoles: ['Owner'],
-  orgName: 'Nethesis',
+  orgName: '',
   orgId: '',
 }
 
-const users: Persona[] = Object.entries(registry.users).map(([key, u]) => ({
+const users: Persona[] = Object.entries(registry.users ?? {}).map(([key, u]) => ({
   key,
   email: u.email,
   password: u.password,
@@ -101,13 +132,16 @@ const users: Persona[] = Object.entries(registry.users).map(([key, u]) => ({
 export const allPersonas: Persona[] = [owner, ...users]
 
 /**
- * The RBAC matrix: the `authz-*` personas that carry a technical role, one per
- * (organization role x technical role) pair. These are what the rbac spec
- * iterates over. Personas without `user_roles` are older helper accounts that
- * predate the field — `apitool refresh-roles` backfills them.
+ * The RBAC matrix: every fixture user that carries a technical role. That is
+ * the four roles at each of the three partner levels, the Owner-organization
+ * Staff accounts, and the sibling-branch users `fixture.yml` adds for isolation
+ * scenarios — which duplicate a (organization role x technical role) pair but
+ * sit elsewhere in the tree, so they are worth driving too. Personas without
+ * `user_roles` are older helper accounts that predate the field —
+ * `apitool refresh-roles` backfills them.
  */
 export const matrixPersonas: Persona[] = users
-  .filter((p) => p.key.startsWith('authz-') && p.userRoles.length > 0)
+  .filter((p) => p.key.startsWith(`${FIXTURE_PREFIX}-`) && p.userRoles.length > 0)
   .sort((a, b) => a.key.localeCompare(b.key))
 
 /** Look up one persona by registry key, with a listing when it is missing. */
@@ -120,6 +154,25 @@ export function persona(key: string): Persona {
     )
   }
   return found
+}
+
+/**
+ * Look up one fixture organization by its key in `backend/authz/fixture.yml`
+ * (`d1`, `d1r1`, `d1r1c1`, …), which is where the hierarchy is declared. The
+ * registry supplies the generated name and Logto id.
+ */
+export function fixtureOrg(fixtureKey: string): FixtureOrg {
+  const key = `${FIXTURE_PREFIX}-${fixtureKey}`
+  const org = (registry.orgs ?? {})[key]
+
+  if (!org?.name || !org.logto_id) {
+    throw new Error(
+      `No fixture organization "${fixtureKey}" (registry key "${key}") in the registry. ` +
+        `Available: ${Object.keys(registry.orgs ?? {}).join(', ')}\n` +
+        'Reprovision with: cd backend && ./apitool authz provision',
+    )
+  }
+  return { key, name: org.name, logtoId: org.logto_id, type: org.type ?? '' }
 }
 
 /** Where a persona's storageState is cached by the setup project. */

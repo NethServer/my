@@ -12,7 +12,7 @@
  */
 
 import { apiDelete, apiGet, apiPost, apiPostPublic } from './api'
-import { E2E_PREFIX } from './organizations'
+import { E2E_PREFIX, runTag } from './organizations'
 
 export type System = {
   id: string
@@ -24,9 +24,9 @@ export type System = {
 }
 
 let counter = 0
-const runId = Date.now().toString(36).slice(-6)
+const runId = runTag()
 
-/** A unique, prefixed system name, e.g. `e2e-sys-mfk2p1-1`. */
+/** A unique, prefixed system name, e.g. `e2e-sys-mfk2p1w0-1`. */
 export function e2eSystemName(): string {
   counter += 1
   return `${E2E_PREFIX}sys-${runId}-${counter}`
