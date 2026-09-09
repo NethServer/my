@@ -96,23 +96,43 @@ for (const who of matrixPersonas) {
       }
     })
 
-    test('refuses a deep link the persona has no permission for', async ({ page }) => {
+    test('reaches the sections it may read and is refused the rest', async ({ page }) => {
       const user = await openAs(page, '/dashboard')
       const granted = effectivePermissions(user)
 
-      // Pick a section this persona genuinely cannot read. Nothing to prove for
-      // the owner, who can read everything.
-      const forbidden = NAV.find(
-        (e) => typeof e.requires === 'string' && !granted.includes(e.requires),
+      const gated = NAV.filter((e) => typeof e.requires === 'string')
+      const forbidden = gated.filter((e) => !granted.includes(e.requires as string))
+
+      /**
+       * Positive control. Every forbidden assertion below is satisfied by a
+       * guard that sent *everyone* to /forbidden, so one section this persona
+       * genuinely may read has to render. `/systems` is the one every technical
+       * role carries `read:systems` for, and `systems.spec.ts` proves the view
+       * itself works — so a failure here is about this persona, not the page.
+       *
+       * Asserting every permitted section rather than one would be stronger and
+       * is the obvious next step; it costs a page load per section per persona,
+       * so it is left for when the matrix is partitioned across projects.
+       */
+      expect(granted, `${who.key} should hold read:systems — every technical role does`).toContain(
+        'read:systems',
       )
+      await page.goto('/systems')
+      await expect(page).toHaveURL(/\/systems$/, { timeout: 30_000 })
 
-      test.skip(!forbidden, 'this persona can read every section')
-
-      // The router guard only checks authentication, so the view renders and
-      // its first request is what gets refused; the 403 interceptor in
-      // lib/axios.ts is what turns that into a redirect.
-      await page.goto(forbidden!.href)
-      await expect(page).toHaveURL(/\/forbidden$/, { timeout: 30_000 })
+      // Then every section it cannot read, not just the first: the sections are
+      // ordered, and taking only the first meant nobody ever deep-linked
+      // /resellers or /customers.
+      for (const entry of forbidden) {
+        // The router guard only checks authentication, so the view renders and
+        // its first request is what gets refused; the 403 interceptor in
+        // lib/axios.ts is what turns that into a redirect.
+        await page.goto(entry.href)
+        await expect(
+          page,
+          `${entry.href} needs ${String(entry.requires)}, which this persona lacks`,
+        ).toHaveURL(/\/forbidden$/, { timeout: 30_000 })
+      }
     })
   })
 }
