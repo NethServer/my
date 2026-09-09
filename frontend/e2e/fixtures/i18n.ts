@@ -23,8 +23,15 @@ const EN = JSON.parse(
   ),
 ) as Record<string, unknown>
 
-/** English copy for a dotted translation key, e.g. `organizations.name`. */
-export function t(key: string): string {
+/**
+ * English copy for a dotted translation key, e.g. `organizations.name`.
+ *
+ * `params` fills the `{name}` placeholders vue-i18n would, for the handful of
+ * labels that are composed rather than literal — `common.go_to_page` is
+ * "Go to {page}". A placeholder left unfilled is an error rather than a
+ * selector that silently matches nothing.
+ */
+export function t(key: string, params: Record<string, string> = {}): string {
   const value = key.split('.').reduce<unknown>((node, part) => {
     return node && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined
   }, EN)
@@ -32,5 +39,12 @@ export function t(key: string): string {
   if (typeof value !== 'string') {
     throw new Error(`No English translation for "${key}"`)
   }
-  return value
+
+  const filled = value.replace(/\{(\w+)\}/g, (_, name: string) => {
+    if (!(name in params)) {
+      throw new Error(`Translation "${key}" needs a "${name}" parameter: ${value}`)
+    }
+    return params[name]
+  })
+  return filled
 }
