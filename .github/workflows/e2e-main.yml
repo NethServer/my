@@ -12,17 +12,6 @@ name: E2E - Full Stack
 on:
   push:
     branches: [ main ]
-  # TEMPORARY — remove before merging. workflow_dispatch only works for
-  # workflows already on the default branch, so this is the only way to prove
-  # the job and its secrets before this PR lands. It provisions and tears down
-  # the fixture in the shared Logto tenant on every push to the PR.
-  pull_request:
-    branches: [ main ]
-    paths:
-      - 'frontend/e2e/**'
-      - 'frontend/playwright.config.ts'
-      - 'docker-compose.e2e.yml'
-      - '.github/workflows/e2e-main.yml'
   workflow_dispatch:
   schedule:
     # Weekly drift canary: catches breakage with no commit behind it, such as a
