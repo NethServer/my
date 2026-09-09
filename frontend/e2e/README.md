@@ -28,11 +28,13 @@ right navigation for that same persona.
 
 ```bash
 cd frontend
-npm run test:e2e                      # everything
-npm run test:e2e -- --project=fullstack
-npm run test:e2e:ui                   # interactive
-npx playwright show-report            # last run: screenshots, video, traces
+npm run test:e2e -- --project=fullstack   # the local suite
+npm run test:e2e:ui                       # interactive
+npx playwright show-report                # last run: screenshots, video, traces
 ```
+
+Name the project. A bare `npm run test:e2e` also runs `smoke`, which needs a deployed origin and
+fails against a dev server by design — see below.
 
 A single spec, watching it happen:
 
@@ -85,16 +87,24 @@ Note QA is suspended outside Mon–Fri 08:00–22:00 Europe/Rome by `qa-night-sc
 
 ## In CI
 
-| Workflow        | Trigger                             | What it runs                                      |
-| --------------- | ----------------------------------- | ------------------------------------------------- |
-| `e2e-main.yml`  | push to `main`, manual, weekly cron | The `fullstack` project against the compose stack |
-| `e2e-smoke.yml` | push to `main`, manual              | The `smoke` project against QA                    |
+| Workflow        | Trigger                                               | What it runs                                      |
+| --------------- | ----------------------------------------------------- | ------------------------------------------------- |
+| `e2e-main.yml`  | every push to a PR and to `main`, manual, weekly cron | The `fullstack` project against the compose stack |
+| `e2e-smoke.yml` | push to `main`, manual                                | The `smoke` project against QA                    |
+
+Docs-only pushes are skipped on both `e2e-main.yml` triggers. Its concurrency group is global and
+never cancels, so a burst of pushes leaves the commits in between untested rather than queueing.
 
 `e2e-main.yml` brings the stack up with `docker-compose.e2e.yml` layered on top, which publishes
 the proxy on 5173 (the registered redirect origin) and builds the frontend with `VITE_E2E`. It
 writes its own `.api-registry.json` from secrets — `apitool init` is interactive — and then runs
 `authz provision`, tearing the fixture down in an `always()` step so a failed run leaves nothing in
 the tenant.
+
+Its `E2E_*` secrets point at a tenant dedicated to CI. The fixture is not per-run — `prefix` in
+`backend/authz/fixture.yml` fixes the organization keys and persona addresses — so pointing them at
+the tenant people develop against would have CI and a local `authz provision` fighting over the same
+Logto users. See `.github/workflows/README.md`.
 
 `e2e-smoke.yml` polls `/api/health` until it reports the merge commit, since QA is deployed by
 Render rather than by Actions. On timeout it warns and skips instead of failing, so a suspended QA
@@ -104,13 +114,31 @@ Both upload `playwright-report/` and `test-results/` on failure: screenshots, vi
 
 ## Layout
 
-| Path                   | Purpose                                                                         |
-| ---------------------- | ------------------------------------------------------------------------------- |
-| `fixtures/personas.ts` | Reads the apitool registry; exposes `owner`, `matrixPersonas`, `persona(key)`   |
-| `setup/auth.setup.ts`  | Signs personas in through the real Logto form, saves `storageState`             |
-| `fullstack/`           | Mutating specs. Need a local backend and a provisioned fixture                  |
-| `smoke/`               | Read-only specs against a deployed environment                                  |
-| `.auth/`               | Saved sessions, one file per persona. Gitignored — they are live Logto sessions |
+| Path                   | Purpose                                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------------------ |
+| `fixtures/personas.ts` | Reads the apitool registry; exposes `owner`, `matrixPersonas`, `persona(key)`, `fixtureOrg(key)` |
+| `fixtures/i18n.ts`     | Resolves interface copy by translation key, so a reworded label updates the selector             |
+| `fixtures/rows.ts`     | Matches a table row by whole name — the fixture's names nest, so substrings lie                  |
+| `setup/auth.setup.ts`  | Signs personas in through the real Logto form, saves `storageState`                              |
+| `fullstack/`           | Need a local backend and a provisioned fixture                                                   |
+| `smoke/`               | Read-only specs against a deployed environment                                                   |
+| `.auth/`               | Saved sessions, one file per persona. Gitignored — they are live Logto sessions                  |
+
+What each `fullstack/` spec answers:
+
+| Spec                    | Question                                                                                 |
+| ----------------------- | ---------------------------------------------------------------------------------------- |
+| `login.spec.ts`         | Does a saved session boot straight in, and an empty one get bounced to Logto?            |
+| `rbac.spec.ts`          | Is each persona offered the right navigation, and refused every section it may not read? |
+| `controls.spec.ts`      | Inside a page it may open, is it offered the right actions?                              |
+| `scoping.spec.ts`       | Is the table it reads scoped to its own branch of the hierarchy?                         |
+| `session.spec.ts`       | Does the session survive a reload, and does a refusal leave the rest of it usable?       |
+| `organizations.spec.ts` | Can a company be created and edited through the interface?                               |
+| `systems.spec.ts`       | Do the list, the detail view and the registration handshake behave?                      |
+| `users.spec.ts`         | Can a user be created, re-roled and archived?                                            |
+
+Only `organizations.spec.ts`, `systems.spec.ts` and `users.spec.ts` write anything; the rest are
+read-only.
 
 ## How authentication works
 
@@ -126,13 +154,25 @@ re-runs `POST /api/auth/exchange` on boot for a fresh pair — race-free, and th
 ## Gotchas
 
 - **Keep `workers` low.** Several workers driving one persona's saved session share that persona's
-  Logto refresh token, and rotating it in parallel looks like token theft. Partition personas across
+  Logto refresh token, and rotating it in parallel looks like token theft. It stays quiet while the
+  access token the setup project minted is still valid, so the risk grows with how long a run takes
+  rather than with how many specs there are — and more than one spec now iterates `matrixPersonas`,
+  so two workers on two files really do drive the same persona at once. Partition personas across
   projects before raising the count.
-- **No `data-testid` yet.** Prefer `getByRole` / `getByLabel`. The app is translated (en/it), so
-  selectors that match visible text break under a different locale — pin the locale rather than
-  matching prose.
+- **No `data-testid` yet.** Prefer `getByRole` / `getByLabel`, resolving the text through
+  `fixtures/i18n.ts` so a reworded label updates the selector for free. The app is translated
+  (en/it) and that helper reads the English catalogue only, so the locale is pinned in two places
+  and both matter: `locale: 'en-US'` in `playwright.config.ts`, and `auth.setup.ts` clearing the
+  `preferences-<email>` localStorage entry, whose saved `locale` would otherwise outrank the
+  browser's and travel inside `storageState`.
 - **Never `waitForTimeout`.** The token refresh timer and the `visibilitychange` handler put traffic
   on the wire mid-test; web-first assertions (`expect(locator).toBeVisible()`) retry, sleeps do not.
+- **Give a negative assertion a positive control.** `expect(x).toHaveCount(0)` after an interaction
+  passes just as well when the interaction did not happen, so assert something that must be there
+  first — an element the state under test does not affect. Same reason the RBAC spec refuses to pass
+  for a persona whose token carried no permissions at all.
+- **Do not wait for something already on screen.** Filtering a list and then waiting for the target
+  row proves nothing: it was visible before the first keystroke. Wait for the narrowed state.
 
 ## Cleanup
 

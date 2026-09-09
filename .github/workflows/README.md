@@ -41,15 +41,21 @@ These GitHub Actions automatically manage redirect URIs in your Logto applicatio
 ## End-to-end suite
 
 ### `e2e-main.yml`
-**Trigger**: Push to `main` (i.e. a merged PR), manual dispatch, weekly cron
+**Trigger**: Every push to a pull request and to `main` (docs-only pushes skipped), manual dispatch,
+weekly cron
 **Purpose**: Runs the browser suite (`frontend/e2e/`, `--project=fullstack`) against the full
 compose stack, with personas provisioned by `apitool authz provision`
 
-Deliberately separate from `ci-main.yml`: it builds four images, boots six services and mutates a
-shared Logto tenant, so it is paid once per merge rather than once per push to every branch. Its
-concurrency group **queues rather than cancels** — a run cancelled after provisioning would abandon
-real organizations and users in the tenant. The weekly cron is a drift canary for breakage with no
-commit behind it, such as a tenant setting changed by hand.
+Deliberately separate from `ci-main.yml`: that workflow answers in seconds and gates every branch,
+while this builds four images, boots six services and mutates a shared Logto tenant, so it takes
+minutes. It runs per push to a pull request so a regression is attributed to the commit that caused
+it rather than to a batch of merges.
+
+Its concurrency group is **global and queues rather than cancels** — a run cancelled after
+provisioning would abandon real organizations and users in the tenant. GitHub keeps at most one run
+pending per group, so under a burst of pushes the commits in between are simply not tested; that is
+the accepted cost of never cancelling. The weekly cron is a drift canary for breakage with no commit
+behind it, such as a tenant setting changed by hand.
 
 ### `e2e-smoke.yml`
 **Trigger**: Push to `main`, manual dispatch
@@ -79,8 +85,16 @@ Add these secrets to your repository settings (`Settings > Secrets and variables
 
 ### End-to-end suite
 
-These point at the **development** tenant, not QA: the full-stack specs create and delete
-organizations, and QA shares a database and a tenant with real users.
+These must point at a Logto tenant **dedicated to CI** — neither QA nor production, and not the
+tenant people develop against.
+
+Two reasons. The full-stack specs create and delete organizations, and QA and production share a
+database and a tenant with real users. And the fixture is not per-run: `prefix` in
+`backend/authz/fixture.yml` fixes the organization keys and persona addresses, so a CI run and
+somebody's local `apitool authz provision` on the same tenant fight over the same Logto users. (What
+each side deletes is safely scoped — the specs refuse any name outside the `e2e-` prefix and
+`authz teardown` only removes what its own registry records — so the failure mode is a collision
+during provisioning, not lost data.)
 
 | Secret Name | Description | Example Value |
 |-------------|-------------|---------------|
@@ -97,6 +111,10 @@ organizations, and QA shares a database and a tenant with real users.
 | `E2E_SMOKE_PASSWORD` | That account's password | `your-password-here` |
 
 Without the two `E2E_SMOKE_*` values the smoke job still runs, covering only the public surface.
+
+There are deliberately no `SMTP_*` secrets here. Creating a user makes the backend send a welcome
+email with a temporary password, and the full-stack suite creates one per run; the job writes no
+mail configuration, so nothing is sent. Do not add any.
 
 ## Setup Instructions
 

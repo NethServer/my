@@ -4,17 +4,22 @@ name: E2E - Full Stack
 # backend, collect, frontend and proxy, and the specs drive the interface as
 # real personas signed in through the real Logto form.
 #
-# Not part of ci-main.yml on purpose. That workflow gates pull requests, while
-# this builds four images, boots six services and provisions a shared Logto
-# tenant — minutes rather than seconds, and it mutates external state. It is
-# paid once per merge instead of once per push to every branch.
+# Not part of ci-main.yml on purpose. That workflow answers in seconds and gates
+# every branch; this builds four images, boots six services and provisions a
+# shared Logto tenant, so it takes minutes and mutates external state. It runs
+# on pushes to a pull request and on merges to main, which is as often as it is
+# worth paying for.
 
 on:
+  # Docs-only pushes are skipped on both triggers: the job costs minutes and
+  # holds the CI tenant for all of them, whichever branch it was asked from.
   push:
     branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
   # Every push to a pull request, so a regression is attributed to the commit
-  # that caused it rather than to a batch of merges. Docs-only pushes are
-  # skipped: the job costs minutes and holds the CI tenant for all of them.
+  # that caused it rather than to a batch of merges.
   pull_request:
     branches: [ main ]
     paths-ignore:
@@ -37,8 +42,14 @@ on:
 # Never cancel because a run stopped after `authz provision` loses the registry
 # recording what it created — that lives on the runner — leaving orgs no
 # teardown can find, which the next provisioning trips over as a name
-# collision. Queueing lets every run reach its teardown. The cost is that a
-# burst of pushes serializes, a few minutes each.
+# collision. Queueing lets every run reach its teardown.
+#
+# The cost is not a growing queue: GitHub keeps at most one run pending per
+# group and cancels the previously pending one, so at most two commits are ever
+# in flight. It is that under a burst the commits in between are never tested,
+# which is a partial retreat from the per-commit attribution the pull_request
+# trigger exists for. Cancelling instead would trade that for abandoned
+# organizations, which is worse.
 concurrency:
   group: e2e-fullstack
   cancel-in-progress: false
@@ -78,11 +89,18 @@ jobs:
         LOGTO_BACKEND_APP_ID: ${{ secrets.E2E_LOGTO_BACKEND_APP_ID }}
         LOGTO_BACKEND_APP_SECRET: ${{ secrets.E2E_LOGTO_BACKEND_APP_SECRET }}
         JWT_SECRET: ${{ secrets.E2E_JWT_SECRET }}
+        LOGTO_ENDPOINT: ${{ secrets.E2E_LOGTO_ENDPOINT }}
+        LOGTO_APP_ID: ${{ secrets.E2E_LOGTO_APP_ID }}
       run: |
         set -euo pipefail
 
         # Compose overrides DATABASE_URL and REDIS_URL itself; these files carry
         # the identity provider configuration and the signing key.
+        #
+        # Deliberately no SMTP_*: creating a user makes the backend send a
+        # welcome email with a temporary password, and the users spec creates
+        # one per run. With no relay configured nothing is sent. Do not add
+        # SMTP secrets to this job.
         cat > backend/.env <<EOF
         LOGTO_TENANT_ID=${LOGTO_TENANT_ID}
         LOGTO_TENANT_DOMAIN=${LOGTO_TENANT_DOMAIN}
@@ -95,10 +113,12 @@ jobs:
 
         cp backend/.env collect/.env
 
-        # Consumed by the frontend image build.
+        # Consumed by the frontend image build. Secrets reach the script
+        # through env: above rather than being interpolated into it, so none of
+        # them is ever part of the workflow body GitHub renders.
         cat > .env <<EOF
-        VITE_LOGTO_ENDPOINT=${{ secrets.E2E_LOGTO_ENDPOINT }}
-        VITE_LOGTO_APP_ID=${{ secrets.E2E_LOGTO_APP_ID }}
+        VITE_LOGTO_ENDPOINT=${LOGTO_ENDPOINT}
+        VITE_LOGTO_APP_ID=${LOGTO_APP_ID}
         EOF
 
     - name: Start the stack
@@ -139,6 +159,8 @@ jobs:
       env:
         OWNER_EMAIL: ${{ secrets.E2E_OWNER_EMAIL }}
         OWNER_PASSWORD: ${{ secrets.E2E_OWNER_PASSWORD }}
+        LOGTO_ENDPOINT: ${{ secrets.E2E_LOGTO_ENDPOINT }}
+        LOGTO_APP_ID: ${{ secrets.E2E_LOGTO_APP_ID }}
       working-directory: backend
       run: |
         set -euo pipefail
@@ -148,8 +170,8 @@ jobs:
         # the configuration and owner credentials are needed; `authz provision`
         # fills in the organizations, personas and their generated passwords.
         jq -n \
-          --arg endpoint "${{ secrets.E2E_LOGTO_ENDPOINT }}" \
-          --arg appId "${{ secrets.E2E_LOGTO_APP_ID }}" \
+          --arg endpoint "${LOGTO_ENDPOINT}" \
+          --arg appId "${LOGTO_APP_ID}" \
           --arg authBase "${APP_URL}" \
           --arg backend "${BACKEND_URL}" \
           --arg email "${OWNER_EMAIL}" \
