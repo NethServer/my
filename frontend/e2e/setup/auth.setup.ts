@@ -15,10 +15,11 @@
  * is both race-free and the real code path.
  */
 
-import { test as setup, expect } from '@playwright/test'
+import { test as setup, expect, type Page } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { matrixPersonas, owner, storageStatePath, type Persona } from '../fixtures/personas'
+import { t } from '../fixtures/i18n'
 
 /**
  * The owner plus the RBAC matrix — one persona per (organization role x
@@ -27,7 +28,29 @@ import { matrixPersonas, owner, storageStatePath, type Persona } from '../fixtur
  */
 const personas: Persona[] = [owner, ...matrixPersonas]
 
-async function signIn(page: import('@playwright/test').Page, who: Persona) {
+/**
+ * Drop the per-user preference blob before the session is saved.
+ *
+ * `savePreference` from the component library keeps user preferences in a
+ * localStorage entry named `preferences-<email>`, and `getBrowserLocale`
+ * (`src/i18n/index.ts`) prefers the `locale` it finds there over anything the
+ * browser negotiates. localStorage is exactly what `storageState` captures and
+ * `e2e/.auth/*.json` keeps between runs, so one persona that ever had Italian
+ * selected would silently break every selector in the suite — each of which is
+ * resolved through the English catalogue by `fixtures/i18n.ts`. Clearing it
+ * also makes the collapsed/expanded menu state deterministic.
+ */
+async function clearStoredPreferences(page: Page) {
+  await page.evaluate(() => {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('preferences-')) {
+        localStorage.removeItem(key)
+      }
+    }
+  })
+}
+
+async function signIn(page: Page, who: Persona) {
   // "/" redirects to /dashboard, the router guard bounces an unauthenticated
   // visitor to /login, and LoginView immediately calls signIn() — which is a
   // full-page navigation to the Logto-hosted form on another origin.
@@ -48,6 +71,18 @@ async function signIn(page: import('@playwright/test').Page, who: Persona) {
   await page.waitForFunction(() => sessionStorage.getItem('my_jwt') !== null, null, {
     timeout: 30_000,
   })
+
+  await clearStoredPreferences(page)
+}
+
+for (const who of personas) {
+  setup(`authenticate ${who.key}`, async ({ page }) => {
+    const file = storageStatePath(who.key)
+    mkdirSync(dirname(file), { recursive: true })
+
+    await signIn(page, who)
+    await page.context().storageState({ path: file })
+  })
 }
 
 /**
@@ -61,36 +96,28 @@ async function signIn(page: import('@playwright/test').Page, who: Persona) {
  * and the rest of the page look perfectly healthy. Every symptom then reads as
  * a product bug, and a suite that trusts it reports nonsense.
  *
- * The give-away is a burst of Vue "Missing ref owner context" warnings, which a
- * freshly started server never emits. Catch it here rather than in twenty
- * confusing spec failures.
+ * So open one. A drawer that appears is the only evidence that means anything
+ * here, and it costs one page load: watching the console for the Vue "Missing
+ * ref owner context" warnings the broken state emits proves nothing on a page
+ * that mounts no such component, and needs a sleep to do even that.
+ *
+ * Declared after the sign-in loop so the owner's session already exists.
  */
-setup('the dev server is serving current code', async ({ page }) => {
-  const hoistedRefWarnings: string[] = []
+setup.describe('the dev server is serving current code', () => {
+  setup.use({ storageState: storageStatePath(owner.key) })
 
-  page.on('console', (message) => {
-    if (message.text().includes('Missing ref owner context')) {
-      hoistedRefWarnings.push(message.text())
-    }
+  setup('a side drawer opens', async ({ page }) => {
+    await page.goto('/distributors')
+    await page.getByRole('button', { name: t('distributors.create_distributor') }).click()
+
+    const drawer = page.locator('form').filter({ has: page.getByLabel(t('organizations.name')) })
+
+    await expect(
+      drawer,
+      'The create drawer did not open. If this is a dev server that has been running for a ' +
+        'while, it is probably serving a stale module graph: component-library refs come back ' +
+        'undefined, so dropdowns and drawers stay shut and the specs would report product bugs ' +
+        'that do not exist. Restart it — `npm run dev:e2e`.',
+    ).toBeVisible({ timeout: 30_000 })
   })
-
-  await page.goto('/login')
-  await page.waitForTimeout(2_000)
-
-  expect(
-    hoistedRefWarnings,
-    'The dev server on this port is serving a stale module graph: component-library ' +
-      'refs are undefined, so dropdowns and drawers will not open and the specs ' +
-      'would report product bugs that do not exist. Restart it — `npm run dev:e2e`.',
-  ).toEqual([])
 })
-
-for (const who of personas) {
-  setup(`authenticate ${who.key}`, async ({ page }) => {
-    const file = storageStatePath(who.key)
-    mkdirSync(dirname(file), { recursive: true })
-
-    await signIn(page, who)
-    await page.context().storageState({ path: file })
-  })
-}

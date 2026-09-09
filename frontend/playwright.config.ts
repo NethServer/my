@@ -37,6 +37,16 @@ export default defineConfig({
 
   use: {
     baseURL: BASE_URL,
+
+    /**
+     * Pinned, and load-bearing. Selectors are resolved by translation key
+     * through `e2e/fixtures/i18n.ts`, which reads the English catalogue only,
+     * so a browser negotiating `it` would turn every `getByLabel` into a silent
+     * miss. `auth.setup.ts` additionally clears the stored `preferences-*`
+     * entry, because a locale saved there outranks the browser's.
+     */
+    locale: 'en-US',
+
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
     // retain-on-failure rather than on-first-retry: a trace on the *first*
