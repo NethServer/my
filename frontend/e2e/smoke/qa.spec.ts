@@ -100,13 +100,16 @@ test.describe('authenticated surface', () => {
 
     const systems = page.getByRole('navigation').locator('a[href="/systems"]')
     await expect(systems).toBeVisible()
-    await systems.click()
 
-    // A rendered list, not a skeleton that never resolves.
-    const response = await page.waitForResponse(
+    // A rendered list, not a skeleton that never resolves. Armed before the
+    // click: waitForResponse only sees traffic that arrives after it starts
+    // listening.
+    const listed = page.waitForResponse(
       (r) => r.url().includes(`${API}/systems`) && r.request().method() === 'GET',
       { timeout: 60_000 },
     )
-    expect(response.status()).toBe(200)
+    await systems.click()
+
+    expect((await listed).status()).toBe(200)
   })
 })

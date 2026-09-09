@@ -56,8 +56,7 @@ function drawerOf(page: Page): Locator {
 }
 
 async function openUsers(page: Page) {
-  await openAs(page, '/users')
-  await page.waitForResponse((r) => /\/api\/users(\?|$)/.test(r.url()))
+  await openAs(page, '/users', /\/api\/users(\?|$)/)
 }
 
 /**

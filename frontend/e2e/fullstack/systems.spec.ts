@@ -15,7 +15,7 @@
 
 import { test, expect, type Page } from '@playwright/test'
 import { owner, persona, storageStatePath } from '../fixtures/personas'
-import { openAs } from '../fixtures/auth'
+import { apiResponse, openAs } from '../fixtures/auth'
 import { t } from '../fixtures/i18n'
 import {
   createE2eSystem,
@@ -54,8 +54,7 @@ async function newSystem(): Promise<System> {
 
 /** Open the systems list and wait for the rows to arrive. */
 async function openSystems(page: Page) {
-  await openAs(page, '/systems')
-  await page.waitForResponse((r) => /\/api\/systems(\?|$)/.test(r.url()))
+  await openAs(page, '/systems', /\/api\/systems(\?|$)/)
 }
 
 /** Narrow the list to one system, so its row is unambiguous. */
@@ -111,8 +110,9 @@ test('stops offering to regenerate the secret once the system registers', async 
   expect(registration.system_key).toBe(system.system_key)
   expect((await getSystem(system.id)).registered_at ?? null).not.toBeNull()
 
+  const listed = apiResponse(page, /\/api\/systems(\?|$)/)
   await page.reload()
-  await page.waitForResponse((r) => /\/api\/systems(\?|$)/.test(r.url()))
+  await listed
   await filterTo(page, system.name)
 
   await row().getByRole('button', { name: /menu/i }).click()
