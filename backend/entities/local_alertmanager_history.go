@@ -38,9 +38,6 @@ type AlertHistoryQuery struct {
 	OrgIDs     []string
 	SystemKeys []string
 	Alertnames []string
-	// Service is a free-text term matched case-insensitively as a substring
-	// of labels->>'service'; blank means no filter.
-	Service string
 	// Search is a free-text term matched case-insensitively as a substring of
 	// the alert type, summary/description, service, system and company (see
 	// alertHistorySearchColumns); blank means no filter. Resolved alerts carry
@@ -133,11 +130,6 @@ func (r *LocalAlertHistoryRepository) QueryAlertHistory(q AlertHistoryQuery) ([]
 			idx++
 		}
 		conds = append(conds, fmt.Sprintf("status IN (%s)", strings.Join(ph, ",")))
-	}
-	if service := strings.TrimSpace(q.Service); service != "" {
-		conds = append(conds, fmt.Sprintf(`labels->>'service' ILIKE $%d ESCAPE '\'`, idx))
-		args = append(args, "%"+escapeLikePattern(service)+"%")
-		idx++
 	}
 	if search := strings.TrimSpace(q.Search); search != "" {
 		ors := make([]string, len(alertHistorySearchColumns))

@@ -330,33 +330,6 @@ func TestReassignSystemAlertHistoryReturnsZeroWhenNoMatch(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestQueryAlertHistory_ServiceSubstringEscaped(t *testing.T) {
-	repo, mock, cleanup := setupAlertHistoryMock(t)
-	defer cleanup()
-
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM alert_history WHERE organization_id IN \(\$1\) AND alertname IN \(\$2\) AND labels->>'service' ILIKE \$3 ESCAPE '\\'`).
-		WithArgs("org-1", "ServiceDown", `%ns\_plug\%%`).
-		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-
-	mock.ExpectQuery(`SELECT id, system_key, alertname.*ORDER BY created_at desc`).
-		WithArgs("org-1", "ServiceDown", `%ns\_plug\%%`, 20, 0).
-		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "system_key", "alertname", "severity", "status", "fingerprint",
-			"starts_at", "ends_at", "summary", "labels", "annotations", "receiver", "created_at",
-		}))
-
-	_, total, err := repo.QueryAlertHistory(AlertHistoryQuery{
-		OrgIDs:     []string{"org-1"},
-		Alertnames: []string{"ServiceDown"},
-		Service:    " ns_plug% ",
-		Page:       1,
-		PageSize:   20,
-	})
-	assert.NoError(t, err)
-	assert.Equal(t, 0, total)
-	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
 func TestQueryAlertHistory_SearchAcrossColumns(t *testing.T) {
 	repo, mock, cleanup := setupAlertHistoryMock(t)
 	defer cleanup()

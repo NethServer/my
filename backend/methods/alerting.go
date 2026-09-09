@@ -576,7 +576,6 @@ func GetAlerts(c *gin.Context) {
 		severities:      c.QueryArray("severity"),
 		systemKeys:      c.QueryArray("system_key"),
 		alertnames:      c.QueryArray("alertname"),
-		service:         c.Query("service"),
 		search:          search,
 		assignedUserIDs: assignedUserIDs,
 	})
@@ -1251,10 +1250,6 @@ type alertFilter struct {
 	severities []string
 	systemKeys []string
 	alertnames []string
-	// service is a free-text term matched case-insensitively as a substring of
-	// the `service` label ("vpn" finds openvpn). Single-valued: the label is an
-	// open per-unit value, unlike the exact-match lists above.
-	service string
 	// search is a free-text term matched case-insensitively as a substring of
 	// the alert type, its service, the summary/description annotations, the
 	// system name/key/fqdn, the company name and the assignee's name; the
@@ -1271,9 +1266,8 @@ type alertFilter struct {
 // or does not match any of the requested values; this prevents silent leakage
 // of unrelated alerts when the caller narrows the query.
 func filterAlerts(alerts []map[string]interface{}, f alertFilter) []map[string]interface{} {
-	service := strings.ToLower(strings.TrimSpace(f.service))
 	search := strings.ToLower(strings.TrimSpace(f.search))
-	if len(f.statuses) == 0 && len(f.severities) == 0 && len(f.systemKeys) == 0 && len(f.alertnames) == 0 && service == "" && search == "" && len(f.assignedUserIDs) == 0 {
+	if len(f.statuses) == 0 && len(f.severities) == 0 && len(f.systemKeys) == 0 && len(f.alertnames) == 0 && search == "" && len(f.assignedUserIDs) == 0 {
 		return alerts
 	}
 
@@ -1309,13 +1303,6 @@ func filterAlerts(alerts []map[string]interface{}, f alertFilter) []map[string]i
 		if len(f.alertnames) > 0 {
 			an, ok := labels["alertname"].(string)
 			if !ok || !slices.Contains(f.alertnames, an) {
-				continue
-			}
-		}
-
-		if service != "" {
-			svc, ok := labels["service"].(string)
-			if !ok || !strings.Contains(strings.ToLower(svc), service) {
 				continue
 			}
 		}
@@ -1595,7 +1582,6 @@ func silenceBelongsToSystem(silence *models.AlertmanagerSilence, systemKey strin
 //
 // Accepted query params (all optional):
 //   - severity, alertname, status (multi-value, OR within, AND across)
-//   - service (free text, case-insensitive substring of the `service` label)
 //   - search (free text across alert type, summary/description, service,
 //     system, company and assignee)
 //   - page, page_size (default 50, cap 100)
@@ -1667,7 +1653,6 @@ func GetSystemAlerts(c *gin.Context) {
 		statuses:        c.QueryArray("status"),
 		severities:      c.QueryArray("severity"),
 		alertnames:      c.QueryArray("alertname"),
-		service:         c.Query("service"),
 		search:          c.Query("search"),
 		assignedUserIDs: c.QueryArray("assigned_user_id"),
 		// systemKeys intentionally omitted: the URL path is the source of truth.
@@ -2507,8 +2492,7 @@ func DeleteAlertSilence(c *gin.Context) {
 // GetSystemAlertHistory handles GET /api/systems/:id/alerts/history
 // Returns paginated resolved/inactive alert history for a system, with
 // optional date range (?from_date=, ?to_date=, RFC3339) and multi-value
-// label filters (alertname, severity, status) and the free-text `service` and
-// `search` filters.
+// label filters (alertname, severity, status) and the free-text `search` filter.
 func GetSystemAlertHistory(c *gin.Context) {
 	systemID := c.Param("id")
 	if systemID == "" {
@@ -2552,7 +2536,6 @@ func GetSystemAlertHistory(c *gin.Context) {
 		OrgIDs:        []string{system.Organization.LogtoID},
 		SystemKeys:    []string{system.SystemKey},
 		Alertnames:    c.QueryArray("alertname"),
-		Service:       c.Query("service"),
 		Search:        c.Query("search"),
 		Severities:    c.QueryArray("severity"),
 		Statuses:      c.QueryArray("status"),
@@ -2617,7 +2600,6 @@ func GetAlertsHistory(c *gin.Context) {
 		OrgIDs:        orgIDs,
 		SystemKeys:    c.QueryArray("system_key"),
 		Alertnames:    c.QueryArray("alertname"),
-		Service:       c.Query("service"),
 		Search:        c.Query("search"),
 		Severities:    c.QueryArray("severity"),
 		Statuses:      c.QueryArray("status"),

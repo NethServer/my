@@ -10887,15 +10887,6 @@ paths:
               type: string
           style: form
           explode: true
-        - name: service
-          in: query
-          description: |
-            Free-text filter on the `service` label (for example `ns-plug` or
-            `openvpn`): case-insensitive substring match. Alerts that carry no
-            `service` label are excluded when the filter is set, so it is
-            meaningful together with `alertname=ServiceDown`.
-          schema:
-            type: string
         - name: search
           in: query
           description: |
@@ -12585,15 +12576,6 @@ paths:
               type: string
           style: form
           explode: true
-        - name: service
-          in: query
-          description: |
-            Free-text filter on the `service` label (for example `ns-plug` or
-            `openvpn`): case-insensitive substring match. Alerts that carry no
-            `service` label are excluded when the filter is set, so it is
-            meaningful together with `alertname=ServiceDown`.
-          schema:
-            type: string
         - name: search
           in: query
           description: |
@@ -14079,15 +14061,6 @@ paths:
               type: string
           style: form
           explode: true
-        - name: service
-          in: query
-          description: |
-            Free-text filter on the `service` label (for example `ns-plug` or
-            `openvpn`): case-insensitive substring match. Alerts that carry no
-            `service` label are excluded when the filter is set, so it is
-            meaningful together with `alertname=ServiceDown`.
-          schema:
-            type: string
         - name: search
           in: query
           description: |
@@ -14278,16 +14251,6 @@ paths:
               type: string
           style: form
           explode: true
-        - name: service
-          in: query
-          required: false
-          description: |
-            Free-text filter on the `service` label (for example `ns-plug` or
-            `openvpn`): case-insensitive substring match. Alerts that carry no
-            `service` label are excluded when the filter is set, so it is
-            meaningful together with `alertname=ServiceDown`.
-          schema:
-            type: string
         - name: search
           in: query
           required: false

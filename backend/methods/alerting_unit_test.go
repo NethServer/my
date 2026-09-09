@@ -583,45 +583,6 @@ func TestAlertingFieldErrorPaths(t *testing.T) {
 	})
 }
 
-func TestFilterAlerts_Service(t *testing.T) {
-	mk := func(alertname, service string) map[string]interface{} {
-		labels := map[string]interface{}{"alertname": alertname, "severity": "critical"}
-		if service != "" {
-			labels["service"] = service
-		}
-		return map[string]interface{}{
-			"labels": labels,
-			"status": map[string]interface{}{"state": "active"},
-		}
-	}
-	alerts := []map[string]interface{}{
-		mk("ServiceDown", "ns-plug"),
-		mk("ServiceDown", "OpenVPN"),
-		mk("WanDown", ""),
-	}
-
-	tests := []struct {
-		name     string
-		params   alertFilter
-		expected int
-	}{
-		{name: "empty service is a no-op", params: alertFilter{service: ""}, expected: 3},
-		{name: "blank service is a no-op", params: alertFilter{service: "   "}, expected: 3},
-		{name: "exact name", params: alertFilter{service: "ns-plug"}, expected: 1},
-		{name: "substring, case-insensitive", params: alertFilter{service: "vpn"}, expected: 1},
-		{name: "surrounding whitespace is trimmed", params: alertFilter{service: " plug "}, expected: 1},
-		{name: "alerts without a service label are excluded", params: alertFilter{service: "down"}, expected: 0},
-		{name: "combined with alertname", params: alertFilter{alertnames: []string{"ServiceDown"}, service: "ns"}, expected: 1},
-		{name: "no match", params: alertFilter{service: "dnsmasq"}, expected: 0},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Len(t, filterAlerts(alerts, tt.params), tt.expected)
-		})
-	}
-}
-
 func TestFilterAlerts_Search(t *testing.T) {
 	alerts := []map[string]interface{}{
 		{
