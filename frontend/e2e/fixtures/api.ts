@@ -10,9 +10,12 @@
  * anything signed locally.
  */
 
-import { execFileSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { registryConfig } from './personas'
+
+const run = promisify(execFile)
 
 const BACKEND_DIR = fileURLToPath(new URL('../../../backend', import.meta.url))
 
@@ -20,29 +23,23 @@ const BACKEND_DIR = fileURLToPath(new URL('../../../backend', import.meta.url))
 export const API_URL = registryConfig.backend_url
 
 let cachedToken: string | undefined
+let minting: Promise<string> | undefined
 
-/**
- * A JWT for the owner. Minting one is a real sign-in, so it is cached for the
- * lifetime of the process.
- */
-export function ownerToken(): string {
-  if (cachedToken) {
-    return cachedToken
-  }
-
+async function mint(): Promise<string> {
   try {
-    // apitool prints progress first and the token last.
-    const out = execFileSync('./apitool', ['token', 'owner'], {
+    // apitool prints progress first and the token last. Spawned asynchronously:
+    // the synchronous variant would block the worker's event loop for as long as
+    // the sign-in takes, stalling Playwright's own protocol traffic and timers.
+    const { stdout } = await run('./apitool', ['token', 'owner'], {
       cwd: BACKEND_DIR,
       encoding: 'utf8',
       timeout: 120_000,
     })
-    const token = out.trim().split('\n').pop()?.trim()
+    const token = stdout.trim().split('\n').pop()?.trim()
 
     if (!token || token.split('.').length !== 3) {
-      throw new Error(`apitool did not print a JWT, got: ${out.slice(-200)}`)
+      throw new Error(`apitool did not print a JWT, got: ${stdout.slice(-200)}`)
     }
-    cachedToken = token
     return token
   } catch (cause) {
     throw new Error(
@@ -54,15 +51,56 @@ export function ownerToken(): string {
   }
 }
 
-async function request(method: string, path: string, body?: unknown): Promise<Response> {
+/**
+ * A JWT for the owner. Minting one is a real sign-in, so it is cached — but the
+ * access token is short-lived (`stores/login.ts`: a 20-minute refresh interval
+ * with a one-minute margin) while a run may last longer, so `request` drops the
+ * cache and re-mints on the first 401 rather than failing teardown. Concurrent
+ * callers share one in-flight sign-in.
+ */
+export async function ownerToken(): Promise<string> {
+  if (cachedToken) {
+    return cachedToken
+  }
+
+  if (!minting) {
+    minting = mint()
+    minting.then(
+      (token) => {
+        cachedToken = token
+        minting = undefined
+      },
+      () => {
+        minting = undefined
+      },
+    )
+  }
+  return minting
+}
+
+async function send(method: string, path: string, body: unknown, token: string): Promise<Response> {
   return fetch(`${API_URL}${path}`, {
     method,
     headers: {
-      Authorization: `Bearer ${ownerToken()}`,
+      Authorization: `Bearer ${token}`,
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
+}
+
+async function request(method: string, path: string, body?: unknown): Promise<Response> {
+  const res = await send(method, path, body, await ownerToken())
+
+  if (res.status !== 401) {
+    return res
+  }
+
+  // The cached token outlived the backend's access-token lifetime. Re-mint once
+  // and replay: a teardown that gives up here leaves the fixture behind in the
+  // tenant, which is worse than the extra sign-in.
+  cachedToken = undefined
+  return send(method, path, body, await ownerToken())
 }
 
 export async function apiGet<T>(path: string): Promise<T> {

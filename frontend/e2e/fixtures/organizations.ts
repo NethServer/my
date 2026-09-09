@@ -4,9 +4,9 @@
 /**
  * Naming and teardown for organizations the suite creates.
  *
- * These specs write to a real Logto tenant shared with the authz fixture and
- * with people's own development data, so everything they create is named under
- * one reserved prefix and nothing outside it is ever touched. Two safeguards:
+ * These specs write to a real Logto tenant, shared at least with the authz
+ * fixture, so everything they create is named under one reserved prefix and
+ * nothing outside it is ever touched. Two safeguards:
  *
  * - every name starts with `e2e-`, and `destroyE2eOrganization` refuses to
  *   delete anything that does not;
@@ -28,11 +28,26 @@ export type Organization = {
   custom_data?: { vat?: string }
 }
 
-/** Distinguishes concurrent runs, and reads back usefully in the Logto console. */
-const runId = Date.now().toString(36).slice(-6)
+/**
+ * Distinguishes concurrent runs and workers, and reads back usefully in the
+ * Logto console.
+ *
+ * The timestamp alone is not enough: each worker is a separate process that
+ * evaluates this module itself, with its own `counter` starting at zero, so two
+ * workers spawned in the same millisecond would generate the same names. The
+ * worker index makes uniqueness structural rather than a matter of timing.
+ *
+ * Exported because the systems and users fixtures need exactly the same thing.
+ */
+export function runTag(): string {
+  const worker = process.env.TEST_PARALLEL_INDEX ?? '0'
+  return `${Date.now().toString(36).slice(-6)}w${worker}`
+}
+
+const runId = runTag()
 let counter = 0
 
-/** A unique, prefixed organization name, e.g. `e2e-dist-mfk2p1-1`. */
+/** A unique, prefixed organization name, e.g. `e2e-dist-mfk2p1w0-1`. */
 export function e2eOrgName(kind: string): string {
   counter += 1
   return `${E2E_PREFIX}${kind}-${runId}-${counter}`
