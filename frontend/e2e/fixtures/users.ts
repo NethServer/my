@@ -15,7 +15,7 @@
  */
 
 import { apiDelete, apiGet } from './api'
-import { E2E_PREFIX } from './organizations'
+import { E2E_PREFIX, runTag } from './organizations'
 
 /**
  * Inbox the generated addresses are sub-addressed from. The tag is what
@@ -23,8 +23,12 @@ import { E2E_PREFIX } from './organizations'
  */
 const MAIL_BASE = process.env.E2E_USER_MAIL ?? 'e2e@nethesis.it'
 
-/** Tag that marks an address as this suite's. Teardown refuses anything else. */
-const MAIL_TAG = `+${E2E_PREFIX}`
+/**
+ * Tag that marks an address as this suite's. Teardown refuses anything else.
+ * Exported because it is also the only marker a spec can recognise a
+ * suite-owned row by in the browser, the rendered address being all it has.
+ */
+export const MAIL_TAG = `+${E2E_PREFIX}`
 
 export type UserRole = { id: string; name: string }
 
@@ -38,16 +42,16 @@ export type User = {
 }
 
 let counter = 0
-const runId = Date.now().toString(36).slice(-6)
+const runId = runTag()
 
-/** A unique display name, e.g. `e2e-user-mfk2p1-1`. */
+/** A unique display name, e.g. `e2e-user-mfk2p1w0-1`. */
 export function e2eUserName(): string {
   counter += 1
   return `${E2E_PREFIX}user-${runId}-${counter}`
 }
 
 /**
- * A unique plus sub-addressed email, e.g. `inbox+e2e-mfk2p1-1@nethesis.it`.
+ * A unique plus sub-addressed email, e.g. `inbox+e2e-mfk2p1w0-1@nethesis.it`.
  * The local part carries the reserved tag so teardown can recognise it.
  */
 export function e2eUserEmail(): string {
@@ -72,9 +76,25 @@ export async function roleIdByName(name: string): Promise<string> {
   return role.id
 }
 
-/** Every user whose address carries the reserved tag. */
-export async function listE2eUsers(): Promise<User[]> {
-  const data = await apiGet<{ users?: User[] }>('/users?page=1&page_size=200')
+/**
+ * Every user whose address carries the reserved tag.
+ *
+ * The statuses are spelled out rather than left to the default, and that is
+ * load-bearing for teardown: `/users` adds `AND u.deleted_at IS NULL` unless
+ * `status=deleted` is among the query parameters
+ * (`entities/local_users.go`, `deletedClause`). A default listing therefore
+ * cannot see an archived user, so the sweep would walk straight past one and
+ * leave it in the tenant for ever — which is exactly what the archive spec
+ * creates.
+ *
+ * Pass a narrower list to ask a question instead of to clean up, e.g.
+ * `listE2eUsers(['deleted'])` for "did the archive really happen".
+ */
+export async function listE2eUsers(
+  statuses: string[] = ['enabled', 'suspended', 'deleted'],
+): Promise<User[]> {
+  const query = statuses.map((s) => `&status=${encodeURIComponent(s)}`).join('')
+  const data = await apiGet<{ users?: User[] }>(`/users?page=1&page_size=200${query}`)
   return (data.users ?? []).filter((u) => u.email?.includes(MAIL_TAG))
 }
 

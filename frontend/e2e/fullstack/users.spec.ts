@@ -16,10 +16,11 @@
  */
 
 import { test, expect, type Locator, type Page } from '@playwright/test'
-import { owner, persona, storageStatePath } from '../fixtures/personas'
+import { fixtureOrg, owner, storageStatePath } from '../fixtures/personas'
 import { openAs } from '../fixtures/auth'
 import { t } from '../fixtures/i18n'
 import {
+  MAIL_TAG,
   destroyE2eUser,
   e2eUserEmail,
   e2eUserName,
@@ -32,7 +33,7 @@ import {
 test.use({ storageState: storageStatePath(owner.key) })
 
 /** A customer organization from the authz fixture to hang users off. */
-const ORG_NAME = persona('authz-d1r1c1-admin').orgName
+const ORG_NAME = fixtureOrg('d1r1c1').name
 
 const created: string[] = []
 
@@ -86,15 +87,32 @@ function rowOf(page: Page, email: string): Locator {
  * Narrow the list to one user. The listing is paginated and there are dozens of
  * fixture accounts, so a new user is rarely on the first page — without this
  * the assertions would depend on where it happened to sort.
+ *
+ * Waiting for the target row alone would not prove the filter ran: on a page
+ * that already shows it, the assertion passes before a keystroke has any
+ * effect. Wait for the narrowed state — exactly one row carrying the suite's
+ * address tag, and it is the right one.
  */
-async function filterTo(page: Page, email: string) {
+async function filterTo(page: Page, email: string): Promise<Locator> {
   await page.getByPlaceholder(t('users.filter_users')).fill(email)
-  await expect(rowOf(page, email)).toBeVisible({ timeout: 30_000 })
+
+  const rows = page.getByRole('row').filter({ hasText: MAIL_TAG })
+  await expect(rows).toHaveCount(1, { timeout: 30_000 })
+  await expect(rows.first()).toContainText(email)
+  return rows.first()
 }
 
-test.describe.configure({ mode: 'serial' })
-
 test.describe('user lifecycle', () => {
+  // Serial for the reason in the file docstring: one account covers create,
+  // edit and archive, so each step depends on the one before. Scoped to this
+  // describe rather than the file, so a failure here does not skip the
+  // independent validation test below.
+  //
+  // `email` is computed once per worker process, so a retry of the group reuses
+  // the address — which is fine only because `beforeAll` re-runs and sweeps it
+  // first. Load-bearing, hence spelled out.
+  test.describe.configure({ mode: 'serial' })
+
   const name = e2eUserName()
   const email = e2eUserEmail()
 
@@ -113,8 +131,8 @@ test.describe('user lifecycle', () => {
     await drawer.getByRole('button', { name: t('users.create_user') }).click()
 
     await expect(drawer).toBeHidden({ timeout: 30_000 })
-    await filterTo(page, email)
-    await expect(rowOf(page, email)).toContainText(t('user_roles.reader'))
+    const row = await filterTo(page, email)
+    await expect(row).toContainText(t('user_roles.reader'))
 
     // The row is one thing; what the backend stored is another.
     const stored = await findE2eUser(email)
@@ -126,10 +144,8 @@ test.describe('user lifecycle', () => {
   test('changes the assigned role and keeps the change', async ({ page }) => {
     await openUsers(page)
 
-    await filterTo(page, email)
-    await rowOf(page, email)
-      .getByRole('button', { name: t('common.edit') })
-      .click()
+    const row = await filterTo(page, email)
+    await row.getByRole('button', { name: t('common.edit') }).click()
 
     const drawer = drawerOf(page)
     await expect(drawer).toBeVisible()
@@ -150,18 +166,42 @@ test.describe('user lifecycle', () => {
   test('archives the user', async ({ page }) => {
     await openUsers(page)
 
-    await filterTo(page, email)
-    await rowOf(page, email).getByRole('button', { name: /menu/i }).click()
+    const row = await filterTo(page, email)
+    await row.getByRole('button', { name: /menu/i }).click()
     await page.getByRole('menuitem', { name: t('common.archive') }).click()
 
-    // The modal names the destructive action rather than just confirming.
-    await page
-      .getByRole('button', { name: t('common.archive') })
-      .last()
-      .click()
+    // The confirmation is type-to-confirm, and that is load-bearing:
+    // `DeleteObjectModal.vue` only emits primary-click when the typed text
+    // matches the name exactly, so clicking Archive without it shows a
+    // validation error and archives nothing.
+    //
+    // Asserted on the heading rather than on the dialog itself: the element
+    // carrying role="dialog" is a zero-size wrapper around fixed-position
+    // children, which Playwright reports as hidden however open the modal is.
+    const confirm = page.getByRole('dialog')
+    const title = confirm.getByRole('heading', { name: t('users.archive_user') })
 
-    // Archived users drop out of the default listing.
+    await expect(title).toBeVisible()
+    await confirm.getByRole('textbox').fill(name)
+    await confirm.getByRole('button', { name: t('common.archive') }).click()
+
+    // Wait for the modal to go before looking at the table, and not only for
+    // tidiness: while it is open the rest of the page is aria-hidden, so
+    // `getByRole('row')` matches nothing and the assertion below would pass
+    // against an archive that never happened.
+    await expect(title).toBeHidden({ timeout: 30_000 })
+
+    // Archived users drop out of the listing, which asks for enabled and
+    // suspended only.
     await expect(rowOf(page, email)).toHaveCount(0, { timeout: 30_000 })
+
+    // The row leaving the page is not the same as the account being archived.
+    // Ask the backend for the archived ones and it is there.
+    const archived = await listE2eUsers(['deleted'])
+    expect(
+      archived.map((u) => u.email),
+      `${email} should be listed once the archived are asked for`,
+    ).toContain(email)
   })
 })
 
@@ -183,8 +223,10 @@ test('refuses a user with no role assigned', async ({ page }) => {
     drawer.getByText(t('users.user_role_ids_at_least_one_role_is_required')),
   ).toBeVisible()
 
-  // Rejected in the browser: nothing reached the backend, so no account and no
-  // welcome email.
+  // The drawer stays open, so the form was rejected in the browser and nothing
+  // was submitted — no account, no welcome email. The backend lookup that
+  // follows cannot fail while that holds: it guards against a form that starts
+  // submitting anyway, and is not evidence that the server refuses anything.
   await expect(drawer).toBeVisible()
   expect(await findE2eUser(email), 'a rejected form must not create anything').toBeUndefined()
 })
