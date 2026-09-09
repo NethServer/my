@@ -35,9 +35,12 @@ func NewLocalAlertHistoryRepository() *LocalAlertHistoryRepository {
 // cross-system filter exposed on /api/alerts/history; an empty slice means
 // "all systems in scope".
 type AlertHistoryQuery struct {
-	OrgIDs        []string
-	SystemKeys    []string
-	Alertnames    []string
+	OrgIDs     []string
+	SystemKeys []string
+	Alertnames []string
+	// Service is a free-text term matched case-insensitively as a substring
+	// of labels->>'service'; blank means no filter.
+	Service       string
 	Severities    []string
 	Statuses      []string
 	From          *time.Time
@@ -125,6 +128,11 @@ func (r *LocalAlertHistoryRepository) QueryAlertHistory(q AlertHistoryQuery) ([]
 			idx++
 		}
 		conds = append(conds, fmt.Sprintf("status IN (%s)", strings.Join(ph, ",")))
+	}
+	if service := strings.TrimSpace(q.Service); service != "" {
+		conds = append(conds, fmt.Sprintf(`labels->>'service' ILIKE $%d ESCAPE '\'`, idx))
+		args = append(args, "%"+escapeLikePattern(service)+"%")
+		idx++
 	}
 	if q.From != nil {
 		conds = append(conds, fmt.Sprintf("created_at >= $%d", idx))
@@ -700,4 +708,10 @@ func (r *LocalAlertHistoryRepository) ReassignSystemAlertHistory(systemKey, from
 		return 0, fmt.Errorf("failed to reassign alert history: %w", err)
 	}
 	return result.RowsAffected()
+}
+
+// escapeLikePattern makes a user-supplied term match literally inside a
+// LIKE/ILIKE pattern; pair it with ESCAPE '\'.
+func escapeLikePattern(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
 }
