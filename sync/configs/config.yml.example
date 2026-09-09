@@ -25,7 +25,10 @@ organization_roles:
     priority: 1
     type: org
     permissions:
-      # Complete control over commercial hierarchy
+      # Complete control over the commercial hierarchy, shared by every member
+      # of the Owner organization (Owner and Staff users). The destroy:* of the
+      # TECHNICAL resources (systems, users) are NOT here: they live on the
+      # "Owner" user role only, so Staff never inherits them.
       - id: read:distributors
       - id: manage:distributors
       - id: destroy:distributors
@@ -139,12 +142,45 @@ user_roles:
         - id: read:entitlements
         - id: read:rebranding
 
-  - id: super
-    name: "Super Admin"
+  - id: staff
+    name: "Staff"
     priority: 0
     type: user
     permissions:
-      # Complete control including most dangerous operations
+      # Everything non-destructive: the technical role of the Nethesis
+      # cross-cutting employees. Assignable only to users of the Owner
+      # organization; every destroy:* stays on the "Owner" user role.
+      - id: read:systems
+      - id: manage:systems
+      - id: read:users
+      - id: manage:users
+      - id: impersonate:users
+      - id: connect:systems
+      - id: read:applications
+      - id: manage:applications
+      - id: read:alerts
+      - id: manage:alerts
+      - id: config:alerts
+      - id: read:entitlements
+      - id: manage:entitlements
+      - id: read:rebranding
+      - id: manage:rebranding
+    # Access control: only Owner users can assign this role
+    access_control:
+      organization_roles:
+        - "owner"
+
+  - id: owner
+    name: "Owner"
+    priority: 0
+    type: user
+    permissions:
+      # Complete control: everything Staff has, plus the destroy:* of the
+      # technical resources (systems, users). The hierarchy destroys come from
+      # the Owner ORGANIZATION role. This is the technical role of the
+      # break-glass owner user, seeded by `sync init`: it is never offered by
+      # the API and never assignable — the access_control below is defense in
+      # depth, the backend refuses the assignment outright.
       - id: read:systems
       - id: manage:systems
       - id: destroy:systems
