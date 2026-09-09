@@ -52,6 +52,25 @@ jobs:
     - name: Run tests with coverage
       run: go test -coverprofile=coverage.out -coverpkg=./... ./...
 
+    - name: Check the authorization spec (backend only)
+      if: matrix.component == 'backend'
+      run: |
+        # `apitool authz coverage` compares the route inventory in main.go with
+        # the hand-authored intents in authz/routes.yml, and validates the
+        # fixture against the role vocabulary. Offline: no tenant, no running
+        # backend, seconds. The rest of the suite needs both and stays local.
+        #
+        # This is the check that catches a role added to authz/fixture.yml that
+        # no config defines, or an endpoint added with no declared intent —
+        # both of which otherwise surface much later, in a job that costs
+        # minutes or in someone's `make test-authz`.
+        cp ../sync/configs/config.ci.yml ../sync/configs/config.yml
+        # coverage reads only the spec and main.go, so a stub registry is
+        # enough; assertLocal still insists the target is local.
+        printf '{"config":{"backend_url":"http://127.0.0.1:8080/api"}}' > .api-registry.json
+        make apitool
+        ./apitool authz coverage
+
     - name: Upload coverage artifacts
       uses: actions/upload-artifact@v4
       with:

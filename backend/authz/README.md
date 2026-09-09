@@ -94,6 +94,20 @@ and runs even on a 200. Matching is by token boundary, not substring: the fixtur
 names nest on purpose (`authz-d1r1` is a prefix of `authz-d1r1c1`), and plain
 substring matching reports a customer's own name as its parent leaking.
 
+## What CI checks
+
+`ci-main.yml` runs `./apitool authz coverage` on every push and pull request.
+That one subcommand is offline — it reads `main.go`, the spec and the role
+vocabulary, needs no tenant and no running backend — so it can gate every
+branch. It fails on a route with no declared intent and on a fixture user whose
+role no config defines, which is how a role added here without a matching
+definition in `sync/configs/config.yml` gets caught at once instead of days
+later. The vocabulary it reads is `sync/configs/config.ci.yml`, the only
+tracked config.
+
+Everything else — `personas`, `run` — needs a provisioned tenant and a local
+backend, and stays a local gate.
+
 ## Adding an endpoint
 
 `./apitool authz coverage` fails when `main.go` registers a route that

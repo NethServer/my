@@ -378,7 +378,7 @@ cd backend && make test-authz          # coverage + persona drift + all four lay
 Two rules when touching it:
 
 - **Never derive an expectation from the middleware you just wrote.** `authz/routes.yml` states what an endpoint *should* require, from the permission vocabulary in `config.yml`, the documented behaviour and what the endpoint does. A disagreement with the code is the finding — copying the wiring in makes the suite prove nothing.
-- **A new endpoint needs an entry.** `./apitool authz coverage` fails when `main.go` has a route `routes.yml` does not mention.
+- **A new endpoint needs an entry.** `./apitool authz coverage` fails when `main.go` has a route `routes.yml` does not mention. That subcommand is offline and runs in `ci-main.yml` on every push — it also fails on a fixture user whose role no config defines. The rest of the suite needs a tenant and a local backend, so it stays a local gate.
 
 Deviations between the declared model (`effective = org_permissions ∪ user_permissions`) and what the backend really signs into the JWT live in `authz/model.yml`, each with the code that causes it. Full details, including known gaps and the findings from the first run, in `backend/authz/README.md`.
 
