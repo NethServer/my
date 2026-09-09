@@ -560,11 +560,13 @@ func GetAlerts(c *gin.Context) {
 	all, warnings := fanOutMimirAlerts(c.Request.Context(), tenants)
 	all = filterByOrgScope(all, orgIDs)
 
-	// Filtering or sorting by assignee needs the whole (org-scoped) list
-	// decorated before pagination — still a single batch DB query. Otherwise
-	// keep the cheaper page-only decoration below.
+	// Filtering or sorting by assignee, or a free-text search (which matches
+	// the assignee's name), needs the whole (org-scoped) list decorated before
+	// pagination — still a single batch DB query. Otherwise keep the cheaper
+	// page-only decoration below.
 	assignedUserIDs := c.QueryArray("assigned_user_id")
-	needAssignmentsUpfront := len(assignedUserIDs) > 0 || sortBy == "assigned_user_name"
+	search := c.Query("search")
+	needAssignmentsUpfront := len(assignedUserIDs) > 0 || sortBy == "assigned_user_name" || strings.TrimSpace(search) != ""
 	if needAssignmentsUpfront {
 		attachAlertAssignments(all)
 	}
@@ -575,6 +577,7 @@ func GetAlerts(c *gin.Context) {
 		systemKeys:      c.QueryArray("system_key"),
 		alertnames:      c.QueryArray("alertname"),
 		service:         c.Query("service"),
+		search:          search,
 		assignedUserIDs: assignedUserIDs,
 	})
 
@@ -1252,6 +1255,11 @@ type alertFilter struct {
 	// the `service` label ("vpn" finds openvpn). Single-valued: the label is an
 	// open per-unit value, unlike the exact-match lists above.
 	service string
+	// search is a free-text term matched case-insensitively as a substring of
+	// the alert type, its service, the summary/description annotations, the
+	// system name/key/fqdn, the company name and the assignee's name; the
+	// last one needs the list decorated by attachAlertAssignments first.
+	search string
 	// assignedUserIDs matches on the assignee's user_id; the literal value
 	// "none" matches unassigned alerts. Requires attachAlertAssignments to
 	// have decorated the list first.
@@ -1264,7 +1272,8 @@ type alertFilter struct {
 // of unrelated alerts when the caller narrows the query.
 func filterAlerts(alerts []map[string]interface{}, f alertFilter) []map[string]interface{} {
 	service := strings.ToLower(strings.TrimSpace(f.service))
-	if len(f.statuses) == 0 && len(f.severities) == 0 && len(f.systemKeys) == 0 && len(f.alertnames) == 0 && service == "" && len(f.assignedUserIDs) == 0 {
+	search := strings.ToLower(strings.TrimSpace(f.search))
+	if len(f.statuses) == 0 && len(f.severities) == 0 && len(f.systemKeys) == 0 && len(f.alertnames) == 0 && service == "" && search == "" && len(f.assignedUserIDs) == 0 {
 		return alerts
 	}
 
@@ -1311,6 +1320,10 @@ func filterAlerts(alerts []map[string]interface{}, f alertFilter) []map[string]i
 			}
 		}
 
+		if search != "" && !alertMatchesSearch(alert, search) {
+			continue
+		}
+
 		if len(f.assignedUserIDs) > 0 {
 			uid, _ := assigneeOf(alert)
 			want := uid
@@ -1326,6 +1339,33 @@ func filterAlerts(alerts []map[string]interface{}, f alertFilter) []map[string]i
 	}
 
 	return filtered
+}
+
+// alertSearchLabels are the labels a free-text search inspects: alert type
+// and service, system identity, company.
+var alertSearchLabels = []string{"alertname", "service", "system_name", "system_key", "system_fqdn", "organization_name"}
+
+// alertMatchesSearch reports whether term (lower-cased, trimmed, non-empty)
+// occurs in a searchable label, in any summary*/description* annotation or
+// in the assignee's name.
+func alertMatchesSearch(alert map[string]interface{}, term string) bool {
+	labels, _ := alert["labels"].(map[string]interface{})
+	for _, key := range alertSearchLabels {
+		if v, ok := labels[key].(string); ok && strings.Contains(strings.ToLower(v), term) {
+			return true
+		}
+	}
+	annotations, _ := alert["annotations"].(map[string]interface{})
+	for key, raw := range annotations {
+		if !strings.HasPrefix(key, "summary") && !strings.HasPrefix(key, "description") {
+			continue
+		}
+		if v, ok := raw.(string); ok && strings.Contains(strings.ToLower(v), term) {
+			return true
+		}
+	}
+	_, assignee := assigneeOf(alert)
+	return assignee != "" && strings.Contains(strings.ToLower(assignee), term)
 }
 
 // systemActivityOrgID returns the org the system belongs to (the customer),
@@ -1556,6 +1596,8 @@ func silenceBelongsToSystem(silence *models.AlertmanagerSilence, systemKey strin
 // Accepted query params (all optional):
 //   - severity, alertname, status (multi-value, OR within, AND across)
 //   - service (free text, case-insensitive substring of the `service` label)
+//   - search (free text across alert type, summary/description, service,
+//     system, company and assignee)
 //   - page, page_size (default 50, cap 100)
 //   - sort_by (starts_at | severity | alertname | status), default starts_at
 //   - sort_direction (asc | desc), default desc
@@ -1626,6 +1668,7 @@ func GetSystemAlerts(c *gin.Context) {
 		severities:      c.QueryArray("severity"),
 		alertnames:      c.QueryArray("alertname"),
 		service:         c.Query("service"),
+		search:          c.Query("search"),
 		assignedUserIDs: c.QueryArray("assigned_user_id"),
 		// systemKeys intentionally omitted: the URL path is the source of truth.
 	})
@@ -2464,7 +2507,8 @@ func DeleteAlertSilence(c *gin.Context) {
 // GetSystemAlertHistory handles GET /api/systems/:id/alerts/history
 // Returns paginated resolved/inactive alert history for a system, with
 // optional date range (?from_date=, ?to_date=, RFC3339) and multi-value
-// label filters (alertname, severity, status) and the free-text `service` filter.
+// label filters (alertname, severity, status) and the free-text `service` and
+// `search` filters.
 func GetSystemAlertHistory(c *gin.Context) {
 	systemID := c.Param("id")
 	if systemID == "" {
@@ -2509,6 +2553,7 @@ func GetSystemAlertHistory(c *gin.Context) {
 		SystemKeys:    []string{system.SystemKey},
 		Alertnames:    c.QueryArray("alertname"),
 		Service:       c.Query("service"),
+		Search:        c.Query("search"),
 		Severities:    c.QueryArray("severity"),
 		Statuses:      c.QueryArray("status"),
 		From:          from,
@@ -2573,6 +2618,7 @@ func GetAlertsHistory(c *gin.Context) {
 		SystemKeys:    c.QueryArray("system_key"),
 		Alertnames:    c.QueryArray("alertname"),
 		Service:       c.Query("service"),
+		Search:        c.Query("search"),
 		Severities:    c.QueryArray("severity"),
 		Statuses:      c.QueryArray("status"),
 		From:          from,

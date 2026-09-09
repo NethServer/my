@@ -621,3 +621,62 @@ func TestFilterAlerts_Service(t *testing.T) {
 		})
 	}
 }
+
+func TestFilterAlerts_Search(t *testing.T) {
+	alerts := []map[string]interface{}{
+		{
+			"labels": map[string]interface{}{
+				"alertname": "ServiceDown", "severity": "critical", "service": "ns-plug",
+				"system_name": "fw-trebeschi", "system_key": "NETH-AAA", "system_fqdn": "fw01.trebeschi.loc",
+				"organization_name": "Trebeschi",
+			},
+			"annotations": map[string]interface{}{
+				"summary_en":     "Service ns-plug is down",
+				"description_it": "Il servizio ns-plug non è attivo",
+			},
+			"assigned_to": map[string]interface{}{"user_id": "u1", "user_name": "Mario Rossi"},
+			"status":      map[string]interface{}{"state": "active"},
+		},
+		{
+			"labels": map[string]interface{}{
+				"alertname": "BackupFailed", "severity": "critical",
+				"system_name": "ns8-cluster", "system_key": "NETH-BBB", "organization_name": "COMPUTER & OFFICE SRL",
+			},
+			"annotations": map[string]interface{}{"summary_en": "Backup failed"},
+			"assigned_to": nil,
+			"status":      map[string]interface{}{"state": "active"},
+		},
+		{
+			"labels": map[string]interface{}{
+				"alertname": "WanDown", "severity": "critical",
+				"system_name": "FW001", "system_key": "NETH-CCC", "organization_name": "PROGER SRL",
+			},
+			"status": map[string]interface{}{"state": "active"},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		params   alertFilter
+		expected int
+	}{
+		{name: "blank search is a no-op", params: alertFilter{search: "  "}, expected: 3},
+		{name: "service label", params: alertFilter{search: "plug"}, expected: 1},
+		{name: "company and system, case-insensitive", params: alertFilter{search: "TREBESCHI"}, expected: 1},
+		{name: "company with symbols", params: alertFilter{search: "& office"}, expected: 1},
+		{name: "assignee name", params: alertFilter{search: "rossi"}, expected: 1},
+		{name: "italian description", params: alertFilter{search: "servizio"}, expected: 1},
+		{name: "alert type or summary", params: alertFilter{search: "backup"}, expected: 1},
+		{name: "system name across alerts", params: alertFilter{search: "fw"}, expected: 2},
+		{name: "system key", params: alertFilter{search: "neth-ccc"}, expected: 1},
+		{name: "severity is not searched", params: alertFilter{search: "critical"}, expected: 0},
+		{name: "combined with alertname", params: alertFilter{alertnames: []string{"WanDown"}, search: "fw"}, expected: 1},
+		{name: "no match", params: alertFilter{search: "zzz"}, expected: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Len(t, filterAlerts(alerts, tt.params), tt.expected)
+		})
+	}
+}

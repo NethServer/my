@@ -40,7 +40,12 @@ type AlertHistoryQuery struct {
 	Alertnames []string
 	// Service is a free-text term matched case-insensitively as a substring
 	// of labels->>'service'; blank means no filter.
-	Service       string
+	Service string
+	// Search is a free-text term matched case-insensitively as a substring of
+	// the alert type, summary/description, service, system and company (see
+	// alertHistorySearchColumns); blank means no filter. Resolved alerts carry
+	// no assignee, so none is searched here.
+	Search        string
 	Severities    []string
 	Statuses      []string
 	From          *time.Time
@@ -132,6 +137,15 @@ func (r *LocalAlertHistoryRepository) QueryAlertHistory(q AlertHistoryQuery) ([]
 	if service := strings.TrimSpace(q.Service); service != "" {
 		conds = append(conds, fmt.Sprintf(`labels->>'service' ILIKE $%d ESCAPE '\'`, idx))
 		args = append(args, "%"+escapeLikePattern(service)+"%")
+		idx++
+	}
+	if search := strings.TrimSpace(q.Search); search != "" {
+		ors := make([]string, len(alertHistorySearchColumns))
+		for i, col := range alertHistorySearchColumns {
+			ors[i] = fmt.Sprintf(`%s ILIKE $%d ESCAPE '\'`, col, idx)
+		}
+		conds = append(conds, "("+strings.Join(ors, " OR ")+")")
+		args = append(args, "%"+escapeLikePattern(search)+"%")
 		idx++
 	}
 	if q.From != nil {
@@ -714,4 +728,21 @@ func (r *LocalAlertHistoryRepository) ReassignSystemAlertHistory(systemKey, from
 // LIKE/ILIKE pattern; pair it with ESCAPE '\'.
 func escapeLikePattern(s string) string {
 	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
+}
+
+// alertHistorySearchColumns are the expressions a free-text search inspects:
+// alert type, summary/description in every language, service, system and
+// company. They all ILIKE against one shared positional parameter.
+var alertHistorySearchColumns = []string{
+	"alertname",
+	"summary",
+	"annotations->>'summary_en'",
+	"annotations->>'summary_it'",
+	"annotations->>'description_en'",
+	"annotations->>'description_it'",
+	"labels->>'service'",
+	"system_key",
+	"labels->>'system_name'",
+	"labels->>'system_fqdn'",
+	"labels->>'organization_name'",
 }
