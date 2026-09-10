@@ -62,8 +62,8 @@ Optionally classify findings by severity before fixing:
 ## Global Constraints
 
 - DO NOT touch Go backend files, migration SQL, or any non-`frontend/` code.
-- DO NOT add i18n keys to Italian or other locale files unless explicitly asked — English only
-  (`src/i18n/en/translation.json`).
+- Always add new i18n keys to BOTH `src/i18n/en/translation.json` and
+  `src/i18n/it/translation.json` — never English only.
 - ALWAYS preserve the license header on every file you edit or create.
 - DO NOT add inline `style` attributes — Tailwind utility classes only.
 - DO NOT remove or rewrite functional logic unrelated to the task.
