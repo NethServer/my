@@ -11,6 +11,9 @@
 @import '@vuepic/vue-datepicker/dist/main.css' layer(vendor);
 @import './vue-datepicker.css';
 
+@import 'gridstack/dist/gridstack.min.css' layer(vendor);
+@import './gridstack.css';
+
 /* Poppins font */
 @import '@fontsource/poppins';
 

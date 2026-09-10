@@ -23,6 +23,7 @@ const DESTROY_USERS = 'destroy:users'
 const DESTROY_SYSTEMS = 'destroy:systems'
 const READ_ALERTS = 'read:alerts'
 const MANAGE_ALERTS = 'manage:alerts'
+const READ_REBRANDING = 'read:rebranding'
 // The add-on permissions are still spelled "entitlements" on the wire
 const READ_ADDONS = 'read:entitlements'
 const MANAGE_ADDONS = 'manage:entitlements'
@@ -137,6 +138,11 @@ export const canManageAlerts = () => {
 export const canReadAlerts = () => {
   const loginStore = useLoginStore()
   return loginStore.permissions.includes(READ_ALERTS)
+}
+
+export const canReadRebranding = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(READ_REBRANDING)
 }
 
 // Moving an organization between hierarchy levels takes it out of the scope of

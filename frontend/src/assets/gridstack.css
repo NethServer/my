@@ -1,0 +1,90 @@
+/*
+  Copyright (C) 2026 Nethesis S.r.l.
+  SPDX-License-Identifier: GPL-3.0-or-later
+
+  Local overrides for gridstack. The library ships a light-only stylesheet and
+  clips anything a card renders outside itself, so three things are corrected
+  here; everything else is left to gridstack.
+*/
+
+/* The drop placeholder is rgba(0, 0, 0, .1) by default, which is invisible on
+   the dark theme's near-black background. */
+.grid-stack-placeholder > .placeholder-content {
+  border-radius: 0.5rem;
+  background-color: var(--color-gray-200);
+}
+
+.dark .grid-stack-placeholder > .placeholder-content {
+  background-color: var(--color-gray-800);
+}
+
+/* gridstack sets overflow-y: auto on the cell content, which clips the tooltips
+   and dropdown menus the cards raise above themselves. The cards size their own
+   content, so the cell does not need to scroll it. */
+.grid-stack > .grid-stack-item > .grid-stack-item-content {
+  overflow: visible;
+}
+
+/* The resize handle is drawn as a bare pointer by default. Tint it to the
+   theme, and keep it out of the way until the pointer is over the widget. */
+.grid-stack > .grid-stack-item > .ui-resizable-se {
+  opacity: 0;
+  border-color: var(--color-gray-400);
+  transition: opacity var(--duration-small) ease;
+}
+
+.dark .grid-stack > .grid-stack-item > .ui-resizable-se {
+  border-color: var(--color-gray-500);
+}
+
+.grid-stack > .grid-stack-item:hover > .ui-resizable-se,
+.grid-stack > .grid-stack-item:focus-within > .ui-resizable-se {
+  opacity: 1;
+}
+
+/*
+  A widget fills the cell it was given, so the visible card is the same
+  rectangle as the one the resize handle draws.
+
+  This needs three rules rather than one `h-full` on the card, because NeCard
+  lays its own body out with `h-full`: that height resolves against the whole
+  card instead of against the space left under the title row, so a card with a
+  height constraint ends up exactly one title-row taller than its cell — and
+  NeCard is overflow-hidden, so the bottom of the widget is cut off. Turning the
+  card into a flex column and letting the body take what the title row leaves is
+  what makes the two agree.
+
+  All three hang off dashboard-grid-sized, which DashboardGrid.vue sets only
+  while the board is shown at its full column count. Below that gridstack sizes
+  each cell to its content, and it does that by measuring the child — so a child
+  already stretched to 100% would only ever measure the cell it is sizing.
+*/
+.dashboard-grid-sized > .grid-stack-item > .grid-stack-item-content > .dashboard-widget {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+}
+
+/* The title row keeps its natural height. */
+.dashboard-grid-sized
+  > .grid-stack-item
+  > .grid-stack-item-content
+  > .dashboard-widget
+  > :first-child {
+  flex: none;
+}
+
+/* The body takes the rest, and scrolls when the user makes the cell smaller
+   than the widget needs. Ordered after the rule above so that a card rendered
+   without a title row — where the body is both the first and the last child —
+   is treated as a body. */
+.dashboard-grid-sized
+  > .grid-stack-item
+  > .grid-stack-item-content
+  > .dashboard-widget
+  > :last-child {
+  height: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
