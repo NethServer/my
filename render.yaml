@@ -43,6 +43,8 @@ envVarGroups:
     envVars:
       - key: MIMIR_URL
         value: http://my-mimir-prod:9009
+      - key: GEMINI_MODEL
+        value: gemini-3.6-flash
 
   - name: spaces-prod
     envVars:
@@ -62,6 +64,8 @@ envVarGroups:
   - name: app-secrets-prod
     envVars:
       - key: ALERTING_HISTORY_WEBHOOK_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
         sync: false
 
   - name: logto-prod
@@ -102,6 +106,8 @@ envVarGroups:
     envVars:
       - key: MIMIR_URL
         value: http://my-mimir-qa:9009
+      - key: GEMINI_MODEL
+        value: gemini-3.6-flash
 
   - name: spaces-qa
     envVars:
@@ -121,6 +127,8 @@ envVarGroups:
   - name: app-secrets-qa
     envVars:
       - key: ALERTING_HISTORY_WEBHOOK_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
         sync: false
 
   - name: logto-qa

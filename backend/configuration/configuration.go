@@ -76,6 +76,16 @@ type Configuration struct {
 	AlertingHistoryWebhookURL    string `json:"alerting_history_webhook_url"`
 	AlertingHistoryWebhookSecret string `json:"alerting_history_webhook_secret"`
 
+	// Dashboard AI — Google Gemini picks and orders the widgets shown on the
+	// caller's dashboard, from the server-side catalog. Optional everywhere:
+	// with GEMINI_API_KEY unset the endpoint answers from the deterministic
+	// rule-based selection, which is what CI and offline development use.
+	// GeminiAPIKey is json:"-" so a dump of this struct can never leak it.
+	GeminiAPIKey       string        `json:"-"`
+	GeminiModel        string        `json:"gemini_model"`
+	DashboardAIEnabled bool          `json:"dashboard_ai_enabled"`
+	DashboardAITimeout time.Duration `json:"dashboard_ai_timeout"`
+
 	// Cross-service plumbing.
 	// AppEnv namespaces internal pub/sub channels (auth invalidation, etc.)
 	// so a Redis instance shared between dev/qa/prod stops cross-pollinating.
@@ -282,6 +292,25 @@ func Init() {
 			Int("length", len(Config.AlertingHistoryWebhookSecret)).
 			Msg("ALERTING_HISTORY_WEBHOOK_SECRET must be at least 32 characters; refusing to start with a weak secret")
 	}
+
+	// Dashboard AI. The key is optional: an absent key is a normal deployment,
+	// not a misconfiguration, so this logs at the informational level and the
+	// service falls back to the deterministic selection.
+	Config.GeminiAPIKey = os.Getenv("GEMINI_API_KEY")
+	if Config.GeminiAPIKey == "" {
+		logger.LogConfigLoad("env", "GEMINI_API_KEY", true, fmt.Errorf("GEMINI_API_KEY variable is empty, dashboard widgets are selected by the rule-based fallback"))
+	}
+	if v := os.Getenv("GEMINI_MODEL"); v != "" {
+		Config.GeminiModel = v
+	} else {
+		Config.GeminiModel = "gemini-3.6-flash"
+	}
+	Config.DashboardAIEnabled = parseBoolWithDefault("DASHBOARD_AI_ENABLED", true)
+	// A selection answers in around 2s with thinking set to MINIMAL (see
+	// services/dashboard/gemini.go), so 10s is several times the measured cost
+	// and still short enough that a user waiting on the wizard gets the
+	// fallback board rather than a spinner. Well under the 30s WriteTimeout.
+	Config.DashboardAITimeout = parseDurationWithDefault("DASHBOARD_AI_TIMEOUT", 10*time.Second)
 
 	// Internal cross-service plumbing. APP_ENV scopes pub/sub channel names so
 	// dev/qa/prod sharing a Redis instance never invalidate each other's caches.

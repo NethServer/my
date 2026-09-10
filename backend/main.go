@@ -624,6 +624,28 @@ func main() {
 		}
 
 		// ===========================================
+		// DASHBOARD - widget selection for the caller's own dashboard
+		//
+		// Deliberately not gated on a permission: every persona has a
+		// dashboard, so the gate would be "authenticated" anyway. Authorization
+		// is filtering rather than refusal — the widget catalog is narrowed to
+		// the caller's effective permissions before the model sees it, and the
+		// answer is re-checked against that same narrowed set, so neither
+		// endpoint can name a widget the caller could not already read.
+		//
+		// API keys are rejected: a key has no dashboard, and generation spends
+		// paid model quota.
+		// ===========================================
+		dashboardGroup := customAuthWithAudit.Group("/dashboard",
+			middleware.RejectAPIKey(),
+			middleware.MaxBodySize(8<<10),
+		)
+		{
+			dashboardGroup.GET("/catalog", methods.GetDashboardCatalog)                                    // Widgets the caller may see
+			dashboardGroup.POST("/generate", middleware.UserRateLimit(0.05, 5), methods.GenerateDashboard) // Pick and order widgets
+		}
+
+		// ===========================================
 		// METADATA - roles, organizations, third-party apps
 		// ===========================================
 		customAuthWithAudit.GET("/roles", methods.GetRoles)                                     // Get available user roles

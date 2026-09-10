@@ -74,6 +74,8 @@ tags:
 
   - name: Backend - Metadata
     description: Read-only reference data (roles, organization roles, organizations, third-party applications)
+  - name: Backend - Dashboard
+    description: Widget catalog and AI-assisted widget selection for the caller's own dashboard
   - name: Backend - Filters
     description: Aggregated filter values for UI dropdowns
 
@@ -1677,6 +1679,123 @@ components:
           enum: [owner, distributor, reseller, customer]
           description: Organization type
           example: "customer"
+
+    DashboardTopic:
+      type: string
+      description: A kind of information the user can ask their dashboard to cover.
+      enum: [organizations, alerts, systems, users, applications, entitlements, rebranding]
+
+    DashboardWidgetSize:
+      type: string
+      description: The footprint a widget takes on the frontend's 12-column grid.
+      enum: [sm, md, lg]
+
+    DashboardCatalogWidget:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Stable widget identifier the frontend maps to a component.
+          example: "alerts_firing_now"
+        title:
+          type: string
+          example: "Firing now"
+        description:
+          type: string
+          example: "The most severe alerts currently firing, newest first, as an action list."
+        topic:
+          $ref: '#/components/schemas/DashboardTopic'
+        default_size:
+          $ref: '#/components/schemas/DashboardWidgetSize'
+
+    DashboardCatalogResponse:
+      type: object
+      properties:
+        widgets:
+          type: array
+          description: Every widget the caller is allowed to see, in catalog order.
+          items:
+            $ref: '#/components/schemas/DashboardCatalogWidget'
+        topics:
+          type: array
+          description: The distinct topics present in `widgets`, in catalog order.
+          items:
+            $ref: '#/components/schemas/DashboardTopic'
+
+    DashboardGenerateRequest:
+      type: object
+      required: [topics]
+      properties:
+        topics:
+          type: array
+          minItems: 1
+          maxItems: 12
+          description: |
+            The kinds of information the user asked for, most wanted first. The
+            order is meaningful: it drives the deterministic fallback and is
+            given to the model as a ranking.
+          items:
+            $ref: '#/components/schemas/DashboardTopic'
+          example: ["alerts", "systems", "entitlements"]
+        hint:
+          type: string
+          maxLength: 280
+          description: |
+            Optional free text from the user. Treated as untrusted input: it is
+            truncated, stripped of control characters and fenced off in the
+            prompt, and it can never widen what the model may choose from.
+          example: "I mostly care about add-ons expiring this quarter"
+        locale:
+          type: string
+          enum: [en, it]
+          default: en
+          description: Language of the returned title and reasons.
+
+    DashboardWidget:
+      type: object
+      properties:
+        id:
+          type: string
+          description: |
+            Widget identifier, always one the caller is allowed to see.
+          example: "alerts_firing_now"
+        size:
+          $ref: '#/components/schemas/DashboardWidgetSize'
+        reason:
+          type: string
+          description: |
+            One short sentence on why the widget was chosen. Present only when
+            the model produced the selection.
+          example: "you asked to watch alerts first"
+
+    DashboardGenerateResponse:
+      type: object
+      properties:
+        title:
+          type: string
+          description: A short name for the board, in the requested locale.
+          example: "Operations board"
+        generated_by:
+          type: string
+          enum: [ai, fallback]
+          description: |
+            `ai` when the model produced the selection, `fallback` when the
+            deterministic rule-based path did — which happens whenever the model
+            is disabled, unreachable or answered with nothing usable. Both are
+            200 responses.
+        model:
+          type: string
+          description: The model that produced the selection. Absent on the fallback path.
+          example: "gemini-3.6-flash"
+        widgets:
+          type: array
+          minItems: 3
+          maxItems: 7
+          description: |
+            The chosen widgets, in the order they should be laid out. Never
+            paginated: this is a bounded selection, not a queryable collection.
+          items:
+            $ref: '#/components/schemas/DashboardWidget'
 
     ThirdPartyApplication:
       type: object
@@ -5493,6 +5612,177 @@ paths:
   # ===========================================================================
   # THIRD-PARTY APPLICATIONS (from Logto)
   # ===========================================================================
+  # ===========================================================================
+  # DASHBOARD
+  # ===========================================================================
+  /dashboard/catalog:
+    get:
+      operationId: getDashboardCatalog
+      tags:
+        - Backend - Dashboard
+      summary: /dashboard/catalog - Get the widgets the caller may see
+      description: |
+        The dashboard widget catalog, narrowed to the caller's effective
+        permissions.
+
+        There is no permission gate on this endpoint: every persona has a
+        dashboard, so a gate could only be "authenticated". Authorization is
+        filtering rather than refusal — every entry returned is one whose own
+        data endpoint the caller could already call, so the customization
+        wizard offers only topics that would actually render something.
+
+        API keys are rejected: the whole /dashboard surface is session-bound.
+      responses:
+        '200':
+          description: Catalog retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "dashboard catalog retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/DashboardCatalogResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: An API key was used on a session-bound endpoint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /dashboard/generate:
+    post:
+      operationId: generateDashboard
+      tags:
+        - Backend - Dashboard
+      summary: /dashboard/generate - Pick and order the caller's dashboard widgets
+      description: |
+        Selects between 3 and 7 widgets from the caller's filtered catalog and
+        orders them, given the kinds of information the user asked for and an
+        optional free-text hint.
+
+        Three things about this endpoint are worth knowing before consuming it:
+
+        - **It never answers 5xx.** When the model is disabled, unreachable,
+          slow or incoherent, a deterministic rule-based selection over the same
+          catalog is the answer, and `generated_by` says `fallback` instead of
+          `ai`. That is a normal deployment — running with no API key at all is
+          how CI and offline development use the feature — not an error the
+          client has to handle.
+        - **It cannot name a widget the caller may not see.** The catalog is
+          narrowed to the caller's effective permissions before the model is
+          prompted, the response schema constrains the model to exactly those
+          ids, and the answer is validated against that same narrowed set
+          afterwards.
+        - **It is not paginated.** The response is a bounded 3-7 element
+          selection, not a queryable collection, so it carries no pagination
+          object.
+
+        Rate-limited per user, and rejected for API keys: generation spends paid
+        model quota and a key has no dashboard.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DashboardGenerateRequest'
+            examples:
+              partner:
+                summary: A reseller asking for the commercial picture
+                value:
+                  topics: ["organizations", "entitlements", "alerts"]
+                  hint: "I mostly care about add-ons expiring this quarter"
+                  locale: "en"
+              customer:
+                summary: A customer with a narrow set of topics
+                value:
+                  topics: ["alerts", "systems"]
+                  locale: "it"
+              minimal:
+                summary: The smallest valid request
+                value:
+                  topics: ["systems"]
+      responses:
+        '200':
+          description: |
+            Selection produced. Check `data.generated_by` to know whether the
+            model or the deterministic fallback produced it.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "dashboard generated successfully"
+                  data:
+                    $ref: '#/components/schemas/DashboardGenerateResponse'
+              examples:
+                ai:
+                  summary: The model produced the selection
+                  value:
+                    code: 200
+                    message: "dashboard generated successfully"
+                    data:
+                      title: "Operations board"
+                      generated_by: "ai"
+                      model: "gemini-3.6-flash"
+                      widgets:
+                        - id: "alerts_firing_now"
+                          size: "md"
+                          reason: "you asked to watch alerts first"
+                        - id: "systems_counter"
+                          size: "sm"
+                        - id: "addons_expiring"
+                          size: "md"
+                fallback:
+                  summary: No API key configured, or the model was unusable
+                  value:
+                    code: 200
+                    message: "dashboard generated successfully"
+                    data:
+                      title: "Your dashboard"
+                      generated_by: "fallback"
+                      widgets:
+                        - id: "alerts_counter"
+                          size: "sm"
+                        - id: "systems_counter"
+                          size: "sm"
+                        - id: "systems_recent"
+                          size: "md"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: An API key was used on a session-bound endpoint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Request body larger than 8 KiB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Per-user rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /third-party-applications:
     get:
       operationId: getThirdPartyApplications

@@ -981,6 +981,33 @@ routes:
     note: the list is filtered per user by access_control; the apps layer checks the filtering
 
   - method: GET
+    path: /api/dashboard/catalog
+    intent: authenticated
+    note: |
+      The widgets the caller may see on its own dashboard. Ungated on purpose:
+      every persona has a dashboard, so a gate could only be "authenticated".
+      Authorization is filtering rather than refusal — the catalog is narrowed
+      to the caller's effective permissions, so the list can only name widgets
+      whose own data endpoint the caller could already call. That narrowing is
+      asserted in the scope layer, not here.
+
+  - method: POST
+    path: /api/dashboard/generate
+    intent: authenticated
+    body: '{"topics":["systems"],"locale":"en"}'
+    expect_authorized: [200, 429]
+    note: |
+      Picks and orders the caller's dashboard widgets. Ungated for the same
+      reason as /dashboard/catalog: the catalog is narrowed to the caller's
+      effective permissions before the model sees it, and the model's answer is
+      re-checked against that same narrowed set, so the response can only name
+      widgets the caller could already read. Rate-limited per user, so a run of
+      every persona is expected to hit 429. It never answers 5xx: when the model
+      is disabled, unreachable or incoherent the deterministic selection is the
+      answer, with generated_by="fallback". The response is not paginated — it
+      is a bounded 3-7 element selection, not a queryable collection.
+
+  - method: GET
     path: /api/validators/vat/:entity_type
     intent: authenticated
     object_scoped: true

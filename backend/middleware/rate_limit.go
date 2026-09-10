@@ -16,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/response"
 )
 
@@ -61,6 +62,64 @@ func RateLimit(rate float64, burst int) gin.HandlerFunc {
 		}
 
 		// Refill tokens based on elapsed time
+		elapsed := now.Sub(entry.lastCheck).Seconds()
+		entry.tokens += elapsed * rate
+		if entry.tokens > float64(burst) {
+			entry.tokens = float64(burst)
+		}
+		entry.lastCheck = now
+
+		if entry.tokens < 1 {
+			mu.Unlock()
+			c.JSON(http.StatusTooManyRequests, response.TooManyRequests("rate limit exceeded", nil))
+			c.Abort()
+			return
+		}
+
+		entry.tokens--
+		mu.Unlock()
+
+		c.Next()
+	}
+}
+
+// UserRateLimit throttles per authenticated user rather than per IP: an office
+// behind one NAT is many dashboards, while one user with many tabs open is
+// still one dashboard. Requests carrying no user identity fall back to the
+// client IP so an unauthenticated path is still bounded.
+func UserRateLimit(rate float64, burst int) gin.HandlerFunc {
+	var mu sync.Mutex
+	users := make(map[string]*rateLimiterEntry)
+
+	go func() {
+		for {
+			time.Sleep(5 * time.Minute)
+			mu.Lock()
+			now := time.Now()
+			for id, entry := range users {
+				if now.Sub(entry.lastCheck) > 10*time.Minute {
+					delete(users, id)
+				}
+			}
+			mu.Unlock()
+		}
+	}()
+
+	return func(c *gin.Context) {
+		key, _, _, _ := helpers.GetUserContextExtended(c)
+		if key == "" {
+			key = c.ClientIP()
+		}
+
+		mu.Lock()
+		entry, exists := users[key]
+		now := time.Now()
+
+		if !exists {
+			entry = &rateLimiterEntry{tokens: float64(burst), lastCheck: now}
+			users[key] = entry
+		}
+
 		elapsed := now.Sub(entry.lastCheck).Seconds()
 		entry.tokens += elapsed * rate
 		if entry.tokens > float64(burst) {

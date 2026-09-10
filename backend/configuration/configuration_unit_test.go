@@ -1,8 +1,10 @@
 package configuration
 
 import (
+	"encoding/json"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/nethesis/my/backend/logger"
 	"github.com/stretchr/testify/assert"
@@ -24,6 +26,10 @@ func setupConfigTestEnvironment() {
 		"LOGTO_BACKEND_APP_ID",
 		"LOGTO_BACKEND_APP_SECRET",
 		"DATABASE_URL",
+		"GEMINI_API_KEY",
+		"GEMINI_MODEL",
+		"DASHBOARD_AI_ENABLED",
+		"DASHBOARD_AI_TIMEOUT",
 	}
 
 	for _, envVar := range envVars {
@@ -213,4 +219,62 @@ func TestConfigurationInitMultipleTimes(t *testing.T) {
 	assert.Equal(t, "https://first-tenant.logto.app", firstIssuer)
 	assert.Equal(t, "https://second-tenant.logto.app", Config.LogtoIssuer)
 	assert.Equal(t, "https://second.example.com/api", Config.LogtoAudience)
+}
+
+func TestDashboardAIConfigurationDefaults(t *testing.T) {
+	setupConfigTestEnvironment()
+	setMinimalConfigEnvironment()
+
+	Init()
+
+	// An absent key is a normal deployment: the service answers from the
+	// deterministic fallback rather than refusing to start.
+	assert.Empty(t, Config.GeminiAPIKey)
+	assert.Equal(t, "gemini-3.6-flash", Config.GeminiModel)
+	assert.True(t, Config.DashboardAIEnabled)
+	assert.Equal(t, 10*time.Second, Config.DashboardAITimeout)
+}
+
+func TestDashboardAIConfigurationCustomValues(t *testing.T) {
+	setupConfigTestEnvironment()
+	setMinimalConfigEnvironment()
+
+	_ = os.Setenv("GEMINI_API_KEY", "a-test-key")
+	_ = os.Setenv("GEMINI_MODEL", "gemini-2.5-pro")
+	_ = os.Setenv("DASHBOARD_AI_ENABLED", "false")
+	_ = os.Setenv("DASHBOARD_AI_TIMEOUT", "3s")
+
+	Init()
+
+	assert.Equal(t, "a-test-key", Config.GeminiAPIKey)
+	assert.Equal(t, "gemini-2.5-pro", Config.GeminiModel)
+	assert.False(t, Config.DashboardAIEnabled)
+	assert.Equal(t, 3*time.Second, Config.DashboardAITimeout)
+}
+
+// TestGeminiAPIKeyIsNotSerialized pins the json:"-" tag: any dump of the
+// configuration struct — a debug endpoint, a log line, a test fixture — must
+// not carry the key.
+func TestGeminiAPIKeyIsNotSerialized(t *testing.T) {
+	setupConfigTestEnvironment()
+	setMinimalConfigEnvironment()
+	_ = os.Setenv("GEMINI_API_KEY", "super-secret-value")
+
+	Init()
+
+	encoded, err := json.Marshal(Config)
+	assert.NoError(t, err)
+	assert.NotContains(t, string(encoded), "super-secret-value")
+	assert.Contains(t, string(encoded), "gemini_model")
+}
+
+// setMinimalConfigEnvironment sets what Init refuses to start without.
+func setMinimalConfigEnvironment() {
+	_ = os.Setenv("LOGTO_TENANT_ID", "test-tenant")
+	_ = os.Setenv("LOGTO_TENANT_DOMAIN", "test-domain.com")
+	_ = os.Setenv("APP_URL", "https://test-app.com")
+	_ = os.Setenv("JWT_SECRET", "test-secret-key")
+	_ = os.Setenv("LOGTO_BACKEND_APP_ID", "test-client-id")
+	_ = os.Setenv("LOGTO_BACKEND_APP_SECRET", "test-client-secret")
+	_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
 }

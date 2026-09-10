@@ -757,3 +757,46 @@ scenarios:
     method: GET
     path: /api/rebranding/organizations/available?limit=200
     must_not_contain: ["{org:d2}", "{org:d1r2}", "{org_name:d1r2}"]
+
+  # ===========================================================================
+  # Dashboard. The catalog is narrowed to the caller's effective permissions
+  # before the model sees it, and the model's answer is re-checked against that
+  # same narrowed set. These two cases are the only place that double check is
+  # proven end to end — and they are deterministic without an API key, because
+  # the rule-based fallback is what answers in CI.
+  # ===========================================================================
+  - name: dashboard — a customer's catalog offers no organization widget
+    as: d1r1c1-admin
+    method: GET
+    path: /api/dashboard/catalog
+    must_not_contain: ["distributors_counter", "resellers_counter", "customers_counter"]
+    note: |
+      The persona holds none of read:distributors|resellers|customers, so the
+      wizard must never offer it a topic that would render nothing.
+
+  - name: dashboard — a customer's generated board names no organization widget
+    as: d1r1c1-admin
+    method: POST
+    path: /api/dashboard/generate
+    body: '{"topics":["organizations","systems","users"],"locale":"en"}'
+    must_not_contain: ["distributors_counter", "resellers_counter", "customers_counter"]
+    note: |
+      The persona asks for the organizations topic explicitly. Its organization
+      role carries no permissions at all, so the catalog filter removes every
+      organization widget before the prompt, and the output validator would drop
+      them again had the model invented them.
+
+      The users topic is in the body on purpose and users_counter is NOT in the
+      exclusion list: this persona's Admin USER role carries read:users, so a
+      user counter over its own organization is exactly what it should get. The
+      two topics together are what makes the case worth having — the filter has
+      to cut one and keep the other, which a list of exclusions alone would not
+      prove.
+
+  - name: dashboard — a reseller's generated board names no distributor widget
+    as: d1r1-admin
+    method: POST
+    path: /api/dashboard/generate
+    body: '{"topics":["organizations"],"locale":"en"}'
+    must_not_contain: ["distributors_counter"]
+    note: a reseller holds read:customers but never read:distributors

@@ -88,6 +88,28 @@ cases:
     path: /api/systems?page_size=1
     expect: allowed
 
+  - name: a key cannot read the dashboard catalog
+    kind: api_key
+    as: d1r1-admin
+    mode: read
+    method: GET
+    path: /api/dashboard/catalog
+    expect: denied
+    note: a key drives integrations, not a browser; the whole /dashboard surface is session-bound
+
+  - name: a key cannot generate a dashboard
+    kind: api_key
+    as: d1r1-admin
+    mode: write
+    method: POST
+    path: /api/dashboard/generate
+    body: '{"topics":["systems"]}'
+    expect: denied
+    note: |
+      A write-mode key is used on purpose: the refusal must come from
+      RejectAPIKey, not from the mode mask. Generation also spends paid model
+      quota, which is another reason it belongs to an interactive session only.
+
   - name: read-mode key cannot create a system
     kind: api_key
     as: d1r1-admin
