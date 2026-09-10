@@ -1,5 +1,9 @@
-# Trivy ignore file for known false positives or acceptable risks
+# Allowlist of known false positives and accepted risks.
 # Format: CVE-ID [expiration_date] [reason]
+#
+# Read natively by trivy (CI and `make audit`) and applied to `npm audit` by
+# ./vuln-check.sh, so a JS advisory needs its GHSA id here as well as its CVE
+# to be silenced by both tools. Every entry carries the reason it is accepted.
 
 # Alpine base image - common CVE that don't affect our use case
 CVE-2023-4039   # GCC related, not used in runtime
@@ -36,6 +40,9 @@ GO-2026-5932
 # generated static site. Added 2026-08-28.
 CVE-2025-71329  # image-size: zero-valued size field, docs build-time only
 CVE-2025-71330  # image-size: crafted ICNS buffer, docs build-time only
+# The same two advisories under their npm/GitHub ids, for the npm audit side:
+GHSA-5p2g-fcmc-qvqq
+GHSA-w3rx-r6r6-pgpr
 
 # Note: Review this file regularly and update as needed
 # Always verify that ignored CVEs are truly not applicable to your use case

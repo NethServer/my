@@ -231,7 +231,7 @@ git push origin feature/new-feature     # → Create PR
 ```
 
 The release script will:
-1. Run all quality checks (formatting, linting, tests)
+1. Run all quality checks (formatting, linting, tests, docs build, dependency vulnerabilities)
 2. Bump version in all files
 3. Create git commit and tag
 4. Push to GitHub
@@ -271,9 +271,13 @@ Do you want to deploy v0.1.5 to production? [y/N] y
 ## 🤝 Contributing
 
 1. Follow existing code patterns and conventions
-2. **Pre-commit**: Run `make pre-commit` in both directories
-3. Test RBAC changes with `--dry-run` before applying
-4. Ensure CI tests pass before submitting PRs
+2. **Pre-commit**: Run `make pre-commit` in the component you touched
+   (`npm run pre-commit` in `frontend/`, `make pre-commit` in `docs/`)
+3. **Vulnerabilities**: `./vuln-check.sh --all` (or `make audit` per component)
+   checks dependencies against the same advisories Dependabot and code scanning
+   report. Accepted risks belong in `.trivyignore`, with their reason.
+4. Test RBAC changes with `--dry-run` before applying
+5. Ensure CI tests pass before submitting PRs
 
 ## 📄 License
 

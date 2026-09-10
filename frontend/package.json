@@ -19,6 +19,7 @@
     "format": "prettier --list-different src/",
     "format-fix": "prettier --write src/",
     "test": "vitest",
+    "audit": "../vuln-check.sh frontend",
     "pre-commit": "npm run format-fix && npm run lint && npm run type-check && npm run test -- --run"
   },
   "dependencies": {

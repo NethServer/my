@@ -118,10 +118,17 @@ dev-setup:
 pre-commit: fmt lint test
 	@echo "All pre-commit checks passed!"
 
+# Check dependencies for known vulnerabilities. Accepted risks are
+# allowlisted in ../.trivyignore.
+.PHONY: audit
+audit:
+	@../vuln-check.sh sync
+
 # Show help
 .PHONY: help
 help:
 	@echo "Available targets:"
+	@echo "  audit         - Check dependencies for known vulnerabilities"
 	@echo "  build         - Build the binary"
 	@echo "  build-all     - Build for multiple platforms"
 	@echo "  clean         - Clean build artifacts"

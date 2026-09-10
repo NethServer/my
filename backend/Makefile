@@ -323,6 +323,12 @@ test-authz: apitool
 	@./apitool authz personas
 	@./apitool authz run
 
+# Check dependencies for known vulnerabilities. Accepted risks are
+# allowlisted in ../.trivyignore.
+.PHONY: audit
+audit:
+	@../vuln-check.sh backend
+
 # Pre-commit checks
 .PHONY: pre-commit
 pre-commit: fmt lint test validate-docs
@@ -334,6 +340,7 @@ help:
 	@echo "Backend API - Container runtime: $(CONTAINER_NAME)"
 	@echo ""
 	@echo "Available targets:"
+	@echo "  audit         - Check dependencies for known vulnerabilities"
 	@echo "  build         - Build the binary"
 	@echo "  build-all     - Build for multiple platforms"
 	@echo "  test-authz    - Authorization regression suite (local backend only)"

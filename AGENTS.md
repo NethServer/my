@@ -27,6 +27,7 @@ cd backend && make pre-commit      # fmt + lint + test + validate-docs (redocly)
 cd collect && make pre-commit      # fmt + lint + test
 cd sync && make pre-commit         # fmt + lint + test
 cd frontend && npm run pre-commit  # format + lint + type-check + test + build
+cd docs && make pre-commit         # type-check + build (broken links) + audit
 ```
 
 **Touching authentication or authorization also requires `make test-authz`.** Before committing any change to routes, middleware, a handler's access check, the RBAC helpers, `sync/configs/config.yml`, or anything else in the auth/authz core, run:
@@ -37,7 +38,17 @@ cd backend && make test-authz      # ~3200 checks: every endpoint × every perso
 
 `make pre-commit` does not cover this: unit tests cannot see a route wired to the wrong permission, a handler that compares organization ids instead of walking the hierarchy, or a list that leaks another tenant's rows. The suite fires the real API as real users of every (organization role × technical role) pair and fails on any unintended access. It needs a local backend and the fixture in place (`./apitool authz provision`, once). See §7.4 and `backend/authz/README.md`.
 
-Security updates: handled automatically by Dependabot/Renovate — do not chase them manually.
+Security updates: routine bumps are handled automatically by Dependabot/Renovate — do not chase them manually. What must not slip through is a release:
+
+```bash
+./vuln-check.sh --all              # every component; also run by release.sh
+cd docs && make audit              # one component (same target in backend/collect/sync)
+cd frontend && npm run audit
+```
+
+`vuln-check.sh` runs `npm audit` on the Node components (docs, frontend) and, when trivy is installed locally, the same `trivy fs` scan CI uploads to GitHub code scanning. It fails on HIGH and above (`NPM_LEVEL`, `SEVERITY` override the thresholds). `release.sh` runs it across all components and refuses to tag while anything is above threshold.
+
+Accepted risks live in `.trivyignore` with the reason they are accepted. A JS advisory needs **both** its CVE and its GHSA id there: the file is trivy's ignore file and the npm audit allowlist at the same time.
 
 ### 1.3 Skills
 
@@ -482,4 +493,5 @@ When implementing a feature, prefer consulting the component README over re-deri
 - **`system_key` hidden for unregistered systems**: `GetSystem` blanks `SystemKey` when `RegisteredAt IS NULL`. Per-system alert endpoints return empty for unregistered systems — this is by design, not a bug.
 - **`X-Scope-OrgID` never from the request**: derived server-side from DB (collect) or JWT (backend). Treat any PR that lets it be set by the client as a security defect.
 - **Pre-commit OpenAPI validation**: uses `redocly` CLI. If missing, install via npm or the validate-docs target will fail silently in CI.
+- **`make audit` without trivy**: only the `npm audit` half runs, and Go modules and container layers are reported as skipped. Install it (`brew install trivy`) to get the same coverage CI has.
 - **`podman` vs `docker`**: local dev uses `podman`; Makefiles handle this but ad-hoc commands in docs examples may say `docker` — substitute accordingly.

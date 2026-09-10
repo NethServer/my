@@ -219,6 +219,12 @@ container-status:
 pre-commit: fmt lint test
 	@echo "All pre-commit checks passed!"
 
+# Check dependencies for known vulnerabilities. Accepted risks are
+# allowlisted in ../.trivyignore.
+.PHONY: audit
+audit:
+	@../vuln-check.sh collect
+
 # Database migration (placeholder)
 .PHONY: db-migrate
 db-migrate:
@@ -231,6 +237,7 @@ help:
 	@echo "Collect Inventory System - Container runtime: $(CONTAINER_NAME)"
 	@echo ""
 	@echo "Available targets:"
+	@echo "  audit         - Check dependencies for known vulnerabilities"
 	@echo "  build         - Build the binary"
 	@echo "  build-all     - Build for multiple platforms"
 	@echo "  clean         - Clean build artifacts"

@@ -139,6 +139,39 @@ run_tests() {
     success "Tests passed for $component"
 }
 
+# Check the documentation site (Docusaurus)
+run_docs_checks() {
+    info "Running checks for docs..."
+
+    cd docs
+    if [ ! -d node_modules ]; then
+        info "Installing documentation dependencies..."
+        if ! make install; then
+            error "Dependency install failed for docs"
+        fi
+    fi
+    if ! make type-check; then
+        error "Type checking failed for docs"
+    fi
+    # Docusaurus fails the build on broken links
+    if ! make build; then
+        error "Documentation build failed for docs"
+    fi
+    cd ..
+    success "Checks passed for docs"
+}
+
+# Check every component for known dependency vulnerabilities
+run_vulnerability_checks() {
+    info "Checking dependencies for known vulnerabilities..."
+
+    if ! ./vuln-check.sh --all; then
+        error "Known vulnerabilities found. Bump the dependency (or add a package.json \"overrides\" entry), or record the accepted risk with its reason in .trivyignore."
+    fi
+
+    success "No known vulnerabilities above threshold"
+}
+
 # Get current version from version.json
 get_current_version() {
     if [ ! -f "version.json" ]; then
@@ -352,6 +385,8 @@ main() {
     run_tests "collect"
     run_tests "frontend"
     run_tests "proxy"
+    run_docs_checks
+    run_vulnerability_checks
     success "All quality checks passed!"
 
     # Get current version and calculate new version
