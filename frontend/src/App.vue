@@ -12,7 +12,7 @@ import { useTitle } from '@vueuse/core'
 import { IS_E2E, PRODUCT_NAME } from './lib/config'
 import { useI18n } from 'vue-i18n'
 import ToastNotificationsArea from '@/components/shell/ToastNotificationsArea.vue'
-import { PiniaColadaProdDevtools } from '@pinia/colada-devtools'
+import { PiniaColadaDevtools } from '@pinia/colada-devtools'
 import { configureAxios } from './lib/axios'
 
 const themeStore = useThemeStore()
@@ -55,9 +55,14 @@ onMounted(() => {
     <RouterView v-else />
     <ToastNotificationsArea />
   </div>
-  <!-- <PiniaColadaDevtools /> //// -->
-  <!-- the panel injects itself into the DOM, where it would shadow e2e selectors -->
-  <PiniaColadaProdDevtools v-if="!IS_E2E" />
+  <!--
+    Dev-only by construction: this component resolves to nothing once
+    NODE_ENV is production, so the panel never ships to qa or production.
+    The v-if covers the remaining case — `npm run dev:e2e` is a development
+    build, and the panel injects itself into the DOM where it would shadow
+    e2e selectors.
+  -->
+  <PiniaColadaDevtools v-if="!IS_E2E" />
 </template>
 
 <style scoped></style>
