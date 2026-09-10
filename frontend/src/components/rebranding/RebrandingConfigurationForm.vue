@@ -8,7 +8,11 @@ import { NeButton, NeHeading, NeInlineNotification, NeTextInput } from '@nethesi
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { isValidationError } from '@/lib/validation'
-import { REBRANDING_ASSET_NAMES, type RebrandingAssetName } from '@/lib/rebranding/rebranding'
+import {
+  MAX_BRAND_NAME_LENGTH,
+  REBRANDING_ASSET_NAMES,
+  type RebrandingAssetName,
+} from '@/lib/rebranding/rebranding'
 import type { AssetSlots } from '@/lib/rebranding/rebrandingAssets'
 import type { RebrandingAssetUrls } from '@/composables/useRebrandingAssetUrls'
 import RebrandingAssetField from './RebrandingAssetField.vue'
@@ -76,7 +80,7 @@ const assetFields = computed(() =>
         :helper-text="$t('rebranding.brand_name_helper', { product: productName })"
         :invalid-message="brandNameInvalidMessage"
         :disabled="saving"
-        :maxlength="100"
+        :maxlength="MAX_BRAND_NAME_LENGTH"
       />
       <!-- brand assets -->
       <div>

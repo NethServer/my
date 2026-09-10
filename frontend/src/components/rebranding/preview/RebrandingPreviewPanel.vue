@@ -105,14 +105,8 @@ const productSubtitle = computed(() => getProductSubtitle(productId))
 
 const canvasAriaLabel = computed(() =>
   view.value === 'login'
-    ? t('rebranding.preview_login_aria_label', {
-        product: productName,
-        brand: displayedBrandName.value,
-      })
-    : t('rebranding.preview_top_bar_aria_label', {
-        product: productName,
-        brand: displayedBrandName.value,
-      }),
+    ? t('rebranding.preview_login_aria_label')
+    : t('rebranding.preview_top_bar_aria_label'),
 )
 </script>
 

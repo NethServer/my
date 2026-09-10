@@ -73,7 +73,7 @@ export function useRebrandingConfiguration(productId: MaybeRefOrGetter<string>) 
 
   const brandNameInvalidMessage = computed(() => {
     if (brandName.value.trim().length > MAX_BRAND_NAME_LENGTH) {
-      return t('rebranding.brand_name_too_long')
+      return t('rebranding.brand_name_too_long', { max: MAX_BRAND_NAME_LENGTH })
     }
     const issue = validationIssues.value.product_name?.[0]
     return issue ? t(issue) : ''
