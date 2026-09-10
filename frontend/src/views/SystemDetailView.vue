@@ -4,10 +4,18 @@
 -->
 
 <script setup lang="ts">
-import { NeHeading, NeInlineNotification, NeSkeleton, NeTabs } from '@nethesis/vue-components'
-/*//// import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faArrowUpRightFromSquare } from '@fortawesome/free-solid-svg-icons' */
+import {
+  NeBadgeV2,
+  NeHeading,
+  NeInlineNotification,
+  NeSkeleton,
+  NeTabs,
+} from '@nethesis/vue-components'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+/*//// import { faArrowUpRightFromSquare } from '@fortawesome/free-solid-svg-icons' */
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
+import OrganizationLink from '@/components/organizations/OrganizationLink.vue'
+import { getOrganizationIcon } from '@/lib/organizations/organizations'
 import { canReadAddons, canReadSystems } from '@/lib/permissions'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { useTabs } from '@/composables/useTabs'
@@ -79,9 +87,22 @@ const { tabs, selectedTab } = useTabs(tabsConfig)
     />
     <NeSkeleton v-else-if="systemDetail.status === 'pending'" size="lg" class="mb-9 w-xs" />
     <div v-else class="flex items-start justify-between gap-4">
-      <NeHeading tag="h3" class="mb-7">
-        {{ systemDetail.data?.name }}
-      </NeHeading>
+      <div class="mb-7 flex flex-wrap items-center gap-4">
+        <NeHeading tag="h3">
+          {{ systemDetail.data?.name }}
+        </NeHeading>
+        <!-- owning company -->
+        <NeBadgeV2 v-if="systemDetail.data?.organization" kind="indigo">
+          <div class="flex items-center gap-1.5">
+            <FontAwesomeIcon
+              :icon="getOrganizationIcon(systemDetail.data.organization.type)"
+              class="size-4"
+              aria-hidden="true"
+            />
+            <OrganizationLink :organization="systemDetail.data.organization" />
+          </div>
+        </NeBadgeV2>
+      </div>
       <div class="flex shrink-0 items-center gap-2">
         <!-- go to system button ////
         <NeSpinner v-if="reachabilityState.status === 'pending'" color="white" />
