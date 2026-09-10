@@ -28,13 +28,16 @@ right navigation for that same persona.
 
 ```bash
 cd frontend
-npm run test:e2e -- --project=fullstack   # the local suite
-npm run test:e2e:ui                       # interactive
-npx playwright show-report                # last run: screenshots, video, traces
+npm run test:e2e            # the local suite: setup + fullstack
+npm run test:e2e:smoke      # read-only, against QA
+npm run test:e2e:ui         # interactive
+npx playwright show-report  # last run: screenshots, video, traces
 ```
 
-Name the project. A bare `npm run test:e2e` also runs `smoke`, which needs a deployed origin and
-fails against a dev server by design — see below.
+Two configurations, one per target. `playwright.config.ts` holds the local suite and is what a bare
+`playwright test` picks up; `playwright.config.smoke.ts` holds the deployed one, and
+`test:e2e:smoke` selects it with `-c`. Options common to both live in `e2e/playwright.shared.ts`.
+Neither needs a variable set to do the right thing.
 
 A single spec, watching it happen:
 
@@ -52,8 +55,9 @@ in `e2e/.auth/`, so run the suite (or the `setup` project) at least once first.
 ### The dev server must be on port 5173
 
 The Logto application the fixture was provisioned against only accepts `http://localhost:5173/...`
-as a sign-in redirect URI, so the OIDC callback fails on any other port. Playwright starts the
-server itself when nothing is listening there.
+as a sign-in redirect URI, so the OIDC callback fails on any other port. It is hardcoded in
+`playwright.config.ts` for that reason. Playwright starts the server itself when nothing is
+listening there, and reuses whatever is.
 
 If you already have one running, note that a plain `npm run dev` does **not** set `VITE_E2E`, which
 is what suppresses query auto-refetch and the Pinia Colada devtools panel — both of which race
@@ -66,20 +70,33 @@ npm run dev:e2e
 ### Running against a deployed environment
 
 ```bash
-E2E_BASE_URL=https://qa.my.nethesis.it \
-E2E_SMOKE_EMAIL=... E2E_SMOKE_PASSWORD=... \
-npm run test:e2e -- --project=smoke
+npm run test:e2e:smoke
 ```
 
-Only the `smoke` project may point at a deployed environment. It is read-only by construction: QA
-shares a database and a Logto tenant with real users, and the `fullstack` specs create and delete
-organizations.
+That targets `https://qa.my.nethesis.it`, the configuration's default. Point it elsewhere — a
+review environment, the compose stack behind the proxy — with `E2E_SMOKE_BASE_URL`, the only
+base-URL variable the suite reads.
+
+Only this configuration may point at a deployed environment, and nothing the local suite reads can
+be made to: `playwright.config.ts` hardcodes `http://localhost:5173`. That matters because smoke is
+read-only by construction — QA shares a database and a Logto tenant with real users — while the
+`fullstack` specs create and delete organizations.
 
 Without `E2E_SMOKE_EMAIL` / `E2E_SMOKE_PASSWORD` the authenticated checks skip and only the public
 surface is covered. Those credentials belong to one dedicated account in the target environment's
 tenant, not to any persona in the apitool registry — the registry describes the local fixture.
 
-The smoke project needs an origin that serves both the application and `/api`, which means a
+Rather than retyping them, put them in `frontend/.env.e2e`, which `e2e/playwright.shared.ts` loads
+when it exists and `.gitignore` already covers:
+
+```bash
+E2E_SMOKE_EMAIL=e2e@example.com
+E2E_SMOKE_PASSWORD=...
+# E2E_SMOKE_BASE_URL=https://qa.my.nethesis.it   # only to override the default
+# E2E_USER_MAIL=you@example.com                  # base address for users the fullstack specs create
+```
+
+The smoke suite needs an origin that serves both the application and `/backend/api`, which means a
 deployed environment or the compose stack behind the proxy. A bare Vite dev server serves neither,
 and the health check says so.
 
@@ -90,13 +107,15 @@ Note QA is suspended outside Mon–Fri 08:00–22:00 Europe/Rome by `qa-night-sc
 | Workflow        | Trigger                                               | What it runs                                      |
 | --------------- | ----------------------------------------------------- | ------------------------------------------------- |
 | `e2e-main.yml`  | every push to a PR and to `main`, manual, weekly cron | The `fullstack` project against the compose stack |
-| `e2e-smoke.yml` | push to `main`, manual                                | The `smoke` project against QA                    |
+| `e2e-smoke.yml` | push to `main`, manual                                | `playwright.config.smoke.ts` against QA           |
 
 Docs-only pushes are skipped on both `e2e-main.yml` triggers. Its concurrency group is global and
 never cancels, so a burst of pushes leaves the commits in between untested rather than queueing.
 
 `e2e-main.yml` brings the stack up with `docker-compose.e2e.yml` layered on top, which publishes
 the proxy on 5173 (the registered redirect origin) and builds the frontend with `VITE_E2E`. It
+passes no base URL: `webServer.reuseExistingServer` finds the proxy already listening there and
+starts no dev server. It
 writes its own `.api-registry.json` from secrets — `apitool init` is interactive — and then runs
 `authz provision`, tearing the fixture down in an `always()` step so a failed run leaves nothing in
 the tenant.
