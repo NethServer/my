@@ -59,7 +59,7 @@ behind it, such as a tenant setting changed by hand.
 
 ### `e2e-smoke.yml`
 **Trigger**: Push to `main`, manual dispatch
-**Purpose**: Read-only checks against QA (`--project=smoke`), covering the deployment-configuration
+**Purpose**: Read-only checks against QA (`playwright.config.smoke.ts`), covering the deployment-configuration
 failures the full-stack job cannot see
 
 QA is deployed by Render rather than by Actions, so the job asks the Render API (via the existing

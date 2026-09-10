@@ -18,9 +18,11 @@
  * registry describes the local fixture, while this signs in as one dedicated
  * account provisioned in the deployed environment's tenant.
  *
- *   E2E_BASE_URL=https://qa.my.nethesis.it \
- *   E2E_SMOKE_EMAIL=... E2E_SMOKE_PASSWORD=... \
- *   npm run test:e2e -- --project=smoke
+ *   npm run test:e2e:smoke
+ *
+ * The target is `playwright.config.smoke.ts`'s default, QA, unless
+ * E2E_SMOKE_BASE_URL says otherwise. Credentials come from the environment or
+ * from `frontend/.env.e2e`.
  */
 
 import { test, expect } from '@playwright/test'

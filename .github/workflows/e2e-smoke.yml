@@ -28,7 +28,7 @@ jobs:
     timeout-minutes: 20
 
     env:
-      E2E_BASE_URL: https://qa.my.nethesis.it
+      E2E_SMOKE_BASE_URL: https://qa.my.nethesis.it
 
     steps:
     - uses: actions/checkout@v7
@@ -76,7 +76,7 @@ jobs:
             live)
               # Deployed, but Render reports "live" the moment the instance
               # accepts traffic; make sure it really answers before asserting.
-              if curl -fsS -o /dev/null --max-time 10 "${E2E_BASE_URL}/backend/api/health"; then
+              if curl -fsS -o /dev/null --max-time 10 "${E2E_SMOKE_BASE_URL}/backend/api/health"; then
                 echo "QA is serving ${GITHUB_SHA}"
                 echo "ready=true" >> "$GITHUB_OUTPUT"
                 exit 0
@@ -127,7 +127,7 @@ jobs:
         # authenticated checks skip and only the public surface is covered.
         E2E_SMOKE_EMAIL: ${{ secrets.E2E_SMOKE_EMAIL }}
         E2E_SMOKE_PASSWORD: ${{ secrets.E2E_SMOKE_PASSWORD }}
-      run: npx playwright test --project=smoke
+      run: npx playwright test -c playwright.config.smoke.ts
 
     - name: Upload report, screenshots, video and traces
       if: always() && steps.deployed.outputs.ready == 'true'

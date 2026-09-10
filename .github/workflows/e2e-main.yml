@@ -191,8 +191,8 @@ jobs:
 
     - name: Run the suite
       working-directory: frontend
-      env:
-        E2E_BASE_URL: ${{ env.APP_URL }}
+      # No base URL to pass: the suite is pinned to 5173, and `webServer` reuses
+      # what compose already publishes there rather than starting a dev server.
       run: npx playwright test --project=fullstack
 
     - name: Upload report, screenshots, video and traces
