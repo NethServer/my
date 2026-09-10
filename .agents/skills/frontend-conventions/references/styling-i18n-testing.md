@@ -44,8 +44,9 @@ whole library.
 
 - Templates: `$t('key')` — `{{ $t('systems.title') }}`
 - Script setup: `const { t } = useI18n()` → `t('key')`
-- **Add new keys only to `src/i18n/en/translation.json`** by default. Do not edit
-  `src/i18n/it/translation.json` or other locale files unless the user explicitly requests it.
+- **Add every new key to both `src/i18n/en/translation.json` and
+  `src/i18n/it/translation.json`** — never English only. Keep the two files in the same key
+  order, and match the phrasing style of the neighbouring entries in each language.
 - Top-level namespace = domain (e.g., `"systems"`, `"system_detail"`, `"customers"`, `"common"`).
 - Key format: `snake_case` always.
 - Never use hardcoded strings in components — always i18n keys, even for button labels, error
