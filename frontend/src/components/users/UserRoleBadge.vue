@@ -19,6 +19,7 @@ const normalizedRole = computed(() => {
 const getKind = () => {
   switch (normalizedRole.value) {
     case 'owner':
+    case 'staff':
       return 'rose'
     case 'admin':
       return 'amber'

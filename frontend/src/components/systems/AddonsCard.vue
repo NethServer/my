@@ -17,9 +17,7 @@ import EnabledStatus from '@/components/common/EnabledStatus.vue'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import { computed } from 'vue'
 import type { NsecFacts, NsecFeatures } from '@/lib/systems/inventory'
-import { useI18n } from 'vue-i18n'
 
-const { t } = useI18n()
 const { state: latestInventory } = useLatestInventory()
 
 const features = computed<NsecFeatures | undefined>(() => {
@@ -33,6 +31,16 @@ interface AddonItem {
   enabled: boolean
 }
 
+// Product names, not prose: they are spelled the same in every locale, so
+// they are written here rather than kept as i18n keys that invite a
+// translator to render them.
+const ADDON_LABELS = {
+  threat_shield: 'Advanced Threat Shield',
+  flashstart: 'FlashStart',
+  netifyd: 'Netify Informatics',
+  ha: 'High Availability',
+} as const
+
 const addons = computed<AddonItem[]>(() => {
   const f = features.value
   if (!f) return []
@@ -40,22 +48,22 @@ const addons = computed<AddonItem[]>(() => {
   return [
     {
       key: 'threat_shield',
-      label: t('system_detail.addon_threat_shield'),
+      label: ADDON_LABELS.threat_shield,
       enabled: Boolean(
         (f.threat_shield?.enabled ?? false) && (f.threat_shield?.enterprise ?? false),
       ),
     },
     {
       key: 'flashstart',
-      label: t('system_detail.addon_flashstart'),
+      label: ADDON_LABELS.flashstart,
       enabled: f.flashstart?.enabled ?? false,
     },
     {
       key: 'netifyd',
-      label: t('system_detail.addon_netifyd'),
+      label: ADDON_LABELS.netifyd,
       enabled: f.netifyd?.enabled ?? false,
     },
-    { key: 'ha', label: t('system_detail.addon_ha'), enabled: f.ha?.enabled ?? false },
+    { key: 'ha', label: ADDON_LABELS.ha, enabled: f.ha?.enabled ?? false },
   ]
 })
 
