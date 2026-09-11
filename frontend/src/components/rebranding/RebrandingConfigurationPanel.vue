@@ -6,6 +6,7 @@
 <script setup lang="ts">
 import { NeCard, NeCombobox, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
+import { canManageRebranding } from '@/lib/permissions'
 import { NETHVOICE_PRODUCT_ID } from '@/lib/rebranding/rebranding'
 import { useRebrandingAssetUrls } from '@/composables/useRebrandingAssetUrls'
 import { useRebrandingConfiguration } from '@/composables/useRebrandingConfiguration'
@@ -39,6 +40,11 @@ const {
 // Resolved once and shared: every call to this composable mints its own blob
 // URLs for the pending files.
 const assetUrls = useRebrandingAssetUrls(slots, organizationId, () => selectedProductId.value)
+
+// read:rebranding is enough to reach this page, but saving sits behind
+// manage:rebranding: without it the form is shown as a read-only record of what
+// the company is branded as, rather than as a form that 403s on submit.
+const canEdit = computed(() => canManageRebranding())
 
 const productOptions = computed(() =>
   configurableProducts.value.map((product) => ({
@@ -99,6 +105,7 @@ const productOptions = computed(() =>
           :brand-name-invalid-message="brandNameInvalidMessage"
           :saving="saving"
           :has-changes="hasChanges"
+          :readonly="!canEdit"
           :save-error="saveError"
           @select="selectAsset"
           @clear="clearAsset"

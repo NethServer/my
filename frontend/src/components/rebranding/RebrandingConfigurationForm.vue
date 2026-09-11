@@ -25,6 +25,7 @@ const {
   brandNameInvalidMessage = '',
   saving = false,
   hasChanges = false,
+  readonly = false,
   saveError = null,
 } = defineProps<{
   slots: AssetSlots
@@ -36,6 +37,8 @@ const {
   brandNameInvalidMessage?: string
   saving?: boolean
   hasChanges?: boolean
+  // Shown as a record rather than a form: the reader may look, not save.
+  readonly?: boolean
   saveError?: Error | null
 }>()
 
@@ -79,7 +82,7 @@ const assetFields = computed(() =>
         :placeholder="productName"
         :helper-text="$t('rebranding.brand_name_helper', { product: productName })"
         :invalid-message="brandNameInvalidMessage"
-        :disabled="saving"
+        :disabled="saving || readonly"
         :maxlength="MAX_BRAND_NAME_LENGTH"
       />
       <!-- brand assets -->
@@ -97,7 +100,7 @@ const assetFields = computed(() =>
             :asset-slot="slots[field.name]"
             :asset-url="assetUrls[field.name]"
             :invalid-message="assetErrors[field.name] ?? ''"
-            :disabled="saving"
+            :disabled="saving || readonly"
             @select="(file) => emit('select', field.name, file)"
             @clear="emit('clear', field.name)"
           />
@@ -110,7 +113,7 @@ const assetFields = computed(() =>
         :title="$t('rebranding.cannot_save_configuration')"
         :description="saveError.message"
       />
-      <div class="flex justify-start">
+      <div v-if="!readonly" class="flex justify-start">
         <NeButton
           type="submit"
           kind="primary"
