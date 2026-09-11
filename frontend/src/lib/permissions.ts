@@ -26,6 +26,9 @@ const MANAGE_ALERTS = 'manage:alerts'
 // The add-on permissions are still spelled "entitlements" on the wire
 const READ_ADDONS = 'read:entitlements'
 const MANAGE_ADDONS = 'manage:entitlements'
+const READ_REBRANDING = 'read:rebranding'
+const MANAGE_REBRANDING = 'manage:rebranding'
+
 // "Owner-level authority": any user of the Owner organization (Owner or Staff
 // role). Not a permission — it is the threshold above the manage:* scopes
 // every distributor already holds. Named once because several unrelated gates
@@ -165,3 +168,26 @@ export const isAddonAdmin = () => hasOwnerLevelAuthority()
 // does; owner-level users grant it outright instead, so offering them the shop
 // on top would be a second way to do a thing they already did better.
 export const canBuyAddons = () => canManageAddons() && !isAddonAdmin()
+
+export const canReadRebranding = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(READ_REBRANDING)
+}
+
+export const canManageRebranding = () => {
+  const loginStore = useLoginStore()
+  return loginStore.permissions.includes(MANAGE_REBRANDING)
+}
+
+// Deciding which companies may rebrand is an administrative duty, not something
+// every distributor takes part in: owner organization or Super Admin, the same
+// population the add-on catalog answers to. This answers "which page do I get",
+// and the fleet list behind it needs read:rebranding alone, so a read-only
+// owner-org role still belongs here rather than on the per-company page, which
+// has nothing to show it — the owner organization can never rebrand itself.
+export const isRebrandingAdmin = () => hasOwnerLevelAuthority()
+
+// Enabling or removing a company is what the read-only roles cannot do: the
+// routes sit behind manage:rebranding, so offering the action would be offering
+// a button the API refuses.
+export const canManageRebrandingOrganizations = () => isRebrandingAdmin() && canManageRebranding()

@@ -30,7 +30,13 @@ const dnsServers = computed(() => {
 const networkInterfaces = computed(() => {
   const facts = latestInventory.value.data?.data?.facts as NsecFacts | undefined
   const networkConfig = facts?.features?.network?.configuration
-  return networkConfig ? Object.values(networkConfig) : []
+  if (!networkConfig) {
+    return []
+  }
+  // numeric collation so eth2 comes before eth10
+  return Object.values(networkConfig).sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { numeric: true }),
+  )
 })
 
 const getIpAddressWithCidr = (iface: InventoryNetworkInterface) => {
@@ -125,7 +131,7 @@ const getNetworkRoleForegroundStyle = (role: string | undefined) => {
         >
           <!-- icon -->
           <div
-            :class="`flex size-16 flex-shrink-0 items-center justify-center rounded-full ${getNetworkRoleBackgroundStyle(iface.props?.role)}`"
+            :class="`flex size-16 shrink-0 items-center justify-center rounded-full ${getNetworkRoleBackgroundStyle(iface.props?.role)}`"
           >
             <FontAwesomeIcon
               :icon="getNetworkRoleIcon(iface.props?.role)"

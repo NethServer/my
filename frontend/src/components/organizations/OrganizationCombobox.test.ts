@@ -1,9 +1,9 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { ref } from 'vue'
+import { ref, toValue, type MaybeRefOrGetter } from 'vue'
 import { createI18n } from 'vue-i18n'
 import OrganizationCombobox from './OrganizationCombobox.vue'
 import type { OrganizationSearchResult } from '@/lib/organizations/searchOrganizations'
@@ -15,20 +15,35 @@ const servedPage: OrganizationSearchResult[] = [
   { logto_id: 'org-bbb', name: 'Beta Ltd', type: 'reseller' },
 ]
 
+// The types the component asked the search to scope to, captured so a test can
+// tell server-side scoping apart from filtering the served page.
+let requestedTypes: string[] | undefined
+
 vi.mock('@/composables/useOrganizationFilter', () => ({
-  useOrganizationFilter: () => ({
-    organizations: ref(servedPage),
-    loading: ref(false),
-    onSearch: vi.fn(),
-    currentSearch: ref(''),
-  }),
+  useOrganizationFilter: (
+    _enabled?: MaybeRefOrGetter<boolean>,
+    types?: MaybeRefOrGetter<string[] | undefined>,
+  ) => {
+    requestedTypes = toValue(types)
+    return {
+      organizations: ref(servedPage),
+      loading: ref(false),
+      onSearch: vi.fn(),
+      currentSearch: ref(''),
+    }
+  },
 }))
+
+beforeEach(() => {
+  requestedTypes = undefined
+})
 
 const i18n = createI18n({ legacy: false, locale: 'en', missingWarn: false, fallbackWarn: false })
 
 // The label is written to the input after mount, so flush before reading it.
 async function mountAndReadDisplayedValue(props: {
   modelValue: string
+  allowedTypes?: string[]
   selectedOrganization?: { logto_id?: string; name: string; type: string }
 }) {
   const wrapper = mount(OrganizationCombobox, {
@@ -41,6 +56,29 @@ async function mountAndReadDisplayedValue(props: {
 }
 
 describe('OrganizationCombobox', () => {
+  // The served page is truncated, so filtering it by type here would drop the
+  // allowed companies that sort behind companies of other types — the scoping
+  // has to reach the search itself.
+  it('scopes the search to the allowed types', async () => {
+    await mountAndReadDisplayedValue({ modelValue: '', allowedTypes: ['distributor'] })
+
+    expect(requestedTypes).toEqual(['distributor'])
+  })
+
+  it('asks for every type when no type is allowed in particular', async () => {
+    await mountAndReadDisplayedValue({ modelValue: '' })
+
+    expect(requestedTypes).toBeUndefined()
+  })
+
+  // Corollary of the above: the page comes back already scoped, so the
+  // component trusts it instead of filtering it a second time.
+  it('keeps a served company whose type is not among the allowed ones', async () => {
+    expect(
+      await mountAndReadDisplayedValue({ modelValue: 'org-bbb', allowedTypes: ['distributor'] }),
+    ).toBe('Beta Ltd')
+  })
+
   it('displays a company that falls outside the served page of options', async () => {
     expect(
       await mountAndReadDisplayedValue({

@@ -12,13 +12,12 @@ import {
   NeSkeleton,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faCircleCheck, faCircleXmark, faFolderPlus } from '@fortawesome/free-solid-svg-icons'
+import { faFolderPlus } from '@fortawesome/free-solid-svg-icons'
+import EnabledStatus from '@/components/common/EnabledStatus.vue'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import { computed } from 'vue'
 import type { NsecFacts, NsecFeatures } from '@/lib/systems/inventory'
-import { useI18n } from 'vue-i18n'
 
-const { t } = useI18n()
 const { state: latestInventory } = useLatestInventory()
 
 const features = computed<NsecFeatures | undefined>(() => {
@@ -26,40 +25,50 @@ const features = computed<NsecFeatures | undefined>(() => {
   return facts?.features
 })
 
-interface ServiceItem {
+interface AddonItem {
   key: string
   label: string
   enabled: boolean
 }
 
-const services = computed<ServiceItem[]>(() => {
+// Product names, not prose: they are spelled the same in every locale, so
+// they are written here rather than kept as i18n keys that invite a
+// translator to render them.
+const ADDON_LABELS = {
+  threat_shield: 'Advanced Threat Shield',
+  flashstart: 'FlashStart',
+  netifyd: 'Netify Informatics',
+  ha: 'High Availability',
+} as const
+
+const addons = computed<AddonItem[]>(() => {
   const f = features.value
   if (!f) return []
 
   return [
     {
       key: 'threat_shield',
-      label: t('system_detail.service_threat_shield'),
+      label: ADDON_LABELS.threat_shield,
       enabled: Boolean(
         (f.threat_shield?.enabled ?? false) && (f.threat_shield?.enterprise ?? false),
       ),
     },
     {
       key: 'flashstart',
-      label: t('system_detail.service_flashstart'),
+      label: ADDON_LABELS.flashstart,
       enabled: f.flashstart?.enabled ?? false,
     },
     {
       key: 'netifyd',
-      label: t('system_detail.service_netifyd'),
+      label: ADDON_LABELS.netifyd,
       enabled: f.netifyd?.enabled ?? false,
     },
-    { key: 'ha', label: t('system_detail.service_ha'), enabled: f.ha?.enabled ?? false },
+    { key: 'ha', label: ADDON_LABELS.ha, enabled: f.ha?.enabled ?? false },
   ]
 })
 
-const sortedServices = computed<ServiceItem[]>(() =>
-  [...services.value].sort((a, b) => Number(b.enabled) - Number(a.enabled)),
+const sortedAddons = computed<AddonItem[]>(() =>
+  [...addons.value].sort((a, b) => Number(b.enabled) - Number(a.enabled)),
 )
 </script>
 
@@ -68,7 +77,7 @@ const sortedServices = computed<ServiceItem[]>(() =>
     <div class="mb-4 flex h-10 items-center gap-4">
       <FontAwesomeIcon :icon="faFolderPlus" class="size-5 shrink-0" aria-hidden="true" />
       <NeHeading tag="h6">
-        {{ $t('system_detail.additional_services').toUpperCase() }}
+        {{ $t('system_detail.addons').toUpperCase() }}
       </NeHeading>
     </div>
     <!-- error -->
@@ -80,40 +89,24 @@ const sortedServices = computed<ServiceItem[]>(() =>
       class="mb-6"
     />
     <NeSkeleton v-else-if="latestInventory.status === 'pending'" :lines="8" />
-    <div
-      v-else-if="sortedServices.length > 0"
-      class="divide-y divide-gray-200 dark:divide-gray-700"
-    >
+    <div v-else-if="sortedAddons.length > 0" class="divide-y divide-gray-200 dark:divide-gray-700">
       <div
-        v-for="service in sortedServices"
-        :key="service.key"
+        v-for="addon in sortedAddons"
+        :key="addon.key"
         class="flex items-center justify-between gap-2 py-4"
       >
         <span class="font-medium text-gray-900 dark:text-gray-50">
-          {{ service.label }}
+          {{ addon.label }}
         </span>
-        <div
-          class="text-tertiary-neutral dark:text-tertiary-neutral flex items-center gap-2 text-end"
-        >
-          <FontAwesomeIcon
-            :icon="service.enabled ? faCircleCheck : faCircleXmark"
-            class="size-4"
-            :class="
-              service.enabled
-                ? 'text-green-700 dark:text-green-500'
-                : 'text-gray-700 dark:text-gray-400'
-            "
-            aria-hidden="true"
-          />
-          <span class="font-medium">
-            {{ service.enabled ? $t('common.enabled') : $t('common.disabled') }}
-          </span>
-        </div>
+        <EnabledStatus
+          :enabled="addon.enabled"
+          class="text-tertiary-neutral dark:text-tertiary-neutral font-medium"
+        />
       </div>
     </div>
     <NeEmptyState
       v-else
-      :title="$t('system_detail.no_additional_services')"
+      :title="$t('system_detail.no_addons')"
       :icon="faFolderPlus"
       class="bg-white dark:bg-gray-950"
     />

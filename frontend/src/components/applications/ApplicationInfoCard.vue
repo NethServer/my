@@ -17,19 +17,14 @@ import { useApplicationDetail } from '@/queries/applications/applicationDetail'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import DataItem from '@/components/common/DataItem.vue'
 import NotesModal from '@/components/common/NotesModal.vue'
+import EnabledStatus from '@/components/common/EnabledStatus.vue'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import { getDisplayName } from '@/lib/applications/applications'
 import ApplicationLogo from '@/components/applications/ApplicationLogo.vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { canManageApplications } from '@/lib/permissions'
-import {
-  faArrowsRotate,
-  faBuilding,
-  faCheck,
-  faPenToSquare,
-  faXmark,
-} from '@fortawesome/free-solid-svg-icons'
+import { faArrowsRotate, faBuilding, faPenToSquare } from '@fortawesome/free-solid-svg-icons'
 import AssignOrganizationDrawer from './AssignOrganizationDrawer.vue'
 import SetNotesDrawer from './SetNotesDrawer.vue'
 
@@ -42,11 +37,6 @@ const isShownSetNotesDrawer = ref(false)
 const currentApplication = computed(() => applicationDetail.value.data)
 
 const rebrandingEnabled = computed(() => applicationDetail.value.data?.rebranding_enabled === true)
-const rebrandingBadgeText = computed(() =>
-  rebrandingEnabled.value ? t('common.enabled') : t('common.disabled'),
-)
-const rebrandingBadgeKind = computed(() => (rebrandingEnabled.value ? 'green' : 'gray'))
-const rebrandingBadgeIcon = computed(() => (rebrandingEnabled.value ? faCheck : faXmark))
 
 function showAssignOrgDrawer() {
   isShownAssignOrgDrawer.value = true
@@ -147,16 +137,11 @@ function getKebabMenuItems() {
             {{ $t('applications.rebranding') }}
           </template>
           <template #data>
-            <NeBadgeV2 :kind="rebrandingBadgeKind">
-              <div class="flex items-center gap-1">
-                <FontAwesomeIcon :icon="rebrandingBadgeIcon" class="size-4" aria-hidden="true" />
-                {{ rebrandingBadgeText }}
-              </div>
-            </NeBadgeV2>
+            <EnabledStatus :enabled="rebrandingEnabled" />
           </template>
         </DataItem>
         <div v-if="applicationDetail.data.notes">
-          <div class="py-4 font-medium">
+          <div class="text-tertiary-neutral dark:text-tertiary-neutral py-4 font-medium">
             {{ $t('common.notes') }}
           </div>
           <pre ref="preElement" class="line-clamp-5 font-sans whitespace-pre-wrap">{{
