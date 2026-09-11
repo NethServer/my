@@ -29,7 +29,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
-import { isRebrandingAdmin } from '@/lib/permissions'
+import { canManageRebrandingOrganizations } from '@/lib/permissions'
 import { getRebrandingProductBadgeClasses, REBRANDING_TABLE_ID } from '@/lib/rebranding/rebranding'
 import {
   REBRANDING_ORGANIZATION_TYPES,
@@ -232,7 +232,7 @@ function getKebabMenuItems(organization: RebrandingOrganization): NeDropdownItem
             <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
               <!-- kebab menu -->
               <NeDropdown
-                v-if="isRebrandingAdmin()"
+                v-if="canManageRebrandingOrganizations()"
                 :items="getKebabMenuItems(item)"
                 :align-to-right="true"
               />

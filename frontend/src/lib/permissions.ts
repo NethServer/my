@@ -181,8 +181,13 @@ export const canManageRebranding = () => {
 
 // Deciding which companies may rebrand is an administrative duty, not something
 // every distributor takes part in: owner organization or Super Admin, the same
-// population the add-on catalog answers to. The scope is checked alongside it
-// because the route sits behind manage:rebranding as well, and an owner-org
-// user holding only a read role would otherwise be offered a button the API
-// refuses.
-export const isRebrandingAdmin = () => hasOwnerLevelAuthority() && canManageRebranding()
+// population the add-on catalog answers to. This answers "which page do I get",
+// and the fleet list behind it needs read:rebranding alone, so a read-only
+// owner-org role still belongs here rather than on the per-company page, which
+// has nothing to show it — the owner organization can never rebrand itself.
+export const isRebrandingAdmin = () => hasOwnerLevelAuthority()
+
+// Enabling or removing a company is what the read-only roles cannot do: the
+// routes sit behind manage:rebranding, so offering the action would be offering
+// a button the API refuses.
+export const canManageRebrandingOrganizations = () => isRebrandingAdmin() && canManageRebranding()

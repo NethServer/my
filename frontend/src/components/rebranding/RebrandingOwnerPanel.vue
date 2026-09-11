@@ -8,7 +8,7 @@ import { NeButton } from '@nethesis/vue-components'
 import { faCirclePlus } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { ref } from 'vue'
-import { isRebrandingAdmin } from '@/lib/permissions'
+import { canManageRebrandingOrganizations } from '@/lib/permissions'
 import AddCompaniesToRebrandingDrawer from './AddCompaniesToRebrandingDrawer.vue'
 import RebrandingOrganizationsTable from './RebrandingOrganizationsTable.vue'
 import RebrandingSummaryCards from './RebrandingSummaryCards.vue'
@@ -26,7 +26,7 @@ const isShownAddCompaniesDrawer = ref(false)
       <!-- adding a company is the owner organization's decision, and the
            backend refuses it for anybody else -->
       <NeButton
-        v-if="isRebrandingAdmin()"
+        v-if="canManageRebrandingOrganizations()"
         kind="primary"
         size="lg"
         class="shrink-0"
@@ -41,7 +41,7 @@ const isShownAddCompaniesDrawer = ref(false)
     <RebrandingOrganizationsTable>
       <template #empty-state-action>
         <NeButton
-          v-if="isRebrandingAdmin()"
+          v-if="canManageRebrandingOrganizations()"
           kind="primary"
           size="lg"
           @click="isShownAddCompaniesDrawer = true"
