@@ -8,10 +8,12 @@ import { computed, ref, toValue, watch, type MaybeRefOrGetter } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getValidationIssues } from '@/lib/validation'
 import {
+  isBrandNameTooLong,
   MAX_BRAND_NAME_LENGTH,
   REBRANDING_ORGANIZATIONS_KEY,
   REBRANDING_STATUS_KEY,
   type RebrandingAssetName,
+  type RebrandingProductStatus,
 } from '@/lib/rebranding/rebranding'
 import {
   buildRebrandingFormData,
@@ -52,17 +54,32 @@ export function useRebrandingConfiguration(productId: MaybeRefOrGetter<string>) 
 
   const loadingStatus = computed(() => state.value.status === 'pending')
 
-  // Re-seed from the server on first load, on a product change, and after a
-  // save invalidates the status — which is what drops stale files and pending
-  // removals once they have been applied.
+  // The product the draft currently belongs to, or null when the next status
+  // to arrive should be seeded — on first load and after a save.
+  const seededProductId = ref<string | null>(null)
+
+  function seedFromServer(product: RebrandingProductStatus | undefined) {
+    brandName.value = product?.product_name ?? ''
+    savedBrandName.value = brandName.value
+    slots.value = createAssetSlots(product)
+    assetErrors.value = {}
+    validationIssues.value = {}
+  }
+
+  // Seed from the server on first load, on a product change, and after a save
+  // invalidates the status — which is what drops stale files and pending
+  // removals once they have been applied. Every other refetch of the status
+  // (window focus, or the invalidation that follows a *failed* save) has to
+  // leave the draft and its error messages alone, so it is gated on the
+  // product rather than on the status object, which is replaced on each fetch.
   watch(
-    productStatus,
-    (product) => {
-      brandName.value = product?.product_name ?? ''
-      savedBrandName.value = brandName.value
-      slots.value = createAssetSlots(product)
-      assetErrors.value = {}
-      validationIssues.value = {}
+    [productStatus, () => toValue(productId), loadingStatus],
+    ([product, id, loading]) => {
+      if (loading || seededProductId.value === id) {
+        return
+      }
+      seededProductId.value = id
+      seedFromServer(product)
     },
     { immediate: true },
   )
@@ -72,7 +89,7 @@ export function useRebrandingConfiguration(productId: MaybeRefOrGetter<string>) 
   )
 
   const brandNameInvalidMessage = computed(() => {
-    if (brandName.value.trim().length > MAX_BRAND_NAME_LENGTH) {
+    if (isBrandNameTooLong(brandName.value)) {
       return t('rebranding.brand_name_too_long', { max: MAX_BRAND_NAME_LENGTH })
     }
     const issue = validationIssues.value.product_name?.[0]
@@ -88,6 +105,9 @@ export function useRebrandingConfiguration(productId: MaybeRefOrGetter<string>) 
     mutation: (vars: { organizationId: string; productId: string; formData: FormData }) =>
       putRebrandingProduct(vars.organizationId, vars.productId, vars.formData),
     onSuccess() {
+      // The status invalidated below comes back with the saved values, and
+      // that response is what the draft is rebuilt from.
+      seededProductId.value = null
       notificationsStore.createNotification({
         kind: 'success',
         title: t('rebranding.configuration_saved'),
