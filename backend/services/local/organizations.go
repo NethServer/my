@@ -1549,6 +1549,8 @@ func (s *LocalOrganizationService) DeleteDistributor(id, deletedByUserID, delete
 
 		// 2. Cascade soft-delete systems across the entire hierarchy
 		deletedSystemsCount, err = s.systemRepo.SoftDeleteSystemsByMultipleOrgIDs(allOrgIDs, distLogtoID)
+		// Applications of the soft-deleted systems leave the cached totals
+		cache.GetAppsCache().InvalidateAll()
 		if err != nil {
 			logger.Warn().Err(err).Str("distributor_id", id).Int("org_ids_count", len(allOrgIDs)).Msg("Failed to cascade soft-delete systems for distributor hierarchy")
 		} else if deletedSystemsCount > 0 {
@@ -1608,6 +1610,8 @@ func (s *LocalOrganizationService) DeleteReseller(id, deletedByUserID, deletedBy
 
 		// 2. Cascade soft-delete systems across the hierarchy
 		deletedSystemsCount, err = s.systemRepo.SoftDeleteSystemsByMultipleOrgIDs(allOrgIDs, resLogtoID)
+		// Applications of the soft-deleted systems leave the cached totals
+		cache.GetAppsCache().InvalidateAll()
 		if err != nil {
 			logger.Warn().Err(err).Str("reseller_id", id).Int("org_ids_count", len(allOrgIDs)).Msg("Failed to cascade soft-delete systems for reseller hierarchy")
 		} else if deletedSystemsCount > 0 {
@@ -1658,6 +1662,8 @@ func (s *LocalOrganizationService) DeleteCustomer(id, deletedByUserID, deletedBy
 
 		// 2. Cascade soft-delete systems for this customer
 		deletedSystemsCount, err = s.systemRepo.SoftDeleteSystemsByMultipleOrgIDs([]string{custLogtoID}, custLogtoID)
+		// Applications of the soft-deleted systems leave the cached totals
+		cache.GetAppsCache().InvalidateAll()
 		if err != nil {
 			logger.Warn().Err(err).Str("customer_id", id).Msg("Failed to cascade soft-delete systems for customer")
 		} else if deletedSystemsCount > 0 {
@@ -1721,6 +1727,7 @@ func (s *LocalOrganizationService) RestoreDistributor(id, restoredByUserID, rest
 
 		// Cascade restore systems soft-deleted by this distributor
 		restoredSystemsCount, err = s.systemRepo.RestoreSystemsByDeletedByOrgID(distLogtoID)
+		cache.GetAppsCache().InvalidateAll()
 		if err != nil {
 			logger.Warn().Err(err).Str("distributor_id", id).Msg("Failed to cascade restore systems for distributor")
 		}
@@ -1772,6 +1779,7 @@ func (s *LocalOrganizationService) RestoreReseller(id, restoredByUserID, restore
 
 		// Cascade restore systems soft-deleted by this reseller
 		restoredSystemsCount, err = s.systemRepo.RestoreSystemsByDeletedByOrgID(resLogtoID)
+		cache.GetAppsCache().InvalidateAll()
 		if err != nil {
 			logger.Warn().Err(err).Str("reseller_id", id).Msg("Failed to cascade restore systems for reseller")
 		}
@@ -1823,6 +1831,7 @@ func (s *LocalOrganizationService) RestoreCustomer(id, restoredByUserID, restore
 
 		// Cascade restore systems soft-deleted by this customer
 		restoredSystemsCount, err = s.systemRepo.RestoreSystemsByDeletedByOrgID(custLogtoID)
+		cache.GetAppsCache().InvalidateAll()
 		if err != nil {
 			logger.Warn().Err(err).Str("customer_id", id).Msg("Failed to cascade restore systems for customer")
 		}

@@ -66,3 +66,37 @@ func TestUnassignAllForSystemReturnsZeroWhenNothingAssigned(t *testing.T) {
 	assert.Equal(t, int64(0), rows)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
+
+// Soft-deleting a system does not cascade to its applications (they must
+// survive a restore), so the read paths hide them themselves: otherwise the
+// detail endpoint answers 403 (the system lookup fails) instead of 404 and
+// the owner, who has no system filter, keeps seeing phantom apps in the list.
+func TestGetByIDIgnoresApplicationsOnDeletedSystems(t *testing.T) {
+	repo, mock, cleanup := setupAppRepoMock(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`FROM applications a\s+LEFT JOIN systems s ON a\.system_id = s\.id.*WHERE a\.id = \$1 AND a\.deleted_at IS NULL AND EXISTS \(SELECT 1 FROM systems s2 WHERE s2\.id = a\.system_id AND s2\.deleted_at IS NULL\)`).
+		WithArgs("sys-1-nextcloud1").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	_, err := repo.GetByID("sys-1-nextcloud1")
+	assert.EqualError(t, err, "application not found")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestListOwnerScopeRequiresLiveSystem(t *testing.T) {
+	repo, mock, cleanup := setupAppRepoMock(t)
+	defer cleanup()
+
+	// nil allowedSystemIDs = owner: no RBAC system filter, so the live-system
+	// invariant is the only thing keeping deleted systems' apps out.
+	mock.ExpectQuery(`FROM applications a\s+LEFT JOIN systems s ON a\.system_id = s\.id.*WHERE a\.deleted_at IS NULL AND EXISTS \(SELECT 1 FROM systems s2 WHERE s2\.id = a\.system_id AND s2\.deleted_at IS NULL\) AND a\.is_user_facing = TRUE`).
+		WithArgs(20, 0).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	apps, total, err := repo.List(nil, 1, 20, "", "", "", nil, nil, nil, nil, nil, true)
+	require.NoError(t, err)
+	assert.Empty(t, apps)
+	assert.Equal(t, 0, total)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}

@@ -311,7 +311,7 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 			SELECT c.id, c.logto_id, c.name, c.description,
 			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
 			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count,
-			       (SELECT COUNT(*) FROM applications a WHERE a.organization_id = c.logto_id AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5)) as applications_count
+			       (SELECT COUNT(*) FROM applications a WHERE a.organization_id = c.logto_id AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL)) as applications_count
 			FROM customers c
 			WHERE 1=1%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $1 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(c.custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $1 || '%%')))
 			%s
@@ -327,7 +327,7 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 			SELECT c.id, c.logto_id, c.name, c.description,
 			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
 			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count,
-			       (SELECT COUNT(*) FROM applications a WHERE a.organization_id = c.logto_id AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5)) as applications_count
+			       (SELECT COUNT(*) FROM applications a WHERE a.organization_id = c.logto_id AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL)) as applications_count
 			FROM customers c
 			WHERE 1=1%s%s
 			%s
@@ -412,7 +412,7 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 			SELECT c.id, c.logto_id, c.name, c.description,
 			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
 			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count,
-			       (SELECT COUNT(*) FROM applications a WHERE a.organization_id = c.logto_id AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5)) as applications_count
+			       (SELECT COUNT(*) FROM applications a WHERE a.organization_id = c.logto_id AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL)) as applications_count
 			FROM customers c
 			WHERE (
 				c.custom_data->>'createdBy' = $1 OR
@@ -442,7 +442,7 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 			SELECT c.id, c.logto_id, c.name, c.description,
 			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
 			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count,
-			       (SELECT COUNT(*) FROM applications a WHERE a.organization_id = c.logto_id AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5)) as applications_count
+			       (SELECT COUNT(*) FROM applications a WHERE a.organization_id = c.logto_id AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL)) as applications_count
 			FROM customers c
 			WHERE (
 				c.custom_data->>'createdBy' = $1 OR
@@ -525,7 +525,7 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 			SELECT c.id, c.logto_id, c.name, c.description,
 			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
 			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count,
-			       (SELECT COUNT(*) FROM applications a WHERE a.organization_id = c.logto_id AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5)) as applications_count
+			       (SELECT COUNT(*) FROM applications a WHERE a.organization_id = c.logto_id AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL)) as applications_count
 			FROM customers c
 			WHERE c.custom_data->>'createdBy' = $1%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(c.custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $2 || '%%')))
 			%s
@@ -541,7 +541,7 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 			SELECT c.id, c.logto_id, c.name, c.description,
 			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
 			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count,
-			       (SELECT COUNT(*) FROM applications a WHERE a.organization_id = c.logto_id AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5)) as applications_count
+			       (SELECT COUNT(*) FROM applications a WHERE a.organization_id = c.logto_id AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL)) as applications_count
 			FROM customers c
 			WHERE c.custom_data->>'createdBy' = $1%s%s
 			%s
@@ -622,7 +622,7 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 			SELECT c.id, c.logto_id, c.name, c.description,
 			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
 			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count,
-			       (SELECT COUNT(*) FROM applications a WHERE a.organization_id = c.logto_id AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5)) as applications_count
+			       (SELECT COUNT(*) FROM applications a WHERE a.organization_id = c.logto_id AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL)) as applications_count
 			FROM customers c
 			WHERE c.id = $1%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(c.custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $2 || '%%')))
 			%s
@@ -638,7 +638,7 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 			SELECT c.id, c.logto_id, c.name, c.description,
 			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
 			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count,
-			       (SELECT COUNT(*) FROM applications a WHERE a.organization_id = c.logto_id AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5)) as applications_count
+			       (SELECT COUNT(*) FROM applications a WHERE a.organization_id = c.logto_id AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL)) as applications_count
 			FROM customers c
 			WHERE c.id = $1%s%s
 			%s
@@ -1032,7 +1032,7 @@ func (r *LocalCustomerRepository) GetStats(id string) (*models.CustomerStats, er
 		SELECT
 			(SELECT COUNT(*) FROM users WHERE organization_id = $1 AND deleted_at IS NULL) as users_count,
 			(SELECT COUNT(*) FROM systems WHERE organization_id = $1 AND deleted_at IS NULL) as systems_count,
-			(SELECT COUNT(*) FROM applications WHERE organization_id = $1 AND deleted_at IS NULL AND (inventory_data->>'certification_level')::int IN (4, 5)) as applications_count
+			(SELECT COUNT(*) FROM applications a WHERE a.organization_id = $1 AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL)) as applications_count
 	`
 
 	err = r.db.QueryRow(query, *customer.LogtoID).Scan(&stats.UsersCount, &stats.SystemsCount, &stats.ApplicationsCount)

@@ -481,7 +481,7 @@ func (r *LocalDistributorRepository) populateDistributorCounts(distributors []*m
 		return fmt.Errorf("failed to fold system counts: %w", err)
 	}
 	if err := r.foldOrgCounts(
-		`SELECT organization_id, COUNT(*) FROM applications WHERE deleted_at IS NULL AND organization_id IS NOT NULL AND (inventory_data->>'certification_level')::int IN (4, 5) GROUP BY organization_id`,
+		`SELECT a.organization_id, COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND a.organization_id IS NOT NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL) GROUP BY a.organization_id`,
 		orgToDist, byLogto, func(d *models.LocalDistributor) *int { return d.ApplicationsCount },
 	); err != nil {
 		return fmt.Errorf("failed to fold application counts: %w", err)
@@ -791,8 +791,8 @@ func (r *LocalDistributorRepository) GetStats(id string) (*models.DistributorSta
 					WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 				)
 			)) as customers_count,
-			(SELECT COUNT(*) FROM applications WHERE organization_id = $1 AND deleted_at IS NULL AND (inventory_data->>'certification_level')::int IN (4, 5)) as applications_count,
-			(SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND (
+			(SELECT COUNT(*) FROM applications a WHERE a.organization_id = $1 AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL)) as applications_count,
+			(SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL) AND (
 				a.organization_id = $1
 				OR a.organization_id IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL)
 				OR a.organization_id IN (

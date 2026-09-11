@@ -610,6 +610,8 @@ func (s *LocalSystemsService) DeleteSystem(systemID, userID, userOrgID, userOrgR
 	cache.InvalidateSystemAuth(context.Background(), system.SystemKey)
 	// Deleted systems leave the allowed-system lists (deleted_at IS NULL filter)
 	cache.GetRBACCache().InvalidateAll()
+	// Their applications leave the cached totals too (reads filter on live systems)
+	cache.GetAppsCache().InvalidateAll()
 
 	logger.Info().
 		Str("system_id", systemID).
@@ -728,6 +730,7 @@ func (s *LocalSystemsService) RestoreSystem(systemID, userID, userOrgID, userOrg
 
 	// The restored system must re-enter the cached allowed-system lists
 	cache.GetRBACCache().InvalidateAll()
+	cache.GetAppsCache().InvalidateAll()
 
 	logger.Info().
 		Str("system_id", systemID).
@@ -799,6 +802,7 @@ func (s *LocalSystemsService) DestroySystem(systemID, userID, userOrgID, userOrg
 
 	cache.InvalidateSystemAuth(context.Background(), system.SystemKey)
 	cache.GetRBACCache().InvalidateAll()
+	cache.GetAppsCache().InvalidateAll()
 
 	logger.Info().
 		Str("system_id", systemID).

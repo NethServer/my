@@ -208,6 +208,7 @@ Soft delete marks a system as deleted without removing data:
 - System marked as "deleted"
 - Cannot send inventory or heartbeat
 - Hidden from normal views
+- Its applications are hidden from lists, totals and organization counters until the system is restored (they are kept, not deleted)
 - Can be restored if needed
 - All historical data is preserved
 

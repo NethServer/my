@@ -29,6 +29,12 @@ func NewLocalApplicationRepository() *LocalApplicationRepository {
 	}
 }
 
+// applicationOnLiveSystem restricts a query on "applications a" to rows whose
+// system is not soft-deleted. Deleting a system does not cascade to its
+// applications (they must survive a restore), so every read path enforces
+// the invariant itself; the hard delete relies on the FK cascade instead.
+const applicationOnLiveSystem = "EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL)"
+
 // GetByID retrieves a specific application by ID
 func (r *LocalApplicationRepository) GetByID(id string) (*models.Application, error) {
 	query := `
@@ -42,7 +48,7 @@ func (r *LocalApplicationRepository) GetByID(id string) (*models.Application, er
 		FROM applications a
 		LEFT JOIN systems s ON a.system_id = s.id
 		LEFT JOIN unified_organizations uo ON a.organization_id = uo.logto_id
-		WHERE a.id = $1 AND a.deleted_at IS NULL
+		WHERE a.id = $1 AND a.deleted_at IS NULL AND ` + applicationOnLiveSystem + `
 	`
 
 	app := &models.Application{}
@@ -168,10 +174,10 @@ func (r *LocalApplicationRepository) List(
 	var whereClause string
 	var args []interface{}
 	if allowedSystemIDs != nil {
-		whereClause = "a.deleted_at IS NULL AND a.system_id = ANY($1::text[])"
+		whereClause = "a.deleted_at IS NULL AND " + applicationOnLiveSystem + " AND a.system_id = ANY($1::text[])"
 		args = []interface{}{pq.Array(allowedSystemIDs)}
 	} else {
-		whereClause = "a.deleted_at IS NULL"
+		whereClause = "a.deleted_at IS NULL AND " + applicationOnLiveSystem
 	}
 
 	// User-facing filter
@@ -441,8 +447,8 @@ func (r *LocalApplicationRepository) GetTotals(allowedSystemIDs []string, userFa
 	query := fmt.Sprintf(`
 		WITH filtered AS (
 			SELECT instance_of, status, organization_id, services_data
-			FROM applications
-			WHERE deleted_at IS NULL%s%s%s
+			FROM applications a
+			WHERE deleted_at IS NULL AND %s%s%s%s
 		)
 		SELECT
 			(SELECT COUNT(*) FROM filtered) as total,
@@ -451,7 +457,7 @@ func (r *LocalApplicationRepository) GetTotals(allowedSystemIDs []string, userFa
 			(SELECT COUNT(*) FROM filtered WHERE services_data->>'has_errors' = 'true') as with_errors,
 			(SELECT COALESCE(json_object_agg(instance_of, cnt), '{}') FROM (SELECT instance_of, COUNT(*) as cnt FROM filtered GROUP BY instance_of) t) as by_type,
 			(SELECT COALESCE(json_object_agg(status, cnt), '{}') FROM (SELECT status, COUNT(*) as cnt FROM filtered GROUP BY status) s) as by_status
-	`, systemClause, userFacingClause, certLevelClause)
+	`, applicationOnLiveSystem, systemClause, userFacingClause, certLevelClause)
 
 	totals := &models.ApplicationTotals{
 		ByType:   make(map[string]int64),
@@ -513,10 +519,10 @@ func (r *LocalApplicationRepository) GetTypeSummary(allowedSystemIDs []string, o
 		args = append(args, pq.Array(organizationIDs))
 	}
 
-	whereClause := fmt.Sprintf("deleted_at IS NULL%s%s%s%s", systemClause, userFacingClause, certLevelClause, orgClause)
+	whereClause := fmt.Sprintf("deleted_at IS NULL AND %s%s%s%s%s", applicationOnLiveSystem, systemClause, userFacingClause, certLevelClause, orgClause)
 
 	// Get total count of applications and distinct types
-	countQuery := fmt.Sprintf(`SELECT COUNT(*), COUNT(DISTINCT instance_of) FROM applications WHERE %s`, whereClause)
+	countQuery := fmt.Sprintf(`SELECT COUNT(*), COUNT(DISTINCT instance_of) FROM applications a WHERE %s`, whereClause)
 
 	summary := &models.ApplicationTypeSummary{
 		ByType: []models.ApplicationType{},
@@ -631,15 +637,16 @@ func (r *LocalApplicationRepository) GetTrend(allowedSystemIDs []string, period 
 			ds.date::text,
 			COALESCE((
 				SELECT COUNT(*)
-				FROM applications
+				FROM applications a
 				WHERE deleted_at IS NULL
+				  AND %s
 				  %s
 				  AND (inventory_data->>'certification_level')::int IN (4, 5)
 				  AND created_at::date <= ds.date
 			), 0) AS count
 		FROM date_series ds
 		ORDER BY ds.date
-	`, period, interval, systemClause)
+	`, period, interval, applicationOnLiveSystem, systemClause)
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
@@ -704,10 +711,10 @@ func (r *LocalApplicationRepository) GetDistinctTypes(allowedSystemIDs []string,
 			(array_agg(name ORDER BY updated_at DESC) FILTER (WHERE name IS NOT NULL))[1] as name,
 			COUNT(*) as count
 		FROM applications a
-		WHERE deleted_at IS NULL%s%s%s
+		WHERE deleted_at IS NULL AND %s%s%s%s
 		GROUP BY instance_of
 		ORDER BY instance_of
-	`, systemClause, userFacingClause, certLevelClause)
+	`, applicationOnLiveSystem, systemClause, userFacingClause, certLevelClause)
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
@@ -762,11 +769,11 @@ func (r *LocalApplicationRepository) GetDistinctVersions(allowedSystemIDs []stri
 		SELECT instance_of,
 			(array_agg(name ORDER BY updated_at DESC) FILTER (WHERE name IS NOT NULL))[1] as name,
 			version
-		FROM applications
-		WHERE deleted_at IS NULL AND version IS NOT NULL%s%s%s
+		FROM applications a
+		WHERE deleted_at IS NULL AND %s AND version IS NOT NULL%s%s%s
 		GROUP BY instance_of, version
 		ORDER BY instance_of ASC, version DESC
-	`, systemClause, userFacingClause, certLevelClause)
+	`, applicationOnLiveSystem, systemClause, userFacingClause, certLevelClause)
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
