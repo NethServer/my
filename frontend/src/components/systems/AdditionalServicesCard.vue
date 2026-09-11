@@ -69,7 +69,7 @@ const sortedServices = computed<ServiceItem[]>(() =>
     <div class="mb-4 flex h-10 items-center gap-4">
       <FontAwesomeIcon :icon="faFolderPlus" class="size-5 shrink-0" aria-hidden="true" />
       <NeHeading tag="h6">
-        {{ $t('system_detail.additional_services').toUpperCase() }}
+        {{ $t('system_detail.addons').toUpperCase() }}
       </NeHeading>
     </div>
     <!-- error -->
@@ -101,7 +101,7 @@ const sortedServices = computed<ServiceItem[]>(() =>
     </div>
     <NeEmptyState
       v-else
-      :title="$t('system_detail.no_additional_services')"
+      :title="$t('system_detail.no_addons')"
       :icon="faFolderPlus"
       class="bg-white dark:bg-gray-950"
     />
