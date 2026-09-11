@@ -45,11 +45,15 @@ watch(selectedFile, (file) => {
   }
 })
 
+// Watch the slot object, not `.file`: the parent replaces the whole slot on
+// every change, and rejecting a pick leaves `file` at null on both sides — so a
+// watcher on `.file` alone would never fire, and the input would go on showing
+// a file the parent already threw away.
 watch(
-  () => assetSlot.file,
-  (file) => {
-    if (file !== selectedFile.value) {
-      selectedFile.value = file
+  () => assetSlot,
+  (slot) => {
+    if (slot.file !== selectedFile.value) {
+      selectedFile.value = slot.file
     }
   },
 )
