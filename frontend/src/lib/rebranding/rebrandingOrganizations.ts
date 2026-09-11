@@ -106,8 +106,13 @@ export const getRebrandingOrganizationsQueryString = (
     sort_direction: sortDescending ? 'desc' : 'asc',
   })
 
-  if (textFilter?.trim()) {
-    searchParams.append('search', textFilter)
+  // Trimmed, not just tested for content: the backend wraps the value in
+  // ILIKE '%…%', so a stray space the user has not left the field to lose yet
+  // would be matched literally and find nothing.
+  const search = textFilter?.trim()
+
+  if (search) {
+    searchParams.append('search', search)
   }
 
   for (const type of typeFilter) {
@@ -161,8 +166,10 @@ export const getAvailableRebrandingOrganizations = (
   const loginStore = useLoginStore()
   const searchParams = new URLSearchParams({ limit: limit.toString() })
 
-  if (search.trim()) {
-    searchParams.append('search', search)
+  const trimmedSearch = search.trim()
+
+  if (trimmedSearch) {
+    searchParams.append('search', trimmedSearch)
   }
 
   return axios

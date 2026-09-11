@@ -35,8 +35,10 @@ export const getOrganizationsSearchQueryString = (search: string, types?: string
     page_size: OPTIONS_PAGE_SIZE.toString(),
   })
 
-  if (search.trim()) {
-    params.append('search', search)
+  const trimmedSearch = search.trim()
+
+  if (trimmedSearch) {
+    params.append('search', trimmedSearch)
   }
 
   // `type` is a repeated parameter on the wire — the backend reads it with
