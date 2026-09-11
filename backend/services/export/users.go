@@ -112,7 +112,7 @@ func (s *UsersExportService) ExportToCSV(users []*models.LocalUser) ([]byte, err
 			suspendedAt,
 		}
 
-		if err := writer.Write(row); err != nil {
+		if err := writer.Write(csvSafeRow(row)); err != nil {
 			return nil, fmt.Errorf("failed to write CSV row: %w", err)
 		}
 	}

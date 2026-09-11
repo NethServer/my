@@ -597,3 +597,39 @@ func TestLocalUserService_GetTotals(t *testing.T) {
 func stringPtr(s string) *string {
 	return &s
 }
+
+// TestLocalUserService_CanMoveUserToOrganization pins the destination check
+// of PUT /users/:id: the branches that need no database (owner, customer,
+// unknown role, empty destination). The hierarchy walk for distributors and
+// resellers is exercised end to end by the authz suite (authz/scenarios.yml,
+// "cannot move a user into ...").
+func TestLocalUserService_CanMoveUserToOrganization(t *testing.T) {
+	service := &LocalUserService{}
+
+	tests := []struct {
+		name           string
+		userOrgRole    string
+		userOrgID      string
+		destination    string
+		expectedResult bool
+	}{
+		{name: "owner can move users anywhere", userOrgRole: "owner", userOrgID: "org-owner", destination: "any-org", expectedResult: true},
+		{name: "org role is matched case-insensitively", userOrgRole: "Owner", userOrgID: "org-owner", destination: "any-org", expectedResult: true},
+		{name: "customer cannot move users at all", userOrgRole: "customer", userOrgID: "org-customer", destination: "org-reseller", expectedResult: false},
+		{name: "customer cannot even move users into its own org", userOrgRole: "customer", userOrgID: "org-customer", destination: "org-customer", expectedResult: false},
+		{name: "unknown role cannot move users", userOrgRole: "guest", userOrgID: "org-x", destination: "org-y", expectedResult: false},
+		{name: "empty destination is refused for everyone", userOrgRole: "owner", userOrgID: "org-owner", destination: "", expectedResult: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, reason := service.CanMoveUserToOrganization(tt.userOrgRole, tt.userOrgID, tt.destination)
+			assert.Equal(t, tt.expectedResult, result)
+			if tt.expectedResult {
+				assert.Empty(t, reason)
+			} else {
+				assert.NotEmpty(t, reason)
+			}
+		})
+	}
+}

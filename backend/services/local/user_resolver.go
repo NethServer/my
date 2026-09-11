@@ -10,16 +10,31 @@
 package local
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/nethesis/my/backend/cache"
+	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/services/logto"
 )
 
 const userProfileCacheKeyPrefix = "user_profile:"
+
+// ErrUserInactive is returned when the account is suspended or soft-deleted,
+// locally or in Logto. Exchange, refresh, API-key and impersonation paths all
+// resolve through here, so this is where a lifecycle change becomes a refusal.
+var ErrUserInactive = errors.New("user account is suspended or deleted")
+
+// ErrUserNotProvisioned is returned for a Logto account with no local users
+// row outside the Owner organization: every partner account is created
+// through my and has one, so a missing row is an account my never
+// provisioned (created in the Logto console, or left over from a sync race),
+// not one to serve. It wraps ErrUserInactive so callers refuse it the same way.
+var ErrUserNotProvisioned = fmt.Errorf("%w: no local account", ErrUserInactive)
 
 // InvalidateUserProfileCache drops cached profiles so the next resolve reads
 // roles, permissions and organization live instead of serving the cached copy
@@ -45,6 +60,20 @@ func InvalidateUserProfileCache(logtoIDs ...string) {
 // It is shared by the token exchange and by API-key authentication: both need
 // the owner's effective permissions without a per-request Logto round-trip.
 func ResolveUserByLogtoID(logtoID string) (*models.User, error) {
+	// Lifecycle first, before any cache: a suspended or soft-deleted account is
+	// refused here whatever a cached profile says, so revocation does not
+	// depend on every writer remembering to invalidate the cache. Accounts
+	// with no local row (the bootstrap owner) have no lifecycle to check.
+	if database.DB != nil {
+		active, err := NewUserService().IsUserActive(logtoID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to verify user lifecycle: %w", err)
+		}
+		if !active {
+			return nil, ErrUserInactive
+		}
+	}
+
 	cacheKey := userProfileCacheKeyPrefix + logtoID
 	rc := cache.GetRedisClient()
 	if rc != nil {
@@ -82,6 +111,11 @@ func ResolveUserByLogtoID(logtoID string) (*models.User, error) {
 	}
 
 	if userProfile != nil {
+		// Suspended in Logto (console, or an org cascade that reached Logto but
+		// not the local row): the IdP refuses sign-in, my must refuse tokens.
+		if userProfile.IsSuspended {
+			return nil, ErrUserInactive
+		}
 		user.Username = userProfile.Username
 		user.Email = userProfile.PrimaryEmail
 		user.Name = userProfile.Name
@@ -102,6 +136,11 @@ func ResolveUserByLogtoID(logtoID string) (*models.User, error) {
 	user.OrgPermissions = enriched.OrgPermissions
 	user.OrganizationID = enriched.OrganizationID
 	user.OrganizationName = enriched.OrganizationName
+
+	// Only the bootstrap owner legitimately lacks a local row.
+	if user.ID == "" && !strings.EqualFold(user.OrgRole, "owner") {
+		return nil, ErrUserNotProvisioned
+	}
 
 	// Cache only complete profiles with a resolved local ID, to avoid
 	// persisting transient Logto failures or a not-yet-synced user (empty ID)

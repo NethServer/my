@@ -70,6 +70,10 @@ envVarGroups:
         sync: false
       - key: LOGTO_TENANT_DOMAIN
         sync: false
+      - key: LOGTO_API_RESOURCE
+        sync: false  # resource indicator the SPA requests ({API_BASE_URL}/permissions)
+      - key: LOGTO_FRONTEND_APP_ID
+        sync: false  # SPA client id bound at /auth/exchange
       - key: APP_URL
         sync: false
       - key: JWT_SECRET
@@ -129,6 +133,10 @@ envVarGroups:
         sync: false
       - key: LOGTO_TENANT_DOMAIN
         sync: false
+      - key: LOGTO_API_RESOURCE
+        sync: false  # resource indicator the SPA requests ({API_BASE_URL}/permissions)
+      - key: LOGTO_FRONTEND_APP_ID
+        sync: false  # SPA client id bound at /auth/exchange
       - key: APP_URL
         sync: false
       - key: JWT_SECRET
@@ -321,6 +329,8 @@ services:
         sync: false  # Configure in Render dashboard
       - key: VITE_LOGTO_APP_ID
         sync: false  # Configure in Render dashboard
+      - key: VITE_LOGTO_API_RESOURCE
+        sync: false  # = backend LOGTO_API_RESOURCE
       - key: VITE_API_BASE_URL
         value: "/backend/api"
       - key: VITE_SIGNIN_REDIRECT_URI
@@ -526,6 +536,8 @@ services:
         sync: false  # Configure in Render dashboard
       - key: VITE_LOGTO_APP_ID
         sync: false  # Configure in Render dashboard
+      - key: VITE_LOGTO_API_RESOURCE
+        sync: false  # = backend LOGTO_API_RESOURCE
       - key: VITE_API_BASE_URL
         value: "/backend/api"
       - key: VITE_SIGNIN_REDIRECT_URI

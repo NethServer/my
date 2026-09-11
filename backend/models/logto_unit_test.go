@@ -26,26 +26,6 @@ func TestLogtoManagementTokenResponseStruct(t *testing.T) {
 	assert.Equal(t, "all", token.Scope)
 }
 
-func TestLogtoUserInfoStruct(t *testing.T) {
-	userInfo := LogtoUserInfo{
-		Sub:              "user_123",
-		Username:         "testuser",
-		Email:            "test@example.com",
-		Name:             "Test User",
-		Roles:            []string{"admin", "user"},
-		OrganizationId:   "org_456",
-		OrganizationName: "Test Organization",
-	}
-
-	assert.Equal(t, "user_123", userInfo.Sub)
-	assert.Equal(t, "testuser", userInfo.Username)
-	assert.Equal(t, "test@example.com", userInfo.Email)
-	assert.Equal(t, "Test User", userInfo.Name)
-	assert.Equal(t, []string{"admin", "user"}, userInfo.Roles)
-	assert.Equal(t, "org_456", userInfo.OrganizationId)
-	assert.Equal(t, "Test Organization", userInfo.OrganizationName)
-}
-
 func TestLogtoRoleStruct(t *testing.T) {
 	role := LogtoRole{
 		ID:          "rol_123",
@@ -434,12 +414,6 @@ func TestJSONTagsConsistency(t *testing.T) {
 		assert.IsType(t, "", token.Scope)
 	})
 
-	t.Run("LogtoUserInfo", func(t *testing.T) {
-		userInfo := LogtoUserInfo{}
-		assert.IsType(t, "", userInfo.Sub)
-		assert.IsType(t, []string{}, userInfo.Roles)
-	})
-
 	t.Run("PaginationInfo", func(t *testing.T) {
 		pagination := PaginationInfo{}
 		assert.IsType(t, 0, pagination.Page)
@@ -525,7 +499,6 @@ func TestEmptyStructsInitialization(t *testing.T) {
 	// Test that empty structs initialize correctly
 	emptyStructs := []interface{}{
 		LogtoManagementTokenResponse{},
-		LogtoUserInfo{},
 		LogtoRole{},
 		LogtoScope{},
 		LogtoOrganization{},

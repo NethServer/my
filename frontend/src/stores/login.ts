@@ -4,7 +4,12 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useLogto } from '@logto/vue'
-import { API_URL, LOGIN_REDIRECT_URI, SIGN_OUT_REDIRECT_URI } from '@/lib/config'
+import {
+  API_URL,
+  LOGIN_REDIRECT_URI,
+  LOGTO_API_RESOURCE,
+  SIGN_OUT_REDIRECT_URI,
+} from '@/lib/config'
 import axios from 'axios'
 import { useThemeStore } from './theme'
 import { useStorage } from '@vueuse/core'
@@ -41,7 +46,8 @@ export const useLoginStore = defineStore('login', () => {
   const { signIn, signOut, isAuthenticated, getAccessToken, getIdToken } = useLogto()
   const themeStore = useThemeStore()
 
-  // The Logto opaque token is only used at exchange time; keep it in memory.
+  // The Logto access token (a JWT for the my API resource) is only used at
+  // exchange time; keep it in memory.
   const accessToken = ref<string>('')
   // Raw Logto ID token (JWT with email): sent to third-party apps' info_url,
   // which validate it against the shared Logto tenant. In memory only: the
@@ -211,7 +217,7 @@ export const useLoginStore = defineStore('login', () => {
     loadingUserInfo.value = true
 
     try {
-      const token = await getAccessToken()
+      const token = await getAccessToken(LOGTO_API_RESOURCE)
 
       if (!token) {
         // the Logto SDK cannot mint an access token: re-enter the sign-in
@@ -319,7 +325,7 @@ export const useLoginStore = defineStore('login', () => {
   // silently only because we request the offline_access scope.
   const reexchangeFromLogto = async (): Promise<boolean> => {
     try {
-      const token = await getAccessToken()
+      const token = await getAccessToken(LOGTO_API_RESOURCE)
       if (!token) {
         return false
       }

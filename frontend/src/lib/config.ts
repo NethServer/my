@@ -12,6 +12,12 @@ export const SIGN_OUT_REDIRECT_URI = `${window.location.origin}/${import.meta.en
 // logto configuration
 export const LOGTO_ENDPOINT = import.meta.env.VITE_LOGTO_ENDPOINT
 export const LOGTO_APP_ID = import.meta.env.VITE_LOGTO_APP_ID
+// Indicator of the Logto API resource the access token is requested for. The
+// backend exchanges only JWT access tokens carrying it as audience and this
+// app as client, so a token any other application of the tenant obtains at
+// login cannot be turned into a my session. Must equal the backend's
+// LOGTO_API_RESOURCE (the resource `sync` pushes: {API_BASE_URL}/permissions).
+export const LOGTO_API_RESOURCE = import.meta.env.VITE_LOGTO_API_RESOURCE
 
 export const API_URL = import.meta.env.VITE_API_BASE_URL
 

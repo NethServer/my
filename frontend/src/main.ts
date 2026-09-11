@@ -11,7 +11,7 @@ import { createLogto, type LogtoConfig } from '@logto/vue'
 import App from './App.vue'
 import router from './router'
 import i18n from './i18n'
-import { LOGTO_APP_ID, LOGTO_ENDPOINT } from './lib/config'
+import { LOGTO_API_RESOURCE, LOGTO_APP_ID, LOGTO_ENDPOINT } from './lib/config'
 import { PiniaColada } from '@pinia/colada'
 import { PiniaColadaAutoRefetch } from '@pinia/colada-plugin-auto-refetch'
 
@@ -25,6 +25,10 @@ fontawesomeConfig.autoAddCss = false
 const logtoConfig: LogtoConfig = {
   endpoint: LOGTO_ENDPOINT,
   appId: LOGTO_APP_ID,
+  // The my API resource: getAccessToken(LOGTO_API_RESOURCE) then yields a JWT
+  // bound to it (audience) and to this app (client_id), which is the only kind
+  // of token the backend exchanges.
+  resources: [LOGTO_API_RESOURCE],
   scopes: [
     'openid',
     'profile',

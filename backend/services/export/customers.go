@@ -85,7 +85,7 @@ func (s *CustomersExportService) ExportToCSV(customers []*models.LocalCustomer) 
 			logtoSyncedAt,
 		}
 
-		if err := writer.Write(row); err != nil {
+		if err := writer.Write(csvSafeRow(row)); err != nil {
 			return nil, fmt.Errorf("failed to write CSV row: %w", err)
 		}
 	}

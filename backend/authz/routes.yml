@@ -461,16 +461,28 @@ routes:
   - method: POST
     path: /api/entitlements/activate
     intent: manage:entitlements
+    org_role: owner
+    or_user_role: Owner
+    enforced_by: handler
     note: |
       The shop webhook, called server-to-server with an owner API key, and the
-      same path the back office uses. Purely transactional: no administrative
-      carve-out, so manage:entitlements is the whole gate.
+      same path Nethesis staff use. Both live in the Owner organization, and
+      the handler requires it: partner Admin and Backoffice roles hold
+      manage:entitlements only for the shop's purchase check, so the
+      permission alone must not mint a grant (a direct call would be a free
+      licence, and deactivate a fleet-wide revocation).
   - method: POST
     path: /api/entitlements/deactivate
     intent: manage:entitlements
+    org_role: owner
+    or_user_role: Owner
+    enforced_by: handler
   - method: POST
     path: /api/entitlements/pending
     intent: manage:entitlements
+    org_role: owner
+    or_user_role: Owner
+    enforced_by: handler
     note: checkout started, payment not confirmed yet
 
   # ===========================================================================

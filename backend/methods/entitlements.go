@@ -43,10 +43,16 @@ func isEntitlementAdmin(u *models.User) bool {
 }
 
 // canTransactEntitlements returns true for the TRANSACTIONAL surface — buy
-// on the shop / cancel a subscription (activate/deactivate): the dedicated
-// manage:entitlements permission, held by the Backoffice, Staff and Owner
-// user roles.
+// on the shop / cancel a subscription (activate/deactivate/pending). Its
+// callers are the shop, server-to-server with the owner API key, and Nethesis
+// staff: both live in the Owner organization, so membership there is required
+// on top of manage:entitlements. The permission alone is not a gate: partner
+// Admin and Backoffice roles carry it for the shop's purchase check, and a
+// direct call from them would mint a grant nobody paid for.
 func canTransactEntitlements(u *models.User) bool {
+	if !IsOwnerOrgMember(u) {
+		return false
+	}
 	return slices.Contains(u.UserPermissions, "manage:entitlements") ||
 		slices.Contains(u.OrgPermissions, "manage:entitlements")
 }
@@ -183,15 +189,16 @@ func catalogWriteGate(c *gin.Context) (*models.User, bool) {
 	return u, true
 }
 
-// transactGate rejects callers without the manage:entitlements permission
-// (buy/cancel surface: Backoffice, Staff, Owner, shop owner key).
+// transactGate rejects callers outside the Owner organization or without the
+// manage:entitlements permission (buy/cancel surface: shop owner key, Staff,
+// Owner).
 func transactGate(c *gin.Context) (*models.User, bool) {
 	u, found := helpers.GetUserFromContext(c)
 	if !found {
 		return nil, false
 	}
 	if !canTransactEntitlements(u) {
-		c.JSON(http.StatusForbidden, response.Forbidden("manage:entitlements permission required", nil))
+		c.JSON(http.StatusForbidden, response.Forbidden("only the Owner organization can activate or deactivate entitlements", nil))
 		return nil, false
 	}
 	return u, true

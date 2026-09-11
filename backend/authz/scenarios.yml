@@ -370,6 +370,97 @@ scenarios:
     body: '{"password":"Kq7!vTm4Zp9Wd"}'
     expect: denied
 
+  # Moving a user is authorized against the DESTINATION, not only against
+  # where the user is now: a colleague lifted into the parent organization
+  # inherits its reach over the whole subtree, siblings included.
+  - name: reseller cannot move a user into its parent distributor
+    as: d1r1-admin
+    method: PUT
+    path: /api/users/{user:d1r1-support}
+    body: '{"organization_id":"{org:d1}"}'
+    expect: denied
+
+  - name: reseller cannot move a user into the sibling reseller
+    as: d1r1-admin
+    method: PUT
+    path: /api/users/{user:d1r1-support}
+    body: '{"organization_id":"{org:d1r2}"}'
+    expect: denied
+
+  - name: reseller cannot move a user into the other distributor branch
+    as: d1r1-admin
+    method: PUT
+    path: /api/users/{user:d1r1-support}
+    body: '{"organization_id":"{org:d2}"}'
+    expect: denied
+
+  - name: customer cannot move a user into its reseller
+    as: d1r1c1-admin
+    method: PUT
+    path: /api/users/{user:d1r1c1-support}
+    body: '{"organization_id":"{org:d1r1}"}'
+    expect: denied
+
+  - name: customer cannot move a user into the sibling customer
+    as: d1r1c1-admin
+    method: PUT
+    path: /api/users/{user:d1r1c1-support}
+    body: '{"organization_id":"{org:d1r1c2}"}'
+    expect: denied
+
+  - name: distributor cannot move a user into the other distributor
+    as: d1-admin
+    method: PUT
+    path: /api/users/{user:d1-support}
+    body: '{"organization_id":"{org:d2}"}'
+    expect: denied
+
+  - name: backoffice cannot move a user into the parent distributor
+    as: d1r1-backoffice
+    method: PUT
+    path: /api/users/{user:d1r1-support}
+    body: '{"organization_id":"{org:d1}"}'
+    expect: denied
+
+  # Entitlement transactions (activate / deactivate / pending) are the shop's
+  # and Nethesis staff's: manage:entitlements alone, which partner Admin and
+  # Backoffice roles carry for the shop's purchase check, must not mint or
+  # revoke a grant — even on a system of the caller's own organization.
+  - name: customer admin cannot activate an add-on on its own system
+    as: d1r1c1-admin
+    method: POST
+    path: /api/entitlements/activate
+    body: '{"system_key":"{system_key:s-d1r1c1}","entitlement":"authz-scope-probe"}'
+    expect: denied
+
+  - name: reseller admin cannot activate an add-on on a managed system
+    as: d1r1-admin
+    method: POST
+    path: /api/entitlements/activate
+    body: '{"system_key":"{system_key:s-d1r1c1}","entitlement":"authz-scope-probe"}'
+    expect: denied
+
+  - name: distributor backoffice cannot activate an add-on
+    as: d1-backoffice
+    method: POST
+    path: /api/entitlements/activate
+    body: '{"system_key":"{system_key:s-d1r1c1}","entitlement":"authz-scope-probe"}'
+    expect: denied
+
+  - name: reseller admin cannot deactivate an add-on
+    as: d1r1-admin
+    method: POST
+    path: /api/entitlements/deactivate
+    body: '{"system_key":"{system_key:s-d1r1c1}","entitlement":"authz-scope-probe"}'
+    expect: denied
+
+  - name: customer admin cannot mark an add-on as pending
+    as: d1r1c1-admin
+    method: POST
+    path: /api/entitlements/pending
+    body: '{"system_key":"{system_key:s-d1r1c1}","entitlement":"authz-scope-probe"}'
+    expect: denied
+
   - name: reseller cannot delete a user of the other branch
     as: d1r1-admin
     method: DELETE

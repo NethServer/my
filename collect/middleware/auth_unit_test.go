@@ -62,6 +62,27 @@ func TestBasicAuthMiddleware(t *testing.T) {
 			expectedAuth:   false,
 		},
 		{
+			// RFC 7235: the scheme is case-insensitive and any run of whitespace
+			// may separate it from the credentials. Parsed like the canonical
+			// spelling: this one reaches the credential check and fails there.
+			name:           "lowercase scheme and double space are parsed",
+			authHeader:     "basic  " + base64.StdEncoding.EncodeToString([]byte("invalidformat")),
+			expectedStatus: http.StatusUnauthorized,
+			expectedAuth:   false,
+		},
+		{
+			name:           "tab separator is parsed",
+			authHeader:     "Basic\t" + base64.StdEncoding.EncodeToString([]byte("invalidformat")),
+			expectedStatus: http.StatusUnauthorized,
+			expectedAuth:   false,
+		},
+		{
+			name:           "credentials with embedded whitespace are refused",
+			authHeader:     "Basic abc def",
+			expectedStatus: http.StatusUnauthorized,
+			expectedAuth:   false,
+		},
+		{
 			name:           "valid format but token without dot separator",
 			authHeader:     "Basic " + base64.StdEncoding.EncodeToString([]byte("system1:my_abc123xyz")),
 			expectedStatus: http.StatusUnauthorized,

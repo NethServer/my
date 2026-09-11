@@ -484,6 +484,18 @@ func updateUserFromImportRow(c *gin.Context, userService *local.LocalUserService
 		return
 	}
 
+	// The same rule PreventSelfModification enforces on PUT /users/:id: an
+	// import row must not be a way to change one's own roles or organization.
+	if user.LogtoID != nil && existingID == *user.LogtoID {
+		result.Failed++
+		result.Results = append(result.Results, models.ImportResultRow{
+			RowNumber: row.RowNumber,
+			Status:    models.ImportResultFailed,
+			Error:     "cannot modify your own account through an import",
+		})
+		return
+	}
+
 	// RBAC check on the existing target user — fails fast with a per-row error if the caller
 	// has no permission to update users in the target user's current org.
 	existing, err := userService.GetUser(existingID, userOrgRole, user.OrganizationID)
@@ -506,7 +518,7 @@ func updateUserFromImportRow(c *gin.Context, userService *local.LocalUserService
 		OrganizationID: createReq.OrganizationID,
 	}
 
-	updated, err := userService.UpdateUser(existingID, updateReq, user.ID, user.OrganizationID, user.UserRoles)
+	updated, err := userService.UpdateUser(existingID, updateReq, user.ID, user.OrganizationID, user.OrgRole, user.UserRoles)
 	if err != nil {
 		result.Failed++
 		result.Results = append(result.Results, models.ImportResultRow{

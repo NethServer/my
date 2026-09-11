@@ -30,6 +30,13 @@ type Configuration struct {
 	APIBaseURL    string `json:"api_base_url"`
 	LogtoIssuer   string `json:"logto_issuer"`
 	LogtoAudience string `json:"logto_audience"`
+	// LogtoAPIResource is the indicator of the Logto API resource the my SPA
+	// requests its access token for; /auth/exchange accepts only JWT access
+	// tokens carrying it as audience. LogtoFrontendAppID is the SPA's client
+	// id, bound to the token's client_id claim: a token any other application
+	// of the tenant obtains at login cannot be exchanged.
+	LogtoAPIResource   string `json:"logto_api_resource"`
+	LogtoFrontendAppID string `json:"logto_frontend_app_id"`
 	// JWT Custom token configuration
 	JWTSecret            string `json:"jwt_secret"`
 	JWTIssuer            string `json:"jwt_issuer"`
@@ -161,16 +168,24 @@ func Init() {
 	// LOGTO_AUDIENCE (auto-derived from LOGTO_TENANT_DOMAIN)
 	Config.LogtoAudience = fmt.Sprintf("https://%s/api", Config.TenantDomain)
 
+	// Token exchange binding (required): the API resource indicator the SPA
+	// requests and the SPA's client id. Without them every exchange is refused.
+	if os.Getenv("LOGTO_API_RESOURCE") != "" {
+		Config.LogtoAPIResource = os.Getenv("LOGTO_API_RESOURCE")
+	} else {
+		logger.LogConfigLoad("env", "LOGTO_API_RESOURCE", false, fmt.Errorf("LOGTO_API_RESOURCE variable is empty: token exchange will refuse every token"))
+	}
+	if os.Getenv("LOGTO_FRONTEND_APP_ID") != "" {
+		Config.LogtoFrontendAppID = os.Getenv("LOGTO_FRONTEND_APP_ID")
+	} else {
+		logger.LogConfigLoad("env", "LOGTO_FRONTEND_APP_ID", false, fmt.Errorf("LOGTO_FRONTEND_APP_ID variable is empty: token exchange will refuse every token"))
+	}
+
 	// JWT custom token configuration
 	if os.Getenv("JWT_SECRET") != "" {
 		Config.JWTSecret = os.Getenv("JWT_SECRET")
 		if len(Config.JWTSecret) < 32 {
-			logger.ComponentLogger("env").Warn().
-				Str("operation", "config_load").
-				Str("config_type", "JWT_SECRET").
-				Int("length", len(Config.JWTSecret)).
-				Int("min_length", 32).
-				Msg("JWT_SECRET should be at least 32 characters for security")
+			logger.LogConfigLoad("env", "JWT_SECRET", false, fmt.Errorf("JWT_SECRET must be at least 32 characters (got %d): every session token is signed with it", len(Config.JWTSecret)))
 		}
 	} else {
 		logger.LogConfigLoad("env", "JWT_SECRET", false, fmt.Errorf("JWT_SECRET variable is empty"))

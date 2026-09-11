@@ -253,6 +253,57 @@ func (r *LocalUserRepository) GetByEmail(email string) (*models.LocalUser, error
 	return user, nil
 }
 
+// LifecycleByLogtoID reads the account's lifecycle flags regardless of
+// soft-delete: found=false when there is no row at all.
+func (r *LocalUserRepository) LifecycleByLogtoID(logtoID string) (found, deleted, suspended bool, err error) {
+	err = r.db.QueryRow(`
+		SELECT deleted_at IS NOT NULL, suspended_at IS NOT NULL
+		FROM users
+		WHERE logto_id = $1
+		ORDER BY deleted_at NULLS FIRST
+		LIMIT 1
+	`, logtoID).Scan(&deleted, &suspended)
+	if err == sql.ErrNoRows {
+		return false, false, false, nil
+	}
+	if err != nil {
+		return false, false, false, fmt.Errorf("failed to read user lifecycle: %w", err)
+	}
+	return true, deleted, suspended, nil
+}
+
+// ListLogtoIDsByOrgIDs returns the Logto IDs of the active users of the given
+// organizations, for callers that must revoke their sessions before or after
+// a cascade.
+func (r *LocalUserRepository) ListLogtoIDsByOrgIDs(orgIDs []string) ([]string, error) {
+	if len(orgIDs) == 0 {
+		return nil, nil
+	}
+	placeholders := make([]string, len(orgIDs))
+	args := make([]interface{}, len(orgIDs))
+	for i, id := range orgIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	rows, err := r.db.Query(fmt.Sprintf(`
+		SELECT logto_id FROM users
+		WHERE organization_id IN (%s) AND deleted_at IS NULL AND logto_id IS NOT NULL AND logto_id <> ''
+	`, strings.Join(placeholders, ",")), args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list user logto ids: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan user logto id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // GetByLogtoID retrieves a user by Logto ID from local database
 func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, error) {
 	query := `

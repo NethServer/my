@@ -21,6 +21,8 @@ func TestMain(m *testing.M) {
 	// Set test environment variables
 	_ = os.Setenv("LOGTO_TENANT_ID", "test-tenant")
 	_ = os.Setenv("LOGTO_TENANT_DOMAIN", "test-domain.com")
+	_ = os.Setenv("LOGTO_API_RESOURCE", "https://test-domain.com/api/permissions")
+	_ = os.Setenv("LOGTO_FRONTEND_APP_ID", "test-frontend-app")
 	_ = os.Setenv("APP_URL", "https://test-app.com")
 	_ = os.Setenv("JWT_SECRET", "test-secret-key-for-testing-only")
 	_ = os.Setenv("JWT_ISSUER", "test-issuer")

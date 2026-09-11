@@ -84,17 +84,21 @@ The six first-class components (tracked in `version.json`): backend, collect, sy
 ### 2.2 Authentication flow
 
 ```
-Frontend --[Logto access_token]--> POST /api/auth/exchange
-Backend validates token, fetches roles/permissions from Logto Management API
-Backend returns custom JWT (30m access + 7d refresh) with embedded permissions
+Frontend --[Logto JWT access_token for the my API resource]--> POST /api/auth/exchange
+Backend validates it against the tenant JWKS (issuer, aud = LOGTO_API_RESOURCE,
+  client_id = LOGTO_FRONTEND_APP_ID, exp), fetches roles/permissions from the
+  Logto Management API
+Backend returns custom JWT (30m access + 7d rotating refresh) with embedded permissions
 Frontend uses custom JWT for subsequent calls
 ```
+
+The SPA requests its access token with `resources: [LOGTO_API_RESOURCE]`. Only a JWT bound to that audience and to the SPA's client id is exchangeable: the opaque token any other application of the tenant obtains at login is refused, so a compromised third-party app cannot turn a user's login into a my session. `apitool` mirrors this (`logto_resource` in its registry). A suspended or soft-deleted account is refused at exchange, refresh and API-key authentication (`local.ErrUserInactive`), and every lifecycle change (single or organization cascade) revokes the tokens issued before it, keyed on the Logto ID.
 
 Custom JWT claims: user_id, user_roles, user_permissions, org_role, org_permissions, organization_id, plus `impersonated_by` when acting as another user.
 
 ### 2.3 Impersonation
 
-Owner organization only (Staff and Owner user roles carry `impersonate:users`). `POST /api/impersonate` mints a JWT with the target user's permissions, expiring with the remaining consent window (not a fixed hour). Requires the target to have opted-in via `POST /api/impersonate/consent` (1-168h, default 1h; revoked with DELETE). All sessions and actions are audited via `impersonation_audit` middleware. No self-impersonation, no chaining.
+Owner organization only (Staff and Owner user roles carry `impersonate:users`). `POST /api/impersonate` mints a JWT with the target user's permissions, expiring with the remaining consent window (not a fixed hour). Requires the target to have opted-in via `POST /api/impersonate/consent` (1-168h, default 1h; revoked with DELETE). All sessions and actions are audited via `impersonation_audit` middleware. No self-impersonation, no chaining. An account holding the Owner user role is never a target. `DELETE /api/impersonate` revokes the impersonation token and re-mints the impersonator's session from its current state (a suspended impersonator gets 401); `GET /api/impersonate/status` re-checks the target's consent before handing out a token. The consent and sessions endpoints refuse impersonation tokens (`DisableOnImpersonate`): they belong to the real account only.
 
 ---
 

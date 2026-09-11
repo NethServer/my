@@ -37,8 +37,10 @@ func TestConfigurationDefaults(t *testing.T) {
 	// Test with minimal required environment variables
 	_ = os.Setenv("LOGTO_TENANT_ID", "test-tenant")
 	_ = os.Setenv("LOGTO_TENANT_DOMAIN", "test-domain.com")
+	_ = os.Setenv("LOGTO_API_RESOURCE", "https://test-domain.com/api/permissions")
+	_ = os.Setenv("LOGTO_FRONTEND_APP_ID", "test-frontend-app")
 	_ = os.Setenv("APP_URL", "https://test-app.com")
-	_ = os.Setenv("JWT_SECRET", "test-secret-key")
+	_ = os.Setenv("JWT_SECRET", "test-secret-key-for-testing-only")
 	_ = os.Setenv("LOGTO_BACKEND_APP_ID", "test-client-id")
 	_ = os.Setenv("LOGTO_BACKEND_APP_SECRET", "test-client-secret")
 	_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
@@ -52,7 +54,7 @@ func TestConfigurationDefaults(t *testing.T) {
 	assert.Equal(t, "https://test-app.com", Config.AppURL)
 	assert.Equal(t, "https://test-tenant.logto.app", Config.LogtoIssuer)
 	assert.Equal(t, "https://test-domain.com/api", Config.LogtoAudience)
-	assert.Equal(t, "test-secret-key", Config.JWTSecret)
+	assert.Equal(t, "test-secret-key-for-testing-only", Config.JWTSecret)
 	assert.Equal(t, "test-domain.com", Config.JWTIssuer)
 	assert.Equal(t, "30m", Config.JWTExpiration)
 	assert.Equal(t, "168h", Config.JWTRefreshExpiration)
@@ -68,8 +70,10 @@ func TestConfigurationCustomValues(t *testing.T) {
 	_ = os.Setenv("LISTEN_ADDRESS", "0.0.0.0:9000")
 	_ = os.Setenv("LOGTO_TENANT_ID", "custom-tenant")
 	_ = os.Setenv("LOGTO_TENANT_DOMAIN", "custom.example.com")
+	_ = os.Setenv("LOGTO_API_RESOURCE", "https://test-domain.com/api/permissions")
+	_ = os.Setenv("LOGTO_FRONTEND_APP_ID", "test-frontend-app")
 	_ = os.Setenv("APP_URL", "https://custom-app.example.com")
-	_ = os.Setenv("JWT_SECRET", "custom-secret-key")
+	_ = os.Setenv("JWT_SECRET", "custom-secret-key-for-testing-only-32")
 	_ = os.Setenv("JWT_EXPIRATION", "12h")
 	_ = os.Setenv("JWT_REFRESH_EXPIRATION", "72h")
 	_ = os.Setenv("LOGTO_BACKEND_APP_ID", "custom-client-id")
@@ -85,7 +89,7 @@ func TestConfigurationCustomValues(t *testing.T) {
 	assert.Equal(t, "https://custom-app.example.com", Config.AppURL)
 	assert.Equal(t, "https://custom-tenant.logto.app", Config.LogtoIssuer)
 	assert.Equal(t, "https://custom.example.com/api", Config.LogtoAudience)
-	assert.Equal(t, "custom-secret-key", Config.JWTSecret)
+	assert.Equal(t, "custom-secret-key-for-testing-only-32", Config.JWTSecret)
 	assert.Equal(t, "custom.example.com", Config.JWTIssuer)
 	assert.Equal(t, "12h", Config.JWTExpiration)
 	assert.Equal(t, "72h", Config.JWTRefreshExpiration)
@@ -108,7 +112,7 @@ func TestConfigurationStructure(t *testing.T) {
 		AppURL:                      "https://test-app.com",
 		LogtoIssuer:                 "test-issuer",
 		LogtoAudience:               "test-audience",
-		JWTSecret:                   "test-secret",
+		JWTSecret:                   "test-secret-key-for-testing-only",
 		JWTIssuer:                   "test-jwt-issuer",
 		JWTExpiration:               "test-exp",
 		JWTRefreshExpiration:        "test-refresh-exp",
@@ -123,7 +127,7 @@ func TestConfigurationStructure(t *testing.T) {
 	assert.Equal(t, "https://test-app.com", config.AppURL)
 	assert.Equal(t, "test-issuer", config.LogtoIssuer)
 	assert.Equal(t, "test-audience", config.LogtoAudience)
-	assert.Equal(t, "test-secret", config.JWTSecret)
+	assert.Equal(t, "test-secret-key-for-testing-only", config.JWTSecret)
 	assert.Equal(t, "test-jwt-issuer", config.JWTIssuer)
 	assert.Equal(t, "test-exp", config.JWTExpiration)
 	assert.Equal(t, "test-refresh-exp", config.JWTRefreshExpiration)
@@ -149,10 +153,12 @@ func TestConfigurationEdgeCases(t *testing.T) {
 				_ = os.Setenv("JWT_REFRESH_EXPIRATION", "")
 				_ = os.Setenv("LOGTO_TENANT_ID", "test-tenant")
 				_ = os.Setenv("LOGTO_TENANT_DOMAIN", "test.example.com")
+				_ = os.Setenv("LOGTO_API_RESOURCE", "https://test-domain.com/api/permissions")
+				_ = os.Setenv("LOGTO_FRONTEND_APP_ID", "test-frontend-app")
 				_ = os.Setenv("APP_URL", "https://test-app.com")
-				_ = os.Setenv("JWT_SECRET", "test-secret")
+				_ = os.Setenv("JWT_SECRET", "test-secret-key-for-testing-only")
 				_ = os.Setenv("LOGTO_BACKEND_APP_ID", "test-id")
-				_ = os.Setenv("LOGTO_BACKEND_APP_SECRET", "test-secret")
+				_ = os.Setenv("LOGTO_BACKEND_APP_SECRET", "test-secret-key-for-testing-only")
 				_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
 			},
 			checkField:  func() interface{} { return Config.ListenAddress },
@@ -166,10 +172,12 @@ func TestConfigurationEdgeCases(t *testing.T) {
 				_ = os.Setenv("LISTEN_ADDRESS", "  0.0.0.0:8080  ")
 				_ = os.Setenv("LOGTO_TENANT_ID", "test-tenant")
 				_ = os.Setenv("LOGTO_TENANT_DOMAIN", "test.example.com")
+				_ = os.Setenv("LOGTO_API_RESOURCE", "https://test-domain.com/api/permissions")
+				_ = os.Setenv("LOGTO_FRONTEND_APP_ID", "test-frontend-app")
 				_ = os.Setenv("APP_URL", "https://test-app.com")
-				_ = os.Setenv("JWT_SECRET", "test-secret")
+				_ = os.Setenv("JWT_SECRET", "test-secret-key-for-testing-only")
 				_ = os.Setenv("LOGTO_BACKEND_APP_ID", "test-id")
-				_ = os.Setenv("LOGTO_BACKEND_APP_SECRET", "test-secret")
+				_ = os.Setenv("LOGTO_BACKEND_APP_SECRET", "test-secret-key-for-testing-only")
 				_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
 			},
 			checkField:  func() interface{} { return Config.ListenAddress },
@@ -194,10 +202,12 @@ func TestConfigurationInitMultipleTimes(t *testing.T) {
 	_ = os.Setenv("LISTEN_ADDRESS", "127.0.0.1:8080")
 	_ = os.Setenv("LOGTO_TENANT_ID", "first-tenant")
 	_ = os.Setenv("LOGTO_TENANT_DOMAIN", "first.example.com")
+	_ = os.Setenv("LOGTO_API_RESOURCE", "https://test-domain.com/api/permissions")
+	_ = os.Setenv("LOGTO_FRONTEND_APP_ID", "test-frontend-app")
 	_ = os.Setenv("APP_URL", "https://first-app.com")
-	_ = os.Setenv("JWT_SECRET", "first-secret")
+	_ = os.Setenv("JWT_SECRET", "first-secret-key-for-testing-only-32c")
 	_ = os.Setenv("LOGTO_BACKEND_APP_ID", "first-id")
-	_ = os.Setenv("LOGTO_BACKEND_APP_SECRET", "first-secret")
+	_ = os.Setenv("LOGTO_BACKEND_APP_SECRET", "first-secret-key-for-testing-only-32c")
 	_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
 
 	Init()
@@ -206,6 +216,8 @@ func TestConfigurationInitMultipleTimes(t *testing.T) {
 	// Change environment variables
 	_ = os.Setenv("LOGTO_TENANT_ID", "second-tenant")
 	_ = os.Setenv("LOGTO_TENANT_DOMAIN", "second.example.com")
+	_ = os.Setenv("LOGTO_API_RESOURCE", "https://test-domain.com/api/permissions")
+	_ = os.Setenv("LOGTO_FRONTEND_APP_ID", "test-frontend-app")
 
 	Init() // Call again
 

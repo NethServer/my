@@ -12,6 +12,7 @@ package cache
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -30,6 +31,35 @@ const (
 	// rotation; presenting it again outside the grace window is treated as theft
 	ReasonRefreshTokenRotated = "refresh_token_rotated"
 )
+
+// ErrBlacklistUnavailable is returned when a revocation question cannot be
+// answered (no Redis client, connection or decode failure). Callers must treat
+// it as a refusal: a blacklist that cannot answer never means "not revoked".
+var ErrBlacklistUnavailable = errors.New("token blacklist unavailable")
+
+// lookup reads one blacklist entry. A miss is (false, nil); any other failure
+// is an error, so every check above fails closed instead of silently passing
+// revoked tokens during a Redis incident.
+func (tb *TokenBlacklist) lookup(key string, out *BlacklistData) (bool, error) {
+	if tb.redisClient == nil {
+		logger.ComponentLogger("blacklist").Error().
+			Str("operation", "blacklist_lookup").
+			Msg("Redis client unavailable for blacklist check - failing closed")
+		return false, ErrBlacklistUnavailable
+	}
+	err := tb.redisClient.Get(key, out)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, ErrCacheMiss) {
+		return false, nil
+	}
+	logger.ComponentLogger("blacklist").Error().
+		Err(err).
+		Str("operation", "blacklist_lookup").
+		Msg("Blacklist lookup failed - failing closed")
+	return false, fmt.Errorf("%w: %v", ErrBlacklistUnavailable, err)
+}
 
 // TokenBlacklist handles JWT token blacklisting operations
 type TokenBlacklist struct {
@@ -130,21 +160,14 @@ func (tb *TokenBlacklist) BlacklistToken(tokenString string, reason string) erro
 
 // IsTokenBlacklisted checks if a token is blacklisted
 func (tb *TokenBlacklist) IsTokenBlacklisted(tokenString string) (bool, string, error) {
-	if tb.redisClient == nil {
-		logger.ComponentLogger("blacklist").Warn().
-			Str("operation", "blacklist_check_skipped").
-			Msg("Redis client unavailable for blacklist check - failing open")
-		return false, "", nil
-	}
+	key := BlacklistKeyPrefix + tb.hashToken(tokenString)
 
-	tokenHash := tb.hashToken(tokenString)
-	key := BlacklistKeyPrefix + tokenHash
-
-	// Try to get blacklist data
 	var blacklistData BlacklistData
-	err := tb.redisClient.Get(key, &blacklistData)
+	found, err := tb.lookup(key, &blacklistData)
 	if err != nil {
-		// Token not blacklisted (key doesn't exist)
+		return false, "", err
+	}
+	if !found {
 		return false, "", nil
 	}
 
@@ -159,23 +182,18 @@ func (tb *TokenBlacklist) IsTokenBlacklisted(tokenString string) (bool, string, 
 // GetBlacklistEntry returns the blacklist entry for a token, or nil when the
 // token is not blacklisted. Fails open (nil) when Redis is unavailable,
 // consistent with IsTokenBlacklisted.
-func (tb *TokenBlacklist) GetBlacklistEntry(tokenString string) *BlacklistData {
-	if tb.redisClient == nil {
-		logger.ComponentLogger("blacklist").Warn().
-			Str("operation", "blacklist_entry_check_skipped").
-			Msg("Redis client unavailable for blacklist entry check - failing open")
-		return nil
-	}
-
+func (tb *TokenBlacklist) GetBlacklistEntry(tokenString string) (*BlacklistData, error) {
 	key := BlacklistKeyPrefix + tb.hashToken(tokenString)
 
 	var blacklistData BlacklistData
-	if err := tb.redisClient.Get(key, &blacklistData); err != nil {
-		// Token not blacklisted (key doesn't exist)
-		return nil
+	found, err := tb.lookup(key, &blacklistData)
+	if err != nil {
+		return nil, err
 	}
-
-	return &blacklistData
+	if !found {
+		return nil, nil
+	}
+	return &blacklistData, nil
 }
 
 // IsUserTokenInvalidatedSince reports whether a user-level blacklist entry
@@ -183,20 +201,16 @@ func (tb *TokenBlacklist) GetBlacklistEntry(tokenString string) *BlacklistData {
 // (an absolute block used for suspensions), this comparison lets tokens minted
 // after the blacklist event pass — e.g. a fresh login after a logout that
 // blacklisted all previous tokens.
-func (tb *TokenBlacklist) IsUserTokenInvalidatedSince(userID string, issuedAt time.Time) (bool, string) {
-	if tb.redisClient == nil {
-		logger.ComponentLogger("blacklist").Warn().
-			Str("operation", "user_token_invalidation_check_skipped").
-			Msg("Redis client unavailable for user token invalidation check - failing open")
-		return false, ""
-	}
-
+func (tb *TokenBlacklist) IsUserTokenInvalidatedSince(userID string, issuedAt time.Time) (bool, string, error) {
 	userKey := UserBlacklistKeyPrefix + userID
 
 	var blacklistData BlacklistData
-	if err := tb.redisClient.Get(userKey, &blacklistData); err != nil {
-		// User not blacklisted (key doesn't exist)
-		return false, ""
+	found, err := tb.lookup(userKey, &blacklistData)
+	if err != nil {
+		return false, "", err
+	}
+	if !found {
+		return false, "", nil
 	}
 
 	if issuedAt.Unix() <= blacklistData.BlacklistedAt {
@@ -207,10 +221,10 @@ func (tb *TokenBlacklist) IsUserTokenInvalidatedSince(userID string, issuedAt ti
 			Time("issued_at", issuedAt).
 			Int64("blacklisted_at", blacklistData.BlacklistedAt).
 			Msg("Token issued before user-level blacklist event")
-		return true, blacklistData.Reason
+		return true, blacklistData.Reason, nil
 	}
 
-	return false, ""
+	return false, "", nil
 }
 
 // BlacklistAllUserTokens blacklists all tokens for a specific user
@@ -250,20 +264,14 @@ func (tb *TokenBlacklist) BlacklistAllUserTokens(userID string, reason string) e
 
 // IsUserBlacklisted checks if all tokens for a user are blacklisted
 func (tb *TokenBlacklist) IsUserBlacklisted(userID string) (bool, string, error) {
-	if tb.redisClient == nil {
-		logger.ComponentLogger("blacklist").Warn().
-			Str("operation", "user_blacklist_check_skipped").
-			Msg("Redis client unavailable for user blacklist check - failing open")
-		return false, "", nil
-	}
-
 	userKey := UserBlacklistKeyPrefix + userID
 
-	// Try to get user blacklist data
 	var blacklistData BlacklistData
-	err := tb.redisClient.Get(userKey, &blacklistData)
+	found, err := tb.lookup(userKey, &blacklistData)
 	if err != nil {
-		// User not blacklisted (key doesn't exist)
+		return false, "", err
+	}
+	if !found {
 		return false, "", nil
 	}
 

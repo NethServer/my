@@ -30,6 +30,10 @@ type Registry struct {
 type Config struct {
 	LogtoEndpoint string `json:"logto_endpoint"`
 	LogtoAppID    string `json:"logto_app_id"`
+	// LogtoResource is the API resource indicator the frontend requests its
+	// access token for (LOGTO_API_RESOURCE on the backend): /auth/exchange
+	// only accepts JWT access tokens bound to it.
+	LogtoResource string `json:"logto_resource"`
 	AuthBaseURL   string `json:"auth_base_url"`
 	BackendURL    string `json:"backend_url"`
 }

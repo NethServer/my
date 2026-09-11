@@ -485,6 +485,20 @@ func (s *LocalUserService) GetUserByLogtoID(logtoID string) (*models.LocalUser, 
 	return s.userRepo.GetByLogtoID(logtoID)
 }
 
+// IsUserActive reports whether the account may hold a session: it has no
+// local row (the bootstrap owner) or its row is neither soft-deleted nor
+// suspended. A lookup failure is an error, never "active".
+func (s *LocalUserService) IsUserActive(logtoID string) (bool, error) {
+	found, deleted, suspended, err := s.userRepo.LifecycleByLogtoID(logtoID)
+	if err != nil {
+		return false, err
+	}
+	if !found {
+		return true, nil
+	}
+	return !deleted && !suspended, nil
+}
+
 // UpdateLatestLogin updates the latest_login_at timestamp for a user
 func (s *LocalUserService) UpdateLatestLogin(userID string) error {
 	return s.userRepo.UpdateLatestLogin(userID)
@@ -557,7 +571,7 @@ func (s *LocalUserService) GetUsersTrend(period int, userOrgRole, userOrgID stri
 // Owner organization (or moving users into it) is restricted to the Owner user
 // role — every Owner-org member shares the same org role, so only the
 // technical role can tell the break-glass tier apart from Staff.
-func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequest, updatedByUserID, updatedByOrgID string, callerUserRoles []string) (*models.LocalUser, error) {
+func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequest, updatedByUserID, updatedByOrgID, updatedByOrgRole string, callerUserRoles []string) (*models.LocalUser, error) {
 	// Normalize phone at the entry point so both the local DB write and the Logto
 	// call see the same shape (digits-only). The empty-string case is preserved —
 	// it signals an explicit "clear the phone".
@@ -575,6 +589,28 @@ func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequ
 	// Check if user is synced to Logto
 	if currentUser.LogtoID == nil {
 		return nil, fmt.Errorf("user not synced to Logto yet - missing logto_id")
+	}
+
+	// Security: an organization change must land inside the caller's own
+	// hierarchy. The handler's CanUpdateUser only vouches for the user's
+	// CURRENT organization; without this check a reseller Admin could lift a
+	// colleague into the parent distributor (or a sibling reseller) and have it
+	// inherit that organization's reach.
+	if req.OrganizationID != nil && (currentUser.OrganizationID == nil || *req.OrganizationID != *currentUser.OrganizationID) {
+		if canMove, reason := s.CanMoveUserToOrganization(updatedByOrgRole, updatedByOrgID, *req.OrganizationID); !canMove {
+			return nil, &ValidationError{
+				StatusCode: 403,
+				ErrorData: response.ErrorData{
+					Errors: []response.ValidationError{
+						{
+							Key:     "organization_id",
+							Message: reason,
+							Value:   *req.OrganizationID,
+						},
+					},
+				},
+			}
+		}
 	}
 
 	// 2. Validate changes in Logto FIRST (before consuming local resources)
@@ -1199,6 +1235,35 @@ func (s *LocalUserService) CanCreateUser(userOrgRole, userOrgID string, req *mod
 		return false, "customers can only create users in their own organization"
 	default:
 		return false, "insufficient permissions to create users"
+	}
+}
+
+// CanMoveUserToOrganization validates the destination of an organization
+// change (PUT /users/:id with organization_id). It mirrors CanCreateUser: the
+// caller must be entitled to place a user in the destination, otherwise
+// moving an existing one there would be a way around that rule. Customers
+// never move users: their only reachable organization is their own.
+func (s *LocalUserService) CanMoveUserToOrganization(userOrgRole, userOrgID, destinationOrgID string) (bool, string) {
+	if destinationOrgID == "" {
+		return false, "destination organization required"
+	}
+	switch strings.ToLower(userOrgRole) {
+	case "owner":
+		return true, ""
+	case "distributor":
+		if s.IsOrganizationInHierarchy("distributor", userOrgID, destinationOrgID) {
+			return true, ""
+		}
+		return false, "distributors can only move users to organizations they manage"
+	case "reseller":
+		if s.IsOrganizationInHierarchy("reseller", userOrgID, destinationOrgID) {
+			return true, ""
+		}
+		return false, "resellers can only move users to their own organization or customers they manage"
+	case "customer":
+		return false, "customers cannot move users to another organization"
+	default:
+		return false, "insufficient permissions to move users"
 	}
 }
 
@@ -1899,12 +1964,13 @@ func (s *LocalUserService) getOrganizationLanguage(organizationID, orgType strin
 // isOwnerOrganization checks if the given organization ID belongs to the Owner organization
 // by verifying with Logto API if the organization name is "Owner"
 func (s *LocalUserService) isOwnerOrganization(organizationID string) (bool, error) {
-	// Get organization details from Logto
-	org, err := s.logtoClient.GetOrganizationByID(organizationID)
-	if err != nil {
-		return false, fmt.Errorf("failed to verify organization in Logto: %w", err)
+	// The Owner organization is the one that exists in Logto only: no row in
+	// any of the three partner tables. Identity, not display name — a partner
+	// organization named "Owner", or a rename of the Owner organization in
+	// Logto, must not move this gate. Same oracle as every other Owner-org
+	// check (models.IsPartnerOrgType), fail-closed on lookup errors.
+	if organizationID == "" {
+		return false, fmt.Errorf("organization id required")
 	}
-
-	// Check if it's the Owner organization by name
-	return strings.ToLower(org.Name) == "owner", nil
+	return !models.IsPartnerOrgType(s.GetOrganizationType(organizationID)), nil
 }

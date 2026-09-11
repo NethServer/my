@@ -489,6 +489,14 @@ func (s *ImpersonationService) InvalidateActiveSessionsForUser(impersonatedUserI
 		  AND a1.timestamp > NOW() - INTERVAL '24 hours'
 	`
 
+	// The audit table keys the target on its local id, the Redis session on
+	// its Logto ID (what the token and the status endpoint use): resolve the
+	// latter so the comparison below matches the record that was written.
+	var impersonatedLogtoID string
+	if err := s.db.QueryRow(`SELECT COALESCE(logto_id, '') FROM users WHERE id = $1`, impersonatedUserID).Scan(&impersonatedLogtoID); err != nil && err != sql.ErrNoRows {
+		return fmt.Errorf("failed to resolve impersonated user: %w", err)
+	}
+
 	rows, err := s.db.Query(query, impersonatedUserID)
 	if err != nil {
 		logger.ComponentLogger("impersonation").Error().
@@ -548,7 +556,7 @@ func (s *ImpersonationService) InvalidateActiveSessionsForUser(impersonatedUserI
 		}
 
 		// If there's an active session and it targets our user, clear it
-		if activeSession != nil && activeSession.ImpersonatedUserID == impersonatedUserID {
+		if activeSession != nil && (activeSession.ImpersonatedUserID == impersonatedUserID || (impersonatedLogtoID != "" && activeSession.ImpersonatedUserID == impersonatedLogtoID)) {
 			if err := sessionManager.ClearSession(redisKeyUserID); err != nil {
 				logger.ComponentLogger("impersonation").Warn().
 					Err(err).

@@ -2938,6 +2938,32 @@ func validateWebhookURL(raw string) (string, error) {
 	return "", nil
 }
 
+// rejectNonPublicHost refuses a host (IP literal or name) that is, or
+// resolves to, a non-public address. Point-in-time like validateWebhookURL:
+// good enough for a probe that opens one short-lived connection right after.
+func rejectNonPublicHost(host string) error {
+	if ip := net.ParseIP(host); ip != nil {
+		return rejectNonPublicIP(ip)
+	}
+	addrs, err := net.LookupHost(host)
+	if err != nil {
+		return fmt.Errorf("dns resolution failed: %w", err)
+	}
+	if len(addrs) == 0 {
+		return fmt.Errorf("host does not resolve")
+	}
+	for _, addr := range addrs {
+		ip := net.ParseIP(addr)
+		if ip == nil {
+			return fmt.Errorf("unparseable address %q", addr)
+		}
+		if err := rejectNonPublicIP(ip); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // rejectNonPublicIP returns an error if the IP is loopback, private, link-local,
 // multicast, unspecified, or in the carrier-grade NAT range (RFC6598). For
 // IPv6-mapped IPv4 addresses (::ffff:A.B.C.D), the underlying IPv4 is checked.

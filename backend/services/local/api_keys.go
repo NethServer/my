@@ -98,8 +98,15 @@ type APIKeyAuthResult struct {
 // no local users row (empty local id). Staff users of the Owner organization
 // have a regular row and take the standard myk_ path. Requires a Logto ID to
 // anchor on.
+// isOwnerAccount recognises the bootstrap owner: the one Owner-organization
+// account with no local users row. Its ID is empty on the wire, and equals
+// its Logto ID after helpers.GetUserFromContext substituted one for the other
+// (a local UUID never equals a Logto ID, so the second form is unambiguous).
 func isOwnerAccount(user *models.User) bool {
-	return user.ID == "" && strings.EqualFold(user.OrgRole, "owner") && user.LogtoID != nil && *user.LogtoID != ""
+	if user.LogtoID == nil || *user.LogtoID == "" || !strings.EqualFold(user.OrgRole, "owner") {
+		return false
+	}
+	return user.ID == "" || user.ID == *user.LogtoID
 }
 
 // APIKeyAnchor returns the identifier key and audit rows are keyed on for this
@@ -360,6 +367,9 @@ func (s *APIKeysService) AuthenticateAPIKey(token string) (*APIKeyAuthResult, er
 
 	user, err := ResolveUserByLogtoID(logtoID.String)
 	if err != nil {
+		if errors.Is(err, ErrUserInactive) {
+			return res, ErrAPIKeyUserInactive
+		}
 		return nil, err
 	}
 	user.ID = userLocalID
@@ -431,6 +441,9 @@ func (s *APIKeysService) authenticateOwnerAPIKey(public, secret string) (*APIKey
 
 	user, err := ResolveUserByLogtoID(logtoID)
 	if err != nil {
+		if errors.Is(err, ErrUserInactive) {
+			return res, ErrAPIKeyUserInactive
+		}
 		return nil, err
 	}
 	if !strings.EqualFold(user.OrgRole, "owner") {

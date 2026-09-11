@@ -120,7 +120,7 @@ func GetUserForImpersonation(logtoID string) (*models.User, error) {
 	// Get the local database ID from logto_id
 	var localUserID string
 	var hasAvatar bool
-	query := `SELECT id, avatar IS NOT NULL FROM users WHERE logto_id = $1 AND deleted_at IS NULL`
+	query := `SELECT id, avatar IS NOT NULL FROM users WHERE logto_id = $1 AND deleted_at IS NULL AND suspended_at IS NULL`
 	err := database.DB.QueryRow(query, logtoID).Scan(&localUserID, &hasAvatar)
 	if err != nil {
 		logger.ComponentLogger("logto").Error().

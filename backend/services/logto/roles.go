@@ -282,13 +282,14 @@ func EnrichUserWithRolesAndPermissions(userID string) (*models.User, error) {
 
 	// Process user roles
 	var userRoles []models.LogtoRole
+	// Every failure below is fatal for the whole enrichment: a token built
+	// from a partial answer is a token with the wrong permissions (a Reader
+	// whose roles could not be read keeps the organization's manage:* set),
+	// and it would be cached for ten minutes.
 	if userRolesRes.err != nil {
-		logger.ComponentLogger("logto").Warn().
-			Err(userRolesRes.err).
-			Str("operation", "fetch_user_roles").
-			Str("user_id", userID).
-			Msg("Failed to fetch user roles")
-	} else {
+		return nil, fmt.Errorf("failed to fetch user roles: %w", userRolesRes.err)
+	}
+	{
 		userRoles = userRolesRes.roles
 		logger.ComponentLogger("logto").Debug().
 			Int("role_count", len(userRoles)).
@@ -310,12 +311,9 @@ func EnrichUserWithRolesAndPermissions(userID string) (*models.User, error) {
 	// Process user organizations
 	var orgs []models.LogtoOrganization
 	if userOrgsRes.err != nil {
-		logger.ComponentLogger("logto").Warn().
-			Err(userOrgsRes.err).
-			Str("operation", "fetch_user_orgs").
-			Str("user_id", userID).
-			Msg("Failed to fetch user organizations")
-	} else {
+		return nil, fmt.Errorf("failed to fetch user organizations: %w", userOrgsRes.err)
+	}
+	{
 		orgs = userOrgsRes.orgs
 		logger.ComponentLogger("logto").Debug().
 			Int("org_count", len(orgs)).
@@ -367,12 +365,7 @@ func EnrichUserWithRolesAndPermissions(userID string) (*models.User, error) {
 	for i := 0; i < len(userRoles); i++ {
 		result := <-roleScopesCh
 		if result.err != nil {
-			logger.ComponentLogger("logto").Warn().
-				Err(result.err).
-				Str("operation", "fetch_role_scopes").
-				Str("role_id", result.roleID).
-				Msg("Failed to fetch role scopes")
-			continue
+			return nil, fmt.Errorf("failed to fetch scopes of role %s: %w", result.roleID, result.err)
 		}
 		for _, scope := range result.scopes {
 			user.UserPermissions = append(user.UserPermissions, scope.Name)
@@ -384,15 +377,9 @@ func EnrichUserWithRolesAndPermissions(userID string) (*models.User, error) {
 	if orgRolesWaitCount > 0 {
 		orgRolesRes := <-orgRolesCh
 		if orgRolesRes.err != nil {
-			logger.ComponentLogger("logto").Warn().
-				Err(orgRolesRes.err).
-				Str("operation", "fetch_org_roles").
-				Str("user_id", userID).
-				Str("org_id", orgs[0].ID).
-				Msg("Failed to fetch organization roles")
-		} else {
-			orgRoles = orgRolesRes.roles
+			return nil, fmt.Errorf("failed to fetch organization roles: %w", orgRolesRes.err)
 		}
+		orgRoles = orgRolesRes.roles
 	}
 
 	// Step 3: Process organization roles and fetch their scopes
@@ -410,15 +397,10 @@ func EnrichUserWithRolesAndPermissions(userID string) (*models.User, error) {
 		// Fetch permissions for organization role
 		orgScopes, err := client.GetOrganizationRoleScopes(primaryOrgRole.ID)
 		if err != nil {
-			logger.ComponentLogger("logto").Warn().
-				Err(err).
-				Str("operation", "fetch_org_role_scopes").
-				Str("role_id", primaryOrgRole.ID).
-				Msg("Failed to fetch organization role scopes")
-		} else {
-			for _, scope := range orgScopes {
-				user.OrgPermissions = append(user.OrgPermissions, scope.Name)
-			}
+			return nil, fmt.Errorf("failed to fetch organization role scopes: %w", err)
+		}
+		for _, scope := range orgScopes {
+			user.OrgPermissions = append(user.OrgPermissions, scope.Name)
 		}
 	}
 

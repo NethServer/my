@@ -85,7 +85,7 @@ func (s *DistributorsExportService) ExportToCSV(distributors []*models.LocalDist
 			logtoSyncedAt,
 		}
 
-		if err := writer.Write(row); err != nil {
+		if err := writer.Write(csvSafeRow(row)); err != nil {
 			return nil, fmt.Errorf("failed to write CSV row: %w", err)
 		}
 	}

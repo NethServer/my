@@ -25,8 +25,10 @@ func setupServicesTestEnvironment() {
 		// Set test environment variables for configuration
 		_ = os.Setenv("LOGTO_TENANT_ID", "test-tenant")
 		_ = os.Setenv("LOGTO_TENANT_DOMAIN", "test-domain.com")
+		_ = os.Setenv("LOGTO_API_RESOURCE", "https://test-domain.com/api/permissions")
+		_ = os.Setenv("LOGTO_FRONTEND_APP_ID", "test-frontend-app")
 		_ = os.Setenv("APP_URL", "https://test-app.com")
-		_ = os.Setenv("JWT_SECRET", "test-secret-key")
+		_ = os.Setenv("JWT_SECRET", "test-secret-key-for-testing-only")
 		_ = os.Setenv("LOGTO_BACKEND_APP_ID", "test-client-id")
 		_ = os.Setenv("LOGTO_BACKEND_APP_SECRET", "test-client-secret")
 		_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
@@ -41,29 +43,6 @@ var isServicesTestEnvironmentSetup bool
 
 // Test Models Structures
 func TestLogtoModels(t *testing.T) {
-	t.Run("models.LogtoUserInfo", func(t *testing.T) {
-		userInfo := models.LogtoUserInfo{
-			Sub:              "user-123",
-			Username:         "testuser",
-			Email:            "test@example.com",
-			Name:             "Test User",
-			Roles:            []string{"Admin", "Support"},
-			OrganizationId:   "org-123",
-			OrganizationName: "Test Organization",
-		}
-
-		// Test JSON serialization
-		jsonData, err := json.Marshal(userInfo)
-		assert.NoError(t, err)
-		assert.NotEmpty(t, jsonData)
-
-		// Test JSON deserialization
-		var unmarshaled models.LogtoUserInfo
-		err = json.Unmarshal(jsonData, &unmarshaled)
-		assert.NoError(t, err)
-		assert.Equal(t, userInfo, unmarshaled)
-	})
-
 	t.Run("models.LogtoRole", func(t *testing.T) {
 		role := models.LogtoRole{
 			ID:          "role-123",
@@ -442,115 +421,6 @@ func TestLogtoManagementClient_makeRequest(t *testing.T) {
 	}
 }
 
-func TestGetUserInfoFromLogto(t *testing.T) {
-	setupServicesTestEnvironment()
-
-	tests := []struct {
-		name         string
-		accessToken  string
-		setupServer  func() *httptest.Server
-		expectError  bool
-		expectedUser *models.LogtoUserInfo
-	}{
-		{
-			name:        "successful user info request",
-			accessToken: "valid-access-token",
-			setupServer: func() *httptest.Server {
-				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					if r.URL.Path == "/oidc/me" {
-						// Verify authorization header
-						assert.Equal(t, "Bearer valid-access-token", r.Header.Get("Authorization"))
-
-						userInfo := models.LogtoUserInfo{
-							Sub:              "user-123",
-							Username:         "testuser",
-							Email:            "test@example.com",
-							Name:             "Test User",
-							Roles:            []string{"Admin"},
-							OrganizationId:   "org-123",
-							OrganizationName: "Test Organization",
-						}
-
-						w.Header().Set("Content-Type", "application/json")
-						_ = json.NewEncoder(w).Encode(userInfo)
-					} else {
-						w.WriteHeader(http.StatusNotFound)
-					}
-				}))
-			},
-			expectError: false,
-			expectedUser: &models.LogtoUserInfo{
-				Sub:              "user-123",
-				Username:         "testuser",
-				Email:            "test@example.com",
-				Name:             "Test User",
-				Roles:            []string{"Admin"},
-				OrganizationId:   "org-123",
-				OrganizationName: "Test Organization",
-			},
-		},
-		{
-			name:        "invalid access token",
-			accessToken: "invalid-token",
-			setupServer: func() *httptest.Server {
-				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.WriteHeader(http.StatusUnauthorized)
-					_, _ = w.Write([]byte(`{"error": "invalid_token"}`))
-				}))
-			},
-			expectError:  true,
-			expectedUser: nil,
-		},
-		{
-			name:        "empty access token",
-			accessToken: "",
-			setupServer: func() *httptest.Server {
-				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.WriteHeader(http.StatusUnauthorized)
-					_, _ = w.Write([]byte(`{"error": "missing_token"}`))
-				}))
-			},
-			expectError:  true,
-			expectedUser: nil,
-		},
-		{
-			name:        "invalid JSON response",
-			accessToken: "valid-token",
-			setupServer: func() *httptest.Server {
-				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.Header().Set("Content-Type", "application/json")
-					_, _ = w.Write([]byte(`invalid json response`))
-				}))
-			},
-			expectError:  true,
-			expectedUser: nil,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := tt.setupServer()
-			defer server.Close()
-
-			// Update configuration to use test server
-			originalIssuer := configuration.Config.LogtoIssuer
-			configuration.Config.LogtoIssuer = server.URL
-			defer func() { configuration.Config.LogtoIssuer = originalIssuer }()
-
-			userInfo, err := GetUserInfoFromLogto(tt.accessToken)
-
-			if tt.expectError {
-				assert.Error(t, err)
-				assert.Nil(t, userInfo)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, userInfo)
-				assert.Equal(t, tt.expectedUser, userInfo)
-			}
-		})
-	}
-}
-
 func TestCreateUserRequest(t *testing.T) {
 	// Test models.CreateUserRequest struct
 	customData := map[string]interface{}{
@@ -662,13 +532,6 @@ func TestServicesNetworkErrorHandling(t *testing.T) {
 	originalIssuer := configuration.Config.LogtoIssuer
 	configuration.Config.LogtoIssuer = "http://non-existent-server.invalid"
 	defer func() { configuration.Config.LogtoIssuer = originalIssuer }()
-
-	t.Run("GetUserInfoFromLogto with network error", func(t *testing.T) {
-		userInfo, err := GetUserInfoFromLogto("any-token")
-		assert.Error(t, err)
-		assert.Nil(t, userInfo)
-		assert.Contains(t, err.Error(), "failed to fetch user info")
-	})
 
 	t.Run("LogtoManagementClient getAccessToken with network error", func(t *testing.T) {
 		// Reset cache before test

@@ -33,6 +33,7 @@ type ScenarioSpec struct {
 	//   {user_email:KEY}   its email, for searching a response body
 	//   {system:KEY}       internal UUID of a fixture system
 	//   {system_name:KEY}  its name, for searching a response body
+	//   {system_key:KEY}   its NETH- system key, for body fields keyed on it
 	//   {my_org}           the caller's own organization id
 	//   {my_user}          the caller's own user id
 	//   {bogus}            an id that matches nothing
@@ -112,6 +113,10 @@ func (a *authzRunner) resolve(s string, p *persona) (string, error) {
 		case "system_name":
 			if s, ok := a.reg.Systems[fixtureRegKey(prefix, key)]; ok {
 				return s.Name
+			}
+		case "system_key":
+			if s, ok := a.reg.Systems[fixtureRegKey(prefix, key)]; ok {
+				return s.SystemKey
 			}
 		case "bogus":
 			return bogusID

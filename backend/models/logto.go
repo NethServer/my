@@ -21,18 +21,6 @@ type LogtoManagementTokenResponse struct {
 	Scope       string `json:"scope"`
 }
 
-// LogtoUserInfo represents the user info returned by Logto
-type LogtoUserInfo struct {
-	Sub              string   `json:"sub"`
-	Username         string   `json:"username"`
-	Email            string   `json:"email"`
-	Name             string   `json:"name"`
-	Roles            []string `json:"roles"`
-	OrganizationId   string   `json:"organization_id"`
-	OrganizationName string   `json:"organization_name"`
-	// Add other fields as needed
-}
-
 // LogtoRole represents a role from Logto Management API
 type LogtoRole struct {
 	ID          string `json:"id"`

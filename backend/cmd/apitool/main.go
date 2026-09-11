@@ -219,14 +219,16 @@ func cmdInit(_ []string) error {
 	fmt.Println("=== OIDC config ===")
 	logtoEndpoint := prompt("Logto endpoint (e.g. https://your-tenant.logto.app)", r.Config.LogtoEndpoint)
 	logtoAppID := prompt("Logto app ID", r.Config.LogtoAppID)
+	logtoResource := prompt("Logto API resource indicator (backend LOGTO_API_RESOURCE)", r.Config.LogtoResource)
 	authBaseURL := prompt("Auth base URL (host that serves /login-redirect)", r.Config.AuthBaseURL)
 	backendURL := prompt("Backend URL (incl. /api suffix)", r.Config.BackendURL)
-	if logtoEndpoint == "" || logtoAppID == "" || authBaseURL == "" || backendURL == "" {
+	if logtoEndpoint == "" || logtoAppID == "" || logtoResource == "" || authBaseURL == "" || backendURL == "" {
 		return fmt.Errorf("all OIDC config fields are required")
 	}
 	r.Config = Config{
 		LogtoEndpoint: strings.TrimRight(logtoEndpoint, "/"),
 		LogtoAppID:    logtoAppID,
+		LogtoResource: logtoResource,
 		AuthBaseURL:   strings.TrimRight(authBaseURL, "/"),
 		BackendURL:    strings.TrimRight(backendURL, "/"),
 	}
@@ -481,6 +483,7 @@ func cmdList(_ []string) error {
 	} else {
 		fmt.Printf("  logto_endpoint: %s\n", r.Config.LogtoEndpoint)
 		fmt.Printf("  logto_app_id:   %s\n", r.Config.LogtoAppID)
+		fmt.Printf("  logto_resource: %s\n", r.Config.LogtoResource)
 		fmt.Printf("  auth_base_url:  %s\n", r.Config.AuthBaseURL)
 		fmt.Printf("  backend_url:    %s\n", r.Config.BackendURL)
 	}

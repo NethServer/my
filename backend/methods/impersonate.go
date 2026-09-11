@@ -10,12 +10,15 @@
 package methods
 
 import (
+	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/nethesis/my/backend/cache"
+	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/jwt"
 	"github.com/nethesis/my/backend/logger"
@@ -315,6 +318,22 @@ func ImpersonateUserWithConsent(c *gin.Context) {
 		return
 	}
 
+	// Privilege ceiling: the break-glass account (user role Owner) is never a
+	// target. Acting as it would hand a Staff user destroy:systems|users and
+	// the Owner-organization membership gates that exist to contain Staff.
+	if models.HasOwnerUserRole(targetUser.UserRoles) {
+		logger.RequestLogger(c, "impersonate").Warn().
+			Str("operation", "impersonate_owner_role_target_refused").
+			Str("user_id", user.ID).
+			Str("target_user_id", targetUser.ID).
+			Msg("Attempt to impersonate an Owner-role account refused")
+		c.JSON(http.StatusForbidden, response.Forbidden(
+			"an Owner-role account cannot be impersonated",
+			nil,
+		))
+		return
+	}
+
 	// Create impersonation service
 	impersonationService := local.NewImpersonationService()
 
@@ -531,6 +550,19 @@ func ExitImpersonationWithAudit(c *gin.Context) {
 
 	impersonatedUser, _ := helpers.GetUserFromContext(c)
 
+	// The impersonation token dies here: its lifetime is the consent's (up to
+	// a week), so an exit that left it valid would leave a usable target
+	// identity in the caller's hands. The presented token is the one to burn.
+	if presented := strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer "); presented != "" {
+		if blErr := cache.GetTokenBlacklist().BlacklistToken(presented, "impersonation exited"); blErr != nil {
+			logger.RequestLogger(c, "impersonate").Warn().
+				Err(blErr).
+				Str("operation", "exit_impersonation_blacklist_failed").
+				Str("session_id", sessionIDStr).
+				Msg("Failed to revoke impersonation token on exit")
+		}
+	}
+
 	// Clear active session in Redis
 	sessionManager := cache.NewImpersonationSessionManager()
 	if sessionIDStr != "" {
@@ -581,6 +613,33 @@ func ExitImpersonationWithAudit(c *gin.Context) {
 		}
 	}
 
+	// The impersonator's own session is re-minted from its CURRENT state, not
+	// from the claims frozen in the impersonation token: roles may have
+	// changed and the account may have been suspended or deleted meanwhile.
+	if impersonatorUser.LogtoID == nil || *impersonatorUser.LogtoID == "" {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("invalid impersonation state", nil))
+		return
+	}
+	freshImpersonator, err := local.ResolveUserByLogtoID(*impersonatorUser.LogtoID)
+	if err != nil {
+		if errors.Is(err, local.ErrUserInactive) {
+			logger.RequestLogger(c, "impersonate").Warn().
+				Str("operation", "exit_impersonation_inactive_impersonator").
+				Str("impersonator_user_id", impersonatorUser.ID).
+				Msg("Impersonator account is no longer active; no session re-issued")
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("account suspended or deleted", nil))
+			return
+		}
+		logger.RequestLogger(c, "impersonate").Error().
+			Err(err).
+			Str("operation", "exit_impersonation_resolve_impersonator").
+			Str("impersonator_user_id", impersonatorUser.ID).
+			Msg("Failed to resolve impersonator for exiting impersonation")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to restore session", nil))
+		return
+	}
+	impersonatorUser = freshImpersonator
+
 	// Generate new regular token for the original user
 	newToken, err := jwt.GenerateCustomToken(*impersonatorUser)
 	if err != nil {
@@ -614,7 +673,10 @@ func ExitImpersonationWithAudit(c *gin.Context) {
 	}
 
 	// Calculate expiration in seconds for regular token
-	expDuration := 24 * time.Hour // Regular token duration
+	expDuration, err := time.ParseDuration(configuration.Config.JWTExpiration)
+	if err != nil {
+		expDuration = 30 * time.Minute // mirrors the configuration default
+	}
 	expiresIn := int64(expDuration.Seconds())
 
 	// Log successful impersonation exit
@@ -720,6 +782,31 @@ func GetImpersonationStatus(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
 			"failed to get impersonated user details: "+err.Error(),
 			nil,
+		))
+		return
+	}
+
+	// The session record alone is not enough to re-issue a token: the target
+	// may have revoked consent since it was opened.
+	stillConsenting, consentErr := local.NewImpersonationService().CanBeImpersonated(impersonatedUser.ID)
+	if consentErr != nil {
+		logger.RequestLogger(c, "impersonate").Error().
+			Err(consentErr).
+			Str("operation", "status_consent_check_failed").
+			Str("session_id", activeSession.SessionID).
+			Msg("Failed to re-check consent for the active session")
+		c.JSON(http.StatusServiceUnavailable, response.ServiceUnavailable("security service temporarily unavailable", nil))
+		return
+	}
+	if !stillConsenting {
+		if err := sessionManager.ClearSession(user.ID); err != nil {
+			logger.RequestLogger(c, "impersonate").Warn().Err(err).Str("user_id", user.ID).Msg("Failed to clear session after consent revocation")
+		}
+		c.JSON(http.StatusOK, response.OK(
+			"not currently impersonating",
+			gin.H{
+				"is_impersonating": false,
+			},
 		))
 		return
 	}

@@ -65,6 +65,9 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 	// Validate required fields
 	var validationErrors []response.ValidationError
 
+	if err := rejectReservedOrganizationName(req.Name); err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(req.Name) == "" {
 		validationErrors = append(validationErrors, response.ValidationError{
 			Key:     "name",
@@ -243,6 +246,9 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 	// Validate required fields
 	var validationErrors []response.ValidationError
 
+	if err := rejectReservedOrganizationName(req.Name); err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(req.Name) == "" {
 		validationErrors = append(validationErrors, response.ValidationError{
 			Key:     "name",
@@ -411,6 +417,9 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 	// Validate required fields
 	var validationErrors []response.ValidationError
 
+	if err := rejectReservedOrganizationName(req.Name); err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(req.Name) == "" {
 		validationErrors = append(validationErrors, response.ValidationError{
 			Key:     "name",
@@ -942,6 +951,9 @@ func (s *LocalOrganizationService) UpdateDistributor(id string, req *models.Upda
 	// 3. Validate changes in Logto FIRST (before consuming local resources)
 	updateReq := models.UpdateOrganizationRequest{}
 	if req.Name != nil {
+		if err := rejectReservedOrganizationName(*req.Name); err != nil {
+			return nil, err
+		}
 		updateReq.Name = req.Name
 	}
 	if req.Description != nil {
@@ -1165,6 +1177,9 @@ func (s *LocalOrganizationService) UpdateReseller(id string, req *models.UpdateL
 	// 3. Validate changes in Logto FIRST (before consuming local resources)
 	updateReq := models.UpdateOrganizationRequest{}
 	if req.Name != nil {
+		if err := rejectReservedOrganizationName(*req.Name); err != nil {
+			return nil, err
+		}
 		updateReq.Name = req.Name
 	}
 	if req.Description != nil {
@@ -1388,6 +1403,9 @@ func (s *LocalOrganizationService) UpdateCustomer(id string, req *models.UpdateL
 	// 3. Validate changes in Logto FIRST (before consuming local resources)
 	updateReq := models.UpdateOrganizationRequest{}
 	if req.Name != nil {
+		if err := rejectReservedOrganizationName(*req.Name); err != nil {
+			return nil, err
+		}
 		updateReq.Name = req.Name
 	}
 	if req.Description != nil {
@@ -1605,10 +1623,15 @@ func (s *LocalOrganizationService) DeleteDistributor(id, deletedByUserID, delete
 		allOrgIDs = append(allOrgIDs, childCustomerLogtoIDs...)
 
 		// 1. Cascade soft-delete users across the entire hierarchy
+		affectedUsers, listErr := s.userRepo.ListLogtoIDsByOrgIDs(allOrgIDs)
+		if listErr != nil {
+			logger.Warn().Err(listErr).Str("distributor_id", id).Msg("Failed to list users before cascade soft-delete; their sessions cannot be revoked")
+		}
 		deletedUsersCount, err = s.userRepo.SoftDeleteByMultipleOrgIDs(allOrgIDs, distLogtoID)
 		if err != nil {
 			logger.Warn().Err(err).Str("distributor_id", id).Int("org_ids_count", len(allOrgIDs)).Msg("Failed to cascade soft-delete users for distributor hierarchy")
 		} else if deletedUsersCount > 0 {
+			revokeUsersAccess(affectedUsers, "organization deleted")
 			logger.Info().Int("deleted_users", deletedUsersCount).Str("distributor_id", id).Str("distributor_name", distributor.Name).Msg("Cascade soft-deleted users for distributor hierarchy")
 		}
 
@@ -1667,10 +1690,15 @@ func (s *LocalOrganizationService) DeleteReseller(id, deletedByUserID, deletedBy
 		allOrgIDs := append([]string{resLogtoID}, childCustomerLogtoIDs...)
 
 		// 1. Cascade soft-delete users across the hierarchy
+		affectedUsers, listErr := s.userRepo.ListLogtoIDsByOrgIDs(allOrgIDs)
+		if listErr != nil {
+			logger.Warn().Err(listErr).Str("reseller_id", id).Msg("Failed to list users before cascade soft-delete; their sessions cannot be revoked")
+		}
 		deletedUsersCount, err = s.userRepo.SoftDeleteByMultipleOrgIDs(allOrgIDs, resLogtoID)
 		if err != nil {
 			logger.Warn().Err(err).Str("reseller_id", id).Int("org_ids_count", len(allOrgIDs)).Msg("Failed to cascade soft-delete users for reseller hierarchy")
 		} else if deletedUsersCount > 0 {
+			revokeUsersAccess(affectedUsers, "organization deleted")
 			logger.Info().Int("deleted_users", deletedUsersCount).Str("reseller_id", id).Str("reseller_name", reseller.Name).Msg("Cascade soft-deleted users for reseller hierarchy")
 		}
 
@@ -1720,10 +1748,15 @@ func (s *LocalOrganizationService) DeleteCustomer(id, deletedByUserID, deletedBy
 		custLogtoID := *customer.LogtoID
 
 		// 1. Cascade soft-delete users for this customer
+		affectedUsers, listErr := s.userRepo.ListLogtoIDsByOrgIDs([]string{custLogtoID})
+		if listErr != nil {
+			logger.Warn().Err(listErr).Str("customer_id", id).Msg("Failed to list users before cascade soft-delete; their sessions cannot be revoked")
+		}
 		deletedUsersCount, err = s.userRepo.SoftDeleteByMultipleOrgIDs([]string{custLogtoID}, custLogtoID)
 		if err != nil {
 			logger.Warn().Err(err).Str("customer_id", id).Msg("Failed to cascade soft-delete users for customer")
 		} else if deletedUsersCount > 0 {
+			revokeUsersAccess(affectedUsers, "organization deleted")
 			logger.Info().Int("deleted_users", deletedUsersCount).Str("customer_id", id).Str("customer_name", customer.Name).Msg("Cascade soft-deleted users for customer")
 		}
 
@@ -2457,6 +2490,7 @@ func (s *LocalOrganizationService) SuspendDistributor(id, suspendedByUserID, sus
 				}
 			}
 		}
+		revokeUsersAccess(logtoIDsOf(users), "organization suspended")
 
 		// 5. Cascade suspend systems across all orgs
 		systemKeys, err := s.systemRepo.SuspendSystemsByMultipleOrgIDs(allOrgIDs, distLogtoID)
@@ -2598,6 +2632,7 @@ func (s *LocalOrganizationService) SuspendReseller(id, suspendedByUserID, suspen
 				}
 			}
 		}
+		revokeUsersAccess(logtoIDsOf(users), "organization suspended")
 
 		// 4. Cascade suspend systems across all orgs
 		systemKeys, err := s.systemRepo.SuspendSystemsByMultipleOrgIDs(allOrgIDs, resLogtoID)
@@ -3198,6 +3233,61 @@ func (s *LocalOrganizationService) ReactivateCustomer(id, reactivatedByUserID, r
 	return updatedCustomer, reactivatedUsersCount, reactivatedSystemsCount, nil
 }
 
+// rejectReservedOrganizationName refuses "Owner" (case-insensitive) as a
+// partner organization name. The Owner organization is recognised by
+// identity, but the name still labels it in every picker: a partner
+// organization wearing it invites a Staff user to be created in the wrong
+// place.
+func rejectReservedOrganizationName(name string) error {
+	if !strings.EqualFold(strings.TrimSpace(name), "owner") {
+		return nil
+	}
+	return &ValidationError{
+		StatusCode: 400,
+		ErrorData: response.ErrorData{
+			Errors: []response.ValidationError{
+				{
+					Key:     "name",
+					Message: "the name 'Owner' is reserved",
+					Value:   name,
+				},
+			},
+		},
+	}
+}
+
+// revokeUsersAccess makes a lifecycle change effective on live sessions: every
+// token (access, refresh, impersonation) issued before now is refused by the
+// middleware, and the cached profile is dropped so the next resolve reads the
+// new state. Best effort per user — the lifecycle change is already committed;
+// a failure here is logged, not returned.
+func revokeUsersAccess(logtoIDs []string, reason string) {
+	if len(logtoIDs) == 0 {
+		return
+	}
+	blacklist := cache.GetTokenBlacklist()
+	for _, id := range logtoIDs {
+		if id == "" {
+			continue
+		}
+		if err := blacklist.BlacklistAllUserTokens(id, reason); err != nil {
+			logger.Warn().Err(err).Str("logto_user_id", id).Str("reason", reason).Msg("Failed to revoke user tokens")
+		}
+	}
+	InvalidateUserProfileCache(logtoIDs...)
+}
+
+// logtoIDsOf collects the non-empty Logto IDs of a user set.
+func logtoIDsOf(users []*models.LocalUser) []string {
+	ids := make([]string, 0, len(users))
+	for _, u := range users {
+		if u != nil && u.LogtoID != nil && *u.LogtoID != "" {
+			ids = append(ids, *u.LogtoID)
+		}
+	}
+	return ids
+}
+
 // cascadeSuspendUsers suspends all active users of an organization and syncs to Logto
 func (s *LocalOrganizationService) cascadeSuspendUsers(orgLogtoID, orgType, orgName string) (int, error) {
 	// Suspend users in local database
@@ -3228,6 +3318,8 @@ func (s *LocalOrganizationService) cascadeSuspendUsers(orgLogtoID, orgType, orgN
 			}
 		}
 	}
+
+	revokeUsersAccess(logtoIDsOf(users), "organization suspended")
 
 	logger.Info().
 		Int("total_users", len(users)).

@@ -54,7 +54,7 @@ Environment files must be generated using the `sync` tool. See [sync README](../
 VITE_API_BASE_URL=http://localhost:8080
 VITE_LOGTO_ENDPOINT=https://your-tenant.logto.app
 VITE_LOGTO_APP_ID=your-spa-app-id
-VITE_LOGTO_RESOURCES=https://your-domain.com/api
+VITE_LOGTO_API_RESOURCE=https://your-domain.com/api/permissions  # = backend LOGTO_API_RESOURCE
 VITE_SIGNIN_REDIRECT_URI=login-redirect
 VITE_SIGNOUT_REDIRECT_URI=login
 ```

@@ -46,6 +46,12 @@ APP_URL=https://your-app-domain.com
 LOGTO_BACKEND_APP_ID=your-management-api-app-id
 LOGTO_BACKEND_APP_SECRET=your-management-api-app-secret
 
+# Token exchange binding: the API resource indicator the SPA requests
+# ({API_BASE_URL}/permissions, as pushed by sync) and the SPA's client id.
+# /auth/exchange accepts only JWT access tokens bound to both.
+LOGTO_API_RESOURCE=https://your-domain.com/api/permissions
+LOGTO_FRONTEND_APP_ID=your-frontend-spa-app-id
+
 # Custom JWT for resilient offline operation
 JWT_SECRET=your-super-secret-jwt-signing-key-min-32-chars
 

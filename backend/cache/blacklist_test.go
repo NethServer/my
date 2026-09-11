@@ -82,16 +82,15 @@ func TestTokenBlacklist_Methods_Structure(t *testing.T) {
 	// Expect error due to no Redis connection, but validates method signature
 	assert.Error(t, err)
 
+	// Without Redis every revocation question is an error, never a pass.
 	_, _, err = blacklist.IsTokenBlacklisted(token)
-	// This might succeed if it fails-open on Redis unavailability
-	// The important thing is it doesn't panic
-	assert.True(t, err != nil || err == nil) // Either error or success is acceptable
+	assert.Error(t, err)
 
 	err = blacklist.BlacklistAllUserTokens("user123", "suspended")
 	assert.Error(t, err) // Expect error due to no Redis
 
 	_, _, err = blacklist.IsUserBlacklisted("user123")
-	assert.True(t, err != nil || err == nil) // Either error or success is acceptable
+	assert.Error(t, err)
 
 	err = blacklist.RemoveUserFromBlacklist("user123")
 	assert.Error(t, err) // Expect error due to no Redis
@@ -147,8 +146,10 @@ func TestTokenBlacklist_EdgeCases(t *testing.T) {
 	err := blacklist.BlacklistToken(token, "test")
 	assert.Error(t, err)
 
+	// Every read fails CLOSED on nil Redis: the caller gets an error and must
+	// refuse the request, it never gets a silent "not revoked".
 	found, reason, err := blacklist.IsTokenBlacklisted(token)
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, ErrBlacklistUnavailable)
 	assert.False(t, found)
 	assert.Empty(t, reason)
 
@@ -156,18 +157,19 @@ func TestTokenBlacklist_EdgeCases(t *testing.T) {
 	assert.Error(t, err)
 
 	found, reason, err = blacklist.IsUserBlacklisted("user123")
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, ErrBlacklistUnavailable)
 	assert.False(t, found)
 	assert.Empty(t, reason)
 
 	err = blacklist.RemoveUserFromBlacklist("user123")
 	assert.Error(t, err)
 
-	// New rotation helpers fail open on nil Redis
-	entry := blacklist.GetBlacklistEntry(token)
+	entry, err := blacklist.GetBlacklistEntry(token)
+	assert.ErrorIs(t, err, ErrBlacklistUnavailable)
 	assert.Nil(t, entry)
 
-	invalidated, reason := blacklist.IsUserTokenInvalidatedSince("user123", time.Now())
+	invalidated, reason, err := blacklist.IsUserTokenInvalidatedSince("user123", time.Now())
+	assert.ErrorIs(t, err, ErrBlacklistUnavailable)
 	assert.False(t, invalidated)
 	assert.Empty(t, reason)
 }

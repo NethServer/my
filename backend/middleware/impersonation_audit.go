@@ -122,7 +122,13 @@ func ImpersonationAuditMiddleware() gin.HandlerFunc {
 		// Process the request
 		c.Next()
 
-		// Create audit entry
+		// Create audit entry. The query string is part of what was asked
+		// (?organization_id=, filters), so the full request URI is recorded,
+		// within the column's size.
+		apiEndpoint := c.Request.URL.RequestURI()
+		if len(apiEndpoint) > 255 {
+			apiEndpoint = apiEndpoint[:255]
+		}
 		responseStatus := c.Writer.Status()
 		responseStatusText := http.StatusText(responseStatus)
 		auditEntry := &models.ImpersonationAuditEntry{
@@ -130,7 +136,7 @@ func ImpersonationAuditMiddleware() gin.HandlerFunc {
 			ImpersonatorUserID:   helpers.GetEffectiveUserID(impersonatorUser),
 			ImpersonatedUserID:   impersonatedUser.ID,
 			ActionType:           "api_call",
-			APIEndpoint:          &c.Request.URL.Path,
+			APIEndpoint:          &apiEndpoint,
 			HTTPMethod:           &c.Request.Method,
 			ResponseStatus:       &responseStatus,
 			ResponseStatusText:   &responseStatusText,
@@ -173,6 +179,11 @@ func ImpersonationAuditMiddleware() gin.HandlerFunc {
 
 // sanitizeRequestData removes or masks sensitive information from request data
 func sanitizeRequestData(data string) string {
+	// A body that is not valid UTF-8 (or carries NUL bytes) would make the
+	// Postgres INSERT fail and the action vanish from the audit trail: keep
+	// the printable part instead.
+	data = strings.ToValidUTF8(strings.ReplaceAll(data, "\x00", ""), "\uFFFD")
+
 	// Limit size to prevent huge audit logs
 	maxSize := 10000 // 10KB limit
 	if len(data) > maxSize {

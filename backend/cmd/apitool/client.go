@@ -63,6 +63,9 @@ type AuthzRequest struct {
 	ClientID    string
 	RedirectURI string
 	Scope       string
+	// Resource, when set, asks Logto for a JWT access token bound to that API
+	// resource (what the frontend does). Third-party probes leave it empty.
+	Resource string
 }
 
 // AuthzOutcome reports how far an authorization-code flow got. Code is set only
@@ -112,6 +115,9 @@ func (c *Client) Authorize(email, password string, req AuthzRequest) (*AuthzOutc
 		"state":                 {state},
 		"code_challenge":        {codeChallenge},
 		"code_challenge_method": {"S256"},
+	}
+	if req.Resource != "" {
+		q.Set("resource", req.Resource)
 	}
 	out.Stage = "authorize"
 	if _, err := c.followAll(c.cfg.LogtoEndpoint + "/oidc/auth?" + q.Encode()); err != nil {
@@ -209,6 +215,7 @@ func (c *Client) Login(email, password string) error {
 		ClientID:    c.cfg.LogtoAppID,
 		RedirectURI: redirectURI,
 		Scope:       DefaultLoginScope,
+		Resource:    c.cfg.LogtoResource,
 	})
 	if err != nil {
 		return err
@@ -226,6 +233,9 @@ func (c *Client) Login(email, password string) error {
 		"redirect_uri":  {redirectURI},
 		"client_id":     {c.cfg.LogtoAppID},
 		"code_verifier": {out.CodeVerifier},
+	}
+	if c.cfg.LogtoResource != "" {
+		form.Set("resource", c.cfg.LogtoResource)
 	}
 	r, err := c.do("POST", c.cfg.LogtoEndpoint+"/oidc/token", form.Encode(), "application/x-www-form-urlencoded")
 	if err != nil {

@@ -62,7 +62,7 @@ func TestBasicAuthMiddleware_DBOutcomes(t *testing.T) {
 	// Well-formed secret: my_<public>.<secret with min length>
 	secret := "my_pub." + strings.Repeat("s", configuration.Config.SystemSecretMinLength)
 
-	credsQueryRegex := `SELECT id, system_secret_public, system_secret_sha256, registered_at\s+FROM systems`
+	credsQueryRegex := `SELECT s.id, s.system_secret_public, s.system_secret_sha256, s.registered_at\s+FROM systems s`
 
 	tests := []struct {
 		name           string
@@ -72,19 +72,19 @@ func TestBasicAuthMiddleware_DBOutcomes(t *testing.T) {
 	}{
 		{
 			name:           "unknown system key returns 401",
-			systemKey:      "NETH-TEST-DB-NOROWS",
+			systemKey:      "NETH-0000-0000-0000-0000-0000-0000-0000-0001",
 			dbError:        sql.ErrNoRows,
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
 			name:           "database timeout returns 503, not 401",
-			systemKey:      "NETH-TEST-DB-TIMEOUT",
+			systemKey:      "NETH-0000-0000-0000-0000-0000-0000-0000-0002",
 			dbError:        context.DeadlineExceeded,
 			expectedStatus: http.StatusServiceUnavailable,
 		},
 		{
 			name:           "database connection failure returns 503, not 401",
-			systemKey:      "NETH-TEST-DB-CONNDONE",
+			systemKey:      "NETH-0000-0000-0000-0000-0000-0000-0000-0003",
 			dbError:        sql.ErrConnDone,
 			expectedStatus: http.StatusServiceUnavailable,
 		},
@@ -121,7 +121,7 @@ func TestBasicAuthMiddleware_DBOutcomes(t *testing.T) {
 		mock, restore := swapMockDB(t)
 		defer restore()
 
-		const systemKey = "NETH-TEST-DB-NOPOISON"
+		const systemKey = "NETH-0000-0000-0000-0000-0000-0000-0000-0004"
 
 		mock.ExpectQuery(credsQueryRegex).
 			WithArgs(systemKey).

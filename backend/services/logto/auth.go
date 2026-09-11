@@ -10,12 +10,8 @@
 package logto
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 
-	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 )
@@ -23,58 +19,6 @@ import (
 // =============================================================================
 // PUBLIC METHODS
 // =============================================================================
-
-// GetUserInfoFromLogto fetches user information from Logto using access token
-func GetUserInfoFromLogto(accessToken string) (*models.LogtoUserInfo, error) {
-	// Create request to Logto userinfo endpoint
-	userInfoURL := configuration.Config.LogtoIssuer + "/oidc/me"
-
-	req, err := http.NewRequest("GET", userInfoURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Add authorization header
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := sharedHTTPClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch user info: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	// Check response status
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("logto userinfo request failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	// Parse response
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	logger.ComponentLogger("logto").Debug().
-		Str("operation", "userinfo_response").
-		Str("response", logger.SanitizeString(string(body))).
-		Msg("Logto userinfo response")
-
-	var userInfo models.LogtoUserInfo
-	if err := json.Unmarshal(body, &userInfo); err != nil {
-		return nil, fmt.Errorf("failed to decode user info: %w", err)
-	}
-
-	logger.ComponentLogger("logto").Debug().
-		Str("operation", "userinfo_parsed").
-		Str("sub", userInfo.Sub).
-		Str("username", userInfo.Username).
-		Str("email", logger.SanitizeString(userInfo.Email)).
-		Msg("Parsed Logto userinfo")
-
-	return &userInfo, nil
-}
 
 // GetUserProfileFromLogto fetches complete user profile from Logto Management API
 func GetUserProfileFromLogto(userID string) (*models.LogtoUser, error) {

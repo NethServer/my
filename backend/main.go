@@ -132,6 +132,11 @@ func main() {
 	// Add compression
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 
+	// Global request-body ceiling. Sized for the largest legitimate upload
+	// (rebranding asset bundle); JSON endpoints that need less narrow it
+	// (/alerts/config) or are public and get a small budget below.
+	router.Use(middleware.MaxBodySize(16 << 20))
+
 	// CORS configuration in debug mode
 	if gin.Mode() == gin.DebugMode {
 		corsConf := cors.DefaultConfig()
@@ -161,13 +166,16 @@ func main() {
 	// ===========================================
 	// PUBLIC AUTH ENDPOINTS
 	// ===========================================
-	api.POST("/auth/exchange", methods.ExchangeToken)
-	api.POST("/auth/refresh", methods.RefreshToken)
+	// Unauthenticated entry points: each exchange costs several Logto
+	// Management API calls, so both carry a per-IP budget like the other
+	// public routes.
+	api.POST("/auth/exchange", middleware.RateLimit(5, 30), middleware.MaxBodySize(64<<10), methods.ExchangeToken)
+	api.POST("/auth/refresh", middleware.RateLimit(5, 30), middleware.MaxBodySize(64<<10), methods.RefreshToken)
 
 	// ===========================================
 	// PUBLIC SYSTEM REGISTRATION ENDPOINT
 	// ===========================================
-	api.POST("/systems/register", methods.RegisterSystem)
+	api.POST("/systems/register", middleware.RateLimit(2, 10), middleware.MaxBodySize(64<<10), methods.RegisterSystem) // credential handshake: per-IP budget
 
 	// ===========================================
 	// CUSTOM JWT ROUTES (for resilient apps)
@@ -187,9 +195,12 @@ func main() {
 		impersonateGroup := customAuth.Group("/impersonate", middleware.RejectAPIKey())
 		{
 			// Consent management endpoints
-			impersonateGroup.POST("/consent", methods.EnableImpersonationConsent)
-			impersonateGroup.DELETE("/consent", methods.DisableImpersonationConsent)
-			impersonateGroup.GET("/consent", methods.GetImpersonationConsentStatus)
+			// Consent belongs to the account itself: with an impersonation token
+			// these would act as the target, letting the impersonator grant (or
+			// renew) the very consent the feature hinges on.
+			impersonateGroup.POST("/consent", middleware.DisableOnImpersonate(), methods.EnableImpersonationConsent)
+			impersonateGroup.DELETE("/consent", middleware.DisableOnImpersonate(), methods.DisableImpersonationConsent)
+			impersonateGroup.GET("/consent", middleware.DisableOnImpersonate(), methods.GetImpersonationConsentStatus)
 
 			// Impersonation endpoints
 			impersonateGroup.GET("/status", methods.GetImpersonationStatus)
@@ -197,9 +208,9 @@ func main() {
 			impersonateGroup.DELETE("", methods.ExitImpersonationWithAudit)
 
 			// Session management endpoints
-			impersonateGroup.GET("/sessions", methods.GetImpersonationSessions)
-			impersonateGroup.GET("/sessions/:session_id", methods.GetImpersonationSession)
-			impersonateGroup.GET("/sessions/:session_id/audit", methods.GetSessionAudit)
+			impersonateGroup.GET("/sessions", middleware.DisableOnImpersonate(), methods.GetImpersonationSessions)
+			impersonateGroup.GET("/sessions/:session_id", middleware.DisableOnImpersonate(), methods.GetImpersonationSession)
+			impersonateGroup.GET("/sessions/:session_id/audit", middleware.DisableOnImpersonate(), methods.GetSessionAudit)
 		}
 
 		// User profile endpoints using custom JWT (with audit for impersonation).
@@ -504,7 +515,7 @@ func main() {
 		// purpose: the authority to move an organization between levels is the
 		// Owner-organization gate in the handler, not manage:resellers, which every
 		// distributor holds.
-		customAuthWithAudit.PATCH("/resellers/:id/promote", middleware.ExtendDeadline(60*time.Second), methods.PromoteReseller) // Promote reseller to distributor keeping its hierarchy (slow: one Logto role switch per member)
+		customAuthWithAudit.PATCH("/resellers/:id/promote", middleware.RequirePermission("manage:resellers"), middleware.ExtendDeadline(60*time.Second), methods.PromoteReseller) // Promote reseller to distributor keeping its hierarchy (slow: one Logto role switch per member); the handler additionally requires the Owner organization
 
 		// Customers - resource-based permission validation (read:customers for GET, manage:customers for POST/PUT/DELETE)
 		// Self-access: GET on own organization ID is always allowed (object-level RBAC in handlers)

@@ -755,6 +755,18 @@ func CheckSystemReachability(c *gin.Context) {
 		c.JSON(http.StatusOK, response.OK("reachability check completed", gin.H{"reachable": false, "url": ""}))
 		return
 	}
+	// The FQDN is what the appliance reported about itself: a value pointing
+	// inside this backend's network would turn the probe into a port scanner
+	// of Render's private services. Such a system is simply "not reachable".
+	if err := rejectNonPublicHost(system.FQDN); err != nil {
+		logger.RequestLogger(c, "systems").Warn().
+			Err(err).
+			Str("system_id", systemID).
+			Str("fqdn", system.FQDN).
+			Msg("Reachability probe refused: host is not publicly routable")
+		c.JSON(http.StatusOK, response.OK("reachability check completed", gin.H{"reachable": false, "url": ""}))
+		return
+	}
 
 	// Build candidate URLs based on system type
 	var candidateURLs []string

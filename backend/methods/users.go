@@ -465,6 +465,24 @@ func UpdateUser(c *gin.Context) {
 			c.JSON(http.StatusForbidden, response.Forbidden("access denied: "+reason, nil))
 			return
 		}
+
+		// An organization change is authorized against the DESTINATION too:
+		// CanUpdateUser only proves the caller reaches the user where it is
+		// now. Moving it upward or sideways would otherwise hand the user (and
+		// whoever it then acts for) the destination's reach.
+		if request.OrganizationID != nil && *request.OrganizationID != targetOrgID {
+			if canMove, reason := service.CanMoveUserToOrganization(userOrgRole, user.OrganizationID, *request.OrganizationID); !canMove {
+				logger.RequestLogger(c, "users").Warn().
+					Str("operation", "user_move_denied").
+					Str("target_user_id", userID).
+					Str("destination_organization_id", *request.OrganizationID).
+					Str("caller_organization_id", user.OrganizationID).
+					Str("caller_org_role", userOrgRole).
+					Msg("Organization change refused: destination outside the caller's hierarchy")
+				c.JSON(http.StatusForbidden, response.Forbidden("access denied: "+reason, nil))
+				return
+			}
+		}
 	}
 
 	if !canUpdate {
@@ -542,7 +560,7 @@ func UpdateUser(c *gin.Context) {
 	service := local.NewUserService()
 
 	// Update user
-	account, err := service.UpdateUser(userID, &request, user.ID, user.OrganizationID, user.UserRoles)
+	account, err := service.UpdateUser(userID, &request, user.ID, user.OrganizationID, userOrgRole, user.UserRoles)
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -552,6 +570,10 @@ func UpdateUser(c *gin.Context) {
 
 		// Check if it's a validation error from Logto
 		if validationErr := getValidationError(err); validationErr != nil {
+			if validationErr.StatusCode == http.StatusForbidden {
+				c.JSON(http.StatusForbidden, response.Forbidden("access denied: "+validationErr.ErrorData.Errors[0].Message, nil))
+				return
+			}
 			c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", validationErr.ErrorData.Errors))
 			return
 		}
@@ -643,6 +665,19 @@ func DeleteUser(c *gin.Context) {
 			"error": err.Error(),
 		}))
 		return
+	}
+
+	// A soft-deleted account must stop acting now: tokens issued before this
+	// moment are refused by the middleware, and the next resolve sees
+	// deleted_at (restore lifts both).
+	if currentAccount.LogtoID != nil && *currentAccount.LogtoID != "" {
+		if blErr := cache.GetTokenBlacklist().BlacklistAllUserTokens(*currentAccount.LogtoID, "user deleted"); blErr != nil {
+			logger.RequestLogger(c, "users").Warn().
+				Err(blErr).
+				Str("operation", "blacklist_deleted_user").
+				Str("user_id", userID).
+				Msg("Failed to revoke tokens of deleted user")
+		}
 	}
 
 	// Invalidate cached user profile

@@ -10,6 +10,7 @@
 package methods
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -80,26 +81,40 @@ func ExchangeToken(c *gin.Context) {
 		return
 	}
 
-	// Get user info from Logto
-	userInfo, err := logto.GetUserInfoFromLogto(req.AccessToken)
+	// The token must be a Logto JWT access token issued TO the my SPA FOR the
+	// my API resource: signature against the tenant JWKS, issuer, audience,
+	// client_id and expiry. Nothing else — in particular not the opaque token
+	// a third-party application of the tenant receives at login — is
+	// exchangeable, whoever the user behind it is.
+	subject, err := logto.SPAAccessTokenValidator().Validate(req.AccessToken)
 	if err != nil {
-		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "get_userinfo", http.StatusUnauthorized, "Failed to get user info from Logto")
-		c.JSON(http.StatusUnauthorized, response.Unauthorized(
-			"invalid access token: "+err.Error(),
-			nil,
-		))
+		if errors.Is(err, logto.ErrExchangeNotConfigured) {
+			logger.NewHTTPErrorLogger(c, "auth").LogError(err, "exchange_not_configured", http.StatusServiceUnavailable, "Token exchange is not configured")
+			c.JSON(http.StatusServiceUnavailable, response.ServiceUnavailable("token exchange is not configured", nil))
+			return
+		}
+		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "validate_access_token", http.StatusUnauthorized, "Logto access token rejected")
+		c.JSON(http.StatusUnauthorized, response.Unauthorized("invalid access token", nil))
 		return
 	}
 
 	// Build complete user object using helper
-	user, err := buildUserFromLogtoID(c, userInfo.Sub)
+	user, err := buildUserFromLogtoID(c, subject)
 	if err != nil {
+		if errors.Is(err, local.ErrUserInactive) {
+			logger.RequestLogger(c, "auth").Warn().
+				Str("operation", "exchange_inactive_user").
+				Str("logto_id", subject).
+				Msg("Token exchange refused: account suspended or deleted")
+			c.JSON(http.StatusForbidden, response.Forbidden("account suspended or deleted", nil))
+			return
+		}
 		logger.RequestLogger(c, "auth").Error().
 			Err(err).
 			Str("operation", "build_user").
 			Msg("Failed to build user from Logto ID")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"failed to retrieve user information: "+err.Error(),
+			"failed to retrieve user information",
 			nil,
 		))
 		return
@@ -186,7 +201,7 @@ func RefreshToken(c *gin.Context) {
 	if err != nil {
 		logger.NewHTTPErrorLogger(c, "auth").LogError(err, "validate_refresh_token", http.StatusUnauthorized, "Invalid refresh token")
 		c.JSON(http.StatusUnauthorized, response.Unauthorized(
-			"invalid refresh token: "+err.Error(),
+			"invalid refresh token",
 			nil,
 		))
 		return
@@ -198,7 +213,15 @@ func RefreshToken(c *gin.Context) {
 	// never come back. Outside the grace window we cannot tell the thief from
 	// the victim, so all the user's outstanding tokens are burned and a new
 	// login is required.
-	rotatedEntry := blacklist.GetBlacklistEntry(req.RefreshToken)
+	rotatedEntry, entryErr := blacklist.GetBlacklistEntry(req.RefreshToken)
+	if entryErr != nil {
+		logger.RequestLogger(c, "auth").Error().
+			Err(entryErr).
+			Str("operation", "refresh_blacklist_unavailable").
+			Msg("Failed to check refresh token rotation state - denying request")
+		c.JSON(http.StatusServiceUnavailable, response.ServiceUnavailable("security service temporarily unavailable", nil))
+		return
+	}
 	if rotatedEntry != nil {
 		withinGrace := rotatedEntry.Reason == cache.ReasonRefreshTokenRotated &&
 			time.Since(time.Unix(rotatedEntry.BlacklistedAt, 0)) <= refreshReuseGraceWindow
@@ -229,7 +252,16 @@ func RefreshToken(c *gin.Context) {
 	if refreshClaims.IssuedAt != nil {
 		issuedAt = refreshClaims.IssuedAt.Time
 	}
-	if revoked, reason := blacklist.IsUserTokenInvalidatedSince(refreshClaims.UserID, issuedAt); revoked {
+	revoked, reason, revokeErr := blacklist.IsUserTokenInvalidatedSince(refreshClaims.UserID, issuedAt)
+	if revokeErr != nil {
+		logger.RequestLogger(c, "auth").Error().
+			Err(revokeErr).
+			Str("operation", "refresh_revocation_unavailable").
+			Msg("Failed to check user revocation - denying request")
+		c.JSON(http.StatusServiceUnavailable, response.ServiceUnavailable("security service temporarily unavailable", nil))
+		return
+	}
+	if revoked {
 		logger.RequestLogger(c, "auth").Warn().
 			Str("operation", "refresh_token_revoked").
 			Str("logto_id", refreshClaims.UserID).
@@ -245,12 +277,20 @@ func RefreshToken(c *gin.Context) {
 	// Build complete user object using helper
 	user, err := buildUserFromLogtoID(c, refreshClaims.UserID)
 	if err != nil {
+		if errors.Is(err, local.ErrUserInactive) {
+			logger.RequestLogger(c, "auth").Warn().
+				Str("operation", "refresh_inactive_user").
+				Str("logto_id", refreshClaims.UserID).
+				Msg("Token refresh refused: account suspended or deleted")
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("account suspended or deleted", nil))
+			return
+		}
 		logger.RequestLogger(c, "auth").Error().
 			Err(err).
 			Str("operation", "build_user_refresh").
 			Msg("Failed to build user during refresh")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"failed to retrieve user information: "+err.Error(),
+			"failed to retrieve user information",
 			nil,
 		))
 		return

@@ -103,6 +103,18 @@ func GenerateCustomToken(user models.User) (string, error) {
 	return tokenString, nil
 }
 
+// customTokenParserOptions pins every token we mint to the exact algorithm,
+// issuer and audience we sign with, and requires an expiry: a token that
+// verifies but was not issued for this deployment is not ours.
+func customTokenParserOptions() []jwt.ParserOption {
+	return []jwt.ParserOption{
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+		jwt.WithIssuer(configuration.Config.JWTIssuer),
+		jwt.WithAudience(configuration.Config.LogtoAudience),
+		jwt.WithExpirationRequired(),
+	}
+}
+
 // ValidateCustomToken parses and validates our custom JWT token
 func ValidateCustomToken(tokenString string) (*CustomClaims, error) {
 	// Parse token
@@ -112,7 +124,7 @@ func ValidateCustomToken(tokenString string) (*CustomClaims, error) {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return []byte(configuration.Config.JWTSecret), nil
-	})
+	}, customTokenParserOptions()...)
 
 	if err != nil {
 		logger.ComponentLogger("jwt").Warn().
@@ -205,7 +217,7 @@ func ValidateRefreshToken(tokenString string) (*RefreshTokenClaims, error) {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return []byte(configuration.Config.JWTSecret), nil
-	})
+	}, customTokenParserOptions()...)
 
 	if err != nil {
 		logger.ComponentLogger("jwt").Warn().
@@ -302,7 +314,7 @@ func ValidateImpersonationToken(tokenString string) (*ImpersonationClaims, error
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return []byte(configuration.Config.JWTSecret), nil
-	})
+	}, customTokenParserOptions()...)
 
 	if err != nil {
 		logger.ComponentLogger("jwt").Warn().

@@ -12,6 +12,7 @@ package middleware
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/nethesis/my/backend/cache"
@@ -52,6 +53,17 @@ func setUserContext(c *gin.Context, user *models.User, isImpersonated bool, impe
 		c.Set("impersonator_id", "")
 		c.Set("impersonator_username", "")
 	}
+}
+
+// revocationSubject is the identifier user-level revocation is keyed on: the
+// Logto ID, the one stable identifier every principal has (the bootstrap owner
+// has no local row). Every writer — suspend, logout, refresh-reuse burn, the
+// organization cascades — keys on the same value.
+func revocationSubject(u *models.User) string {
+	if u.LogtoID != nil && *u.LogtoID != "" {
+		return *u.LogtoID
+	}
+	return u.ID
 }
 
 // JWTAuthMiddleware validates custom JWT tokens and sets user context
@@ -131,15 +143,18 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 				impersonationService := local.NewImpersonationService()
 				canBeImpersonated, consentErr := impersonationService.CanBeImpersonated(impersonationClaims.User.ID)
 				if consentErr != nil {
-					logger.RequestLogger(c, "auth").Warn().
+					logger.RequestLogger(c, "auth").Error().
 						Err(consentErr).
 						Str("operation", "impersonation_consent_check_failed").
 						Str("impersonated_user_id", impersonationClaims.User.ID).
 						Str("impersonator_user_id", impersonationClaims.ImpersonatedBy.ID).
 						Str("client_ip", c.ClientIP()).
-						Msg("Failed to check impersonation consent - allowing request (fail open)")
-					// Continue with token validation if consent check fails (fail open for infrastructure issues)
-				} else if !canBeImpersonated {
+						Msg("Failed to check impersonation consent - denying request")
+					c.JSON(http.StatusServiceUnavailable, response.ServiceUnavailable("security service temporarily unavailable", nil))
+					c.Abort()
+					return
+				}
+				if !canBeImpersonated {
 					logger.RequestLogger(c, "auth").Warn().
 						Str("operation", "impersonation_consent_revoked").
 						Str("impersonated_user_id", impersonationClaims.User.ID).
@@ -155,33 +170,50 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 				}
 			}
 
-			// Check user-level blacklist for the impersonated user
-			isUserBlacklisted, userBlacklistReason, userBlacklistErr := blacklist.IsUserBlacklisted(impersonationClaims.User.ID)
-			if userBlacklistErr != nil {
-				logger.RequestLogger(c, "auth").Error().
-					Err(userBlacklistErr).
-					Str("operation", "impersonated_user_blacklist_check_failed").
-					Str("impersonated_user_id", impersonationClaims.User.ID).
-					Str("impersonator_user_id", impersonationClaims.ImpersonatedBy.ID).
-					Str("client_ip", c.ClientIP()).
-					Msg("Failed to check impersonated user blacklist - denying request")
-				c.JSON(http.StatusServiceUnavailable, response.ServiceUnavailable("security service temporarily unavailable", nil))
-				c.Abort()
-				return
+			// User-level revocation of BOTH principals: a suspended (or logged
+			// out) impersonator must not keep acting through the target, and a
+			// suspended target must not be acted for. Keyed on the Logto ID
+			// like every writer, bound to the token's iat.
+			impIssuedAt := time.Time{}
+			if impersonationClaims.IssuedAt != nil {
+				impIssuedAt = impersonationClaims.IssuedAt.Time
 			}
-			if isUserBlacklisted {
-				logger.RequestLogger(c, "auth").Warn().
-					Str("operation", "blacklisted_impersonated_user_rejected").
-					Str("impersonated_user_id", impersonationClaims.User.ID).
-					Str("impersonator_user_id", impersonationClaims.ImpersonatedBy.ID).
-					Str("client_ip", c.ClientIP()).
-					Str("blacklist_reason", userBlacklistReason).
-					Msg("Request from blacklisted impersonated user rejected")
-				c.JSON(http.StatusUnauthorized, response.Unauthorized("impersonated user account has been suspended", gin.H{
-					"reason": userBlacklistReason,
-				}))
-				c.Abort()
-				return
+			for _, principal := range []struct {
+				user *models.User
+				role string
+			}{
+				{&impersonationClaims.User, "impersonated user"},
+				{&impersonationClaims.ImpersonatedBy, "impersonator"},
+			} {
+				revoked, revokeReason, revokeErr := blacklist.IsUserTokenInvalidatedSince(revocationSubject(principal.user), impIssuedAt)
+				if revokeErr != nil {
+					logger.RequestLogger(c, "auth").Error().
+						Err(revokeErr).
+						Str("operation", "impersonation_revocation_check_failed").
+						Str("principal", principal.role).
+						Str("impersonated_user_id", impersonationClaims.User.ID).
+						Str("impersonator_user_id", impersonationClaims.ImpersonatedBy.ID).
+						Str("client_ip", c.ClientIP()).
+						Msg("Failed to check user revocation - denying request")
+					c.JSON(http.StatusServiceUnavailable, response.ServiceUnavailable("security service temporarily unavailable", nil))
+					c.Abort()
+					return
+				}
+				if revoked {
+					logger.RequestLogger(c, "auth").Warn().
+						Str("operation", "revoked_impersonation_principal_rejected").
+						Str("principal", principal.role).
+						Str("impersonated_user_id", impersonationClaims.User.ID).
+						Str("impersonator_user_id", impersonationClaims.ImpersonatedBy.ID).
+						Str("client_ip", c.ClientIP()).
+						Str("blacklist_reason", revokeReason).
+						Msg("Impersonation token rejected: principal revoked")
+					c.JSON(http.StatusUnauthorized, response.Unauthorized(principal.role+" account has been suspended", gin.H{
+						"reason": revokeReason,
+					}))
+					c.Abort()
+					return
+				}
 			}
 
 			// Log successful impersonation authentication
@@ -217,28 +249,35 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Check user-level blacklist after token validation
-		isUserBlacklisted, userBlacklistReason, userBlacklistErr := blacklist.IsUserBlacklisted(claims.User.ID)
-		if userBlacklistErr != nil {
+		// User-level revocation (suspension, logout, refresh-reuse burn,
+		// organization cascade): keyed on the Logto ID like every writer, and
+		// bound to the token's iat so a login that follows a logout is not
+		// caught by it.
+		issuedAt := time.Time{}
+		if claims.IssuedAt != nil {
+			issuedAt = claims.IssuedAt.Time
+		}
+		revoked, revokeReason, revokeErr := blacklist.IsUserTokenInvalidatedSince(revocationSubject(&claims.User), issuedAt)
+		if revokeErr != nil {
 			logger.RequestLogger(c, "auth").Error().
-				Err(userBlacklistErr).
-				Str("operation", "user_blacklist_check_failed").
+				Err(revokeErr).
+				Str("operation", "user_revocation_check_failed").
 				Str("user_id", claims.User.ID).
 				Str("client_ip", c.ClientIP()).
-				Msg("Failed to check user blacklist - denying request")
+				Msg("Failed to check user revocation - denying request")
 			c.JSON(http.StatusServiceUnavailable, response.ServiceUnavailable("security service temporarily unavailable", nil))
 			c.Abort()
 			return
 		}
-		if isUserBlacklisted {
+		if revoked {
 			logger.RequestLogger(c, "auth").Warn().
-				Str("operation", "blacklisted_user_rejected").
+				Str("operation", "revoked_user_rejected").
 				Str("user_id", claims.User.ID).
 				Str("client_ip", c.ClientIP()).
-				Str("blacklist_reason", userBlacklistReason).
-				Msg("Request from blacklisted user rejected")
+				Str("blacklist_reason", revokeReason).
+				Msg("Request from revoked user rejected")
 			c.JSON(http.StatusUnauthorized, response.Unauthorized("user account has been suspended", gin.H{
-				"reason": userBlacklistReason,
+				"reason": revokeReason,
 			}))
 			c.Abort()
 			return

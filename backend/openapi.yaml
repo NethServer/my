@@ -5970,7 +5970,15 @@ paths:
       tags:
         - Backend - Authentication
       summary: /auth/exchange - Exchange Logto token for custom JWT
-      description: Exchange a Logto access token for a custom JWT with embedded permissions
+      description: |
+        Exchange a Logto access token for a custom JWT with embedded permissions.
+
+        The token must be a JWT access token issued to the my frontend
+        application for the my API resource: it is validated against the tenant
+        JWKS (issuer, audience = the API resource indicator, client_id = the
+        frontend app, expiry). Opaque tokens, and tokens issued to any other
+        application of the tenant, are refused with 401. A suspended or deleted
+        account is refused with 403.
       security: []
       requestBody:
         required: true
@@ -12898,8 +12906,10 @@ paths:
         renewed in place (new expiry, revocation cleared), so webhook retries
         are safe. The grant is recorded with `source: shop`.
 
-        Requires the `manage:entitlements` permission — held by the
-        Backoffice, Admin and Staff user roles, or an owner API key.
+        Restricted to the Owner organization (the shop's owner API key, Staff
+        and Owner users) holding the `manage:entitlements` permission. Partner
+        Admin and Backoffice roles carry that permission only for the shop's
+        purchase check: a direct call from them answers 403.
       requestBody:
         required: true
         content:
@@ -12963,7 +12973,7 @@ paths:
         `POST /entitlements/activate` (order completed) or by
         `POST /entitlements/deactivate` with the same `source_ref` (order
         cancelled before payment). Same addressing and auth as activate
-        (`manage:entitlements` permission).
+        (Owner organization + `manage:entitlements` permission).
       requestBody:
         required: true
         content:
@@ -13017,8 +13027,9 @@ paths:
       description: |
         Revoke a shop-managed grant when the subscription is cancelled or
         expires (called by the NethShop webhook). Same addressing and auth as
-        `POST /entitlements/activate` (`manage:entitlements` permission).
-        The revocation is soft and idempotent.
+        `POST /entitlements/activate` (Owner organization +
+        `manage:entitlements` permission). The revocation is soft and
+        idempotent.
 
         When `source_ref` is provided it is matched against the grant: a
         PENDING activation with the same ref is cleared instead of revoked

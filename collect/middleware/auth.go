@@ -118,9 +118,13 @@ func BasicAuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Parse Basic auth header
-		const prefix = "Basic "
-		if !strings.HasPrefix(auth, prefix) {
+		// Parse Basic auth header. RFC 7235 makes the scheme case-insensitive
+		// and allows any run of whitespace before the credentials; every hop
+		// in front of collect (nginx, the enterprise feeds' forwardAuth, PHP on
+		// legacy my) must classify the same header the same way, so the parser
+		// accepts exactly what they accept.
+		fields := strings.Fields(auth)
+		if len(fields) != 2 || !strings.EqualFold(fields[0], "Basic") {
 			logger.Warn().
 				Str("client_ip", c.ClientIP()).
 				Str("path", c.Request.URL.Path).
@@ -133,7 +137,7 @@ func BasicAuthMiddleware() gin.HandlerFunc {
 		}
 
 		// Decode base64 credentials
-		encoded := auth[len(prefix):]
+		encoded := fields[1]
 		decoded, err := base64.StdEncoding.DecodeString(encoded)
 		if err != nil {
 			logger.Warn().
@@ -209,15 +213,22 @@ type systemCredentialsRow struct {
 }
 
 // systemCredentialsQuery is the single gate every appliance request passes
-// through. Each of the three lifecycle filters revokes access on its own, so
-// dropping one silently brings a revoked credential back to life.
+// through. Each lifecycle filter revokes access on its own, so dropping one
+// silently brings a revoked credential back to life. The organization guard
+// mirrors the LinkFailed monitor: the cascade writes suspended_at down to
+// every system, but a system created under an already-suspended
+// organization, or one the cascade missed, must not authenticate either.
 const systemCredentialsQuery = `
-	SELECT id, system_secret_public, system_secret_sha256, registered_at
-	FROM systems
-	WHERE system_key = $1
-	  AND deleted_at IS NULL
-	  AND suspended_at IS NULL
-	  AND unregistered_at IS NULL
+	SELECT s.id, s.system_secret_public, s.system_secret_sha256, s.registered_at
+	FROM systems s
+	LEFT JOIN distributors d ON (s.organization_id = d.logto_id OR s.organization_id = d.id) AND d.deleted_at IS NULL
+	LEFT JOIN resellers r ON (s.organization_id = r.logto_id OR s.organization_id = r.id) AND r.deleted_at IS NULL
+	LEFT JOIN customers c ON (s.organization_id = c.logto_id OR s.organization_id = c.id) AND c.deleted_at IS NULL
+	WHERE s.system_key = $1
+	  AND s.deleted_at IS NULL
+	  AND s.suspended_at IS NULL
+	  AND s.unregistered_at IS NULL
+	  AND COALESCE(d.suspended_at, r.suspended_at, c.suspended_at) IS NULL
 `
 
 // validateSystemCredentials validates system credentials against database and cache.
@@ -229,6 +240,17 @@ const systemCredentialsQuery = `
 // false LinkFailed alerts. Infrastructure failures are never cached as
 // negative results for the same reason.
 func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (string, bool, error) {
+	// A username that cannot be a system key never reaches the caches or the
+	// database: each unknown pair below is a cache miss and a Postgres
+	// round-trip, and the shared instance is the first thing a credential
+	// flood saturates.
+	if !systemKeyFormat.MatchString(systemKey) {
+		logger.Warn().
+			Str("system_key", systemKey).
+			Msg("Invalid system key format")
+		return "", false, nil
+	}
+
 	// Validate token format: my_<public>.<secret>
 	parts := strings.Split(systemSecret, ".")
 	if len(parts) != 2 {
