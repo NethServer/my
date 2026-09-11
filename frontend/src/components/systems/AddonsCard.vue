@@ -27,40 +27,40 @@ const features = computed<NsecFeatures | undefined>(() => {
   return facts?.features
 })
 
-interface ServiceItem {
+interface AddonItem {
   key: string
   label: string
   enabled: boolean
 }
 
-const services = computed<ServiceItem[]>(() => {
+const addons = computed<AddonItem[]>(() => {
   const f = features.value
   if (!f) return []
 
   return [
     {
       key: 'threat_shield',
-      label: t('system_detail.service_threat_shield'),
+      label: t('system_detail.addon_threat_shield'),
       enabled: Boolean(
         (f.threat_shield?.enabled ?? false) && (f.threat_shield?.enterprise ?? false),
       ),
     },
     {
       key: 'flashstart',
-      label: t('system_detail.service_flashstart'),
+      label: t('system_detail.addon_flashstart'),
       enabled: f.flashstart?.enabled ?? false,
     },
     {
       key: 'netifyd',
-      label: t('system_detail.service_netifyd'),
+      label: t('system_detail.addon_netifyd'),
       enabled: f.netifyd?.enabled ?? false,
     },
-    { key: 'ha', label: t('system_detail.service_ha'), enabled: f.ha?.enabled ?? false },
+    { key: 'ha', label: t('system_detail.addon_ha'), enabled: f.ha?.enabled ?? false },
   ]
 })
 
-const sortedServices = computed<ServiceItem[]>(() =>
-  [...services.value].sort((a, b) => Number(b.enabled) - Number(a.enabled)),
+const sortedAddons = computed<AddonItem[]>(() =>
+  [...addons.value].sort((a, b) => Number(b.enabled) - Number(a.enabled)),
 )
 </script>
 
@@ -81,20 +81,17 @@ const sortedServices = computed<ServiceItem[]>(() =>
       class="mb-6"
     />
     <NeSkeleton v-else-if="latestInventory.status === 'pending'" :lines="8" />
-    <div
-      v-else-if="sortedServices.length > 0"
-      class="divide-y divide-gray-200 dark:divide-gray-700"
-    >
+    <div v-else-if="sortedAddons.length > 0" class="divide-y divide-gray-200 dark:divide-gray-700">
       <div
-        v-for="service in sortedServices"
-        :key="service.key"
+        v-for="addon in sortedAddons"
+        :key="addon.key"
         class="flex items-center justify-between gap-2 py-4"
       >
         <span class="font-medium text-gray-900 dark:text-gray-50">
-          {{ service.label }}
+          {{ addon.label }}
         </span>
         <EnabledStatus
-          :enabled="service.enabled"
+          :enabled="addon.enabled"
           class="text-tertiary-neutral dark:text-tertiary-neutral font-medium"
         />
       </div>
