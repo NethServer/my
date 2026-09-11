@@ -31,7 +31,15 @@ export const REBRANDING_ASSET_NAMES = [
 
 export type RebrandingAssetName = (typeof REBRANDING_ASSET_NAMES)[number]
 
+// The backend caps the brand name at 100 UTF-8 bytes (maxProductName in
+// methods/rebranding.go), which is 100 plain letters but fewer once accents or
+// emoji are involved. Counting characters here is the cheap check that catches
+// the ordinary case; the backend owns the exact limit and says so in the
+// product_name field error, which the form renders like any other.
 export const MAX_BRAND_NAME_LENGTH = 100
+
+export const isBrandNameTooLong = (brandName: string): boolean =>
+  brandName.trim().length > MAX_BRAND_NAME_LENGTH
 
 // Each product wears its own brand colour in the "Branded products" column, so
 // a row can be read at a glance. The shape mirrors NeBadgeV2's own kinds
