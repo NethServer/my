@@ -80,6 +80,11 @@ describe('getRebrandingOrganizationsQueryString', () => {
     expect(build({ textFilter: 'cloudpoint' }).get('search')).toBe('cloudpoint')
   })
 
+  it('trims the search before sending it, so ILIKE does not match the spaces', () => {
+    expect(build({ textFilter: 'cloudpoint ' }).get('search')).toBe('cloudpoint')
+    expect(build({ textFilter: '  cloudpoint  ' }).get('search')).toBe('cloudpoint')
+  })
+
   it('sends an empty sort_by rather than dropping it', () => {
     expect(build({ sortBy: null }).get('sort_by')).toBe('')
   })
