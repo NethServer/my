@@ -40,6 +40,14 @@ const emit = defineEmits<{
 const selectedFile = ref<File | null>(assetSlot.file)
 
 watch(selectedFile, (file) => {
+  // The dropzone is made inert while disabled, but the model is the only thing
+  // standing between a stray file and a request the reader may not make: put
+  // the slot's file back rather than forwarding it.
+  if (disabled) {
+    selectedFile.value = assetSlot.file
+    return
+  }
+
   if (file !== assetSlot.file) {
     emit('select', file)
   }
@@ -71,14 +79,20 @@ const storedAssetLabel = computed(() => assetSlot.existing?.filename || name)
 
 <template>
   <div>
-    <NeFileInput
-      v-model="selectedFile"
-      :label="label"
-      :dropzone-label="$t('ne_file_input.drag_and_drop_or_click_to_upload')"
-      :invalid-message="invalidMessage"
-      :accept="constraint.accept"
-      :disabled="disabled"
-    />
+    <!-- NeFileInput takes no disabled prop: it would fall through to the
+         wrapper div as a bare attribute and leave the click target, the
+         keyboard focus and the drop handler live. `inert` is what actually
+         takes the whole subtree out of interaction and out of the
+         accessibility tree; the dimming is the affordance that goes with it. -->
+    <div :inert="disabled || undefined" :class="{ 'opacity-50': disabled }">
+      <NeFileInput
+        v-model="selectedFile"
+        :label="label"
+        :dropzone-label="$t('ne_file_input.drag_and_drop_or_click_to_upload')"
+        :invalid-message="invalidMessage"
+        :accept="constraint.accept"
+      />
+    </div>
     <!-- what the server holds today, with a way to take it away -->
     <div
       v-if="isStoredAssetShown"
