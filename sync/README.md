@@ -13,7 +13,7 @@ CLI tool for complete Logto setup and RBAC synchronization. Provides zero-to-pro
 ### RBAC Synchronization
 - **Simplified RBAC Sync**: Clear separation between business hierarchy and technical capabilities
 - **Business Hierarchy**: Organization roles (Owner, Distributor, Reseller, Customer)
-- **Technical Capabilities**: User roles (Admin, Support, Backoffice, Reader; Staff for the Owner organization)
+- **Technical Capabilities**: User roles (Admin, Support, Backoffice, Reader; Staff and Owner for the Owner organization)
 - **Third-Party Apps**: Automatic creation and management of external applications
 - **Dry Run Mode**: Preview changes before applying
 - **Cleanup Mode**: Remove resources/roles not in config
@@ -204,9 +204,17 @@ deployed tenants run on. The per-environment files (`configs/config.yml`,
 tenant ids, application URLs and SMTP credentials, so they live only on the
 machine that runs the sync. Copy the example and fill those in.
 
+`configs/config.ci.yml` is the one exception that is tracked: the vocabulary of
+the CI tenant the end-to-end workflow drives, with no tenant ids, no
+third-party applications and no credentials. `apitool authz provision` reads
+the role definitions from a `config.yml`, and a CI checkout has none.
+
 Key sections:
 - `organization_roles` - Business hierarchy (Owner, Distributor, Reseller, Customer)
-- `user_roles` - Technical capabilities (Admin, Support, Backoffice, Reader, plus Staff for the Owner organization)
+- `user_roles` - Technical capabilities (Admin, Support, Backoffice, Reader, plus Staff and Owner for the Owner organization). `Owner` is the
+  break-glass role of the bootstrap `owner` account: `sync init` creates it and
+  assigns it, `sync sync` gives it its permissions, and the backend never
+  offers it through `GET /api/roles`
 - `resources` - API resources and actions
 - `third_party_apps` - External application access control (optional)
 - `sign_in_experience` - Branding, colors, sign-in methods (optional)

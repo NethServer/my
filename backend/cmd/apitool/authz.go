@@ -1004,7 +1004,11 @@ func authzCoverage(dir string, flags map[string]string) error {
 	sort.Strings(missing)
 	sort.Strings(stale)
 
-	fmt.Printf("Routes in main.go: %d\nRoutes in routes.yml: %d\n", len(inv), len(spec.Routes))
+	// Worded so that no token reads as "<file>.go:<number>". The Go problem
+	// matcher that actions/setup-go registers scans step output for exactly
+	// that and raises a failure annotation from it, so "Routes in main.go: 196"
+	// showed up red in CI on a run where every check passed.
+	fmt.Printf("Routes in the router (main.go): %d\nRoutes in routes.yml: %d\n", len(inv), len(spec.Routes))
 	if len(missing) > 0 {
 		fmt.Printf("\nMISSING intent (%d) — every new endpoint must declare one:\n", len(missing))
 		for _, m := range missing {

@@ -38,6 +38,39 @@ These GitHub Actions automatically manage redirect URIs in your Logto applicatio
 **Trigger**: When a PR is closed or merged
 **Purpose**: Removes redirect URIs for the PR's Render deployments from Logto
 
+## End-to-end suite
+
+### `e2e-main.yml`
+**Trigger**: Every push to a pull request and to `main` (docs-only pushes skipped), manual dispatch,
+weekly cron
+**Purpose**: Runs the browser suite (`frontend/e2e/`, `--project=fullstack`) against the full
+compose stack, with personas provisioned by `apitool authz provision`
+
+Deliberately separate from `ci-main.yml`: that workflow answers in seconds and gates every branch,
+while this builds four images, boots six services and mutates a shared Logto tenant, so it takes
+minutes. It runs per push to a pull request so a regression is attributed to the commit that caused
+it rather than to a batch of merges.
+
+Its concurrency group is **global and queues rather than cancels** — a run cancelled after
+provisioning would abandon real organizations and users in the tenant. GitHub keeps at most one run
+pending per group, so under a burst of pushes the commits in between are simply not tested; that is
+the accepted cost of never cancelling. The weekly cron is a drift canary for breakage with no commit
+behind it, such as a tenant setting changed by hand.
+
+### `e2e-smoke.yml`
+**Trigger**: Push to `main`, manual dispatch
+**Purpose**: Read-only checks against QA (`playwright.config.smoke.ts`), covering the deployment-configuration
+failures the full-stack job cannot see
+
+QA is deployed by Render rather than by Actions, so the job asks the Render API (via the existing
+`RENDER_API_KEY`) for a deploy of the merge commit, waits for it to go `live`, and then confirms the
+backend actually answers. The health endpoint cannot identify the build: Render builds QA from
+source and nothing passes `COMMIT`, so it reports `"unknown"` permanently. A failed Render deploy
+fails the job; an environment that never comes up only warns and skips, since `qa-night-schedule.yml`
+suspends QA outside Mon–Fri 08:00–22:00 Europe/Rome.
+
+See `frontend/e2e/README.md` for the suite itself.
+
 ## Required GitHub Secrets
 
 Add these secrets to your repository settings (`Settings > Secrets and variables > Actions`):
@@ -49,6 +82,39 @@ Add these secrets to your repository settings (`Settings > Secrets and variables
 | `LOGTO_M2M_CLIENT_ID` | Machine-to-Machine application client ID | `abcd1234efgh5678ijkl` |
 | `LOGTO_M2M_CLIENT_SECRET` | Machine-to-Machine application secret | `your-secret-here` |
 | `LOGTO_FRONTEND_APP_ID` | Frontend application ID to update | `frontend-app-id-here` |
+
+### End-to-end suite
+
+These must point at a Logto tenant **dedicated to CI** — neither QA nor production, and not the
+tenant people develop against.
+
+Two reasons. The full-stack specs create and delete organizations, and QA and production share a
+database and a tenant with real users. And the fixture is not per-run: `prefix` in
+`backend/authz/fixture.yml` fixes the organization keys and persona addresses, so a CI run and
+somebody's local `apitool authz provision` on the same tenant fight over the same Logto users. (What
+each side deletes is safely scoped — the specs refuse any name outside the `e2e-` prefix and
+`authz teardown` only removes what its own registry records — so the failure mode is a collision
+during provisioning, not lost data.)
+
+| Secret Name | Description | Example Value |
+|-------------|-------------|---------------|
+| `E2E_LOGTO_ENDPOINT` | Logto endpoint for the e2e tenant | `https://your-tenant.logto.app` |
+| `E2E_LOGTO_APP_ID` | SPA application id the fixture is provisioned against | `p18mtn23wn87nvz1tscf7` |
+| `E2E_LOGTO_TENANT_ID` | Tenant id, for the backend | `your-tenant-id` |
+| `E2E_LOGTO_TENANT_DOMAIN` | Tenant domain, for the backend | `your-tenant.logto.app` |
+| `E2E_LOGTO_BACKEND_APP_ID` | M2M application id with Management API access | `abcd1234efgh5678ijkl` |
+| `E2E_LOGTO_BACKEND_APP_SECRET` | M2M application secret | `your-secret-here` |
+| `E2E_JWT_SECRET` | Signing key for the stack under test (min 32 chars) | `a-32-char-or-longer-random-string` |
+| `E2E_OWNER_EMAIL` | Owner account `apitool` acts as | `owner@example.com` |
+| `E2E_OWNER_PASSWORD` | Owner account password | `your-password-here` |
+| `E2E_SMOKE_EMAIL` | Dedicated read-only account in the **QA** tenant | `e2e@example.com` |
+| `E2E_SMOKE_PASSWORD` | That account's password | `your-password-here` |
+
+Without the two `E2E_SMOKE_*` values the smoke job still runs, covering only the public surface.
+
+There are deliberately no `SMTP_*` secrets here. Creating a user makes the backend send a welcome
+email with a temporary password, and the full-stack suite creates one per run; the job writes no
+mail configuration, so nothing is sent. Do not add any.
 
 ## Setup Instructions
 
