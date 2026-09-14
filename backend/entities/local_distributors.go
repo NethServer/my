@@ -407,8 +407,9 @@ func (r *LocalDistributorRepository) populateDistributorCounts(distributors []*m
 	distIDs := make([]string, 0, len(distributors))
 	for _, d := range distributors {
 		zero := 0
-		sc, rc, cc, ac := zero, zero, zero, zero
+		sc, rc, cc, ac, lc := zero, zero, zero, zero, zero
 		d.SystemsCount, d.ResellersCount, d.CustomersCount, d.ApplicationsCount = &sc, &rc, &cc, &ac
+		d.LegacySystemsCount = &lc
 		if d.LogtoID != nil && *d.LogtoID != "" {
 			byLogto[*d.LogtoID] = d
 			distIDs = append(distIDs, *d.LogtoID)
@@ -492,6 +493,17 @@ func (r *LocalDistributorRepository) populateDistributorCounts(distributors []*m
 		orgToDist, byLogto, func(d *models.LocalDistributor) *int { return d.ApplicationsCount },
 	); err != nil {
 		return fmt.Errorf("failed to fold hosted application counts: %w", err)
+	}
+	// Systems still on the old my, pushed per organization by the legacy sync.
+	// The table already holds one pre-aggregated row per organization, so the
+	// rows fold straight into the same subtree map: a distributor picks up its
+	// resellers' legacy estate for free. A legacy sync that never ran leaves the
+	// table empty and every distributor at zero.
+	if err := r.foldOrgCounts(
+		`SELECT organization_id, total FROM legacy_systems_by_org`,
+		orgToDist, byLogto, func(d *models.LocalDistributor) *int { return d.LegacySystemsCount },
+	); err != nil {
+		return fmt.Errorf("failed to fold legacy system counts: %w", err)
 	}
 
 	return nil
@@ -791,6 +803,8 @@ func (r *LocalDistributorRepository) GetStats(id string) (*models.DistributorSta
 					)
 				)
 			)) as systems_hierarchy_count,
+			` + legacySystemsCount("$1") + ` as legacy_systems_count,
+			` + legacySystemsCount(hierarchy) + ` as legacy_systems_hierarchy_count,
 			(SELECT COUNT(*) FROM resellers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL) as resellers_count,
 			(SELECT COUNT(*) FROM customers c WHERE c.deleted_at IS NULL AND (
 				c.custom_data->>'createdBy' = $1
@@ -808,6 +822,7 @@ func (r *LocalDistributorRepository) GetStats(id string) (*models.DistributorSta
 	err = r.db.QueryRow(query, *distributor.LogtoID).Scan(
 		&stats.UsersCount, &stats.UsersHierarchyCount,
 		&stats.SystemsCount, &stats.SystemsHierarchyCount,
+		&stats.LegacySystemsCount, &stats.LegacySystemsHierarchyCount,
 		&stats.ResellersCount, &stats.CustomersCount,
 		&stats.ApplicationsAssignedCount, &stats.ApplicationsUnassignedCount,
 		&stats.ApplicationsAssignedHierarchyCount, &stats.ApplicationsUnassignedHierarchyCount,

@@ -11,6 +11,7 @@ package middleware
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/nethesis/my/backend/helpers"
@@ -113,6 +114,11 @@ func RequireUserRole(role string) gin.HandlerFunc {
 
 // RequireOrgRole checks if user's organization has a specific business hierarchy role
 // Use this when you need to ensure user belongs to organization with specific business level
+//
+// The comparison is case-insensitive, like models.IsGlobalOrgRole: the role
+// constants are lowercase ("owner") while the value carried on the token is
+// capitalised ("Owner"), so an exact match could never grant the Owner
+// organization anything.
 func RequireOrgRole(role string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, ok := helpers.GetUserFromContext(c)
@@ -120,7 +126,7 @@ func RequireOrgRole(role string) gin.HandlerFunc {
 			return
 		}
 
-		if user.OrgRole != role {
+		if !strings.EqualFold(user.OrgRole, role) {
 			logger.RequestLogger(c, "rbac").Warn().
 				Str("operation", "org_role_denied").
 				Str("required_org_role", role).
@@ -155,6 +161,8 @@ func RequireOrgRole(role string) gin.HandlerFunc {
 
 // RequireAnyOrgRole checks if user's organization has any of the specified business hierarchy roles
 // Useful for hierarchical access where multiple levels can access a resource
+//
+// Case-insensitive for the same reason as RequireOrgRole above.
 func RequireAnyOrgRole(roles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, ok := helpers.GetUserFromContext(c)
@@ -163,7 +171,7 @@ func RequireAnyOrgRole(roles ...string) gin.HandlerFunc {
 		}
 
 		for _, role := range roles {
-			if user.OrgRole == role {
+			if strings.EqualFold(user.OrgRole, role) {
 				logger.RequestLogger(c, "rbac").Info().
 					Str("operation", "any_org_role_granted").
 					Strs("required_org_roles", roles).

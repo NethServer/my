@@ -1143,11 +1143,13 @@ func (s *LocalSystemsService) GetTotalsByCreatedByOrganizations(allowedOrgIDs []
 	// nil = owner (no filter), empty = no access
 	if allowedOrgIDs != nil && len(allowedOrgIDs) == 0 {
 		return &models.SystemTotals{
-			Total:          0,
-			Active:         0,
-			Inactive:       0,
-			Unknown:        0,
-			TimeoutMinutes: timeoutMinutes,
+			Total:           0,
+			Active:          0,
+			Inactive:        0,
+			Unknown:         0,
+			Legacy:          0,
+			TotalWithLegacy: 0,
+			TimeoutMinutes:  timeoutMinutes,
 		}, nil
 	}
 
@@ -1181,12 +1183,40 @@ func (s *LocalSystemsService) GetTotalsByCreatedByOrganizations(allowedOrgIDs []
 		return nil, fmt.Errorf("failed to get systems totals: %w", err)
 	}
 
+	// Systems still on the old my, for the same scope. The count is pushed here
+	// by the legacy sync, so this is a local read: a legacy outage leaves the
+	// number stale, it never slows down or breaks this call. A failure to read
+	// it must not take the whole totals response down either — the managed
+	// counts are the important part — so it degrades to zero and logs.
+	//
+	// A nil scope is the Owner organization, which covers Staff too: Staff is a
+	// user role inside that org and shares its Owner org role, so it reaches the
+	// whole hierarchy here. Only destructive authority separates the two, and
+	// this is a read.
+	legacyRepo := entities.NewLocalLegacySystemsByOrgRepository()
+	var legacySum entities.LegacySystemsSum
+	var legacyErr error
+	if allowedOrgIDs == nil {
+		legacySum, legacyErr = legacyRepo.SumAll()
+	} else {
+		legacySum, legacyErr = legacyRepo.SumByOrgIDs(allowedOrgIDs)
+	}
+	if legacyErr != nil {
+		logger.ComponentLogger("systems").Warn().
+			Err(legacyErr).
+			Str("operation", "legacy_systems_totals").
+			Msg("Failed to read legacy systems count; reporting zero")
+		legacySum = entities.LegacySystemsSum{}
+	}
+
 	return &models.SystemTotals{
-		Total:          total,
-		Active:         active,
-		Inactive:       inactive,
-		Unknown:        unknown,
-		TimeoutMinutes: timeoutMinutes,
+		Total:           total,
+		Active:          active,
+		Inactive:        inactive,
+		Unknown:         unknown,
+		Legacy:          legacySum.Total,
+		TotalWithLegacy: total + legacySum.Total,
+		TimeoutMinutes:  timeoutMinutes,
 	}, nil
 }
 

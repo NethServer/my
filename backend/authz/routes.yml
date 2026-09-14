@@ -373,6 +373,20 @@ routes:
     object_scoped: true
     ids: { entitlement: ng-antivirus }
 
+  - method: PUT
+    path: /api/legacy-systems/counts
+    intent: owner_only
+    body: '{"counts":[]}'
+    note: |
+      How many systems each partner still has on the old my, pushed by the
+      legacy sync with the owner API key and read back through the systems
+      totals. No permission of its own: it is gated on the Owner organization,
+      which is the honest statement — the payload is a picture of the whole
+      fleet, and a partner writing it could inflate or erase any other
+      partner's counter. Staff reaches it too, and that is intended: rewriting
+      a cosmetic counter is not destructive authority. Transitional, it goes
+      away with the legacy decommission.
+
   - method: GET
     path: /api/entitlements/catalog
     intent: read:entitlements

@@ -312,6 +312,7 @@ func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, searc
 			           UNION ALL
 			           SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL
 			       )) as systems_count,
+			       `+legacySystemsCount("SELECT r.logto_id")+` as legacy_systems_count,
 			       (SELECT COUNT(*) FROM customers c WHERE c.custom_data->>'createdBy' = r.logto_id AND c.deleted_at IS NULL) as customers_count,
 			       `+certifiedApplicationsCount("SELECT r.logto_id UNION ALL SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL")+` as applications_count
 			FROM resellers r
@@ -333,6 +334,7 @@ func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, searc
 			           UNION ALL
 			           SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL
 			       )) as systems_count,
+			       `+legacySystemsCount("SELECT r.logto_id")+` as legacy_systems_count,
 			       (SELECT COUNT(*) FROM customers c WHERE c.custom_data->>'createdBy' = r.logto_id AND c.deleted_at IS NULL) as customers_count,
 			       `+certifiedApplicationsCount("SELECT r.logto_id UNION ALL SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL")+` as applications_count
 			FROM resellers r
@@ -415,6 +417,7 @@ func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pag
 			           UNION ALL
 			           SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL
 			       )) as systems_count,
+			       `+legacySystemsCount("SELECT r.logto_id")+` as legacy_systems_count,
 			       (SELECT COUNT(*) FROM customers c WHERE c.custom_data->>'createdBy' = r.logto_id AND c.deleted_at IS NULL) as customers_count,
 			       `+certifiedApplicationsCount("SELECT r.logto_id UNION ALL SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL")+` as applications_count
 			FROM resellers r
@@ -436,6 +439,7 @@ func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pag
 			           UNION ALL
 			           SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL
 			       )) as systems_count,
+			       `+legacySystemsCount("SELECT r.logto_id")+` as legacy_systems_count,
 			       (SELECT COUNT(*) FROM customers c WHERE c.custom_data->>'createdBy' = r.logto_id AND c.deleted_at IS NULL) as customers_count,
 			       `+certifiedApplicationsCount("SELECT r.logto_id UNION ALL SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL")+` as applications_count
 			FROM resellers r
@@ -476,14 +480,14 @@ func (r *LocalResellerRepository) executeResellerQuery(countQuery string, countA
 	for rows.Next() {
 		reseller := &models.LocalReseller{}
 		var customDataJSON []byte
-		var systemsCount, customersCount, applicationsCount int
+		var systemsCount, legacySystemsCount, customersCount, applicationsCount int
 
 		err := rows.Scan(
 			&reseller.ID, &reseller.LogtoID, &reseller.Name, &reseller.Description,
 			&customDataJSON, &reseller.CreatedAt, &reseller.UpdatedAt,
 			&reseller.LogtoSyncedAt, &reseller.LogtoSyncError, &reseller.DeletedAt,
 			&reseller.SuspendedAt, &reseller.SuspendedByOrgID,
-			&systemsCount, &customersCount, &applicationsCount,
+			&systemsCount, &legacySystemsCount, &customersCount, &applicationsCount,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan reseller: %w", err)
@@ -500,6 +504,7 @@ func (r *LocalResellerRepository) executeResellerQuery(countQuery string, countA
 
 		reseller.CreatedBy = models.ExtractOrgCreator(reseller.CustomData)
 		reseller.SystemsCount = &systemsCount
+		reseller.LegacySystemsCount = &legacySystemsCount
 		reseller.CustomersCount = &customersCount
 		reseller.ApplicationsCount = &applicationsCount
 
@@ -774,6 +779,8 @@ func (r *LocalResellerRepository) GetStats(id string) (*models.ResellerStats, er
 				UNION ALL
 				SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 			)) as systems_hierarchy_count,
+			` + legacySystemsCount("$1") + ` as legacy_systems_count,
+			` + legacySystemsCount(hierarchy) + ` as legacy_systems_hierarchy_count,
 			(SELECT COUNT(*) FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL) as customers_count,
 			` + assignedApplicationsCount("$1") + ` as applications_assigned_count,
 			` + unassignedApplicationsCount("$1") + ` as applications_unassigned_count,
@@ -784,6 +791,7 @@ func (r *LocalResellerRepository) GetStats(id string) (*models.ResellerStats, er
 	err = r.db.QueryRow(query, *reseller.LogtoID).Scan(
 		&stats.UsersCount, &stats.UsersHierarchyCount,
 		&stats.SystemsCount, &stats.SystemsHierarchyCount,
+		&stats.LegacySystemsCount, &stats.LegacySystemsHierarchyCount,
 		&stats.CustomersCount,
 		&stats.ApplicationsAssignedCount, &stats.ApplicationsUnassignedCount,
 		&stats.ApplicationsAssignedHierarchyCount, &stats.ApplicationsUnassignedHierarchyCount,

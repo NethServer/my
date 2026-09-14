@@ -60,13 +60,21 @@ func GetSystemsTotals(c *gin.Context) {
 		return
 	}
 
-	// Convert to response format
+	// Convert to response format.
+	//
+	// "total" stays the count of the systems this portal manages, so it keeps
+	// agreeing with the systems list and with the three status counts beside it.
+	// The partner's whole estate during the migration is total_with_legacy: the
+	// systems still on the old my have no row here to break down by status, and
+	// no page to link to on this side.
 	result := map[string]interface{}{
-		"total":           totals.Total,
-		"active":          totals.Active,
-		"inactive":        totals.Inactive,
-		"unknown":         totals.Unknown,
-		"timeout_minutes": totals.TimeoutMinutes,
+		"total":             totals.Total,
+		"active":            totals.Active,
+		"inactive":          totals.Inactive,
+		"unknown":           totals.Unknown,
+		"legacy":            totals.Legacy,
+		"total_with_legacy": totals.TotalWithLegacy,
+		"timeout_minutes":   totals.TimeoutMinutes,
 	}
 
 	logger.Info().
@@ -78,6 +86,7 @@ func GetSystemsTotals(c *gin.Context) {
 		Int("active", totals.Active).
 		Int("inactive", totals.Inactive).
 		Int("unknown", totals.Unknown).
+		Int("legacy", totals.Legacy).
 		Int("timeout_minutes", totals.TimeoutMinutes).
 		Msg("systems totals retrieved")
 

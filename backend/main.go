@@ -36,6 +36,7 @@ import (
 	"github.com/nethesis/my/backend/methods"
 	"github.com/nethesis/my/backend/methods/validators"
 	"github.com/nethesis/my/backend/middleware"
+	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/pkg/version"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services/local"
@@ -249,6 +250,17 @@ func main() {
 			systemsGroup.POST("/:id/entitlements", methods.CreateSystemEntitlement)                // Owner organization only (handler-gated)
 			systemsGroup.PUT("/:id/entitlements/:entitlement", methods.UpdateSystemEntitlement)    // Owner organization only (handler-gated)
 			systemsGroup.DELETE("/:id/entitlements/:entitlement", methods.DeleteSystemEntitlement) // Owner organization only (handler-gated)
+		}
+
+		// LEGACY SYSTEMS - how many systems each organization still has on the old
+		// my. Written once per run by the proxy_sync cron on the legacy host with
+		// the owner API key; read back through the systems totals. Owner
+		// organization only: it is a picture of the whole fleet, and a partner
+		// must never be able to rewrite it. Transitional, removed with the legacy
+		// decommission.
+		legacySystemsGroup := customAuthWithAudit.Group("/legacy-systems", middleware.RequireOrgRole(models.OwnerOrgRole))
+		{
+			legacySystemsGroup.PUT("/counts", methods.ReplaceLegacySystemCounts) // Full replacement of the per-organization counts
 		}
 
 		// Entitlement catalog (DB-driven add-on types; writes need manage:entitlements — the licensing back-office duty)

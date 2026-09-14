@@ -38,6 +38,11 @@ type LocalDistributor struct {
 	CustomersCount    *int `json:"customers_count,omitempty"`
 	ApplicationsCount *int `json:"applications_count,omitempty"`
 
+	// Systems still on the old my for this subtree, counted separately so that
+	// SystemsCount keeps meaning "systems this portal manages". Transitional:
+	// it goes away with the legacy decommission.
+	LegacySystemsCount *int `json:"legacy_systems_count,omitempty"`
+
 	// Creator snapshot (resolved from custom_data.createdByUser at read time)
 	CreatedBy *OrgCreator `json:"created_by,omitempty"`
 
@@ -190,6 +195,11 @@ type LocalReseller struct {
 	CustomersCount    *int `json:"customers_count,omitempty"`
 	ApplicationsCount *int `json:"applications_count,omitempty"`
 
+	// Systems still on the old my for this reseller, counted separately so that
+	// SystemsCount keeps meaning "systems this portal manages". Transitional:
+	// it goes away with the legacy decommission.
+	LegacySystemsCount *int `json:"legacy_systems_count,omitempty"`
+
 	// Creator snapshot (resolved from custom_data.createdByUser at read time)
 	CreatedBy *OrgCreator `json:"created_by,omitempty"`
 }
@@ -314,12 +324,37 @@ type LocalUser struct {
 }
 
 // SystemTotals represents total counts and status for systems
+//
+// Total counts only the systems managed here. Legacy counts the ones still on
+// the old my (legacy.my.nethesis.it) for the same scope, pushed by the legacy
+// sync; TotalWithLegacy is the sum, i.e. the partner's whole estate across the
+// two portals. Legacy systems have no row here, so they never appear in the
+// active/inactive/unknown breakdown and cannot be listed or clicked through —
+// the detail lives on the legacy portal. All three legacy fields disappear
+// once the old my is decommissioned.
 type SystemTotals struct {
-	Total          int `json:"total"`
-	Active         int `json:"active"`
-	Inactive       int `json:"inactive"`
-	Unknown        int `json:"unknown"`
-	TimeoutMinutes int `json:"timeout_minutes"`
+	Total           int `json:"total"`
+	Active          int `json:"active"`
+	Inactive        int `json:"inactive"`
+	Unknown         int `json:"unknown"`
+	Legacy          int `json:"legacy"`
+	TotalWithLegacy int `json:"total_with_legacy"`
+	TimeoutMinutes  int `json:"timeout_minutes"`
+}
+
+// LegacySystemCount is one organization's share of the systems still on the old
+// my, as measured on the legacy side and keyed by the Logto org id its VAT
+// maps to.
+type LegacySystemCount struct {
+	OrganizationID string `json:"organization_id" binding:"required"`
+	Total          int    `json:"total"`
+}
+
+// ReplaceLegacySystemCountsRequest carries the complete set of legacy counts
+// for one sync run. It is a full replacement, not a delta: organizations absent
+// from Counts are organizations with no legacy systems left.
+type ReplaceLegacySystemCountsRequest struct {
+	Counts []LegacySystemCount `json:"counts" binding:"required,dive"`
 }
 
 // UserTotals represents total counts and status breakdown for user accounts
@@ -337,14 +372,21 @@ type OrganizationStats struct {
 
 // DistributorStats represents statistics for a distributor (includes resellers, customers, and applications)
 type DistributorStats struct {
-	UsersCount                 int `json:"users_count"`
-	UsersHierarchyCount        int `json:"users_hierarchy_count"`
-	SystemsCount               int `json:"systems_count"`
-	SystemsHierarchyCount      int `json:"systems_hierarchy_count"`
-	ResellersCount             int `json:"resellers_count"`
-	CustomersCount             int `json:"customers_count"`
-	ApplicationsCount          int `json:"applications_count"`           // direct applications
-	ApplicationsHierarchyCount int `json:"applications_hierarchy_count"` // applications in hierarchy
+	UsersCount            int `json:"users_count"`
+	UsersHierarchyCount   int `json:"users_hierarchy_count"`
+	SystemsCount          int `json:"systems_count"`
+	SystemsHierarchyCount int `json:"systems_hierarchy_count"`
+	// Systems still on the old my. Kept out of SystemsCount and
+	// SystemsHierarchyCount on purpose: those two answer "what does this portal
+	// manage", and blending the legacy estate into them would make every total
+	// unverifiable against the systems list. Transitional, both go away with the
+	// legacy decommission.
+	LegacySystemsCount          int `json:"legacy_systems_count"`
+	LegacySystemsHierarchyCount int `json:"legacy_systems_hierarchy_count"`
+	ResellersCount              int `json:"resellers_count"`
+	CustomersCount              int `json:"customers_count"`
+	ApplicationsCount           int `json:"applications_count"`           // direct applications
+	ApplicationsHierarchyCount  int `json:"applications_hierarchy_count"` // applications in hierarchy
 	// Assigned / unassigned split of the two counts above
 	ApplicationsAssignedCount            int `json:"applications_assigned_count"`
 	ApplicationsUnassignedCount          int `json:"applications_unassigned_count"`
@@ -354,13 +396,22 @@ type DistributorStats struct {
 
 // ResellerStats represents statistics for a reseller (includes customers and applications)
 type ResellerStats struct {
-	UsersCount                 int `json:"users_count"`
-	UsersHierarchyCount        int `json:"users_hierarchy_count"`
-	SystemsCount               int `json:"systems_count"`
-	SystemsHierarchyCount      int `json:"systems_hierarchy_count"`
-	CustomersCount             int `json:"customers_count"`
-	ApplicationsCount          int `json:"applications_count"`           // direct applications
-	ApplicationsHierarchyCount int `json:"applications_hierarchy_count"` // applications in hierarchy
+	UsersCount            int `json:"users_count"`
+	UsersHierarchyCount   int `json:"users_hierarchy_count"`
+	SystemsCount          int `json:"systems_count"`
+	SystemsHierarchyCount int `json:"systems_hierarchy_count"`
+	// Systems still on the old my. Kept out of SystemsCount and
+	// SystemsHierarchyCount on purpose: those two answer "what does this portal
+	// manage", and blending the legacy estate into them would make every total
+	// unverifiable against the systems list. Transitional, both go away with the
+	// legacy decommission.
+	// For a reseller the two coincide: legacy counts are keyed on the reseller
+	// organization, never on its customers, so the subtree adds nothing.
+	LegacySystemsCount          int `json:"legacy_systems_count"`
+	LegacySystemsHierarchyCount int `json:"legacy_systems_hierarchy_count"`
+	CustomersCount              int `json:"customers_count"`
+	ApplicationsCount           int `json:"applications_count"`           // direct applications
+	ApplicationsHierarchyCount  int `json:"applications_hierarchy_count"` // applications in hierarchy
 	// Assigned / unassigned split of the two counts above
 	ApplicationsAssignedCount            int `json:"applications_assigned_count"`
 	ApplicationsUnassignedCount          int `json:"applications_unassigned_count"`
