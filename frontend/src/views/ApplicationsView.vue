@@ -24,14 +24,17 @@ const loginStore = useLoginStore()
 
 const { state: applicationsTotal } = useApplicationsTotal()
 
-const { organizationFilter, applyHierarchyFilter, clearFilters } = useApplications()
+const { organizationFilter, includeHierarchy, applyHierarchyFilter, clearFilters } =
+  useApplications()
 
 const justHiddenUnassignedAppsNotification = ref(false)
 
 const showUnassignedAppsNotification = computed(() => {
   const username = loginStore.userInfo?.email
 
-  if (!username || justHiddenUnassignedAppsNotification.value) {
+  // the count behind the notification ignores the hierarchy filter, so it
+  // would contradict the table while that filter is on
+  if (!username || justHiddenUnassignedAppsNotification.value || includeHierarchy.value) {
     return false
   }
 
