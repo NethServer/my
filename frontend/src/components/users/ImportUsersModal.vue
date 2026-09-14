@@ -5,11 +5,13 @@
 
 <script setup lang="ts">
 import {
+  NeCombobox,
   NeFileInput,
   NeInlineNotification,
   NeModal,
   NeRadioSelection,
   focusElement,
+  type NeComboboxOption,
   type RadioOption,
   NeTooltip,
   NeFormItemLabel,
@@ -26,6 +28,7 @@ import {
   type ImportValidationResult,
   type ImportRow,
   type ImportFieldError,
+  type ImportOrgCandidate,
 } from '@/lib/users/users'
 import { useNotificationsStore } from '@/stores/notifications'
 import ImportUsersPreviewTable from './ImportUsersPreviewTable.vue'
@@ -34,6 +37,14 @@ import capitalize from 'lodash/capitalize'
 const { isShown = false } = defineProps<{
   isShown: boolean
 }>()
+
+interface AmbiguousGroup {
+  // lowercased company name: the backend resolves names case-insensitively
+  key: string
+  name: string
+  candidates: ImportOrgCandidate[]
+  rows: ImportRow[]
+}
 
 const emit = defineEmits(['close'])
 
@@ -54,19 +65,25 @@ const ERROR_PREVIEW_COUNT = 5
 const ERROR_INCREMENT = 5
 const visibleErrorCount = ref(ERROR_PREVIEW_COUNT)
 const visibleWarningCount = ref(ERROR_PREVIEW_COUNT)
+const visibleAmbiguousCount = ref(ERROR_PREVIEW_COUNT)
 const existingUsersOption = ref<'skip' | 'update'>('skip')
+// Organization picked for each ambiguous company name. A CSV names a company
+// once and means it for every row that carries it, so the choice is made per
+// company and applied to all its rows; the API still takes it per row.
+const companyResolutions = ref<Record<string, string>>({})
 const importTypeOptions = computed<RadioOption[]>(() => [
   { id: 'skip', label: t('import.users.import_type_skip') },
   { id: 'update', label: t('import.users.import_type_overwrite') },
 ])
 
 const errorRows = computed(
-  () =>
-    validationResult.value?.rows.filter((r) => r.status === 'error' || r.status === 'ambiguous') ??
-    [],
+  () => validationResult.value?.rows.filter((r) => r.status === 'error') ?? [],
 )
 const warningRows = computed(
   () => validationResult.value?.rows.filter((r) => r.status === 'warning') ?? [],
+)
+const ambiguousRows = computed(
+  () => validationResult.value?.rows.filter((r) => r.status === 'ambiguous') ?? [],
 )
 const visibleErrorRows = computed(() => errorRows.value.slice(0, visibleErrorCount.value))
 const hiddenErrorCount = computed(() =>
@@ -76,17 +93,81 @@ const visibleWarningRows = computed(() => warningRows.value.slice(0, visibleWarn
 const hiddenWarningCount = computed(() =>
   Math.max(0, warningRows.value.length - visibleWarningCount.value),
 )
+// Ambiguous rows grouped by the company name they carry. Resolution is a
+// name lookup, so every row of a group has the same candidates.
+const ambiguousGroups = computed<AmbiguousGroup[]>(() => {
+  const groups = new Map<string, AmbiguousGroup>()
+  for (const row of ambiguousRows.value) {
+    const name = String(row.data?.company_name ?? '').trim()
+    const key = name.toLowerCase()
+    const group = groups.get(key)
+    if (group) {
+      group.rows.push(row)
+    } else {
+      groups.set(key, { key, name, candidates: rowCandidates(row), rows: [row] })
+    }
+  }
+  return Array.from(groups.values())
+})
+const visibleAmbiguousGroups = computed(() =>
+  ambiguousGroups.value.slice(0, visibleAmbiguousCount.value),
+)
+const hiddenAmbiguousCount = computed(() =>
+  Math.max(0, ambiguousGroups.value.length - visibleAmbiguousCount.value),
+)
+const resolvedAmbiguousRows = computed(() =>
+  ambiguousGroups.value
+    .filter((group) => !!companyResolutions.value[group.key])
+    .flatMap((group) => group.rows),
+)
+const unresolvedAmbiguousCount = computed(
+  () => ambiguousRows.value.length - resolvedAmbiguousRows.value.length,
+)
+// Rows a resolved group actually imports, with the distinct companies behind
+// them. Once its organization is picked, a row whose user already exists
+// follows the existing-users option, exactly like a warning row.
+const importableAmbiguous = computed(() => {
+  const rows: ImportRow[] = []
+  const organizations = new Set<string>()
+  for (const group of ambiguousGroups.value) {
+    const organizationId = companyResolutions.value[group.key]
+    if (!organizationId) continue
+    const groupRows =
+      existingUsersOption.value === 'update'
+        ? group.rows
+        : group.rows.filter((row) => !isExistingUserRow(row))
+    if (groupRows.length === 0) continue
+    rows.push(...groupRows)
+    organizations.add(organizationId)
+  }
+  return { rows, organizations }
+})
+const importableAmbiguousCount = computed(() => importableAmbiguous.value.rows.length)
+const skippedAmbiguousCount = computed(
+  () => resolvedAmbiguousRows.value.length - importableAmbiguousCount.value,
+)
+// The wording has to hold for a file carrying several ambiguous names resolved
+// to different companies, so it follows the destinations, not the user count.
+const ambiguousResolvedSummary = computed(() =>
+  t(
+    importableAmbiguous.value.organizations.size > 1
+      ? 'import.users.import_summary_ambiguous_resolved_multi'
+      : 'import.users.import_summary_ambiguous_resolved',
+    { count: importableAmbiguousCount.value },
+  ),
+)
+const hasExistingUserRows = computed(
+  () => warningRows.value.length > 0 || ambiguousRows.value.some(isExistingUserRow),
+)
 
-// Count of users to import based on the selected option
+// Count of users to import based on the selected option. Ambiguous rows join
+// the count only once their organization has been picked.
 const importCount = computed(() => {
   if (!validationResult.value) return 0
-  if (existingUsersOption.value === 'skip') {
-    // Only new users (valid_rows excludes warning rows)
-    return validationResult.value.valid_rows
-  } else {
-    // New users + existing users to update (warning_rows are existing users)
-    return validationResult.value.valid_rows + validationResult.value.warning_rows
-  }
+  // warning_rows are existing users, imported as updates only on 'update'
+  const existingUsers =
+    existingUsersOption.value === 'update' ? validationResult.value.warning_rows : 0
+  return validationResult.value.valid_rows + existingUsers + importableAmbiguousCount.value
 })
 
 // ---------------------------------------------------------------
@@ -120,7 +201,7 @@ const {
   mutation: () => {
     if (!validationResult.value) throw new Error('No validation result')
     const override = existingUsersOption.value === 'update'
-    return confirmUsersImport(validationResult.value.import_id, override)
+    return confirmUsersImport(validationResult.value.import_id, override, buildResolutions())
   },
   onSuccess(data) {
     emit('close')
@@ -171,7 +252,9 @@ function reset() {
   validationResult.value = null
   visibleErrorCount.value = ERROR_PREVIEW_COUNT
   visibleWarningCount.value = ERROR_PREVIEW_COUNT
+  visibleAmbiguousCount.value = ERROR_PREVIEW_COUNT
   existingUsersOption.value = 'skip'
+  companyResolutions.value = {}
   validateReset()
   confirmReset()
 }
@@ -190,7 +273,9 @@ function goBack() {
   validationResult.value = null
   visibleErrorCount.value = ERROR_PREVIEW_COUNT
   visibleWarningCount.value = ERROR_PREVIEW_COUNT
+  visibleAmbiguousCount.value = ERROR_PREVIEW_COUNT
   existingUsersOption.value = 'skip'
+  companyResolutions.value = {}
   confirmReset()
 }
 
@@ -200,6 +285,10 @@ function showMoreErrors() {
 
 function showMoreWarnings() {
   visibleWarningCount.value += ERROR_INCREMENT
+}
+
+function showMoreAmbiguous() {
+  visibleAmbiguousCount.value += ERROR_INCREMENT
 }
 
 // ---------------------------------------------------------------
@@ -258,6 +347,54 @@ function formatErrorParams(issue: ImportFieldError): string[] {
   } else {
     return issue.values
   }
+}
+
+function isExistingUserRow(row: ImportRow): boolean {
+  return !!row.warnings?.some(
+    (warning) => warning.field === 'email' && warning.message === 'already_exists',
+  )
+}
+
+function rowCandidates(row: ImportRow): ImportOrgCandidate[] {
+  return row.errors?.find((issue) => issue.candidates?.length)?.candidates ?? []
+}
+
+function candidateOptions(group: AmbiguousGroup): NeComboboxOption[] {
+  // The candidates share the same name — the organization type is what tells
+  // them apart, so it goes in the description.
+  return group.candidates.map((candidate) => ({
+    id: candidate.logto_id,
+    label: candidate.name,
+    description: t(`organizations.${candidate.type}`),
+  }))
+}
+
+// The field shows the option label alone, and every candidate has the same
+// name: the type of the picked one is spelled out under the field.
+function groupHelperText(group: AmbiguousGroup): string {
+  const chosen = companyResolutions.value[group.key]
+  const candidate = group.candidates.find((c) => c.logto_id === chosen)
+  if (!candidate) {
+    return ''
+  }
+  return t('import.import_ambiguous_selected', { type: t(`organizations.${candidate.type}`) })
+}
+
+function onResolutionChange(group: AmbiguousGroup, organizationId: string | NeComboboxOption[]) {
+  if (typeof organizationId !== 'string') return
+  companyResolutions.value = { ...companyResolutions.value, [group.key]: organizationId }
+}
+
+function buildResolutions(): Record<string, { organization_id: string }> {
+  const resolutions: Record<string, { organization_id: string }> = {}
+  for (const group of ambiguousGroups.value) {
+    const organizationId = companyResolutions.value[group.key]
+    if (!organizationId) continue
+    for (const row of group.rows) {
+      resolutions[String(row.row_number)] = { organization_id: organizationId }
+    }
+  }
+  return resolutions
 }
 
 function errorSummaryText(row: ImportRow): string {
@@ -358,7 +495,7 @@ function errorSummaryText(row: ImportRow): string {
 
       <!-- existing users option -->
       <NeRadioSelection
-        v-if="warningRows.length > 0"
+        v-if="hasExistingUserRows"
         v-model="existingUsersOption"
         :options="importTypeOptions"
         :label="$t('import.users.import_existing_users_label')"
@@ -372,6 +509,46 @@ function errorSummaryText(row: ImportRow): string {
         </template>
       </NeRadioSelection>
 
+      <!-- ambiguous company names: pick one of the candidates per row -->
+      <div v-if="ambiguousGroups.length > 0" class="space-y-4">
+        <div class="space-y-1">
+          <NeFormItemLabel>{{ $t('import.import_ambiguous_label') }}</NeFormItemLabel>
+          <p class="text-sm text-gray-500 dark:text-gray-400">
+            {{ $t('import.import_ambiguous_description') }}
+          </p>
+        </div>
+        <NeCombobox
+          v-for="group in visibleAmbiguousGroups"
+          :key="group.key"
+          :model-value="companyResolutions[group.key] ?? ''"
+          :options="candidateOptions(group)"
+          :label="
+            $t('import.import_ambiguous_group_label', {
+              company: group.name,
+              count: group.rows.length,
+            })
+          "
+          :placeholder="$t('import.import_ambiguous_placeholder')"
+          :helper-text="groupHelperText(group)"
+          :disabled="confirmLoading"
+          :no-results-label="$t('ne_combobox.no_results')"
+          :limited-options-label="$t('ne_combobox.limited_options_label')"
+          :no-options-label="$t('ne_combobox.no_options_label')"
+          :selected-label="$t('ne_combobox.selected')"
+          :user-input-label="$t('ne_combobox.user_input_label')"
+          :optional-label="$t('common.optional')"
+          @update:model-value="onResolutionChange(group, $event)"
+        />
+        <button
+          v-if="hiddenAmbiguousCount > 0"
+          type="button"
+          class="text-primary-700 hover:text-primary-800 dark:text-primary-500 dark:hover:text-primary-400 text-sm font-medium hover:underline"
+          @click="showMoreAmbiguous()"
+        >
+          {{ $t('common.plus_n_more', { count: hiddenAmbiguousCount }) }}
+        </button>
+      </div>
+
       <!-- summary -->
       <div class="text-tertiary-neutral dark:text-tertiary-neutral text-sm">
         <NeFormItemLabel>{{ $t('import.import_summary') }}</NeFormItemLabel>
@@ -382,13 +559,23 @@ function errorSummaryText(row: ImportRow): string {
           <li>
             {{ $t('import.import_summary_valid', { count: validationResult.valid_rows }) }}
           </li>
-          <li
-            v-if="validationResult.error_rows + validationResult.ambiguous_rows > 0"
-            class="text-rose-700 dark:text-rose-500"
-          >
+          <li v-if="validationResult.error_rows > 0" class="text-rose-700 dark:text-rose-500">
+            {{ $t('import.import_summary_errors', { count: validationResult.error_rows }) }}
+          </li>
+          <li v-if="unresolvedAmbiguousCount > 0" class="text-amber-700 dark:text-amber-500">
             {{
-              $t('import.import_summary_errors', {
-                count: validationResult.error_rows + validationResult.ambiguous_rows,
+              $t('import.users.import_summary_ambiguous_unresolved', {
+                count: unresolvedAmbiguousCount,
+              })
+            }}
+          </li>
+          <li v-if="importableAmbiguousCount > 0">
+            {{ ambiguousResolvedSummary }}
+          </li>
+          <li v-if="skippedAmbiguousCount > 0" class="text-amber-700 dark:text-amber-500">
+            {{
+              $t('import.users.import_summary_ambiguous_existing_skip', {
+                count: skippedAmbiguousCount,
               })
             }}
           </li>
@@ -406,7 +593,7 @@ function errorSummaryText(row: ImportRow): string {
         </ul>
       </div>
 
-      <!-- error rows (blocking + ambiguous) -->
+      <!-- error rows (blocking) -->
       <NeInlineNotification
         v-if="errorRows.length > 0"
         kind="error"
