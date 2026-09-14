@@ -2136,6 +2136,15 @@ components:
           nullable: true
           description: Logto organization ID (logto_id) that provides the rebranding assets (the org itself or an ancestor). Use this value as the :org_id parameter in /api/rebranding/:org_id/* endpoints.
           example: "org_dist001"
+        addons:
+          type: array
+          description: |
+            Catalog ids of the add-ons granted on the system and valid right now.
+            Present on the systems list only when it is requested with
+            include_addons=true, and omitted for a system holding none.
+          items:
+            type: string
+          example: ["nsec-blacklist", "nsec-ha"]
 
     SystemCreator:
       type: object
@@ -3785,7 +3794,7 @@ components:
             - `valid` — passes all checks; will be CREATEd by `/import/confirm`.
             - `error` — at least one blocking error (see `errors[]`). Always skipped at confirm.
             - `warning` — entity already exists in the DB (see `warnings[]`). At confirm time it is **UPDATEd** with the CSV values when `override: true` is passed, otherwise skipped.
-            - `ambiguous` — only for users: the `organization` name matches multiple orgs in the caller's hierarchy. Must be resolved at confirm time via `resolutions[row_number].organization_id`, otherwise skipped.
+            - `ambiguous` — only for users: the `organization` name matches multiple orgs in the caller's hierarchy. Must be resolved at confirm time via `resolutions[row_number].organization_id`, otherwise skipped. An ambiguous row can still carry the `already_exists` warning: once resolved it is updated or skipped according to `override`, like a `warning` row.
 
             Status precedence: `error` > `ambiguous` > `warning` > `valid`. When a row qualifies for multiple categories (e.g. has both an error and a warning), the higher-precedence one wins; the lower-precedence diagnostics are still reported in their array for context.
         data:
@@ -4356,6 +4365,38 @@ components:
         example: ["active", "unknown"]
       style: form
       explode: true
+
+    SystemAddonFilterParam:
+      name: addon
+      in: query
+      description: |
+        Filter systems by add-on. Supports multiple values: a system matches when
+        it holds at least one of them (OR).
+
+        Only grants valid at the time of the request count — an expired or
+        revoked add-on is not one the system has. Use GET /api/filters/systems to
+        populate the choices with the add-ons actually present in the caller's
+        hierarchy.
+      required: false
+      schema:
+        type: array
+        items:
+          type: string
+        example: ["nsec-blacklist", "nsec-ha"]
+      style: form
+      explode: true
+
+    IncludeAddonsParam:
+      name: include_addons
+      in: query
+      description: |
+        Add the `addons` list to every system of the page. It costs one extra
+        indexed query per page, so it is opt-in: ask for it where the add-ons are
+        shown, leave it out for bulk reads.
+      required: false
+      schema:
+        type: boolean
+        example: true
 
     # Applications parameters
     AppSortByParam:
@@ -5462,7 +5503,7 @@ paths:
         | `valid` | All checks passed | CREATE |
         | `error` | At least one blocking error in `errors[]` (`required`, `invalid_format`, `duplicate_in_csv`, `not_found`, `unknown`, `archived`, `already_used`, …) | always skipped |
         | `warning` | `email` already exists in DB (in `warnings[]`) | UPDATE if `override: true`, else skipped |
-        | `ambiguous` | Organization name matches multiple orgs | CREATE with chosen org if `resolutions[row]` is set, else skipped |
+        | `ambiguous` | Organization name matches multiple orgs | With `resolutions[row]` the chosen org is applied and the row behaves as `valid` — or as `warning` when the email already exists; without it, skipped |
 
         Errors and warnings can coexist on the same row; status precedence is `error` > `ambiguous` > `warning` > `valid`.
 
@@ -5531,7 +5572,8 @@ paths:
         | `error` | skipped (`reason: error`) | skipped (`reason: error`) |
         | `warning` | skipped (`reason: warning_not_overridden`) | UPDATE — `name`, `phone`, `company_name`, `roles` overwritten from CSV (`email` is the lookup key, never changed) |
         | `ambiguous` (no resolution) | skipped (`reason: ambiguous_unresolved`) | same |
-        | `ambiguous` (resolution provided) | CREATE with chosen org | same |
+        | `ambiguous` (resolution provided) | CREATE with chosen org | CREATE with chosen org |
+        | `ambiguous` (resolution provided, email already exists) | skipped (`reason: warning_not_overridden`) | UPDATE with chosen org |
 
         **RBAC for override**
 
@@ -8602,10 +8644,10 @@ paths:
         - Backend - Filters
       summary: /filters/systems - Get aggregated system filters
       description: |
-        Aggregated endpoint that returns products, creators and versions
-        for the systems views. Auth is checked once, then the three datasets
-        are fetched in parallel. Respects RBAC hierarchy - users only see
-        data from systems they can access.
+        Aggregated endpoint that returns products, creators, versions and
+        add-ons for the systems views. Auth is checked once, then the four
+        datasets are fetched in parallel. Respects RBAC hierarchy - users only
+        see data from systems they can access.
 
         **Version Format**: Returns versions in prefixed format `product:version`
         (e.g., `"nsec:1.2.3"`, `"ns8:1.2.3"`) to avoid ambiguity when the same
@@ -8677,6 +8719,23 @@ paths:
                               description: List of versions in prefixed format (product:version)
                               example: ["nsec:8.6.0", "nsec:8.5.2"]
                         description: Versions grouped by product type
+                      addons:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              description: Add-on catalog id, the value to pass to the `addon` filter of GET /api/systems
+                              example: "nsec-blacklist"
+                            display_name:
+                              type: string
+                              description: Add-on name to show
+                              example: "Advanced Threat Shield"
+                        description: |
+                          Add-ons held by at least one visible system, with a grant
+                          valid right now. An add-on nobody in the hierarchy holds is
+                          left out: filtering by it could only return an empty list.
               example:
                 code: 200
                 message: "system filters retrieved successfully"
@@ -8693,6 +8752,11 @@ paths:
                       versions: ["nsec:8.6.0", "nsec:8.5.2"]
                     - product: "ns8"
                       versions: ["ns8:1.2.3", "ns8:1.1.0"]
+                  addons:
+                    - id: "nsec-blacklist"
+                      display_name: "Advanced Threat Shield"
+                    - id: "nsec-ha"
+                      display_name: "High Availability"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -9593,6 +9657,8 @@ paths:
         - $ref: '#/components/parameters/SystemOrganizationFilterParam'
         - $ref: '#/components/parameters/IncludeHierarchyParam'
         - $ref: '#/components/parameters/SystemStatusFilterParam'
+        - $ref: '#/components/parameters/SystemAddonFilterParam'
+        - $ref: '#/components/parameters/IncludeAddonsParam'
       responses:
         '200':
           description: Systems retrieved successfully
@@ -10278,6 +10344,7 @@ paths:
         - $ref: '#/components/parameters/SystemOrganizationFilterParam'
         - $ref: '#/components/parameters/IncludeHierarchyParam'
         - $ref: '#/components/parameters/SystemStatusFilterParam'
+        - $ref: '#/components/parameters/SystemAddonFilterParam'
       responses:
         '200':
           description: Export file generated successfully

@@ -238,8 +238,29 @@ func statusFilterClause(filterStatuses []string, argOffset int) (string, []inter
 	return "(" + strings.Join(statusParts, " OR ") + ")", args
 }
 
-// ListByCreatedByOrganizations returns paginated list of systems created by users in specified organizations with filters
-func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection, filterName string, filterSystemKeys, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses []string) ([]*models.System, int, error) {
+// addonFilterClause renders the `addon` query filter: the system holds at
+// least one of the selected add-ons. Only grants valid right now count — an
+// expired or revoked grant is not an add-on the system has. EXISTS keeps one
+// row per system where several of the selected add-ons are held.
+func addonFilterClause(filterAddons []string, argOffset int) (string, []interface{}) {
+	if len(filterAddons) == 0 {
+		return "", nil
+	}
+
+	clause := fmt.Sprintf(`EXISTS (SELECT 1 FROM system_entitlements se WHERE se.system_id = s.id AND se.entitlement = ANY($%d::text[]) AND se.revoked_at IS NULL AND (se.valid_until IS NULL OR se.valid_until > NOW()))`, argOffset+1)
+	return clause, []interface{}{pq.Array(filterAddons)}
+}
+
+// ListByCreatedByOrganizations returns paginated list of systems owned by the given organizations with filters
+func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection string, f models.SystemListFilters) ([]*models.System, int, error) {
+	filterName := f.Name
+	filterSystemKeys := f.SystemKeys
+	filterTypes := f.Types
+	filterCreatedBy := f.CreatedBy
+	filterVersions := f.Versions
+	filterOrgIDs := f.OrganizationIDs
+	filterStatuses := f.Statuses
+
 	// nil = owner (no RBAC filter), empty = no access
 	if allowedOrgIDs != nil && len(allowedOrgIDs) == 0 {
 		return []*models.System{}, 0, nil
@@ -370,6 +391,11 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	if statusClause, statusArgs := statusFilterClause(filterStatuses, len(args)); statusClause != "" {
 		whereClause += " AND " + statusClause
 		args = append(args, statusArgs...)
+	}
+
+	if addonClause, addonArgs := addonFilterClause(f.Addons, len(args)); addonClause != "" {
+		whereClause += " AND " + addonClause
+		args = append(args, addonArgs...)
 	}
 
 	// Build ORDER BY clause

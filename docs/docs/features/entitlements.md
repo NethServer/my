@@ -26,6 +26,15 @@ Each purchased add-on also shows **who bought it** (*Purchased by*), within the 
 
 The **Buy on NethShop** button opens the shop with the system (and application instance) pre-selected, so the purchase is bound to the right target with no manual input.
 
+## Finding the systems that hold an add-on
+
+The systems list carries an **Add-on** filter: pick one or more add-ons to keep
+only the systems that hold them. The menu offers the add-ons present on your own
+systems, and the match counts only grants that are valid at that moment, so an
+expired or cancelled add-on leaves the system out. The filter also applies to the
+CSV and PDF export, which therefore carries the same rows as the list on screen.
+See [Systems Management](../systems/management.md#filtering-and-search).
+
 ## Roles and permissions
 
 | Capability | Who |
@@ -58,3 +67,4 @@ The **Add-ons** page shows the same data as a dashboard, on the **Report** tab: 
 - Grants live in `system_entitlements` (one row per system + entitlement + scope; renewals update `valid_until` in place, revocations keep the row for audit). The purchase snapshot (`purchased_by`) and the tier (`variant`) are stored alongside, display-only.
 - Enforcement is served by collect: `GET /auth/service/<id>[?scope=<instance>]` with the system's Basic credentials returns `200` with an active grant, `403` without. Legacy wire ids (`ng-*`) are resolved through the catalog `legacy_alias`, so the appliance feeds keep calling the historical paths unchanged.
 - The shop activates and renews grants through `POST /api/entitlements/activate` (idempotent, addressed by `system_key`) and revokes them with `POST /api/entitlements/deactivate`.
+- `GET /api/systems` takes a repeatable `addon=<catalog id>` filter (several ids match any of them) and, with `include_addons=true`, adds to every system the `addons` list of the catalog ids it currently holds. The list is opt-in because it costs one extra query per page, which a bulk read has no use for. The choices for the filter come from `GET /api/filters/systems`, which returns the add-ons present in the caller's hierarchy as `{id, display_name}` pairs; `GET /api/entitlements/catalog` resolves any id to its name.

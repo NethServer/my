@@ -45,16 +45,22 @@ func GetSystemFilters(c *gin.Context) {
 		Versions []string `json:"versions"`
 	}
 
+	type Addon struct {
+		ID          string `json:"id"`
+		DisplayName string `json:"display_name"`
+	}
+
 	var (
 		products []string
 		creators []Creator
 		versions []ProductVersions
+		addons   []Addon
 
-		errProducts, errCreators, errVersions error
-		wg                                    sync.WaitGroup
+		errProducts, errCreators, errVersions, errAddons error
+		wg                                               sync.WaitGroup
 	)
 
-	wg.Add(3)
+	wg.Add(4)
 
 	// Products
 	go func() {
@@ -197,9 +203,46 @@ func GetSystemFilters(c *gin.Context) {
 		}
 	}()
 
+	// Add-ons
+	go func() {
+		defer wg.Done()
+
+		// Only add-ons actually held by a system the caller can see, and held
+		// right now: an option that can only ever return an empty list is
+		// noise in the dropdown. The catalog join gives the name to show.
+		query := `
+			SELECT DISTINCT e.entitlement, c.display_name
+			FROM system_entitlements e
+			JOIN systems ON systems.id = e.system_id
+			JOIN entitlement_catalog c ON c.id = e.entitlement
+			WHERE systems.deleted_at IS NULL
+				AND e.revoked_at IS NULL
+				AND (e.valid_until IS NULL OR e.valid_until > NOW())
+		`
+		var args []interface{}
+		query, args, _ = helpers.AppendOrgFilter(query, userOrgRole, userOrgID, "systems.", args, 1)
+		query += ` ORDER BY c.display_name ASC`
+
+		rows, err := database.DB.Query(query, args...)
+		if err != nil {
+			errAddons = fmt.Errorf("failed to retrieve add-on filters: %w", err)
+			return
+		}
+		defer func() { _ = rows.Close() }()
+
+		addons = make([]Addon, 0)
+		for rows.Next() {
+			var a Addon
+			if err := rows.Scan(&a.ID, &a.DisplayName); err != nil {
+				continue
+			}
+			addons = append(addons, a)
+		}
+	}()
+
 	wg.Wait()
 
-	for _, e := range []error{errProducts, errCreators, errVersions} {
+	for _, e := range []error{errProducts, errCreators, errVersions, errAddons} {
 		if e != nil {
 			logger.Error().Err(e).Str("user_id", userID).Msg("Failed in system filters")
 			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to retrieve system filters", nil))
@@ -211,5 +254,6 @@ func GetSystemFilters(c *gin.Context) {
 		"products":   products,
 		"created_by": creators,
 		"versions":   versions,
+		"addons":     addons,
 	}))
 }

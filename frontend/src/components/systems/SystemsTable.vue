@@ -86,6 +86,7 @@ const {
   versionFilter,
   statusFilter,
   organizationFilter,
+  addonFilter,
   includeHierarchy,
   sortBy,
   sortDescending,
@@ -171,6 +172,19 @@ const createdByFilterOptions = computed<NeDropdownFilterV2Option[]>(() => {
       id: createdBy.user_id,
       label: createdBy.name,
       description: createdBy.organization_name,
+    }))
+  }
+})
+
+// Only the add-ons someone in the hierarchy actually holds: the endpoint
+// leaves out the ones that could only ever return an empty list.
+const addonFilterOptions = computed<NeDropdownFilterV2Option[]>(() => {
+  if (!systemFiltersState.value.data || !systemFiltersState.value.data.addons) {
+    return []
+  } else {
+    return systemFiltersState.value.data.addons.map((addon) => ({
+      id: addon.id,
+      label: addon.display_name,
     }))
   }
 })
@@ -443,6 +457,20 @@ function onCloseSecretRegeneratedModal() {
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
           />
           <OrganizationDropdownFilter v-if="!isUserCustomer()" v-model="organizationFilter" />
+          <!-- add-on filter -->
+          <NeDropdownFilterV2
+            v-model="addonFilter"
+            kind="checkbox"
+            :disabled="systemFiltersState.status === 'pending'"
+            :label="t('addons.addon')"
+            :options="addonFilterOptions"
+            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
+          />
           <!-- status filter -->
           <NeDropdownFilterV2
             v-model="statusFilter"

@@ -19,6 +19,7 @@ import (
 
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
+	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services/export"
 	"github.com/nethesis/my/backend/services/local"
@@ -72,6 +73,7 @@ func ExportSystems(c *gin.Context) {
 		filterOrgIDs = expanded
 	}
 	filterStatuses := c.QueryArray("status")
+	filterAddons := c.QueryArray("addon")
 
 	// For export, we don't use pagination - get all matching systems (with limit)
 	// Use page=1 and page_size=MaxExportLimit
@@ -84,7 +86,16 @@ func ExportSystems(c *gin.Context) {
 	// Get systems without pagination limit (but with max export limit)
 	systems, totalCount, err := systemsService.GetSystemsByOrganizationPaginated(
 		userID, userOrgID, userOrgRole, 1, MaxExportLimit, search, sortBy, sortDirection,
-		filterName, filterSystemKey, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses,
+		models.SystemListFilters{
+			Name:            filterName,
+			SystemKeys:      filterSystemKey,
+			Types:           filterTypes,
+			CreatedBy:       filterCreatedBy,
+			Versions:        filterVersions,
+			OrganizationIDs: filterOrgIDs,
+			Statuses:        filterStatuses,
+			Addons:          filterAddons,
+		},
 	)
 
 	if err != nil {

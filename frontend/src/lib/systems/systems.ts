@@ -52,6 +52,10 @@ export const SystemSchema = v.object({
   first_heartbeat: v.optional(v.string()),
   first_inventory: v.optional(v.string()),
   rebranding_enabled: v.optional(v.boolean()),
+  // Add-on catalog ids granted and valid right now. The list endpoint sends
+  // them only when asked with include_addons, and omits the key for a system
+  // holding none.
+  addons: v.optional(v.array(v.string())),
   organization: v.object({
     id: v.string(),
     logto_id: v.string(),
@@ -122,6 +126,7 @@ export const getQueryStringParams = (
   versionFilter: string[],
   statusFilter: SystemStatus[],
   organizationFilter: string[],
+  addonFilter: string[],
   includeHierarchy: boolean,
   sortBy: string | null,
   sortDescending: boolean,
@@ -157,6 +162,10 @@ export const getQueryStringParams = (
     searchParams.append('organization_id', orgId)
   })
 
+  addonFilter.forEach((addon) => {
+    searchParams.append('addon', addon)
+  })
+
   if (includeHierarchy) {
     searchParams.append('include_hierarchy', 'true')
   }
@@ -172,6 +181,7 @@ export const getQueryStringParamsForExport = (
   versionFilter: string[] | undefined,
   statusFilter: SystemStatus[] | undefined,
   organizationFilter: string[] | undefined,
+  addonFilter: string[] | undefined,
   includeHierarchy: boolean | undefined,
   sortBy: string | undefined,
   sortDescending: boolean | undefined,
@@ -212,6 +222,12 @@ export const getQueryStringParamsForExport = (
     })
   }
 
+  if (addonFilter) {
+    addonFilter.forEach((addon) => {
+      searchParams.append('addon', addon)
+    })
+  }
+
   if (includeHierarchy) {
     searchParams.append('include_hierarchy', 'true')
   }
@@ -241,6 +257,7 @@ export const getSystems = (
   versionFilter: string[],
   statusFilter: SystemStatus[],
   organizationFilter: string[],
+  addonFilter: string[],
   includeHierarchy: boolean,
   sortBy: string,
   sortDescending: boolean,
@@ -255,6 +272,7 @@ export const getSystems = (
     versionFilter,
     statusFilter,
     organizationFilter,
+    addonFilter,
     includeHierarchy,
     sortBy,
     sortDescending,
@@ -386,6 +404,7 @@ export const getExport = (
   versionFilter: string[] | undefined = undefined,
   statusFilter: SystemStatus[] | undefined = undefined,
   organizationFilter: string[] | undefined = undefined,
+  addonFilter: string[] | undefined = undefined,
   includeHierarchy: boolean | undefined = undefined,
   sortBy: string | undefined = undefined,
   sortDescending: boolean | undefined = undefined,
@@ -400,6 +419,7 @@ export const getExport = (
     versionFilter,
     statusFilter,
     organizationFilter,
+    addonFilter,
     includeHierarchy,
     sortBy,
     sortDescending,

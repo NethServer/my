@@ -27,11 +27,17 @@ export interface OrganizationItem {
   name: string
 }
 
+export interface AddonItem {
+  id: string // entitlement catalog id, e.g. nsec-blacklist
+  display_name: string
+}
+
 export interface SystemFiltersData {
   products: string[]
   versions: ProductVersions[]
   created_by: CreatedByItem[]
   organizations: OrganizationItem[]
+  addons: AddonItem[]
 }
 
 interface SystemFiltersResponse {

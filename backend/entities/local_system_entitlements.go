@@ -306,6 +306,44 @@ func NewLocalSystemEntitlementRepository() *LocalSystemEntitlementRepository {
 	return &LocalSystemEntitlementRepository{db: database.DB}
 }
 
+// ActiveEntitlementsBySystems maps each of the given systems to the catalog
+// ids of the add-ons it holds and that are valid right now. Systems with no
+// add-on are absent from the map. One indexed query for a whole page: the
+// systems list needs the badge without paying an extra query per row.
+func (r *LocalSystemEntitlementRepository) ActiveEntitlementsBySystems(systemIDs []string) (map[string][]string, error) {
+	out := make(map[string][]string, len(systemIDs))
+	if len(systemIDs) == 0 {
+		return out, nil
+	}
+
+	rows, err := r.db.Query(`
+		SELECT system_id, entitlement
+		FROM system_entitlements
+		WHERE system_id = ANY($1::text[])
+		  AND revoked_at IS NULL
+		  AND (valid_until IS NULL OR valid_until > NOW())
+		ORDER BY system_id, entitlement`, pq.Array(systemIDs))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list active entitlements by system: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var systemID, entitlement string
+		if err := rows.Scan(&systemID, &entitlement); err != nil {
+			return nil, fmt.Errorf("failed to scan active entitlement: %w", err)
+		}
+		// The same add-on can be granted on several scopes of one system
+		// (a module add-on per application instance): the badge names the
+		// add-on once.
+		if last := out[systemID]; len(last) > 0 && last[len(last)-1] == entitlement {
+			continue
+		}
+		out[systemID] = append(out[systemID], entitlement)
+	}
+	return out, rows.Err()
+}
+
 const entitlementColumns = `
 	id, system_id, entitlement, scope, source, COALESCE(source_ref, ''),
 	valid_from, valid_until, revoked_at, COALESCE(revoked_source, ''),

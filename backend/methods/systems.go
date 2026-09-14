@@ -161,6 +161,7 @@ func GetSystems(c *gin.Context) {
 	filterVersions := c.QueryArray("version")       // Version filter (multiple values)
 	filterOrgIDs := c.QueryArray("organization_id") // Organization filter (multiple IDs)
 	filterStatuses := c.QueryArray("status")        // Status filter (multiple values)
+	filterAddons := c.QueryArray("addon")           // Add-on filter (multiple catalog ids)
 
 	// include_hierarchy expands each organization_id filter to the org plus its
 	// whole subtree (resellers/customers); the systems RBAC scope still applies
@@ -178,9 +179,18 @@ func GetSystems(c *gin.Context) {
 	systemsService := local.NewSystemsService()
 
 	// Get systems with pagination, search, sorting and filters
+	filters := models.SystemListFilters{
+		Name:            filterName,
+		SystemKeys:      filterSystemKey,
+		Types:           filterTypes,
+		CreatedBy:       filterCreatedBy,
+		Versions:        filterVersions,
+		OrganizationIDs: filterOrgIDs,
+		Statuses:        filterStatuses,
+		Addons:          filterAddons,
+	}
 	systems, totalCount, err := systemsService.GetSystemsByOrganizationPaginated(
-		userID, userOrgID, userOrgRole, page, pageSize, search, sortBy, sortDirection,
-		filterName, filterSystemKey, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses,
+		userID, userOrgID, userOrgRole, page, pageSize, search, sortBy, sortDirection, filters,
 	)
 	if err != nil {
 		logger.Error().
@@ -195,6 +205,7 @@ func GetSystems(c *gin.Context) {
 			Strs("filter_versions", filterVersions).
 			Strs("filter_organization_ids", filterOrgIDs).
 			Strs("filter_statuses", filterStatuses).
+			Strs("filter_addons", filterAddons).
 			Str("sort_by", sortBy).
 			Str("sort_direction", sortDirection).
 			Msg("Failed to retrieve systems")
@@ -223,6 +234,14 @@ func GetSystems(c *gin.Context) {
 		}
 	}
 
+	// Add-ons of the page, on request: one batch query over the ids just
+	// fetched, the same shape as the rebranding resolution above. It is opt-in
+	// because only the systems table shows them, while an export asks for tens
+	// of thousands of rows at a time.
+	if c.Query("include_addons") == "true" {
+		attachSystemAddons(c, systems)
+	}
+
 	// Log the action
 	logger.RequestLogger(c, "systems").Info().
 		Str("operation", "list_systems").
@@ -237,6 +256,7 @@ func GetSystems(c *gin.Context) {
 		Strs("filter_versions", filterVersions).
 		Strs("filter_organization_ids", filterOrgIDs).
 		Strs("filter_statuses", filterStatuses).
+		Strs("filter_addons", filterAddons).
 		Str("sort_by", sortBy).
 		Str("sort_direction", sortDirection).
 		Msg("Systems list requested")
@@ -779,4 +799,30 @@ func CheckSystemReachability(c *gin.Context) {
 		Msg("System is not reachable on any candidate URL")
 
 	c.JSON(http.StatusOK, response.OK("reachability check completed", gin.H{"reachable": false, "url": ""}))
+}
+
+// attachSystemAddons fills the Addons list of the given systems with one batch
+// query. A failure is logged and leaves the lists empty: the add-on badge is
+// an adornment of the systems list, never a reason to fail it.
+func attachSystemAddons(c *gin.Context, systems []*models.System) {
+	if len(systems) == 0 {
+		return
+	}
+
+	ids := make([]string, 0, len(systems))
+	for _, sys := range systems {
+		ids = append(ids, sys.ID)
+	}
+
+	bySystem, err := entities.NewLocalSystemEntitlementRepository().ActiveEntitlementsBySystems(ids)
+	if err != nil {
+		logger.RequestLogger(c, "systems").Warn().Err(err).Msg("Failed to resolve system add-ons")
+		return
+	}
+
+	for _, sys := range systems {
+		if addons, ok := bySystem[sys.ID]; ok {
+			sys.Addons = addons
+		}
+	}
 }

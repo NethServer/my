@@ -81,6 +81,27 @@ type System struct {
 	// Rebranding info (populated by handler)
 	RebrandingEnabled bool    `json:"rebranding_enabled"`
 	RebrandingOrgID   *string `json:"rebranding_org_id,omitempty"`
+
+	// Addons lists the catalog ids of the add-ons granted and still valid on
+	// the system. The list endpoint fills it only when asked
+	// (include_addons=true): it costs one extra query per page, which an
+	// export over tens of thousands of rows has no use for.
+	Addons []string `json:"addons,omitempty"`
+}
+
+// SystemListFilters carries the column filters of the systems list. They all
+// narrow the result within the caller's RBAC scope, which is resolved
+// separately and can never be widened from here. Multiple values of the same
+// filter match any of them (OR), different filters are ANDed.
+type SystemListFilters struct {
+	Name            string   // substring match on the system name
+	SystemKeys      []string // exact system keys
+	Types           []string // product: nsec, ns8, …
+	CreatedBy       []string // user id or organization id of the creator
+	Versions        []string // "product:version", or a bare version
+	OrganizationIDs []string // owning organization (logto id)
+	Statuses        []string // unified status, including suspended/no_inventory
+	Addons          []string // catalog ids of add-ons the system must hold
 }
 
 // IsSuspended returns true if the system is suspended

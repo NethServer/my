@@ -20,6 +20,7 @@ describe('systems getQueryStringParamsForExport', () => {
         ['nsec:8.0', 'ns8:1.2.3'],
         ['active', 'inactive'],
         ['org_abc123', 'org_def456'],
+        ['nsec-blacklist', 'nsec-ha'],
         true,
         'name',
         true,
@@ -33,6 +34,7 @@ describe('systems getQueryStringParamsForExport', () => {
     expect(params.getAll('version')).toEqual(['nsec:8.0', 'ns8:1.2.3'])
     expect(params.getAll('status')).toEqual(['active', 'inactive'])
     expect(params.getAll('organization_id')).toEqual(['org_abc123', 'org_def456'])
+    expect(params.getAll('addon')).toEqual(['nsec-blacklist', 'nsec-ha'])
     expect(params.get('include_hierarchy')).toBe('true')
     expect(params.get('sort_by')).toBe('name')
     expect(params.get('sort_direction')).toBe('desc')
@@ -50,6 +52,7 @@ describe('systems getQueryStringParamsForExport', () => {
         undefined,
         undefined,
         ['active'],
+        undefined,
         undefined,
         undefined,
         'name',
@@ -76,6 +79,7 @@ describe('systems getQueryStringParamsForExport', () => {
         [],
         undefined,
         undefined,
+        undefined,
         'created_at',
         true,
       ),
@@ -91,6 +95,7 @@ describe('systems getQueryStringParamsForExport', () => {
       getQueryStringParamsForExport(
         'pdf',
         'NETH-DD09-3DB4',
+        undefined,
         undefined,
         undefined,
         undefined,
@@ -117,6 +122,7 @@ describe('systems getQueryStringParamsForExport', () => {
         undefined,
         undefined,
         ['org_abc123'],
+        [],
         false,
         undefined,
         undefined,
@@ -134,6 +140,7 @@ describe('systems getQueryStringParamsForExport', () => {
           'csv',
           undefined,
           textFilter,
+          undefined,
           undefined,
           undefined,
           undefined,
@@ -161,6 +168,7 @@ describe('systems getQueryStringParamsForExport', () => {
         ['nsec:8.0'],
         ['active'],
         ['org_abc123'],
+        ['nsec-blacklist'],
         true,
         'name',
         false,
@@ -176,6 +184,7 @@ describe('systems getQueryStringParamsForExport', () => {
         ['nsec:8.0'],
         ['active'],
         ['org_abc123'],
+        ['nsec-blacklist'],
         true,
         'name',
         false,
@@ -188,5 +197,21 @@ describe('systems getQueryStringParamsForExport', () => {
       }
       expect(exported.getAll(key), `export is missing ${key}`).toEqual(list.getAll(key))
     }
+  })
+})
+
+describe('systems getQueryStringParams add-on filter', () => {
+  const listWithAddons = (addonFilter: string[]) =>
+    parse(getQueryStringParams(1, 50, '', [], [], [], [], [], addonFilter, false, 'name', false))
+
+  it('repeats the addon key once per selected add-on', () => {
+    expect(listWithAddons(['nsec-blacklist', 'nsec-ha']).getAll('addon')).toEqual([
+      'nsec-blacklist',
+      'nsec-ha',
+    ])
+  })
+
+  it('omits the addon key when nothing is selected', () => {
+    expect(listWithAddons([]).has('addon')).toBe(false)
   })
 })

@@ -33,6 +33,7 @@ export const useSystems = defineQuery(() => {
     { id: 'suspended', label: 'suspended' },
   ])
   const organizationFilter = ref<NeDropdownFilterV2Option[]>([])
+  const addonFilter = ref<NeDropdownFilterV2Option[]>([])
   // when true, the systems of every company in the hierarchy of the selected
   // organization are shown (organizationFilter holds that single organization)
   const includeHierarchy = ref(false)
@@ -51,6 +52,7 @@ export const useSystems = defineQuery(() => {
         versionFilter: versionFilter.value.map((o) => o.id),
         statusFilter: statusFilter.value.map((o) => o.id),
         organizationFilter: organizationFilter.value.map((o) => o.id),
+        addonFilter: addonFilter.value.map((o) => o.id),
         includeHierarchy: includeHierarchy.value,
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
@@ -67,6 +69,7 @@ export const useSystems = defineQuery(() => {
         versionFilter.value.map((o) => o.id),
         statusFilter.value.map((o) => o.id) as SystemStatus[],
         organizationFilter.value.map((o) => o.id),
+        addonFilter.value.map((o) => o.id),
         includeHierarchy.value,
         sortBy.value,
         sortDescending.value,
@@ -80,6 +83,7 @@ export const useSystems = defineQuery(() => {
       versionFilter.value.length === 0 &&
       createdByFilter.value.length === 0 &&
       organizationFilter.value.length === 0 &&
+      addonFilter.value.length === 0 &&
       statusFilter.value.length === 4 &&
       statusFilter.value.some((o) => o.id === 'active') &&
       statusFilter.value.some((o) => o.id === 'inactive') &&
@@ -153,6 +157,14 @@ export const useSystems = defineQuery(() => {
     },
   )
 
+  // reset to first page when add-on filter changes
+  watch(
+    () => addonFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
   // the organization hierarchy mode is scoped to; lets us tell a genuine user
   // change apart from OrganizationDropdownFilter re-emitting the same selection
   // as a fresh array on mount (which must not exit hierarchy mode)
@@ -187,6 +199,7 @@ export const useSystems = defineQuery(() => {
     versionFilter.value = []
     createdByFilter.value = []
     organizationFilter.value = []
+    addonFilter.value = []
     includeHierarchy.value = false
     hierarchyOrgId.value = null
     resetStatusFilter()
@@ -213,6 +226,7 @@ export const useSystems = defineQuery(() => {
     versionFilter,
     statusFilter,
     organizationFilter,
+    addonFilter,
     includeHierarchy,
     debouncedTextFilter,
     sortBy,

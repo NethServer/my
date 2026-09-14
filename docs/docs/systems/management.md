@@ -100,8 +100,14 @@ Use filters to find specific systems:
 - **Version**: Filter by system version
 - **Organization**: Filter by customer organization
 - **Created By**: Filter by user who created the system
+- **Add-on**: Filter by purchased add-on (see [Add-ons](../features/entitlements.md))
 - **Status**: unknown, active, inactive, suspended, deleted
 - **Sort By**: Name, version, FQDN/IP address, Organization, Created By, Status
+
+The **Add-on** menu lists the add-ons held by at least one of your systems, so
+an option never comes back empty. Selecting more than one widens the search:
+a system matches when it holds any of them. Only add-ons that are valid at that
+moment count, so an expired or cancelled one leaves the system out.
 
 ### System Details
 
