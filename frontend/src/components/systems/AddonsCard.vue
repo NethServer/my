@@ -35,9 +35,8 @@ interface AddonItem {
 // they are written here rather than kept as i18n keys that invite a
 // translator to render them.
 const ADDON_LABELS = {
-  threat_shield: 'Threat Shield',
-  threat_shield_enterprise: 'Advanced Threat Shield',
-  flashstart: 'FlashStart',
+  threat_shield: 'Advanced Threat Shield',
+  flashstart: 'FlashStart Pro',
   flashstart_pro_plus: 'FlashStart Pro Plus',
   netifyd: 'Netify Informatics',
   ha: 'High Availability',
@@ -50,11 +49,8 @@ const addons = computed<AddonItem[]>(() => {
   return [
     {
       key: 'threat_shield',
-      label:
-        (f.threat_shield?.enterprise ?? 0) > 0
-          ? ADDON_LABELS.threat_shield_enterprise
-          : ADDON_LABELS.threat_shield,
-      enabled: f.threat_shield?.enabled ?? false,
+      label: ADDON_LABELS.threat_shield,
+      enabled: (f.threat_shield?.enabled ?? false) && (f.threat_shield?.enterprise ?? 0) > 0,
     },
     {
       key: 'flashstart',
