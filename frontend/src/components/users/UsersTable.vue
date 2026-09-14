@@ -67,6 +67,7 @@ import ClickToCopy from '@/components/common/ClickToCopy.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 import { isUserCustomer } from '@/lib/organizations/organizations.ts'
 import router from '@/router/index.ts'
+import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -560,13 +561,7 @@ const goToAccount = () => {
                       v-if="item.created_by.organization_name"
                       class="text-gray-500 dark:text-gray-400"
                     >
-                      {{
-                        item.created_by.on_behalf_of
-                          ? $t('systems.on_behalf_of', {
-                              organization: item.created_by.organization_name,
-                            })
-                          : item.created_by.organization_name
-                      }}
+                      <CreatorOrganization :creator="item.created_by" />
                     </div>
                   </div>
                 </div>

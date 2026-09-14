@@ -117,6 +117,10 @@ func (r *LocalResellerRepository) GetByID(id string) (*models.LocalReseller, err
 
 	reseller.CreatedBy = models.ExtractOrgCreator(reseller.CustomData)
 
+	// The creator's organization level is not in the snapshot, it is read live.
+	// Enrichment only: a failure leaves the type empty, it must not fail the read.
+	_ = ResolveCreatorOrgTypes(reseller.CreatedBy)
+
 	return reseller, nil
 }
 
@@ -530,6 +534,15 @@ func (r *LocalResellerRepository) executeResellerQuery(counts models.CountsMode,
 		return nil, 0, fmt.Errorf("error iterating resellers: %w", err)
 	}
 
+	// The creator's organization level is not in the snapshot, it is read live —
+	// once for the whole page. Enrichment only: a failure leaves the types empty,
+	// it must not fail the read.
+	creators := make([]*models.OrgCreator, 0, len(resellers))
+	for _, reseller := range resellers {
+		creators = append(creators, reseller.CreatedBy)
+	}
+	_ = ResolveCreatorOrgTypes(creators...)
+
 	return resellers, totalCount, nil
 }
 
@@ -711,6 +724,10 @@ func (r *LocalResellerRepository) GetByIDIncludeDeleted(id string) (*models.Loca
 	}
 
 	reseller.CreatedBy = models.ExtractOrgCreator(reseller.CustomData)
+
+	// The creator's organization level is not in the snapshot, it is read live.
+	// Enrichment only: a failure leaves the type empty, it must not fail the read.
+	_ = ResolveCreatorOrgTypes(reseller.CreatedBy)
 
 	return reseller, nil
 }
