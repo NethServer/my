@@ -286,7 +286,9 @@ func ValidateUsersImport(c *gin.Context) {
 //
 //	valid     → CREATE
 //	error     → skipped (reason=error)
-//	ambiguous → CREATE with the chosen org if a resolution is provided, otherwise skipped
+//	ambiguous → with a resolution, the chosen org is applied and the row behaves as
+//	            valid (CREATE) or, when the email already exists, as warning;
+//	            without a resolution it is skipped
 //	warning   → UPDATE the existing user (looked up by email) when override=true,
 //	            otherwise skipped
 //
@@ -375,6 +377,24 @@ func ConfirmUsersImport(c *gin.Context) {
 			}
 
 			row.Data["organization_id"] = resolution.OrganizationID
+
+			// A resolved row that also carries the `already_exists` warning follows
+			// the same rule as a warning row: UPDATE on override, skip otherwise.
+			// Creating it would fail on the duplicate email.
+			if hasFieldIssue(row.Warnings, "email", "already_exists") {
+				if !req.Override {
+					result.Skipped++
+					result.Results = append(result.Results, models.ImportResultRow{
+						RowNumber: row.RowNumber,
+						Status:    models.ImportResultSkipped,
+						Reason:    models.ImportSkipWarningNotOverride,
+					})
+					continue
+				}
+				updateUserFromImportRow(c, userService, user, userOrgRole, row, &result)
+				continue
+			}
+
 			createUserFromImportRow(c, userService, user, row, &result)
 
 		case models.ImportRowWarning:

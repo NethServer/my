@@ -18,6 +18,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services/csvimport"
 	"github.com/nethesis/my/backend/services/local"
@@ -67,6 +68,17 @@ func formatImportError(err error) string {
 		}
 	}
 	return err.Error()
+}
+
+// hasFieldIssue reports whether the diagnostics carry the given field/message
+// pair. Works on both `errors` and `warnings`, which share the same struct.
+func hasFieldIssue(issues []models.ImportFieldError, field, message string) bool {
+	for _, issue := range issues {
+		if issue.Field == field && issue.Message == message {
+			return true
+		}
+	}
+	return false
 }
 
 // sendTemplateCSV sends a CSV template file as a download response.
