@@ -67,7 +67,6 @@ import OrganizationDropdownFilter from '@/components/organizations/OrganizationD
 import { isUserCustomer } from '@/lib/organizations/organizations.ts'
 import OrganizationIconAndLink from '../organizations/OrganizationIconAndLink.vue'
 import SystemLogoAndLink from './SystemLogoAndLink.vue'
-import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -623,7 +622,13 @@ function onCloseSecretRegeneratedModal() {
                       v-if="item.created_by.organization_name"
                       class="text-gray-500 dark:text-gray-400"
                     >
-                      <CreatorOrganization :creator="item.created_by" />
+                      {{
+                        item.created_by.on_behalf_of
+                          ? $t('systems.on_behalf_of', {
+                              organization: item.created_by.organization_name,
+                            })
+                          : item.created_by.organization_name
+                      }}
                     </div>
                   </div>
                 </div>

@@ -117,10 +117,6 @@ func (r *LocalCustomerRepository) GetByID(id string) (*models.LocalCustomer, err
 
 	customer.CreatedBy = models.ExtractOrgCreator(customer.CustomData)
 
-	// The creator's organization level is not in the snapshot, it is read live.
-	// Enrichment only: a failure leaves the type empty, it must not fail the read.
-	_ = ResolveCreatorOrgTypes(customer.CreatedBy)
-
 	return customer, nil
 }
 
@@ -714,15 +710,6 @@ func (r *LocalCustomerRepository) executeCustomerQuery(countQuery string, countA
 		return nil, 0, fmt.Errorf("error iterating customers: %w", err)
 	}
 
-	// The creator's organization level is not in the snapshot, it is read live —
-	// once for the whole page. Enrichment only: a failure leaves the types empty,
-	// it must not fail the read.
-	creators := make([]*models.OrgCreator, 0, len(customers))
-	for _, customer := range customers {
-		creators = append(creators, customer.CreatedBy)
-	}
-	_ = ResolveCreatorOrgTypes(creators...)
-
 	return customers, totalCount, nil
 }
 
@@ -977,10 +964,6 @@ func (r *LocalCustomerRepository) GetByIDIncludeDeleted(id string) (*models.Loca
 	}
 
 	customer.CreatedBy = models.ExtractOrgCreator(customer.CustomData)
-
-	// The creator's organization level is not in the snapshot, it is read live.
-	// Enrichment only: a failure leaves the type empty, it must not fail the read.
-	_ = ResolveCreatorOrgTypes(customer.CreatedBy)
 
 	return customer, nil
 }

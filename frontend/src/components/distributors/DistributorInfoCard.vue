@@ -36,7 +36,6 @@ import ReactivateDistributorModal from './ReactivateDistributorModal.vue'
 import { getLanguageLabel } from '@/lib/locale'
 import { formatPhoneForDisplay } from '@/lib/phone'
 import UserAvatar from '../users/UserAvatar.vue'
-import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 
 const { t, locale } = useI18n()
 const { state: distributorDetail, asyncStatus } = useDistributorDetail()
@@ -287,7 +286,13 @@ function getKebabMenuItems() {
                   v-if="distributorDetail.data.created_by.organization_name"
                   class="text-gray-500 dark:text-gray-400"
                 >
-                  <CreatorOrganization :creator="distributorDetail.data.created_by" />
+                  {{
+                    distributorDetail.data.created_by.on_behalf_of
+                      ? $t('systems.on_behalf_of', {
+                          organization: distributorDetail.data.created_by.organization_name,
+                        })
+                      : distributorDetail.data.created_by.organization_name
+                  }}
                 </div>
               </div>
             </div>

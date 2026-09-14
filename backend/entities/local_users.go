@@ -179,10 +179,6 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 		}
 	}
 
-	// The creator's organization level is not in the snapshot, it is read live.
-	// Enrichment only: a failure leaves the type empty, it must not fail the read.
-	_ = ResolveCreatorOrgTypes(user.CreatedBy)
-
 	// Enrich with organization and role data
 	_ = r.enrichUserWithRelations(user) // Relations are nice-to-have, don't fail request on error
 
@@ -251,10 +247,6 @@ func (r *LocalUserRepository) GetByEmail(email string) (*models.LocalUser, error
 		}
 	}
 
-	// The creator's organization level is not in the snapshot, it is read live.
-	// Enrichment only: a failure leaves the type empty, it must not fail the read.
-	_ = ResolveCreatorOrgTypes(user.CreatedBy)
-
 	// Enrich with organization and role data
 	_ = r.enrichUserWithRelations(user) // Relations are nice-to-have, don't fail request on error
 
@@ -320,10 +312,6 @@ func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, e
 			user.CreatedBy = &creator
 		}
 	}
-
-	// The creator's organization level is not in the snapshot, it is read live.
-	// Enrichment only: a failure leaves the type empty, it must not fail the read.
-	_ = ResolveCreatorOrgTypes(user.CreatedBy)
 
 	// Enrich with organization and role data
 	_ = r.enrichUserWithRelations(user) // Relations are nice-to-have, don't fail request on error
@@ -1057,15 +1045,6 @@ func (r *LocalUserRepository) executeUserQuery(_ string, _ []interface{}, mainQu
 		return nil, 0, fmt.Errorf("error iterating users: %w", err)
 	}
 
-	// The creator's organization level is not in the snapshot, it is read live —
-	// once for the whole page. Enrichment only: a failure leaves the types empty,
-	// it must not fail the read.
-	creators := make([]*models.OrgCreator, 0, len(users))
-	for _, user := range users {
-		creators = append(creators, user.CreatedBy)
-	}
-	_ = ResolveCreatorOrgTypes(creators...)
-
 	return users, totalCount, nil
 }
 
@@ -1618,10 +1597,6 @@ func (r *LocalUserRepository) GetByIDIncludeDeleted(id string) (*models.LocalUse
 			user.CreatedBy = &creator
 		}
 	}
-
-	// The creator's organization level is not in the snapshot, it is read live.
-	// Enrichment only: a failure leaves the type empty, it must not fail the read.
-	_ = ResolveCreatorOrgTypes(user.CreatedBy)
 
 	_ = r.enrichUserWithRelations(user)
 

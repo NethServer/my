@@ -63,15 +63,6 @@ type OrgCreator struct {
 	Email            string `json:"email"`
 	OrganizationID   string `json:"organization_id"`
 	OrganizationName string `json:"organization_name"`
-	// OrganizationType is the level (distributor, reseller, customer) of
-	// OrganizationID. It is NOT part of the stored snapshot: read paths fill it
-	// from the live organization tables via entities.ResolveCreatorOrgTypes,
-	// because an organization can change level after the snapshot was taken
-	// (PromoteResellerToDistributor moves one up in place, keeping its logto_id)
-	// and a stored copy would point clients at the wrong detail page. Empty when
-	// the org is the Owner, deleted, or not yet synced. Writers that put the
-	// snapshot back into custom_data must go through StorableCopy.
-	OrganizationType string `json:"organization_type,omitempty"`
 	// OnBehalfOf is true when the entity was attributed to a different org via
 	// created_by_organization_id: the user acted on behalf of organization_name
 	// rather than belonging to it. Lets the UI render "created by <user> on
@@ -109,20 +100,6 @@ func (c *OrgCreator) AttributeToOrg(orgID, orgName string) {
 	c.OrganizationID = orgID
 	c.OrganizationName = orgName
 	c.OnBehalfOf = true
-}
-
-// StorableCopy returns the snapshot as it belongs in custom_data: the fields
-// resolved at read time cleared, so re-injecting a creator that came back from
-// a read never persists derived data. Organization updates read the current
-// entity and write its snapshot back, which would otherwise freeze the
-// resolved OrganizationType into custom_data and let it go stale on promotion.
-func (c *OrgCreator) StorableCopy() *OrgCreator {
-	if c == nil {
-		return nil
-	}
-	stored := *c
-	stored.OrganizationType = ""
-	return &stored
 }
 
 // ExtractOrgCreator pulls the createdByUser snapshot out of an organization's

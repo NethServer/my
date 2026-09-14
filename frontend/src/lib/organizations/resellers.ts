@@ -68,11 +68,6 @@ export const ResellerSchema = v.object({
       email: v.string(),
       organization_id: v.string(),
       organization_name: v.string(),
-      // Level of organization_id, resolved live by the backend (it is not part
-      // of the stored snapshot: an organization can be promoted after the fact).
-      // Absent for the Owner organization and for deleted ones, which have no
-      // detail page to link to.
-      organization_type: v.optional(v.string()),
       // True when the creator acted on behalf of organization_name (attributed
       // via created_by_organization_id) rather than belonging to it. Omitted
       // (falsy) on the default own-org path.

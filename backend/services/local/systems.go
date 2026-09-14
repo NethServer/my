@@ -263,15 +263,6 @@ func (s *LocalSystemsService) GetSystemsByOrganization(userID string, userOrgRol
 		return nil, fmt.Errorf("error iterating systems: %w", err)
 	}
 
-	// The creator's organization level is not in the snapshot, it is read live —
-	// once for the whole page. Enrichment only: a failure leaves the types empty,
-	// it must not fail the read.
-	creators := make([]*models.SystemCreator, 0, len(systems))
-	for _, system := range systems {
-		creators = append(creators, &system.CreatedBy)
-	}
-	_ = entities.ResolveSystemCreatorOrgTypes(creators...)
-
 	logger.Debug().
 		Str("user_id", userID).
 		Int("count", len(systems)).
