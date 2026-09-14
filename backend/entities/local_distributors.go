@@ -481,10 +481,17 @@ func (r *LocalDistributorRepository) populateDistributorCounts(distributors []*m
 		return fmt.Errorf("failed to fold system counts: %w", err)
 	}
 	if err := r.foldOrgCounts(
-		`SELECT a.organization_id, COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND a.organization_id IS NOT NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL) GROUP BY a.organization_id`,
+		`SELECT a.organization_id, COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND a.is_user_facing = TRUE AND a.organization_id IS NOT NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL) GROUP BY a.organization_id`,
 		orgToDist, byLogto, func(d *models.LocalDistributor) *int { return d.ApplicationsCount },
 	); err != nil {
 		return fmt.Errorf("failed to fold application counts: %w", err)
+	}
+	// An unassigned application belongs to the organization of its system.
+	if err := r.foldOrgCounts(
+		`SELECT s.organization_id, COUNT(*) FROM applications a JOIN systems s ON s.id = a.system_id AND s.deleted_at IS NULL WHERE a.deleted_at IS NULL AND a.is_user_facing = TRUE AND (a.organization_id IS NULL OR a.organization_id = '') AND (a.inventory_data->>'certification_level')::int IN (4, 5) GROUP BY s.organization_id`,
+		orgToDist, byLogto, func(d *models.LocalDistributor) *int { return d.ApplicationsCount },
+	); err != nil {
+		return fmt.Errorf("failed to fold hosted application counts: %w", err)
 	}
 
 	return nil
@@ -791,21 +798,8 @@ func (r *LocalDistributorRepository) GetStats(id string) (*models.DistributorSta
 					WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 				)
 			)) as customers_count,
-			(SELECT COUNT(*) FROM applications a WHERE a.organization_id = $1 AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL)) as applications_count,
-			(SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL) AND (
-				a.organization_id = $1
-				OR a.organization_id IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL)
-				OR a.organization_id IN (
-					SELECT c.logto_id FROM customers c
-					WHERE c.deleted_at IS NULL AND (
-						c.custom_data->>'createdBy' = $1
-						OR c.custom_data->>'createdBy' IN (
-							SELECT logto_id FROM resellers
-							WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
-						)
-					)
-				)
-			)) as applications_hierarchy_count
+			` + certifiedApplicationsCount("$1") + ` as applications_count,
+			` + certifiedApplicationsCount("SELECT $1::text UNION ALL SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL UNION ALL SELECT c.logto_id FROM customers c WHERE c.deleted_at IS NULL AND (c.custom_data->>'createdBy' = $1 OR c.custom_data->>'createdBy' IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL))") + ` as applications_hierarchy_count
 	`
 
 	err = r.db.QueryRow(query, *distributor.LogtoID).Scan(

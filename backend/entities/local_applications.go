@@ -35,6 +35,18 @@ func NewLocalApplicationRepository() *LocalApplicationRepository {
 // the invariant itself; the hard delete relies on the FK cascade instead.
 const applicationOnLiveSystem = "EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL)"
 
+// certifiedApplicationsCount builds the SQL expression counting the certified,
+// user-facing applications of the organizations selected by orgSet (any
+// expression valid inside IN (...): a column, a placeholder or a subquery).
+// Applications stay unassigned until a partner assigns them to a customer, so
+// an application with no organization belongs to the organization of the
+// system hosting it. Two indexed counts rather than a COALESCE on the two
+// columns: the latter forces a sequential scan of applications per row.
+func certifiedApplicationsCount(orgSet string) string {
+	return "((SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND a.is_user_facing = TRUE AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND " + applicationOnLiveSystem + " AND a.organization_id IN (" + orgSet + ")) + " +
+		"(SELECT COUNT(*) FROM applications a JOIN systems s2 ON s2.id = a.system_id AND s2.deleted_at IS NULL WHERE a.deleted_at IS NULL AND a.is_user_facing = TRUE AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND (a.organization_id IS NULL OR a.organization_id = '') AND s2.organization_id IN (" + orgSet + ")))"
+}
+
 // GetByID retrieves a specific application by ID
 func (r *LocalApplicationRepository) GetByID(id string) (*models.Application, error) {
 	query := `
@@ -237,7 +249,9 @@ func (r *LocalApplicationRepository) List(
 		args = append(args, pq.Array(filterSystemIDs))
 	}
 
-	// Filter by organization IDs (handle "no_org" for unassigned applications)
+	// Filter by organization IDs (handle "no_org" for unassigned applications).
+	// An unassigned application belongs to the organization of its system;
+	// ANY(ARRAY(subquery)) keeps both branches on an index (BitmapOr).
 	if len(filterOrgIDs) > 0 {
 		var orgConditions []string
 		var hasNoOrg bool
@@ -256,7 +270,7 @@ func (r *LocalApplicationRepository) List(
 		}
 
 		if len(nonNullOrgIDs) > 0 {
-			orgConditions = append(orgConditions, fmt.Sprintf("a.organization_id = ANY($%d::text[])", len(args)+1))
+			orgConditions = append(orgConditions, fmt.Sprintf("(a.organization_id = ANY($%d::text[]) OR ((a.organization_id IS NULL OR a.organization_id = '') AND a.system_id = ANY(ARRAY(SELECT sh.id FROM systems sh WHERE sh.deleted_at IS NULL AND sh.organization_id = ANY($%d::text[])))))", len(args)+1, len(args)+1))
 			args = append(args, pq.Array(nonNullOrgIDs))
 		}
 
@@ -512,10 +526,11 @@ func (r *LocalApplicationRepository) GetTypeSummary(allowedSystemIDs []string, o
 
 	certLevelClause := " AND (inventory_data->>'certification_level')::int IN (4, 5)"
 
-	// Organization filter clause
+	// Organization filter clause: an unassigned application belongs to the
+	// organization of its system.
 	orgClause := ""
 	if len(organizationIDs) > 0 {
-		orgClause = fmt.Sprintf(" AND organization_id = ANY($%d::text[])", len(args)+1)
+		orgClause = fmt.Sprintf(" AND (a.organization_id = ANY($%d::text[]) OR ((a.organization_id IS NULL OR a.organization_id = '') AND a.system_id = ANY(ARRAY(SELECT sh.id FROM systems sh WHERE sh.deleted_at IS NULL AND sh.organization_id = ANY($%d::text[])))))", len(args)+1, len(args)+1)
 		args = append(args, pq.Array(organizationIDs))
 	}
 

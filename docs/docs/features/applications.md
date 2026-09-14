@@ -28,7 +28,7 @@ Use the available filters to narrow down the application list:
 - **Type**: Filter by application type (NethVoice, NethSecurity, WebTop, etc.)
 - **Version**: Filter by specific version
 - **System**: Filter by the system the application belongs to
-- **Organization**: Filter by organization
+- **Organization**: Filter by organization. An unassigned application belongs to the organization of the system hosting it, so a company's applications show up before any assignment; the same rule drives the application counters on the organization pages
 
 ## Application Details
 

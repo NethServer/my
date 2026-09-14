@@ -313,11 +313,7 @@ func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, searc
 			           SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL
 			       )) as systems_count,
 			       (SELECT COUNT(*) FROM customers c WHERE c.custom_data->>'createdBy' = r.logto_id AND c.deleted_at IS NULL) as customers_count,
-			       (SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL) AND a.organization_id IN (
-			           SELECT r.logto_id
-			           UNION ALL
-			           SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL
-			       )) as applications_count
+			       `+certifiedApplicationsCount("SELECT r.logto_id UNION ALL SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL")+` as applications_count
 			FROM resellers r
 			WHERE 1=1%s%s AND (LOWER(r.name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(r.description) LIKE LOWER('%%' || $1 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(r.custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $1 || '%%')))
 			%s
@@ -338,11 +334,7 @@ func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, searc
 			           SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL
 			       )) as systems_count,
 			       (SELECT COUNT(*) FROM customers c WHERE c.custom_data->>'createdBy' = r.logto_id AND c.deleted_at IS NULL) as customers_count,
-			       (SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL) AND a.organization_id IN (
-			           SELECT r.logto_id
-			           UNION ALL
-			           SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL
-			       )) as applications_count
+			       `+certifiedApplicationsCount("SELECT r.logto_id UNION ALL SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL")+` as applications_count
 			FROM resellers r
 			WHERE 1=1%s%s
 			%s
@@ -424,11 +416,7 @@ func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pag
 			           SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL
 			       )) as systems_count,
 			       (SELECT COUNT(*) FROM customers c WHERE c.custom_data->>'createdBy' = r.logto_id AND c.deleted_at IS NULL) as customers_count,
-			       (SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL) AND a.organization_id IN (
-			           SELECT r.logto_id
-			           UNION ALL
-			           SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL
-			       )) as applications_count
+			       `+certifiedApplicationsCount("SELECT r.logto_id UNION ALL SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL")+` as applications_count
 			FROM resellers r
 			WHERE r.custom_data->>'createdBy' = $1%s%s AND (LOWER(r.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(r.description) LIKE LOWER('%%' || $2 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(r.custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $2 || '%%')))
 			%s
@@ -449,11 +437,7 @@ func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pag
 			           SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL
 			       )) as systems_count,
 			       (SELECT COUNT(*) FROM customers c WHERE c.custom_data->>'createdBy' = r.logto_id AND c.deleted_at IS NULL) as customers_count,
-			       (SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL) AND a.organization_id IN (
-			           SELECT r.logto_id
-			           UNION ALL
-			           SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL
-			       )) as applications_count
+			       `+certifiedApplicationsCount("SELECT r.logto_id UNION ALL SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL")+` as applications_count
 			FROM resellers r
 			WHERE r.custom_data->>'createdBy' = $1%s%s
 			%s
@@ -790,12 +774,8 @@ func (r *LocalResellerRepository) GetStats(id string) (*models.ResellerStats, er
 				SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 			)) as systems_hierarchy_count,
 			(SELECT COUNT(*) FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL) as customers_count,
-			(SELECT COUNT(*) FROM applications a WHERE a.organization_id = $1 AND a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL)) as applications_count,
-			(SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL) AND a.organization_id IN (
-				SELECT $1::text
-				UNION ALL
-				SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
-			)) as applications_hierarchy_count
+			` + certifiedApplicationsCount("$1") + ` as applications_count,
+			` + certifiedApplicationsCount("SELECT $1::text UNION ALL SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL") + ` as applications_hierarchy_count
 	`
 
 	err = r.db.QueryRow(query, *reseller.LogtoID).Scan(

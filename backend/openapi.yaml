@@ -1308,7 +1308,7 @@ components:
               example: 420
             applications_count:
               type: integer
-              description: Number of certified applications (certification_level 4 or 5) in the hierarchy
+              description: Number of certified, user-facing applications (certification_level 4 or 5) in the hierarchy. An unassigned application counts under the organization of the system hosting it.
               example: 15
 
     OrganizationInput:
@@ -1807,11 +1807,11 @@ components:
           example: 420
         applications_count:
           type: integer
-          description: Number of applications directly associated with this distributor
+          description: "Number of certified applications of this distributor: assigned to it, or unassigned and hosted on one of its systems"
           example: 50
         applications_hierarchy_count:
           type: integer
-          description: Total number of applications in the distributor hierarchy (distributor + resellers + customers)
+          description: Total number of certified applications in the distributor hierarchy (distributor + resellers + customers). An unassigned application counts under the organization of the system hosting it.
           example: 3246
 
     ResellerStats:
@@ -1840,11 +1840,11 @@ components:
           example: 252
         applications_count:
           type: integer
-          description: Number of applications directly associated with this reseller
+          description: "Number of certified applications of this reseller: assigned to it, or unassigned and hosted on one of its systems"
           example: 20
         applications_hierarchy_count:
           type: integer
-          description: Total number of applications in the reseller hierarchy (reseller + customers)
+          description: Total number of certified applications in the reseller hierarchy (reseller + customers). An unassigned application counts under the organization of the system hosting it.
           example: 500
 
     CustomerStats:
@@ -1861,7 +1861,7 @@ components:
           example: 2
         applications_count:
           type: integer
-          description: Number of applications directly associated with this customer
+          description: "Number of certified applications of this customer: assigned to it, or unassigned and hosted on one of its systems"
           example: 22
 
     TrendResponse:
@@ -4331,7 +4331,7 @@ components:
     AppOrganizationFilterParam:
       name: organization_id
       in: query
-      description: Filter applications by organization ID. Supports multiple values.
+      description: Filter applications by organization ID, matching the assigned organization or, for unassigned applications, the organization of the hosting system. Supports multiple values; combine with include_hierarchy to cover a whole subtree.
       required: false
       schema:
         type: array
