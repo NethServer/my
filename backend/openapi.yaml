@@ -1813,6 +1813,22 @@ components:
           type: integer
           description: Total number of certified applications in the distributor hierarchy (distributor + resellers + customers). An unassigned application counts under the organization of the system hosting it.
           example: 3246
+        applications_assigned_count:
+          type: integer
+          description: Certified applications assigned to this distributor
+          example: 12
+        applications_unassigned_count:
+          type: integer
+          description: Certified applications with no organization, hosted on systems of this distributor
+          example: 8
+        applications_assigned_hierarchy_count:
+          type: integer
+          description: Certified applications assigned to an organization of the distributor hierarchy
+          example: 246
+        applications_unassigned_hierarchy_count:
+          type: integer
+          description: Certified applications with no organization, hosted on systems of the distributor hierarchy
+          example: 3000
 
     ResellerStats:
       type: object
@@ -1846,6 +1862,22 @@ components:
           type: integer
           description: Total number of certified applications in the reseller hierarchy (reseller + customers). An unassigned application counts under the organization of the system hosting it.
           example: 500
+        applications_assigned_count:
+          type: integer
+          description: Certified applications assigned to this reseller
+          example: 12
+        applications_unassigned_count:
+          type: integer
+          description: Certified applications with no organization, hosted on systems of this reseller
+          example: 8
+        applications_assigned_hierarchy_count:
+          type: integer
+          description: Certified applications assigned to an organization of the reseller hierarchy
+          example: 246
+        applications_unassigned_hierarchy_count:
+          type: integer
+          description: Certified applications with no organization, hosted on systems of the reseller hierarchy
+          example: 3000
 
     CustomerStats:
       type: object
@@ -1863,6 +1895,14 @@ components:
           type: integer
           description: "Number of certified applications of this customer: assigned to it, or unassigned and hosted on one of its systems"
           example: 22
+        applications_assigned_count:
+          type: integer
+          description: Certified applications assigned to this customer
+          example: 12
+        applications_unassigned_count:
+          type: integer
+          description: Certified applications with no organization, hosted on systems of this customer
+          example: 8
 
     TrendResponse:
       type: object

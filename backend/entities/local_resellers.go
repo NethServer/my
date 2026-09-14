@@ -759,6 +759,7 @@ func (r *LocalResellerRepository) GetStats(id string) (*models.ResellerStats, er
 	}
 
 	var stats models.ResellerStats
+	hierarchy := "SELECT $1::text UNION ALL SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL"
 	query := `
 		SELECT
 			(SELECT COUNT(*) FROM users WHERE organization_id = $1 AND deleted_at IS NULL) as users_count,
@@ -774,19 +775,24 @@ func (r *LocalResellerRepository) GetStats(id string) (*models.ResellerStats, er
 				SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 			)) as systems_hierarchy_count,
 			(SELECT COUNT(*) FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL) as customers_count,
-			` + certifiedApplicationsCount("$1") + ` as applications_count,
-			` + certifiedApplicationsCount("SELECT $1::text UNION ALL SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL") + ` as applications_hierarchy_count
+			` + assignedApplicationsCount("$1") + ` as applications_assigned_count,
+			` + unassignedApplicationsCount("$1") + ` as applications_unassigned_count,
+			` + assignedApplicationsCount(hierarchy) + ` as applications_assigned_hierarchy_count,
+			` + unassignedApplicationsCount(hierarchy) + ` as applications_unassigned_hierarchy_count
 	`
 
 	err = r.db.QueryRow(query, *reseller.LogtoID).Scan(
 		&stats.UsersCount, &stats.UsersHierarchyCount,
 		&stats.SystemsCount, &stats.SystemsHierarchyCount,
 		&stats.CustomersCount,
-		&stats.ApplicationsCount, &stats.ApplicationsHierarchyCount,
+		&stats.ApplicationsAssignedCount, &stats.ApplicationsUnassignedCount,
+		&stats.ApplicationsAssignedHierarchyCount, &stats.ApplicationsUnassignedHierarchyCount,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get reseller stats: %w", err)
 	}
+	stats.ApplicationsCount = stats.ApplicationsAssignedCount + stats.ApplicationsUnassignedCount
+	stats.ApplicationsHierarchyCount = stats.ApplicationsAssignedHierarchyCount + stats.ApplicationsUnassignedHierarchyCount
 
 	return &stats, nil
 }

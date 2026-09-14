@@ -1032,13 +1032,15 @@ func (r *LocalCustomerRepository) GetStats(id string) (*models.CustomerStats, er
 		SELECT
 			(SELECT COUNT(*) FROM users WHERE organization_id = $1 AND deleted_at IS NULL) as users_count,
 			(SELECT COUNT(*) FROM systems WHERE organization_id = $1 AND deleted_at IS NULL) as systems_count,
-			` + certifiedApplicationsCount("$1") + ` as applications_count
+			` + assignedApplicationsCount("$1") + ` as applications_assigned_count,
+			` + unassignedApplicationsCount("$1") + ` as applications_unassigned_count
 	`
 
-	err = r.db.QueryRow(query, *customer.LogtoID).Scan(&stats.UsersCount, &stats.SystemsCount, &stats.ApplicationsCount)
+	err = r.db.QueryRow(query, *customer.LogtoID).Scan(&stats.UsersCount, &stats.SystemsCount, &stats.ApplicationsAssignedCount, &stats.ApplicationsUnassignedCount)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get customer stats: %w", err)
 	}
+	stats.ApplicationsCount = stats.ApplicationsAssignedCount + stats.ApplicationsUnassignedCount
 
 	return &stats, nil
 }

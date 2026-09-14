@@ -758,6 +758,7 @@ func (r *LocalDistributorRepository) GetStats(id string) (*models.DistributorSta
 	}
 
 	var stats models.DistributorStats
+	hierarchy := "SELECT $1::text UNION ALL SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL UNION ALL SELECT c.logto_id FROM customers c WHERE c.deleted_at IS NULL AND (c.custom_data->>'createdBy' = $1 OR c.custom_data->>'createdBy' IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL))"
 	query := `
 		SELECT
 			(SELECT COUNT(*) FROM users WHERE organization_id = $1 AND deleted_at IS NULL) as users_count,
@@ -798,19 +799,24 @@ func (r *LocalDistributorRepository) GetStats(id string) (*models.DistributorSta
 					WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL
 				)
 			)) as customers_count,
-			` + certifiedApplicationsCount("$1") + ` as applications_count,
-			` + certifiedApplicationsCount("SELECT $1::text UNION ALL SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL UNION ALL SELECT c.logto_id FROM customers c WHERE c.deleted_at IS NULL AND (c.custom_data->>'createdBy' = $1 OR c.custom_data->>'createdBy' IN (SELECT logto_id FROM resellers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL))") + ` as applications_hierarchy_count
+			` + assignedApplicationsCount("$1") + ` as applications_assigned_count,
+			` + unassignedApplicationsCount("$1") + ` as applications_unassigned_count,
+			` + assignedApplicationsCount(hierarchy) + ` as applications_assigned_hierarchy_count,
+			` + unassignedApplicationsCount(hierarchy) + ` as applications_unassigned_hierarchy_count
 	`
 
 	err = r.db.QueryRow(query, *distributor.LogtoID).Scan(
 		&stats.UsersCount, &stats.UsersHierarchyCount,
 		&stats.SystemsCount, &stats.SystemsHierarchyCount,
 		&stats.ResellersCount, &stats.CustomersCount,
-		&stats.ApplicationsCount, &stats.ApplicationsHierarchyCount,
+		&stats.ApplicationsAssignedCount, &stats.ApplicationsUnassignedCount,
+		&stats.ApplicationsAssignedHierarchyCount, &stats.ApplicationsUnassignedHierarchyCount,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get distributor stats: %w", err)
 	}
+	stats.ApplicationsCount = stats.ApplicationsAssignedCount + stats.ApplicationsUnassignedCount
+	stats.ApplicationsHierarchyCount = stats.ApplicationsAssignedHierarchyCount + stats.ApplicationsUnassignedHierarchyCount
 
 	return &stats, nil
 }

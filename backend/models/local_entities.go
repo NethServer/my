@@ -345,6 +345,11 @@ type DistributorStats struct {
 	CustomersCount             int `json:"customers_count"`
 	ApplicationsCount          int `json:"applications_count"`           // direct applications
 	ApplicationsHierarchyCount int `json:"applications_hierarchy_count"` // applications in hierarchy
+	// Assigned / unassigned split of the two counts above
+	ApplicationsAssignedCount            int `json:"applications_assigned_count"`
+	ApplicationsUnassignedCount          int `json:"applications_unassigned_count"`
+	ApplicationsAssignedHierarchyCount   int `json:"applications_assigned_hierarchy_count"`
+	ApplicationsUnassignedHierarchyCount int `json:"applications_unassigned_hierarchy_count"`
 }
 
 // ResellerStats represents statistics for a reseller (includes customers and applications)
@@ -356,6 +361,11 @@ type ResellerStats struct {
 	CustomersCount             int `json:"customers_count"`
 	ApplicationsCount          int `json:"applications_count"`           // direct applications
 	ApplicationsHierarchyCount int `json:"applications_hierarchy_count"` // applications in hierarchy
+	// Assigned / unassigned split of the two counts above
+	ApplicationsAssignedCount            int `json:"applications_assigned_count"`
+	ApplicationsUnassignedCount          int `json:"applications_unassigned_count"`
+	ApplicationsAssignedHierarchyCount   int `json:"applications_assigned_hierarchy_count"`
+	ApplicationsUnassignedHierarchyCount int `json:"applications_unassigned_hierarchy_count"`
 }
 
 // CustomerStats represents statistics for a customer (includes applications)
@@ -363,6 +373,9 @@ type CustomerStats struct {
 	UsersCount        int `json:"users_count"`
 	SystemsCount      int `json:"systems_count"`
 	ApplicationsCount int `json:"applications_count"` // direct applications only (leaf node)
+	// Assigned / unassigned split of applications_count
+	ApplicationsAssignedCount   int `json:"applications_assigned_count"`
+	ApplicationsUnassignedCount int `json:"applications_unassigned_count"`
 }
 
 // Create requests

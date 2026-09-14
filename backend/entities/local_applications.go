@@ -35,16 +35,32 @@ func NewLocalApplicationRepository() *LocalApplicationRepository {
 // the invariant itself; the hard delete relies on the FK cascade instead.
 const applicationOnLiveSystem = "EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL)"
 
-// certifiedApplicationsCount builds the SQL expression counting the certified,
-// user-facing applications of the organizations selected by orgSet (any
+// certifiedApplication restricts a query on "applications a" to the certified,
+// user-facing applications the applications list shows.
+const certifiedApplication = "a.deleted_at IS NULL AND a.is_user_facing = TRUE AND (a.inventory_data->>'certification_level')::int IN (4, 5)"
+
+// assignedApplicationsCount builds the SQL expression counting the certified
+// applications assigned to the organizations selected by orgSet (any
 // expression valid inside IN (...): a column, a placeholder or a subquery).
-// Applications stay unassigned until a partner assigns them to a customer, so
-// an application with no organization belongs to the organization of the
-// system hosting it. Two indexed counts rather than a COALESCE on the two
-// columns: the latter forces a sequential scan of applications per row.
+func assignedApplicationsCount(orgSet string) string {
+	return "(SELECT COUNT(*) FROM applications a WHERE " + certifiedApplication + " AND " + applicationOnLiveSystem + " AND a.organization_id IN (" + orgSet + "))"
+}
+
+// unassignedApplicationsCount builds the SQL expression counting the certified
+// applications with no organization hosted on the systems of the organizations
+// selected by orgSet. Applications stay unassigned until a partner assigns
+// them to a customer, so an application with no organization belongs to the
+// organization of the system hosting it.
+func unassignedApplicationsCount(orgSet string) string {
+	return "(SELECT COUNT(*) FROM applications a JOIN systems s2 ON s2.id = a.system_id AND s2.deleted_at IS NULL WHERE " + certifiedApplication + " AND (a.organization_id IS NULL OR a.organization_id = '') AND s2.organization_id IN (" + orgSet + "))"
+}
+
+// certifiedApplicationsCount builds the SQL expression counting every
+// certified application of the organizations selected by orgSet. Two indexed
+// counts rather than a COALESCE on the two columns: the latter forces a
+// sequential scan of applications per row.
 func certifiedApplicationsCount(orgSet string) string {
-	return "((SELECT COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND a.is_user_facing = TRUE AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND " + applicationOnLiveSystem + " AND a.organization_id IN (" + orgSet + ")) + " +
-		"(SELECT COUNT(*) FROM applications a JOIN systems s2 ON s2.id = a.system_id AND s2.deleted_at IS NULL WHERE a.deleted_at IS NULL AND a.is_user_facing = TRUE AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND (a.organization_id IS NULL OR a.organization_id = '') AND s2.organization_id IN (" + orgSet + ")))"
+	return "(" + assignedApplicationsCount(orgSet) + " + " + unassignedApplicationsCount(orgSet) + ")"
 }
 
 // GetByID retrieves a specific application by ID
