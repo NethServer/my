@@ -1117,7 +1117,7 @@
       "import_type_skip": "Salta utenti esistenti",
       "import_existing_users_label": "Utenti esistenti",
       "import_existing_users_tooltip": "Gli utenti esistenti possono essere aggiornati o saltati; gli utenti vengono abbinati tramite email",
-      "import_rows_with_warnings_skip": "{count} utenti esistenti — verranno saltati",
+      "import_rows_with_warnings_skip": "{count} utente esistente — verrà saltato | {count} utenti esistenti — verranno saltati",
       "import_rows_with_warnings_update": "{count} utente esistente — verrà aggiornato | {count} utenti esistenti — verranno aggiornati"
     },
     "organizations": {

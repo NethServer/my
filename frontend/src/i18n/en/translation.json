@@ -309,7 +309,7 @@
       "users_imported": "Users imported",
       "import_summary_detected": "{count} user detected in the selected file: | {count} users detected in the selected file:",
       "import_summary_warnings_skip": "{count} existing user — will be skipped | {count} existing users — will be skipped",
-      "import_summary_warnings_update": "{count} existing user —will be updated | {count} existing users — will be updated",
+      "import_summary_warnings_update": "{count} existing user — will be updated | {count} existing users — will be updated",
       "import_summary_ambiguous_unresolved": "{count} with an ambiguous company — select the company or it will be skipped | {count} with an ambiguous company — select the company or they will be skipped",
       "import_summary_ambiguous_resolved": "{count} with an ambiguous company — will be imported into the selected company | {count} with an ambiguous company — will be imported into the selected company",
       "import_summary_ambiguous_resolved_multi": "{count} with an ambiguous company — will be imported into the selected companies | {count} with an ambiguous company — will be imported into the selected companies",
@@ -318,7 +318,7 @@
       "import_type_skip": "Skip existing users",
       "import_existing_users_label": "Existing users",
       "import_existing_users_tooltip": "Existing users can be updated or skipped; users are matched by email",
-      "import_rows_with_warnings_skip": "{count} existing users — will be skipped",
+      "import_rows_with_warnings_skip": "{count} existing user — will be skipped | {count} existing users — will be skipped",
       "import_rows_with_warnings_update": "{count} existing user — will be updated | {count} existing users — will be updated"
     },
     "organizations": {
