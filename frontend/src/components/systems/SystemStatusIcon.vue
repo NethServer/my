@@ -24,7 +24,7 @@ defineProps<{
   <FontAwesomeIcon
     v-if="status === 'active'"
     :icon="faCircleCheck"
-    class="size-4 text-green-600 dark:text-green-400"
+    class="text-icon-enabled size-4"
     aria-hidden="true"
   />
   <FontAwesomeIcon
@@ -36,19 +36,19 @@ defineProps<{
   <FontAwesomeIcon
     v-else-if="status === 'suspended'"
     :icon="faCirclePause"
-    class="size-4 text-gray-700 dark:text-gray-400"
+    class="text-icon-neutral size-4"
     aria-hidden="true"
   />
   <FontAwesomeIcon
     v-else-if="status === 'deleted'"
     :icon="faBoxArchive"
-    class="size-4 text-gray-700 dark:text-gray-400"
+    class="text-icon-neutral size-4"
     aria-hidden="true"
   />
   <FontAwesomeIcon
     v-else-if="status === 'unknown'"
     :icon="faClock"
-    class="size-4 text-gray-700 dark:text-gray-400"
+    class="text-icon-neutral size-4"
     aria-hidden="true"
   />
   <FontAwesomeIcon

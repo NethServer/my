@@ -85,10 +85,10 @@ function statusIcon(status: 'revoked' | 'expired' | 'active') {
 
 function statusIconClass(status: 'revoked' | 'expired' | 'active'): string {
   return status === 'active'
-    ? 'text-green-600 dark:text-green-400'
+    ? 'text-icon-enabled'
     : status === 'expired'
       ? 'text-amber-600 dark:text-amber-400'
-      : 'text-gray-500 dark:text-gray-400'
+      : 'text-icon-neutral'
 }
 
 const filteredKeys = computed(() => {

@@ -18,8 +18,9 @@ import { useDistributorDetail } from '@/queries/organizations/distributorDetail'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { getOrganizationIcon } from '@/lib/organizations/organizations'
 import DataItem from '../common/DataItem.vue'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import NotesModal from '../common/NotesModal.vue'
+import EnabledStatus from '../common/EnabledStatus.vue'
 import { canManageDistributors } from '@/lib/permissions'
 import {
   faPenToSquare,
@@ -38,6 +39,8 @@ import UserAvatar from '../users/UserAvatar.vue'
 
 const { t, locale } = useI18n()
 const { state: distributorDetail, asyncStatus } = useDistributorDetail()
+
+const rebrandingEnabled = computed(() => distributorDetail.value.data?.rebranding_enabled === true)
 const isNotesModalShown = ref(false)
 const isShownCreateOrEditDistributorDrawer = ref(false)
 const isShownSuspendDistributorModal = ref(false)
@@ -112,7 +115,7 @@ function getKebabMenuItems() {
               <template v-if="distributorDetail.data.deleted_at">
                 <FontAwesomeIcon
                   :icon="faBoxArchive"
-                  class="size-4 text-gray-700 dark:text-gray-400"
+                  class="text-icon-neutral size-4"
                   aria-hidden="true"
                 />
                 <span>{{ $t('common.archived') }}</span>
@@ -120,7 +123,7 @@ function getKebabMenuItems() {
               <template v-else-if="distributorDetail.data.suspended_at">
                 <FontAwesomeIcon
                   :icon="faCirclePause"
-                  class="size-4 text-gray-700 dark:text-gray-400"
+                  class="text-icon-neutral size-4"
                   aria-hidden="true"
                 />
                 <span>{{ $t('common.suspended') }}</span>
@@ -128,7 +131,7 @@ function getKebabMenuItems() {
               <template v-else>
                 <FontAwesomeIcon
                   :icon="faCircleCheck"
-                  class="size-4 text-green-600 dark:text-green-400"
+                  class="text-icon-enabled size-4"
                   aria-hidden="true"
                 />
                 <span>{{ $t('common.enabled') }}</span>
@@ -252,9 +255,53 @@ function getKebabMenuItems() {
             </div>
           </template>
         </DataItem>
+        <!-- rebranding -->
+        <DataItem>
+          <template #label>
+            {{ $t('organizations.rebranding') }}
+          </template>
+          <template #data>
+            <EnabledStatus :enabled="rebrandingEnabled" />
+          </template>
+        </DataItem>
+        <!-- created by -->
+        <DataItem>
+          <template #label>
+            {{ $t('systems.created_by') }}
+          </template>
+          <template #data>
+            <div
+              v-if="distributorDetail.data.created_by"
+              class="flex items-center justify-end gap-2"
+            >
+              <UserAvatar
+                size="sm"
+                :is-owner="distributorDetail.data.created_by.username === 'owner'"
+                :name="distributorDetail.data.created_by.name"
+                :logto-id="distributorDetail.data.created_by.user_id"
+              />
+              <div class="space-y-0.5 text-start">
+                <div>{{ distributorDetail.data.created_by.name || '-' }}</div>
+                <div
+                  v-if="distributorDetail.data.created_by.organization_name"
+                  class="text-gray-500 dark:text-gray-400"
+                >
+                  {{
+                    distributorDetail.data.created_by.on_behalf_of
+                      ? $t('systems.on_behalf_of', {
+                          organization: distributorDetail.data.created_by.organization_name,
+                        })
+                      : distributorDetail.data.created_by.organization_name
+                  }}
+                </div>
+              </div>
+            </div>
+            <template v-else>-</template>
+          </template>
+        </DataItem>
         <!-- notes -->
         <div v-if="distributorDetail.data.custom_data.notes">
-          <div class="py-4 font-medium">
+          <div class="text-tertiary-neutral dark:text-tertiary-neutral py-4 font-medium">
             {{ $t('common.notes') }}
           </div>
           <pre ref="preElement" class="line-clamp-5 font-sans whitespace-pre-wrap">{{

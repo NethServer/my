@@ -25,7 +25,8 @@ Check every item; fix all deviations in place; summarise grouped by category.
 ## i18n & conventions
 
 - [ ] All user-visible strings use `$t()` / `t()` — no hardcoded text
-- [ ] New keys added only to `src/i18n/en/translation.json`, `snake_case`, correct domain namespace
+- [ ] New keys added to both `src/i18n/en/translation.json` and `src/i18n/it/translation.json`,
+      `snake_case`, correct domain namespace
 - [ ] License header present; `<script setup lang="ts">`; `@/` path alias used throughout
 
 ## TypeScript type safety

@@ -304,7 +304,7 @@ function getKebabMenuItems() {
         </DataItem>
         <!-- notes -->
         <div v-if="systemDetail.data.notes">
-          <div class="py-4 font-medium">
+          <div class="text-tertiary-neutral dark:text-tertiary-neutral py-4 font-medium">
             {{ $t('common.notes') }}
           </div>
           <pre ref="preElement" class="line-clamp-5 font-sans whitespace-pre-wrap">{{
