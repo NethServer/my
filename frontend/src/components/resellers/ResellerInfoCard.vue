@@ -36,7 +36,6 @@ import PromoteResellerModal from './PromoteResellerModal.vue'
 import { getLanguageLabel } from '@/lib/locale'
 import { formatPhoneForDisplay } from '@/lib/phone'
 import UserAvatar from '../users/UserAvatar.vue'
-import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 
 const { t } = useI18n()
 const { state: resellerDetail, asyncStatus } = useResellerDetail()
@@ -263,7 +262,13 @@ function getKebabMenuItems() {
                   v-if="resellerDetail.data.created_by.organization_name"
                   class="text-gray-500 dark:text-gray-400"
                 >
-                  <CreatorOrganization :creator="resellerDetail.data.created_by" />
+                  {{
+                    resellerDetail.data.created_by.on_behalf_of
+                      ? $t('systems.on_behalf_of', {
+                          organization: resellerDetail.data.created_by.organization_name,
+                        })
+                      : resellerDetail.data.created_by.organization_name
+                  }}
                 </div>
               </div>
             </div>

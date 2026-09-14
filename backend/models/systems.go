@@ -25,15 +25,6 @@ type SystemCreator struct {
 	Email            string `json:"email" structs:"email"`
 	OrganizationID   string `json:"organization_id" structs:"organization_id"`
 	OrganizationName string `json:"organization_name" structs:"organization_name"`
-	// OrganizationType is the level (distributor, reseller, customer) of
-	// OrganizationID. It is NOT part of the stored snapshot: read paths fill it
-	// from the live organization tables via
-	// entities.ResolveSystemCreatorOrgTypes, because an organization can change
-	// level after the snapshot was taken (PromoteResellerToDistributor moves one
-	// up in place, keeping its logto_id) and a stored copy would point clients at
-	// the wrong detail page. Empty when the org is the Owner, deleted, or not yet
-	// synced.
-	OrganizationType string `json:"organization_type,omitempty" structs:"organization_type,omitempty"`
 	// OnBehalfOf is true when the system was attributed to a different org via
 	// created_by_organization_id: the user acted on behalf of organization_name
 	// rather than belonging to it. Omitted (false) on the default own-org path.

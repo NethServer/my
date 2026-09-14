@@ -140,10 +140,6 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 		_ = json.Unmarshal(createdByJSON, &system.CreatedBy) // Ignore JSON unmarshal errors - keep default zero value
 	}
 
-	// The creator's organization level is not in the snapshot, it is read live.
-	// Enrichment only: a failure leaves the type empty, it must not fail the read.
-	_ = ResolveSystemCreatorOrgTypes(&system.CreatedBy)
-
 	// Set heartbeat and inventory timestamps
 	if lastHeartbeat.Valid {
 		system.LastHeartbeat = &lastHeartbeat.Time
@@ -534,15 +530,6 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	if err := rows.Err(); err != nil {
 		return nil, 0, fmt.Errorf("error iterating systems: %w", err)
 	}
-
-	// The creator's organization level is not in the snapshot, it is read live —
-	// once for the whole page. Enrichment only: a failure leaves the types empty,
-	// it must not fail the read.
-	creators := make([]*models.SystemCreator, 0, len(systems))
-	for _, system := range systems {
-		creators = append(creators, &system.CreatedBy)
-	}
-	_ = ResolveSystemCreatorOrgTypes(creators...)
 
 	return systems, totalCount, nil
 }

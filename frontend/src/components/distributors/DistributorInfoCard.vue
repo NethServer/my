@@ -40,7 +40,6 @@ import UserAvatar from '../users/UserAvatar.vue'
 import { useLoginStore } from '@/stores/login'
 import { useQuery } from '@pinia/colada'
 import { getThirdPartyAppsCatalog, THIRD_PARTY_APPS_CATALOG_KEY } from '@/lib/thirdPartyApps'
-import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 
 const { t, locale } = useI18n()
 const loginStore = useLoginStore()
@@ -324,7 +323,13 @@ function getKebabMenuItems() {
                   v-if="distributorDetail.data.created_by.organization_name"
                   class="text-gray-500 dark:text-gray-400"
                 >
-                  <CreatorOrganization :creator="distributorDetail.data.created_by" />
+                  {{
+                    distributorDetail.data.created_by.on_behalf_of
+                      ? $t('systems.on_behalf_of', {
+                          organization: distributorDetail.data.created_by.organization_name,
+                        })
+                      : distributorDetail.data.created_by.organization_name
+                  }}
                 </div>
               </div>
             </div>

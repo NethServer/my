@@ -47,7 +47,6 @@ import UserAvatar from '../users/UserAvatar.vue'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import type { Ns8Facts } from '@/lib/systems/ns8Facts'
 import type { NsecFacts } from '@/lib/systems/nsecFacts'
-import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 
 const { t, locale } = useI18n()
 const { state: systemDetail, asyncStatus } = useSystemDetail()
@@ -307,7 +306,13 @@ function getKebabMenuItems() {
                   v-if="systemDetail.data.created_by.organization_name"
                   class="text-gray-500 dark:text-gray-400"
                 >
-                  <CreatorOrganization :creator="systemDetail.data.created_by" />
+                  {{
+                    systemDetail.data.created_by.on_behalf_of
+                      ? $t('systems.on_behalf_of', {
+                          organization: systemDetail.data.created_by.organization_name,
+                        })
+                      : systemDetail.data.created_by.organization_name
+                  }}
                 </div>
               </div>
             </div>

@@ -55,7 +55,6 @@ import { canManageCustomers, canDestroyCustomers } from '@/lib/permissions'
 import router from '@/router'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
-import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 
 const { isShownCreateCustomerDrawer = false } = defineProps<{
   isShownCreateCustomerDrawer: boolean
@@ -484,7 +483,13 @@ const goToCustomerDetails = (customer: Customer) => {
                       v-if="item.created_by.organization_name"
                       class="text-gray-500 dark:text-gray-400"
                     >
-                      <CreatorOrganization :creator="item.created_by" />
+                      {{
+                        item.created_by.on_behalf_of
+                          ? $t('systems.on_behalf_of', {
+                              organization: item.created_by.organization_name,
+                            })
+                          : item.created_by.organization_name
+                      }}
                     </div>
                   </div>
                 </div>

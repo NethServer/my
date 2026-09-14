@@ -34,7 +34,6 @@ import ReactivateCustomerModal from './ReactivateCustomerModal.vue'
 import { getLanguageLabel } from '@/lib/locale'
 import { formatPhoneForDisplay } from '@/lib/phone'
 import UserAvatar from '../users/UserAvatar.vue'
-import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 
 const { t } = useI18n()
 const { state: customerDetail, asyncStatus } = useCustomerDetail()
@@ -248,7 +247,13 @@ function getKebabMenuItems() {
                   v-if="customerDetail.data.created_by.organization_name"
                   class="text-gray-500 dark:text-gray-400"
                 >
-                  <CreatorOrganization :creator="customerDetail.data.created_by" />
+                  {{
+                    customerDetail.data.created_by.on_behalf_of
+                      ? $t('systems.on_behalf_of', {
+                          organization: customerDetail.data.created_by.organization_name,
+                        })
+                      : customerDetail.data.created_by.organization_name
+                  }}
                 </div>
               </div>
             </div>
