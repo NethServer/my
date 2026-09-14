@@ -124,6 +124,10 @@ func (r *LocalDistributorRepository) GetByID(id string) (*models.LocalDistributo
 	distributor.CreatedBy = models.ExtractOrgCreator(distributor.CustomData)
 	distributor.PromotedFrom = models.ExtractOrgPromotion(distributor.CustomData)
 
+	// The creator's organization level is not in the snapshot, it is read live.
+	// Enrichment only: a failure leaves the type empty, it must not fail the read.
+	_ = ResolveCreatorOrgTypes(distributor.CreatedBy)
+
 	return distributor, nil
 }
 
@@ -398,6 +402,15 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 			return nil, 0, fmt.Errorf("failed to populate distributor counts: %w", err)
 		}
 	}
+
+	// The creator's organization level is not in the snapshot, it is read live —
+	// once for the whole page. Enrichment only: a failure leaves the types empty,
+	// it must not fail the read.
+	creators := make([]*models.OrgCreator, 0, len(distributors))
+	for _, distributor := range distributors {
+		creators = append(creators, distributor.CreatedBy)
+	}
+	_ = ResolveCreatorOrgTypes(creators...)
 
 	return distributors, totalCount, nil
 }
@@ -723,6 +736,10 @@ func (r *LocalDistributorRepository) GetByIDIncludeDeleted(id string) (*models.L
 	distributor.ThirdPartyApps = models.NormalizeThirdPartyAppNames(apps)
 	distributor.CreatedBy = models.ExtractOrgCreator(distributor.CustomData)
 	distributor.PromotedFrom = models.ExtractOrgPromotion(distributor.CustomData)
+
+	// The creator's organization level is not in the snapshot, it is read live.
+	// Enrichment only: a failure leaves the type empty, it must not fail the read.
+	_ = ResolveCreatorOrgTypes(distributor.CreatedBy)
 
 	return distributor, nil
 }

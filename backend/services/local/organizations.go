@@ -934,7 +934,7 @@ func (s *LocalOrganizationService) UpdateDistributor(id string, req *models.Upda
 	// re-injected here or every update would silently wipe the creator snapshot
 	// from Postgres and Logto.
 	if currentDistributor.CreatedBy != nil {
-		finalCustomData["createdByUser"] = currentDistributor.CreatedBy
+		finalCustomData["createdByUser"] = currentDistributor.CreatedBy.StorableCopy()
 	}
 	// Same for the promotion snapshot, which the promotion path is the only
 	// writer of: drop whatever the request carries and restore the stored value,
@@ -1167,7 +1167,7 @@ func (s *LocalOrganizationService) UpdateReseller(id string, req *models.UpdateL
 	// re-injected here or every update would silently wipe the creator snapshot
 	// from Postgres and Logto.
 	if currentReseller.CreatedBy != nil {
-		finalCustomData["createdByUser"] = currentReseller.CreatedBy
+		finalCustomData["createdByUser"] = currentReseller.CreatedBy.StorableCopy()
 	}
 
 	// Add update tracking (these are additional fields, not replacements)
@@ -1393,7 +1393,7 @@ func (s *LocalOrganizationService) UpdateCustomer(id string, req *models.UpdateL
 	// re-injected here or every update would silently wipe the creator snapshot
 	// from Postgres and Logto.
 	if currentCustomer.CreatedBy != nil {
-		finalCustomData["createdByUser"] = currentCustomer.CreatedBy
+		finalCustomData["createdByUser"] = currentCustomer.CreatedBy.StorableCopy()
 	}
 
 	// Add update tracking (these are additional fields, not replacements)
@@ -3004,7 +3004,7 @@ func promotedCustomData(reseller *models.LocalReseller, parentOrgID string, prom
 		original[k] = v
 	}
 	if reseller.CreatedBy != nil {
-		original["createdByUser"] = reseller.CreatedBy
+		original["createdByUser"] = reseller.CreatedBy.StorableCopy()
 	}
 
 	promoted = make(map[string]interface{}, len(original)+1)
