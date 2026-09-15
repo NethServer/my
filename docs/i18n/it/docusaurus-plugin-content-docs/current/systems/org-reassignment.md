@@ -52,7 +52,7 @@ non influenzano in alcun modo la vista del nuovo proprietario.
 ### Dall'API
 
 ```bash
-curl -X PUT https://my.example.com/api/systems/$SYSTEM_ID \
+curl -X PUT https://my.nethesis.it/backend/api/systems/$SYSTEM_ID \
      -H "Authorization: Bearer $JWT" \
      -H "Content-Type: application/json" \
      -d '{"name":"unchanged","organization_id":"<new-logto-id>"}'
@@ -128,6 +128,6 @@ i dati seguono il sistema in entrambe le direzioni.
 
 ## Correlato
 
-- [Gestione dei sistemi](management) — l'intero ciclo di vita di un sistema.
-- [Backup di configurazione](backups) — cosa viene memorizzato, come è
+- [Gestione dei sistemi](./management.md) — l'intero ciclo di vita di un sistema.
+- [Backup di configurazione](./backups.md) — cosa viene memorizzato, come è
   protetto, e come si calcola la quota per organizzazione.

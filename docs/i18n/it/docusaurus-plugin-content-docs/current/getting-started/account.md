@@ -4,115 +4,131 @@ sidebar_position: 2
 
 # Impostazioni Account
 
-La pagina Account consente di gestire le impostazioni personali, il profilo, l'avatar e la password.
+Gestione di lingua, profilo, avatar, password, API key e consenso all'impersonificazione.
 
 ## Panoramica
 
 La pagina Account è accessibile dal menu utente in alto a destra e si compone delle seguenti sezioni:
 
-- **Impostazioni Generali** - Preferenze di lingua e interfaccia
-- **Gestione Profilo** - Informazioni personali
-- **Gestione Avatar** - Immagine del profilo
-- **Cambio Password** - Aggiornamento credenziali
-- **API Key** - Credenziali per l'accesso programmatico
-- **Consenso Impersonificazione** - Gestione del consenso
+- **Impostazioni generali** -- lingua dell'interfaccia
+- **Profilo** -- informazioni personali
+- **Avatar** -- immagine del profilo
+- **Cambio password** -- aggiornamento credenziali
+- **API key** -- credenziali per l'accesso programmatico
+- **Consenso impersonificazione** -- se gli amministratori possono agire al posto tuo
 
 ## Impostazioni Generali
 
 ### Selezione Lingua
 
-È possibile selezionare la lingua preferita per l'interfaccia. Le lingue disponibili sono:
+L'interfaccia è disponibile in:
 
 - **Inglese** (predefinito)
 - **Italiano**
 
-La modifica della lingua viene applicata immediatamente a tutta l'interfaccia.
+Al primo accesso la lingua segue quella del browser; in seguito segue la preferenza salvata. Per cambiarla:
+
+1. Vai alla pagina **Account**
+2. Individua l'impostazione **Lingua**
+3. Scegli la lingua
+
+La modifica viene applicata immediatamente a tutta l'interfaccia e viene ricordata per gli accessi successivi.
 
 ## Gestione Profilo
 
 ### Modifica Informazioni
 
-Puoi aggiornare le seguenti informazioni del profilo:
-
-- **Nome** - Il tuo nome
-- **Cognome** - Il tuo cognome
-- **Email** - Il tuo indirizzo email
-- **Telefono** - Il tuo numero di telefono
-
-Per modificare le informazioni:
-
 1. Vai alla pagina **Account**
-2. Modifica i campi desiderati nella sezione **Profilo**
-3. Clicca su **Salva**
+2. Nella sezione **Profilo** aggiorna:
+   - **Nome**: il nome visualizzato su tutta la piattaforma
+   - **Email**: il tuo indirizzo email, che è anche il tuo username
+   - **Numero di telefono**: facoltativo
+3. Clicca su **Salva profilo**
 
 :::note
-Alcune informazioni potrebbero non essere modificabili a seconda della configurazione dell'organizzazione.
+La modifica dell'email può richiedere una nuova autenticazione, e potrebbe esserti chiesto di verificare il nuovo indirizzo prima che la modifica diventi effettiva.
 :::
 
 ## Gestione Avatar
 
+L'avatar compare su tutta la piattaforma accanto al tuo nome, nei commenti e negli elenchi utenti.
+
 ### Upload Avatar
 
-Puoi caricare un'immagine personalizzata come avatar del profilo.
-
-**Formati supportati:**
-- PNG
-- JPEG
-- WebP
-
-**Specifiche:**
-- Dimensione massima: **500 KB**
-- L'immagine viene automaticamente ridimensionata a **256x256 pixel**
-- L'immagine viene ritagliata al centro se non è quadrata
-
-Per caricare un avatar:
-
 1. Vai alla pagina **Account**
-2. Clicca sull'area avatar o sul pulsante **Carica**
-3. Seleziona un'immagine dal tuo dispositivo
-4. L'avatar viene aggiornato immediatamente
-
-### Eliminazione Avatar
-
-Per rimuovere l'avatar personalizzato:
-
-1. Vai alla pagina **Account**
-2. Clicca sul pulsante **Elimina** accanto all'avatar
-3. L'avatar tornerà all'immagine predefinita (iniziali del nome)
-
-### URL Pubblico
-
-Ogni avatar caricato è disponibile tramite un URL pubblico. Questo URL può essere utilizzato in applicazioni esterne o integrazioni.
+2. Clicca sull'area dell'avatar o sul pulsante **Carica**
+3. Scegli un'immagine: PNG, JPEG o WebP, al massimo **500 KB** e **4096x4096** pixel
+4. L'immagine viene scalata per rientrare in 256x256, convertita in PNG e applicata immediatamente
 
 ### Avatar Predefinito
 
-Se non è stato caricato un avatar personalizzato, viene visualizzato un avatar generato automaticamente con le **iniziali** del nome e cognome dell'utente, su uno sfondo colorato.
+Senza un avatar caricato, l'interfaccia mostra le tue iniziali su un cerchio colorato, ricavate dal nome visualizzato.
+
+### Eliminazione Avatar
+
+1. Vai alla pagina **Account**
+2. Clicca su **Elimina** sull'avatar attuale
+3. Viene ripristinato il segnaposto con le iniziali
+
+### URL Pubblico
+
+Il tuo avatar è raggiungibile senza autenticazione all'indirizzo `/backend/api/public/users/{user_id}/avatar`.
+
+Per i dettagli completi, vedi [Gestione Avatar](../features/avatar.md).
 
 ## Cambio Password
 
-Per cambiare la password:
-
 1. Vai alla pagina **Account**
-2. Nella sezione **Cambio Password**, inserisci:
-   - **Password attuale** - La tua password corrente
-   - **Nuova password** - La nuova password desiderata
-   - **Conferma password** - Ripeti la nuova password
+2. Nella sezione **Cambio password** inserisci:
+   - **Password attuale**
+   - **Nuova password**
+   - **Conferma password**
 3. Clicca su **Salva**
 
 :::warning
-La nuova password deve soddisfare i requisiti minimi di sicurezza: almeno 8 caratteri, una maiuscola, una minuscola, un numero e un carattere speciale.
+La nuova password deve rispettare la policy della piattaforma: almeno **12 caratteri**, con una maiuscola, una minuscola, un numero e un carattere speciale. Vedi [Requisiti Password](./authentication.md#requisiti-password).
 :::
 
 ## API Key
 
-La pagina Impostazioni Account include una sezione **API Key** dove puoi creare e revocare key personali per l'accesso programmatico da applicazioni e script esterni. Per i dettagli completi consulta la documentazione [API Key](api-keys).
+La pagina Account include una sezione **API key** dove puoi creare e revocare key personali per l'accesso programmatico da applicazioni e script esterni. Per i dettagli completi consulta [API Key](./api-keys.md).
 
 ## Consenso Impersonificazione
 
-La sezione Consenso Impersonificazione ti permette di controllare se gli amministratori Owner possono impersonificare il tuo account.
-
-Per maggiori dettagli, consulta la pagina dedicata all'[Impersonificazione Utente](../platform/impersonation).
+La sezione **Impersonificazione** controlla se gli amministratori dell'organizzazione Owner possono usare temporaneamente la piattaforma al posto tuo. Per capire come funziona, vedi [Impersonificazione](../platform/impersonation.md).
 
 :::note
-Il consenso all'impersonificazione è facoltativo. Se revocato, gli amministratori Owner non potranno accedere alla piattaforma con il tuo account.
+Il consenso è facoltativo e sempre revocabile da te. Con il consenso revocato, nessuno può aprire una sessione a tuo nome.
 :::
+
+## Risoluzione Problemi
+
+### Le Modifiche al Profilo Non Vengono Salvate
+
+**Problema:** dopo aver cliccato Salva le modifiche non risultano applicate
+
+**Soluzioni:**
+- Verifica che tutti i campi obbligatori siano compilati
+- Controlla che l'indirizzo email sia valido
+- Ricarica la pagina e ripeti la modifica
+- Se stai cambiando l'email, completa la procedura di nuova autenticazione
+
+### L'Upload dell'Avatar Fallisce
+
+**Problema:** l'avatar non viene caricato o mostra un errore
+
+**Soluzioni:**
+- Verifica che il file sia in un formato supportato (PNG, JPEG o WebP)
+- Controlla che il file sia sotto i 500 KB
+- Assicurati che le dimensioni non superino 4096x4096 pixel
+- Prova con un'altra immagine
+
+### Il Cambio Password Fallisce
+
+**Problema:** non riesci a cambiare la password
+
+**Soluzioni:**
+- Verifica che la password attuale sia corretta
+- Assicurati che la nuova password rispetti tutti i requisiti: almeno 12 caratteri, maiuscola, minuscola, numero, carattere speciale, non più di 3 caratteri identici di fila e nessun pattern debole comune
+- Controlla che nuova password e conferma coincidano
+- Se hai dimenticato la password attuale, usa invece il link "Password dimenticata?" nella pagina di login

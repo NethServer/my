@@ -56,12 +56,12 @@ graph LR
 
 ## Quick Start
 
-1. **[Log in](getting-started/authentication)** with your credentials
-2. **[Set up your profile](getting-started/account)** and avatar
-3. **[Create organizations](platform/organizations)** based on your business hierarchy
-4. **[Add users](platform/users)** and assign appropriate roles
-5. **[Create systems](systems/management)** for your customers
-6. **[Register systems](systems/registration)** to enable monitoring
+1. **[Log in](./getting-started/authentication.md)** with your credentials
+2. **[Set up your profile](./getting-started/account.md)** and avatar
+3. **[Create organizations](./platform/organizations.md)** based on your business hierarchy
+4. **[Add users](./platform/users.md)** and assign appropriate roles
+5. **[Create systems](./systems/management.md)** for your customers
+6. **[Register systems](./systems/registration.md)** to enable monitoring
 
 ## Technology Stack
 

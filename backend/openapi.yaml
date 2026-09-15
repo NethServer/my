@@ -11,11 +11,17 @@ info:
     name: AGPL-3.0-or-later
     url: https://www.gnu.org/licenses/agpl-3.0.html
 
+# Backend and collect are not separate public hosts: a deployed My puts both
+# behind the same platform domain, where the proxy routes /backend/api/* to
+# the backend and /collect/api/* to collect (see proxy/nginx.conf). The
+# services listen on 8080 and 8081 only inside the deployment, so those ports
+# never appear in a call. Every operation below repeats the one base URL it
+# answers on, so the sample requests are always addressed to the right service.
 servers:
-  - url: https://api.your-domain.com/api
-    description: Backend API server (port 8080)
-  - url: https://collect.your-domain.com/api
-    description: Collect API server (port 8081)
+  - url: https://my.nethesis.it/backend/api
+    description: Backend API server
+  - url: https://my.nethesis.it/collect/api
+    description: Collect API server
 
 tags:
 
@@ -4718,6 +4724,9 @@ paths:
   /users:
     get:
       operationId: getUsers
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Users
       summary: /users - List users
@@ -4811,6 +4820,9 @@ paths:
 
     post:
       operationId: createUser
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Users
       summary: /users - Create user
@@ -4849,6 +4861,9 @@ paths:
   /users/{id}:
     get:
       operationId: getUserById
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Users
       summary: /users/{id} - Get single user
@@ -4886,6 +4901,9 @@ paths:
 
     put:
       operationId: updateUser
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Users
       summary: /users/{id} - Update user
@@ -4933,6 +4951,9 @@ paths:
 
     delete:
       operationId: deleteUser
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Users
       summary: /users/{id} - Delete user
@@ -4974,6 +4995,9 @@ paths:
   /users/{id}/password:
     patch:
       operationId: resetUserPassword
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Users
       summary: /users/{id}/password - Reset user password
@@ -5021,6 +5045,9 @@ paths:
   /users/{id}/avatar:
     put:
       operationId: uploadUserAvatar
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Users
       summary: /users/{id}/avatar - Upload user avatar (admin)
@@ -5070,7 +5097,7 @@ paths:
                       avatar_url:
                         type: string
                         description: Public URL of the uploaded avatar
-                        example: "https://my.nethesis.it/api/public/users/jf584cz36kce/avatar"
+                        example: "https://my.nethesis.it/backend/api/public/users/jf584cz36kce/avatar"
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -5083,6 +5110,9 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     delete:
       operationId: deleteUserAvatar
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Users
       summary: /users/{id}/avatar - Delete user avatar (admin)
@@ -5128,6 +5158,9 @@ paths:
   /users/{id}/suspend:
     patch:
       operationId: suspendUser
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Users
       summary: /users/{id}/suspend - Suspend user
@@ -5169,6 +5202,9 @@ paths:
   /users/{id}/reactivate:
     patch:
       operationId: reactivateUser
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Users
       summary: /users/{id}/reactivate - Reactivate suspended user
@@ -5210,6 +5246,9 @@ paths:
   /users/{id}/restore:
     patch:
       operationId: restoreUser
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Users
       summary: /users/{id}/restore - Restore soft-deleted user
@@ -5265,6 +5304,9 @@ paths:
   /users/{id}/destroy:
     delete:
       operationId: destroyUser
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Users
       summary: /users/{id}/destroy - Permanently delete user
@@ -5304,6 +5346,9 @@ paths:
   /users/totals:
     get:
       operationId: getUsersTotals
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Users Stats
       summary: /users/totals - Get users totals
@@ -5332,6 +5377,9 @@ paths:
   /users/trend:
     get:
       operationId: getUsersTrend
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Users Stats
       summary: /users/trend - Get users trend data
@@ -5364,6 +5412,9 @@ paths:
   /users/export:
     get:
       operationId: exportUsers
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Users Import/Export
       summary: /users/export - Export users to CSV or PDF
@@ -5444,6 +5495,9 @@ paths:
   /users/import/template:
     get:
       operationId: getUsersImportTemplate
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Users Import/Export
       summary: /users/import/template - Download CSV import template
@@ -5467,6 +5521,9 @@ paths:
   /users/import/validate:
     post:
       operationId: validateUsersImport
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Users Import/Export
       summary: /users/import/validate - Validate CSV file for user import
@@ -5547,6 +5604,9 @@ paths:
   /users/import/confirm:
     post:
       operationId: confirmUsersImport
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Users Import/Export
       summary: /users/import/confirm - Execute validated user import
@@ -5620,6 +5680,9 @@ paths:
   /third-party-applications:
     get:
       operationId: getThirdPartyApplications
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Metadata
       summary: /third-party-applications - Get third-party applications
@@ -5657,6 +5720,9 @@ paths:
   /auth/exchange:
     post:
       operationId: exchangeToken
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Authentication
       summary: /auth/exchange - Exchange Logto token for custom JWT
@@ -5695,6 +5761,9 @@ paths:
   /me:
     get:
       operationId: getMe
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Me
       summary: /me - Get current user information
@@ -5721,6 +5790,9 @@ paths:
   /me/change-password:
     post:
       operationId: changeMyPassword
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Me
       summary: /me/change-password - Change current user password
@@ -5820,6 +5892,9 @@ paths:
   /me/change-info:
     post:
       operationId: changeMyInfo
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Me
       summary: /me/change-info - Change current user information
@@ -5914,6 +5989,9 @@ paths:
   /me/avatar:
     put:
       operationId: uploadMyAvatar
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Me
       summary: /me/avatar - Upload current user avatar
@@ -5954,7 +6032,7 @@ paths:
                       avatar_url:
                         type: string
                         description: Public URL of the uploaded avatar
-                        example: "https://my.nethesis.it/api/public/users/jf584cz36kce/avatar"
+                        example: "https://my.nethesis.it/backend/api/public/users/jf584cz36kce/avatar"
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -5963,6 +6041,9 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     delete:
       operationId: deleteMyAvatar
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Me
       summary: /me/avatar - Delete current user avatar
@@ -5993,6 +6074,9 @@ paths:
   /me/api-keys:
     get:
       operationId: listMyAPIKeys
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Me
       summary: /me/api-keys - List current user's API keys
@@ -6029,6 +6113,9 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     post:
       operationId: createMyAPIKey
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Me
       summary: /me/api-keys - Create an API key
@@ -6103,6 +6190,9 @@ paths:
   /me/api-keys/{id}:
     delete:
       operationId: revokeMyAPIKey
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Me
       summary: /me/api-keys/{id} - Revoke an API key
@@ -6148,6 +6238,9 @@ paths:
   /me/api-keys/audit:
     get:
       operationId: listMyAPIKeyAudit
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Me
       summary: /me/api-keys/audit - List current user's API key audit trail
@@ -6211,6 +6304,9 @@ paths:
   /public/users/{id}/avatar:
     get:
       operationId: getPublicAvatar
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Public
       summary: /public/users/{id}/avatar - Get user avatar image
@@ -6254,6 +6350,9 @@ paths:
   /public/rebranding/{org_id}/products/{product_id}/{asset}:
     get:
       operationId: getPublicRebrandingAsset
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Public
       summary: /public/rebranding/{org_id}/products/{product_id}/{asset} - Get a rebranding asset image
@@ -6313,6 +6412,9 @@ paths:
   /auth/refresh:
     post:
       operationId: refreshToken
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Authentication
       summary: /auth/refresh - Refresh access token
@@ -6348,6 +6450,9 @@ paths:
   /auth/logout:
     post:
       operationId: logout
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Authentication
       summary: /auth/logout - Logout user
@@ -6395,6 +6500,9 @@ paths:
   /impersonate/consent:
     post:
       operationId: enableImpersonationConsent
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Impersonation
       summary: /impersonate/consent - Enable impersonation consent
@@ -6455,6 +6563,9 @@ paths:
 
     get:
       operationId: getImpersonationConsentStatus
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Impersonation
       summary: /impersonate/consent - Get impersonation consent status
@@ -6489,6 +6600,9 @@ paths:
 
     delete:
       operationId: disableImpersonationConsent
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Impersonation
       summary: /impersonate/consent - Disable impersonation consent
@@ -6518,6 +6632,9 @@ paths:
   /impersonate:
     post:
       operationId: impersonateUserWithConsent
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Impersonation
       summary: /impersonate - Start impersonation (permission-based access)
@@ -6619,6 +6736,9 @@ paths:
 
     delete:
       operationId: exitImpersonationWithAudit
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Impersonation
       summary: /impersonate - Exit impersonation mode
@@ -6670,6 +6790,9 @@ paths:
   /impersonate/status:
     get:
       operationId: getImpersonationStatus
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Impersonation
       summary: /impersonate/status - Check current impersonation status
@@ -6804,6 +6927,9 @@ paths:
   /impersonate/sessions:
     get:
       operationId: getImpersonationSessions
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Impersonation Sessions
       summary: /impersonate/sessions - List impersonation sessions
@@ -6848,6 +6974,9 @@ paths:
   /impersonate/sessions/{session_id}:
     get:
       operationId: getImpersonationSession
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Impersonation Sessions
       summary: /impersonate/sessions/{session_id} - Get details for specific session
@@ -6910,6 +7039,9 @@ paths:
   /impersonate/sessions/{session_id}/audit:
     get:
       operationId: getSessionAudit
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Impersonation Sessions
       summary: /impersonate/sessions/{session_id}/audit - Get audit logs for specific session
@@ -6985,6 +7117,9 @@ paths:
   /customers:
     get:
       operationId: getCustomers
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Customers
       summary: /customers - List customers
@@ -7029,6 +7164,9 @@ paths:
 
     post:
       operationId: createCustomer
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Customers
       summary: /customers - Create customer
@@ -7067,6 +7205,9 @@ paths:
   /customers/{id}:
     get:
       operationId: getCustomerById
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Customers
       summary: /customers/{id} - Get single customer
@@ -7104,6 +7245,9 @@ paths:
 
     put:
       operationId: updateCustomer
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Customers
       summary: /customers/{id} - Update customer
@@ -7151,6 +7295,9 @@ paths:
 
     delete:
       operationId: deleteCustomer
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Customers
       summary: /customers/{id} - Delete customer
@@ -7200,6 +7347,9 @@ paths:
   /customers/{id}/stats:
     get:
       operationId: getCustomerStats
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Customers
       summary: /customers/{id}/stats - Get customer statistics
@@ -7239,6 +7389,9 @@ paths:
   /customers/{id}/suspend:
     patch:
       operationId: suspendCustomer
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Customers
       summary: /customers/{id}/suspend - Suspend customer
@@ -7289,6 +7442,9 @@ paths:
   /customers/{id}/reactivate:
     patch:
       operationId: reactivateCustomer
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Customers
       summary: /customers/{id}/reactivate - Reactivate customer
@@ -7339,6 +7495,9 @@ paths:
   /customers/{id}/restore:
     patch:
       operationId: restoreCustomer
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Customers
       summary: /customers/{id}/restore - Restore soft-deleted customer
@@ -7402,6 +7561,9 @@ paths:
   /customers/{id}/destroy:
     delete:
       operationId: destroyCustomer
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Customers
       summary: /customers/{id}/destroy - Permanently delete customer
@@ -7441,6 +7603,9 @@ paths:
   /customers/totals:
     get:
       operationId: getCustomersTotals
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Customers Stats
       summary: /customers/totals - Get customers totals
@@ -7469,6 +7634,9 @@ paths:
   /customers/trend:
     get:
       operationId: getCustomersTrend
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Customers Stats
       summary: /customers/trend - Get customers trend data
@@ -7501,6 +7669,9 @@ paths:
   /customers/export:
     get:
       operationId: exportCustomers
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Customers Import/Export
       summary: /customers/export - Export customers to CSV or PDF
@@ -7542,6 +7713,9 @@ paths:
   /distributors:
     get:
       operationId: getDistributors
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Distributors
       summary: /distributors - List distributors
@@ -7586,6 +7760,9 @@ paths:
 
     post:
       operationId: createDistributor
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Distributors
       summary: /distributors - Create distributor
@@ -7624,6 +7801,9 @@ paths:
   /distributors/{id}:
     get:
       operationId: getDistributorById
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Distributors
       summary: /distributors/{id} - Get single distributor
@@ -7664,6 +7844,9 @@ paths:
 
     put:
       operationId: updateDistributor
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Distributors
       summary: /distributors/{id} - Update distributor
@@ -7711,6 +7894,9 @@ paths:
 
     delete:
       operationId: deleteDistributor
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Distributors
       summary: /distributors/{id} - Delete distributor
@@ -7760,6 +7946,9 @@ paths:
   /distributors/{id}/stats:
     get:
       operationId: getDistributorStats
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Distributors
       summary: /distributors/{id}/stats - Get distributor statistics
@@ -7799,6 +7988,9 @@ paths:
   /distributors/{id}/suspend:
     patch:
       operationId: suspendDistributor
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Distributors
       summary: /distributors/{id}/suspend - Suspend distributor
@@ -7857,6 +8049,9 @@ paths:
   /distributors/{id}/reactivate:
     patch:
       operationId: reactivateDistributor
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Distributors
       summary: /distributors/{id}/reactivate - Reactivate distributor
@@ -7915,6 +8110,9 @@ paths:
   /distributors/{id}/restore:
     patch:
       operationId: restoreDistributor
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Distributors
       summary: /distributors/{id}/restore - Restore soft-deleted distributor
@@ -7978,6 +8176,9 @@ paths:
   /distributors/{id}/destroy:
     delete:
       operationId: destroyDistributor
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Distributors
       summary: /distributors/{id}/destroy - Permanently delete distributor
@@ -8017,6 +8218,9 @@ paths:
   /distributors/totals:
     get:
       operationId: getDistributorsTotals
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Distributors Stats
       summary: /distributors/totals - Get distributors totals
@@ -8045,6 +8249,9 @@ paths:
   /distributors/trend:
     get:
       operationId: getDistributorsTrend
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Distributors Stats
       summary: /distributors/trend - Get distributors trend data
@@ -8077,6 +8284,9 @@ paths:
   /distributors/export:
     get:
       operationId: exportDistributors
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Distributors Import/Export
       summary: /distributors/export - Export distributors to CSV or PDF
@@ -8118,6 +8328,9 @@ paths:
   /distributors/import/template:
     get:
       operationId: getDistributorsImportTemplate
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Distributors Import/Export
       summary: /distributors/import/template - Download CSV import template
@@ -8142,6 +8355,9 @@ paths:
   /distributors/import/validate:
     post:
       operationId: validateDistributorsImport
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Distributors Import/Export
       summary: /distributors/import/validate - Validate CSV for distributor import
@@ -8213,6 +8429,9 @@ paths:
   /distributors/import/confirm:
     post:
       operationId: confirmDistributorsImport
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Distributors Import/Export
       summary: /distributors/import/confirm - Execute validated distributor import
@@ -8274,6 +8493,9 @@ paths:
   /resellers/import/template:
     get:
       operationId: getResellersImportTemplate
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Resellers Import/Export
       summary: /resellers/import/template - Download CSV import template
@@ -8298,6 +8520,9 @@ paths:
   /resellers/import/validate:
     post:
       operationId: validateResellersImport
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Resellers Import/Export
       summary: /resellers/import/validate - Validate CSV for reseller import
@@ -8369,6 +8594,9 @@ paths:
   /resellers/import/confirm:
     post:
       operationId: confirmResellersImport
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Resellers Import/Export
       summary: /resellers/import/confirm - Execute validated reseller import
@@ -8429,6 +8657,9 @@ paths:
   /customers/import/template:
     get:
       operationId: getCustomersImportTemplate
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Customers Import/Export
       summary: /customers/import/template - Download CSV import template
@@ -8453,6 +8684,9 @@ paths:
   /customers/import/validate:
     post:
       operationId: validateCustomersImport
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Customers Import/Export
       summary: /customers/import/validate - Validate CSV for customer import
@@ -8526,6 +8760,9 @@ paths:
   /customers/import/confirm:
     post:
       operationId: confirmCustomersImport
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Customers Import/Export
       summary: /customers/import/confirm - Execute validated customer import
@@ -8584,6 +8821,11 @@ paths:
   /health:
     get:
       operationId: getHealth
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Backend - Health
         - Collect - Health
@@ -8640,6 +8882,9 @@ paths:
   /filters/systems:
     get:
       operationId: getSystemFilters
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Filters
       summary: /filters/systems - Get aggregated system filters
@@ -8768,6 +9013,9 @@ paths:
   /organization-roles:
     get:
       operationId: getOrganizationRoles
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Metadata
       summary: /organization-roles - Get all organization roles
@@ -8799,6 +9047,9 @@ paths:
   /organizations:
     get:
       operationId: getOrganizations
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Metadata
       summary: /organizations - Get available organizations
@@ -8880,6 +9131,9 @@ paths:
   /resellers:
     get:
       operationId: getResellers
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Resellers
       summary: /resellers - List resellers
@@ -8924,6 +9178,9 @@ paths:
 
     post:
       operationId: createReseller
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Resellers
       summary: /resellers - Create reseller
@@ -8962,6 +9219,9 @@ paths:
   /resellers/{id}:
     get:
       operationId: getResellerById
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Resellers
       summary: /resellers/{id} - Get single reseller
@@ -8999,6 +9259,9 @@ paths:
 
     put:
       operationId: updateReseller
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Resellers
       summary: /resellers/{id} - Update reseller
@@ -9046,6 +9309,9 @@ paths:
 
     delete:
       operationId: deleteReseller
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Resellers
       summary: /resellers/{id} - Delete reseller
@@ -9095,6 +9361,9 @@ paths:
   /resellers/{id}/stats:
     get:
       operationId: getResellerStats
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Resellers
       summary: /resellers/{id}/stats - Get reseller statistics
@@ -9134,6 +9403,9 @@ paths:
   /resellers/{id}/suspend:
     patch:
       operationId: suspendReseller
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Resellers
       summary: /resellers/{id}/suspend - Suspend reseller
@@ -9188,6 +9460,9 @@ paths:
   /resellers/{id}/reactivate:
     patch:
       operationId: reactivateReseller
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Resellers
       summary: /resellers/{id}/reactivate - Reactivate reseller
@@ -9242,6 +9517,9 @@ paths:
   /resellers/{id}/promote:
     patch:
       operationId: promoteReseller
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Resellers
       summary: /resellers/{id}/promote - Promote reseller to distributor
@@ -9378,6 +9656,9 @@ paths:
   /resellers/{id}/restore:
     patch:
       operationId: restoreReseller
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Resellers
       summary: /resellers/{id}/restore - Restore soft-deleted reseller
@@ -9441,6 +9722,9 @@ paths:
   /resellers/{id}/destroy:
     delete:
       operationId: destroyReseller
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Resellers
       summary: /resellers/{id}/destroy - Permanently delete reseller
@@ -9480,6 +9764,9 @@ paths:
   /resellers/totals:
     get:
       operationId: getResellersTotals
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Resellers Stats
       summary: /resellers/totals - Get resellers totals
@@ -9508,6 +9795,9 @@ paths:
   /resellers/trend:
     get:
       operationId: getResellersTrend
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Resellers Stats
       summary: /resellers/trend - Get resellers trend data
@@ -9540,6 +9830,9 @@ paths:
   /resellers/export:
     get:
       operationId: exportResellers
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Resellers Import/Export
       summary: /resellers/export - Export resellers to CSV or PDF
@@ -9580,6 +9873,9 @@ paths:
   /roles:
     get:
       operationId: getRoles
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Metadata
       summary: /roles - Get all user roles
@@ -9614,6 +9910,9 @@ paths:
   /systems:
     get:
       operationId: getSystems
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems
       summary: /systems - List systems
@@ -9689,6 +9988,9 @@ paths:
 
     post:
       operationId: createSystem
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems
       summary: /systems - Create system
@@ -9725,6 +10027,9 @@ paths:
   /systems/{id}:
     get:
       operationId: getSystemById
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems
       summary: /systems/{id} - Get single system
@@ -9762,6 +10067,9 @@ paths:
 
     put:
       operationId: updateSystem
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems
       summary: /systems/{id} - Update system
@@ -9807,6 +10115,9 @@ paths:
 
     delete:
       operationId: deleteSystem
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems
       summary: /systems/{id} - Delete system
@@ -9848,6 +10159,9 @@ paths:
   /systems/{id}/restore:
     patch:
       operationId: restoreSystem
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems
       summary: /systems/{id}/restore - Restore soft-deleted system
@@ -9903,6 +10217,9 @@ paths:
   /systems/{id}/destroy:
     delete:
       operationId: destroySystem
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems
       summary: /systems/{id}/destroy - Permanently delete system
@@ -9942,6 +10259,9 @@ paths:
   /systems/{id}/suspend:
     patch:
       operationId: suspendSystem
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems
       summary: /systems/{id}/suspend - Suspend system
@@ -9983,6 +10303,9 @@ paths:
   /systems/{id}/reactivate:
     patch:
       operationId: reactivateSystem
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems
       summary: /systems/{id}/reactivate - Reactivate suspended system
@@ -10024,6 +10347,9 @@ paths:
   /systems/{id}/regenerate-secret:
     post:
       operationId: regenerateSystemSecret
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems
       summary: /systems/{id}/regenerate-secret - Regenerate system secret
@@ -10062,6 +10388,9 @@ paths:
   /systems/{id}/reachability:
     get:
       operationId: checkSystemReachability
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems
       summary: /systems/{id}/reachability - Check if system web UI is reachable
@@ -10116,6 +10445,9 @@ paths:
   /systems/register:
     post:
       operationId: registerSystem
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems
       security: []
@@ -10232,6 +10564,9 @@ paths:
   /systems/totals:
     get:
       operationId: getSystemsTotals
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems Stats
       summary: /systems/totals - Get systems status summary
@@ -10270,6 +10605,9 @@ paths:
   /systems/trend:
     get:
       operationId: getSystemsTrend
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems Stats
       summary: /systems/trend - Get systems trend data
@@ -10302,6 +10640,9 @@ paths:
   /systems/export:
     get:
       operationId: exportSystems
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems Stats
       summary: /systems/export - Export systems to CSV or PDF
@@ -10399,6 +10740,9 @@ paths:
   /systems/{id}/inventory:
     get:
       operationId: getSystemInventory
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems Inventory
       summary: /systems/{id}/inventory - Get system inventory history
@@ -10462,6 +10806,9 @@ paths:
   /systems/{id}/inventory/latest:
     get:
       operationId: getSystemInventoryLatest
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems Inventory
       summary: /systems/{id}/inventory/latest - Get latest system inventory
@@ -10502,6 +10849,9 @@ paths:
   /systems/{id}/inventory/{inventory_id}:
     get:
       operationId: getSystemInventoryByID
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems Inventory
       summary: /systems/{id}/inventory/{inventory_id} - Get a specific inventory record
@@ -10550,6 +10900,9 @@ paths:
   /systems/{id}/inventory/changes:
     get:
       operationId: getSystemInventoryChanges
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems Inventory
       summary: /systems/{id}/inventory/changes - Get inventory changes summary
@@ -10590,6 +10943,9 @@ paths:
   /systems/{id}/inventory/changes/latest:
     get:
       operationId: getSystemInventoryChangesLatest
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems Inventory
       summary: /systems/{id}/inventory/changes/latest - Get latest inventory changes
@@ -10630,6 +10986,9 @@ paths:
   /systems/{id}/inventory/diffs:
     get:
       operationId: getSystemInventoryDiffs
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems Inventory
       summary: /systems/{id}/inventory/diffs - Get inventory diffs
@@ -10749,6 +11108,9 @@ paths:
   /systems/{id}/inventory/diffs/latest:
     get:
       operationId: getSystemInventoryDiffsLatest
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems Inventory
       summary: /systems/{id}/inventory/diffs/latest - Get latest inventory diffs batch
@@ -10802,6 +11164,9 @@ paths:
   /systems/{id}/inventory/timeline:
     get:
       operationId: getSystemInventoryTimeline
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems Inventory
       summary: /systems/{id}/inventory/timeline - Get inventory timeline grouped by date
@@ -10919,6 +11284,9 @@ paths:
   /alerts:
     get:
       operationId: getAlerts
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts
       summary: "/alerts - List active alerts (cross-hierarchy)"
@@ -11171,6 +11539,9 @@ paths:
   /systems/{id}/entitlements:
     get:
       operationId: listSystemEntitlements
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Entitlements
       summary: /systems/{id}/entitlements - List the add-on grants of a system
@@ -11218,6 +11589,9 @@ paths:
 
     post:
       operationId: createSystemEntitlement
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Entitlements
       summary: /systems/{id}/entitlements - Manually grant an add-on to a system
@@ -11294,6 +11668,9 @@ paths:
   /systems/{id}/entitlements/{entitlement}:
     put:
       operationId: updateSystemEntitlement
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Entitlements
       summary: /systems/{id}/entitlements/{entitlement} - Update a grant's expiry or revocation
@@ -11361,6 +11738,9 @@ paths:
 
     delete:
       operationId: deleteSystemEntitlement
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Entitlements
       summary: /systems/{id}/entitlements/{entitlement} - Revoke a grant
@@ -11422,6 +11802,9 @@ paths:
   /legacy-systems/counts:
     put:
       operationId: replaceLegacySystemCounts
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems Stats
       summary: /legacy-systems/counts - Replace the legacy systems counters
@@ -11505,6 +11888,9 @@ paths:
   /entitlements/catalog:
     get:
       operationId: listEntitlementCatalog
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Entitlements
       summary: /entitlements/catalog - List the add-on catalog
@@ -11543,6 +11929,9 @@ paths:
 
     post:
       operationId: createEntitlementCatalogItem
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Entitlements
       summary: /entitlements/catalog - Create an add-on type
@@ -11604,6 +11993,9 @@ paths:
   /entitlements/catalog/{id}:
     put:
       operationId: updateEntitlementCatalogItem
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Entitlements
       summary: /entitlements/catalog/{id} - Update an add-on type
@@ -11654,6 +12046,9 @@ paths:
 
     delete:
       operationId: deleteEntitlementCatalogItem
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Entitlements
       summary: /entitlements/catalog/{id} - Delete an add-on type
@@ -11717,6 +12112,9 @@ paths:
   /entitlements/catalog/{id}/availability:
     get:
       operationId: listEntitlementAvailability
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Entitlements
       summary: /entitlements/catalog/{id}/availability - List the commercial availability rules of an add-on
@@ -11763,6 +12161,9 @@ paths:
 
     post:
       operationId: createEntitlementAvailability
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Entitlements
       summary: /entitlements/catalog/{id}/availability - Add a commercial availability rule
@@ -11836,6 +12237,9 @@ paths:
   /entitlements/catalog/{id}/availability/{rule_id}:
     delete:
       operationId: deleteEntitlementAvailability
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Entitlements
       summary: /entitlements/catalog/{id}/availability/{rule_id} - Remove a commercial availability rule
@@ -11885,6 +12289,9 @@ paths:
   /entitlements/available:
     get:
       operationId: listAvailableEntitlements
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Entitlements
       summary: /entitlements/available - List the add-ons the caller's organization may buy
@@ -11923,6 +12330,9 @@ paths:
   /entitlements/grants:
     get:
       operationId: getEntitlementGrants
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Entitlements
       summary: /entitlements/grants - Grants report with filters
@@ -12021,6 +12431,9 @@ paths:
   /entitlements/stats:
     get:
       operationId: getEntitlementStats
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Entitlements
       summary: /entitlements/stats - Active grants per entitlement per organization
@@ -12059,6 +12472,9 @@ paths:
   /entitlements/report:
     get:
       operationId: getEntitlementReport
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Entitlements
       summary: /entitlements/report - Add-on analytics within the caller's hierarchy
@@ -12097,6 +12513,9 @@ paths:
   /entitlements/report/organizations:
     get:
       operationId: getEntitlementReportOrganizations
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Entitlements
       summary: /entitlements/report/organizations - Per-organization slice of the add-on report
@@ -12156,6 +12575,9 @@ paths:
   /entitlements/report/tiers:
     get:
       operationId: getEntitlementReportTiers
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Entitlements
       summary: /entitlements/report/tiers - Per-tier slice of the add-on report
@@ -12213,6 +12635,9 @@ paths:
   /entitlements/activate:
     post:
       operationId: activateEntitlement
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Entitlements
       summary: /entitlements/activate - Shop-facing activation/renewal of an add-on
@@ -12272,6 +12697,9 @@ paths:
   /entitlements/pending:
     post:
       operationId: pendingEntitlement
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Entitlements
       summary: /entitlements/pending - Shop-facing "order placed, payment not confirmed"
@@ -12333,6 +12761,9 @@ paths:
   /entitlements/deactivate:
     post:
       operationId: deactivateEntitlement
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Entitlements
       summary: /entitlements/deactivate - Shop-facing revocation of an add-on
@@ -12395,6 +12826,9 @@ paths:
   /alerts/totals:
     get:
       operationId: getAlertsTotals
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts
       summary: "/alerts/totals - Get alert totals by severity"
@@ -12508,6 +12942,9 @@ paths:
   /alerts/trend:
     get:
       operationId: getAlertsTrend
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts
       summary: "/alerts/trend - Get alert history trend"
@@ -12601,6 +13038,9 @@ paths:
   /alerts/stats:
     get:
       operationId: getAlertsStats
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts
       summary: "/alerts/stats - Aggregate alert statistics"
@@ -12720,6 +13160,9 @@ paths:
   /alerts/history:
     get:
       operationId: getAlertsHistory
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts
       summary: "/alerts/history - Org-level paginated alert history"
@@ -12962,6 +13405,9 @@ paths:
           type: string
     get:
       operationId: getAlertActivity
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts
       summary: "/alerts/activity/{fingerprint} - Per-alert audit timeline"
@@ -13064,6 +13510,9 @@ paths:
   /alerts/assignment:
     post:
       operationId: createAlertAssignment
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts
       summary: "/alerts/assignment - Take charge of an alert (assign to me)"
@@ -13169,6 +13618,9 @@ paths:
   /alerts/notes:
     post:
       operationId: createAlertNote
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts
       summary: "/alerts/notes - Append an operator note to an alert's timeline"
@@ -13249,6 +13701,9 @@ paths:
   /alerts/config:
     post:
       operationId: configureAlerts
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts Configuration
       summary: "/alerts/config - Save the caller's alerting layer"
@@ -13484,6 +13939,9 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     delete:
       operationId: disableAlerts
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts Configuration
       summary: "/alerts/config - Remove the caller's alerting layer"
@@ -13532,6 +13990,9 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     get:
       operationId: getAlertingConfig
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts Configuration
       summary: "/alerts/config - Get the caller's alerting layer"
@@ -13612,6 +14073,9 @@ paths:
   /alerts/config/effective:
     get:
       operationId: getEffectiveAlertingConfig
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts Configuration
       summary: "/alerts/config/effective - Inspect a tenant's effective merged config"
@@ -13708,6 +14172,9 @@ paths:
   /alerts/silences:
     get:
       operationId: getAlertSilences
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts Silences
       summary: "/alerts/silences - List active+pending silences (hierarchy-wide)"
@@ -13833,6 +14300,9 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     post:
       operationId: createAlertSilence
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts Silences
       summary: "/alerts/silences - Mute an alert across systems"
@@ -13956,6 +14426,9 @@ paths:
   /alerts/silences/{silence_id}:
     get:
       operationId: getAlertSilence
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts Silences
       summary: "/alerts/silences/{silence_id} - Get a single silence"
@@ -14054,6 +14527,9 @@ paths:
           $ref: '#/components/responses/NotFound'
     put:
       operationId: updateAlertSilence
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts Silences
       summary: "/alerts/silences/{silence_id} - Update a silence"
@@ -14146,6 +14622,9 @@ paths:
           $ref: '#/components/responses/NotFound'
     delete:
       operationId: deleteAlertSilence
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts Silences
       summary: "/alerts/silences/{silence_id} - Unmute an alert (delete silence)"
@@ -14209,6 +14688,9 @@ paths:
   /systems/{id}/alerts:
     get:
       operationId: getSystemAlerts
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts (Per-System)
       summary: "/systems/{id}/alerts - Get active alerts for a system"
@@ -14419,6 +14901,9 @@ paths:
   /systems/{id}/alerts/history:
     get:
       operationId: getSystemAlertHistory
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts (Per-System)
       summary: "/systems/{id}/alerts/history - Get system alert history"
@@ -14625,6 +15110,9 @@ paths:
   /systems/{id}/alerts/silences:
     get:
       operationId: getSystemAlertSilences
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts (Per-System)
       summary: "/systems/{id}/alerts/silences - List active silences for a system"
@@ -14710,6 +15198,9 @@ paths:
           $ref: '#/components/responses/NotFound'
     post:
       operationId: createSystemAlertSilence
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts (Per-System)
       summary: "/systems/{id}/alerts/silences - Create a silence for a system alert"
@@ -14824,6 +15315,9 @@ paths:
   /systems/{id}/alerts/silences/{silence_id}:
     get:
       operationId: getSystemAlertSilence
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts (Per-System)
       summary: "/systems/{id}/alerts/silences/{silence_id} - Get a single silence"
@@ -14901,6 +15395,9 @@ paths:
           $ref: '#/components/responses/NotFound'
     put:
       operationId: updateSystemAlertSilence
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts (Per-System)
       summary: "/systems/{id}/alerts/silences/{silence_id} - Update a silence"
@@ -14992,6 +15489,9 @@ paths:
           $ref: '#/components/responses/NotFound'
     delete:
       operationId: deleteSystemAlertSilence
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Alerts (Per-System)
       summary: "/systems/{id}/alerts/silences/{silence_id} - Disable a system alert silence"
@@ -15055,6 +15555,9 @@ paths:
   /systems/{id}/backups:
     get:
       operationId: getSystemBackups
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems Backups
       summary: /systems/{id}/backups - List configuration backups for a system
@@ -15126,6 +15629,9 @@ paths:
   /systems/{id}/backups/{backup_id}/download:
     get:
       operationId: downloadSystemBackup
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems Backups
       summary: /systems/{id}/backups/{backup_id}/download - Issue a short-lived download URL
@@ -15198,6 +15704,9 @@ paths:
   /systems/{id}/backups/{backup_id}:
     delete:
       operationId: deleteSystemBackup
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Systems Backups
       summary: /systems/{id}/backups/{backup_id} - Delete a stored backup
@@ -15261,6 +15770,9 @@ paths:
   /applications:
     get:
       operationId: getApplications
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Applications
       summary: /applications - List applications
@@ -15318,6 +15830,9 @@ paths:
   /applications/totals:
     get:
       operationId: getApplicationTotals
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Applications Stats
       summary: /applications/totals - Get application statistics
@@ -15346,6 +15861,9 @@ paths:
   /applications/summary:
     get:
       operationId: getApplicationTypeSummary
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Applications Stats
       summary: /applications/summary - Get applications grouped by type
@@ -15429,6 +15947,9 @@ paths:
   /applications/trend:
     get:
       operationId: getApplicationsTrend
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Applications Stats
       summary: /applications/trend - Get applications trend data
@@ -15467,6 +15988,9 @@ paths:
   /filters/distributors:
     get:
       operationId: getDistributorFilters
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Filters
       summary: /filters/distributors - Get aggregated distributor filters
@@ -15497,6 +16021,9 @@ paths:
   /filters/resellers:
     get:
       operationId: getResellerFilters
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Filters
       summary: /filters/resellers - Get aggregated reseller filters
@@ -15527,6 +16054,9 @@ paths:
   /filters/customers:
     get:
       operationId: getCustomerFilters
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Filters
       summary: /filters/customers - Get aggregated customer filters
@@ -15557,6 +16087,9 @@ paths:
   /filters/applications:
     get:
       operationId: getApplicationFilters
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Filters
       summary: /filters/applications - Get aggregated application filters
@@ -15637,6 +16170,9 @@ paths:
   /filters/users:
     get:
       operationId: getUserFilters
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Filters
       summary: /filters/users - Get aggregated user filters
@@ -15719,6 +16255,9 @@ paths:
   /filters/alerts:
     get:
       operationId: getAlertFilters
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Filters
       summary: /filters/alerts - Get the static alert catalog
@@ -15787,6 +16326,9 @@ paths:
   /applications/{id}:
     get:
       operationId: getApplicationById
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Applications
       summary: /applications/{id} - Get single application
@@ -15824,6 +16366,9 @@ paths:
 
     put:
       operationId: updateApplication
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Applications
       summary: /applications/{id} - Update application
@@ -15869,6 +16414,9 @@ paths:
 
     delete:
       operationId: deleteApplication
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Applications
       summary: /applications/{id} - Delete application
@@ -15908,6 +16456,9 @@ paths:
   /applications/{id}/assign:
     patch:
       operationId: assignApplicationOrganization
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Applications
       summary: /applications/{id}/assign - Assign organization
@@ -15954,6 +16505,9 @@ paths:
   /applications/{id}/unassign:
     patch:
       operationId: unassignApplicationOrganization
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Applications
       summary: /applications/{id}/unassign - Remove organization
@@ -15997,8 +16551,8 @@ paths:
     get:
       operationId: getSystemInfo
       servers:
-        - url: https://collect.your-domain.com/api
-          description: Collect API server (port 8081)
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Collect - Systems
       summary: /systems/info - Get system info
@@ -16114,8 +16668,8 @@ paths:
     post:
       operationId: collectSystemInventory
       servers:
-        - url: https://collect.your-domain.com/api
-          description: Collect API server (port 8081)
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Collect - Systems
       summary: /systems/inventory - Collect system inventory
@@ -16254,8 +16808,8 @@ paths:
     post:
       operationId: sendSystemHeartbeat
       servers:
-        - url: https://collect.your-domain.com/api
-          description: Collect API server (port 8081)
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Collect - Systems
       summary: /systems/heartbeat - System heartbeat
@@ -16318,8 +16872,8 @@ paths:
     post:
       operationId: unregisterSystem
       servers:
-        - url: https://collect.your-domain.com/api
-          description: Collect API server (port 8081)
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Collect - Systems
       summary: /systems/unregister - Give up the system credentials
@@ -16375,8 +16929,8 @@ paths:
     post:
       operationId: uploadSystemBackup
       servers:
-        - url: https://collect.your-domain.com/api
-          description: Collect API server (port 8081)
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Collect - Systems
       summary: /systems/backups - Upload a configuration backup
@@ -16442,8 +16996,8 @@ paths:
     get:
       operationId: listSystemBackupsAppliance
       servers:
-        - url: https://collect.your-domain.com/api
-          description: Collect API server (port 8081)
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Collect - Systems
       summary: /systems/backups - List backups for the authenticated system
@@ -16480,8 +17034,8 @@ paths:
     get:
       operationId: downloadSystemBackupAppliance
       servers:
-        - url: https://collect.your-domain.com/api
-          description: Collect API server (port 8081)
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Collect - Systems
       summary: /systems/backups/{id} - Download a backup
@@ -16518,8 +17072,8 @@ paths:
     delete:
       operationId: deleteSystemBackupAppliance
       servers:
-        - url: https://collect.your-domain.com/api
-          description: Collect API server (port 8081)
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Collect - Systems
       summary: /systems/backups/{id} - Delete a backup
@@ -16550,6 +17104,9 @@ paths:
   /validators/vat/{entity_type}:
     get:
       operationId: validateVAT
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Validators
       summary: /validators/vat/{entity_type} - Validate VAT number
@@ -16607,6 +17164,9 @@ paths:
   /rebranding/products:
     get:
       operationId: getRebrandingProducts
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Rebranding
       summary: List rebrandable products
@@ -16639,6 +17199,9 @@ paths:
   /rebranding/organizations:
     get:
       operationId: getRebrandingOrganizations
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Rebranding
       summary: List organizations with rebranding enabled
@@ -16702,6 +17265,9 @@ paths:
           $ref: '#/components/responses/Forbidden'
     post:
       operationId: enableRebrandingBulk
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Rebranding
       summary: Add organizations to rebranding
@@ -16756,6 +17322,9 @@ paths:
   /rebranding/organizations/available:
     get:
       operationId: getAvailableRebrandingOrganizations
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Rebranding
       summary: List organizations that can be added to rebranding
@@ -16806,6 +17375,9 @@ paths:
   /rebranding/summary:
     get:
       operationId: getRebrandingSummary
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Rebranding
       summary: Count the organizations with rebranding enabled, by type
@@ -16831,6 +17403,9 @@ paths:
   /rebranding/{org_id}/enable:
     patch:
       operationId: enableRebranding
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Rebranding
       summary: Enable rebranding for an organization
@@ -16857,6 +17432,9 @@ paths:
   /rebranding/{org_id}/disable:
     patch:
       operationId: disableRebranding
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Rebranding
       summary: Disable rebranding for an organization
@@ -16882,6 +17460,9 @@ paths:
   /rebranding/{org_id}/status:
     get:
       operationId: getRebrandingStatus
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Rebranding
       summary: Get rebranding status for an organization
@@ -16914,6 +17495,9 @@ paths:
   /rebranding/{org_id}/products:
     get:
       operationId: getRebrandingOrgProducts
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Rebranding
       summary: Get rebranding products for an organization
@@ -16946,6 +17530,9 @@ paths:
   /rebranding/{org_id}/config:
     put:
       operationId: saveRebrandingConfig
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Rebranding
       summary: Save the whole rebranding configuration
@@ -17043,6 +17630,9 @@ paths:
   /rebranding/{org_id}/products/{product_id}:
     put:
       operationId: uploadRebrandingAssets
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Rebranding
       summary: Upload rebranding assets for a product
@@ -17112,6 +17702,9 @@ paths:
           $ref: '#/components/responses/Forbidden'
     delete:
       operationId: deleteRebrandingProduct
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Rebranding
       summary: Delete all rebranding assets for a product
@@ -17140,6 +17733,9 @@ paths:
   /rebranding/{org_id}/products/{product_id}/{asset}:
     get:
       operationId: getRebrandingAsset
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Rebranding
       summary: Get a rebranding asset binary
@@ -17180,6 +17776,9 @@ paths:
           $ref: '#/components/responses/NotFound'
     delete:
       operationId: deleteRebrandingAsset
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
       tags:
         - Backend - Rebranding
       summary: Delete a single rebranding asset
@@ -17220,6 +17819,9 @@ paths:
   /systems/rebranding:
     get:
       operationId: getSystemRebranding
+      servers:
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Collect - Rebranding
       summary: Get system rebranding configuration
@@ -17249,6 +17851,9 @@ paths:
   /systems/rebranding/{product_id}/{asset}:
     get:
       operationId: getSystemRebrandingAsset
+      servers:
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Collect - Rebranding
       summary: Get a rebranding asset binary for the system
@@ -17285,6 +17890,9 @@ paths:
   /services/mimir/alertmanager/api/v2/alerts:
     get:
       operationId: mimirAlertsGet
+      servers:
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Collect - Alerting
       summary: List active alerts
@@ -17307,6 +17915,9 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     post:
       operationId: mimirAlertsPost
+      servers:
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Collect - Alerting
       summary: Push alerts
@@ -17343,6 +17954,9 @@ paths:
   /services/mimir/alertmanager/api/v2/silences:
     get:
       operationId: mimirSilencesGet
+      servers:
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Collect - Alerting
       summary: List silences
@@ -17365,6 +17979,9 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     post:
       operationId: mimirSilencesPost
+      servers:
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Collect - Alerting
       summary: Create or update a silence
@@ -17407,6 +18024,9 @@ paths:
         description: Silence UUID
     get:
       operationId: mimirSilenceGet
+      servers:
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Collect - Alerting
       summary: Get a silence
@@ -17433,6 +18053,9 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     delete:
       operationId: mimirSilenceDelete
+      servers:
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Collect - Alerting
       summary: Delete a silence
@@ -17465,6 +18088,9 @@ paths:
   /alert_history:
     post:
       operationId: receiveAlertHistory
+      servers:
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Collect - Alerting
       summary: Receive alert history webhook
@@ -17510,8 +18136,8 @@ paths:
     get:
       operationId: authCheck
       servers:
-        - url: https://collect.your-domain.com/api
-          description: Collect API server (port 8081)
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Collect - Feed Authorization
       summary: /auth - Subscription-level authorization check
@@ -17521,6 +18147,11 @@ paths:
         forwardAuth. Returns 200 when the system credentials belong to a valid
         subscription; unknown, unregistered, suspended and deleted systems get
         401 (same semantics as the legacy nethserver_basic_auth.php).
+
+        The feeds call this at the bare `/auth` of the platform domain, not
+        under `/collect/api`: the proxy keeps that path free and routes it by
+        credential, sending the `NETH-*` system keys here and the legacy UUIDs
+        to the old my. Both spellings reach this handler for a native system.
       security:
         - BasicAuth: [system_key:system_secret]
       responses:
@@ -17550,8 +18181,8 @@ paths:
     get:
       operationId: authCheckService
       servers:
-        - url: https://collect.your-domain.com/api
-          description: Collect API server (port 8081)
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Collect - Feed Authorization
       summary: /auth/service/{id} - Per-add-on entitlement check
@@ -17626,8 +18257,8 @@ paths:
     get:
       operationId: authCheckProduct
       servers:
-        - url: https://collect.your-domain.com/api
-          description: Collect API server (port 8081)
+        - url: https://my.nethesis.it/collect/api
+          description: Collect API server
       tags:
         - Collect - Feed Authorization
       summary: /auth/product/{name} - Product-level authorization check

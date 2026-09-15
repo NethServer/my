@@ -8,7 +8,7 @@ Importa dati in blocco da file CSV per creare organizzazioni e utenti.
 
 ## Panoramica
 
-My consente di importare distributori, rivenditori, clienti e utenti da file CSV. Il processo di importazione utilizza un flusso a due fasi: prima la **validazione**, poi la **conferma**. Questo garantisce la possibilita' di verificare e correggere eventuali problemi prima della creazione dei dati.
+My consente di importare distributori, rivenditori, clienti e utenti da file CSV. Il processo di importazione utilizza un flusso a due fasi: prima la **validazione**, poi la **conferma**. Questo garantisce la possibilità di verificare e correggere eventuali problemi prima della creazione dei dati.
 
 ## Import Supportati
 
@@ -27,7 +27,7 @@ Clicca sul pulsante **Importa** e seleziona **Scarica Template**. Il template CS
 
 ### Passo 2: Compila il CSV
 
-Apri il template in un foglio di calcolo e inserisci i dati. Ogni riga rappresenta un'entita' da creare.
+Apri il template in un foglio di calcolo e inserisci i dati. Ogni riga rappresenta un'entità da creare.
 
 :::tip
 Mantieni la riga di intestazione esattamente come fornita. Non rinominare, riordinare o rimuovere colonne.
@@ -39,13 +39,13 @@ Carica il file CSV. Il sistema valida ogni riga e restituisce un report dettagli
 
 - Le righe **valide** sono pronte per l'importazione
 - Le righe con **errori** hanno problemi a livello di campo (es. campi obbligatori mancanti, formato email non valido)
-- Le righe **duplicate** corrispondono a record gia' esistenti nel sistema
+- Le righe **duplicate** corrispondono a record già esistenti nel sistema
 
 Esamina il report di validazione prima di procedere.
 
 ### Passo 4: Conferma l'Import
 
-Una volta soddisfatti dei risultati della validazione, conferma l'importazione. Solo le righe valide vengono create. Le righe con errori e duplicati vengono saltate automaticamente. E' possibile escludere manualmente righe valide specifiche prima della conferma.
+Una volta soddisfatti dei risultati della validazione, conferma l'importazione. Solo le righe valide vengono create. Le righe con errori e duplicati vengono saltate automaticamente. È possibile escludere manualmente righe valide specifiche prima della conferma.
 
 ### Passo 5: Verifica i Risultati
 
@@ -57,11 +57,11 @@ Dopo la conferma, un riepilogo mostra quanti record sono stati creati, saltati o
 
 | Colonna | Obbligatorio | Descrizione |
 |---------|-------------|-------------|
-| `name` | Si' | Nome organizzazione (max 255 caratteri) |
+| `name` | Sì | Nome organizzazione (max 255 caratteri) |
 | `description` | No | Descrizione |
-| `vat` | Si' | Partita IVA |
+| `vat` | Sì | Partita IVA |
 | `address` | No | Indirizzo |
-| `city` | No | Citta' |
+| `city` | No | Città |
 | `main_contact` | No | Contatto principale |
 | `email` | No | Email di contatto (formato valido se presente) |
 | `phone` | No | Telefono (formato internazionale se presente) |
@@ -72,14 +72,14 @@ Dopo la conferma, un riepilogo mostra quanti record sono stati creati, saltati o
 
 | Colonna | Obbligatorio | Descrizione |
 |---------|-------------|-------------|
-| `email` | Si' | Email utente (deve essere univoca) |
-| `name` | Si' | Nome completo (max 255 caratteri) |
+| `email` | Sì | Email utente (deve essere univoca) |
+| `name` | Sì | Nome completo (max 255 caratteri) |
 | `phone` | No | Telefono (formato internazionale se presente) |
-| `organization` | Si' | Nome organizzazione (deve esistere nella propria gerarchia) |
-| `roles` | Si' | Nomi dei ruoli separati da `;` (es. `Admin;Support`) |
+| `organization` | Sì | Nome organizzazione (deve esistere nella propria gerarchia) |
+| `roles` | Sì | Nomi dei ruoli separati da `;` (es. `Admin;Support`) |
 
 :::note
-Nell'importazione utenti, l'organizzazione viene cercata **per nome** all'interno della gerarchia visibile. Se il nome dell'organizzazione non esiste o e' fuori dalla gerarchia, la riga viene segnalata come errore.
+Nell'importazione utenti, l'organizzazione viene cercata **per nome** all'interno della gerarchia visibile. Se il nome dell'organizzazione non esiste o è fuori dalla gerarchia, la riga viene segnalata come errore.
 :::
 
 ## Regole di Validazione
@@ -89,7 +89,7 @@ I seguenti controlli vengono eseguiti durante la validazione:
 - **Campi obbligatori** -- I campi contrassegnati non possono essere vuoti
 - **Validazione formato** -- Indirizzi email, numeri di telefono e codici lingua vengono verificati
 - **Rilevamento duplicati (nel CSV)** -- Nomi (organizzazioni) o email (utenti) duplicati nello stesso file vengono segnalati
-- **Rilevamento duplicati (database)** -- Nomi o email gia' esistenti nel sistema vengono segnalati
+- **Rilevamento duplicati (database)** -- Nomi o email già esistenti nel sistema vengono segnalati
 - **Risoluzione organizzazione** -- Per l'import utenti, i nomi delle organizzazioni vengono risolti tra le organizzazioni esistenti nella propria gerarchia
 - **Risoluzione ruoli** -- Per l'import utenti, i nomi dei ruoli vengono verificati tra i ruoli disponibili
 - **Controllo permessi** -- Per l'import utenti, ogni riga viene verificata rispetto ai permessi RBAC
@@ -104,11 +104,11 @@ I seguenti controlli vengono eseguiti durante la validazione:
 
 ## Permessi
 
-La disponibilita' dell'importazione dipende dal ruolo organizzativo e dai permessi.
+La disponibilità dell'importazione dipende dal ruolo organizzativo e dai permessi.
 
 ### Import Organizzazioni
 
-| Risorsa | Chi Puo' Importare |
+| Risorsa | Chi Può Importare |
 |---------|--------------------|
 | Distributori | Owner |
 | Rivenditori | Owner, Distributore |
@@ -116,10 +116,10 @@ La disponibilita' dell'importazione dipende dal ruolo organizzativo e dai permes
 
 ### Import Utenti
 
-L'import utenti richiede il permesso `manage:users`. Il campo organizzazione in ogni riga del CSV viene validato rispetto alla propria gerarchia -- e' possibile importare utenti solo nelle organizzazioni gestite.
+L'import utenti richiede il permesso `manage:users`. Il campo organizzazione in ogni riga del CSV viene validato rispetto alla propria gerarchia -- è possibile importare utenti solo nelle organizzazioni gestite.
 
 :::warning
-La sessione di importazione scade dopo **30 minuti**. Se non si conferma entro questo tempo, e' necessario ricaricare e rivalidare il file CSV.
+La sessione di importazione scade dopo **30 minuti**. Se non si conferma entro questo tempo, è necessario ricaricare e rivalidare il file CSV.
 :::
 
 ## Email di Benvenuto

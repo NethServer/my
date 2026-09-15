@@ -4,67 +4,80 @@ sidebar_position: 1
 
 # Authentication
 
-Learn how to access My platform and manage your account.
+How to sign in to My, manage your credentials, and what your roles let you do.
 
 ## First Login
 
-When your account is created by an administrator, you will receive a welcome email containing:
+### Welcome Email
 
-- Your username (email address)
-- A temporary password
-- A direct link to the login page
+When an administrator creates your account, you receive a welcome email containing:
+
+- Your **email address** (which is also your username)
+- A **temporary password**
+- A **direct link** to the platform
 
 ### Logging In
 
-1. Open the login URL provided in your welcome email
-2. Enter your email address
-3. Enter the temporary password
+1. Open the login URL from your welcome email
+2. Enter your **email address**
+3. Enter the **temporary password**
 4. Click **Sign In**
 
 ### First-Time Password Change
 
-Upon first login with your temporary password, you will be required to:
+On your first login you are required to replace the temporary password:
 
 1. Enter your current (temporary) password
-2. Create a new secure password
-3. Confirm your new password
+2. Create a new password that satisfies the requirements below
+3. Confirm the new password
 
-**Password Requirements:**
+:::warning
+The temporary password must be changed at first login. You cannot continue without setting a new one.
+:::
 
-- Minimum 8 characters
-- At least one uppercase letter
-- At least one lowercase letter
-- At least one number
-- At least one special character
+## Password Requirements
+
+Every password you set must satisfy all of these:
+
+| Requirement | Detail |
+|-------------|--------|
+| Minimum length | **12 characters** |
+| Maximum length | 128 characters |
+| Uppercase letter | At least one (A-Z) |
+| Lowercase letter | At least one (a-z) |
+| Digit | At least one (0-9) |
+| Special character | At least one of ``!@#$%^&*()_+-=[]{};':"\|,.<>/?~` `` |
+| Repeated characters | No more than 3 identical characters in a row |
+| Weak patterns | Rejected: `password`, `123456`, `qwerty`, `admin` and similar, plus sequences such as `123` or `abc` |
+
+Validation reports **one** problem at a time, guiding you step by step rather than listing everything at once.
+
+:::tip
+Use a long, unique passphrase for each service. A password manager makes this easy.
+:::
 
 ## Managing Your Profile
 
 ### Change Your Password
 
-To change your password at any time:
-
-1. Click on your profile icon in the top-right corner
-2. Select **Account Settings**
-3. Click **Change Password**
-4. Enter your current password
-5. Enter your new password
-6. Confirm your new password
-7. Click **Save Changes**
+1. Open **Account** from the user menu
+2. In the **Change Password** section enter:
+   - Your current password
+   - The new password
+   - The new password again, to confirm
+3. Click **Save**
 
 ### Update Your Profile Information
 
-You can update your profile information:
+You can update:
 
-1. Click on your profile icon in the top-right corner
-2. Select **Account Settings**
-3. Update the following fields:
-   - **Full Name**: Your display name
-   - **Email**: Your email address (also your username)
-   - **Phone Number**: Optional contact number
-4. Click **Save profile**
+- **First name** and **last name**
+- **Email** (if your administrator allows it -- it is also your username)
+- **Phone number**
+- **Avatar** (see [Avatar Management](../features/avatar.md))
 
 :::note
-Email changes may require re-authentication.
+Changing your email may require re-authentication.
 :::
 
 ## Security Features
@@ -73,69 +86,88 @@ Email changes may require re-authentication.
 
 - Your password is never stored in plain text
 - Temporary passwords expire after first use
+- Failed sign-in attempts are recorded
+- Administrators can suspend an account
 
 ### Session Management
 
-- Sessions expire after 24 hours of inactivity
-- Refresh tokens are valid for 7 days
-- Logging out immediately invalidates your session
+- The access token lives **30 minutes** and is refreshed silently in the background, so you do not notice it expiring
+- The refresh token is valid for **7 days**: that is how long a session can survive without signing in again
+- Refresh tokens are **rotated** at every use, and reusing an old one invalidates the whole chain -- a stolen token cannot be replayed
+- Every refresh also re-reads your data from the identity provider
+- Signing out invalidates the session immediately
+
+### Multi-Factor Authentication (MFA)
+
+My delegates authentication to Logto, so MFA is configured there, at tenant level, not inside My. When enabled, a second factor is requested after the password.
+
+- Contact your administrator to have it enabled
+- The supported methods depend on what is enabled on the Logto tenant (authenticator apps, and others if configured)
 
 ## Troubleshooting
 
 ### Forgot Password
 
-If you forget your password:
-
-1. Use "Forgot your password?" link at the Login page
+1. On the login page, click **Forgot your password?**
+2. Enter your email address
+3. Check your inbox for the reset link
+4. Follow the instructions in the email to set a new password
 
 ### Account Locked
 
-If your account is suspended:
+If your account has been suspended:
 
-- You will see an "Account suspended" error message
-- Contact your system administrator to reactivate your account
-- Only administrators can suspend/reactivate accounts
+- You see an "Account suspended" error message
+- Contact your administrator to have it reactivated
+- An administrator with the right permissions can reactivate it from **Users management**
 
 ### Session Expired
 
-If your session expires:
-
-1. You will be automatically redirected to the login page
-2. Log in again with your credentials
-3. Your previous work is not saved during session expiration
-
-## Multi-Factor Authentication (MFA)
-
-Currently, My uses Logto as the identity provider. MFA settings are managed through Logto:
-
-- Contact your administrator to enable MFA
-- MFA can be configured organization-wide
-- Supported methods: Authenticator apps, SMS (if configured)
-
-## Next Steps
-
-Once logged in, you can:
-
-- [Manage Organizations](../platform/organizations) (if you have the appropriate permissions)
-- [Manage Users](../platform/users) (Admin or Support users)
-- [Manage Systems](../systems/management) (Support users)
-- View your dashboard and statistics
+1. You are redirected to the login page
+2. Sign in again with your credentials
+3. Work that was not saved is lost
+4. If the problem persists, clear your browser cookies and retry
 
 ## User Roles
 
-Your permissions depend on your assigned roles:
+Your permissions depend on two roles that apply together.
 
 ### Organization Roles (Business Hierarchy)
+
 - **Owner**: Full platform access (Nethesis) — every member of the Owner organization has global visibility on all companies, systems and users
 - **Distributor**: Can manage resellers and customers
 - **Reseller**: Can manage customers
 - **Customer**: Can view own organization data
 
 ### User Roles (Technical Capabilities)
-- **Admin**: Organization administration, user management
-- **Support**: System management, technical operations
-- **Backoffice**: User management, backoffice operations
-- **Reader**: Reader mode
-- **Staff**: Nethesis cross-cutting staff (Owner organization only), manages everything across all companies
 
-Your effective permissions are the combination of both role types.
+| Role | Description | Main capabilities |
+|------|-------------|-------------------|
+| **Admin** | Full management of the organization | Users, systems, applications, alerting configuration, add-ons, rebranding |
+| **Backoffice** | Administrative operations | Users, applications, add-on activation and revocation. Systems are **read-only**: it cannot create or edit them. No alerting, no rebranding |
+| **Support** | Technical operations on systems | Systems (create, edit, delete, regenerate secret), inventory, heartbeat, alerts and silences, applications. **No access to users at all**, not even reading them |
+| **Reader** | Read-only | Views users, organizations, systems, inventory, applications and add-ons, and exports anything it can read. No modifications |
+| **Staff** | Nethesis cross-cutting staff (Owner organization only) | Full management across all companies, plus impersonation and remote connection. Cannot permanently destroy systems or users |
+
+### Combined Permissions
+
+Your effective permissions are the **union** of the organization role and the user role.
+
+**Example**: organization role **Distributor** + user role **Admin**
+- Manage resellers and customers under your organization (from the organization role)
+- Create and edit systems and users (from the user role)
+
+**Example**: organization role **Customer** + user role **Reader**
+- See only your own organization's data (from the organization role)
+- Read-only, no modifications (from the user role)
+
+The full matrix is in [Users Management](../platform/users.md#permissions-reference).
+
+## Next Steps
+
+Once signed in, depending on your permissions you can:
+
+- [Manage Organizations](../platform/organizations.md)
+- [Manage Users](../platform/users.md) — needs `manage:users` (Admin, Backoffice or Staff)
+- [Manage Systems](../systems/management.md) — needs `manage:systems` (Admin, Support or Staff)
+- Review your [Dashboard](../features/dashboard.md)

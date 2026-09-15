@@ -47,7 +47,7 @@ Rebranding is available for the following products:
 | NethService | `webtop` |
 | NS8 | `ns8` |
 
-Each product can have its own set of branding assets. `GET /api/rebranding/products` returns the same list, and is what the product selector is built from.
+Each product can have its own set of branding assets. `GET /backend/api/rebranding/products` returns the same list, and is what the product selector is built from.
 
 ## Asset Types
 
@@ -55,12 +55,12 @@ The following asset types can be configured per product per organization:
 
 | Asset Type | Description | Max Size | Accepted Formats |
 |------------|-------------|----------|-----------------|
-| `logo_light_rect` | Rectangular logo for light backgrounds | 2MB | PNG, SVG, WebP |
-| `logo_dark_rect` | Rectangular logo for dark backgrounds | 2MB | PNG, SVG, WebP |
-| `logo_light_square` | Square logo for light backgrounds | 2MB | PNG, SVG, WebP |
-| `logo_dark_square` | Square logo for dark backgrounds | 2MB | PNG, SVG, WebP |
-| `favicon` | Browser favicon | 512KB | PNG, ICO, SVG |
-| `background_image` | Background image | 5MB | PNG, JPEG, WebP, SVG |
+| `logo_light_rect` | Rectangular logo for light backgrounds | 2 MB | PNG, SVG, WebP |
+| `logo_dark_rect` | Rectangular logo for dark backgrounds | 2 MB | PNG, SVG, WebP |
+| `logo_light_square` | Square logo for light backgrounds | 2 MB | PNG, SVG, WebP |
+| `logo_dark_square` | Square logo for dark backgrounds | 2 MB | PNG, SVG, WebP |
+| `favicon` | Browser favicon | 512 KB | PNG, ICO, SVG |
+| `background_image` | Background image | 5 MB | PNG, JPEG, WebP, SVG |
 | `product_name` | Custom product name | 100 characters | Text (optional) |
 
 An asset left empty falls back to the product's default. Removing a single asset is enough to restore that one default: the rest of the branding stays.
@@ -71,11 +71,12 @@ Assets are served both to signed-in users and, for pages that need a plain `<img
 
 ## Permissions
 
-| Action | Who Can Perform |
-|--------|----------------|
-| Add/remove organizations to rebranding | `manage:rebranding`, from the Owner organization |
-| Configure the branding of an organization | `manage:rebranding` (Admin), own organization only — an Owner-organization user may configure any of them, for support |
-| View rebranding status and assets | `read:rebranding`, own organization, the ones below it, and the one its branding is inherited from |
+| Operation | Permission | Staff (Owner organization) | Admin | Backoffice | Support | Reader |
+|-----------|------------|:--------------------------:|:-----:|:----------:|:-------:|:------:|
+| View branding and assets (own, the organizations below, and the one it inherits from) | `read:rebranding` | Yes | Yes | Yes | Yes | Yes |
+| Configure the branding of your own organization | `manage:rebranding` | Yes | Yes | No | No | No |
+| Add/remove organizations to rebranding | `manage:rebranding` + Owner org | Yes | No | No | No | No |
+| Configure the branding of another organization (support) | `manage:rebranding` + Owner org | Yes | No | No | No | No |
 
 :::warning
 A distributor or reseller configures its **own** branding only. The organizations below inherit it — they are never written into, so an organization that configures its own branding keeps it.

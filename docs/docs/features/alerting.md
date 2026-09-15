@@ -174,7 +174,7 @@ The `severities` array on each recipient controls which severities it receives:
 - **Empty (`[]`)** — recipient receives **every** severity. This is the default for a "catch-all" address.
 - **Subset (e.g. `["critical"]`)** — recipient receives **only** those severity levels.
 
-Mimir Alertmanager fans out one receiver per severity (`severity-critical-receiver`, `severity-warning-receiver`, `severity-info-receiver`); a recipient with `severities=[]` lands on all three.
+Mimir Alertmanager fans out one receiver per severity, named per tenant (`<org_id>-severity-critical-receiver`, `-warning-`, `-info-`); a recipient with `severities=[]` lands on all three.
 
 ### Merge across the hierarchy
 

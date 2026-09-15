@@ -34,7 +34,7 @@ System registration is the process by which an external system (NethServer, Neth
 └─────────────┘
       │
       │  3. Call registration API
-      │     POST /api/systems/register
+      │     POST /backend/api/systems/register
       │     { "system_secret": "my_..." }
       │
       v
@@ -96,7 +96,7 @@ System registration is the process by which an external system (NethServer, Neth
 
 ### Step 1: Admin Creates System
 
-See [Systems Management](management#creating-systems) for details.
+See [Systems Management](./management.md#creating-systems) for details.
 
 After creation, save the `system_secret`:
 ```json
@@ -137,7 +137,7 @@ export MY_SYSTEM_SECRET="my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z
 
 The external system makes a POST request to register:
 
-**Endpoint:** `POST https://my.nethesis.it/api/systems/register`
+**Endpoint:** `POST https://my.nethesis.it/backend/api/systems/register`
 
 **Headers:**
 ```
@@ -153,7 +153,7 @@ Content-Type: application/json
 
 **cURL Example:**
 ```bash
-curl -X POST https://my.nethesis.it/api/systems/register \
+curl -X POST https://my.nethesis.it/backend/api/systems/register \
   -H "Content-Type: application/json" \
   -d '{
     "system_secret": "my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0"
@@ -164,7 +164,7 @@ curl -X POST https://my.nethesis.it/api/systems/register \
 ```python
 import requests
 
-url = "https://my.nethesis.it/api/systems/register"
+url = "https://my.nethesis.it/backend/api/systems/register"
 payload = {
     "system_secret": "my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0"
 }
@@ -338,25 +338,31 @@ Administrators can view registration status:
 After successful registration, the system should:
 
 1. **Store credentials securely**
-2. **Send first inventory** (see [Inventory and Heartbeat](inventory-heartbeat))
+2. **Send first inventory** (see [Inventory and Heartbeat](./inventory-heartbeat.md))
 3. **Start heartbeat timer** (recommended: every 5 minutes)
 4. **Monitor authentication failures**
 
 ## Re-registration
 
-### When is Re-registration Needed?
+### A System Key Is One-Shot
 
-Re-registration is **NOT** typically needed. A system remains registered unless:
+Registration cannot be repeated or undone. Once `registered_at` is set:
 
-- System is deleted and recreated (new system_secret)
-- Administrator explicitly resets registration (manual database operation)
+- `POST /backend/api/systems/register` answers **409** for that system, forever
+- **Regenerate Secret** answers **409** too -- the secret is now the live
+  credential the appliance authenticates with on collect
 
-### When is Re-registration NOT Needed?
+A machine that needs a subscription again is given a **new system**, with its own
+`system_secret`. The old row stays as the record of a spent key until an
+administrator deletes it.
 
-- **Secret regeneration**: System remains registered, just use new secret
-- **System reboot**: Registration persists
-- **Network changes**: Registration persists
-- **Software updates**: Registration persists
+### What Does Not Affect Registration
+
+Registration survives, and nothing has to be redone, across:
+
+- **System reboot**
+- **Network changes**
+- **Software updates**
 
 ## Security Considerations
 
@@ -400,7 +406,7 @@ Re-registration is **NOT** typically needed. A system remains registered unless:
 **Solutions:**
 1. Check network connectivity: `ping my.nethesis.it`
 2. Verify DNS resolution: `nslookup my.nethesis.it`
-3. Test HTTPS connectivity: `curl https://my.nethesis.it/api/health`
+3. Test HTTPS connectivity: `curl https://my.nethesis.it/backend/api/health`
 4. Check firewall rules (allow outbound HTTPS)
 5. Verify proxy settings if behind corporate proxy
 
@@ -430,10 +436,11 @@ Re-registration is **NOT** typically needed. A system remains registered unless:
 **Problem:** System is registered but secret was lost
 
 **Solutions:**
-1. If system is working: Do nothing, credentials are stored on system
-2. If need to reconfigure: Regenerate secret in admin panel
-3. Update secret on external system
-4. System remains registered (no re-registration needed)
+1. If the system is working: do nothing, the credentials are already stored on it
+2. The secret cannot be recovered, and it cannot be regenerated either --
+   **Regenerate Secret** answers HTTP 409 on a registered system
+3. If the machine has to be reconfigured from scratch, create a new system,
+   register it with its new secret, then delete the old one
 
 ### Registration with Wrong Secret
 
@@ -453,7 +460,7 @@ Re-registration is **NOT** typically needed. A system remains registered unless:
    - `system_key` (from registration response)
    - `system_secret` (original from creation)
 2. Check HTTP Basic Auth header format
-3. Test authentication manually (see [Inventory and Heartbeat](inventory-heartbeat))
+3. Test authentication manually (see [Inventory and Heartbeat](./inventory-heartbeat.md))
 4. Verify no extra spaces in stored credentials
 5. Check if secret was regenerated after registration
 
@@ -471,7 +478,7 @@ PLATFORM_URL="https://my.nethesis.it"
 SYSTEM_SECRET="my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0"
 
 # Register and extract system_key
-response=$(curl -s -X POST "$PLATFORM_URL/api/systems/register" \
+response=$(curl -s -X POST "$PLATFORM_URL/backend/api/systems/register" \
   -H "Content-Type: application/json" \
   -d "{\"system_secret\": \"$SYSTEM_SECRET\"}")
 
@@ -504,28 +511,35 @@ fi
 
 **Question:** How do I unregister a system?
 
-**Answer:** There is no "unregister" operation. To reset:
-1. Delete the system (soft delete)
-2. Restore the system
-3. System remains registered with same `system_key`
-4. Regenerate secret if needed
+**Answer:** The appliance itself can give up its credentials, with an
+authenticated call to collect:
 
-Or:
-1. Delete system (soft delete)
-2. Permanently delete system
-3. Create new system (new credentials, new registration)
+```bash
+curl -X POST https://my.nethesis.it/collect/api/systems/unregister \
+  -u "NOC-F64B-...:my_a1b2...c9d0"
+```
+
+This is **terminal and one-way**. From that moment the pair is refused
+everywhere -- heartbeat, inventory, backups, the alert proxy and the enterprise
+feeds -- and only the first call answers 200, because its own revocation makes
+every later request from the same credentials fail authentication. The system
+cannot be registered again; it stays on the platform, marked `unregistered`,
+until an administrator deletes it.
+
+To put the same machine back under a subscription, create a new system and
+register it with the new `system_secret`.
 
 ## Next Steps
 
 After successful registration:
 
-- [Configure inventory collection](inventory-heartbeat)
+- [Configure inventory collection](./inventory-heartbeat.md)
 - Set up heartbeat monitoring
 - Test authentication
 - Monitor system status in dashboard
 
 ## Related Documentation
 
-- [Systems Management](management)
-- [Inventory and Heartbeat](inventory-heartbeat)
+- [Systems Management](./management.md)
+- [Inventory and Heartbeat](./inventory-heartbeat.md)
 - [Backend API Documentation](https://github.com/NethServer/my/blob/main/backend/README.md)

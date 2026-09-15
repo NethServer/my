@@ -172,18 +172,30 @@ Click on an organization to view detailed information:
 
 ### Deleting Organizations
 
-:::danger
-Deleting an organization is permanent and will:
-- Remove all users in that organization
-- Delete all systems associated with it
-- Remove all child organizations (cascade delete)
-:::
+**Delete archives, it does not erase.** The organization is soft-deleted and
+disappears from the lists, and the same operation cascades down the hierarchy:
+
+- Every **user** of the organization is archived
+- Every **system** of the organization is archived
+- For a distributor or a reseller, every **child organization** in its
+  hierarchy is archived too, together with their users and systems
 
 To delete an organization:
 
 1. Navigate to the organization page
 2. Click **Delete** (use the kebab menu)
-3. Click **Delete**
+3. Confirm
+
+:::tip Reversible
+A deleted organization can be brought back with **Restore**, which
+cascade-restores the users and systems archived along with it.
+:::
+
+:::danger Permanent deletion
+**Destroy** is the irreversible one: it erases the organization for good and
+cannot be undone. It requires the `destroy:` permission on that resource, which
+only the Owner organization holds.
+:::
 
 ### Suspending Organizations
 
@@ -203,26 +215,36 @@ To reactivate:
 2. Select the organization
 3. Click **Reactivate**
 
+### Promoting a Reseller
+
+A reseller can be promoted to distributor. Use the **Promote** action in the reseller's kebab menu or on its detail card.
+
+The promotion:
+
+- Moves the organization up one tier: it becomes a distributor, attached to the Owner organization
+- **Keeps its own customers, users and systems** -- nothing is detached
+- **Removes the former distributor's access** to that branch, which is the point of the operation
+- Leaves a trace: the organization records that it was promoted, and by whom
+
+Requirements:
+
+- Owner-level authority -- the action is not granted by `manage:resellers`
+- The organization must be **active**: a suspended or deleted reseller is rejected
+- The organization must already be synchronised with the identity provider
+
+:::warning
+Promotion is a hierarchy change, not a cosmetic one. The previous distributor loses visibility on that reseller and on everything beneath it.
+:::
+
 ## Organization Statistics
 
 ### Viewing Statistics
 
-Navigate to **Dashboard** to see:
+The [Dashboard](../features/dashboard.md) shows one counter card per organization type you can read -- distributors, resellers, customers -- each with its total and a link into the list.
 
-- **Distributors Overview**:
-  - Total number of distributors
-  - Active vs. suspended
-  - Trend graph (last 30/60/90 days)
+An organization's own detail page carries its aggregate numbers: how many users, systems and sub-organizations hang off it.
 
-- **Resellers Overview**:
-  - Total resellers per distributor
-  - Active vs. suspended
-  - Trend graph
-
-- **Customers Overview**:
-  - Total customers
-  - Distribution by reseller/distributor
-  - Growth trend
+Growth over time is not on the Dashboard; it is available from the API through the `/trend` endpoints (`/backend/api/distributors/trend`, `/backend/api/resellers/trend`, `/backend/api/customers/trend`).
 
 ### Exporting Data
 
@@ -281,23 +303,23 @@ Export organization data for reporting:
 
 ### Cannot Delete Organization
 
-**Problem:** Delete button is disabled or shows error
+**Problem:** Delete action is unavailable or returns an error
 
 **Solutions:**
-- Remove all systems from the organization first
-- Delete all child organizations first
-- Check if you have permission to delete
-- Ensure the organization is not the Owner organization
+- Check you hold `manage:` on that organization type -- Reader never does
+- Check the organization is inside your branch of the hierarchy
+- The Owner organization cannot be deleted
+- You do **not** need to empty it first: deleting cascades over users, systems and child organizations by itself
 
 ## Next Steps
 
 After creating organizations:
 
-- [Create users](users) and assign them to organizations
-- [Create systems](../systems/management) associated with customer organizations
+- [Create users](./users.md) and assign them to organizations
+- [Create systems](../systems/management.md) associated with customer organizations
 - Set up appropriate permissions for each user
 
 ## Related Documentation
 
-- [Users Management](users)
-- [Systems Management](../systems/management)
+- [Users Management](./users.md)
+- [Systems Management](../systems/management.md)

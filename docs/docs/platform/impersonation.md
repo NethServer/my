@@ -330,6 +330,10 @@ Impersonation automatically ends when:
 }
 ```
 
+:::note
+In the log, `endpoint` is the path as the backend sees it, after the proxy rewrite: `/api/users`, not `/backend/api/users`.
+:::
+
 ### Data Protection
 
 **User Control:**
@@ -400,7 +404,7 @@ Impersonation automatically ends when:
 
 **Solutions:**
 1. Check user has enabled consent:
-   - Ask user to enable in Profile > Security
+   - Ask the user to enable it in **Account** > **Impersonation**
    - Verify consent hasn't expired
 2. Verify you have permissions:
    - You belong to the Owner organization (Staff role or the `owner` account)
@@ -507,6 +511,6 @@ Impersonation automatically ends when:
 
 ## Related Documentation
 
-- [Users Management](users)
-- [Authentication Guide](../getting-started/authentication)
+- [Users Management](./users.md)
+- [Authentication Guide](../getting-started/authentication.md)
 - [Backend API Documentation](https://github.com/NethServer/my/blob/main/backend/README.md)

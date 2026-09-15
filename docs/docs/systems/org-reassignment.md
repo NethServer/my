@@ -54,7 +54,7 @@ change is refused until it does.
 ### From the API
 
 ```bash
-curl -X PUT https://my.example.com/api/systems/$SYSTEM_ID \
+curl -X PUT https://my.nethesis.it/backend/api/systems/$SYSTEM_ID \
      -H "Authorization: Bearer $JWT" \
      -H "Content-Type: application/json" \
      -d '{"name":"unchanged","organization_id":"<new-logto-id>"}'
@@ -127,6 +127,6 @@ directions.
 
 ## Related
 
-- [Systems management](management) — the full lifecycle of a system.
-- [Configuration backups](backups) — what is stored, how it's protected,
+- [Systems management](./management.md) — the full lifecycle of a system.
+- [Configuration backups](./backups.md) — what is stored, how it's protected,
   and how the per-organization quota is computed.

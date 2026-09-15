@@ -46,7 +46,7 @@ Il rebranding è disponibile per i seguenti prodotti:
 | NethService | `webtop` |
 | NS8 | `ns8` |
 
-Ogni prodotto ha il proprio insieme di asset. `GET /api/rebranding/products` restituisce la stessa lista, ed è da lì che nasce il selettore dei prodotti.
+Ogni prodotto ha il proprio insieme di asset. `GET /backend/api/rebranding/products` restituisce la stessa lista, ed è da lì che nasce il selettore dei prodotti.
 
 ## Tipi di Asset
 
@@ -77,12 +77,12 @@ Gli asset sono serviti sia agli utenti autenticati sia, per le pagine che hanno 
 
 ## Permessi
 
-| Operazione | Staff (organizzazione Owner) | Admin | Backoffice | Support | Reader |
-|------------|:----------------------------:|:-----:|:----------:|:-------:|:------:|
-| Visualizza branding e asset (propri, delle organizzazioni sotto e di quella da cui si eredita) | Sì | Sì | Sì | Sì | Sì |
-| Configura il branding della propria organizzazione | Sì | Sì | No | No | No |
-| Aggiungi/rimuovi organizzazioni dal rebranding | Sì | No | No | No | No |
-| Configura il branding di un'altra organizzazione (supporto) | Sì | No | No | No | No |
+| Operazione | Permesso | Staff (organizzazione Owner) | Admin | Backoffice | Support | Reader |
+|------------|----------|:----------------------------:|:-----:|:----------:|:-------:|:------:|
+| Visualizza branding e asset (propri, delle organizzazioni sotto e di quella da cui si eredita) | `read:rebranding` | Sì | Sì | Sì | Sì | Sì |
+| Configura il branding della propria organizzazione | `manage:rebranding` | Sì | Sì | No | No | No |
+| Aggiungi/rimuovi organizzazioni dal rebranding | `manage:rebranding` + org Owner | Sì | No | No | No | No |
+| Configura il branding di un'altra organizzazione (supporto) | `manage:rebranding` + org Owner | Sì | No | No | No | No |
 
 :::warning
 Aggiungere o rimuovere organizzazioni dal rebranding è riservato all'organizzazione Owner. Un distributore o un rivenditore configura **solo** il proprio branding: le organizzazioni sotto di lui lo ereditano e non vengono mai sovrascritte, quindi chi ha un branding proprio lo mantiene.

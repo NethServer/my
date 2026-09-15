@@ -56,12 +56,20 @@ graph LR
 
 ## Guida Rapida
 
-1. **[Accedi](getting-started/authentication)** con le tue credenziali
-2. **[Configura il tuo profilo](getting-started/account)** e l'avatar
-3. **[Crea le organizzazioni](platform/organizations)** in base alla tua gerarchia aziendale
-4. **[Aggiungi utenti](platform/users)** e assegna i ruoli appropriati
-5. **[Crea i sistemi](systems/management)** per i tuoi clienti
-6. **[Registra i sistemi](systems/registration)** per abilitare il monitoraggio
+1. **[Accedi](./getting-started/authentication.md)** con le tue credenziali
+2. **[Configura il tuo profilo](./getting-started/account.md)** e l'avatar
+3. **[Crea le organizzazioni](./platform/organizations.md)** in base alla tua gerarchia aziendale
+4. **[Aggiungi utenti](./platform/users.md)** e assegna i ruoli appropriati
+5. **[Crea i sistemi](./systems/management.md)** per i tuoi clienti
+6. **[Registra i sistemi](./systems/registration.md)** per abilitare il monitoraggio
+
+## Stack Tecnologico
+
+- **Backend**: Go 1.24+ con framework Gin
+- **Database**: PostgreSQL con migrazioni
+- **Cache**: Redis per caching ad alte prestazioni
+- **Identity**: Logto per autenticazione e RBAC
+- **Frontend**: Vue.js 3 con TypeScript
 
 ## Documentazione Sviluppatori
 
@@ -72,11 +80,18 @@ Documentazione tecnica per sviluppatori e integratori:
 - **[Tool Sync](https://github.com/NethServer/my/blob/main/sync/README.md)** - Tool CLI per sincronizzazione RBAC
 - **[Panoramica Progetto](https://github.com/NethServer/my/blob/main/README.md)** - Documentazione completa del progetto e architettura
 
+## Sicurezza
+
+- **SHA256** hashing salato dei secret
+- **Token Split Pattern** per credenziali di sistema
+- Autenticazione **basata su JWT** con blacklist token
+- **RBAC gerarchico** con permessi combinati organizzazione + utente
+
 ## Ottenere Aiuto
 
 ### Per Utenti
 
-- Esplora le sezioni della guida utente partendo da [Autenticazione](getting-started/authentication)
+- Esplora le sezioni della guida utente partendo da [Autenticazione](./getting-started/authentication.md)
 - Controlla le sezioni di risoluzione problemi in ogni guida
 - Contatta il tuo amministratore di sistema
 
@@ -87,21 +102,6 @@ Documentazione tecnica per sviluppatori e integratori:
 - Rivedi la documentazione architettura in [DESIGN.md](https://github.com/NethServer/my/blob/main/DESIGN.md)
 - Apri un issue su [GitHub](https://github.com/NethServer/my/issues)
 
-## Sicurezza
-
-- **SHA256** hashing salato dei secret
-- **Token Split Pattern** per credenziali di sistema
-- Autenticazione **basata su JWT** con blacklist token
-- **RBAC gerarchico** con permessi combinati organizzazione + utente
-
 ## Informazioni Versione
 
 Versione corrente: **0.8.4** (Pre-produzione)
-
-## Stack Tecnologico
-
-- **Backend**: Go 1.24+ con framework Gin
-- **Database**: PostgreSQL con migrazioni
-- **Cache**: Redis per caching ad alte prestazioni
-- **Identity**: Logto per autenticazione e RBAC
-- **Frontend**: Vue.js 3 con TypeScript

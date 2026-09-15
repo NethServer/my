@@ -4,21 +4,29 @@ sidebar_position: 3
 
 # Inventario e Heartbeat
 
-Il sistema di inventario e heartbeat consente ai sistemi registrati di comunicare il proprio stato e la propria configurazione alla piattaforma My.
+Come i sistemi esterni inviano i dati di inventario e i segnali di heartbeat alla piattaforma My.
 
 ## Panoramica
 
-Due meccanismi complementari mantengono la piattaforma aggiornata sullo stato dei sistemi:
+Dopo la [registrazione del sistema](./registration.md), i sistemi esterni comunicano con My attraverso due meccanismi:
 
-- **Heartbeat** - Segnale periodico che indica che il sistema è attivo e raggiungibile
-- **Inventario** - Raccolta completa dei dati di configurazione del sistema
+1. **Inventario**: snapshot completo delle informazioni di sistema (hardware, software, configurazione)
+2. **Heartbeat**: segnale periodico "sono vivo" che indica che il sistema è attivo
 
-Entrambi utilizzano **HTTP Basic Auth** per l'autenticazione, dove:
-- **Username**: `system_key` (ottenuto alla registrazione)
-- **Password**: `system_secret` (ottenuto alla creazione)
+Entrambe le operazioni usano l'**autenticazione HTTP Basic** con le credenziali registrate.
+
+## Autenticazione
+
+### Credenziali
+
+Si usano le credenziali ottenute nel ciclo di vita del sistema:
+
+- **Username**: `system_key` (ricevuto alla registrazione)
+- **Password**: `system_secret` (dalla creazione del sistema)
 
 ### Formato HTTP Basic Auth
 
+**Formato dell'header:**
 ```
 Authorization: Basic base64(system_key:system_secret)
 ```
@@ -27,220 +35,342 @@ Authorization: Basic base64(system_key:system_secret)
 ```
 system_key: NOC-F64B-A989-C9E7-45B9-A55D-59EC-6545-40EE
 system_secret: my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0
+
+Codifica base64 di: "NOC-F64B-A989-C9E7-45B9-A55D-59EC-6545-40EE:my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0"
+
+Authorization: Basic bXlfc3lzX2FiYzEyM2RlZjQ1NjpteV9hMWIyYzNkNGU1ZjZnN2g4aTlqMC5rMWwybTNuNG81cDZxN3I4czl0MHUxdjJ3M3g0eTV6NmE3YjhjOWQw
 ```
 
-La maggior parte delle librerie HTTP gestisce questo automaticamente:
-
+**La maggior parte delle librerie HTTP lo gestisce automaticamente:**
 ```python
 import requests
 
 requests.post(url,
-    auth=('NOC-F64B-A989-C9E7-45B9-A55D-59EC-6545-40EE',
-          'my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0'),
+    auth=('NOC-F64B-A989-C9E7-45B9-A55D-59EC-6545-40EE', 'my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0'),
     json=data
 )
 ```
 
 ## Heartbeat
 
+L'heartbeat è un segnale semplice che indica che il sistema è vivo e raggiungibile.
+
+### Scopo
+
+- Rilevare quando un sistema diventa inattivo
+- Generare allarmi per i sistemi che non rispondono
+- Monitorare l'affidabilità dei sistemi
+
 ### Endpoint
 
 ```
-POST https://my.nethesis.it/api/systems/heartbeat
+POST https://my.nethesis.it/collect/api/systems/heartbeat
 ```
+
+:::note
+Il servizio collect risponde sotto **/collect** (diverso dal backend principale, che sta sotto **/backend**)
+:::
 
 ### Richiesta
 
-```bash
-curl -X POST \
-  -u "SYSTEM_KEY:SYSTEM_SECRET" \
-  -H "Content-Type: application/json" \
-  https://my.nethesis.it/api/systems/heartbeat
+**Header:**
 ```
+Authorization: Basic <credenziali>
+Content-Type: application/json
+```
+
+**Corpo:**
+```json
+{}
+```
+
+**Oggetto JSON vuoto**: non serve alcun dato.
 
 ### Risposta
 
+**Successo (HTTP 200):**
 ```json
 {
   "code": 200,
-  "message": "heartbeat received successfully"
+  "message": "heartbeat acknowledged",
+  "data": {
+    "system_key": "NOC-80F8-89A4-40B0-4AE9-A670-7C5F-99B3-F3EA",
+    "acknowledged": true,
+    "last_heartbeat": "2025-11-07T10:37:27.360343+01:00"
+  }
 }
 ```
 
-### Frequenza Consigliata
+### Frequenza
 
-| Frequenza | Descrizione | Caso d'Uso |
-|-----------|-------------|------------|
-| 5 minuti | Consigliata | Monitoraggio standard |
-| 1 minuto | Alta frequenza | Sistemi critici |
-| 15 minuti | Bassa frequenza | Sistemi con connettività limitata |
-
-:::tip
-La frequenza consigliata è di **5 minuti**. Frequenze inferiori a 1 minuto sono sconsigliate in quanto generano carico non necessario sulla piattaforma.
-:::
+**Consigliata:** ogni 5 minuti
 
 **Perché 5 minuti?**
-- La piattaforma considera il sistema "active" se l'heartbeat è stato ricevuto entro 15 minuti
-- Un intervallo di 5 minuti fornisce 3 battiti mancati prima di contrassegnare il sistema come morto
-- Equilibrio ottimale tra traffico di rete e reattività del monitoraggio
+- Un sistema resta `active` finché il suo ultimo heartbeat è più recente del
+  timeout della piattaforma, **20 minuti** di default (`HEARTBEAT_TIMEOUT_MINUTES`)
+- Un intervallo di 5 minuti lascia spazio a tre battiti persi prima che il
+  sistema cambi stato
+- È un buon compromesso tra traffico di rete e reattività
 
 ### Implementazioni di Esempio
 
-#### Python
-
+**Python:**
 ```python
 import requests
-from requests.auth import HTTPBasicAuth
+import time
 
-def send_heartbeat(system_key, system_secret, api_url):
-    """Invia un heartbeat alla piattaforma My."""
-    response = requests.post(
-        f"{api_url}/api/systems/heartbeat",
-        auth=HTTPBasicAuth(system_key, system_secret),
-        headers={"Content-Type": "application/json"}
-    )
-    return response.status_code == 200
+COLLECT_URL = "https://my.nethesis.it/collect"
+SYSTEM_KEY = "NOC-F64B-A989-C9E7-45B9-A55D-59EC-6545-40EE"
+SYSTEM_SECRET = "my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0"
+
+def send_heartbeat():
+    """Invia l'heartbeat alla piattaforma My"""
+    try:
+        response = requests.post(
+            f"{COLLECT_URL}/api/systems/heartbeat",
+            auth=(SYSTEM_KEY, SYSTEM_SECRET),
+            json={},
+            timeout=10
+        )
+        response.raise_for_status()
+        print("Heartbeat inviato correttamente")
+        return True
+    except Exception as e:
+        print(f"Heartbeat fallito: {e}")
+        return False
+
+# Invia l'heartbeat ogni 5 minuti
+while True:
+    send_heartbeat()
+    time.sleep(300)  # 5 minuti
 ```
 
-#### Bash
-
+**Bash (cron):**
 ```bash
 #!/bin/bash
-# Invio heartbeat periodico
+# /usr/local/bin/my-heartbeat.sh
 
-SYSTEM_KEY="your_system_key"
-SYSTEM_SECRET="your_system_secret"
-API_URL="https://my.nethesis.it"
+COLLECT_URL="https://my.nethesis.it/collect"
+SYSTEM_KEY="NOC-F64B-A989-C9E7-45B9-A55D-59EC-6545-40EE"
+SYSTEM_SECRET="my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0"
 
-curl -s -X POST \
-  -u "${SYSTEM_KEY}:${SYSTEM_SECRET}" \
+curl -s -X POST "$COLLECT_URL/api/systems/heartbeat" \
+  -u "$SYSTEM_KEY:$SYSTEM_SECRET" \
   -H "Content-Type: application/json" \
-  "${API_URL}/api/systems/heartbeat"
+  -d '{}' > /dev/null
+```
+
+**Voce di crontab (ogni 5 minuti):**
+```
+*/5 * * * * /usr/local/bin/my-heartbeat.sh
 ```
 
 ### Classificazione degli Stati
 
-Il sistema di heartbeat classifica automaticamente lo stato dei sistemi:
+I sistemi vengono classificati in base all'heartbeat:
 
-| Stato | Condizione | Descrizione |
-|-------|-----------|-------------|
-| **Alive** (Attivo) | Heartbeat ricevuto negli ultimi 30 minuti | Il sistema funziona normalmente |
-| **Dead** (Morto) | Nessun heartbeat da oltre 30 minuti | Il sistema potrebbe essere spento o non raggiungibile |
-| **Zombie** | Heartbeat sporadici | Il sistema ha comportamento instabile |
+| Stato | Condizione | Significato |
+|-------|------------|-------------|
+| **Unknown** | Non ha mai inviato un heartbeat | Registrato ma mai entrato in contatto |
+| **Active** | Ultimo heartbeat più recente di 20 minuti | Il sistema è in salute |
+| **Inactive** | Ultimo heartbeat più vecchio di 20 minuti | Il sistema non risponde |
+| **Unregistered** | Ha rinunciato alle proprie credenziali | Stato terminale, vedi [Registrazione](./registration.md#annullare-la-registrazione-di-un-sistema) |
 
-:::warning
-La classificazione degli stati viene eseguita periodicamente da un cron job. Potrebbe esserci un ritardo tra l'interruzione degli heartbeat e l'aggiornamento dello stato.
+:::note Perché lo stato è in ritardo
+I 20 minuti arrivano da `HEARTBEAT_TIMEOUT_MINUTES`, e un cron rivaluta tutti i
+sistemi **ogni 5 minuti** (`HEARTBEAT_CHECK_INTERVAL_SECONDS`). Un sistema
+silenzioso compare quindi come `inactive` tra i 20 e i 25 minuti dopo l'ultimo
+heartbeat, non esattamente a 20. Il ritorno funziona allo stesso modo: il primo
+heartbeat dopo il disservizio ripristina `active` al passaggio di cron
+successivo, non immediatamente.
 :::
 
 ## Inventario
 
+L'inventario è uno snapshot completo della configurazione del sistema e del software installato.
+
+### Scopo
+
+- Tracciare hardware e software del sistema
+- Rilevare le modifiche di configurazione
+- Monitorare le versioni del software
+- Verificare la conformità dei sistemi
+- Conservare lo storico dell'inventario
+
 ### Endpoint
 
 ```
-POST https://my.nethesis.it/api/systems/inventory
+POST https://my.nethesis.it/collect/api/systems/inventory
 ```
 
-### Schema JSON
+:::note
+Stesso servizio collect dell'heartbeat, sotto lo stesso prefisso **/collect**
+:::
 
-L'inventario viene inviato come documento JSON contenente le informazioni di configurazione del sistema:
+### Richiesta
 
+**Header:**
+```
+Authorization: Basic <credenziali>
+Content-Type: application/json
+```
+
+**Struttura del corpo:**
 ```json
 {
-  "inventory": {
-    "os": {
-      "name": "NethServer",
-      "version": "8.1",
-      "arch": "x86_64"
-    },
-    "hardware": {
-      "cpu": {
-        "model": "Intel Xeon E5-2680",
-        "cores": 8
+  "fqdn": "server.example.com",
+  "ipv4_address": "192.168.1.100",
+  "ipv6_address": "2001:db8::1",
+  "version": "8.0.1",
+  "os": {
+    "name": "Rocky Linux",
+    "version": "9.3",
+    "kernel": "5.14.0-362.8.1.el9_3.x86_64"
+  },
+  "hardware": {
+    "cpu_model": "Intel Xeon Gold 6248R",
+    "cpu_cores": 8,
+    "cpu_threads": 16,
+    "memory_total_gb": 32,
+    "disk_total_gb": 500
+  },
+  "network": {
+    "hostname": "server01",
+    "interfaces": {
+      "eth0": {
+        "ip": "192.168.1.100",
+        "netmask": "255.255.255.0",
+        "mac": "00:1a:2b:3c:4d:5e"
       },
-      "memory": {
-        "total_gb": 32
-      },
-      "disk": {
-        "total_gb": 500
+      "eth1": {
+        "ip": "10.0.0.10",
+        "netmask": "255.255.0.0",
+        "mac": "00:1a:2b:3c:4d:5f"
       }
+    }
+  },
+  "services": {
+    "nginx": {
+      "version": "1.24.0",
+      "status": "running"
     },
-    "network": {
-      "hostname": "server1.example.com",
-      "interfaces": [
-        {
-          "name": "eth0",
-          "ip": "192.168.1.100",
-          "mac": "00:11:22:33:44:55"
-        }
-      ]
+    "postgresql": {
+      "version": "15.5",
+      "status": "running"
     },
-    "services": [
-      {
-        "name": "httpd",
-        "status": "running",
-        "version": "2.4.57"
-      }
-    ]
+    "redis": {
+      "version": "7.2.3",
+      "status": "running"
+    }
+  },
+  "features": {
+    "docker": {
+      "enabled": true,
+      "version": "24.0.7"
+    },
+    "firewall": {
+      "enabled": true,
+      "type": "nftables"
+    }
+  },
+  "custom": {
+    "environment": "production",
+    "datacenter": "EU-West-1",
+    "backup_enabled": true
   }
 }
 ```
 
 ### Risposta
 
+**Successo (HTTP 200):**
 ```json
 {
   "code": 200,
-  "message": "inventory received successfully",
+  "message": "Inventory received and queued for processing",
   "data": {
-    "system_key": "abc123def456"
+    "data_size": 16433,
+    "message": "Your inventory data has been received and will be processed shortly",
+    "queue_status": "queued",
+    "system_id": "0a98637c-077b-428a-8e57-c2fbb892051a",
+    "timestamp": "2025-11-07T10:39:05.897352+01:00"
   }
 }
 ```
 
-:::note
-Il campo `system_key` nella risposta è presente solo alla prima richiesta (registrazione). Per le richieste successive, il campo `data` potrebbe essere vuoto.
-:::
+### Frequenza
 
-### Frequenza di Invio
+**Consigliata:** ogni 6 ore (4 volte al giorno)
 
-| Frequenza | Descrizione | Caso d'Uso |
-|-----------|-------------|------------|
-| Giornaliera | Consigliata | Monitoraggio standard |
-| Ogni 6 ore | Alta frequenza | Ambienti dinamici |
-| Settimanale | Bassa frequenza | Sistemi stabili |
+**Perché 6 ore?**
+- È un compromesso tra freschezza del dato e carico di rete e storage
+- Intercetta le modifiche quotidiane
+- Contiene la crescita del database
+- È sufficiente per la maggior parte delle esigenze di monitoraggio
 
-### Campi dell'Inventario
+**Casi particolari:**
+- **Dopo una modifica al sistema**: invia subito
+- **Durante un aggiornamento**: invia prima e dopo
+- **Su richiesta**: l'amministratore può sollecitarlo via API
 
-L'inventario può contenere diverse categorie di informazioni:
+### Schema dell'Inventario
 
-| Categoria | Descrizione | Esempi |
-|-----------|-------------|--------|
-| **os** | Sistema operativo | Nome, versione, architettura |
-| **hardware** | Hardware | CPU, memoria, disco |
-| **network** | Rete | Hostname, interfacce, IP |
-| **services** | Servizi | Nome, stato, versione |
-| **packages** | Pacchetti | Nome, versione installata |
-| **users** | Utenti | Elenco utenti del sistema |
-| **configuration** | Configurazione | Impostazioni specifiche |
+#### Campi Obbligatori
 
-### Implementazione di Esempio
+**Dati minimi richiesti:**
+```json
+{
+  "fqdn": "server.example.com",
+  "ipv4_address": "192.168.1.100",
+  "os": {
+    "name": "NethSec",
+    "type": "nethsecurity",
+    "family": "OpenWRT",
+    "release": {
+        "full": "8.6.0-dev+43d54cd33.20251020175318",
+        "major": 7
+    }
+  }
+}
+```
 
-#### Python
+#### Sezioni Facoltative
 
+Tutte le altre sezioni sono facoltative ma consigliate:
+
+- `os`: informazioni sul sistema operativo
+- `hardware`: caratteristiche hardware fisiche o virtuali
+- `network`: configurazione di rete
+- `services`: servizi installati e relative versioni
+- `features`: funzionalità abilitate
+- `custom`: dati personalizzati (formato libero)
+
+#### Rilevamento Automatico
+
+Alcuni campi vengono ricavati automaticamente dalla piattaforma:
+
+- **Tipo di sistema**: rilevato dai dati di inventario (ns8, nsec, ecc.)
+- **Stato**: aggiornato automaticamente in base all'heartbeat
+- **Ultimo aggiornamento**: data e ora di ricezione dell'inventario
+
+### Implementazioni di Esempio
+
+**Python:**
 ```python
 import requests
 import platform
 import psutil
+import json
 
-COLLECT_URL = "https://my.nethesis.it"
+COLLECT_URL = "https://my.nethesis.it/collect"
 SYSTEM_KEY = "NOC-F64B-A989-C9E7-45B9-A55D-59EC-6545-40EE"
 SYSTEM_SECRET = "my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0"
 
 def collect_inventory():
-    """Raccoglie inventario del sistema"""
+    """Raccoglie l'inventario del sistema"""
     return {
         "fqdn": platform.node(),
-        "ipv4_address": "192.168.1.100",
+        "ipv4_address": get_primary_ip(),  # Implementazione tua
         "version": "8.0.1",
         "os": {
             "name": platform.system(),
@@ -251,13 +381,16 @@ def collect_inventory():
             "cpu_cores": psutil.cpu_count(logical=False),
             "cpu_threads": psutil.cpu_count(logical=True),
             "memory_total_gb": round(psutil.virtual_memory().total / (1024**3), 2)
-        }
+        },
+        "services": collect_services(),  # Implementazione tua
+        "features": collect_features(),  # Implementazione tua
     }
 
 def send_inventory():
-    """Invia inventario alla piattaforma My"""
+    """Invia l'inventario alla piattaforma My"""
     try:
         inventory = collect_inventory()
+
         response = requests.post(
             f"{COLLECT_URL}/api/systems/inventory",
             auth=(SYSTEM_KEY, SYSTEM_SECRET),
@@ -265,133 +398,153 @@ def send_inventory():
             timeout=30
         )
         response.raise_for_status()
-        print("Inventario inviato con successo")
+
+        data = response.json()
+        print("Inventario inviato correttamente")
+        print(f"Stato in coda: {data['data']['queue_status']}")
         return True
+
     except Exception as e:
-        print(f"Invio inventario fallito: {e}")
+        print(f"Invio dell'inventario fallito: {e}")
         return False
+
+# Invia l'inventario ogni 6 ore
+import time
+while True:
+    send_inventory()
+    time.sleep(21600)  # 6 ore
 ```
 
-#### Bash
-
+**Bash:**
 ```bash
 #!/bin/bash
-# Raccolta e invio inventario
+# /usr/local/bin/my-inventory.sh
 
-SYSTEM_KEY="your_system_key"
-SYSTEM_SECRET="your_system_secret"
-API_URL="https://my.nethesis.it"
+COLLECT_URL="https://my.nethesis.it/collect"
+SYSTEM_KEY="NOC-F64B-A989-C9E7-45B9-A55D-59EC-6545-40EE"
+SYSTEM_SECRET="my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0"
 
-# Raccolta dati
-OS_NAME=$(cat /etc/os-release | grep ^NAME | cut -d= -f2 | tr -d '"')
-OS_VERSION=$(cat /etc/os-release | grep ^VERSION_ID | cut -d= -f2 | tr -d '"')
-CPU_CORES=$(nproc)
-MEMORY_GB=$(free -g | awk '/Mem:/{print $2}')
-HOSTNAME=$(hostname -f)
-
-# Costruzione JSON
+# Raccolta dell'inventario (esempio: adattalo al tuo sistema)
 INVENTORY=$(cat <<EOF
 {
-  "inventory": {
-    "os": {
-      "name": "${OS_NAME}",
-      "version": "${OS_VERSION}",
-      "arch": "$(uname -m)"
-    },
-    "hardware": {
-      "cpu": {
-        "cores": ${CPU_CORES}
-      },
-      "memory": {
-        "total_gb": ${MEMORY_GB}
-      }
-    },
-    "network": {
-      "hostname": "${HOSTNAME}"
-    }
+  "fqdn": "$(hostname -f)",
+  "ipv4_address": "$(hostname -I | awk '{print $1}')",
+  "version": "8.0.1",
+  "os": {
+    "name": "$(uname -s)",
+    "version": "$(uname -r)"
+  },
+  "hardware": {
+    "cpu_cores": $(nproc),
+    "memory_total_gb": $(free -g | awk '/^Mem:/{print $2}')
   }
 }
 EOF
 )
 
-# Invio inventario
-curl -s -X POST \
-  -u "${SYSTEM_KEY}:${SYSTEM_SECRET}" \
+# Invio alla piattaforma
+curl -X POST "$COLLECT_URL/api/systems/inventory" \
+  -u "$SYSTEM_KEY:$SYSTEM_SECRET" \
   -H "Content-Type: application/json" \
-  -d "${INVENTORY}" \
-  "${API_URL}/api/systems/inventory"
+  -d "$INVENTORY"
 ```
 
-## Storico e Timeline
+## Storico e Timeline dell'Inventario
 
-### Politica di Retention
+My conserva lo storico completo delle modifiche di inventario di ogni sistema, così da poter vedere come si è evoluto nel tempo, dalla prima registrazione a oggi.
 
-Gli snapshot dell'inventario sono conservati con densità esponenziale:
+### Cosa Viene Conservato
 
-| Eta | Frequenza Snapshot |
-|-----|--------------------|
+- **Tutte le modifiche (diff)**: ogni variazione rilevata viene conservata in modo permanente e non viene mai cancellata. Ogni diff registra il campo cambiato, il valore precedente e quello nuovo.
+- **Snapshot di inventario**: gli snapshot JSON completi vengono conservati con densità esponenziale, più fitti vicino al presente e via via più radi per le date lontane:
+
+| Età | Frequenza degli snapshot |
+|-----|--------------------------|
 | Ultimi 7 giorni | Tutti gli snapshot |
-| 7 giorni - 1 mese | 1 al giorno |
-| 1 mese - 3 mesi | 1 alla settimana |
-| 3 mesi - 1 anno | 1 al mese |
+| Da 7 giorni a 1 mese | 1 al giorno |
+| Da 1 mese a 3 mesi | 1 alla settimana |
+| Da 3 mesi a 1 anno | 1 al mese |
 | Oltre 1 anno | 1 al trimestre |
 
-Il **primo snapshot** ricevuto per un sistema (la baseline) e lo **snapshot più recente** (stato attuale) sono sempre conservati indipendentemente dall'eta.
+:::tip
+Il **primo snapshot in assoluto** ricevuto per un sistema (la baseline) e il **più recente** (lo stato corrente) vengono sempre conservati, indipendentemente dall'età.
+:::
 
-Tutte le **modifiche (diff)** vengono conservate in modo permanente e non vengono mai eliminate.
+### La Timeline
 
-- **Heartbeat**: Lo stato viene tracciato nel tempo
+La timeline mostra l'evoluzione completa di un sistema raggruppata per data. Per ogni invio di inventario che conteneva modifiche puoi vedere:
 
-### Timeline
+- Quando è avvenuta la modifica
+- Quali campi sono cambiati (percorso, valore precedente, valore nuovo)
+- Severità e categoria di ogni modifica
 
-La pagina di dettaglio del sistema mostra una timeline cronologica con:
+Poiché tutti i diff vengono conservati in modo permanente, la timeline resta interamente navigabile anche per i sistemi registrati da anni. Puoi filtrare per intervallo di date, severità, categoria o tipo di modifica.
 
-- **Invii di inventario** con indicazione delle modifiche rilevate
-- **Variazioni di stato** (attivo, morto, zombie)
-- **Heartbeat** con timestamp
+### Consultare lo Storico
+
+**Nel pannello di amministrazione:**
+1. Vai su **Sistemi** > **Dettagli sistema**
+2. Apri la tab **Inventario**
+3. Usa la vista **Timeline** per lo storico raggruppato per data
+4. Usa la vista **Storico** per gli snapshot grezzi, paginati
 
 ## Rilevamento Modifiche
 
+My rileva automaticamente le differenze tra uno snapshot di inventario e il successivo.
+
+### Cosa Viene Tracciato
+
+- Modifiche hardware (CPU, memoria, disco)
+- Cambi di versione del software
+- Aggiunta o rimozione di servizi
+- Modifiche alla configurazione di rete
+- Attivazione o disattivazione di funzionalità
+- Modifiche ai campi personalizzati
+
 ### Categorie di Modifiche
 
-Il motore di diff analizza automaticamente le differenze tra invii successivi di inventario e le categorizza:
+Le modifiche vengono classificate per tipo:
 
-| Categoria | Descrizione | Esempi |
-|-----------|-------------|--------|
-| **Hardware** | Modifiche hardware | CPU, memoria, disco |
-| **Software** | Modifiche software | Pacchetti, servizi |
-| **Rete** | Modifiche di rete | IP, interfacce, DNS |
-| **Configurazione** | Modifiche di configurazione | Impostazioni, parametri |
+- **OS**: sistema operativo e kernel
+- **Hardware**: hardware fisico o virtuale
+- **Network**: interfacce e configurazione di rete
+- **Features**: funzionalità abilitate
+- **Services**: servizi installati
+- **System**: impostazioni generali di sistema
 
 ### Livelli di Severità
 
-Ogni modifica viene classificata con un livello di severità:
+Ogni modifica ha un livello di severità:
 
-| Severità | Descrizione | Esempio |
-|----------|-------------|---------|
-| **Info** | Modifica informativa | Aggiornamento versione pacchetto |
-| **Warning** | Modifica che richiede attenzione | Modifica interfaccia di rete |
-| **Critical** | Modifica critica | Riduzione memoria, rimozione disco |
+- **Critical**: richiede attenzione immediata (es. guasto hardware)
+- **High**: modifiche importanti (es. aggiornamento del sistema operativo)
+- **Medium**: modifiche rilevanti (es. aggiornamento di un servizio)
+- **Low**: modifiche minori (es. aggiornamento di una metrica)
 
-### Significatività
+### Consultare le Modifiche
 
-Non tutte le modifiche sono significative. Il motore di diff utilizza una configurazione YAML per determinare quali modifiche sono significative e quali possono essere ignorate.
+**Nel pannello di amministrazione:**
+1. Vai su **Sistemi** > **Dettagli sistema**
+2. Apri la tab **Inventario**
+3. Guarda la sezione **Modifiche**
+4. Consulta il diff dettagliato tra le versioni
 
-:::note
-La configurazione del rilevamento modifiche è gestita dal servizio Collect tramite il file `differ/config.yaml`. Le modifiche non significative vengono registrate ma non generano notifiche.
-:::
+**Tipi di modifica:**
+- **Create**: nuovo campo aggiunto
+- **Update**: valore del campo cambiato
+- **Delete**: campo rimosso
 
-**Esempio log modifiche:**
+**Esempio di log delle modifiche:**
 ```
 [2025-11-06 10:30] Versione OS aggiornata
-  - Vecchio: Rocky Linux 9.2
-  - Nuovo: Rocky Linux 9.3
+  - Prima: Rocky Linux 9.2
+  - Dopo: Rocky Linux 9.3
   - Severità: High
   - Categoria: OS
 
 [2025-11-06 10:30] Versione Nginx aggiornata
-  - Vecchio: 1.23.0
-  - Nuovo: 1.24.0
+  - Prima: 1.23.0
+  - Dopo: 1.24.0
   - Severità: Medium
   - Categoria: Services
 
@@ -401,110 +554,177 @@ La configurazione del rilevamento modifiche è gestita dal servizio Collect tram
   - Categoria: Features
 ```
 
-## Monitoraggio
+## Monitoraggio dal Pannello di Amministrazione
 
-### Dashboard
+### Stato in Tempo Reale
 
-La dashboard mostra un riepilogo dello stato di tutti i sistemi:
+**Vista dashboard** (vedi [Dashboard](../features/dashboard.md)):
+- Totale dei sistemi, con badge per attivi, inattivi e in attesa che aprono l'elenco già filtrato
+- Allarmi aperti, con badge per severità
 
-- **Sistemi attivi** - Numero di sistemi con heartbeat recente
-- **Sistemi morti** - Numero di sistemi senza heartbeat
-- **Sistemi zombie** - Numero di sistemi con comportamento instabile
-- **Totale sistemi** - Numero totale di sistemi registrati
+**Elenco dei sistemi:**
+- Indicatore dello stato heartbeat
+- Data dell'ultimo heartbeat
+- Data dell'ultimo inventario
+- Segnalazione delle modifiche
 
-### Avvisi
+### Avvisi (se configurati)
 
 Avvisi automatici per:
-- Sistema diventa inattivo (nessun heartbeat per 15+ minuti)
+- Sistema che diventa inattivo (nessun heartbeat per oltre 20 minuti)
 - Modifiche critiche rilevate nell'inventario
 - Nuovo sistema registrato
-- Discordanza versione sistema
+- Discordanza di versione del sistema
 - Vulnerabilità di sicurezza rilevate
 
 :::note
-L'alert interno `LinkFailed` viene generato da Collect dopo il timeout heartbeat configurato (10 minuti di default), separato dalla soglia di stato del sistema a 15+ minuti mostrata sopra. Collect lo aggiorna ogni 5 minuti finché il sistema resta inattivo, quindi può rimanere visibile fino a 10 minuti dopo la ripresa dell'heartbeat.
+L'alert interno `LinkFailed` viene generato da Collect per ogni sistema già in
+stato `inactive`, quindi segue lo stesso `HEARTBEAT_TIMEOUT_MINUTES` (20 di
+default). Collect lo aggiorna ogni 5 minuti finché il sistema resta inattivo, e
+l'alert porta un TTL pari al doppio di quell'intervallo: può quindi restare
+visibile fino a 10 minuti dopo la ripresa dell'heartbeat. È un ritardo voluto,
+che evita il flapping quando gli heartbeat arrivano a ridosso del timeout.
 :::
 
-### Salute Sistema
+### Salute del Sistema
 
-Punteggio salute basato su:
-- Affidabilità heartbeat (% uptime)
-- Freschezza inventario
-- Numero di modifiche
-- Conteggio problemi critici
+Ogni inventario elaborato porta con sé un **punteggio di salute** ricavato dalle modifiche rilevate. Parte da 100 e perde punti per ogni diff, in base alla severità:
 
-### Totali
+| Severità | Punti sottratti |
+|----------|-----------------|
+| Critical | 10 |
+| High | 5 |
+| Medium | 2 |
+| Low | 1 |
 
-L'endpoint `/api/systems/totals` fornisce un riepilogo statistico:
-
-```json
-{
-  "total": 150,
-  "alive": 120,
-  "dead": 25,
-  "zombie": 5
-}
-```
+Il punteggio non scende sotto 0, e un inventario senza modifiche vale 100. Misura quanto è stato dirompente l'ultimo insieme di modifiche, non l'affidabilità dell'heartbeat né la freschezza dell'inventario.
 
 ## Risoluzione Problemi
 
-### Il Sistema Non Invia Heartbeat
+### L'Autenticazione Fallisce (HTTP 401)
 
-1. Verifica che il servizio di heartbeat sia in esecuzione
-2. Controlla le credenziali (system_key e system_secret)
-3. Verifica la connettività di rete verso `my.nethesis.it`
-4. Controlla i log per errori HTTP (401, 403, 500)
-
-### L'Inventario Non Viene Aggiornato
-
-1. Verifica che lo script di raccolta inventario sia in esecuzione
-2. Controlla il formato JSON dell'inventario (deve essere valido)
-3. Verifica che le dimensioni del payload non superino i limiti
-4. Controlla i log per errori nella risposta
-
-### Timeout Connessione
-
-**Problema:** Timeout richiesta, nessuna risposta
+**Problema:** "Invalid system credentials" oppure "Unauthorized"
 
 **Soluzioni:**
-1. Controlla connettività di rete:
+1. Verifica che le credenziali siano corrette:
+   ```bash
+   echo -n "system_key:system_secret" | base64
+   ```
+2. Controlla che non ci siano spazi di troppo nelle credenziali
+3. Assicurati che il sistema sia registrato
+4. Verifica che il secret non sia stato rigenerato
+5. Prova con curl:
+   ```bash
+   curl -v -u "system_key:system_secret" \
+     https://my.nethesis.it/collect/api/systems/heartbeat \
+     -H "Content-Type: application/json" \
+     -d '{}'
+   ```
+
+### Timeout di Connessione
+
+**Problema:** la richiesta va in timeout, nessuna risposta
+
+**Soluzioni:**
+1. Verifica la connettività di rete:
    ```bash
    ping my.nethesis.it
    ```
-2. Controlla regole firewall (consenti uscita HTTPS)
-3. Verifica risoluzione DNS
-4. Testa da rete diversa
+2. Verifica che l'HTTPS sia raggiungibile:
+   ```bash
+   curl -sI https://my.nethesis.it/collect/api/systems/heartbeat
+   ```
+3. Controlla le regole del firewall (consenti HTTPS in uscita verso my.nethesis.it)
+4. Verifica la risoluzione DNS
+5. Prova da un'altra rete
+
+### L'Inventario Non Viene Aggiornato
+
+**Problema:** l'inventario risulta inviato ma non compare nel pannello di amministrazione
+
+**Soluzioni:**
+1. Aspetta 60 secondi e ricarica (propagazione della cache)
+2. Verifica di stare guardando il sistema giusto
+3. Controlla che l'inventario sia stato inviato all'endpoint corretto (`/collect/api/systems/inventory`)
+4. Verifica che il sistema non sia eliminato
+5. Controlla i log del sistema per eventuali errori
+
+### Il Sistema Risulta Inattivo
+
+**Problema:** il sistema risulta inattivo nonostante invii l'heartbeat
+
+**Soluzioni:**
+1. Controlla la frequenza dell'heartbeat (deve stare ben sotto il timeout di 20 minuti)
+2. Verifica che l'heartbeat arrivi davvero alla piattaforma:
+   ```bash
+   curl -v https://my.nethesis.it/collect/api/systems/heartbeat \
+     -u "key:secret" -H "Content-Type: application/json" -d '{}'
+   ```
+3. Controlla che l'orologio di sistema sia sincronizzato (NTP)
+4. Verifica che non ci sia deriva dell'orologio
+5. Consulta i log del servizio collect (solo amministratori)
 
 ### Modifiche Non Rilevate
 
-**Problema:** Inventario inviato ma nessuna modifica mostrata
+**Problema:** l'inventario è stato inviato ma non compare alcuna modifica
 
 **Soluzioni:**
-1. Verifica che i dati siano effettivamente cambiati tra inventari
-2. Controlla che i campi modificati siano supportati
-3. Le piccole modifiche numeriche potrebbero non attivare il rilevamento
-4. I campi personalizzati sono tracciati per modifiche
-5. Attendi il prossimo inventario e confronta
-
-### Lo Stato del Sistema è Errato
-
-- Lo stato viene aggiornato periodicamente dal cron job
-- Potrebbe esserci un ritardo tra l'invio dell'heartbeat e l'aggiornamento dello stato
-- Verifica che il sistema stia effettivamente inviando heartbeat con la frequenza configurata
-
-### Errore 401 nelle Richieste
-
-- Le credenziali non sono valide
-- Il system_secret potrebbe essere stato rigenerato
-- Il formato dell'autenticazione HTTP Basic potrebbe non essere corretto
-- Verifica che username e password siano nell'ordine corretto (username:password)
+1. Verifica che i dati siano effettivamente cambiati tra un inventario e l'altro
+2. Controlla che i campi cambiati siano tra quelli supportati
+3. Piccole variazioni numeriche possono non far scattare il rilevamento
+4. Anche i campi personalizzati vengono confrontati
+5. Attendi l'inventario successivo e confronta
 
 ## Best Practice
 
-- **Configura il heartbeat** come prima cosa dopo la registrazione
-- **Invia l'inventario** regolarmente per mantenere i dati aggiornati
-- **Monitora gli stati** dalla dashboard per individuare problemi rapidamente
-- **Verifica le modifiche** rilevate per identificare cambiamenti non autorizzati
-- **Conserva le credenziali** in modo sicuro sul sistema
-- **Automatizza** l'invio di heartbeat e inventario con cron job o servizi systemd
-- **Gestisci gli errori** nello script di invio per evitare perdita di dati
+### Heartbeat
+
+- Invia con regolarità ogni 5 minuti
+- Usa un'attività pianificata (cron, timer systemd)
+- Registra i fallimenti dell'heartbeat per la diagnosi
+- Implementa una logica di retry (backoff esponenziale)
+- Monitora il tasso di successo degli heartbeat
+
+### Inventario
+
+- Invia sempre l'inventario completo
+- Non inviare aggiornamenti parziali
+- Includi tutti i dati rilevanti
+- Usa nomi di campo coerenti
+- Valida il JSON prima di inviarlo
+- Invia subito dopo una modifica significativa
+
+### Gestione degli Errori
+
+- Implementa una logica di retry per i problemi di rete
+- Registra tutti gli errori con il loro contesto
+- Non ritentare sugli errori di autenticazione (401)
+- Usa il backoff esponenziale per i tentativi
+- Genera un avviso in caso di fallimenti ripetuti
+
+### Sicurezza
+
+- Conserva le credenziali in modo sicuro
+- Non scrivere mai le credenziali nei log
+- Usa esclusivamente HTTPS
+- Verifica i certificati SSL
+- Monitora i fallimenti di autenticazione
+
+:::warning
+Per un sistema registrato non esiste rotazione delle credenziali: `Rigenera Secret` viene rifiutato una volta valorizzato `registered_at`. Tratta il `system_secret` come permanente per tutta la vita del sistema, e sostituisci il sistema stesso se viene compromesso.
+:::
+
+### Prestazioni
+
+- Comprimi gli inventari di grandi dimensioni
+- Raggruppa la raccolta dei dati
+- Evita invii di inventario non necessari
+- Usa strutture dati efficienti
+- Monitora la banda di rete consumata
+
+## Documentazione Correlata
+
+- [Registrazione Sistema](./registration.md)
+- [Gestione Sistemi](./management.md)
+- [Documentazione API Backend](https://github.com/NethServer/my/blob/main/backend/README.md)
+- [Documentazione Servizio Collect](https://github.com/NethServer/my/blob/main/collect/README.md)

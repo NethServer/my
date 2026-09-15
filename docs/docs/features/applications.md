@@ -41,7 +41,11 @@ Click on an application to view its detailed information:
 
 ## Assigning to Organizations
 
-Admin users can assign or unassign applications to organizations. This controls which organization has visibility and management access to the application.
+Assignment controls which organization has visibility and management access to the application.
+
+:::note
+An application is assigned to **one** organization at a time, not to several. Assigning it elsewhere replaces the previous assignment.
+:::
 
 ### Assign an Application
 
@@ -50,11 +54,15 @@ Admin users can assign or unassign applications to organizations. This controls 
 3. Select the target organization
 4. Confirm the assignment
 
+The organizations on offer are filtered by your position in the hierarchy: you can only assign applications to organizations you manage.
+
 ### Unassign an Application
 
 1. Navigate to the application details page
 2. Use the **Unassign** action
 3. Confirm the removal
+
+An unassigned application does not disappear: it goes back to being counted against the organization of the system hosting it.
 
 ## Application Notes
 
@@ -67,11 +75,16 @@ You can add notes to applications to record additional context or operational in
 
 ## Totals and Trends
 
-The [Dashboard](dashboard) displays the total count of applications visible to your account. Trend data shows application growth over 30, 60, and 90 day periods.
+The [Dashboard](./dashboard.md) displays the total count of applications visible to your account, with a badge linking to the unassigned ones. Growth over time is available from the API through `/backend/api/applications/trend`.
 
 ## Permissions
 
-| Action | Required Permission |
-|--------|-------------------|
-| View applications | `read:applications` |
-| Edit / Assign / Unassign | `manage:applications` |
+| Operation | Permission | Staff | Admin | Backoffice | Support | Reader |
+|-----------|------------|:-----:|:-----:|:----------:|:-------:|:------:|
+| View applications | `read:applications` | Yes | Yes | Yes | Yes | Yes |
+| Edit an application | `manage:applications` | Yes | Yes | Yes | Yes | No |
+| Assign / unassign to an organization | `manage:applications` | Yes | Yes | Yes | Yes | No |
+| Edit notes | `manage:applications` | Yes | Yes | Yes | Yes | No |
+
+Every role except Reader holds `manage:applications`, so assigning an
+application is not a backoffice-only operation.

@@ -23,28 +23,27 @@ Automatically inherited from user's organization:
 
 Manually assigned to users based on their job function:
 
-- **Admin**: Platform administration
-  - User management
-  - Organization management
-  - System configuration
-  - Dangerous operations (delete, suspend)
+- **Admin**: full management of the organization
+  - Users: create, edit, reset password, suspend, delete
+  - Systems: create, edit, suspend, delete
+  - Applications, alerting configuration, add-ons, rebranding
 
-- **Backoffice**: Administrative operations and reporting
-  - User and organization viewing
-  - System monitoring and reporting
-  - Analytics and statistics
-  - No destructive operations
+- **Backoffice**: administrative operations, no system management
+  - Users: create, edit, reset password, suspend, delete
+  - Applications: view and assign to organizations
+  - Add-ons: activate and revoke
+  - Systems: read only -- cannot create or edit them
+  - No alerting configuration, no rebranding
 
-- **Support**: Technical operations
-  - System management
-  - Inventory viewing
-  - Heartbeat monitoring
-  - Standard operations
+- **Support**: technical operations on systems
+  - Systems: create, edit, suspend, delete, regenerate secret
+  - Inventory, heartbeat, alerts and silences
+  - Applications: view and assign
+  - **No access to users at all** -- not even reading the list
 
-- **Reader**: Read-only access
-  - View users and organizations
-  - View systems and status
-  - View inventory and heartbeat
+- **Reader**: read-only access
+  - View users, organizations, systems, inventory, applications, add-ons
+  - Can export every list it can read
   - No modification capabilities
 
 - **Staff** (Owner organization only): Nethesis cross-cutting staff
@@ -74,16 +73,16 @@ Organization: Distributor (ACME Distribution)
 User Role: Support
 → Can view resellers and customers under ACME
 → Can manage systems for all customers under ACME
-→ Cannot manage users (requires Admin role)
+→ Cannot see users at all (Support has no `read:users`)
 ```
 
 ## Creating Users
 
 ### Prerequisites
 
-- You must have **Admin** role
+- You need `manage:users` -- held by **Admin**, **Backoffice** and **Staff**. Support cannot, it has no access to users at all
 - You can only create users for organizations you can manage
-- Valid email address for the new user
+- A valid email address for the new user
 
 ### Create a New User
 
@@ -234,25 +233,31 @@ Re-enable a suspended account:
 
 ### Deleting a User
 
-:::danger
-User deletion is permanent and cannot be undone.
-:::
+**Delete archives, it does not erase.** The user is soft-deleted: it disappears
+from the lists and can no longer sign in, but the record is kept and can be
+brought back with **Restore**.
 
 To delete a user:
 
 1. Navigate to the user details page
 2. Click **Delete** (using kebab menu)
-3. Click **Delete**
+3. Confirm
 
 **Effects of deletion:**
-- User account is permanently removed from Logto
+- The user can no longer sign in
+- The account is archived, not erased -- **Restore** brings it back
 - All audit logs are preserved
 - Systems created by this user remain
 
 **Prerequisites:**
 - You cannot delete your own account
-- User must be suspended first (safety measure)
-- You must have Admin role
+- You need `manage:users` (Admin, Backoffice or Staff)
+
+:::danger Permanent deletion
+Erasing a user for good is a separate operation and requires `destroy:users`,
+which no assignable role holds -- only the bootstrap `owner` account. That one
+cannot be undone.
+:::
 
 ## Self-Service Features
 
@@ -281,94 +286,46 @@ Email changes may require re-authentication.
 
 ## Permissions Reference
 
-### Staff Role Permissions
+Effective permissions are the **union** of the organization role and the user
+role. Everything about the business hierarchy (distributors, resellers,
+customers) comes from the organization role, so it does not vary by user role
+-- with one exception: Reader is stripped of the `manage:` permissions on the
+hierarchy.
 
-The Staff role identifies Nethesis cross-cutting staff. It exists only inside
-the Owner organization: it is the only role assignable there, and it can never
-be assigned to users of other companies.
+| Operation | Permission | Staff | Admin | Backoffice | Support | Reader |
+|-----------|------------|:-----:|:-----:|:----------:|:-------:|:------:|
+| View users | `read:users` | Yes | Yes | Yes | **No** | Yes |
+| Create and edit users | `manage:users` | Yes | Yes | Yes | No | No |
+| Reset a user's password | `manage:users` | Yes | Yes | Yes | No | No |
+| Suspend / reactivate a user | `manage:users` | Yes | Yes | Yes | No | No |
+| Delete a user (archive) | `manage:users` | Yes | Yes | Yes | No | No |
+| View systems | `read:systems` | Yes | Yes | Yes | Yes | Yes |
+| Create, edit and delete systems | `manage:systems` | Yes | Yes | No | Yes | No |
+| Silence alerts | `manage:systems` | Yes | Yes | No | Yes | No |
+| View organizations | from the organization role | Yes | Yes | Yes | Yes | Yes |
+| Manage organizations | from the organization role | Yes | Yes | Yes | Yes | No |
+| View applications | `read:applications` | Yes | Yes | Yes | Yes | Yes |
+| Manage and assign applications | `manage:applications` | Yes | Yes | Yes | Yes | No |
+| View alerting configuration | `read:alerts` | Yes | Yes | No | Yes | No |
+| Change alerting configuration | `manage:alerts` | Yes | Yes | No | Yes | No |
+| Read the effective alerting config | `config:alerts` | Yes | No | No | No | No |
+| View add-ons | `read:entitlements` | Yes | Yes | Yes | Yes | Yes |
+| Activate / revoke add-ons | `manage:entitlements` | Yes | Yes | Yes | No | No |
+| Add-on catalog and manual grants | `manage:entitlements` + Owner org | Yes | No | No | No | No |
+| View rebranding | `read:rebranding` | Yes | Yes | Yes | Yes | Yes |
+| Configure rebranding | `manage:rebranding` | Yes | Yes | No | No | No |
+| Impersonate users | `impersonate:users` | Yes | No | No | No | No |
+| Remote connection to systems | `connect:systems` | Yes | No | No | No | No |
 
-Can perform:
-- All Admin capabilities, across all companies
-- Manage systems, users, applications, alerts (including alert template configuration)
-- Manage add-ons: manual grants and the add-on catalog
-- Manage rebranding
-- User impersonation for troubleshooting (with the user's consent)
-- Remote connection to systems
+Exporting a list requires only the `read:` permission of that resource, so every
+role can export what it can see -- Support included, except for users, which it
+cannot read.
 
-Cannot perform:
-- Permanently destroy systems or users (reserved to the `owner` account)
-- Modify own account status
-- Delete own account
-- Bypass audit logging
-
-### Admin Role Permissions
-
-Can perform:
-- Create users
-- Edit users
-- Reset user passwords
-- Suspend/reactivate users
-- Delete users (with restrictions)
-- Manage organizations (based on hierarchy)
-- View all audit logs
-- Configure platform settings
-
-Cannot perform:
-- User impersonation
-- Modify own account status
-- Delete own account
-- Bypass hierarchical restrictions
-
-### Backoffice Role Permissions
-
-Can perform:
-- Create and edit users
-- Manage applications and assign them to organizations
-- Grant and revoke add-on licences
-- View users, organizations, systems and inventory
-- Generate reports and analytics
-- Export data
-
-Cannot perform:
-- Create or edit systems
-- Delete any resource
-- Impersonate users
-- Configure alerting
-- Configure rebranding
-
-### Support Role Permissions
-
-Can perform:
-- Create systems
-- View systems
-- Edit systems
-- Regenerate system secrets
-- View inventory
-- View heartbeat status
-- View system statistics
-
-Cannot perform:
-- Manage users
-- Manage organizations
-- Delete systems
-- Access dangerous operations
-
-### Reader Role Permissions
-
-Can perform:
-- View users (basic information)
-- View organizations
-- View systems and status
-- View inventory data
-- View heartbeat status
-- View basic statistics
-
-Cannot perform:
-- Create, edit, or delete any resources
-- Access sensitive user data
-- View audit logs
-- Generate reports
-- Export data
+:::note Permanent deletion
+`destroy:systems` and `destroy:users` are held by no assignable role, Staff
+included. They belong to the bootstrap `owner` account alone, which is also the
+only account that can create and manage users of the Owner organization.
+:::
 
 ### Hierarchical Restrictions
 
@@ -389,17 +346,20 @@ Users can only manage other users within their organizational scope:
 **Customer users:**
 - Can manage users in their own organization only
 
+:::warning
+It is never possible to:
+- Suspend or delete your own account
+- Reset your own password from Users management (use the Account page)
+- Create a user with a role higher than your own
+:::
+
 ## User Statistics
 
 ### Dashboard Metrics
 
-Navigate to **Dashboard** to view:
+The [Dashboard](../features/dashboard.md) carries a **Users** card with the total across the organizations you can read, linking to the list. It is rendered only if you hold `read:users`.
 
-- **Total Users**: Count across all accessible organizations
-- **Active Users**: Users who logged in recently
-- **Users by Organization**: Distribution chart
-- **Users by Role**: Admin, Backoffice, Support, Reader, Staff count
-- **Growth Trend**: User creation trend (last 30/60/90 days)
+Breakdowns by organization, role or status come from the list filters, not from the Dashboard. Growth over time is available from the API through `/backend/api/users/trend`.
 
 ### User Report
 
@@ -426,10 +386,10 @@ Generate reports:
 - Assign minimal required roles (principle of least privilege)
 - Document why users have specific roles
 - Review role assignments quarterly
-- Use Admin role sparingly for user management needs
-- Use Backoffice role for reporting and analytics personnel
-- Use Support role for most technical operations
-- Use Reader role for view-only access (auditors, stakeholders)
+- Use Admin for people who must manage both users and systems
+- Use Backoffice for people who manage users, applications and add-ons but must not touch systems
+- Use Support for technical staff working on systems, who need no access to users
+- Use Reader for view-only access (auditors, stakeholders)
 
 ### Security
 
@@ -475,10 +435,10 @@ Generate reports:
 **Problem:** "Access denied" when creating user
 
 **Solutions:**
-1. Verify you have Admin role
-2. Check target organization is in your hierarchy
-3. Confirm email address is not already used
-4. Ensure organization is not suspended
+1. Verify you hold `manage:users` (Admin, Backoffice or Staff)
+2. Check the target organization is in your hierarchy
+3. Confirm the email address is not already in use
+4. Ensure the organization is not suspended
 
 ### Welcome Email Not Received
 
@@ -495,13 +455,13 @@ Generate reports:
 
 After creating users:
 
-- [Create systems](../systems/management) for customer organizations
+- [Create systems](../systems/management.md) for customer organizations
 - Configure user permissions appropriately
 - Train users on platform usage
 - Set up monitoring and alerts
 
 ## Related Documentation
 
-- [Authentication Guide](../getting-started/authentication)
-- [Organizations Management](organizations)
-- [Systems Management](../systems/management)
+- [Authentication Guide](../getting-started/authentication.md)
+- [Organizations Management](./organizations.md)
+- [Systems Management](../systems/management.md)

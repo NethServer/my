@@ -4,16 +4,16 @@ sidebar_position: 5
 
 # Esportazione Dati
 
-La funzionalità di esportazione consente di scaricare i dati della piattaforma My in formati strutturati per analisi, reportistica e archiviazione.
+La funzionalità di esportazione consente di scaricare i dati della piattaforma My in CSV o PDF, per analisi e reportistica.
 
 ## Panoramica
 
-L'esportazione è disponibile per tutte le sezioni principali della piattaforma e supporta diversi formati di output.
+È possibile esportare i dati da qualsiasi elenco della piattaforma. L'esportazione rispetta i filtri attivi, quindi si può restringere il set di dati prima di esportarlo.
 
 ## Export Supportati
 
-| Risorsa | Formati | Descrizione |
-|---------|---------|-------------|
+| Risorsa | Formati | Contenuto |
+|---------|---------|-----------|
 | **Distributori** | CSV, PDF | Elenco distributori con dettagli |
 | **Rivenditori** | CSV, PDF | Elenco rivenditori con dettagli |
 | **Clienti** | CSV, PDF | Elenco clienti con dettagli |
@@ -22,70 +22,55 @@ L'esportazione è disponibile per tutte le sezioni principali della piattaforma 
 
 ## Come Esportare
 
-### Passo 1: Naviga alla Sezione
-
-Vai alla pagina di elenco della risorsa che vuoi esportare (es. Sistemi, Utenti, ecc.).
-
-### Passo 2: Applica i Filtri
-
-Applica eventuali filtri per selezionare i dati da esportare. L'esportazione includerà solo i dati che corrispondono ai filtri attivi.
+1. Vai alla pagina di elenco della risorsa da esportare (es. **Utenti**, **Sistemi**)
+2. Applica eventuali filtri -- l'esportazione contiene esattamente le righe selezionate dai filtri
+3. Clicca **Esporta** e scegli il formato:
+   - **CSV** -- tabulare, per fogli di calcolo e analisi dati
+   - **PDF** -- documento, per stampa e condivisione
+4. Il file viene generato e scaricato dal browser, con nome
+   `<risorsa>_export_<AAAA-MM-GG_HHMMSS>.<est>`
 
 :::tip
-Verifica i filtri attivi prima di esportare. L'esportazione include esattamente i dati visualizzati nell'elenco.
+Applica i filtri prima di esportare per ottenere esattamente i dati che ti servono. Ad esempio, filtra i sistemi per organizzazione o stato per esportarne solo un sottoinsieme.
 :::
-
-### Passo 3: Seleziona il Formato
-
-Clicca sul pulsante **Esporta** e seleziona il formato desiderato:
-
-- **CSV** - Formato tabulare, ideale per fogli di calcolo (Excel, Google Sheets)
-- **PDF** - Formato documento, ideale per stampa e archiviazione
-
-### Passo 4: Scarica il File
-
-Il file viene generato e scaricato automaticamente nel browser.
-
-### Passo 5: Verifica
-
-Apri il file scaricato per verificare che i dati siano corretti e completi.
 
 ## Formato CSV
 
-Il file CSV utilizza:
-
 - **Separatore**: virgola (`,`)
 - **Codifica**: UTF-8
-- **Intestazioni**: Prima riga con i nomi delle colonne
-- **Escape**: Virgolette doppie per campi contenenti virgole
+- **Intestazioni**: la prima riga contiene i nomi delle colonne
+- **Escape**: virgolette doppie sui campi che contengono una virgola
 
 ## Formato PDF
 
-Il file PDF include:
-
 - **Intestazione** con data e ora di generazione
+- I **filtri** applicati e **chi** ha eseguito l'esportazione
 - **Tabella** con i dati formattati
-- **Piè di pagina** con numero di pagina
 
 ## Limiti
 
-| Parametro | Valore |
-|-----------|--------|
-| Record massimi per export | 10.000 |
-| Timeout generazione | 60 secondi |
-
-:::warning
-Se i dati superano il limite di 10.000 record, applica filtri aggiuntivi per ridurre il set di dati prima dell'esportazione. I record oltre il limite non vengono inclusi nel file esportato.
-:::
+- Massimo **10.000 record** per esportazione
+- Oltre quella soglia l'esportazione viene **troncata silenziosamente**: il file
+  viene comunque prodotto, ma le righe eccedenti non ci sono. Restringi i filtri
+  per essere sicuro di avere tutto.
 
 ## Permessi
 
-L'esportazione è disponibile per tutti gli utenti autenticati. I dati esportati sono filtrati in base alla visibilità gerarchica dell'utente:
+Per esportare serve il **permesso di lettura della risorsa**, lo stesso che
+permette di vederne l'elenco:
 
-- **Owner**: Esporta tutti i dati della piattaforma
-- **Distributore**: Esporta i dati delle proprie organizzazioni subordinate
-- **Rivenditore**: Esporta i dati dei propri clienti
-- **Cliente**: Esporta solo i dati della propria organizzazione
+| Risorsa | Permesso richiesto |
+|---------|--------------------|
+| Utenti | `read:users` |
+| Sistemi | `read:systems` |
+| Distributori | `read:distributors` |
+| Rivenditori | `read:resellers` |
+| Clienti | `read:customers` |
 
-:::note
-I dati esportati rispettano sempre la visibilità gerarchica. Non è possibile esportare dati a cui non si ha accesso nell'interfaccia.
-:::
+Se vedi un elenco puoi esportarlo -- e solo quello. Un utente Support, ad
+esempio, non ha `read:users`, quindi non può esportare gli utenti.
+
+I dati esportati rispettano sempre la visibilità gerarchica: l'Owner esporta
+l'intera piattaforma, un distributore le proprie organizzazioni subordinate, un
+rivenditore i propri clienti, un cliente solo la propria organizzazione. Non è
+mai possibile esportare dati a cui non si ha accesso nell'interfaccia.

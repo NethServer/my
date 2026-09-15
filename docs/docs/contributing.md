@@ -4,91 +4,131 @@ sidebar_position: 99
 
 # Contributing to My Nethesis Documentation
 
-Thank you for your interest in improving the My Nethesis documentation!
+How to write, translate, build and publish these pages.
 
 ## Documentation Structure
 
 ```
 docs/
-├── intro.md                              # Home page
-├── getting-started/
-│   ├── authentication.md                 # Authentication guide
-│   └── account.md                        # Account settings guide
-├── platform/
-│   ├── organizations.md                  # Organizations guide
-│   ├── users.md                          # Users management guide
-│   └── impersonation.md                  # User impersonation guide
-├── systems/
-│   ├── management.md                     # Systems management guide
-│   ├── registration.md                   # Registration workflow
-│   └── inventory-heartbeat.md            # Monitoring guide
-├── features/
-│   ├── dashboard.md                      # Dashboard overview
-│   ├── applications.md                   # Applications guide
-│   ├── avatar.md                         # Avatar management
-│   ├── rebranding.md                     # Organization rebranding
-│   └── export.md                         # Data export
-└── contributing.md                       # This file
+  docs/                    # English documentation (default locale)
+    intro.md
+    getting-started/
+      authentication.md
+      account.md
+      api-keys.md
+    platform/
+      organizations.md
+      users.md
+      impersonation.md
+    systems/
+      management.md
+      registration.md
+      inventory-heartbeat.md
+      backups.md
+      org-reassignment.md
+    features/
+      dashboard.md
+      applications.md
+      entitlements.md
+      avatar.md
+      rebranding.md
+      import.md
+      export.md
+      alerting.md
+    contributing.md
+  i18n/
+    it/
+      docusaurus-plugin-content-docs/
+        current/           # Italian translation
+          ...              # Same structure as docs/
+      docusaurus-theme-classic/
+                           # Navbar and footer strings (JSON)
+  sidebars.ts              # Sidebar definition, shared by both locales
+  docusaurus.config.ts     # Site configuration
+  static/img/              # Images
+```
+
+Every page must exist in **both** locales with the same structure: the sidebar
+is shared, so a page missing from one locale breaks navigation there.
+
+## Prerequisites
+
+- Node.js 24 or later (see `engines` in `package.json`)
+
+## Local Development
+
+The project drives everything through `make`; each target wraps the npm script
+underneath.
+
+### Install Dependencies
+
+```bash
+cd docs
+make install          # npm ci, from the lockfile
+```
+
+### Start the Dev Server
+
+```bash
+make run                   # npm start -- English, with hot reload
+npm start -- --locale it   # Italian
+```
+
+The dev server listens on `http://localhost:3000`.
+
+:::note
+The dev server serves **one locale at a time**. To check the Italian pages you
+have to restart it with `--locale it`, or build the whole site.
+:::
+
+### Build
+
+```bash
+make build            # builds every locale into build/
+```
+
+The build **fails on broken links**, so it is the check that catches dead
+cross-references.
+
+### Preview the Build
+
+```bash
+make serve
+```
+
+### Before Committing
+
+```bash
+make pre-commit       # type-check + build + dependency audit
 ```
 
 ## Writing Guidelines
 
-### Style Guide
+### Style
 
-- **Tone**: Clear, professional, helpful
-- **Audience**: End users and administrators (non-technical)
-- **Language**: Simple, avoiding jargon when possible
-- **Examples**: Always include practical examples
+- Write in the second person ("you"), present tense
+- Prefer short sentences and concrete examples
+- Document what the platform **does**, not what it is meant to do
+- Always show complete commands, never fragments
 
-### Formatting
-
-- **Headers**: Use `##` for main sections, `###` for subsections
-- **Code blocks**: Always specify language (bash, json, python, etc.)
-- **Lists**: Use `-` for unordered lists, `1.` for ordered
-- **Emphasis**: Use **bold** for important terms, *italic* for emphasis
-- **Links**: Use descriptive text, not "click here"
-
-### Admonitions
-
-Use Docusaurus admonition syntax:
+### Page Structure
 
 ```markdown
-:::note
-Informational content here
-:::
+---
+sidebar_position: 1
+---
 
-:::tip
-Helpful tip content here
-:::
-
-:::warning
-Warning content here
-:::
-
-:::danger
-Danger content here
-:::
-```
-
-### Example Structure
-
-````markdown
 # Page Title
 
-Brief introduction explaining what this page covers.
+One-line introduction to the page.
 
 ## Main Section
 
-Detailed explanation with examples.
+Content.
 
 ### Subsection
 
-Specific details or procedures.
-
-**Example:**
-```bash
-command --flag value
-```
+Details.
 
 ## Troubleshooting
 
@@ -96,179 +136,160 @@ Common problems and solutions.
 
 ## Related Documentation
 
-- [Link to related page](./other-page)
+- [Link to related page](./other-page.md)
+```
+
+### Frontmatter
+
+Every page starts with a frontmatter block. `sidebar_position` decides the order
+inside its category; keep the same value in both locales.
+
+### Admonitions
+
+Docusaurus supports these callouts:
+
+```markdown
+:::note
+Neutral information.
+:::
+
+:::tip
+A useful suggestion.
+:::
+
+:::info
+Additional context.
+:::
+
+:::warning
+Something that needs care.
+:::
+
+:::danger
+Irreversible or risky operation.
+:::
+```
+
+### Internal Links
+
+Link to the **source file**, with the `./` or `../` prefix and the `.md`
+extension:
+
+```markdown
+[Authentication](./getting-started/authentication.md)
+[Systems Management](../systems/management.md)
+[A section](./management.md#creating-systems)
+```
+
+:::warning
+Never link with an extensionless path such as `[Authentication](getting-started/authentication)`.
+Docusaurus passes those through untouched and the **browser** resolves them
+against the page URL, so they break as soon as that URL carries a trailing
+slash -- and the build cannot catch it. A file-relative `.md` link is resolved
+at build time, which turns a missing target into a build failure.
+
+Anchors are generated from the heading text, so they differ between locales:
+the Italian page links `./management.md#creazione-sistemi`, not the English
+`#creating-systems`.
+:::
+
+### Images
+
+Images live in `static/img/` and are referenced from the site root:
+
+```markdown
+![Description](/img/screenshot.png)
+```
+
+Keep them under 1 MB and give every image real alt text.
+
+### Tables
+
+Use Markdown tables for structured data:
+
+```markdown
+| Column 1 | Column 2 | Column 3 |
+|----------|----------|----------|
+| Value 1  | Value 2  | Value 3  |
+```
+
+### Mermaid Diagrams
+
+Mermaid is enabled site-wide:
+
+````markdown
+```mermaid
+graph LR
+    A[Start] --> B[End]
+```
 ````
-
-## Building Locally
-
-### Prerequisites
-
-- Node.js — the version in `.nvmrc` at the repo root (`nvm install && nvm use`).
-  npm ships with Node, so there is nothing separate to install.
-
-```bash
-# Install dependencies
-npm install
-```
-
-### Local Development
-
-```bash
-# Start local server with hot reload
-npm start
-
-# Open in browser
-open http://localhost:3000
-```
-
-The documentation will automatically reload when you save changes.
-
-### Building
-
-```bash
-# Build static site
-npm run build
-
-# Output will be in build/ directory
-```
-
-## Making Changes
-
-### 1. Edit Documentation
-
-Edit the relevant `.md` file in the `docs/` directory.
-
-### 2. Preview Locally
-
-```bash
-npm start
-```
-
-Check your changes at http://localhost:3000
-
-### 3. Check Links
-
-Ensure all internal links work:
-- Relative links to other docs: `[text](relative-path)` (without `.md` extension)
-- Links to sections: `[text](relative-path#section-name)`
-- External links: Full URL
-
-### 4. Add Images
-
-If adding images:
-
-1. Place image in `static/img/`
-2. Reference using: `![Alt text](/img/filename.png)`
-3. Optimize image size (max 1MB)
-
-### 5. Test Build
-
-```bash
-# Test that build succeeds
-npm run build
-
-# This will fail if there are broken links or errors
-```
-
-## Adding New Pages
-
-### 1. Create File
-
-Create new `.md` file in the appropriate `docs/` subdirectory:
-
-```bash
-touch docs/features/new-feature.md
-```
-
-### 2. Add Frontmatter
-
-Every page needs frontmatter with at minimum a `sidebar_position`:
-
-```markdown
----
-sidebar_position: 6
----
-
-# New Feature
-
-Content here...
-```
-
-### 3. Link from Other Pages
-
-Add links from relevant pages using relative paths without the `.md` extension:
-
-```markdown
-See also: [New Feature Guide](new-feature)
-```
-
-## Style and Conventions
 
 ### Command Examples
 
-Always show complete commands:
+Show the whole command, and both sides of an API call:
 
+````markdown
 ```bash
-# Good
 curl -X POST https://api.example.com/endpoint \
   -H "Content-Type: application/json" \
   -d '{"key": "value"}'
-
-# Bad
-curl endpoint
 ```
+````
 
-### File Paths
+Use paths relative to the repository root -- `backend/main.go`, not a path from
+your own machine.
 
-Use absolute paths from project root:
+## Adding a New Page
+
+1. **Create the file** in the right `docs/` subdirectory, and its counterpart
+   under `i18n/it/docusaurus-plugin-content-docs/current/`
+2. **Add the frontmatter**, with the same `sidebar_position` in both locales
+3. **Register it in `sidebars.ts`** -- the sidebar is shared by both locales
+4. **Link it** from the related pages, on both sides
+
+## Translations
+
+### Adding an Italian Translation
+
+1. Create the file in the matching directory under
+   `i18n/it/docusaurus-plugin-content-docs/current/`
+2. Keep the same structure and the same frontmatter as the English file
+3. Translate everything: headings, body, image alt text
+4. Leave code blocks untouched -- never translate code, flags or identifiers
+5. Keep the links file-relative, adjusting only the **anchors**, which follow
+   the translated headings
+6. Use proper accented characters (è, può, così), not `e'` or `puo'`
+
+### Interface Translations
+
+Navbar and footer strings live in the JSON files under
+`i18n/it/docusaurus-theme-classic/`. Regenerate them with:
 
 ```bash
-# Good
-/Users/edospadoni/Workspace/my/backend/main.go
-
-# Bad
-../backend/main.go
+make translations
 ```
-
-### API Examples
-
-Show both request and response:
-
-```bash
-# Request
-curl -X GET https://api.example.com/resource
-
-# Response (HTTP 200)
-{
-  "code": 200,
-  "message": "success",
-  "data": {}
-}
-```
-
-## Deployment
-
-Documentation is automatically deployed when changes are pushed to the `main` branch:
-
-1. GitHub Actions runs on push
-2. Docusaurus builds the site
-3. Site is deployed to GitHub Pages
 
 ## Review Process
 
 1. Make your changes in a feature branch
-2. Test locally with `npm start`
-3. Ensure build passes: `npm run build`
-4. Create Pull Request
-5. Documentation will be reviewed
-6. Once approved, merge to main
-7. Automatic deployment
+2. Preview locally with `make run`
+3. Make sure `make pre-commit` passes
+4. Open a Pull Request
+5. Once approved and merged to `main`, deployment is automatic
+
+## Deployment
+
+Pushing to `main` triggers a GitHub Actions workflow that builds the site and
+publishes it to GitHub Pages at `https://nethserver.github.io/my/`.
+
+The API reference is a separate pipeline: it is generated from
+`backend/openapi.yaml` and published to Bump.sh by its own workflow.
 
 ## Getting Help
 
-- Check existing documentation for examples
-- Review [Docusaurus documentation](https://docusaurus.io/docs)
-- Ask in project discussions
+- Look at the existing pages for examples
+- Read the [Docusaurus documentation](https://docusaurus.io/docs)
+- Ask in the project discussions
 
 ## License
 

@@ -4,66 +4,69 @@ sidebar_position: 1
 
 # Gestione Sistemi
 
-I sistemi rappresentano le installazioni software monitorate dalla piattaforma My. Ogni sistema è associato a un'organizzazione e può inviare dati di inventario e heartbeat.
+Creazione, monitoraggio e gestione dei sistemi collegati alla piattaforma My.
 
 ## Comprendere i Sistemi
 
-Un sistema in My rappresenta un'installazione di NethServer o NethSecurity presso un cliente. Ogni sistema:
+Un sistema rappresenta un'installazione NethServer o NethSecurity registrata su My. Ogni sistema appartiene a un'organizzazione cliente e comunica con la piattaforma tramite credenziali proprie.
 
-- Appartiene a una **singola organizzazione**
-- Ha credenziali uniche (**system_key** e **system_secret**) per l'autenticazione
-- Invia periodicamente dati di **inventario** e **heartbeat**
-- Ha un **ciclo di vita** con stati definiti
+### Ciclo di Vita del Sistema
 
-## Ciclo di Vita del Sistema
-
-```mermaid
-graph LR
-    A[Creato] --> B[Registrato]
-    B --> C[Active]
-    C --> D[Inactive]
-    D --> C
-    C --> E[Deleted]
-    D --> E
+```
+1. Creato da Admin/Support → riceve il system_secret
+2. Non ancora registrato → il system_key è nascosto
+3. Il sistema esterno si registra → il system_key diventa visibile
+4. Il sistema invia inventario e heartbeat → stato monitorato
 ```
 
 ### Stati del Sistema
 
-| Stato | Descrizione | Condizione |
-|-------|-------------|------------|
-| **Unknown** | Stato predefinito, sistema non ancora registrato o nessun inventario ricevuto | Nessun heartbeat ricevuto |
-| **Active** | Sistema operativo e comunicante | Heartbeat ricevuto negli ultimi 15 minuti |
-| **Inactive** | Sistema ha smesso di comunicare | Nessun heartbeat da oltre 15 minuti |
-| **Deleted** | Sistema rimosso | Eliminazione soft o permanente |
+| Stato | Significato |
+|-------|-------------|
+| **Unknown** | Creato, ma non ha mai inviato un heartbeat |
+| **Active** | Ultimo heartbeat più recente di 20 minuti |
+| **Inactive** | Ultimo heartbeat più vecchio di 20 minuti |
+| **Suspended** | Sospeso da un amministratore; non può inviare dati |
+| **Unregistered** | L'appliance ha rinunciato alle proprie credenziali -- stato terminale, vedi [Registrazione](./registration.md#annullare-la-registrazione-di-un-sistema) |
+| **Deleted** | Eliminato in modo soft; ripristinabile |
+
+La finestra di 20 minuti arriva da `HEARTBEAT_TIMEOUT_MINUTES`, e un cron rivaluta tutti i sistemi ogni 5 minuti: il passaggio a `inactive` si vede quindi tra i 20 e i 25 minuti dopo l'ultimo heartbeat. Vedi [Inventario e Heartbeat](./inventory-heartbeat.md#classificazione-degli-stati).
 
 ## Creazione Sistemi
 
-### Procedura
+### Prerequisiti
 
-1. Vai a **Sistemi**
-2. Clicca su **Nuovo Sistema**
-3. Compila i campi richiesti:
-   - **Nome** - Nome identificativo del sistema
-   - **Organizzazione** - L'organizzazione cliente a cui appartiene il sistema
-   - **Descrizione** - Descrizione opzionale
-4. Clicca su **Crea**
+- Serve il ruolo **Support** o **Admin**
+- Serve un'organizzazione cliente a cui associare il sistema
+- Il sistema viene creato nello stato "non registrato"
+
+### Creare un Nuovo Sistema
+
+1. Vai su **Sistemi**
+2. Clicca su **Crea sistema**
+3. Compila il modulo:
+   - **Nome**: nome descrittivo del sistema (es. "Server di produzione Milano")
+   - **Organizzazione**: seleziona l'organizzazione cliente
+   - **Note** (facoltative): informazioni aggiuntive
+4. Clicca su **Crea sistema**
+
+**Esempio:**
+```
+Nome: Server Web Produzione Milano
+Organizzazione: Pizza Express Milano (Cliente)
+Note: Server di produzione principale per le sedi di Milano
+```
 
 ### Secret del Sistema
 
-Alla creazione, il sistema riceve un **system_secret**:
+Dopo la creazione vedrai:
 
-- Viene mostrato **una sola volta** al momento della creazione
-- Deve essere copiato e conservato in modo sicuro
-- È necessario per la [registrazione](registration) del sistema
-- Può essere rigenerato se perso (vedi sotto)
-
-**Esempio risposta alla creazione:**
 ```json
 {
   "id": "sys_abc123",
   "name": "Server Web Produzione Milano",
   "system_key": "",
-  "system_secret": "my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0",
+  "system_secret": "my_a1b2c3.k1l2m3...",
   "status": "unknown",
   "registered_at": null,
   "organization": "Pizza Express Milano"
@@ -71,142 +74,198 @@ Alla creazione, il sistema riceve un **system_secret**:
 ```
 
 :::danger
-Il secret del sistema viene mostrato una sola volta. Se viene perso, sarà necessario rigenerarlo, il che richiede una nuova registrazione del sistema.
+Il `system_secret` viene mostrato **una sola volta**, alla creazione. Copialo e salvalo subito: ti serve per registrare il sistema. Se lo perdi *prima* della registrazione puoi rigenerarlo, ma una volta che il sistema si è registrato la rigenerazione viene rifiutata e l'unica via è creare un nuovo sistema.
 :::
 
 ## Visualizzazione Sistemi
 
 ### Elenco
 
-La pagina elenco sistemi mostra:
+La pagina **Sistemi** mostra tutti i sistemi visibili con:
 
-- **Nome** del sistema
-- **Organizzazione** di appartenenza
-- **Stato** (unknown, active, inactive, deleted)
-- **Ultimo heartbeat** - Data e ora dell'ultimo heartbeat ricevuto
-- **Versione** - Versione del software installato (se disponibile)
-- **Data di creazione**
+- Nome del sistema
+- Tipo (NethServer o NethSecurity)
+- Versione
+- Organizzazione
+- Stato
+- Ultimo heartbeat
 
 ### Filtri e Ricerca
 
-È possibile filtrare i sistemi per:
+Usa i filtri per trovare sistemi specifici:
 
-- **Ricerca testuale** - Cerca per nome o system_key
-- **Organizzazione** - Filtra per organizzazione di appartenenza
-- **Stato** - Filtra per stato del sistema (unknown, active, inactive, deleted)
-- **Tipo** - Filtra per tipo di sistema
+- **Ricerca**: per nome o system_key
+- **Prodotto**: filtra per tipo (NethServer o NethSecurity)
+- **Versione**: filtra per versione del sistema
+- **Organizzazione**: filtra per organizzazione cliente
+- **Creato da**: filtra per utente che ha creato il sistema
+- **Add-on**: filtra per add-on acquistato (vedi [Add-on](../features/entitlements.md))
+- **Stato**: unknown, active, inactive, suspended, deleted
+- **Ordinamento**: nome, versione, FQDN/indirizzo IP, organizzazione, creato da, stato
+
+Il menu **Add-on** elenca gli add-on posseduti da almeno uno dei tuoi sistemi,
+quindi un'opzione non restituisce mai un elenco vuoto. Selezionandone più di uno
+la ricerca si allarga: un sistema corrisponde se ne possiede almeno uno. Contano
+solo gli add-on validi in quel momento, quindi uno scaduto o annullato esclude
+il sistema.
 
 ### Dettagli Sistema
 
-Cliccando su un sistema si accede alla pagina di dettaglio con:
+Cliccando su un sistema si accede alle informazioni complete:
 
 #### Tab Panoramica
 
-- **Informazioni di Base**:
+- **Informazioni di base**:
   - Nome del sistema
-  - Tipo del sistema (auto-rilevato)
+  - Tipo (rilevato automaticamente)
   - Stato
   - Versione
-  - Timestamp registrazione
+  - Data di registrazione
 
-- **Informazioni di Rete**:
-  - FQDN (Fully Qualified Domain Name)
+- **Informazioni di rete**:
+  - FQDN (nome di dominio completo)
   - Indirizzo IPv4
   - Indirizzo IPv6
 
 - **Autenticazione**:
   - System key (visibile solo dopo la registrazione)
-  - Stato registrazione
-  - Ultimo timestamp di autenticazione
+  - Stato della registrazione
+  - Ultima autenticazione
 
 - **Organizzazione**:
-  - Nome cliente
-  - Tipo organizzazione
-  - Nome organizzazione
+  - Nome del cliente
+  - Tipo di organizzazione
+  - Nome dell'organizzazione
 
-- **Stato Heartbeat**:
+- **Stato heartbeat**:
   - Stato corrente (active/inactive/unknown)
-  - Ultimo timestamp heartbeat
-  - Ultimo timestamp inventario
+  - Data dell'ultimo heartbeat
+  - Data dell'ultimo inventario
 
-- **Traccia Audit**:
-  - Creato da (nome utente e email)
-  - Data creazione
-  - Data eliminazione (se eliminato in modo soft)
+- **Tracciabilità**:
+  - Creato da (nome ed email dell'utente)
+  - Data di creazione
+  - Data di eliminazione (se eliminato in modo soft)
 
 #### Tab Inventario
 
-Visualizza l'inventario dettagliato del sistema:
+Mostra l'inventario dettagliato del sistema:
 
-- **Ultimo Inventario**: Snapshot più recente dell'inventario
-- **Storico Inventario**: Tutti gli inventari storici con paginazione
-- **Modifiche**: Elenco delle modifiche rilevate tra gli inventari
-- **Vista Diff**: Confronto dettagliato tra versioni dell'inventario
+- **Ultimo inventario**: lo snapshot più recente
+- **Storico inventari**: tutti gli inventari passati, con paginazione
+- **Modifiche**: elenco delle variazioni rilevate tra un inventario e l'altro
+- **Vista diff**: confronto dettagliato tra due versioni dell'inventario
+
+Vedi [Inventario e Heartbeat](./inventory-heartbeat.md) per i dettagli.
 
 ## Gestione Sistemi
 
 ### Modifica
 
-Per modificare un sistema:
+1. Vai al dettaglio del sistema
+2. Clicca su **Modifica**
+3. Aggiorna i campi modificabili:
+   - Nome
+   - Organizzazione
+   - Note
+4. Clicca su **Salva**
 
-1. Vai all'elenco sistemi
-2. Clicca sul sistema da modificare
-3. Clicca su **Modifica**
-4. Aggiorna i campi desiderati (nome, descrizione, organizzazione)
-5. Clicca su **Salva**
-
-:::tip
-Cambiare l'**Organizzazione** sposta il sistema a un proprietario
-diverso. I backup, lo storico allarmi e l'inventario seguono il nuovo
-proprietario; il precedente perde l'accesso immediatamente. Per il
-comportamento completo, chi è autorizzato a farlo, e cosa succede a
-silence e assegnazioni applicazioni, vedi
-[Riassegnare un sistema a un'altra organizzazione](org-reassignment).
+:::note
+Il tipo, la versione e i dati di rete non si modificano a mano: arrivano dall'inventario inviato dal sistema.
 :::
 
 ### Rigenerazione Secret
 
-Se il secret del sistema è stato perso:
-
-1. Vai al dettaglio del sistema
-2. Clicca su **Rigenera Secret**
-3. Conferma l'operazione
-4. Copia il nuovo secret (viene mostrato una sola volta)
-
-:::warning
-La rigenerazione del secret invalida il secret precedente. Il sistema dovrà essere ri-registrato con il nuovo secret.
+:::danger Solo prima della registrazione
+Il secret può essere rigenerato **solo finché il sistema non si è registrato**.
+Una volta valorizzato `registered_at`, **Rigenera Secret** risponde HTTP 409:
+l'appliance si autentica con il secret con cui si è registrata, e da qui non
+esiste modo di installargliene uno nuovo.
 :::
 
-### Eliminazione
-
-My supporta due tipi di eliminazione:
-
-#### Eliminazione Soft
+Finché il sistema non è registrato:
 
 1. Vai al dettaglio del sistema
-2. Clicca su **Elimina**
+2. Clicca su **Rigenera Secret** (dal menu contestuale)
+3. Conferma l'operazione
+4. **Copia subito il nuovo secret**: viene mostrato una sola volta
+5. Configura il nuovo secret sul sistema esterno
+
+Il secret precedente viene invalidato immediatamente.
+
+**Quando rigenerare:**
+- Il secret è andato perso prima che il sistema riuscisse a registrarsi
+- Il secret è trapelato prima di essere usato
+- Il sistema era stato preparato ma mai messo in esercizio, e vuoi credenziali nuove
+
+**Se il sistema è già registrato** e le sue credenziali sono compromesse o
+perse, non c'è un percorso di rotazione: crea un **nuovo sistema**, registra la
+macchina con il nuovo secret, poi elimina la riga vecchia. L'appliance può anche
+rinunciare da sola alle proprie credenziali -- vedi
+[Registrazione](./registration.md#annullare-la-registrazione-di-un-sistema).
+
+### Eliminazione Soft
+
+L'eliminazione soft marca il sistema come eliminato senza rimuovere i dati:
+
+1. Vai al dettaglio del sistema
+2. Clicca su **Elimina** (dal menu contestuale)
 3. Conferma l'operazione
 
-L'eliminazione soft:
-- Segna il sistema come eliminato
-- I dati storici vengono conservati
-- Il sistema non può più inviare dati
+**Effetti:**
+- Il sistema viene marcato come "eliminato"
+- Non può più inviare inventario o heartbeat
+- Sparisce dalle viste normali
+- Le sue applicazioni spariscono da elenchi, totali e contatori delle organizzazioni finché il sistema non viene ripristinato (vengono conservate, non cancellate)
+- Può essere ripristinato in qualsiasi momento
+- Tutti i dati storici vengono conservati
 
-#### Eliminazione Permanente
+**Per vedere i sistemi eliminati:**
+1. Applica il filtro Stato = "deleted"
+2. Seleziona il sistema eliminato
+3. Clicca su **Ripristina**
 
-L'eliminazione permanente rimuove completamente il sistema e tutti i dati associati.
+### Eliminazione Permanente
 
 :::danger
-L'eliminazione permanente è irreversibile. Tutti i dati del sistema, inclusi inventario, heartbeat e cronologia modifiche, vengono rimossi definitivamente.
+Questa operazione è irreversibile!
 :::
+
+Per eliminare definitivamente:
+1. Elimina prima il sistema in modo soft
+2. Vai alla vista dei sistemi eliminati
+3. Seleziona il sistema
+4. Clicca su **Elimina definitivamente**
+5. Digita il nome del sistema per confermare
+6. Clicca su **Elimina**
+
+**Viene rimosso:**
+- Il record del sistema
+- Tutto lo storico dell'inventario
+- Tutti i record di heartbeat
+- Tutti i dati di rilevamento modifiche
+
+**Viene conservato:**
+- I log di audit
+- I log di attività degli utenti
 
 ## Registrazione
 
-Dopo la creazione, il sistema deve essere registrato per poter inviare dati.
+Dopo la creazione, il sistema esterno deve registrarsi usando il `system_secret`.
+
+### Flusso di Registrazione
+
+1. **L'admin crea il sistema** → riceve il `system_secret`
+2. **L'admin configura il sistema esterno** con il secret
+3. **Il sistema esterno chiama l'API di registrazione** con il secret
+4. **La piattaforma valida e restituisce** il `system_key`
+5. **Il sistema esterno salva** entrambe le credenziali per gli usi futuri
+
+Vedi [Registrazione Sistema](./registration.md) per le istruzioni dettagliate.
 
 ### Stato Registrazione
 
-**Prima della Registrazione:**
+**Prima della registrazione:**
 ```json
 {
   "system_key": "",
@@ -215,7 +274,7 @@ Dopo la creazione, il sistema deve essere registrato per poter inviare dati.
 }
 ```
 
-**Dopo la Registrazione:**
+**Dopo la registrazione:**
 ```json
 {
   "system_key": "NOC-F64B-A989-C9E7-45B9-A55D-59EC-6545-40EE",
@@ -224,98 +283,141 @@ Dopo la creazione, il sistema deve essere registrato per poter inviare dati.
 }
 ```
 
-Per i dettagli completi sulla procedura di registrazione, consulta la pagina [Registrazione Sistema](registration).
-
 ## Monitoraggio
 
-### Heartbeat
+### Panoramica in Dashboard
 
-Il sistema di heartbeat monitora lo stato di salute dei sistemi:
+La [Dashboard](../features/dashboard.md) porta due card rilevanti:
 
-- I sistemi inviano heartbeat periodici (ogni 5 minuti consigliato)
-- Il sistema classifica automaticamente lo stato in base alla frequenza degli heartbeat
-- Gli stati vengono aggiornati periodicamente dal cron job di monitoraggio
+- **Sistemi**: il totale sulle organizzazioni che puoi leggere, con badge per attivi, inattivi e in attesa che aprono l'elenco già filtrato
+- **Allarmi**: gli allarmi aperti sullo stesso perimetro, con badge per severità
 
-### Inventario
+### Esportazione Dati
 
-L'inventario fornisce informazioni dettagliate sulla configurazione del sistema:
+Per esportare le informazioni sui sistemi:
 
-- Dati hardware e software
-- Configurazione di rete
-- Servizi installati
-- Utenti configurati
-
-Per maggiori dettagli, consulta la pagina [Inventario e Heartbeat](inventory-heartbeat).
-
-## Esportazione
-
-È possibile esportare l'elenco dei sistemi in formato CSV o PDF. L'esportazione include tutti i sistemi visibili in base ai filtri applicati.
-
-Per maggiori dettagli, consulta la pagina [Esportazione Dati](../features/export).
+1. Vai su **Sistemi**
+2. Applica eventuali filtri
+3. Clicca su **Azioni** > **Esporta**
+4. Scegli il formato: CSV o PDF
+5. Scarica il file
 
 ## Best Practice
 
-- **Usa nomi descrittivi** che identifichino chiaramente il sistema e la sua posizione
-- **Conserva il secret in modo sicuro** al momento della creazione
-- **Monitora gli heartbeat** regolarmente per individuare sistemi non comunicanti
-- **Verifica l'inventario** periodicamente per assicurarti che i dati siano aggiornati
-- **Usa l'eliminazione soft** quando possibile, per conservare i dati storici
-- **Configura il heartbeat** con frequenza adeguata (ogni 5 minuti consigliato)
+### Nomenclatura dei Sistemi
+
+- Usa nomi descrittivi che identifichino ruolo e sede
+- Mantieni una convenzione coerente in tutta la flotta
+- Tieni i nomi sotto i 50 caratteri
+- Evita caratteri speciali
+
+### Organizzazione
+
+- Associa ogni sistema all'organizzazione cliente corretta
+- Rivedi periodicamente le associazioni
+- Usa le note per il contesto operativo
+
+### Sicurezza
+
+- Conserva il `system_secret` in modo sicuro e non versionarlo mai
+- Copia il secret subito: viene mostrato una sola volta
+- Se un secret è compromesso su un sistema registrato, sostituisci il sistema
+
+### Monitoraggio
+
+- Verifica regolarmente i sistemi in stato `inactive`
+- Controlla che l'heartbeat arrivi con una cadenza ben sotto i 20 minuti
+- Usa gli allarmi per accorgerti dei disservizi senza guardare l'elenco
 
 ## Risoluzione Problemi
 
-### Sistema Non Invia Dati
+### Sistema Non Presente nell'Elenco
 
-- Verifica che il sistema sia stato registrato correttamente
-- Controlla le credenziali (system_key e system_secret)
-- Verifica la connettività di rete verso la piattaforma
-- Controlla i log del sistema per errori di autenticazione
+**Problema:** un sistema atteso non è visibile
+
+**Soluzioni:**
+1. Controlla che il sistema appartenga a un'organizzazione accessibile
+2. Verifica che non sia stato eliminato in modo soft (usa il filtro sui cancellati)
+3. Conferma di avere il ruolo Support o Admin
+4. Controlla i filtri attivi
+5. Ricarica la pagina
+
+### Impossibile Registrare il Sistema
+
+**Problema:** la registrazione fallisce con "invalid system secret"
+
+**Soluzioni:**
+1. Verifica che il secret sia stato copiato correttamente (senza spazi di troppo)
+2. Controlla che il secret non sia stato rigenerato
+3. Conferma che il sistema non sia eliminato
+4. Assicurati che il sistema non sia già registrato
+5. Vedi [Risoluzione problemi della registrazione](./registration.md#risoluzione-problemi)
 
 ### Sistema Sempre in Stato "Inactive"
 
-- Verifica che il servizio di heartbeat sia in esecuzione sul sistema
-- Controlla la frequenza di invio degli heartbeat (consigliato: ogni 5 minuti)
-- Verifica che non ci siano firewall che bloccano le comunicazioni
-- Controlla che le credenziali non siano state invalidate
+**Problema:** lo stato heartbeat del sistema resta "inactive"
 
-### Impossibile Creare un Sistema
+**Soluzioni:**
+1. Controlla che il sistema sia effettivamente acceso
+2. Verifica la connettività di rete
+3. Controlla i log del sistema per eventuali errori
+4. Conferma che le credenziali siano corrette
+5. Prova l'endpoint heartbeat a mano
+6. Vedi [Inventario e Heartbeat](./inventory-heartbeat.md)
 
-- Verifica di avere i permessi necessari (ruolo Support o superiore)
-- Assicurati di aver selezionato un'organizzazione valida
-- Controlla che il nome non sia già in uso nell'organizzazione
+### Il system_key è Nascosto
 
-### System_key è Nascosto
-
-**Problema:** Impossibile vedere il campo system_key
+**Problema:** il campo system_key non è visibile
 
 **Spiegazione:**
-- system_key è nascosto fino alla registrazione del sistema
-- Questo è il comportamento previsto per sistemi non registrati
-- Registra prima il sistema per rivelare system_key
+- Il system_key resta nascosto finché il sistema non si registra
+- È il comportamento atteso per i sistemi non registrati
+- Registra il sistema per renderlo visibile
 
 **Soluzione:**
-1. Usa system_secret per registrare il sistema
-2. Dopo la registrazione, system_key diventa visibile
-3. Consulta la pagina [Registrazione Sistema](registration)
+1. Usa il system_secret per registrare il sistema
+2. Dopo la registrazione il system_key diventa visibile
+3. Vedi [Registrazione Sistema](./registration.md)
+
+### Secret Perso
+
+**Problema:** il secret del sistema non è stato salvato alla creazione
+
+**Se il sistema non si è ancora registrato:**
+1. Rigenera il secret del sistema
+2. Copia subito quello nuovo
+3. Configuralo sul sistema esterno: il secret vecchio è invalido immediatamente
+
+**Se il sistema è già registrato:**
+La rigenerazione viene rifiutata con HTTP 409 e non esiste un percorso di
+rotazione. Crea un nuovo sistema, registra la macchina con il nuovo secret, poi
+elimina la riga vecchia.
 
 ### Tipo Sistema Non Rilevato
 
-**Problema:** Il tipo di sistema mostra come null o unknown
+**Problema:** il tipo di sistema risulta nullo o sconosciuto
 
 **Spiegazione:**
-- Il tipo di sistema è auto-rilevato dal primo inventario
-- Mostra null fino alla ricezione del primo inventario
+- Il tipo viene rilevato automaticamente dal primo inventario
+- Resta nullo finché non arriva il primo inventario
 
 **Soluzione:**
 1. Assicurati che il sistema sia registrato
 2. Invia il primo inventario dal sistema esterno
-3. Il tipo viene rilevato automaticamente
-4. Consulta la pagina [Inventario e Heartbeat](inventory-heartbeat)
+3. Il tipo verrà rilevato automaticamente
+4. Vedi [Inventario e Heartbeat](./inventory-heartbeat.md)
 
-### Secret Perso
+## Prossimi Passi
 
-Se il secret del sistema è stato perso:
+Dopo aver creato i sistemi:
 
-1. Rigenera il secret dalla pagina di dettaglio del sistema
-2. Aggiorna le credenziali sul sistema
-3. Ri-registra il sistema con il nuovo secret
+- [Registra i sistemi esterni](./registration.md) usando il system_secret
+- [Configura la raccolta dell'inventario](./inventory-heartbeat.md)
+- Imposta monitoraggio e allarmi
+- Consulta regolarmente le statistiche dei sistemi
+
+## Documentazione Correlata
+
+- [Registrazione Sistema](./registration.md)
+- [Inventario e Heartbeat](./inventory-heartbeat.md)
+- [Gestione Organizzazioni](../platform/organizations.md)

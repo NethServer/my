@@ -8,7 +8,7 @@ Learn how external systems send inventory data and heartbeat signals to My platf
 
 ## Overview
 
-After [system registration](registration), external systems communicate with My through two mechanisms:
+After [system registration](./registration.md), external systems communicate with My through two mechanisms:
 
 1. **Inventory**: Complete system information snapshot (hardware, software, configuration)
 2. **Heartbeat**: Periodic "I'm alive" signal to indicate system is active
@@ -106,8 +106,9 @@ Content-Type: application/json
 **Recommended:** Every 5 minutes
 
 **Why 5 minutes?**
-- Platform considers system "active" if heartbeat < 15 minutes
-- 5-minute interval provides 3 missed beats before marking dead
+- A system stays `active` while its last heartbeat is younger than the platform
+  timeout, **20 minutes** by default (`HEARTBEAT_TIMEOUT_MINUTES`)
+- A 5-minute interval leaves room for three missed beats before the system flips
 - Balance between network traffic and responsiveness
 
 ### Example Implementation
@@ -167,11 +168,21 @@ curl -s -X POST "$COLLECT_URL/api/systems/heartbeat" \
 
 Systems are classified based on heartbeat:
 
-| Status | Condition | Color | Meaning |
-|--------|-----------|-------|---------|
-| **Active** | < 15 minutes | Green | System is healthy |
-| **Inactive** | >= 15 minutes | Yellow | System is not responding |
-| **Unknown** | Never sent | Gray | Never communicated |
+| Status | Condition | Meaning |
+|--------|-----------|---------|
+| **Unknown** | Never sent a heartbeat | Registered but never in contact |
+| **Active** | Last heartbeat younger than 20 minutes | System is healthy |
+| **Inactive** | Last heartbeat older than 20 minutes | System is not responding |
+| **Unregistered** | Gave up its credentials | Terminal, see [Registration](./registration.md#unregistering-a-system) |
+
+:::note Why the status lags
+The 20 minutes come from `HEARTBEAT_TIMEOUT_MINUTES`, and a cron re-evaluates
+every system **every 5 minutes** (`HEARTBEAT_CHECK_INTERVAL_SECONDS`). A silent
+system therefore shows up as `inactive` somewhere between 20 and 25 minutes
+after its last heartbeat, not exactly at 20. Recovery works the same way in
+reverse: the first heartbeat after the outage restores `active` at the next
+cron pass, not instantly.
+:::
 
 ## Inventory
 
@@ -192,7 +203,7 @@ POST https://my.nethesis.it/collect/api/systems/inventory
 ```
 
 :::note
-Same collect service, port **8081**
+Same collect service as the heartbeat, under the same **/collect** prefix
 :::
 
 ### Request
@@ -388,8 +399,8 @@ def send_inventory():
         response.raise_for_status()
 
         data = response.json()
-        print(f"Inventory sent successfully")
-        print(f"Changes detected: {data['data']['changes_detected']}")
+        print("Inventory sent successfully")
+        print(f"Queue status: {data['data']['queue_status']}")
         return True
 
     except Exception as e:
@@ -546,11 +557,9 @@ Each change has a severity level:
 
 ### Real-time Status
 
-**Dashboard view:**
-- Total systems count
-- Active / Inactive / Unknown breakdown
-- Recent inventory changes
-- Systems requiring attention
+**Dashboard view** (see [Dashboard](../features/dashboard.md)):
+- Total systems, with badges for active, inactive and pending that open the list already filtered
+- Open alerts, with badges by severity
 
 **System list:**
 - Heartbeat status indicator
@@ -561,23 +570,33 @@ Each change has a severity level:
 ### Alerts (if configured)
 
 Automatic alerts for:
-- System becomes inactive (no heartbeat for 15+ minutes)
+- System becomes inactive (no heartbeat for more than 20 minutes)
 - Critical changes detected in inventory
 - New system registered
 - System version mismatch
 - Security vulnerabilities detected
 
 :::note
-The built-in `LinkFailed` alert is raised by Collect after the configured heartbeat timeout (10 minutes by default), separate from the 15+ minute system-status threshold shown above. Collect refreshes it every 5 minutes while the system stays inactive, so it can remain visible for up to 10 minutes after heartbeat resumes.
+The built-in `LinkFailed` alert is raised by Collect for every system already
+in `inactive` state, so it follows the same `HEARTBEAT_TIMEOUT_MINUTES` (20 by
+default). Collect refreshes it every 5 minutes while the system stays inactive,
+and the alert carries a TTL of twice that interval, so it can remain visible for
+up to 10 minutes after the heartbeat resumes. That deliberate delay keeps the
+alert from flapping when heartbeats arrive right around the timeout.
 :::
 
 ### System Health
 
-**Health score based on:**
-- Heartbeat reliability (% uptime)
-- Inventory freshness
-- Number of changes
-- Critical issues count
+Each processed inventory carries a **health score** derived from the changes detected in it. It starts at 100 and loses points per diff, by severity:
+
+| Severity | Points deducted |
+|----------|-----------------|
+| Critical | 10 |
+| High | 5 |
+| Medium | 2 |
+| Low | 1 |
+
+The score is floored at 0, and an inventory with no changes scores 100. It measures how disruptive the last set of changes was -- not heartbeat uptime or how fresh the inventory is.
 
 ## Troubleshooting
 
@@ -610,11 +629,11 @@ The built-in `LinkFailed` alert is raised by Collect after the configured heartb
    ```bash
    ping my.nethesis.it
    ```
-2. Verify port 8081 is accessible:
+2. Verify HTTPS is reachable:
    ```bash
-   telnet my.nethesis.it 8081
+   curl -sI https://my.nethesis.it/collect/api/systems/heartbeat
    ```
-3. Check firewall rules (allow outbound to port 8081)
+3. Check firewall rules (allow outbound HTTPS to my.nethesis.it)
 4. Verify DNS resolution
 5. Test from different network
 
@@ -625,7 +644,7 @@ The built-in `LinkFailed` alert is raised by Collect after the configured heartb
 **Solutions:**
 1. Wait 60 seconds and refresh (cache propagation)
 2. Verify you're viewing the correct system
-3. Check inventory was sent to correct endpoint (port 8081)
+3. Check inventory was sent to the correct endpoint (`/collect/api/systems/inventory`)
 4. Verify system is not deleted
 5. Check system logs for errors
 
@@ -634,7 +653,7 @@ The built-in `LinkFailed` alert is raised by Collect after the configured heartb
 **Problem:** System shows red/dead status despite sending heartbeat
 
 **Solutions:**
-1. Check heartbeat frequency (must be < 15 minutes)
+1. Check heartbeat frequency (must be well under the 20-minute timeout)
 2. Verify heartbeat is reaching platform:
    ```bash
    curl -v https://my.nethesis.it/collect/api/systems/heartbeat \
@@ -688,8 +707,11 @@ The built-in `LinkFailed` alert is raised by Collect after the configured heartb
 - Never log credentials
 - Use HTTPS only
 - Verify SSL certificates
-- Rotate credentials periodically
 - Monitor for authentication failures
+
+:::warning
+There is no credential rotation for a registered system: `Regenerate Secret` is refused once `registered_at` is set. Treat the `system_secret` as permanent for the life of the system, and replace the system itself if it is ever compromised.
+:::
 
 ### Performance
 
@@ -701,7 +723,7 @@ The built-in `LinkFailed` alert is raised by Collect after the configured heartb
 
 ## Related Documentation
 
-- [System Registration](registration)
-- [Systems Management](management)
+- [System Registration](./registration.md)
+- [Systems Management](./management.md)
 - [Backend API Documentation](https://github.com/NethServer/my/blob/main/backend/README.md)
 - [Collect Service Documentation](https://github.com/NethServer/my/blob/main/collect/README.md)

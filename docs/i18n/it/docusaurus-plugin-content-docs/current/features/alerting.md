@@ -174,7 +174,7 @@ L'array `severities` di ciascun destinatario controlla quali severità riceve:
 - **Vuoto (`[]`)** — il destinatario riceve **ogni** severità. È il default per un indirizzo "catch-all".
 - **Sottoinsieme (es. `["critical"]`)** — il destinatario riceve **solo** quelle severità.
 
-Mimir Alertmanager espande un receiver per severità (`severity-critical-receiver`, `severity-warning-receiver`, `severity-info-receiver`); un destinatario con `severities=[]` finisce in tutti e tre.
+Mimir Alertmanager espande un receiver per severità, con un nome per tenant (`<org_id>-severity-critical-receiver`, `-warning-`, `-info-`); un destinatario con `severities=[]` finisce in tutti e tre.
 
 ### Merge nella gerarchia
 
@@ -231,6 +231,16 @@ Mostra gli allarmi attualmente attivi per quel sistema specifico, filtrati per l
 Mostra una tabella paginata degli allarmi risolti per il sistema, con colonne per nome, severità, stato, riepilogo, inizio e fine. Lo storico viene recuperato dal database locale dove gli allarmi risolti vengono salvati tramite i webhook di Alertmanager.
 
 Puoi cambiare la dimensione della pagina (5, 10, 25, 50, 100) e navigare tra le pagine usando i controlli di paginazione in fondo alla tabella.
+
+## Accesso ad Alertmanager circoscritto alla macchina
+
+Ogni sistema (macchina) ha un accesso isolato alle API di Alertmanager. Quando un sistema si autentica con HTTP Basic Auth (credenziali di sistema), può soltanto:
+
+- **Vedere i propri allarmi** - Il proxy filtra automaticamente i risultati per mostrare solo gli allarmi con la label `system_key` del sistema
+- **Creare silenziamenti per i propri allarmi** - I silenziamenti vengono automaticamente circoscritti al `system_key` del sistema, anche se nella richiesta viene passato un valore diverso
+- **Gestire i propri silenziamenti** - Il sistema può leggere, modificare o eliminare solo i silenziamenti che puntano esplicitamente al proprio `system_key`
+
+Questo impedisce a un sistema di interferire con gli allarmi o i silenziamenti di altri sistemi della stessa organizzazione.
 
 ## Notifiche email
 

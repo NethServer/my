@@ -4,69 +4,54 @@ sidebar_position: 1
 
 # Dashboard
 
-The Dashboard is the main landing page after logging in to My platform. It provides an at-a-glance overview of your managed entities and their status.
+The Dashboard is the landing page after signing in to My. It gives an at-a-glance view of what you manage and links straight into the filtered lists.
 
 ## Overview
 
-The Dashboard displays summary counter cards for each entity type visible to the current user. The cards shown depend on your organization role and permissions, ensuring you only see data relevant to your scope.
+The Dashboard is built from two rows:
+
+1. **Counter cards** -- one per resource you are allowed to read, each showing a total plus badges that jump into a pre-filtered list
+2. **Third-party applications** -- the external services connected to the platform, such as NethShop
+
+Each card is rendered only if you hold the read permission for that resource, so the Dashboard never shows a counter you could not open.
 
 ## Counter Cards
 
-Each counter card shows the total count for an entity type and links directly to its respective list page.
+| Card | Shown when you hold | Counter | Badges |
+|------|---------------------|---------|--------|
+| **Alerts** | `read:systems` | Total open alerts | Critical, warning, muted -- each opens Alerts filtered by that severity or status |
+| **Systems** | `read:systems` | Total systems | Active, inactive, pending -- each opens Systems filtered by that status |
+| **Applications** | `read:applications` | Total applications | Unassigned -- opens Applications filtered to the unassigned ones |
+| **Distributors** | `read:distributors` | Total distributors | -- |
+| **Resellers** | `read:resellers` | Total resellers | -- |
+| **Customers** | `read:customers` | Total customers | -- |
+| **Users** | `read:users` | Total users | -- |
 
-### Distributors
+A badge appears only when its count is greater than zero, so a healthy fleet shows a clean card.
 
-- **Visible to:** Owner only
-- Shows the total number of distributor organizations
-- Click to navigate to the Distributors list
+:::note
+The cards follow **permissions**, not just the hierarchy position. A Support user, for example, holds no `read:users`, so the Users card is not rendered for it even though its organization has users.
+:::
 
-### Resellers
+## Third-Party Applications
 
-- **Visible to:** Owner, Distributor
-- Shows the total number of reseller organizations within your hierarchy
-- Click to navigate to the Resellers list
+Below the counters, the Dashboard lists the third-party applications registered on the platform. Each tile shows the application name, its description and a button that opens it with your My identity already signed in.
 
-### Customers
+An application that is not enabled for your organization is shown with the button disabled.
 
-- **Visible to:** Owner, Distributor, Reseller
-- Shows the total number of customer organizations within your hierarchy
-- Click to navigate to the Customers list
-
-### Users
-
-- **Visible to:** All roles
-- Shows the total number of users across your accessible organizations
-- Click to navigate to the Users list
-
-### Systems
-
-- **Visible to:** All roles with `read:systems` permission
-- Shows the total number of systems across your accessible organizations
-- Click to navigate to the Systems list
-
-### Applications
-
-- **Visible to:** All roles with `read:applications` permission
-- Shows the total number of applications across your accessible organizations
-- Click to navigate to the Applications list
-
-## Trend Analysis
-
-Entity counters include trend data showing growth over configurable time periods:
-
-- **30 days**: Short-term growth
-- **60 days**: Medium-term growth
-- **90 days**: Quarterly growth
-
-Trend information helps you understand how your managed entities are growing over time.
+Some applications also publish a small summary widget read live from the application itself -- the NethShop account summary, for instance. The widget is hidden for the Owner organization, because the shop account data is meaningful to the partners that transact, not to platform administrators.
 
 ## Visibility Rules
 
-The Dashboard respects the full authorization model:
+Counter values are always scoped to your branch of the hierarchy -- you never see data from outside it:
 
-- **Owner** users see all entity types (distributors, resellers, customers, users, systems, applications)
-- **Distributor** users see resellers, customers, users, systems, and applications within their hierarchy
-- **Reseller** users see customers, users, systems, and applications within their hierarchy
-- **Customer** users see users, systems, and applications within their own organization
+- **Owner** organization: every resource, across the whole platform
+- **Distributor**: its own resellers and customers, and their users, systems and applications
+- **Reseller**: its own customers, and their users, systems and applications
+- **Customer**: only its own organization
 
-Counter values reflect only the entities within your organizational scope -- you never see data from outside your hierarchy branch.
+The organization role decides *which* hierarchy cards exist at all -- a reseller has no Distributors card, because it has no `read:distributors` -- while the user role decides the rest.
+
+:::note Trends
+The counter cards show current totals only. Growth over time is available from the API, through the `/trend` endpoints of each resource (`/backend/api/systems/trend`, `/backend/api/users/trend`, and so on), and in the **Report** tab of the Add-ons page.
+:::

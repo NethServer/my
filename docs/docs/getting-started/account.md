@@ -4,101 +4,102 @@ sidebar_position: 2
 
 # Account Settings
 
-Manage your personal profile, preferences, and security settings from the Account page.
+Manage your language, profile, avatar, password, API keys and impersonation consent.
 
 ## Overview
 
-The Account page is accessible by clicking your profile icon in the top-right corner of the platform and selecting **Account Settings**. From here you can manage your language preferences, profile information, avatar, password, and impersonation consent.
+The Account page is reached from the user menu in the top-right corner. It is made of these sections:
+
+- **General settings** -- interface language
+- **Profile** -- your personal information
+- **Avatar** -- your profile picture
+- **Change password** -- credential update
+- **API keys** -- credentials for programmatic access
+- **Impersonation consent** -- whether administrators may act as you
 
 ## General Settings
 
 ### Language Selection
 
-My supports multiple languages. To change the interface language:
+The interface is available in:
 
-1. Navigate to **Account Settings**
+- **English** (default)
+- **Italian**
+
+On first sign-in the language follows your browser; afterwards it follows your saved preference. To change it:
+
+1. Go to **Account**
 2. Find the **Language** setting
-3. Select your preferred language from the dropdown
-4. The interface updates immediately
+3. Pick your language
+
+The change applies to the whole interface immediately, and is remembered for your next sessions.
 
 ## Profile Management
 
 ### Edit Your Profile
 
-You can update your personal information at any time:
-
-1. Navigate to **Account Settings**
-2. In the **Profile** section, update the following fields:
-   - **Name**: Your display name across the platform
-   - **Email**: Your email address (also used as your username)
-   - **Phone Number**: Optional contact number
+1. Go to **Account**
+2. In the **Profile** section update:
+   - **Name**: your display name across the platform
+   - **Email**: your email address, which is also your username
+   - **Phone number**: optional
 3. Click **Save profile**
 
 :::note
-Email changes may require re-authentication. You may be asked to verify your new email address before the change takes effect.
+Changing your email may require re-authentication, and you may be asked to verify the new address before the change takes effect.
 :::
 
 ## Avatar Management
 
-Your avatar is displayed throughout the platform next to your name, in comments, and in user lists.
+Your avatar appears throughout the platform next to your name, in comments and in user lists.
 
 ### Upload an Avatar
 
-1. Navigate to **Account Settings**
-2. Click on the avatar area or the upload button
-3. Select an image file from your device
-4. The avatar is uploaded and applied immediately
-
-**Supported formats:** PNG, JPEG, WebP
-
-**File size limit:** Maximum 500KB
-
-**Image processing:** Images are automatically resized to 256x256 pixels and converted to PNG format. Source images can be up to 4096x4096 pixels.
+1. Go to **Account**
+2. Click the avatar area or the **Upload** button
+3. Pick an image: PNG, JPEG or WebP, at most **500 KB** and **4096x4096** pixels
+4. The image is scaled to fit within 256x256, converted to PNG and applied immediately
 
 ### Default Avatar
 
-When no avatar is set, the platform displays your initials in a colored circle. The initials are derived from your display name.
+With no avatar set, the interface shows your initials on a colored circle, derived from your display name.
 
 ### Delete Your Avatar
 
-To remove your avatar and revert to the initials display:
-
-1. Navigate to **Account Settings**
-2. Click the delete button on your current avatar
-3. Your avatar is removed and initials are shown instead
+1. Go to **Account**
+2. Click **Delete** on your current avatar
+3. The initials placeholder is restored
 
 ### Public URL
 
-Avatars are available at a public URL for integration with other services:
+Your avatar is reachable without authentication at `/backend/api/public/users/{user_id}/avatar`.
 
-```
-/api/public/users/{user_id}/avatar
-```
-
-This URL is cached for 1 hour and can be used in external applications or email clients.
+For the full details, see [Avatar Management](../features/avatar.md).
 
 ## Password Change
 
-To change your password:
+1. Go to **Account**
+2. In the **Change password** section enter:
+   - **Current password**
+   - **New password**
+   - **Confirm password**
+3. Click **Save**
 
-1. Navigate to **Account Settings**
-2. Click **Change Password**
-3. Enter your **current password**
-4. Enter your **new password**
-5. **Confirm** your new password
-6. Click **Save Changes**
-
-:::tip
-Choose a strong password with at least 8 characters, including uppercase, lowercase, numbers, and special characters.
+:::warning
+The new password must satisfy the platform policy: at least **12 characters**, with an uppercase letter, a lowercase letter, a digit and a special character. See [Password Requirements](./authentication.md#password-requirements).
 :::
 
 ## API Keys
 
-The Account Settings page includes an **API Keys** section where you can create and revoke personal keys for programmatic access from external applications and scripts. For full details, see the [API Keys](api-keys) documentation.
+The Account page includes an **API Keys** section where you can create and revoke personal keys for programmatic access from external applications and scripts. For full details, see [API Keys](./api-keys.md).
 
 ## Impersonation Consent
 
-The Account Settings page includes an **Impersonation** section where you can manage whether administrators can temporarily access the platform as you. For full details on how impersonation works, see the [Impersonation](../platform/impersonation) documentation.
+The **Impersonation** section controls whether Owner-organization administrators can temporarily use the platform as you. For how impersonation works, see [Impersonation](../platform/impersonation.md).
+
+:::note
+Consent is optional and always yours to revoke. With consent revoked, nobody can start a session as you.
+:::
 
 ## Troubleshooting
 
@@ -117,8 +118,8 @@ The Account Settings page includes an **Impersonation** section where you can ma
 **Problem:** Avatar does not upload or shows an error
 
 **Solutions:**
-- Verify the file is in a supported format (PNG, JPEG, or WebP)
-- Check that the file size is under 500KB
+- Verify the file is in a supported format (PNG, JPEG or WebP)
+- Check that the file size is under 500 KB
 - Ensure the image dimensions do not exceed 4096x4096 pixels
 - Try a different image file
 
@@ -128,6 +129,6 @@ The Account Settings page includes an **Impersonation** section where you can ma
 
 **Solutions:**
 - Verify your current password is correct
-- Ensure the new password meets all requirements (8+ characters, uppercase, lowercase, number, special character)
-- Make sure the new password and confirmation match
+- Ensure the new password meets every requirement: 12+ characters, uppercase, lowercase, digit, special character, no more than 3 identical characters in a row and no common weak pattern
+- Make sure the new password and its confirmation match
 - If you forgot your current password, use the "Forgot your password?" link on the login page instead

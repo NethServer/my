@@ -72,7 +72,7 @@ Invia la key come Bearer token nell'header `Authorization`.
 **cURL:**
 
 ```bash
-curl https://my.nethesis.it/api/systems \
+curl https://my.nethesis.it/backend/api/systems \
   -H "Authorization: Bearer myk_a1b2c3d4e5f607.0011223344556677889900aabbccddeeff00112233445566"
 ```
 
@@ -83,7 +83,7 @@ import os
 import requests
 
 headers = {"Authorization": f"Bearer {os.environ['MY_API_KEY']}"}
-response = requests.get("https://my.nethesis.it/api/systems", headers=headers)
+response = requests.get("https://my.nethesis.it/backend/api/systems", headers=headers)
 print(response.json())
 ```
 
@@ -156,5 +156,5 @@ Se il tuo account viene sospeso o cancellato, **tutte le tue API key smettono di
 
 ## Documentazione correlata
 
-- [Impostazioni Account](account)
-- [Autenticazione](authentication)
+- [Impostazioni Account](./account.md)
+- [Autenticazione](./authentication.md)

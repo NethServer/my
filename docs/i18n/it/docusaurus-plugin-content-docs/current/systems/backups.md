@@ -27,7 +27,7 @@ I backup sono **cifrati end-to-end sull'appliance** prima dell'upload. MY memori
 
 ## Autenticazione e controllo accessi
 
-Gli upload usano **HTTP Basic auth** con la stessa coppia `system_key:system_secret` che l'appliance usa già per inventario e heartbeat (vedi [registrazione del sistema](registration)). Un sistema può scrivere o leggere solo il proprio prefisso sul bucket — l'accesso cross-tenant viene rifiutato lato server.
+Gli upload usano **HTTP Basic auth** con la stessa coppia `system_key:system_secret` che l'appliance usa già per inventario e heartbeat (vedi [registrazione del sistema](./registration.md)). Un sistema può scrivere o leggere solo il proprio prefisso sul bucket — l'accesso cross-tenant viene rifiutato lato server.
 
 Le letture da parte degli utenti passano per `backend` con il normale JWT Logto e obbediscono alle stesse regole RBAC di `GET /systems/:id`: un utente vede i backup di un sistema soltanto se l'organizzazione a cui appartiene ne è proprietaria.
 
@@ -84,7 +84,7 @@ prefisso del precedente proprietario viene copiato sotto il prefisso
 del nuovo prima che il cambio venga confermato, e il prefisso precedente
 viene poi svuotato. La meccanica completa — cosa segue il sistema, chi
 può triggerare la riassegnazione, cosa vede il proprietario precedente
-dopo lo spostamento — è documentata in [Riassegnare un sistema a un'altra organizzazione](org-reassignment).
+dopo lo spostamento — è documentata in [Riassegnare un sistema a un'altra organizzazione](./org-reassignment.md).
 
 ## Gestione dei backup
 
@@ -92,9 +92,9 @@ Endpoint API esposti dal `backend` per gli amministratori:
 
 | Metodo | Path                                                      | Scopo                                              |
 |--------|-----------------------------------------------------------|----------------------------------------------------|
-| `GET`  | `/api/systems/:id/backups`                                | Elenca tutti i backup del sistema, con contatori d'uso. |
-| `GET`  | `/api/systems/:id/backups/:backup_id/download`            | Restituisce una URL di download presigned (TTL 5 min). |
-| `DELETE` | `/api/systems/:id/backups/:backup_id`                   | Elimina un singolo backup.                         |
+| `GET`  | `/backend/api/systems/:id/backups`                                | Elenca tutti i backup del sistema, con contatori d'uso. |
+| `GET`  | `/backend/api/systems/:id/backups/:backup_id/download`            | Restituisce una URL di download presigned (TTL 5 min). |
+| `DELETE` | `/backend/api/systems/:id/backups/:backup_id`                   | Elimina un singolo backup.                         |
 
 Le URL presigned vengono generate lato server e non veicolano alcuna autenticazione — trattarle come bearer token a vita breve e non condividerle.
 
@@ -102,7 +102,7 @@ La UI per listare, scaricare ed eliminare i backup si trova nella vista di detta
 
 ## Riferimenti
 
-- [Registrazione del sistema](registration) — come un'appliance ottiene le credenziali usate per gli upload di backup.
-- [Riassegnare un sistema a un'altra organizzazione](org-reassignment) — cosa succede ai backup quando un sistema cambia proprietario.
+- [Registrazione del sistema](./registration.md) — come un'appliance ottiene le credenziali usate per gli upload di backup.
+- [Riassegnare un sistema a un'altra organizzazione](./org-reassignment.md) — cosa succede ai backup quando un sistema cambia proprietario.
 - [`collect/README.md`](https://github.com/NethServer/my/blob/main/collect/README.md) — configurazione dello storage (`BACKUP_S3_*`) e una ricetta `curl` per simulare un upload appliance.
 - [`backend/README.md`](https://github.com/NethServer/my/blob/main/backend/README.md) — stessa configurazione lato letture.

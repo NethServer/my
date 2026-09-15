@@ -4,32 +4,52 @@ sidebar_position: 2
 
 # Gestione Utenti
 
-La gestione utenti consente di creare, modificare e amministrare gli account utente all'interno della piattaforma My.
+Creazione, gestione e assegnazione dei ruoli agli utenti della piattaforma.
 
-## Ruoli
+## Comprendere i Ruoli
+
+My usa un sistema a doppio ruolo che combina la gerarchia commerciale con le capacità tecniche.
 
 ### Ruoli Organizzazione
 
-I ruoli organizzazione determinano la posizione nella gerarchia aziendale:
+Ereditati automaticamente dall'organizzazione dell'utente:
 
-| Ruolo | Descrizione | Visibilità |
-|-------|-------------|------------|
-| **Owner** | Proprietario della piattaforma (Nethesis) | Tutte le organizzazioni: ogni membro dell'organizzazione Owner ha visibilità globale su aziende, sistemi e utenti, incluse archiviazione ed eliminazione di distributori, rivenditori e clienti |
-| **Distributore** | Partner di distribuzione | Rivenditori e clienti propri |
-| **Rivenditore** | Partner di rivendita | Clienti propri |
-| **Cliente** | Utente finale | Solo la propria organizzazione |
+- **Owner**: accesso completo alla piattaforma (solo Nethesis). Ogni membro dell'organizzazione Owner ha visibilità globale su tutte le aziende, i sistemi e gli utenti, inclusa l'archiviazione e l'eliminazione definitiva di distributori, rivenditori e clienti
+- **Distributore**: gestisce rivenditori e clienti
+- **Rivenditore**: gestisce i clienti
+- **Cliente**: vede i dati della propria organizzazione
 
 ### Ruoli Utente
 
-I ruoli utente determinano le capacità tecniche:
+Assegnati manualmente in base alla funzione lavorativa:
 
-| Ruolo | Descrizione | Capacità Principali |
-|-------|-------------|---------------------|
-| **Admin** | Gestione avanzata | Gestione sistemi, utenti, operazioni pericolose |
-| **Backoffice** | Operazioni di backoffice | Gestione organizzazioni, applicazioni, licenze add-on |
-| **Support** | Supporto tecnico | Accesso lettura sistemi, operazioni di supporto |
-| **Reader** | Sola lettura | Visualizzazione dati senza possibilità di modifica |
-| **Staff** | Personale trasversale Nethesis (solo organizzazione Owner) | Gestione completa su tutte le aziende: sistemi, utenti, applicazioni, allarmi (inclusi i template), add-on (grant manuali e catalogo), rebranding, impersonificazione con consenso, connessione remota ai sistemi. Non può eliminare definitivamente sistemi o utenti |
+- **Admin**: gestione completa dell'organizzazione
+  - Utenti: creazione, modifica, reset password, sospensione, eliminazione
+  - Sistemi: creazione, modifica, sospensione, eliminazione
+  - Applicazioni, configurazione allarmi, add-on, rebranding
+
+- **Backoffice**: operazioni amministrative, nessuna gestione dei sistemi
+  - Utenti: creazione, modifica, reset password, sospensione, eliminazione
+  - Applicazioni: visualizzazione e assegnazione alle organizzazioni
+  - Add-on: attivazione e revoca
+  - Sistemi: sola lettura -- non può crearli né modificarli
+  - Niente configurazione allarmi, niente rebranding
+
+- **Support**: operazioni tecniche sui sistemi
+  - Sistemi: creazione, modifica, sospensione, eliminazione, rigenerazione secret
+  - Inventario, heartbeat, allarmi e silenziamenti
+  - Applicazioni: visualizzazione e assegnazione
+  - **Nessun accesso agli utenti**: non ne vede nemmeno l'elenco
+
+- **Reader**: accesso in sola lettura
+  - Visualizza utenti, organizzazioni, sistemi, inventario, applicazioni, add-on
+  - Può esportare ogni elenco che riesce a leggere
+  - Nessuna capacità di modifica
+
+- **Staff** (solo organizzazione Owner): personale trasversale Nethesis
+  - Gestione di sistemi, utenti, applicazioni, allarmi (inclusa la configurazione dei template), add-on e rebranding su tutte le aziende
+  - Impersonificazione degli utenti (con il loro consenso) e connessione remota ai sistemi
+  - Non può eliminare definitivamente sistemi o utenti
 
 :::note Regole di assegnazione
 Nell'organizzazione Owner l'unico ruolo assegnabile è **Staff**, che non può mai essere assegnato agli utenti delle altre aziende. L'account speciale `owner`, creato all'installazione, non compare nell'elenco dei ruoli e non è assegnabile: è l'unico con controllo completo — inclusa l'eliminazione definitiva di sistemi e utenti — ed è l'unico che può creare e gestire gli utenti dell'organizzazione Owner.
@@ -37,282 +57,411 @@ Nell'organizzazione Owner l'unico ruolo assegnabile è **Staff**, che non può m
 
 ### Permessi Combinati
 
-I permessi effettivi di un utente sono la combinazione del ruolo organizzazione e del ruolo utente:
+I permessi effettivi di un utente sono la combinazione di **entrambi** i tipi di ruolo:
 
+**Esempio 1:**
 ```
-Permessi Effettivi = Permessi Ruolo Organizzazione + Permessi Ruolo Utente
+Organizzazione: Cliente (Pizza Express)
+Ruolo utente: Admin
+→ Può gestire gli utenti solo dell'organizzazione Pizza Express
+→ Può gestire i sistemi solo di Pizza Express
 ```
 
-**Esempio 1**: Distributore + Admin
-- Può gestire rivenditori e clienti sotto la propria organizzazione
-- Può creare e modificare sistemi e utenti
-- Può eseguire operazioni pericolose (reset password, sospensione)
-
-**Esempio 2**: Cliente + Reader
-- Può visualizzare solo i dati della propria organizzazione
-- Nessuna possibilità di modifica
-
-**Esempio 3**: Owner + Staff
-- Visibilità e gestione su tutta la piattaforma
-- Tutte le operazioni disponibili, inclusa l'impersonificazione (ma non l'eliminazione definitiva di sistemi o utenti)
+**Esempio 2:**
+```
+Organizzazione: Distributore (ACME Distribution)
+Ruolo utente: Support
+→ Può vedere rivenditori e clienti sotto ACME
+→ Può gestire i sistemi di tutti i clienti sotto ACME
+→ Non vede affatto gli utenti (Support non ha `read:users`)
+```
 
 ## Creazione Utenti
 
-### Procedura
+### Prerequisiti
 
-1. Vai a **Utenti**
-2. Clicca su **Nuovo Utente**
-3. Compila i campi richiesti:
-   - **Email** - Indirizzo email (usato come username)
-   - **Nome** e **Cognome**
-   - **Organizzazione** - L'organizzazione di appartenenza
-   - **Ruolo Utente** - Il ruolo tecnico da assegnare
-   - **Numero di Telefono** (opzionale) - Telefono di contatto
-4. Clicca su **Crea**
+- Serve `manage:users`, che hanno **Admin**, **Backoffice** e **Staff**. Support non può: non ha alcun accesso agli utenti
+- Puoi creare utenti solo per le organizzazioni che gestisci
+- Serve un indirizzo email valido per il nuovo utente
+
+### Creare un Nuovo Utente
+
+1. Vai su **Utenti**
+2. Clicca su **Crea utente**
+3. Compila il modulo:
+   - **Nome**: nome visualizzato dell'utente (es. "Mario Rossi")
+   - **Email**: indirizzo email dell'utente (sarà il suo username)
+   - **Organizzazione**: seleziona l'organizzazione
+   - **Ruoli**: seleziona uno o più ruoli (Admin, Backoffice, Support, Reader; Staff solo per l'organizzazione Owner)
+   - **Numero di telefono** (facoltativo): recapito telefonico
+4. Clicca su **Crea utente**
 
 **Esempio:**
 ```
-Nome Completo: Mario Rossi
+Nome completo: Mario Rossi
 Email: mario.rossi@techsolutions.it
 Organizzazione: Tech Solutions Italia (Rivenditore)
-Ruoli Utente: Admin, Support
+Ruoli utente: Admin, Support
 Telefono: +39 02 1234567
 ```
 
 ### Cosa Succede Dopo la Creazione
 
-Quando un utente viene creato:
+1. L'account viene creato su Logto
+2. Viene generata automaticamente una password temporanea
+3. All'utente viene inviata un'email di benvenuto contenente:
+   - La password temporanea
+   - L'URL di accesso
+   - Le istruzioni per il cambio password
+4. L'utente deve cambiare la password al primo accesso
 
-1. L'account viene creato nel provider di identità (Logto)
-2. Viene generata una **password temporanea**
-3. L'utente riceve un'**email di benvenuto** con le credenziali
-4. Al primo accesso, l'utente deve cambiare la password
-
-:::note
-L'email di benvenuto contiene la password temporanea e il link diretto alla piattaforma. Assicurati che l'indirizzo email sia corretto.
+:::warning
+La password temporanea viene mostrata **una sola volta**, alla creazione. Assicurati che l'utente riceva l'email di benvenuto.
 :::
 
 ## Gestione Utenti
 
 ### Visualizzazione Elenco
 
-La pagina elenco utenti mostra:
+Vai su **Utenti** per vedere:
 
-- **Nome** e **Cognome**
-- **Email**
-- **Organizzazione** di appartenenza
-- **Ruolo Organizzazione**
-- **Ruolo Utente**
-- **Stato** (attivo, sospeso)
-- **Ultimo accesso**
+- Nome ed email dell'utente
+- Organizzazione
+- Ruoli utente
+- Ruolo organizzazione (derivato dall'organizzazione)
+- Stato (attivo/sospeso)
 
 ### Filtri e Ricerca
 
-È possibile filtrare gli utenti per:
+Usa i filtri per trovare utenti specifici:
 
-- **Ricerca testuale** - Cerca per nome, cognome o email
-- **Organizzazione** - Filtra per organizzazione di appartenenza
-- **Ruolo Utente** - Filtra per ruolo tecnico
-- **Stato** - Attivo o sospeso
+- **Ricerca per nome o email**: digita nella casella di ricerca
+- **Ricerca per organizzazione**: seleziona una o più organizzazioni
+- **Ricerca per ruolo**: Admin, Backoffice, Support, Reader, Staff
+- **Ordinamento**: nome, email, organizzazione
 
 ### Dettagli Utente
 
-Cliccando su un utente si accede alla pagina di dettaglio con:
+Cliccando su un utente si accede alle informazioni di dettaglio:
 
-- **Informazioni personali** - Nome, cognome, email, telefono
-- **Organizzazione** - Dettagli dell'organizzazione di appartenenza
-- **Ruoli** - Ruolo organizzazione e ruolo utente
-- **Stato** - Attivo o sospeso
-- **Avatar** - Immagine profilo o iniziali
-- **Date** - Creazione, ultimo accesso
+- **Informazioni di profilo**:
+  - Nome completo
+  - Indirizzo email
+  - Numero di telefono
+  - Immagine del profilo (se configurata su Logto)
 
-### Modifica Utente
+- **Appartenenza organizzativa**:
+  - Organizzazione principale
+  - Ruolo organizzazione (Owner/Distributore/Rivenditore/Cliente)
 
-Per modificare un utente:
+- **Ruoli e permessi**:
+  - Ruoli utente assegnati
+  - Elenco dei permessi effettivi
 
-1. Vai all'elenco utenti
-2. Clicca sull'utente da modificare
-3. Clicca su **Modifica**
-4. Aggiorna i campi desiderati:
-   - Nome, cognome, email, telefono
-   - Organizzazione
-   - Ruolo utente
-5. Clicca su **Salva**
+- **Attività**:
+  - Data e ora dell'ultimo accesso
+  - Data di creazione dell'account
+  - Ultimo cambio password
 
-## Reset Password
+- **Stato**:
+  - Attivo o sospeso
+  - Motivo della sospensione (se applicabile)
 
-Gli amministratori possono forzare il reset della password di un utente:
+## Modifica Utenti
+
+### Aggiornare le Informazioni
 
 1. Vai al dettaglio dell'utente
-2. Clicca su **Reset Password**
-3. Conferma l'operazione
-4. La nuova password temporanea viene inviata all'email dell'utente
-
-:::warning
-Il reset della password invalida immediatamente la sessione corrente dell'utente. L'utente dovrà accedere di nuovo con la nuova password temporanea.
-:::
+2. Clicca su **Modifica**
+3. Aggiorna i campi:
+   - Nome
+   - Indirizzo email
+   - Organizzazione
+   - Ruoli
+   - Numero di telefono
+4. Clicca su **Salva utente**
 
 :::note
-Non è possibile resettare la propria password tramite questa funzione. Per cambiare la propria password, usa la sezione **Account**.
+- Va selezionato almeno un ruolo
+- Non puoi modificare il tuo account da questa interfaccia: usa la pagina Account
 :::
 
-## Sospensione e Riattivazione
+### Reset Password Utente
+
+Con `manage:users` puoi resettare la password di un utente:
+
+1. Vai alla pagina dell'utente
+2. Clicca su **Reset password** (dal menu contestuale)
+3. Conferma l'operazione
+4. Viene generata una nuova password temporanea
+5. Copia la password e trasmettila all'utente
+
+**Casi d'uso:**
+- L'utente ha dimenticato la password
+- Incidente di sicurezza che richiede un reset
+- Recupero dell'account
+
+## Gestione dello Stato
 
 ### Sospensione
 
-Per sospendere un utente:
+Disabilita temporaneamente un account:
 
-1. Vai al dettaglio dell'utente
-2. Clicca su **Sospendi**
-3. Conferma l'operazione
+1. Vai alla pagina dell'utente
+2. Clicca su **Sospendi** (dal menu contestuale)
+3. Conferma
 
-Un utente sospeso:
-- Non può accedere alla piattaforma
-- Le sessioni attive vengono invalidate
-- L'account resta nel sistema e può essere riattivato
+**Effetti della sospensione:**
+- L'utente non può accedere
+- Le sessioni attive vengono invalidate immediatamente
+- I token dell'utente finiscono in blacklist
+- L'utente compare come "Sospeso" negli elenchi
 
 ### Riattivazione
 
-Per riattivare un utente sospeso:
+Riabilita un account sospeso:
 
-1. Vai al dettaglio dell'utente sospeso
-2. Clicca su **Riattiva**
-3. Conferma l'operazione
+1. Filtra gli utenti per stato "Sospeso"
+2. Seleziona l'utente sospeso
+3. Clicca su **Riattiva** (dal menu contestuale)
+4. Conferma l'operazione
 
-:::note
-Non è possibile sospendere o riattivare il proprio account.
-:::
+**Effetti della riattivazione:**
+- L'utente può accedere di nuovo
+- Deve usare la password che aveva già
+- I permessi precedenti vengono ripristinati
 
-## Eliminazione
+### Eliminazione
+
+**L'eliminazione archivia, non cancella.** L'utente viene eliminato in modo
+soft: sparisce dagli elenchi e non può più accedere, ma il record resta e può
+essere recuperato con **Ripristina**.
 
 Per eliminare un utente:
 
 1. Vai al dettaglio dell'utente
-2. Clicca su **Elimina**
-3. Conferma l'operazione
+2. Clicca su **Elimina** (dal menu contestuale)
+3. Conferma
 
-:::warning
-L'utente deve essere prima sospeso (misura di sicurezza). Non è possibile eliminare un utente attivo.
-:::
+**Effetti dell'eliminazione:**
+- L'utente non può più accedere
+- L'account viene archiviato, non cancellato -- **Ripristina** lo riporta indietro
+- I log di audit vengono conservati
+- I sistemi creati da quell'utente restano
 
-:::danger
-L'eliminazione di un utente è permanente. L'account viene rimosso dal provider di identità e non può essere recuperato.
+**Prerequisiti:**
+- Non è possibile eliminare il proprio account
+- Serve `manage:users` (Admin, Backoffice o Staff)
+
+:::danger Eliminazione definitiva
+Cancellare un utente per sempre è un'operazione separata e richiede
+`destroy:users`, che non appartiene a nessun ruolo assegnabile: solo l'account
+`owner` creato all'installazione. Quella non è reversibile.
 :::
 
 ## Self-Service
 
-Gli utenti possono gestire autonomamente:
+Gli utenti possono gestire alcuni aspetti del proprio account:
 
-- **Password** - Cambio dalla pagina Account
-- **Informazioni profilo** - Modifica nome, cognome, email, telefono
-- **Avatar** - Upload e gestione dell'immagine profilo
-- **Consenso impersonificazione** - Attivazione/disattivazione
+### Cambio della Propria Password
 
-Per maggiori dettagli, consulta la pagina [Impostazioni Account](../getting-started/account).
+1. Icona del profilo > **Account**
+2. Clicca su **Cambio password**
+3. Inserisci la password attuale
+4. Inserisci la nuova password (due volte)
+5. Clicca su **Salva**
+
+### Aggiornamento del Proprio Profilo
+
+1. Icona del profilo > **Account**
+2. Aggiorna:
+   - Nome
+   - Indirizzo email
+   - Numero di telefono
+3. Clicca su **Salva**
+
+:::note
+La modifica dell'email può richiedere una nuova autenticazione.
+:::
 
 ## Riferimento Permessi
 
-### Permessi per Ruolo Utente
+I permessi effettivi sono l'**unione** del ruolo organizzazione e del ruolo
+utente. Tutto ciò che riguarda la gerarchia commerciale (distributori,
+rivenditori, clienti) arriva dal ruolo organizzazione, quindi non cambia col
+ruolo utente -- con una sola eccezione: al Reader vengono tolti i permessi
+`manage:` sulla gerarchia.
 
-| Operazione | Staff | Admin | Backoffice | Support | Reader |
-|------------|:-----:|:-----:|:----------:|:-------:|:------:|
-| Visualizza utenti | Si | Si | Si | Si | Si |
-| Crea utenti | Si | Si | No | No | No |
-| Modifica utenti | Si | Si | No | No | No |
-| Elimina utenti | No | Si | No | No | No |
-| Reset password | Si | Si | No | No | No |
-| Sospendi/Riattiva | Si | Si | No | No | No |
-| Gestione sistemi | Si | Si | No | Si | No |
-| Gestione organizzazioni | Si | Si | Si | No | No |
-| Gestione applicazioni | Si | Si | Si | No | No |
-| Configurazione alert | Si | Si | No | Si | No |
-| Licenze add-on (acquisto/revoca) | Si | Si | Si | No | No |
-| Visualizza rebranding | Si | Si | Si | Si | Si |
-| Gestione rebranding | Si | Si | No | No | No |
-| Impersonificazione | Si | No | No | No | No |
-| Esportazione dati | Si | Si | Si | Si | Si |
+| Operazione | Permesso | Staff | Admin | Backoffice | Support | Reader |
+|------------|----------|:-----:|:-----:|:----------:|:-------:|:------:|
+| Visualizza utenti | `read:users` | Sì | Sì | Sì | **No** | Sì |
+| Crea e modifica utenti | `manage:users` | Sì | Sì | Sì | No | No |
+| Reset password di un utente | `manage:users` | Sì | Sì | Sì | No | No |
+| Sospendi / riattiva un utente | `manage:users` | Sì | Sì | Sì | No | No |
+| Elimina un utente (archiviazione) | `manage:users` | Sì | Sì | Sì | No | No |
+| Visualizza sistemi | `read:systems` | Sì | Sì | Sì | Sì | Sì |
+| Crea, modifica ed elimina sistemi | `manage:systems` | Sì | Sì | No | Sì | No |
+| Silenzia allarmi | `manage:systems` | Sì | Sì | No | Sì | No |
+| Visualizza organizzazioni | dal ruolo organizzazione | Sì | Sì | Sì | Sì | Sì |
+| Gestisci organizzazioni | dal ruolo organizzazione | Sì | Sì | Sì | Sì | No |
+| Visualizza applicazioni | `read:applications` | Sì | Sì | Sì | Sì | Sì |
+| Gestisci e assegna applicazioni | `manage:applications` | Sì | Sì | Sì | Sì | No |
+| Visualizza configurazione allarmi | `read:alerts` | Sì | Sì | No | Sì | No |
+| Modifica configurazione allarmi | `manage:alerts` | Sì | Sì | No | Sì | No |
+| Leggi la configurazione allarmi effettiva | `config:alerts` | Sì | No | No | No | No |
+| Visualizza add-on | `read:entitlements` | Sì | Sì | Sì | Sì | Sì |
+| Attiva / revoca add-on | `manage:entitlements` | Sì | Sì | Sì | No | No |
+| Catalogo add-on e grant manuali | `manage:entitlements` + org Owner | Sì | No | No | No | No |
+| Visualizza rebranding | `read:rebranding` | Sì | Sì | Sì | Sì | Sì |
+| Configura rebranding | `manage:rebranding` | Sì | Sì | No | No | No |
+| Impersonifica utenti | `impersonate:users` | Sì | No | No | No | No |
+| Connessione remota ai sistemi | `connect:systems` | Sì | No | No | No | No |
 
-:::note
-L'eliminazione definitiva di sistemi e utenti è riservata all'account `owner`: nemmeno il ruolo Staff può eseguirla.
+Per esportare un elenco basta il permesso `read:` di quella risorsa, quindi ogni
+ruolo può esportare ciò che vede -- Support compreso, tranne gli utenti, che
+non può leggere.
+
+:::note Eliminazione definitiva
+`destroy:systems` e `destroy:users` non appartengono a nessun ruolo assegnabile,
+Staff incluso. Sono solo dell'account `owner` creato all'installazione, che è
+anche l'unico a poter creare e gestire gli utenti dell'organizzazione Owner.
 :::
 
 ### Restrizioni Gerarchiche
 
-Le operazioni sui dati sono limitate dalla posizione nella gerarchia:
+Gli utenti possono gestire altri utenti solo all'interno del proprio perimetro organizzativo:
 
-- **Owner**: Può gestire tutti gli utenti di tutte le organizzazioni. Gli utenti dell'organizzazione Owner, invece, possono essere creati e gestiti solo dall'account `owner`
-- **Distributore**: Può gestire gli utenti delle proprie organizzazioni subordinate (rivenditori e clienti)
-- **Rivenditore**: Può gestire gli utenti delle proprie organizzazioni subordinate (clienti)
-- **Cliente**: Può visualizzare solo gli utenti della propria organizzazione
+**Utenti dell'organizzazione Owner:**
+- Possono gestire tutti gli utenti di tutte le organizzazioni
+- Gli utenti dell'organizzazione Owner stessa sono creati e gestiti solo dall'account `owner`
+
+**Utenti di un distributore:**
+- Possono gestire gli utenti dei propri rivenditori e clienti
+- Non possono gestire utenti di altri distributori
+
+**Utenti di un rivenditore:**
+- Possono gestire solo gli utenti dei propri clienti
+- Non possono gestire utenti del proprio distributore o di altri rivenditori
+
+**Utenti di un cliente:**
+- Possono gestire solo gli utenti della propria organizzazione
 
 :::warning
-Non è possibile:
+Non è mai possibile:
 - Sospendere o eliminare il proprio account
 - Resettare la propria password dalla gestione utenti (usare la pagina Account)
 - Creare utenti con un ruolo superiore al proprio
 :::
 
-## Statistiche e Report
+## Statistiche
 
-### Totali
+### Metriche in Dashboard
 
-La pagina utenti mostra i totali:
+La [Dashboard](../features/dashboard.md) porta una card **Utenti** con il totale sulle organizzazioni che puoi leggere, collegata all'elenco. Viene mostrata solo se hai `read:users`.
 
-- **Totale utenti** nella piattaforma (filtrato per visibilità gerarchica)
-- **Utenti attivi** e **sospesi**
-- **Distribuzione per ruolo**
+Le ripartizioni per organizzazione, ruolo o stato si ottengono dai filtri dell'elenco, non dalla Dashboard. La crescita nel tempo è disponibile da API tramite `/backend/api/users/trend`.
 
-### Esportazione
+### Report Utenti
 
-È possibile esportare l'elenco utenti in formato CSV o PDF. L'esportazione include tutti gli utenti visibili in base ai filtri applicati.
+Per generare un report:
 
-Per maggiori dettagli, consulta la pagina [Esportazione Dati](../features/export).
+1. Vai su **Utenti**
+2. Scegli i filtri (organizzazione, ruolo, stato)
+3. Clicca su **Azioni** > **Esporta**
+4. Esporta in CSV o PDF
 
 ## Best Practice
 
-- **Assegna il ruolo minimo necessario** - Seguire il principio del privilegio minimo
-- **Usa email aziendali** - Evita indirizzi email personali per gli account della piattaforma
-- **Controlla regolarmente** gli account inattivi e sospendi quelli non più necessari
-- **Documenta i ruoli** assegnati e le motivazioni per le eccezioni
-- **Sospendi** invece di eliminare se la rimozione potrebbe essere temporanea
+### Gestione degli Account
+
+- Crea utenti solo quando servono
+- Usa nomi completi descrittivi
+- Verifica sempre gli indirizzi email
+- Documenta le responsabilità degli utenti
+- Rivedi periodicamente gli account
+- Rimuovi tempestivamente gli utenti inattivi
+
+### Assegnazione dei Ruoli
+
+- Assegna i ruoli minimi necessari (principio del privilegio minimo)
+- Documenta perché un utente ha un determinato ruolo
+- Rivedi le assegnazioni ogni trimestre
+- Usa Admin per chi deve gestire sia utenti sia sistemi
+- Usa Backoffice per chi gestisce utenti, applicazioni e add-on ma non deve toccare i sistemi
+- Usa Support per il personale tecnico che lavora sui sistemi e non ha bisogno degli utenti
+- Usa Reader per l'accesso in sola lettura (auditor, stakeholder)
+
+### Sicurezza
+
+- Forza il cambio password in caso di incidente di sicurezza
+- Sospendi subito gli utenti che lasciano l'azienda
+- Rivedi periodicamente le sessioni attive
+- Monitora i tentativi di accesso falliti
+- Tieni aggiornate le informazioni di contatto
+
+### Assegnazione Organizzativa
+
+- Assegna gli utenti all'organizzazione corretta
+- Verifica la gerarchia organizzativa
+- Aggiorna l'appartenenza quando la struttura cambia
+- Non creare utenti nell'organizzazione sbagliata
 
 ## Risoluzione Problemi
 
-### Email di Benvenuto Non Ricevuta
+### L'Utente Non Riesce ad Accedere
 
-Se il nuovo utente non ha ricevuto l'email di benvenuto:
+**Problema:** l'utente segnala di non riuscire ad accedere alla piattaforma
 
-1. Controlla la cartella spam dell'utente
-2. Verifica che l'indirizzo email sia corretto
-3. Controlla la configurazione SMTP (solo admin)
-4. Condividi manualmente la password temporanea in modo sicuro
-5. Reimposta la password per inviare una nuova email
+**Soluzioni:**
+1. Verifica che l'account non sia sospeso
+2. Controlla se la password temporanea è stata cambiata
+3. Conferma che l'indirizzo email sia corretto
+4. Resetta la password se necessario
+5. Controlla lo stato del servizio Logto
 
 ### L'Utente Ha Permessi Errati
 
-Se l'utente non può accedere alle funzionalità previste:
+**Problema:** l'utente non riesce ad accedere alle funzionalità attese
 
+**Soluzioni:**
 1. Verifica che i ruoli utente siano assegnati correttamente
-2. Controlla che l'appartenenza all'organizzazione sia corretta
+2. Controlla che l'appartenenza organizzativa sia corretta
 3. Conferma che la gerarchia organizzativa sia corretta
-4. Rivedi i permessi combinati (ruolo org + ruolo utente)
-5. Controlla se le modifiche ai ruoli recenti si sono propagate
+4. Rivedi i permessi combinati (ruolo organizzazione + ruolo utente)
+5. Controlla se le modifiche recenti ai ruoli si sono propagate
 
 ### Impossibile Creare un Utente
 
-- Verifica di avere i permessi necessari (ruolo Admin o superiore)
-- Controlla che l'email non sia già in uso
-- Assicurati di aver selezionato un'organizzazione valida
+**Problema:** errore di accesso negato durante la creazione
 
-### Utente Non Riesce ad Accedere
+**Soluzioni:**
+1. Verifica di avere `manage:users` (Admin, Backoffice o Staff)
+2. Controlla che l'organizzazione di destinazione sia nella tua gerarchia
+3. Conferma che l'indirizzo email non sia già in uso
+4. Assicurati che l'organizzazione non sia sospesa
 
-- Verifica che l'account non sia sospeso
-- Controlla che l'email sia corretta
-- Verifica che la password temporanea non sia scaduta
-- Prova a eseguire un reset della password
+### Email di Benvenuto Non Ricevuta
 
-### Utente Non Visibile nell'Elenco
+**Problema:** il nuovo utente non ha ricevuto l'email di benvenuto
 
-- Verifica il tuo ruolo nella gerarchia: puoi vedere solo gli utenti delle organizzazioni al tuo livello o inferiore
-- Controlla i filtri attivi
-- Verifica che l'utente appartenga a un'organizzazione nella tua gerarchia
+**Soluzioni:**
+1. Controlla la cartella spam dell'utente
+2. Verifica che l'indirizzo email sia corretto
+3. Controlla la configurazione SMTP (solo amministratori)
+4. Condividi la password temporanea per un canale sicuro
+5. Resetta la password per far partire una nuova email
+
+## Prossimi Passi
+
+Dopo aver creato gli utenti:
+
+- [Crea i sistemi](../systems/management.md) per le organizzazioni cliente
+- Configura i permessi in modo appropriato
+- Forma gli utenti all'uso della piattaforma
+- Imposta monitoraggio e allarmi
+
+## Documentazione Correlata
+
+- [Guida all'Autenticazione](../getting-started/authentication.md)
+- [Gestione Organizzazioni](./organizations.md)
+- [Gestione Sistemi](../systems/management.md)

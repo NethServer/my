@@ -4,32 +4,64 @@ sidebar_position: 2
 
 # Registrazione Sistema
 
-La registrazione è il processo mediante il quale un sistema si autentica per la prima volta presso la piattaforma My e ottiene le credenziali permanenti per l'invio di dati.
+Come un sistema esterno si registra sulla piattaforma My per abilitare monitoraggio e gestione.
 
 ## Panoramica
 
-La registrazione è un passaggio obbligatorio dopo la creazione del sistema. Senza registrazione, il sistema non può inviare dati di inventario o heartbeat.
+La registrazione è il processo con cui un sistema esterno (NethServer, NethSecurity, ecc.) si autentica su My e riceve le proprie credenziali permanenti.
 
-## Flusso di Registrazione
+### Perché Serve la Registrazione
 
-```mermaid
-sequenceDiagram
-    participant Admin as Amministratore
-    participant My as Piattaforma My
-    participant System as Sistema
+- **Sicurezza**: valida il sistema prima di accettarne i dati
+- **Autenticazione**: stabilisce credenziali di lungo periodo
+- **Tracciamento**: registra quando il sistema si è collegato la prima volta
+- **Visibilità**: rende il system_key visibile agli amministratori
 
-    Admin->>My: 1. Crea sistema
-    My->>Admin: 2. Restituisce system_secret
-    Admin->>System: 3. Configura system_secret sul sistema
-    System->>My: 4. POST /api/systems/inventory (Basic Auth)
-    My->>System: 5. Restituisce system_key
-    System->>System: 6. Salva system_key per usi futuri
-    System->>My: 7. Invio periodico heartbeat e inventario
+### Flusso di Registrazione
+
+```
+┌─────────────┐                                     ┌──────────────┐
+│             │  1. Crea il sistema                 │              │
+│    Admin    │───────────────────────────────────> │ Piattaforma  │
+│             │  ← Ritorna il secret (una volta)    │      My      │
+└─────────────┘                                     └──────────────┘
+                                                           │
+                                                           │
+┌─────────────┐                                            │
+│   Sistema   │  2. Configura il system_secret             │
+│   Esterno   │<───────────────────────────────────────────┘
+│ (NethServer)│
+└─────────────┘
+      │
+      │  3. Chiama l'API di registrazione
+      │     POST /backend/api/systems/register
+      │     { "system_secret": "my_..." }
+      │
+      v
+┌──────────────┐
+│ Piattaforma  │  4. Valida il secret
+│      My      │     ✓ Formato corretto
+│              │     ✓ Parte pubblica esistente
+│              │     ✓ Parte secret verificata (SHA256)
+│              │     ✓ Non eliminato
+│              │     ✓ Non gia' registrato
+└──────────────┘
+      │
+      │  5. Restituisce il system_key
+      v
+┌─────────────┐
+│   Sistema   │  6. Salva le credenziali:
+│   Esterno   │     - system_key (username)
+│             │     - system_secret (password)
+└─────────────┘
+      │
+      │  7. Pronto per inventario e heartbeat!
+      v
 ```
 
 ## Comprendere le Credenziali
 
-### system_secret (Creato alla Creazione Sistema)
+### system_secret (Creato alla Creazione del Sistema)
 
 **Formato:** `my_<parte_pubblica>.<parte_secret>`
 
@@ -37,16 +69,15 @@ sequenceDiagram
 
 **Componenti:**
 - **Prefisso**: `my_` (identifica il tipo di token)
-- **Parte pubblica**: 20 caratteri esadecimali (per ricerca nel database)
+- **Parte pubblica**: 20 caratteri esadecimali (per la ricerca su database)
 - **Separatore**: `.` (punto)
-- **Parte secret**: 40 caratteri esadecimali (hash con SHA256)
+- **Parte secret**: 40 caratteri esadecimali (hashata con SHA256)
 
 **Caratteristiche:**
-- Generato automaticamente dalla piattaforma
-- Mostrato **una sola volta** al momento della creazione
-- Non può essere recuperato successivamente (la rigenerazione ne crea uno nuovo)
-- Usato come password nell'autenticazione HTTP Basic durante la prima richiesta
-- Viene hashed con SHA256 e memorizzato nel database
+- Mostrato **una sola volta**, alla creazione del sistema
+- Non è recuperabile in seguito (la rigenerazione ne crea uno nuovo)
+- Usato per la registrazione (una volta sola)
+- Usato per tutte le autenticazioni successive (inventario, heartbeat)
 
 ### system_key (Ricevuto alla Registrazione)
 
@@ -55,100 +86,166 @@ sequenceDiagram
 **Esempio:** `NOC-F64B-A989-C9E7-45B9-A55D-59EC-6545-40EE`
 
 **Caratteristiche:**
-- Generato dalla piattaforma dopo la prima autenticazione riuscita
-- Nascosto fino alla registrazione del sistema
-- Visibile dopo registrazione riuscita
-- Usato come username per HTTP Basic Auth
-- Non cambia mai (anche se il secret viene rigenerato)
-- Rimane invariato per tutta la vita del sistema
+- Generato alla creazione del sistema
+- Nascosto finché il sistema non si registra
+- Visibile dopo la registrazione andata a buon fine
+- Usato come username per l'HTTP Basic Auth
+- Non cambia mai (nemmeno se il secret viene rigenerato)
 
 ## Processo di Registrazione
 
-### Passo 1: Creazione del Sistema
+### Passo 1: L'Admin Crea il Sistema
 
-Un amministratore crea il sistema dalla piattaforma My e riceve il **system_secret**.
+Vedi [Gestione Sistemi](./management.md#creazione-sistemi) per i dettagli.
 
-### Passo 2: Configurazione sul Sistema
-
-Il system_secret viene configurato sul sistema. Il metodo dipende dal tipo di sistema:
-
-- **NethServer**: Configurazione tramite interfaccia di gestione
-- **NethSecurity**: Configurazione tramite interfaccia web
-
-### Passo 3: Prima Richiesta
-
-Il sistema invia la prima richiesta HTTP con autenticazione Basic:
-
-```bash
-# Autenticazione con system_secret (prima registrazione)
-curl -X POST \
-  -u "system_secret:YOUR_SYSTEM_SECRET" \
-  -H "Content-Type: application/json" \
-  -d '{"inventory": {...}}' \
-  https://my.nethesis.it/api/systems/inventory
+Dopo la creazione, salva il `system_secret`:
+```json
+{
+  "system_secret": "my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0"
+}
 ```
 
-### Passo 4: Validazione della Piattaforma
+### Passo 2: Configurazione del Sistema Esterno
+
+Configura il sistema esterno con il `system_secret`. Il metodo esatto dipende dal tipo di sistema:
+
+#### Per NethServer/NethSecurity:
+
+1. Accedi all'interfaccia di amministrazione del sistema
+2. Vai su **Impostazioni** > **Sottoscrizione**
+3. Incolla il `system_secret`
+4. Clicca **Registra**
+
+#### Per Sistemi Custom (API):
+
+Salva il secret in modo sicuro nella tua applicazione:
+
+**Esempio di file di configurazione:**
+```bash
+# /etc/my/config.conf
+MY_PLATFORM_URL=https://my.nethesis.it
+MY_SYSTEM_SECRET=my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0
+```
+
+**Variabili d'ambiente:**
+```bash
+export MY_PLATFORM_URL="https://my.nethesis.it"
+export MY_SYSTEM_SECRET="my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0"
+```
+
+### Passo 3: Chiamata all'API di Registrazione
+
+Il sistema esterno effettua una richiesta POST per registrarsi:
+
+**Endpoint:** `POST https://my.nethesis.it/backend/api/systems/register`
+
+**Header:**
+```
+Content-Type: application/json
+```
+
+**Corpo della Richiesta:**
+```json
+{
+  "system_secret": "my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0"
+}
+```
+
+**Esempio cURL:**
+```bash
+curl -X POST https://my.nethesis.it/backend/api/systems/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "system_secret": "my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0"
+  }'
+```
+
+**Esempio Python:**
+```python
+import requests
+
+url = "https://my.nethesis.it/backend/api/systems/register"
+payload = {
+    "system_secret": "my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0"
+}
+
+response = requests.post(url, json=payload)
+data = response.json()
+system_key = data["data"]["system_key"]
+print(f"Registrato! system_key: {system_key}")
+```
+
+### Passo 4: La Piattaforma Valida
 
 La piattaforma esegue diversi controlli di sicurezza:
 
-1. **Validazione Formato Token**:
-   - Divide su `.` - deve avere esattamente 2 parti
+1. **Validazione del formato del token**:
+   - Divide su `.` -- devono risultare esattamente 2 parti
    - La prima parte deve iniziare con `my_`
-   - Estrae parti pubblica e secret
+   - Estrae parte pubblica e parte secret
 
-2. **Ricerca Database**:
-   - Trova il sistema usando la parte pubblica
-   - Query indicizzata veloce su `system_secret_public`
+2. **Ricerca su database**:
+   - Trova il sistema tramite la parte pubblica
+   - Query veloce e indicizzata su `system_secret_public`
 
-3. **Controlli di Sicurezza**:
+3. **Controlli di sicurezza**:
    - Il sistema non è eliminato
    - Il sistema non è già registrato
-   - La parte pubblica corrisponde al valore memorizzato
+   - La parte pubblica coincide con il valore memorizzato
 
-4. **Verifica Crittografica**:
+4. **Verifica crittografica**:
    - Verifica la parte secret contro l'hash SHA256
-   - Confronto a tempo costante (previene attacchi timing)
+   - Confronto a tempo costante (previene i timing attack)
 
-### Passo 5: Ricezione del system_key
+### Passo 5: Registrazione Completata
 
-Se l'autenticazione ha successo, la piattaforma restituisce il **system_key**:
-
+**Risposta di successo (HTTP 200):**
 ```json
 {
   "code": 200,
-  "message": "inventory received successfully",
+  "message": "system registered successfully",
   "data": {
-    "system_key": "abc123def456"
+    "system_key": "NOC-F64B-A989-C9E7-45B9-A55D-59EC-6545-40EE",
+    "registered_at": "2025-11-06T10:30:00Z",
+    "message": "system registered successfully"
   }
 }
 ```
 
-### Passo 5: Salvataggio system_key
+**Cosa succede:**
+- Il timestamp `registered_at` viene scritto sul database
+- Il `system_key` diventa visibile agli amministratori
+- Il sistema può ora autenticarsi per inventario e heartbeat
 
-Il sistema salva il system_key per le comunicazioni future.
+### Passo 6: Salvataggio delle Credenziali
 
-### Passo 6: Comunicazioni Successive
+Il sistema esterno deve salvare in modo sicuro entrambe le credenziali:
 
-Tutte le richieste successive usano il system_key come username:
+**Necessarie per le autenticazioni successive:**
+- `system_key`: username per l'HTTP Basic Auth
+- `system_secret`: password per l'HTTP Basic Auth
 
+**Consigli per la conservazione:**
 ```bash
-# Autenticazione con system_key (richieste successive)
-curl -X POST \
-  -u "SYSTEM_KEY:YOUR_SYSTEM_SECRET" \
-  -H "Content-Type: application/json" \
-  -d '{"inventory": {...}}' \
-  https://my.nethesis.it/api/systems/inventory
+# File di configurazione
+MY_SYSTEM_KEY=NOC-F64B-A989-C9E7-45B9-A55D-59EC-6545-40EE
+MY_SYSTEM_SECRET=my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0
+
+# Oppure usa una conservazione sicura:
+# - Keyring di sistema
+# - Configurazione cifrata
+# - Gestore di segreti (Vault, ecc.)
 ```
 
 ## Risposte di Errore
 
-### Formato Token Non Valido (HTTP 400)
+### Formato del Token Non Valido
 
+**HTTP 400 Bad Request:**
 ```json
 {
   "code": 400,
-  "message": "formato system secret non valido",
+  "message": "invalid system secret format",
   "data": null
 }
 ```
@@ -160,148 +257,223 @@ curl -X POST \
 
 **Soluzione:**
 - Verifica che il secret sia stato copiato correttamente
-- Controlla spazi extra o interruzioni di riga
-- Assicurati che sia fornito il token completo
+- Controlla che non ci siano spazi o a capo di troppo
+- Assicurati di inviare il token completo
 
-### Credenziali Non Valide (HTTP 401)
+### Credenziali Non Valide
 
+**HTTP 401 Unauthorized:**
 ```json
 {
   "code": 401,
-  "message": "system secret non valido",
+  "message": "invalid system secret",
   "data": null
 }
 ```
 
 **Cause:**
-- Parte pubblica non trovata nel database
-- Parte secret non corrisponde all'hash
-- Secret sbagliato fornito
+- Parte pubblica non trovata sul database
+- La parte secret non corrisponde all'hash
+- È stato fornito il secret sbagliato
 
 **Soluzione:**
 - Verifica che il secret sia corretto
 - Controlla se il secret è stato rigenerato
-- Assicurati che il sistema sia stato creato nella piattaforma My
+- Assicurati che il sistema sia stato creato sulla piattaforma My
 
-### Sistema Eliminato (HTTP 403)
+### Sistema Eliminato
 
+**HTTP 403 Forbidden:**
 ```json
 {
   "code": 403,
-  "message": "il sistema è stato eliminato",
+  "message": "system has been deleted",
   "data": null
 }
 ```
 
 **Cause:**
-- Il sistema è stato eliminato in modo soft dall'amministratore
-- Sistema contrassegnato come eliminato nel database
+- Il sistema è stato eliminato (soft delete) da un amministratore
+- Il sistema risulta eliminato sul database
 
 **Soluzione:**
 - Contatta l'amministratore per ripristinare il sistema
-- Crea un nuovo sistema se necessario
+- Crea un nuovo sistema, se necessario
 
-### Già Registrato (HTTP 409)
+### Già Registrato
 
+**HTTP 409 Conflict:**
 ```json
 {
   "code": 409,
-  "message": "il sistema è già registrato",
+  "message": "system is already registered",
   "data": null
 }
 ```
 
 **Cause:**
 - Il sistema ha già completato la registrazione
-- Il campo `registered_at` non è null
+- Il campo `registered_at` non è nullo
 
 **Soluzione:**
-- Il sistema è già registrato, procedi con l'autenticazione
-- Usa `system_key` e `system_secret` esistenti per l'autenticazione
-- Nessuna azione necessaria a meno che non sia richiesta una ri-registrazione
+- Il sistema è già registrato, si può procedere con l'autenticazione
+- Usa il `system_key` e il `system_secret` esistenti
+- Non serve fare nulla, a meno che non serva una nuova registrazione
 
 ## Dopo la Registrazione
 
-Una volta registrato, il sistema può:
+### Verificare lo Stato di Registrazione
 
-1. **Inviare heartbeat** periodici per segnalare il proprio stato
-2. **Inviare inventario** con i dati di configurazione
-3. **Ricevere aggiornamenti** di stato dalla piattaforma
+Gli amministratori possono verificare lo stato di registrazione:
 
-Per maggiori dettagli, consulta la pagina [Inventario e Heartbeat](inventory-heartbeat).
+1. Vai su **Sistemi**
+2. Trova il sistema e clicca **Visualizza**
+3. Controlla i campi:
+   - **System_key**: ora visibile (prima era nascosto)
+   - **Sottoscrizione**: mostra il timestamp
+   - **Stato**: può restare "sconosciuto" fino al primo inventario
+
+### Prossimi Passi per il Sistema Esterno
+
+Dopo una registrazione andata a buon fine, il sistema dovrebbe:
+
+1. **Salvare le credenziali in modo sicuro**
+2. **Inviare il primo inventario** (vedi [Inventario e Heartbeat](./inventory-heartbeat.md))
+3. **Avviare il timer dell'heartbeat** (consigliato: ogni 5 minuti)
+4. **Monitorare i fallimenti di autenticazione**
 
 ## Ri-Registrazione
 
-In alcuni casi potrebbe essere necessario ri-registrare un sistema:
+### Il System Key è Usa e Getta
 
-- Il **system_secret** è stato rigenerato
-- Il sistema è stato ripristinato da un backup
-- Le credenziali locali sono state perse o corrotte
+La registrazione non si può ripetere né annullare. Una volta che `registered_at` è valorizzato:
 
-Per ri-registrare:
+- `POST /backend/api/systems/register` risponde **409** per quel sistema, per sempre
+- Anche **Rigenera Secret** risponde **409** -- il secret è ormai la credenziale viva con cui l'appliance si autentica su collect
 
-1. **Rigenera il secret** dalla pagina di dettaglio del sistema nella piattaforma
-2. **Aggiorna la configurazione** sul sistema con il nuovo secret
-3. **Riavvia il servizio** di comunicazione sul sistema
+Una macchina che ha bisogno di nuovo di una sottoscrizione riceve un **nuovo sistema**, con il proprio `system_secret`. La riga vecchia resta come traccia di una chiave spesa, finché un amministratore non la elimina.
 
-:::warning
-La rigenerazione del secret invalida le credenziali precedenti. Il sistema non potrà più comunicare con la piattaforma fino al completamento della ri-registrazione.
-:::
+### Cosa Non Influisce sulla Registrazione
+
+La registrazione sopravvive, e non va rifatto nulla, a:
+
+- **Riavvio del sistema**
+- **Cambi di rete**
+- **Aggiornamenti software**
 
 ## Sicurezza
 
-### Protezione delle Credenziali
+### Protezione del Token
 
-- Il **system_secret** è hashed con SHA256 nel database
-- Le comunicazioni avvengono esclusivamente tramite **HTTPS**
-- L'autenticazione **HTTP Basic** è protetta dal canale TLS
-- Le credenziali non valide generano un errore 401 senza fornire dettagli sul motivo del fallimento
+**Buone pratiche:**
+- Conserva i token in configurazioni cifrate
+- Non scrivere mai i token in chiaro nei log
+- Usa canali sicuri (solo HTTPS)
+- Ruota i secret periodicamente
+- Revoca immediatamente i secret compromessi
 
-### Cache delle Credenziali
+### Flusso di Autenticazione
 
-Per migliorare le prestazioni, le credenziali verificate vengono memorizzate in cache:
+**Come funziona:**
+1. Il sistema esterno divide il `system_secret` in parte pubblica e parte secret
+2. La piattaforma interroga il database con la parte pubblica (ricerca indicizzata e veloce)
+3. La piattaforma verifica la parte secret con uno SHA256 salato
+4. La piattaforma mette in cache il risultato su Redis (TTL 24h con jitter)
 
-- Cache in-process per accesso rapido
-- Cache Redis per condivisione tra istanze
-- TTL configurabile per invalidazione automatica
+**Vantaggi di sicurezza:**
+- Query veloci sul database (parte pubblica indicizzata)
+- Hashing SHA256 salato (salt unico per sistema)
+- Consumo di memoria e CPU trascurabile
+- Pattern standard del settore (GitHub, Stripe e Slack usano lo stesso schema)
+
+### Sicurezza di Rete
+
+**Requisiti:**
+- Usa sempre HTTPS per la registrazione
+- Verifica i certificati SSL/TLS
+- Usa una risoluzione DNS sicura
+- Evita il Wi-Fi pubblico per la registrazione iniziale
 
 ## Risoluzione Problemi
 
-### La Registrazione Fallisce con Errore 401
+### La Registrazione Fallisce con un Errore di Rete
 
-- Verifica che il system_secret sia corretto e non sia scaduto
-- Controlla che il system_secret non sia stato rigenerato
-- Verifica che il formato dell'autenticazione HTTP Basic sia corretto
-- Controlla che la richiesta sia inviata tramite HTTPS
+**Problema:** non si riesce a raggiungere l'endpoint di registrazione
 
-### Il Sistema Non Riceve il system_key
+**Soluzioni:**
+1. Verifica la connettività di rete: `ping my.nethesis.it`
+2. Verifica la risoluzione DNS: `nslookup my.nethesis.it`
+3. Verifica la connettività HTTPS: `curl https://my.nethesis.it/backend/api/health`
+4. Controlla le regole del firewall (consenti HTTPS in uscita)
+5. Verifica le impostazioni proxy, se sei dietro un proxy aziendale
 
-- Verifica che la risposta HTTP sia stata elaborata correttamente
-- Controlla i log del sistema per errori di parsing
-- Verifica la connettività di rete
+### La Registrazione Riesce ma il system_key Non Si Vede
 
-### Credenziali Perse
+**Problema:** la risposta indica successo ma il pannello di amministrazione non mostra il system_key
 
-Se le credenziali del sistema sono state perse:
+**Soluzioni:**
+1. Ricarica la pagina di amministrazione (Ctrl+F5)
+2. Svuota la cache del browser
+3. Aspetta 30 secondi e ricarica (propagazione della cache)
+4. Prova con un browser diverso
+5. Verifica di stare guardando il sistema giusto
 
-1. Rigenera il secret dalla piattaforma
-2. Riconfigura il sistema con il nuovo secret
-3. Effettua nuovamente la registrazione
+### system_secret Perso Prima della Registrazione
+
+**Problema:** il sistema è stato creato ma il secret non è stato salvato, e il sistema non si è ancora registrato
+
+**Soluzioni:**
+1. Genera un nuovo secret: clicca **Rigenera Secret** nel pannello di amministrazione
+2. Copia subito il nuovo secret
+3. Configura il sistema esterno con il nuovo secret
+4. Procedi con la registrazione
+
+### system_secret Perso Dopo la Registrazione
+
+**Problema:** il sistema è registrato ma il secret è andato perso
+
+**Soluzioni:**
+1. Se il sistema funziona: non fare nulla, le credenziali sono già salvate sulla macchina
+2. Il secret non è recuperabile, e non è nemmeno rigenerabile -- **Rigenera Secret** risponde HTTP 409 su un sistema registrato
+3. Se la macchina va riconfigurata da zero, crea un nuovo sistema, registralo con il suo nuovo secret, poi elimina il vecchio
+
+### Registrazione con il Secret Sbagliato
+
+**Problema:** registrato per errore con il secret di un altro sistema
+
+**Soluzioni:**
+1. Non è possibile: ogni secret è unico per sistema
+2. La piattaforma verifica che la parte pubblica corrisponda al record del sistema
+3. La registrazione fallisce se si usa il secret di un altro sistema
+
+### Il Sistema Risulta Registrato ma Non Riesce ad Autenticarsi
+
+**Problema:** la registrazione è andata a buon fine ma inventario/heartbeat falliscono con 401
+
+**Soluzioni:**
+1. Verifica che entrambe le credenziali siano salvate correttamente:
+   - `system_key` (dalla risposta di registrazione)
+   - `system_secret` (quello originale della creazione)
+2. Controlla il formato dell'header HTTP Basic Auth
+3. Prova l'autenticazione a mano (vedi [Inventario e Heartbeat](./inventory-heartbeat.md))
+4. Verifica che non ci siano spazi di troppo nelle credenziali salvate
+5. Controlla se il secret è stato rigenerato dopo la registrazione
 
 ## Argomenti Avanzati
 
-### Script di Registrazione Automatizzata
+### Registrazione Automatizzata
 
-Per deployment automatizzati, la registrazione può essere scriptata:
+Per i deployment automatizzati, la registrazione si può scriptare:
 
+**Esempio di script Bash:**
 ```bash
 #!/bin/bash
 
 PLATFORM_URL="https://my.nethesis.it"
 SYSTEM_SECRET="my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0"
 
-# Registra ed estrai system_key
-response=$(curl -s -X POST "$PLATFORM_URL/api/systems/register" \
+# Registra ed estrai il system_key
+response=$(curl -s -X POST "$PLATFORM_URL/backend/api/systems/register" \
   -H "Content-Type: application/json" \
   -d "{\"system_secret\": \"$SYSTEM_SECRET\"}")
 
@@ -311,11 +483,11 @@ if [ "$system_key" != "null" ] && [ -n "$system_key" ]; then
   echo "Registrazione riuscita!"
   echo "system_key: $system_key"
 
-  # Memorizza credenziali
+  # Salva le credenziali
   echo "MY_SYSTEM_KEY=$system_key" >> /etc/my/config.conf
   echo "MY_SYSTEM_SECRET=$SYSTEM_SECRET" >> /etc/my/config.conf
 
-  # Avvia servizio inventario/heartbeat
+  # Avvia il servizio di inventario/heartbeat
   systemctl start my-agent
 else
   echo "Registrazione fallita!"
@@ -324,27 +496,38 @@ else
 fi
 ```
 
-:::tip
-Adatta lo script in base al tipo di sistema e alla struttura dei dati di inventario. Consulta la documentazione del tuo sistema per i dettagli sulla raccolta dei dati di inventario.
-:::
+### Registrazioni Multiple (Errore)
 
-### Registrazioni Multiple
+**Domanda:** cosa succede se registro lo stesso sistema più volte?
 
-**Domanda:** Cosa succede se registro lo stesso sistema più volte?
+**Risposta:** dal secondo tentativo in poi la registrazione fallisce con HTTP 409 (già registrato). È voluto, per evitare ri-registrazioni accidentali.
 
-**Risposta:** Il secondo e successivi tentativi di registrazione falliranno con HTTP 409 (già registrato). Questo è per design per prevenire ri-registrazione accidentale.
+### Annullare la Registrazione di un Sistema
 
-### Annullare Registrazione
+**Domanda:** come annullo la registrazione di un sistema?
 
-**Domanda:** Come annullo la registrazione di un sistema?
+**Risposta:** è l'appliance stessa a poter rinunciare alle proprie credenziali, con una chiamata autenticata verso collect:
 
-**Risposta:** Non esiste un'operazione "annulla registrazione". Per resettare:
-1. Elimina il sistema (eliminazione soft)
-2. Ripristina il sistema
-3. Il sistema rimane registrato con lo stesso `system_key`
-4. Rigenera secret se necessario
+```bash
+curl -X POST https://my.nethesis.it/collect/api/systems/unregister \
+  -u "NOC-F64B-...:my_a1b2...c9d0"
+```
 
-Oppure:
-1. Elimina sistema (eliminazione soft)
-2. Elimina permanentemente sistema
-3. Crea nuovo sistema (nuove credenziali, nuova registrazione)
+L'operazione è **terminale e a senso unico**. Da quel momento la coppia di credenziali viene rifiutata ovunque -- heartbeat, inventario, backup, proxy degli allarmi e feed enterprise -- e solo la prima chiamata risponde 200, perché la revoca stessa fa fallire l'autenticazione a ogni richiesta successiva con le stesse credenziali. Il sistema non può essere registrato di nuovo: resta sulla piattaforma, marcato `unregistered`, finché un amministratore non lo elimina.
+
+Per rimettere la stessa macchina sotto sottoscrizione, crea un nuovo sistema e registralo con il nuovo `system_secret`.
+
+## Prossimi Passi
+
+Dopo una registrazione andata a buon fine:
+
+- [Configura la raccolta dell'inventario](./inventory-heartbeat.md)
+- Imposta il monitoraggio heartbeat
+- Verifica l'autenticazione
+- Monitora lo stato del sistema dalla dashboard
+
+## Documentazione Correlata
+
+- [Gestione Sistemi](./management.md)
+- [Inventario e Heartbeat](./inventory-heartbeat.md)
+- [Documentazione API Backend](https://github.com/NethServer/my/blob/main/backend/README.md)

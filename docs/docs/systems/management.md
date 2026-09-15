@@ -26,10 +26,16 @@ A **system** in My represents a managed server or device (NethServer or NethSecu
 
 ### System Status
 
-- **Unknown**: Default status, no inventory received yet
-- **Active**: System is actively sending heartbeat (< 15 minutes)
-- **Inactive**: System stopped sending heartbeat (> 15 minutes)
-- **Deleted**: System has been soft-deleted
+| Status | Meaning |
+|--------|---------|
+| **Unknown** | Created, but has never sent a heartbeat |
+| **Active** | Last heartbeat younger than 20 minutes |
+| **Inactive** | Last heartbeat older than 20 minutes |
+| **Suspended** | Suspended by an administrator; it cannot send data |
+| **Unregistered** | The appliance gave up its credentials -- terminal, see [Registration](./registration.md#unregistering-a-system) |
+| **Deleted** | Soft-deleted; restorable |
+
+The 20-minute window comes from `HEARTBEAT_TIMEOUT_MINUTES`, and a cron re-evaluates every system every 5 minutes, so the flip to `inactive` is seen 20 to 25 minutes after the last heartbeat. See [Inventory and Heartbeat](./inventory-heartbeat.md#heartbeat-status).
 
 ## Creating Systems
 
@@ -73,7 +79,7 @@ After creation, you will see:
 ```
 
 :::danger
-The `system_secret` is shown **only once** during creation. Copy and save it immediately. You will need it to register the system. If lost, you must regenerate it (invalidates previous secret).
+The `system_secret` is shown **only once** during creation. Copy and save it immediately: you need it to register the system. If you lose it *before* registering, you can regenerate it -- but once the system has registered, regeneration is refused, and the only way forward is a new system.
 :::
 
 ## Viewing Systems
@@ -156,7 +162,7 @@ View detailed system inventory:
 - **Changes**: List of detected changes between inventories
 - **Diff View**: Detailed comparison between inventory versions
 
-See [Inventory and Heartbeat](inventory-heartbeat) for details.
+See [Inventory and Heartbeat](./inventory-heartbeat.md) for details.
 
 ## Managing Systems
 
@@ -174,33 +180,39 @@ See [Inventory and Heartbeat](inventory-heartbeat) for details.
 Changing the **Organization** moves the system to a different owner.
 The system's backups, alert history, and inventory follow the new
 owner; the previous owner loses access immediately. See
-[Reassigning a system to another organization](org-reassignment) for
+[Reassigning a system to another organization](./org-reassignment.md) for
 the full behaviour, who is allowed to do it, and what happens to
 silences and app assignments.
 :::
 
 ### Regenerating System Secret
 
-If the `system_secret` is compromised or lost:
-
-1. Navigate to the system page
-2. Click **Regenerate Secret** (using kebab menu)
-3. Confirm the action
-4. **Copy the new secret immediately** (shown only once)
-5. Update the secret on the external system
-
-:::warning
-- Old secret is invalidated immediately
-- System cannot authenticate until new secret is configured
-- All inventory and heartbeat will fail until updated
-- System remains registered (registered_at unchanged)
+:::danger Only before registration
+The secret can be regenerated **only while the system has not registered yet**.
+Once `registered_at` is set, **Regenerate Secret** answers HTTP 409: the
+appliance authenticates with the secret it registered with, and there is no way
+to install a new one on it from here.
 :::
 
+While the system is still unregistered:
+
+1. Navigate to the system page
+2. Click **Regenerate Secret** (using the kebab menu)
+3. Confirm the action
+4. **Copy the new secret immediately** -- it is shown only once
+5. Configure the new secret on the external system
+
+The previous secret is invalidated at once.
+
 **When to regenerate:**
-- Secret is compromised or leaked
-- Secret is lost (for registered systems)
-- Security audit requires credential rotation
-- Migrating system to new hardware
+- The secret was lost before the system could register
+- The secret leaked before being used
+- The system was prepared but never deployed, and you want fresh credentials
+
+**If the system is already registered** and its credentials are compromised or
+lost, there is no rotation path: create a **new system**, register the machine
+with the new secret, then delete the old row. The appliance can also give up its
+own credentials from its side -- see [Registration](./registration.md#unregistering-a-system).
 
 ### Soft Delete
 
@@ -259,7 +271,7 @@ After creating a system, the external system must register itself using the `sys
 4. **Platform validates and returns** `system_key`
 5. **External system stores** both credentials for future use
 
-See [System Registration](registration) for detailed instructions.
+See [System Registration](./registration.md) for detailed instructions.
 
 ### Registration Status
 
@@ -285,12 +297,10 @@ See [System Registration](registration) for detailed instructions.
 
 ### Dashboard Overview
 
-Navigate to **Dashboard** to see:
+The [Dashboard](../features/dashboard.md) carries two relevant cards:
 
-- **Total Systems**: Count across accessible organizations
-- **System Status**: Distribution (unknown/active/inactive/suspended)
-- **Recent Changes**: Latest inventory changes
-- **Alerts**: Systems with issues
+- **Systems**: the total across the organizations you can read, with badges for active, inactive and pending that open the list already filtered
+- **Alerts**: open alerts across the same scope, with badges by severity
 
 ### Exporting System Data
 
@@ -355,7 +365,7 @@ Export system information for reporting:
 2. Check secret hasn't been regenerated
 3. Confirm system is not deleted
 4. Ensure system is not already registered
-5. See [System Registration Troubleshooting](registration#troubleshooting)
+5. See [System Registration Troubleshooting](./registration.md#troubleshooting)
 
 ### System Shows as "Inactive"
 
@@ -367,7 +377,7 @@ Export system information for reporting:
 3. Check system logs for errors
 4. Confirm credentials are correct
 5. Test heartbeat endpoint manually
-6. See [Inventory and Heartbeat](inventory-heartbeat)
+6. See [Inventory and Heartbeat](./inventory-heartbeat.md)
 
 ### System_key is Hidden
 
@@ -381,17 +391,20 @@ Export system information for reporting:
 **Solution:**
 1. Use system_secret to register the system
 2. After registration, system_key becomes visible
-3. See [System Registration](registration)
+3. See [System Registration](./registration.md)
 
 ### Lost System Secret
 
 **Problem:** System secret was not saved during creation
 
-**Solutions:**
+**If the system has not registered yet:**
 1. Regenerate the system secret
-2. Configure external system with new secret
-3. System must re-register if already registered
-4. Old secret becomes invalid immediately
+2. Copy the new one immediately
+3. Configure the external system with it -- the old secret is invalid at once
+
+**If the system is already registered:**
+Regeneration is refused with HTTP 409, and there is no rotation path. Create a
+new system, register the machine with its new secret, then delete the old row.
 
 ### System Type Not Detected
 
@@ -405,19 +418,19 @@ Export system information for reporting:
 1. Ensure system is registered
 2. Send first inventory from external system
 3. Type will be detected automatically
-4. See [Inventory and Heartbeat](inventory-heartbeat)
+4. See [Inventory and Heartbeat](./inventory-heartbeat.md)
 
 ## Next Steps
 
 After creating systems:
 
-- [Register external systems](registration) using system_secret
-- [Configure inventory collection](inventory-heartbeat)
+- [Register external systems](./registration.md) using system_secret
+- [Configure inventory collection](./inventory-heartbeat.md)
 - Set up monitoring and alerts
 - Review system statistics regularly
 
 ## Related Documentation
 
-- [System Registration](registration)
-- [Inventory and Heartbeat](inventory-heartbeat)
-- [Organizations Management](../platform/organizations)
+- [System Registration](./registration.md)
+- [Inventory and Heartbeat](./inventory-heartbeat.md)
+- [Organizations Management](../platform/organizations.md)

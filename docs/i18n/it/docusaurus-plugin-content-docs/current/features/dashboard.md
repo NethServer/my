@@ -4,76 +4,54 @@ sidebar_position: 1
 
 # Dashboard
 
-La dashboard è la pagina principale di My e fornisce una panoramica immediata dello stato della piattaforma.
+La dashboard è la pagina su cui si arriva dopo l'accesso a My. Dà una visione immediata di quello che gestisci e porta direttamente agli elenchi già filtrati.
 
 ## Panoramica
 
-La dashboard mostra card riassuntive per ogni tipo di entità gestita dalla piattaforma, consentendo di avere una visione d'insieme rapida e completa.
+La dashboard è composta da due file:
+
+1. **Card contatore** -- una per ogni risorsa che hai il permesso di leggere, ognuna con un totale e dei badge che aprono un elenco già filtrato
+2. **Applicazioni di terze parti** -- i servizi esterni collegati alla piattaforma, come NethShop
+
+Ogni card viene mostrata solo se possiedi il permesso di lettura di quella risorsa, quindi la dashboard non mostra mai un contatore che non potresti aprire.
 
 ## Card Contatore
 
-La dashboard presenta card per ciascuna delle seguenti entità:
+| Card | Mostrata se hai | Contatore | Badge |
+|------|-----------------|-----------|-------|
+| **Allarmi** | `read:systems` | Totale allarmi aperti | Critici, warning, silenziati -- ognuno apre gli Allarmi filtrati per quella severità o stato |
+| **Sistemi** | `read:systems` | Totale sistemi | Attivi, inattivi, in attesa -- ognuno apre i Sistemi filtrati per quello stato |
+| **Applicazioni** | `read:applications` | Totale applicazioni | Non assegnate -- apre le Applicazioni filtrate su quelle non assegnate |
+| **Distributori** | `read:distributors` | Totale distributori | -- |
+| **Rivenditori** | `read:resellers` | Totale rivenditori | -- |
+| **Clienti** | `read:customers` | Totale clienti | -- |
+| **Utenti** | `read:users` | Totale utenti | -- |
 
-| Entità | Descrizione | Visibile a |
-|--------|-------------|------------|
-| **Distributori** | Numero totale di distributori | Owner |
-| **Rivenditori** | Numero totale di rivenditori | Owner, Distributori |
-| **Clienti** | Numero totale di clienti | Owner, Distributori, Rivenditori |
-| **Utenti** | Numero totale di utenti | Tutti i ruoli |
-| **Sistemi** | Numero totale di sistemi | Tutti i ruoli |
-
-Ogni card mostra:
-
-- **Conteggio totale** dell'entità
-- **Icona** identificativa
-- **Link rapido** alla pagina di elenco corrispondente
+Un badge compare solo quando il suo conteggio è maggiore di zero, quindi una flotta in salute mostra una card pulita.
 
 :::note
-I conteggi sono filtrati in base alla posizione gerarchica dell'utente. Un distributore vede solo i conteggi relativi alle proprie organizzazioni subordinate.
+Le card seguono i **permessi**, non solo la posizione in gerarchia. Un utente Support, ad esempio, non ha `read:users`, quindi la card Utenti non viene mostrata anche se la sua organizzazione ha utenti.
 :::
 
-## Analisi Trend
+## Applicazioni di Terze Parti
 
-Ogni card contatore include un'indicazione del trend di crescita calcolato su diversi periodi:
+Sotto i contatori, la dashboard elenca le applicazioni di terze parti registrate sulla piattaforma. Ogni riquadro mostra il nome dell'applicazione, la sua descrizione e un pulsante che la apre con la tua identità My già autenticata.
 
-- **30 giorni** - Variazione nell'ultimo mese
-- **60 giorni** - Variazione negli ultimi due mesi
-- **90 giorni** - Variazione nell'ultimo trimestre
+Un'applicazione non abilitata per la tua organizzazione viene mostrata con il pulsante disabilitato.
 
-Il trend mostra:
+Alcune applicazioni pubblicano anche un piccolo widget di riepilogo letto in tempo reale dall'applicazione stessa -- ad esempio il riepilogo dell'account NethShop. Il widget è nascosto per l'organizzazione Owner, perché i dati dell'account dello shop interessano ai partner che acquistano, non agli amministratori della piattaforma.
 
-- **Freccia verso l'alto** con percentuale positiva per crescita
-- **Freccia verso il basso** con percentuale negativa per diminuzione
-- **Indicatore neutro** se non ci sono variazioni
+## Regole di Visibilità
 
-## Visibilità Basata su Ruolo
+I valori dei contatori sono sempre limitati al tuo ramo della gerarchia: non vedi mai dati esterni a esso.
 
-La dashboard adatta automaticamente il contenuto in base al ruolo dell'utente:
+- Organizzazione **Owner**: ogni risorsa, su tutta la piattaforma
+- **Distributore**: i propri rivenditori e clienti, con i loro utenti, sistemi e applicazioni
+- **Rivenditore**: i propri clienti, con i loro utenti, sistemi e applicazioni
+- **Cliente**: solo la propria organizzazione
 
-### Owner
+Il ruolo organizzazione decide *quali* card della gerarchia esistono -- un rivenditore non ha la card Distributori, perché non ha `read:distributors` -- mentre il ruolo utente decide il resto.
 
-L'Owner vede tutte le card e le statistiche complete della piattaforma:
-- Distributori, Rivenditori, Clienti, Utenti, Sistemi
-- Statistiche globali
-
-### Distributore
-
-Il Distributore vede:
-- Rivenditori (propri), Clienti (propri), Utenti (propri), Sistemi (propri)
-- Statistiche relative alla propria gerarchia
-
-### Rivenditore
-
-Il Rivenditore vede:
-- Clienti (propri), Utenti (propri), Sistemi (propri)
-- Statistiche relative alla propria gerarchia
-
-### Cliente
-
-Il Cliente vede:
-- Utenti (propri), Sistemi (propri)
-- Statistiche relative alla propria organizzazione
-
-:::tip
-Se una card non è visibile, è perché il tuo ruolo nella gerarchia non prevede la gestione di quel tipo di entità.
+:::note Trend
+Le card contatore mostrano solo i totali correnti. La crescita nel tempo è disponibile da API, tramite gli endpoint `/trend` di ogni risorsa (`/backend/api/systems/trend`, `/backend/api/users/trend`, e così via), e nella tab **Report** della pagina Add-on.
 :::

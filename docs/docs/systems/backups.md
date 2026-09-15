@@ -27,7 +27,7 @@ Backups are **end-to-end encrypted on the appliance** before they are uploaded. 
 
 ## Authentication and access control
 
-Uploads use **HTTP Basic auth** with the same `system_key:system_secret` pair the appliance already uses for inventory and heartbeat (see [system registration](registration)). A system can only write or read its own prefix on the bucket — cross-tenant access is refused server-side.
+Uploads use **HTTP Basic auth** with the same `system_key:system_secret` pair the appliance already uses for inventory and heartbeat (see [system registration](./registration.md)). A system can only write or read its own prefix on the bucket — cross-tenant access is refused server-side.
 
 Reads performed by users go through `backend` with the regular Logto-issued JWT and the same RBAC rules that gate `GET /systems/:id`: a user sees a system's backups only if the user's organization owns that system.
 
@@ -83,7 +83,7 @@ follow the new owner: everything under the previous owner's prefix is
 copied to the new owner's prefix before the change is committed, and
 the previous prefix is then cleared. The full mechanics — what carries
 over, who can trigger it, what the previous owner sees after the
-move — are documented in [Reassigning a system to another organization](org-reassignment).
+move — are documented in [Reassigning a system to another organization](./org-reassignment.md).
 
 ## Managing backups
 
@@ -91,9 +91,9 @@ API endpoints exposed by `backend` for administrators:
 
 | Method | Path                                                      | Purpose                                           |
 |--------|-----------------------------------------------------------|---------------------------------------------------|
-| `GET`  | `/api/systems/:id/backups`                                | List every backup for the system, with usage counters. |
-| `GET`  | `/api/systems/:id/backups/:backup_id/download`            | Return a presigned download URL (5 min TTL).      |
-| `DELETE` | `/api/systems/:id/backups/:backup_id`                   | Delete a specific backup.                          |
+| `GET`  | `/backend/api/systems/:id/backups`                                | List every backup for the system, with usage counters. |
+| `GET`  | `/backend/api/systems/:id/backups/:backup_id/download`            | Return a presigned download URL (5 min TTL).      |
+| `DELETE` | `/backend/api/systems/:id/backups/:backup_id`                   | Delete a specific backup.                          |
 
 Presigned URLs are minted server-side and carry no authentication — treat them as short-lived bearer tokens and do not share them.
 
@@ -101,7 +101,7 @@ A UI for listing, downloading, and deleting backups lives under the system detai
 
 ## Related
 
-- [System registration](registration) — how an appliance obtains the credentials used for backup uploads.
-- [Reassigning a system to another organization](org-reassignment) — what happens to backups when a system changes owner.
+- [System registration](./registration.md) — how an appliance obtains the credentials used for backup uploads.
+- [Reassigning a system to another organization](./org-reassignment.md) — what happens to backups when a system changes owner.
 - [`collect/README.md`](https://github.com/NethServer/my/blob/main/collect/README.md) — storage configuration (`BACKUP_S3_*`) and a copy-paste `curl` recipe for simulating an appliance upload.
 - [`backend/README.md`](https://github.com/NethServer/my/blob/main/backend/README.md) — matching read-side storage configuration.

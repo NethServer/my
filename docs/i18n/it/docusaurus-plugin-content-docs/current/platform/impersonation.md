@@ -4,124 +4,313 @@ sidebar_position: 3
 
 # Impersonificazione Utente
 
-L'impersonificazione consente agli amministratori Owner di accedere alla piattaforma con l'identità di un altro utente, per finalità di supporto e risoluzione problemi.
+Accesso temporaneo alla piattaforma come un altro utente, con il suo consenso e sotto audit completo.
 
 ## Cos'è l'Impersonificazione
 
-L'impersonificazione è una funzionalità che permette a un amministratore Owner di visualizzare e operare sulla piattaforma come se fosse un altro utente, vedendo esattamente ciò che quell'utente vede.
+L'impersonificazione permette agli amministratori autorizzati di accedere temporaneamente a My come un altro utente. È utile per:
 
-### Caratteristiche Principali
+- **Diagnosi**: riprodurre i problemi segnalati dagli utenti
+- **Supporto**: assistere gli utenti in operazioni complesse
+- **Formazione**: mostrare le funzionalità agli utenti
+- **Verifica**: controllare permessi e accessi
 
-- **Privacy** - L'utente impersonificato può controllare il consenso
-- **Sicurezza** - Sessioni limitate, nessun concatenamento
-- **Audit** - Tutte le azioni sono registrate con l'indicazione dell'impersonificazione
-- **Trasparenza** - L'indicatore di impersonificazione è sempre visibile nell'interfaccia
+## Caratteristiche Principali
+
+### Progettata attorno alla Privacy
+
+- **Consenso obbligatorio**: l'utente deve abilitare esplicitamente l'impersonificazione
+- **A tempo**: è l'utente a decidere per quanto resta permessa (1-168 ore)
+- **Trasparenza totale**: tutte le azioni sono registrate e visibili all'utente
+- **Revoca immediata**: l'utente può disattivare il consenso in qualsiasi momento
+
+### Controlli di Sicurezza
+
+- **Basata sui permessi**: solo il personale Nethesis (utenti dell'organizzazione Owner) può impersonificare
+- **Nessuna auto-impersonificazione**: non si può impersonificare il proprio account
+- **Nessun concatenamento**: non si può impersonificare mentre si sta già impersonificando qualcun altro
+- **Scadenza automatica**: il consenso scade da solo alla durata scelta dall'utente
+- **Tracciamento di sessione**: ogni sessione ha un identificativo univoco per l'audit
+
+### Tracciabilità Completa
+
+- Ogni chiamata API durante l'impersonificazione viene registrata
+- L'utente può rivedere tutte le azioni compiute a suo nome
+- I dati sensibili vengono oscurati automaticamente nei log
+- L'organizzazione per sessione rende la revisione semplice
 
 ## Chi Può Impersonificare
 
-L'impersonificazione è disponibile **esclusivamente** per il personale Nethesis, cioè gli utenti dell'organizzazione Owner (ruolo Staff o account `owner`), e opera su tutta la gerarchia.
+### Permessi Richiesti
 
-:::warning
-L'impersonificazione non è disponibile per nessun altro utente. Distributori, Rivenditori e Clienti non possono impersonificare utenti.
-:::
+**Personale Nethesis (organizzazione Owner):**
+- Gli utenti dell'organizzazione Owner — ruolo Staff o account `owner` — hanno il permesso `impersonate:users`
+- Possono impersonificare qualsiasi utente dell'intera gerarchia (con il suo consenso)
+- Non serve assegnare altri ruoli
+
+**Tutti gli altri:**
+- Non vedono le funzionalità di impersonificazione
+- Non possono impersonificare nessun utente
 
 ## Flusso di Lavoro
 
-L'impersonificazione segue un processo in 4 passi:
+### Passo 1: L'Utente Abilita il Consenso
 
-### Passo 1: Verifica del Consenso
+Prima che l'impersonificazione possa avvenire, l'utente bersaglio deve abilitare il consenso.
 
-Prima di impersonificare un utente, il sistema verifica che l'utente target abbia dato il consenso all'impersonificazione.
+**Per gli utenti:**
 
-:::note
-Gli utenti possono gestire il consenso all'impersonificazione dalla propria pagina [Impostazioni Account](../getting-started/account). Se il consenso non è stato dato, l'impersonificazione non è possibile. La durata del consenso è configurabile dall'utente (1-168 ore).
+1. Accedi al tuo account
+2. Vai su **Account** > **Impersonificazione**
+3. Individua la sezione **Consenso all'impersonificazione**
+4. Clicca su **Abilita impersonificazione**
+5. Imposta la durata (1-168 ore)
+6. Clicca su **Salva**
+
+**Cosa succede:**
+- Il consenso viene registrato con data e ora
+- L'amministratore vede che il consenso è disponibile
+- Scade automaticamente alla fine della durata
+- Può essere revocato in qualsiasi momento
+
+**Durate tipiche:**
+- **1-24 ore**: diagnosi rapida
+- **24-72 ore**: supporto su più giorni
+- **72-168 ore**: accesso prolungato (massimo una settimana)
+
+### Passo 2: L'Amministratore Impersonifica l'Utente
+
+**Per gli amministratori (personale Nethesis):**
+
+1. Vai su **Utenti**
+2. Trova l'utente bersaglio
+3. Controlla che **Impersonifica utente** sia disponibile (dal menu contestuale)
+4. Clicca su **Impersonifica utente**
+5. Conferma l'operazione
+6. Da quel momento stai agendo come quell'utente
+
+**Durante l'impersonificazione vedrai:**
+- **Banner in alto**: "Stai impersonificando [Nome Utente]"
+- **Pulsante di uscita**: per tornare al tuo account
+- **Tutte le funzionalità**: esattamente come le vede l'utente
+- **I permessi dell'utente**: filtrati sui suoi permessi reali
+
+### Passo 3: Svolgere le Azioni di Supporto
+
+Mentre impersonifichi:
+
+- Naviga la piattaforma come farebbe l'utente
+- Riproduci i problemi segnalati
+- Compi azioni per conto dell'utente
+- Verifica funzionalità e permessi
+- Documenta quello che trovi
+
+:::warning
+Tutte le azioni vengono registrate e sono visibili all'utente impersonificato. Tratta i suoi dati con rispetto ed esci dall'impersonificazione appena hai finito.
 :::
 
-### Passo 2: Inizio Impersonificazione
+### Passo 4: Uscire dall'Impersonificazione
 
-1. Vai alla pagina di dettaglio dell'utente da impersonificare
-2. Clicca su **Impersonifica**
-3. Il sistema genera un token JWT temporaneo con i permessi dell'utente target
+**Per uscire:**
 
-### Passo 3: Utilizzo
+1. Clicca sul pulsante **Esci dall'impersonificazione** nel banner
+2. Torni al tuo account originale
+3. La sessione di impersonificazione viene chiusa
 
-Una volta attiva l'impersonificazione:
-
-- L'interfaccia mostra un **banner di impersonificazione** ben visibile in ogni pagina
-- Navighi la piattaforma con i permessi dell'utente impersonificato
-- Puoi visualizzare esattamente ciò che l'utente vede
-- La sessione segue la durata del consenso dell'utente (1-168 ore)
-
-### Passo 4: Uscita dall'Impersonificazione
-
-Per terminare l'impersonificazione:
-
-1. Clicca su **Esci dall'Impersonificazione** nel banner in alto
-2. Torni alla tua sessione originale con i tuoi permessi
+**Uscita automatica:**
+- La sessione scade alla fine della durata del consenso
+- L'utente revoca il consenso durante la sessione
+- Il token scade (segue la durata del consenso)
 
 ## Per gli Utenti: Gestione del Consenso
 
 ### Attivazione del Consenso
 
-1. Vai alla pagina **Account**
-2. Nella sezione **Consenso Impersonificazione**, attiva il toggle
-3. Il consenso è immediatamente attivo
+**Quando attivarlo:**
+- Quando hai un problema e ti serve assistenza
+- Quando chiedi aiuto a un amministratore
+- Prima di una sessione di formazione
+- Quando l'amministratore te lo chiede
+
+**Come attivarlo:**
+
+1. Vai su **Account** > **Impersonificazione**
+2. Clicca su **Consenso all'impersonificazione**
+3. Scegli la durata:
+   ```
+   1 ora    - Supporto rapido
+   24 ore   - Supporto in giornata
+   72 ore   - Problema su più giorni
+   Custom   - Specifica le ore (massimo 168)
+   ```
+4. Clicca su **Abilita**
+
+**Conferma:**
+```
+Consenso all'impersonificazione abilitato
+  Scade: [data e ora]
+  Durata: [X] ore
+```
+
+### Verifica dello Stato del Consenso
+
+**Per controllare se il consenso è attivo:**
+
+1. Vai su **Account** > **Impersonificazione**
+2. Guarda la sezione **Consenso all'impersonificazione**:
+   ```
+   Stato: Attivo
+   Scade: 2025-11-07 10:30:00 UTC
+   ```
 
 ### Revoca del Consenso
 
-1. Vai alla pagina **Account**
-2. Nella sezione **Consenso Impersonificazione**, disattiva il toggle
-3. Il consenso viene revocato immediatamente
+**Per disattivare il consenso:**
 
-:::tip
-Se un amministratore sta attualmente impersonificando il tuo account e revochi il consenso, l'impersonificazione attiva non viene interrotta. La revoca impedisce nuove sessioni di impersonificazione.
-:::
+1. Vai su **Account** > **Impersonificazione**
+2. Clicca su **Revoca consenso**
+3. Conferma l'operazione
 
-## Per gli Amministratori: Uso dell'Impersonificazione
+**Effetti:**
+- Il consenso viene disabilitato immediatamente
+- Le sessioni di impersonificazione attive vengono terminate
+- L'amministratore non può più impersonificarti
+- Puoi riabilitarlo quando vuoi
 
-### Come Impersonificare un Utente
+### Visualizzazione dell'Audit
 
-1. Vai a **Utenti**
-2. Cerca e seleziona l'utente da impersonificare
-3. Nella pagina di dettaglio, verifica che il consenso sia attivo
-4. Clicca su **Impersonifica**
-5. La sessione di impersonificazione inizia
+**Per vedere chi ti ha impersonificato:**
 
-### Limitazioni
-
-- **Nessuna auto-impersonificazione** - Non puoi impersonificare te stesso
-- **Nessun concatenamento** - Non puoi impersonificare un utente mentre stai già impersonificando un altro utente
-- **Durata limitata** - La sessione scade automaticamente dopo 1 ora
-- **Solo utenti attivi** - Non puoi impersonificare utenti sospesi
-
-## Sicurezza e Privacy
-
-### Visualizzazione Audit Impersonificazione
-
-Per vedere chi ti ha impersonificato:
-
-1. Vai su **Impostazioni Account** > **Impersonificazione**
-2. Sotto **Sessioni** visualizza lo storico completo:
+1. Vai su **Account** > **Impersonificazione**
+2. Apri la sezione **Sessioni**
+3. Trovi lo storico completo:
    ```
-   Iniziata: 2025-11-06 10:00:00 UTC
-   Terminata: 2025-11-06 11:30:00 UTC
-   Durata: 1.5 ore
+   Inizio: 2025-11-06 10:00:00 UTC
+   Fine: 2025-11-06 11:30:00 UTC
+   Durata: 1,5 ore
    Impersonificatore: John Admin (john@example.com)
    Stato: In corso
    ```
-3. Clicca **Mostra log audit** per vedere tutte le azioni
 
-### Logging
+4. Clicca su **Mostra log di audit** per vedere tutte le azioni
 
-Tutte le azioni eseguite durante l'impersonificazione sono registrate con:
+**Informazioni registrate:**
+- Data e ora di ogni azione
+- Endpoint API chiamato
+- Dati sensibili oscurati automaticamente
+- Esito (successo/errore)
 
-- **Timestamp** dell'azione
-- **Identità dell'amministratore** che sta impersonificando
-- **Identità dell'utente** impersonificato
-- **Azione** eseguita
-- Il campo `impersonated_by` nel JWT identifica l'amministratore
+## Per gli Amministratori: Uso dell'Impersonificazione
 
-**Esempio entry log:**
+### Verifica della Disponibilità
+
+**Nell'elenco utenti:**
+
+Gli utenti con consenso attivo mostrano:
+- La voce **Impersonifica utente** abilitata
+- La data di scadenza del consenso
+- Il click avvia l'impersonificazione
+
+**Gli utenti senza consenso:**
+- Hanno la voce **Impersonifica utente** disabilitata
+
+### Avvio dell'Impersonificazione
+
+**Requisiti:**
+- L'utente ha un consenso attivo
+- Appartieni all'organizzazione Owner (ruolo Staff o account `owner`)
+- L'utente non è eliminato né sospeso
+- Non stai già impersonificando qualcun altro
+
+**Procedura:**
+
+1. **Trova l'utente**:
+   - Vai su **Utenti**
+   - Cerca l'utente bersaglio
+
+2. **Verifica il consenso**:
+   - Controlla che **Impersonifica utente** sia abilitato
+   - Controlla la scadenza del consenso
+   - Assicurati che il tempo residuo ti basti
+
+3. **Avvia l'impersonificazione**:
+   - Clicca su **Impersonifica utente** (dal menu contestuale)
+   - Conferma nel dialogo:
+     ```
+     Agirai temporaneamente come l'utente [Nome] e avrai i suoi permessi.
+
+     Per tornare al tuo account, clicca sull'icona di chiusura sul badge
+     di impersonificazione nella barra in alto.
+
+     [Annulla] [Impersonifica utente]
+     ```
+
+4. **Conferma**:
+   - Stai impersonificando l'utente
+   - Compare il banner in alto
+   - La sessione è iniziata
+
+### Durante la Sessione
+
+**Cosa vedi:**
+- Esattamente la stessa interfaccia dell'utente
+- I permessi dell'utente (possono essere più restrittivi dei tuoi)
+- L'organizzazione e i dati dell'utente
+- Le sue personalizzazioni e preferenze
+
+**Cosa puoi fare:**
+- Navigare tutte le pagine a cui l'utente accede
+- Compiere qualsiasi azione che l'utente può compiere
+- Creare, modificare o eliminare in base ai permessi dell'utente
+- Verificare funzionalità e riprodurre problemi
+
+**Cosa non puoi fare:**
+- Accedere a funzionalità precluse all'utente
+- Aggirare le restrizioni di permesso dell'utente
+- Impersonificare un altro utente mentre stai già impersonificando
+- Modificare il tuo account
+
+**Buone pratiche:**
+- Documenta le tue azioni
+- Riduci al minimo il tempo in impersonificazione
+- Compi solo le operazioni necessarie
+- Informa l'utente di cosa hai fatto
+- Esci appena hai finito
+
+### Uscita dall'Impersonificazione
+
+**Uscita normale:**
+
+- Clicca sulla **X** nel banner
+- Torni al tuo account
+
+**Uscita automatica:**
+
+L'impersonificazione termina da sola quando:
+- La durata del consenso scade
+- L'utente revoca il consenso
+- Il token di sessione scade
+- Effettui il logout
+- L'utente viene sospeso o eliminato
+
+## Sicurezza e Privacy
+
+### Cosa Viene Registrato
+
+**Informazioni registrate:**
+- Data e ora di ogni azione
+- Endpoint API e metodo (GET, POST, ecc.)
+- Codice di stato HTTP (200, 404, ecc.)
+- Parametri della richiesta (con i dati sensibili oscurati)
+- Esito della risposta (con i dati sensibili oscurati)
+
+**Oscurati automaticamente:**
+- Password
+- Token di autenticazione
+- Secret di sistema
+- Qualsiasi campo che contenga "password", "secret", "token", "api_key" o "key"
+
+**Esempio di voce di log:**
 ```json
 {
   "timestamp": "2025-11-06T10:15:23Z",
@@ -134,101 +323,191 @@ Tutte le azioni eseguite durante l'impersonificazione sono registrate con:
   "request_body": {
     "name": "John Doe",
     "email": "john@example.com",
-    "password": "[OSCURATO]"
+    "password": "[REDACTED]"
   }
 }
 ```
 
-### Dati Oscurati
+:::note
+Nel log l'`endpoint` è il percorso come lo vede il backend, dopo il rewrite del proxy: `/api/users`, non `/backend/api/users`.
+:::
 
-Durante l'impersonificazione, alcuni dati sensibili dell'utente target sono oscurati per proteggere la privacy:
+### Protezione dei Dati
 
-- Password e credenziali non sono mai visibili
-- Token di autenticazione e secret di sistema
-- Qualsiasi campo contenente "password", "secret", "token"
+**Controllo dell'utente:**
+- È l'utente a scegliere quando abilitare il consenso
+- È l'utente a decidere la durata
+- L'utente può revocare in qualsiasi momento
+- L'utente vede la tracciabilità completa
+
+**Protezione della piattaforma:**
+- Nessun accesso senza consenso
+- Scadenza automatica
+- Registrazione completa
+- Oscuramento dei dati sensibili
+
+**Conformità:**
+- Tracciabilità per i requisiti normativi
+- Modello di accesso basato sul consenso
+- Visibilità e controllo in capo all'utente
+- Privacy dei dati rispettata
 
 ## Casi d'Uso Comuni
 
-### Risoluzione Problemi
+### Risoluzione dei Problemi di un Utente
 
-Quando un utente segnala un problema:
+**Scenario:** un utente segnala di non vedere una funzionalità
 
-1. Impersonifica l'utente
-2. Riproduci il problema dal suo punto di vista
-3. Verifica permessi e visibilità
-4. Esci dall'impersonificazione
-5. Applica la correzione
+**Flusso:**
+1. L'utente abilita il consenso (1 ora)
+2. L'amministratore lo impersonifica
+3. L'amministratore va nella sezione segnalata
+4. Riproduce il problema
+5. Individua il problema di permessi o configurazione
+6. Esce dall'impersonificazione
+7. Corregge le impostazioni dell'utente
+8. L'utente conferma la risoluzione
 
-### Verifica Permessi
+### Formazione di Nuovi Utenti
 
-Per verificare che un utente abbia i permessi corretti:
+**Scenario:** formazione su un flusso di lavoro complesso
 
-1. Impersonifica l'utente
-2. Naviga nelle sezioni della piattaforma
-3. Verifica cosa l'utente può vedere e fare
-4. Esci dall'impersonificazione
+**Flusso:**
+1. L'utente abilita il consenso (24 ore)
+2. L'amministratore lo impersonifica
+3. Esegue i passaggi del flusso
+4. Documenta ogni azione
+5. Esce dall'impersonificazione
+6. Condivide l'audit con l'utente
+7. L'utente rivede le azioni compiute
+8. L'utente si esercita in autonomia
 
-### Formazione
+### Verifica dei Permessi
 
-Per mostrare a un utente come usare la piattaforma:
+**Scenario:** verificare che un utente abbia i permessi corretti
 
-1. Impersonifica l'utente
-2. Registra lo schermo o condividi la sessione
-3. Mostra le funzionalità dal punto di vista dell'utente
+**Flusso:**
+1. L'utente abilita il consenso (1 ora)
+2. L'amministratore lo impersonifica
+3. Prova l'accesso alle varie funzionalità
+4. Documenta cosa è visibile e accessibile
+5. Esce dall'impersonificazione
+6. Corregge i permessi se necessario
 
 ## Risoluzione Problemi
 
 ### Impossibile Impersonificare un Utente
 
-- Verifica di appartenere all'organizzazione Owner (ruolo Staff o account `owner`)
-- Verifica che l'utente target abbia dato il consenso
-- Verifica che l'utente target sia attivo (non sospeso)
-- Verifica di non essere già in una sessione di impersonificazione
+**Problema:** il pulsante di impersonificazione è disabilitato
+
+**Soluzioni:**
+1. Controlla che l'utente abbia abilitato il consenso:
+   - Chiedigli di abilitarlo in **Account** > **Impersonificazione**
+   - Verifica che il consenso non sia scaduto
+2. Verifica di avere i permessi:
+   - Devi appartenere all'organizzazione Owner (ruolo Staff o account `owner`)
+3. Controlla lo stato dell'utente:
+   - L'utente non deve essere sospeso
+   - L'utente non deve essere eliminato
+4. Verifica di non stare già impersonificando:
+   - Esci prima dall'impersonificazione in corso
 
 ### Consenso Non Mostrato
 
-**Problema:** L'utente ha abilitato il consenso ma l'amministratore non lo vede
+**Problema:** l'utente ha abilitato il consenso ma l'amministratore non lo vede
 
 **Soluzioni:**
-1. Aggiorna la pagina (Ctrl+F5)
-2. Attendi 30 secondi (propagazione cache)
-3. Controlla tempo scadenza consenso
+1. Ricarica la pagina (Ctrl+F5)
+2. Aspetta 30 secondi (propagazione della cache)
+3. Controlla la scadenza del consenso
 4. Verifica che l'utente abbia salvato il consenso
-5. Controlla che l'utente non l'abbia accidentalmente revocato
+5. Controlla che non l'abbia revocato per errore
 
-### L'Impersonificazione È Scaduta
+### La Sessione Termina Inaspettatamente
 
-Le sessioni di impersonificazione scadono alla scadenza del consenso dell'utente. Per continuare:
+**Problema:** vieni espulso dalla sessione di impersonificazione
 
-1. Esci dall'impersonificazione (se il banner è ancora visibile)
-2. Ricomincia con una nuova sessione di impersonificazione
+**Cause possibili:**
+- L'utente ha revocato il consenso
+- La durata del consenso è scaduta
+- Il token è scaduto
+- L'utente è stato sospeso
+- Interruzione di rete
 
-### L'Utente Ha Revocato il Consenso
+**Soluzioni:**
+1. Controlla se il consenso è ancora attivo
+2. Chiedi all'utente di riabilitarlo
+3. Controlla la scadenza del consenso
+4. Verifica la tua connessione di rete
 
-Se un utente revoca il consenso:
+### Non Vedi i Dati dell'Utente
 
-- Le sessioni di impersonificazione attive continuano fino alla scadenza
-- Non è possibile avviare nuove sessioni di impersonificazione per quell'utente
-- L'utente deve riattivare il consenso dalla propria pagina Account
+**Problema:** durante l'impersonificazione non vedi i dati che ti aspetti
+
+**Spiegazione:**
+- Vedi esattamente ciò che vede l'utente
+- L'utente potrebbe avere permessi ristretti
+- L'accesso alle organizzazioni potrebbe essere limitato
+- È il comportamento atteso
+
+**Soluzioni:**
+1. Verifica i ruoli assegnati all'utente
+2. Controlla la sua appartenenza organizzativa
+3. Rivedi i permessi gerarchici
+4. Correggi i permessi dell'utente se necessario
 
 ## Best Practice
 
-- **Usa l'impersonificazione solo quando necessario** - Per supporto e risoluzione problemi
-- **Documenta le sessioni** - Registra il motivo dell'impersonificazione
-- **Esci immediatamente** dopo aver completato l'operazione
-- **Informa l'utente** quando possibile, che stai per impersonificare il suo account
-- **Non apportare modifiche non richieste** durante l'impersonificazione
+### Per gli Utenti
+
+**Abilitare il consenso:**
+- Abilitalo solo quando serve o ti viene chiesto
+- Imposta la durata minima necessaria
+- Revocalo quando il supporto è concluso
+- Rivedi l'audit dopo l'impersonificazione
+
+**Privacy:**
+- Il consenso è del tutto volontario
+- Sei tu a decidere quando e per quanto
+- Puoi vedere tutto quello che è stato fatto
+
+### Per gli Amministratori
+
+**Prima di impersonificare:**
+- Abbi uno scopo chiaro
+- Chiedi all'utente di abilitare il consenso
+- Pianifica cosa devi fare
+- Stima il tempo necessario
+
+**Durante l'impersonificazione:**
+- Lavora in modo efficiente
+- Documenta le tue azioni
+- Compi solo le operazioni necessarie
+- Rispetta la privacy dell'utente
+- Esci appena hai finito
+
+**Dopo l'impersonificazione:**
+- Informa l'utente di cosa è stato fatto
+- Documenta quello che hai trovato
+- Condividi l'audit se richiesto
+- Dai seguito ai problemi individuati
 
 ### Per le Organizzazioni
 
 **Policy:**
 - Definisci quando l'impersonificazione è appropriata
 - Documenta il processo di approvazione
-- Forma gli amministratori sull'uso corretto
-- Rivedi regolarmente le tracce audit
+- Forma gli amministratori
+- Rivedi periodicamente i log di audit
 
 **Sicurezza:**
 - Ricorda che l'impersonificazione è riservata al personale Nethesis (organizzazione Owner)
 - Monitora l'uso dell'impersonificazione
-- Rivedi i log audit periodicamente
-- Investiga pattern inusuali di impersonificazione
+- Rivedi i log di audit
+- Indaga sugli schemi inusuali
+
+## Documentazione Correlata
+
+- [Gestione Utenti](./users.md)
+- [Guida all'Autenticazione](../getting-started/authentication.md)
+- [Documentazione API Backend](https://github.com/NethServer/my/blob/main/backend/README.md)
