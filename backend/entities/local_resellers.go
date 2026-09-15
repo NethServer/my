@@ -116,6 +116,7 @@ func (r *LocalResellerRepository) GetByID(id string) (*models.LocalReseller, err
 	}
 
 	reseller.CreatedBy = models.ExtractOrgCreator(reseller.CustomData)
+	fillCreatorOrgTypes(r.db, reseller.CreatedBy)
 
 	return reseller, nil
 }
@@ -530,6 +531,8 @@ func (r *LocalResellerRepository) executeResellerQuery(counts models.CountsMode,
 		return nil, 0, fmt.Errorf("error iterating resellers: %w", err)
 	}
 
+	fillCreatorOrgTypes(r.db, creatorRefsOf(resellers, func(res *models.LocalReseller) models.CreatorOrgRef { return res.CreatedBy })...)
+
 	return resellers, totalCount, nil
 }
 
@@ -711,6 +714,7 @@ func (r *LocalResellerRepository) GetByIDIncludeDeleted(id string) (*models.Loca
 	}
 
 	reseller.CreatedBy = models.ExtractOrgCreator(reseller.CustomData)
+	fillCreatorOrgTypes(r.db, reseller.CreatedBy)
 
 	return reseller, nil
 }

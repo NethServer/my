@@ -2292,6 +2292,11 @@ components:
           type: string
           description: Organization name of the creator
           example: "Nethesis Italia"
+        organization_type:
+          type: string
+          description: Current level of the creator's organization, resolved on every read (never stored), so a promoted organization is reported at its current level. Falls back to "owner" when the organization is not one of the three levels or no longer exists.
+          enum: [distributor, reseller, customer, owner]
+          example: "distributor"
         on_behalf_of:
           type: boolean
           description: True when the system was attributed to a different organization via created_by_organization_id (the user acted on behalf of organization_name rather than belonging to it). Omitted when false.
@@ -2325,6 +2330,11 @@ components:
           type: string
           description: Organization name the creator belongs to
           example: "Owner"
+        organization_type:
+          type: string
+          description: Current level of the creator's organization, resolved on every read (never stored), so a promoted organization is reported at its current level. Falls back to "owner" when the organization is not one of the three levels or no longer exists.
+          enum: [distributor, reseller, customer, owner]
+          example: "owner"
         on_behalf_of:
           type: boolean
           description: True when the organization was attributed to a different organization via created_by_organization_id (the user acted on behalf of organization_name rather than belonging to it). Omitted when false.
