@@ -11,6 +11,7 @@ package sync
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/nethesis/my/sync/internal/client"
 	"github.com/nethesis/my/sync/internal/config"
@@ -108,6 +109,45 @@ func (e *Engine) buildAppPayload(appConfig config.Application, cfg *config.Confi
 	}
 }
 
+// buildAppBranding loads the configured application icons as data URLs. Logto
+// stores them on the application sign-in experience, next to the display name.
+//
+// Logto merges the branding it receives, so a payload without icons leaves the
+// ones already uploaded in place: an empty "branding:" block in the config is
+// the way to clear them.
+func (e *Engine) buildAppBranding(appConfig config.Application) (*client.ApplicationBranding, error) {
+	if appConfig.Branding == nil {
+		return nil, nil
+	}
+
+	basePath := e.configBasePath()
+	branding := &client.ApplicationBranding{}
+
+	icons := []struct {
+		path   string
+		target *string
+		label  string
+	}{
+		{appConfig.Branding.LogoPath, &branding.LogoURL, "logo"},
+		{appConfig.Branding.LogoDarkPath, &branding.DarkLogoURL, "dark logo"},
+	}
+
+	for _, icon := range icons {
+		if icon.path == "" {
+			continue
+		}
+
+		fullPath := filepath.Join(basePath, icon.path)
+		dataURL, err := e.loadFileAsDataURL(fullPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load %s from %s: %w", icon.label, fullPath, err)
+		}
+		*icon.target = dataURL
+	}
+
+	return branding, nil
+}
+
 // syncSingleApplication synchronizes a single third-party application
 func (e *Engine) syncSingleApplication(appConfig config.Application, existingApps map[string]client.ThirdPartyApplication, cfg *config.Config, result *Result) error {
 	logger.Info("Processing application: %s", appConfig.Name)
@@ -115,6 +155,17 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 	scopes := cfg.GetDefaultScopes()
 	if len(appConfig.Scopes) > 0 {
 		scopes = appConfig.Scopes
+	}
+
+	branding, err := e.buildAppBranding(appConfig)
+	if err != nil {
+		e.addOperation(result, "application", "branding", appConfig.Name, fmt.Sprintf("Load branding assets for %s", appConfig.Name), err)
+		return fmt.Errorf("failed to load branding assets for %s: %w", appConfig.Name, err)
+	}
+
+	experience := client.ApplicationSignInExperience{
+		DisplayName: appConfig.DisplayName,
+		Branding:    branding,
 	}
 
 	if existingApp, exists := existingApps[appConfig.Name]; exists {
@@ -135,7 +186,7 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 				return fmt.Errorf("failed to update application %s: %w", appConfig.Name, err)
 			}
 
-			if err := e.client.UpdateThirdPartyApplicationBranding(existingApp.ID, appConfig.DisplayName); err != nil {
+			if err := e.client.UpdateThirdPartyApplicationBranding(existingApp.ID, experience); err != nil {
 				e.addOperation(result, "application", "update_branding", appConfig.Name, fmt.Sprintf("Update branding for %s", appConfig.Name), err)
 				return fmt.Errorf("failed to update branding for %s: %w", appConfig.Name, err)
 			}
@@ -167,7 +218,7 @@ func (e *Engine) syncSingleApplication(appConfig config.Application, existingApp
 				return fmt.Errorf("failed to create application %s: %w", appConfig.Name, err)
 			}
 
-			if err := e.client.UpdateThirdPartyApplicationBranding(createdApp.ID, appConfig.DisplayName); err != nil {
+			if err := e.client.UpdateThirdPartyApplicationBranding(createdApp.ID, experience); err != nil {
 				e.addOperation(result, "application", "create_branding", appConfig.Name, fmt.Sprintf("Set branding for %s", appConfig.Name), err)
 				return fmt.Errorf("failed to set branding for %s: %w", appConfig.Name, err)
 			}

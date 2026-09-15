@@ -32,15 +32,7 @@ func (e *Engine) syncSignInExperience(cfg *config.Config, result *Result) error 
 		return nil
 	}
 
-	// Determine the base path for relative file paths
-	// Use the directory containing the config file
-	basePath := "configs" // Default fallback
-	if e.options.ConfigFile != "" {
-		basePath = filepath.Dir(e.options.ConfigFile)
-		if basePath == "." {
-			basePath = "configs"
-		}
-	}
+	basePath := e.configBasePath()
 	logger.Debug("Using base path for sign-in experience files: %s", basePath)
 
 	// Build the sign-in experience configuration
@@ -191,6 +183,21 @@ func (e *Engine) buildSignInExperienceConfig(sie *config.SignInExperience, baseP
 	}
 
 	return signInConfig, nil
+}
+
+// configBasePath returns the directory relative asset paths are resolved
+// against: the directory containing the config file, or "configs" as fallback
+func (e *Engine) configBasePath() string {
+	if e.options.ConfigFile == "" {
+		return "configs"
+	}
+
+	basePath := filepath.Dir(e.options.ConfigFile)
+	if basePath == "." {
+		return "configs"
+	}
+
+	return basePath
 }
 
 // loadFileAsDataURL loads a file and converts it to a data URL

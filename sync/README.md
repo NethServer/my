@@ -208,7 +208,9 @@ Key sections:
 - `organization_roles` - Business hierarchy (Owner, Distributor, Reseller, Customer)
 - `user_roles` - Technical capabilities (Admin, Support, Backoffice, Reader, plus Staff for the Owner organization)
 - `resources` - API resources and actions
-- `third_party_apps` - External application access control (optional)
+- `third_party_apps` - External application access control, plus the consent
+  page icons in `configs/apps/` (optional, see
+  [`configs/apps/README.md`](configs/apps/README.md))
 - `sign_in_experience` - Branding, colors, sign-in methods (optional)
 - `connectors` - SMTP email connector for password reset (optional)
 

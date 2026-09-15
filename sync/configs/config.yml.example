@@ -15,7 +15,9 @@ metadata:
 # application URLs, SMTP credentials and branding are per-environment, and the
 # files that hold them (config.yml, config.qa.yml, config.production.yml) are
 # gitignored. Copy this file, fill those sections in, and keep the vocabulary
-# identical across environments.
+# identical across environments. The branding assets those sections point at do
+# live in git: `configs/sign-in/` for the tenant, `configs/apps/` for the
+# per-application icons.
 
 # Business hierarchy: owner -> distributor -> reseller -> customer.
 # Each role sees only what sits below it in the commercial chain.
@@ -256,6 +258,14 @@ third_party_apps:
     - name: "management.company.com"
       description: "Management interface for system administrators"
       display_name: "Management Console"
+      # Icons Logto shows on the consent page, uploaded on every sync. Paths
+      # are relative to this file's directory, like the sign-in assets, and the
+      # files are tracked in git (see configs/apps/README.md). Omit the block to
+      # leave the icons already uploaded untouched; use "branding: {}" to clear
+      # them.
+      branding:
+        logo_path: "apps/management.svg"
+        logo_dark_path: "apps/management-dark.svg"
       info_url: "https://management.company.com/info"
       redirect_uris:
         - "https://management.company.com/callback"
@@ -276,6 +286,9 @@ third_party_apps:
     - name: "support.company.com"
       description: "Support portal for customer assistance"
       display_name: "Support Portal"
+      branding:
+        # One icon is enough: Logto uses it for both themes
+        logo_path: "apps/support.svg"
       info_url: "https://support.company.com/info"
       redirect_uris:
         - "https://support.company.com/callback"

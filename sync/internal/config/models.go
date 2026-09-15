@@ -114,16 +114,25 @@ func (c *Config) GetResourceContainers() []ResourceContainer {
 
 // Application represents a third-party application configuration
 type Application struct {
-	Name                   string         `yaml:"name" json:"name"`                                                               // FQDN of the application
-	Description            string         `yaml:"description" json:"description"`                                                 // Description of the application
-	DisplayName            string         `yaml:"display_name" json:"display_name"`                                               // Display name for branding
-	LoginURL               string         `yaml:"login_url,omitempty" json:"login_url,omitempty"`                                 // Login URL for OAuth authentication
-	InfoURL                string         `yaml:"info_url,omitempty" json:"info_url,omitempty"`                                   // Info URL for getting user data from the application
-	Scopes                 []string       `yaml:"scopes,omitempty" json:"scopes,omitempty"`                                       // Custom scopes (optional)
-	RedirectUris           []string       `yaml:"redirect_uris,omitempty" json:"redirect_uris,omitempty"`                         // Redirect URIs for OAuth flow
-	PostLogoutRedirectUris []string       `yaml:"post_logout_redirect_uris,omitempty" json:"post_logout_redirect_uris,omitempty"` // Post logout redirect URIs
-	CorsAllowed            []string       `yaml:"cors_allowed,omitempty" json:"cors_allowed,omitempty"`                           // CORS allowed origins
-	AccessControl          *AccessControl `yaml:"access_control,omitempty" json:"access_control,omitempty"`                       // Access control configuration
+	Name                   string               `yaml:"name" json:"name"`                                                               // FQDN of the application
+	Description            string               `yaml:"description" json:"description"`                                                 // Description of the application
+	DisplayName            string               `yaml:"display_name" json:"display_name"`                                               // Display name for branding
+	LoginURL               string               `yaml:"login_url,omitempty" json:"login_url,omitempty"`                                 // Login URL for OAuth authentication
+	InfoURL                string               `yaml:"info_url,omitempty" json:"info_url,omitempty"`                                   // Info URL for getting user data from the application
+	Scopes                 []string             `yaml:"scopes,omitempty" json:"scopes,omitempty"`                                       // Custom scopes (optional)
+	RedirectUris           []string             `yaml:"redirect_uris,omitempty" json:"redirect_uris,omitempty"`                         // Redirect URIs for OAuth flow
+	PostLogoutRedirectUris []string             `yaml:"post_logout_redirect_uris,omitempty" json:"post_logout_redirect_uris,omitempty"` // Post logout redirect URIs
+	CorsAllowed            []string             `yaml:"cors_allowed,omitempty" json:"cors_allowed,omitempty"`                           // CORS allowed origins
+	AccessControl          *AccessControl       `yaml:"access_control,omitempty" json:"access_control,omitempty"`                       // Access control configuration
+	Branding               *ApplicationBranding `yaml:"branding,omitempty" json:"branding,omitempty"`                                   // Icons shown on the consent/sign-in page
+}
+
+// ApplicationBranding defines the icons of a third-party application, shown by
+// Logto on the sign-in and consent pages. Paths are relative to the config file
+// directory, like the sign-in experience assets.
+type ApplicationBranding struct {
+	LogoPath     string `yaml:"logo_path,omitempty" json:"logo_path,omitempty"`           // Icon for light theme
+	LogoDarkPath string `yaml:"logo_dark_path,omitempty" json:"logo_dark_path,omitempty"` // Icon for dark theme
 }
 
 // AccessControl defines which roles and organizations can access a third-party application

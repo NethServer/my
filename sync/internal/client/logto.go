@@ -448,9 +448,17 @@ type CustomClientMetadata struct {
 	CorsAllowedOrigins []string `json:"corsAllowedOrigins,omitempty"`
 }
 
+// ApplicationBranding represents the icons of an application, shown on the
+// sign-in and consent pages
+type ApplicationBranding struct {
+	LogoURL     string `json:"logoUrl,omitempty"`
+	DarkLogoURL string `json:"darkLogoUrl,omitempty"`
+}
+
 // ApplicationSignInExperience represents application sign-in experience settings
 type ApplicationSignInExperience struct {
-	DisplayName string `json:"displayName"`
+	DisplayName string               `json:"displayName"`
+	Branding    *ApplicationBranding `json:"branding,omitempty"`
 }
 
 // GetThirdPartyApplications retrieves only third-party applications (isThirdParty: true)
@@ -525,12 +533,8 @@ func (c *LogtoClient) UpdateThirdPartyApplicationScopes(appID string, scopes []s
 }
 
 // UpdateThirdPartyApplicationBranding updates third-party application branding
-func (c *LogtoClient) UpdateThirdPartyApplicationBranding(appID, displayName string) error {
-	payload := ApplicationSignInExperience{
-		DisplayName: displayName,
-	}
-
-	resp, err := c.makeRequest("PUT", "/api/applications/"+appID+"/sign-in-experience", payload)
+func (c *LogtoClient) UpdateThirdPartyApplicationBranding(appID string, experience ApplicationSignInExperience) error {
+	resp, err := c.makeRequest("PUT", "/api/applications/"+appID+"/sign-in-experience", experience)
 	if err != nil {
 		return err
 	}
