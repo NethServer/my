@@ -176,6 +176,7 @@ func (r *LocalUserRepository) GetByID(id string) (*models.LocalUser, error) {
 		var creator models.OrgCreator
 		if err := json.Unmarshal(createdByJSON, &creator); err == nil {
 			user.CreatedBy = &creator
+			fillCreatorOrgTypes(r.db, &creator)
 		}
 	}
 
@@ -244,6 +245,7 @@ func (r *LocalUserRepository) GetByEmail(email string) (*models.LocalUser, error
 		var creator models.OrgCreator
 		if err := json.Unmarshal(createdByJSON, &creator); err == nil {
 			user.CreatedBy = &creator
+			fillCreatorOrgTypes(r.db, &creator)
 		}
 	}
 
@@ -310,6 +312,7 @@ func (r *LocalUserRepository) GetByLogtoID(logtoID string) (*models.LocalUser, e
 		var creator models.OrgCreator
 		if err := json.Unmarshal(createdByJSON, &creator); err == nil {
 			user.CreatedBy = &creator
+			fillCreatorOrgTypes(r.db, &creator)
 		}
 	}
 
@@ -1045,6 +1048,8 @@ func (r *LocalUserRepository) executeUserQuery(_ string, _ []interface{}, mainQu
 		return nil, 0, fmt.Errorf("error iterating users: %w", err)
 	}
 
+	fillCreatorOrgTypes(r.db, creatorRefsOf(users, func(u *models.LocalUser) models.CreatorOrgRef { return u.CreatedBy })...)
+
 	return users, totalCount, nil
 }
 
@@ -1595,6 +1600,7 @@ func (r *LocalUserRepository) GetByIDIncludeDeleted(id string) (*models.LocalUse
 		var creator models.OrgCreator
 		if err := json.Unmarshal(createdByJSON, &creator); err == nil {
 			user.CreatedBy = &creator
+			fillCreatorOrgTypes(r.db, &creator)
 		}
 	}
 

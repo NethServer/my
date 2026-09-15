@@ -1,8 +1,14 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["local>NethServer/.github:vue3"],
   "schedule": [
     "before 6am on monday"
   ],
+  "lockFileMaintenance": {
+    "schedule": [
+      "before 6am on monday"
+    ]
+  },
   "ignoreTests": false,
   "packageRules": [
     {

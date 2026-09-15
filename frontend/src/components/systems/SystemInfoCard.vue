@@ -280,7 +280,7 @@ function getKebabMenuItems() {
             {{ $t('systems.created') }}
           </template>
           <template #data>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center justify-end gap-2">
               <NeTooltip trigger-event="mouseenter focus" placement="top">
                 <template #trigger>
                   <UserAvatar
@@ -298,7 +298,23 @@ function getKebabMenuItems() {
                   }}
                 </template>
               </NeTooltip>
-              {{ formatDateTimeNoSeconds(new Date(systemDetail.data.created_at), locale) }}
+              <div class="space-y-0.5 text-start">
+                <div>
+                  {{ formatDateTimeNoSeconds(new Date(systemDetail.data.created_at), locale) }}
+                </div>
+                <div
+                  v-if="systemDetail.data.created_by.organization_name"
+                  class="text-gray-500 dark:text-gray-400"
+                >
+                  {{
+                    systemDetail.data.created_by.on_behalf_of
+                      ? $t('systems.on_behalf_of', {
+                          organization: systemDetail.data.created_by.organization_name,
+                        })
+                      : systemDetail.data.created_by.organization_name
+                  }}
+                </div>
+              </div>
             </div>
           </template>
         </DataItem>

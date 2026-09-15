@@ -117,6 +117,7 @@ func (r *LocalDistributorRepository) GetByID(id string) (*models.LocalDistributo
 	}
 
 	distributor.CreatedBy = models.ExtractOrgCreator(distributor.CustomData)
+	fillCreatorOrgTypes(r.db, distributor.CreatedBy)
 	distributor.PromotedFrom = models.ExtractOrgPromotion(distributor.CustomData)
 
 	return distributor, nil
@@ -386,6 +387,8 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 	if err := r.populateDistributorCounts(distributors); err != nil {
 		return nil, 0, fmt.Errorf("failed to populate distributor counts: %w", err)
 	}
+
+	fillCreatorOrgTypes(r.db, creatorRefsOf(distributors, func(d *models.LocalDistributor) models.CreatorOrgRef { return d.CreatedBy })...)
 
 	return distributors, totalCount, nil
 }
@@ -700,6 +703,7 @@ func (r *LocalDistributorRepository) GetByIDIncludeDeleted(id string) (*models.L
 	}
 
 	distributor.CreatedBy = models.ExtractOrgCreator(distributor.CustomData)
+	fillCreatorOrgTypes(r.db, distributor.CreatedBy)
 	distributor.PromotedFrom = models.ExtractOrgPromotion(distributor.CustomData)
 
 	return distributor, nil

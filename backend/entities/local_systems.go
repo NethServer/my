@@ -139,6 +139,7 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 	if len(createdByJSON) > 0 {
 		_ = json.Unmarshal(createdByJSON, &system.CreatedBy) // Ignore JSON unmarshal errors - keep default zero value
 	}
+	fillCreatorOrgTypes(r.db, &system.CreatedBy)
 
 	// Set heartbeat and inventory timestamps
 	if lastHeartbeat.Valid {
@@ -530,6 +531,8 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	if err := rows.Err(); err != nil {
 		return nil, 0, fmt.Errorf("error iterating systems: %w", err)
 	}
+
+	fillCreatorOrgTypes(r.db, creatorRefsOf(systems, func(sys *models.System) models.CreatorOrgRef { return &sys.CreatedBy })...)
 
 	return systems, totalCount, nil
 }
