@@ -1,0 +1,22 @@
+{
+  "version.label": {
+    "message": "Corrente",
+    "description": "The label for version current"
+  },
+  "sidebar.guideSidebar.category.Getting Started": {
+    "message": "Primi passi",
+    "description": "The label for category 'Getting Started' in sidebar 'guideSidebar'"
+  },
+  "sidebar.guideSidebar.category.Platform Management": {
+    "message": "Gestione della piattaforma",
+    "description": "The label for category 'Platform Management' in sidebar 'guideSidebar'"
+  },
+  "sidebar.guideSidebar.category.Systems": {
+    "message": "Sistemi",
+    "description": "The label for category 'Systems' in sidebar 'guideSidebar'"
+  },
+  "sidebar.guideSidebar.category.Features": {
+    "message": "Funzionalità",
+    "description": "The label for category 'Features' in sidebar 'guideSidebar'"
+  }
+}

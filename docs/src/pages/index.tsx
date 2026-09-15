@@ -5,6 +5,7 @@ import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
 import HomepageFeatures from '@site/src/components/HomepageFeatures';
 import Heading from '@theme/Heading';
+import Translate, {translate} from '@docusaurus/Translate';
 
 import styles from './index.module.css';
 
@@ -13,20 +14,25 @@ function HomepageHeader(): ReactNode {
   return (
     <header className={styles.heroBanner}>
       <div className="container">
+        {/* The product name is a brand, deliberately left untranslated. */}
         <Heading as="h1" className={styles.heroTitle}>
           {siteConfig.title}
         </Heading>
-        <p className={styles.heroSubtitle}>{siteConfig.tagline}</p>
+        <p className={styles.heroSubtitle}>
+          <Translate id="homepage.tagline">
+            Centralized management platform by Nethesis
+          </Translate>
+        </p>
         <div className={styles.buttons}>
           <Link
             className={clsx('button button--lg', styles.primaryButton)}
             to="/docs/intro">
-            Get Started
+            <Translate id="homepage.cta.getStarted">Get Started</Translate>
           </Link>
           <Link
             className={clsx('button button--lg', styles.secondaryButton)}
             href="https://github.com/NethServer/my">
-            View on GitHub
+            <Translate id="homepage.cta.github">View on GitHub</Translate>
           </Link>
         </div>
       </div>
@@ -35,11 +41,17 @@ function HomepageHeader(): ReactNode {
 }
 
 export default function Home(): ReactNode {
-  const {siteConfig} = useDocusaurusContext();
   return (
     <Layout
-      title="Centralized Management Platform"
-      description="Centralized authentication and management platform by Nethesis with Role-Based Access Control, system monitoring, and multi-tenant business hierarchy.">
+      title={translate({
+        id: 'homepage.meta.title',
+        message: 'Centralized Management Platform',
+      })}
+      description={translate({
+        id: 'homepage.meta.description',
+        message:
+          'Centralized authentication and management platform by Nethesis with Role-Based Access Control, system monitoring, and multi-tenant business hierarchy.',
+      })}>
       <HomepageHeader />
       <main>
         <HomepageFeatures />

@@ -1,0 +1,56 @@
+{
+  "homepage.tagline": {
+    "message": "Piattaforma di gestione centralizzata di Nethesis"
+  },
+  "homepage.cta.getStarted": {
+    "message": "Inizia da qui"
+  },
+  "homepage.cta.github": {
+    "message": "Guarda su GitHub"
+  },
+  "homepage.meta.title": {
+    "message": "Piattaforma di Gestione Centralizzata"
+  },
+  "homepage.meta.description": {
+    "message": "Piattaforma di autenticazione e gestione centralizzata di Nethesis, con controllo degli accessi basato sui ruoli, monitoraggio dei sistemi e gerarchia aziendale multi-tenant."
+  },
+  "homepage.auth.title": {
+    "message": "Autenticazione centralizzata"
+  },
+  "homepage.auth.description": {
+    "message": "Basata su Logto come Identity Provider, con autenticazione JWT, scambio di token e supporto all'autenticazione multi-fattore su tutti i servizi."
+  },
+  "homepage.hierarchy.title": {
+    "message": "Gerarchia aziendale"
+  },
+  "homepage.hierarchy.description": {
+    "message": "Modello organizzativo multi-tenant su quattro livelli: Owner, distributore, rivenditore e cliente. Ogni livello gestisce quelli sottostanti."
+  },
+  "homepage.rbac.title": {
+    "message": "Accessi basati sui ruoli"
+  },
+  "homepage.rbac.description": {
+    "message": "RBAC a doppio ruolo: il ruolo organizzazione governa la gerarchia commerciale, il ruolo utente le capacità tecniche come Admin e Support."
+  },
+  "homepage.monitoring.title": {
+    "message": "Monitoraggio dei sistemi"
+  },
+  "homepage.monitoring.description": {
+    "message": "L'heartbeat classifica i sistemi come attivi, inattivi o mai visti. La raccolta dell'inventario cattura lo stato del sistema con elaborazione a worker."
+  },
+  "homepage.changes.title": {
+    "message": "Rilevamento modifiche"
+  },
+  "homepage.changes.description": {
+    "message": "Analisi automatica dei diff tra snapshot di inventario, con una severità per ogni modifica (info, warning, critical) e notifiche delle variazioni."
+  },
+  "homepage.selfservice.title": {
+    "message": "Self-service"
+  },
+  "homepage.selfservice.description": {
+    "message": "Gli utenti gestiscono da soli profilo, avatar e password. Gli operatori accedono ai sistemi via sessioni di supporto nel browser o SSH nativo."
+  },
+  "homepage.features.ariaLabel": {
+    "message": "Funzionalità principali"
+  }
+}

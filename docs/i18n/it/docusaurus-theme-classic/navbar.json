@@ -18,5 +18,25 @@
   "item.label.GitHub": {
     "message": "GitHub",
     "description": "Navbar item with label GitHub"
+  },
+  "logo.alt": {
+    "message": "My Nethesis",
+    "description": "The alt text of navbar logo"
+  },
+  "item.label.Project Overview": {
+    "message": "Panoramica del progetto",
+    "description": "Navbar item with label Project Overview"
+  },
+  "item.label.Backend API": {
+    "message": "Backend API",
+    "description": "Navbar item with label Backend API"
+  },
+  "item.label.Collect Service": {
+    "message": "Collect Service",
+    "description": "Navbar item with label Collect Service"
+  },
+  "item.label.Sync Tool": {
+    "message": "Sync Tool",
+    "description": "Navbar item with label Sync Tool"
   }
 }
