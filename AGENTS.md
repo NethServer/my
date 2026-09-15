@@ -86,7 +86,7 @@ The six first-class components (tracked in `version.json`): backend, collect, sy
 ```
 Frontend --[Logto access_token]--> POST /api/auth/exchange
 Backend validates token, fetches roles/permissions from Logto Management API
-Backend returns custom JWT (24h access + 7d refresh) with embedded permissions
+Backend returns custom JWT (30m access + 7d refresh) with embedded permissions
 Frontend uses custom JWT for subsequent calls
 ```
 
@@ -94,7 +94,7 @@ Custom JWT claims: user_id, user_roles, user_permissions, org_role, org_permissi
 
 ### 2.3 Impersonation
 
-Owner organization only (Staff and Owner user roles carry `impersonate:users`). `POST /api/auth/impersonate` mints a 1h JWT with the target user's permissions. Requires the target to have opted-in via `POST /api/auth/impersonate/consent` (consent can be revoked with DELETE). All sessions and actions are audited via `impersonation_audit` middleware. No self-impersonation, no chaining.
+Owner organization only (Staff and Owner user roles carry `impersonate:users`). `POST /api/impersonate` mints a JWT with the target user's permissions, expiring with the remaining consent window (not a fixed hour). Requires the target to have opted-in via `POST /api/impersonate/consent` (1-168h, default 1h; revoked with DELETE). All sessions and actions are audited via `impersonation_audit` middleware. No self-impersonation, no chaining.
 
 ---
 
