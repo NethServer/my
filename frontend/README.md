@@ -92,7 +92,7 @@ npm run format-fix    # Fix code formatting
 npm run lint          # Run linting
 npm run lint-fix      # Fix linting issues
 npm run type-check    # TypeScript type checking
-npm run test          # Run tests
+npm run test:unit     # Run unit tests (vitest)
 npm run build         # Build for production
 ```
 
@@ -122,11 +122,11 @@ frontend's `production` target, so it is a build, not a live-reload server.
 
 ### Manual Testing
 ```bash
-# Run test suite
-npm run test
+# Run unit test suite
+npm run test:unit
 
 # Coverage report
-npm run test -- --coverage
+npm run test:unit -- --coverage
 ```
 
 ### Authentication Testing

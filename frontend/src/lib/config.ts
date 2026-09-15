@@ -18,3 +18,9 @@ export const API_URL = import.meta.env.VITE_API_BASE_URL
 // NethShop base URL (no trailing slash) — where add-on deep-links and order
 // links point. Staging shop in dev/qa, live shop in production.
 export const SHOP_BASE_URL = import.meta.env.VITE_SHOP_BASE_URL
+
+// True only in builds made for the end-to-end suite (`npm run dev:e2e`, or the
+// CI e2e job). It suppresses background behaviour that races assertions —
+// query auto-refetch and the Pinia Colada devtools panel — and is never set in
+// a dev, qa or production build.
+export const IS_E2E = import.meta.env.VITE_E2E === 'true'
