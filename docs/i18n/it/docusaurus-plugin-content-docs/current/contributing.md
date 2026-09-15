@@ -263,12 +263,38 @@ percorso della tua macchina.
 
 ### Traduzioni dell'Interfaccia
 
-Le stringhe di navbar e footer stanno nei file JSON sotto
-`i18n/it/docusaurus-theme-classic/`. Si rigenerano con:
+Le stringhe che vivono nei componenti React invece che nel Markdown -- la
+homepage, la navbar, il footer, le etichette delle categorie in sidebar -- si
+traducono nei file JSON sotto `i18n/it/`. Una stringa è estraibile solo se
+passa da `<Translate>` o `translate()`: un letterale hardcoded resta in inglese
+in tutte le locale, per quanto completa sia la traduzione del Markdown.
+
+I JSON si rigenerano con:
 
 ```bash
-make translations
+make translations              # tutte le locale
+npm run write-translations -- --locale it
 ```
+
+| File | Contiene |
+|------|----------|
+| `i18n/it/code.json` | Stringhe di `src/pages` e `src/components` |
+| `i18n/it/docusaurus-theme-classic/navbar.json`, `footer.json` | Etichette di navbar e footer |
+| `i18n/it/docusaurus-plugin-content-docs/current.json` | Etichette delle categorie in sidebar |
+
+:::danger In `code.json` vanno solo le chiavi del progetto
+`write-translations` emette anche un'ottantina di chiavi `theme.*` --
+Precedente/Successivo, il pulsante di copia, i titoli delle admonition, la
+pagina 404 -- riempite con i loro valori **inglesi**. Docusaurus spedisce già
+l'italiano per tutte
+(`@docusaurus/theme-translations/locales/it/`), e una chiave `theme.*` presente
+in `code.json` la **sovrascrive**. Committarle fa regredire in inglese l'intero
+tema mentre la homepage resta tradotta: un sintomo facile da non notare in
+revisione.
+
+Dopo aver lanciato il comando, riduci `code.json` alle sole chiavi del progetto
+(oggi `homepage.*`) prima di committare.
+:::
 
 ## Processo di Revisione
 

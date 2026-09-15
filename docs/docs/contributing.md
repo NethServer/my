@@ -262,12 +262,36 @@ your own machine.
 
 ### Interface Translations
 
-Navbar and footer strings live in the JSON files under
-`i18n/it/docusaurus-theme-classic/`. Regenerate them with:
+Strings that live in React components rather than in Markdown -- the homepage,
+the navbar, the footer, the sidebar category labels -- are translated through
+the JSON files under `i18n/it/`. A string is only extractable if it goes
+through `<Translate>` or `translate()`; a hardcoded literal stays English in
+every locale, however complete the Markdown translation is.
+
+Regenerate the JSON with:
 
 ```bash
-make translations
+make translations              # every locale
+npm run write-translations -- --locale it
 ```
+
+| File | Holds |
+|------|-------|
+| `i18n/it/code.json` | Strings from `src/pages` and `src/components` |
+| `i18n/it/docusaurus-theme-classic/navbar.json`, `footer.json` | Navbar and footer labels |
+| `i18n/it/docusaurus-plugin-content-docs/current.json` | Sidebar category labels |
+
+:::danger Keep only your own keys in `code.json`
+`write-translations` also emits about 80 `theme.*` keys -- Previous/Next, the
+copy button, the admonition titles, the 404 page -- filled with their **English**
+defaults. Docusaurus already ships Italian for all of them
+(`@docusaurus/theme-translations/locales/it/`), and a `theme.*` key present in
+`code.json` **overrides** that. Committing them regresses the whole theme to
+English while the homepage stays translated, which is easy to miss in review.
+
+After running the command, strip `code.json` back to the project's own keys
+(`homepage.*` today) before committing.
+:::
 
 ## Review Process
 
