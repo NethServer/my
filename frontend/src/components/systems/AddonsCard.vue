@@ -12,7 +12,7 @@ import {
   NeSkeleton,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faFolderPlus } from '@fortawesome/free-solid-svg-icons'
+import { faPuzzlePiece } from '@fortawesome/free-solid-svg-icons'
 import EnabledStatus from '@/components/common/EnabledStatus.vue'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import { computed } from 'vue'
@@ -74,7 +74,7 @@ const sortedAddons = computed<AddonItem[]>(() =>
 <template>
   <NeCard>
     <div class="mb-4 flex h-10 items-center gap-4">
-      <FontAwesomeIcon :icon="faFolderPlus" class="size-5 shrink-0" aria-hidden="true" />
+      <FontAwesomeIcon :icon="faPuzzlePiece" class="size-5 shrink-0" aria-hidden="true" />
       <NeHeading tag="h6">
         {{ $t('system_detail.addons').toUpperCase() }}
       </NeHeading>
@@ -106,7 +106,7 @@ const sortedAddons = computed<AddonItem[]>(() =>
     <NeEmptyState
       v-else
       :title="$t('system_detail.no_addons')"
-      :icon="faFolderPlus"
+      :icon="faPuzzlePiece"
       class="bg-white dark:bg-gray-950"
     />
   </NeCard>
