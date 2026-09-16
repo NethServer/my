@@ -354,11 +354,18 @@
     "description_stock_nethesis_it": "Controlla l'inventario dei prodotti e gestisci le scorte.",
     "description_helpdesk_nethesis_it": "Ottieni supporto, apri e gestisci ticket.",
     "description_partner_nethesis_it": "Unisciti alla community dei partner Nethesis e condividi conoscenza.",
+    "description_formazione_nethesis_it": "Segui i corsi di formazione Nethesis e ottieni le certificazioni.",
     "nethshop_widget": {
       "processing": "In lavorazione",
       "pending_payment": "In attesa di pagamento",
       "renewing": "In rinnovo ({days} giorni)",
       "completed_last_12m": "Completati (ultimi 12 mesi)"
+    },
+    "formazione_widget": {
+      "courses_in_progress": "Corsi in corso",
+      "courses_completed": "Corsi completati",
+      "certificates": "Attestati",
+      "badges": "Badge"
     },
     "nethspot_widget": {
       "hotspots": "Hotspot",

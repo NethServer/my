@@ -436,11 +436,18 @@
     "description_stock_nethesis_it": "Check product inventory and manage stock.",
     "description_helpdesk_nethesis_it": "Get support, open and manage tickets.",
     "description_partner_nethesis_it": "Join the Nethesis partner community and share knowledge.",
+    "description_formazione_nethesis_it": "Follow the Nethesis training courses and get certified.",
     "nethshop_widget": {
       "processing": "Processing",
       "pending_payment": "Awaiting payment",
       "renewing": "Renewing ({days} days)",
       "completed_last_12m": "Completed (last 12 months)"
+    },
+    "formazione_widget": {
+      "courses_in_progress": "Courses in progress",
+      "courses_completed": "Courses completed",
+      "certificates": "Certificates",
+      "badges": "Badges"
     },
     "nethspot_widget": {
       "hotspots": "Hotspots",

@@ -7,6 +7,7 @@ import { useLoginStore } from '@/stores/login'
 import { isEntitlementAdmin } from '@/lib/permissions'
 import {
   faArrowUpRightFromSquare,
+  faGraduationCap,
   faHeadset,
   faShop,
   faWarehouse,
@@ -21,6 +22,7 @@ const ENABLED_APPS = [
   'stock.nethesis.it',
   'nethshop.nethesis.it',
   'my.nethspot.com',
+  'formazione.nethesis.it',
 ]
 
 export type ThirdPartyApp = {
@@ -73,6 +75,12 @@ export type ThirdPartyAppInfo = {
   sessions?: number
   managers?: number
   sms?: { count: number; max: number; remaining: number }
+  // Formazione (formazione.nethesis.it) raw fields
+  courses_enrolled?: number
+  courses_completed?: number
+  courses_in_progress?: number
+  certificates?: number
+  badges?: number
 }
 
 // A third-party app answers on its own host with its own error semantics, and
@@ -115,6 +123,8 @@ export const getThirdPartyAppIcon = (thirdPartyApp: ThirdPartyApp) => {
       return faWifi
     case 'stock.nethesis.it':
       return faWarehouse
+    case 'formazione.nethesis.it':
+      return faGraduationCap
     default:
       // fallback icon
       return faArrowUpRightFromSquare
@@ -145,6 +155,7 @@ export const sortThirdPartyApps = (app1: ThirdPartyApp, app2: ThirdPartyApp) => 
     'nethshop.nethesis.it',
     'helpdesk.nethesis.it',
     'my.nethspot.com',
+    'formazione.nethesis.it',
   ]
   const index1 = appsOrder.indexOf(app1.name)
   const index2 = appsOrder.indexOf(app2.name)

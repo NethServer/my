@@ -70,6 +70,36 @@ const items = computed<ThirdPartyAppWidgetItem[]>(() => {
       },
     ]
   }
+  if (props.app.name === 'formazione.nethesis.it') {
+    const link = data.link
+    const inProgress = data.courses_in_progress ?? 0
+    return [
+      {
+        label: t('third_party_apps.formazione_widget.courses_in_progress'),
+        value: inProgress,
+        tone: inProgress > 0 ? 'info' : 'neutral',
+        link,
+      },
+      {
+        label: t('third_party_apps.formazione_widget.courses_completed'),
+        value: data.courses_completed ?? 0,
+        tone: 'neutral',
+        link,
+      },
+      {
+        label: t('third_party_apps.formazione_widget.certificates'),
+        value: data.certificates ?? 0,
+        tone: (data.certificates ?? 0) > 0 ? 'success' : 'neutral',
+        link,
+      },
+      {
+        label: t('third_party_apps.formazione_widget.badges'),
+        value: data.badges ?? 0,
+        tone: 'neutral',
+        link,
+      },
+    ]
+  }
   if (props.app.name === 'my.nethspot.com') {
     const link = data.link
     const smsMax = data.sms?.max ?? 0

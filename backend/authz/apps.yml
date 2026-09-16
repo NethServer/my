@@ -47,3 +47,16 @@ apps:
       The widest of the four: Owner/Distributor/Reseller with Owner, Staff, Admin
       or Support. Customer organizations are excluded, which is the boundary that
       matters here.
+
+  - name: formazione.nethesis.it
+    idp_enforced: false
+    note: |
+      Owner/Distributor/Reseller organizations with any technical role: the
+      training catalogue is for people, not a privileged operation. Customer
+      organizations are the boundary that matters.
+
+      idp_enforced stays false because it describes Logto, and Logto enforces
+      nothing here either. Moodle does: its auth_nethesis_sso plugin reads
+      organization_roles off the token and refuses anything outside
+      distributor/reseller/owner before an account exists, so unlike the other
+      four this app does not rely on the portal alone.
