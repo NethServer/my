@@ -191,3 +191,30 @@ export const isRebrandingAdmin = () => hasOwnerLevelAuthority()
 // routes sit behind manage:rebranding, so offering the action would be offering
 // a button the API refuses.
 export const canManageRebrandingOrganizations = () => isRebrandingAdmin() && canManageRebranding()
+
+// Whether the organization detail page of the given company would open for the
+// current user. The three detail routes sit behind read:distributors /
+// read:resellers / read:customers, with one exemption:
+// RequireResourcePermissionOrSelf lets any user GET its own organization even
+// without that permission. Both halves are mirrored here so a link is only
+// offered where the API would answer — a customer organization holds no
+// read:customers at all, and a creator line naming an upper tier would
+// otherwise hand it a link to a page that can only render an error.
+export const canReadOrganizationDetail = (organizationType: string, logtoId: string) => {
+  const loginStore = useLoginStore()
+
+  if (logtoId && logtoId === loginStore.userInfo?.organization_id) {
+    return true
+  }
+
+  switch (organizationType.toLowerCase()) {
+    case 'distributor':
+      return canReadDistributors()
+    case 'reseller':
+      return canReadResellers()
+    case 'customer':
+      return canReadCustomers()
+    default:
+      return false
+  }
+}
