@@ -28,11 +28,15 @@ import (
 // stored snapshots. The whole page costs one indexed query on
 // unified_organizations, whatever the number of rows.
 //
-// Organizations the view does not carry get "owner", the same fallback the
-// organization joins use elsewhere: the owner organization is not one of the
-// three levels, and a soft-deleted organization is no longer linkable either
-// way. The enrichment is a nice-to-have: on a query error the field is left
-// empty rather than failing the read.
+// An organization the view does not carry gets no type at all: the field is
+// omitted rather than guessed. Three different cases land there, and none of
+// them is linkable: the owner organization, which is not one of the three
+// levels; a soft-deleted organization, which the view filters out; and the
+// window in which the asynchronous refresh has not caught up with a fresh
+// insert. Answering "owner" would be a link the client cannot follow in all
+// three, and a false attribution in the last two. The enrichment is a
+// nice-to-have: on a query error the field is left empty rather than failing
+// the read.
 func fillCreatorOrgTypes(db *sql.DB, creators ...models.CreatorOrgRef) {
 	if db == nil {
 		return
@@ -79,7 +83,7 @@ func fillCreatorOrgTypes(db *sql.DB, creators ...models.CreatorOrgRef) {
 		}
 		orgType, found := types[creator.CreatorOrgID()]
 		if !found {
-			orgType = "owner"
+			continue
 		}
 		creator.SetCreatorOrgType(orgType)
 	}
