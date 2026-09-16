@@ -2294,8 +2294,8 @@ components:
           example: "Nethesis Italia"
         organization_type:
           type: string
-          description: Current level of the creator's organization, resolved on every read (never stored), so a promoted organization is reported at its current level. Falls back to "owner" when the organization is not one of the three levels or no longer exists.
-          enum: [distributor, reseller, customer, owner]
+          description: Current level of the creator's organization, resolved on every read (never stored), so a promoted organization is reported at its current level. Omitted when the organization cannot be linked - the owner organization, which is not one of the three levels, or an organization that has been deleted.
+          enum: [distributor, reseller, customer]
           example: "distributor"
         on_behalf_of:
           type: boolean
@@ -2332,9 +2332,8 @@ components:
           example: "Owner"
         organization_type:
           type: string
-          description: Current level of the creator's organization, resolved on every read (never stored), so a promoted organization is reported at its current level. Falls back to "owner" when the organization is not one of the three levels or no longer exists.
-          enum: [distributor, reseller, customer, owner]
-          example: "owner"
+          description: Current level of the creator's organization, resolved on every read (never stored), so a promoted organization is reported at its current level. Omitted when the organization cannot be linked - the owner organization, which is not one of the three levels, or an organization that has been deleted. The example creator below belongs to the owner organization, so the field does not appear.
+          enum: [distributor, reseller, customer]
         on_behalf_of:
           type: boolean
           description: True when the organization was attributed to a different organization via created_by_organization_id (the user acted on behalf of organization_name rather than belonging to it). Omitted when false.
