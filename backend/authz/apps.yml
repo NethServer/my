@@ -39,7 +39,7 @@ apps:
 
   - name: my.nethspot.com
     idp_enforced: false
-    note: Owner/Reseller organizations with Owner, Staff or Admin.
+    note: Owner/Reseller organizations with Owner, Staff, Admin or Support.
 
   - name: helpdesk.nethesis.it
     idp_enforced: false

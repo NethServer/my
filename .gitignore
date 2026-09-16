@@ -35,6 +35,11 @@ backend/configs/*.yml
 !backend/configs/*.example.yml
 sync/configs/*.yml
 !sync/configs/*.example.yml
+# The CI tenant's vocabulary is tracked on purpose: every other config here
+# carries tenant ids and SMTP credentials and so stays out of the repo, but the
+# e2e workflow needs a config.yml on a fresh checkout to read the role
+# definitions from. It holds roles, permissions and resources and nothing else.
+!sync/configs/config.ci.yml
 collect/configs/*.yml
 !collect/configs/*.example.yml
 *.config
@@ -62,3 +67,11 @@ Thumbs.db
 
 # Claude Code local shim — points to AGENTS.md; each dev may keep their own
 CLAUDE.md
+
+# Playwright end-to-end suite: browsers, reports, traces and the per-persona
+# storageState files (which hold live Logto sessions).
+frontend/e2e/.auth/
+frontend/playwright-report/
+frontend/test-results/
+frontend/blob-report/
+frontend/.cache/ms-playwright/
