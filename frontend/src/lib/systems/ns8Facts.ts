@@ -1,7 +1,7 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import type { PciDevice, Distro, Memory, Product, Processors } from './inventory'
+import type { PciDevice, Distro, Memory, Mountpoint, Product, Processors } from './inventory'
 
 export type { PciDevice }
 
@@ -40,6 +40,38 @@ export interface Ns8ClusterFacts {
   ui_name: string
 }
 
+export interface Ns8NetworkAddress {
+  family: string
+  address: string
+  prefix: string
+}
+
+export interface Ns8NetworkInterface {
+  name: string
+  type: string
+  props: {
+    ipaddr: string
+    netmask: string
+    gateway: string
+  }
+  addresses: Ns8NetworkAddress[]
+}
+
+export interface Ns8NetworkFacts {
+  configuration: Record<string, Ns8NetworkInterface>
+  interface_counts: {
+    ethernet: number
+    bonds: number
+    bridges: number
+    vlans: number
+    tunnels: number
+  }
+  route_info: {
+    count_ipv4_route: number
+    count_ipv6_route: number
+  }
+}
+
 export interface Ns8NodeFacts {
   cluster_leader: boolean
   fqdn: string
@@ -56,9 +88,13 @@ export interface Ns8NodeFacts {
   product: Product
   virtual: string
   memory: Memory
+  mountpoints: Record<string, Mountpoint>
   pci: PciDevice[]
   ui_name: string
   update_available: boolean
+  creation_date: string
+  dns_servers: string[]
+  network: Ns8NetworkFacts
 }
 
 export interface Ns8ModuleFacts {
@@ -164,6 +200,40 @@ export interface Ns8ModuleFacts {
   mailbox_settings_quota_enabled?: boolean
   master_users_count?: number
   queue_settings_maximal_queue_lifetime?: string
+  // nethvoice
+  nethvoice_users_count?: number
+  nethvoice_cti_users_count?: number
+  nethvoice_cti_groups_count?: number
+  nethvoice_cti_profiles_count?: number
+  nethvoice_cti_2fa_enabled_count?: number
+  nethvoice_nethlink_active_count?: number
+  nethvoice_devices_count?: number
+  nethvoice_devices_by_type?: Record<string, number>
+  nethvoice_physical_devices_by_model?: Record<string, number>
+  nethvoice_physical_devices_by_vendor?: Record<string, number>
+  nethvoice_trunks_count?: number
+  nethvoice_trunks_by_tech?: Record<string, number>
+  nethvoice_trunks_by_provider?: Record<string, number>
+  nethvoice_queues_count?: number
+  nethvoice_cqr_count?: number
+  nethvoice_ivr_count?: number
+  nethvoice_ringgroups_count?: number
+  nethvoice_inbound_routes_count?: number
+  nethvoice_outbound_routes_count?: number
+  nethvoice_offhour_count?: number
+  nethvoice_announcements_count?: number
+  nethvoice_streaming_count?: number
+  nethvoice_paramurl_count?: number
+  nethvoice_customer_cards_count?: number
+  nethvoice_total_calls?: number
+  nethvoice_calls_last_24h?: number
+  nethvoice_hotel_enabled?: boolean
+  nethvoice_subscription_enabled?: boolean
+  nethvoice_ai_call_summary_enabled?: boolean
+  nethvoice_ai_call_transcription_enabled?: boolean
+  nethvoice_ai_voicemail_transcription_enabled?: boolean
+  nethvoice_user_domain_type?: string
+  nethvoice_user_domain_location?: string
 }
 
 export interface Ns8Facts {

@@ -25,20 +25,37 @@ export interface Distro {
   version: string
 }
 
+export interface MemoryUsage {
+  used_bytes: number
+  available_bytes: number
+  // Reported by the ns8 agent; derive it from used + available when missing
+  total_bytes?: number
+}
+
 export interface Memory {
-  swap: {
-    used_bytes: number
-    available_bytes: number
-  }
-  system: {
-    used_bytes: number
-    available_bytes: number
-  }
+  swap: MemoryUsage
+  system: MemoryUsage
+}
+
+export interface Bios {
+  vendor: string
+  version: string
 }
 
 export interface Product {
   name: string
   manufacturer: string
+  // Only the ns8 agent reports these; the nsec one stops at name and manufacturer
+  bios?: Bios
+  uuid?: string
+  board?: string
+  version?: string
+}
+
+export interface Mountpoint {
+  used_bytes: number
+  total_bytes: number
+  available_bytes: number
 }
 
 export interface Processors {

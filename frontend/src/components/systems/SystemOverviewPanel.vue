@@ -6,6 +6,7 @@
 <script setup lang="ts">
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import AddonsCard from './AddonsCard.vue'
+import ClusterNodesCard from './ClusterNodesCard.vue'
 import SystemApplicationsCard from './SystemApplicationsCard.vue'
 import SystemInfoCard from './SystemInfoCard.vue'
 import SystemNetworkCard from './SystemNetworkCard.vue'
@@ -24,6 +25,10 @@ const { state: systemDetail } = useSystemDetail()
     <AddonsCard v-if="systemDetail.data?.type === 'nsec'" />
     <SystemNetworkCard
       v-if="systemDetail.data?.type === 'nsec'"
+      class="3xl:col-span-4 md:col-span-2"
+    />
+    <ClusterNodesCard
+      v-if="systemDetail.data?.type === 'ns8'"
       class="3xl:col-span-4 md:col-span-2"
     />
   </div>
