@@ -14,6 +14,54 @@ import (
 	"time"
 )
 
+// CountsMode selects which inline counters an organization list query
+// computes, because they do not cost the same. The organization lists are also
+// read by integrations that only want the rows (the legacy-counts sync, the
+// CSV/PDF exports), and by the three portal tables that do show counters, so
+// the caller says which tier it is willing to pay for.
+//
+// Measured on production (642 resellers, 6439 certified applications), one
+// page of 100 resellers: no counters 2 ms, CountsBasic 140-255 ms,
+// CountsAll 4.7-18 s. The whole gap is applications_count on the reseller
+// list: its organization set is the reseller plus its customers, a correlated
+// subquery Postgres cannot turn into an index condition, so every row rescans
+// all the certified applications. Nothing in the portal renders that number -
+// the detail pages read it from /{id}/stats, where the set is a single
+// organization and the count is an index probe - so it is not in CountsBasic.
+type CountsMode string
+
+const (
+	// CountsNone omits every counter: the fields are pointers with omitempty,
+	// so they simply do not appear in the response.
+	CountsNone CountsMode = ""
+	// CountsBasic computes the counters the portal lists render: systems,
+	// customers, resellers and legacy systems. All indexed lookups.
+	CountsBasic CountsMode = "basic"
+	// CountsAll adds applications_count. No caller asks for it today; it exists
+	// so the field stays reachable instead of being dropped from the API, and
+	// it is documented as the slow option.
+	CountsAll CountsMode = "all"
+)
+
+// ParseCountsMode maps the include_counts query parameter to a mode. Anything
+// unrecognised - including the parameter being absent - means no counters.
+func ParseCountsMode(v string) CountsMode {
+	switch v {
+	case "true":
+		return CountsBasic
+	case "all":
+		return CountsAll
+	default:
+		return CountsNone
+	}
+}
+
+// WantsCounters reports whether any counter must be computed.
+func (m CountsMode) WantsCounters() bool { return m != CountsNone }
+
+// WantsApplications reports whether applications_count must be computed.
+func (m CountsMode) WantsApplications() bool { return m == CountsAll }
+
 // LocalDistributor represents a distributor stored in local database
 type LocalDistributor struct {
 	ID             string                 `json:"id" db:"id"`

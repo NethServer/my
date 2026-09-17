@@ -239,7 +239,7 @@ func (r *LocalDistributorRepository) Reactivate(id string) error {
 }
 
 // List returns paginated list of distributors visible to the user
-func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy []string) ([]*models.LocalDistributor, int, error) {
+func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy []string, counts models.CountsMode) ([]*models.LocalDistributor, int, error) {
 	// Only Owner can see distributors
 	if !models.IsGlobalOrgRole(userOrgRole) {
 		return []*models.LocalDistributor{}, 0, nil
@@ -393,8 +393,10 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 	// per-row correlated subqueries: a distributor's subtree spans almost the
 	// whole database, so the correlated form re-scanned systems/applications
 	// once per row. See populateDistributorCounts.
-	if err := r.populateDistributorCounts(distributors); err != nil {
-		return nil, 0, fmt.Errorf("failed to populate distributor counts: %w", err)
+	if counts.WantsCounters() {
+		if err := r.populateDistributorCounts(distributors, counts); err != nil {
+			return nil, 0, fmt.Errorf("failed to populate distributor counts: %w", err)
+		}
 	}
 
 	return distributors, totalCount, nil
@@ -410,16 +412,20 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 // we build the org->distributor map once (two indexed lookups over resellers
 // and customers) and fold per-organization counts into it, so systems and
 // applications are each scanned a single time.
-func (r *LocalDistributorRepository) populateDistributorCounts(distributors []*models.LocalDistributor) error {
+func (r *LocalDistributorRepository) populateDistributorCounts(distributors []*models.LocalDistributor, counts models.CountsMode) error {
 	// Initialise every distributor to zero so the API always returns the fields,
 	// and index the ones that have a logto_id (unsynced rows own nothing yet).
 	byLogto := make(map[string]*models.LocalDistributor, len(distributors))
 	distIDs := make([]string, 0, len(distributors))
 	for _, d := range distributors {
 		zero := 0
-		sc, rc, cc, ac, lc := zero, zero, zero, zero, zero
-		d.SystemsCount, d.ResellersCount, d.CustomersCount, d.ApplicationsCount = &sc, &rc, &cc, &ac
+		sc, rc, cc, lc := zero, zero, zero, zero
+		d.SystemsCount, d.ResellersCount, d.CustomersCount = &sc, &rc, &cc
 		d.LegacySystemsCount = &lc
+		if counts.WantsApplications() {
+			ac := 0
+			d.ApplicationsCount = &ac
+		}
 		if d.LogtoID != nil && *d.LogtoID != "" {
 			byLogto[*d.LogtoID] = d
 			distIDs = append(distIDs, *d.LogtoID)
@@ -491,18 +497,22 @@ func (r *LocalDistributorRepository) populateDistributorCounts(distributors []*m
 	); err != nil {
 		return fmt.Errorf("failed to fold system counts: %w", err)
 	}
-	if err := r.foldOrgCounts(
-		`SELECT a.organization_id, COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND a.is_user_facing = TRUE AND a.organization_id IS NOT NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL) GROUP BY a.organization_id`,
-		orgToDist, byLogto, func(d *models.LocalDistributor) *int { return d.ApplicationsCount },
-	); err != nil {
-		return fmt.Errorf("failed to fold application counts: %w", err)
-	}
-	// An unassigned application belongs to the organization of its system.
-	if err := r.foldOrgCounts(
-		`SELECT s.organization_id, COUNT(*) FROM applications a JOIN systems s ON s.id = a.system_id AND s.deleted_at IS NULL WHERE a.deleted_at IS NULL AND a.is_user_facing = TRUE AND (a.organization_id IS NULL OR a.organization_id = '') AND (a.inventory_data->>'certification_level')::int IN (4, 5) GROUP BY s.organization_id`,
-		orgToDist, byLogto, func(d *models.LocalDistributor) *int { return d.ApplicationsCount },
-	); err != nil {
-		return fmt.Errorf("failed to fold hosted application counts: %w", err)
+	// applications_count only on explicit request: two more scans of
+	// applications for a number no list renders. See models.CountsMode.
+	if counts.WantsApplications() {
+		if err := r.foldOrgCounts(
+			`SELECT a.organization_id, COUNT(*) FROM applications a WHERE a.deleted_at IS NULL AND a.is_user_facing = TRUE AND a.organization_id IS NOT NULL AND (a.inventory_data->>'certification_level')::int IN (4, 5) AND EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = a.system_id AND s2.deleted_at IS NULL) GROUP BY a.organization_id`,
+			orgToDist, byLogto, func(d *models.LocalDistributor) *int { return d.ApplicationsCount },
+		); err != nil {
+			return fmt.Errorf("failed to fold application counts: %w", err)
+		}
+		// An unassigned application belongs to the organization of its system.
+		if err := r.foldOrgCounts(
+			`SELECT s.organization_id, COUNT(*) FROM applications a JOIN systems s ON s.id = a.system_id AND s.deleted_at IS NULL WHERE a.deleted_at IS NULL AND a.is_user_facing = TRUE AND (a.organization_id IS NULL OR a.organization_id = '') AND (a.inventory_data->>'certification_level')::int IN (4, 5) GROUP BY s.organization_id`,
+			orgToDist, byLogto, func(d *models.LocalDistributor) *int { return d.ApplicationsCount },
+		); err != nil {
+			return fmt.Errorf("failed to fold hosted application counts: %w", err)
+		}
 	}
 	// Systems still on the old my, pushed per organization by the legacy sync.
 	// The table already holds one pre-aggregated row per organization, so the

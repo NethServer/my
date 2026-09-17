@@ -1306,26 +1306,46 @@ components:
             - $ref: '#/components/schemas/OrgPromotion'
 
     OrganizationWithStats:
-      description: Organization with inline count statistics, returned in list responses
+      description: |
+        Organization with inline count statistics, returned in list responses.
+
+        Every counter below is opt-in through the include_counts parameter and
+        is omitted from the object when it was not requested, so a list read
+        without include_counts returns the plain Organization fields only.
       allOf:
         - $ref: '#/components/schemas/Organization'
         - type: object
           properties:
             systems_count:
               type: integer
-              description: Number of systems in this organization
+              description: Number of systems in this organization. Requires include_counts=true.
               example: 32
             resellers_count:
               type: integer
-              description: Number of resellers created by this distributor (distributors only)
+              description: Number of resellers created by this distributor (distributors only). Requires include_counts=true.
               example: 25
             customers_count:
               type: integer
-              description: Number of customers in the hierarchy (distributors and resellers only)
+              description: Number of customers in the hierarchy (distributors and resellers only). Requires include_counts=true.
               example: 420
+            legacy_systems_count:
+              type: integer
+              description: |
+                Systems of this organization still on the old my, pushed per organization by
+                the legacy sync. Deliberately not included in systems_count: that one answers
+                "what does this portal manage". Distributors and resellers only, and requires
+                include_counts=true. Transitional field.
+              example: 12
             applications_count:
               type: integer
-              description: Number of certified, user-facing applications (certification_level 4 or 5) in the hierarchy. An unassigned application counts under the organization of the system hosting it.
+              description: |
+                Number of certified, user-facing applications (certification_level 4 or 5) in
+                the hierarchy. An unassigned application counts under the organization of the
+                system hosting it.
+
+                Requires include_counts=all, and on the reseller list that is the slow option -
+                see the parameter description. GET /{resource}/{id}/stats returns the same
+                number for a single organization without the cost.
               example: 15
 
     OrganizationInput:
@@ -4437,6 +4457,33 @@ components:
         type: boolean
         default: false
 
+    IncludeCountsParam:
+      name: include_counts
+      in: query
+      description: |
+        Which inline counters to compute for every row. They are not free, and
+        they are not all equally expensive, so the caller asks for the tier it
+        needs. Counters that are not requested are omitted from the response
+        objects entirely.
+
+        - omitted: no counters. What an integration that only wants the rows
+          should send - listing the organizations then costs a single indexed
+          page read.
+        - `true`: systems_count, customers_count, resellers_count and
+          legacy_systems_count. These are the counters the portal lists render,
+          and they are all indexed lookups.
+        - `all`: also applications_count. On the reseller list this is
+          expensive - the organization set of a reseller row is the reseller
+          plus its customers, a correlated subquery the planner cannot push
+          into the applications index, so every row rescans all the certified
+          applications. Expect seconds on a large tenant, and prefer
+          GET /resellers/{id}/stats when you need the number for one
+          organization.
+      required: false
+      schema:
+        type: string
+        enum: ['true', 'all']
+
     SystemStatusFilterParam:
       name: status
       in: query
@@ -7331,6 +7378,7 @@ paths:
         - $ref: '#/components/parameters/OrgCreatedByFilterParam'
         - $ref: '#/components/parameters/OwnedByOrganizationFilterParam'
         - $ref: '#/components/parameters/IncludeHierarchyParam'
+        - $ref: '#/components/parameters/IncludeCountsParam'
       responses:
         '200':
           description: Customers retrieved successfully
@@ -7927,6 +7975,7 @@ paths:
         - $ref: '#/components/parameters/OrgCreatedByFilterParam'
         - $ref: '#/components/parameters/OwnedByOrganizationFilterParam'
         - $ref: '#/components/parameters/IncludeHierarchyParam'
+        - $ref: '#/components/parameters/IncludeCountsParam'
       responses:
         '200':
           description: Distributors retrieved successfully
@@ -9345,6 +9394,7 @@ paths:
         - $ref: '#/components/parameters/OrgCreatedByFilterParam'
         - $ref: '#/components/parameters/OwnedByOrganizationFilterParam'
         - $ref: '#/components/parameters/IncludeHierarchyParam'
+        - $ref: '#/components/parameters/IncludeCountsParam'
       responses:
         '200':
           description: Resellers retrieved successfully

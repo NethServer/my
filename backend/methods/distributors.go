@@ -169,9 +169,14 @@ func GetDistributors(c *gin.Context) {
 	// Create service
 	service := local.NewOrganizationService()
 
+	// include_counts selects the inline counters: absent for none, "true" for
+	// the ones the portal lists render, "all" to also pay for
+	// applications_count. See models.CountsMode.
+	counts := models.ParseCountsMode(c.Query("include_counts"))
+
 	// Get distributors based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	distributors, totalCount, err := service.ListDistributors(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy)
+	distributors, totalCount, err := service.ListDistributors(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy, counts)
 	if err != nil {
 		logger.Error().
 			Err(err).

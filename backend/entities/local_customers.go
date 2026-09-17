@@ -228,26 +228,50 @@ func (r *LocalCustomerRepository) Reactivate(id string) error {
 	return nil
 }
 
+// customerCountColumns builds the trailing inline counter columns of the
+// customer list query for the requested mode, empty when no counter is wanted.
+// Keeping them in one place is what keeps the eight query variants (owner,
+// distributor, reseller and customer, with and without search) from drifting
+// apart.
+func customerCountColumns(counts models.CountsMode) string {
+	if !counts.WantsCounters() {
+		return ""
+	}
+
+	cols := `,
+			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count`
+
+	// applications_count only on explicit request. A customer is a single
+	// organization, so unlike the reseller list this stays an index probe -
+	// but nothing renders it, and the three lists answer the same parameter.
+	if counts.WantsApplications() {
+		cols += `,
+			       ` + certifiedApplicationsCount("c.logto_id") + ` as applications_count`
+	}
+
+	return cols
+}
+
 // List returns paginated list of customers visible to the user
-func (r *LocalCustomerRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalCustomer, int, error) {
 	offset := (page - 1) * pageSize
 
 	switch userOrgRole {
 	case "owner":
-		return r.listForOwner(page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy)
+		return r.listForOwner(page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
 	case "distributor":
-		return r.listForDistributor(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy)
+		return r.listForDistributor(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
 	case "reseller":
-		return r.listForReseller(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy)
+		return r.listForReseller(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
 	case "customer":
-		return r.listForCustomer(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy)
+		return r.listForCustomer(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
 	default:
 		return []*models.LocalCustomer{}, 0, nil
 	}
 }
 
 // listForOwner handles customer listing for owner role
-func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalCustomer, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
@@ -299,6 +323,8 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 	// Restrict to the requested owning organizations (see ownedByFilterClause).
 	statusClause += ownedByFilterClause(ownedBy)
 
+	countCols := customerCountColumns(counts)
+
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
@@ -309,9 +335,7 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 
 		query = fmt.Sprintf(`
 			SELECT c.id, c.logto_id, c.name, c.description,
-			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
-			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count,
-			       `+certifiedApplicationsCount("c.logto_id")+` as applications_count
+			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id`+countCols+`
 			FROM customers c
 			WHERE 1=1%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $1 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(c.custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $1 || '%%')))
 			%s
@@ -325,9 +349,7 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 
 		query = fmt.Sprintf(`
 			SELECT c.id, c.logto_id, c.name, c.description,
-			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
-			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count,
-			       `+certifiedApplicationsCount("c.logto_id")+` as applications_count
+			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id`+countCols+`
 			FROM customers c
 			WHERE 1=1%s%s
 			%s
@@ -336,11 +358,11 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 		queryArgs = []interface{}{pageSize, offset}
 	}
 
-	return r.executeCustomerQuery(countQuery, countArgs, query, queryArgs)
+	return r.executeCustomerQuery(counts, countQuery, countArgs, query, queryArgs)
 }
 
 // listForDistributor handles customer listing for distributor role
-func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalCustomer, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
@@ -392,6 +414,8 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 	// Restrict to the requested owning organizations (see ownedByFilterClause).
 	statusClause += ownedByFilterClause(ownedBy)
 
+	countCols := customerCountColumns(counts)
+
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
@@ -410,9 +434,7 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 
 		query = fmt.Sprintf(`
 			SELECT c.id, c.logto_id, c.name, c.description,
-			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
-			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count,
-			       `+certifiedApplicationsCount("c.logto_id")+` as applications_count
+			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id`+countCols+`
 			FROM customers c
 			WHERE (
 				c.custom_data->>'createdBy' = $1 OR
@@ -440,9 +462,7 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 
 		query = fmt.Sprintf(`
 			SELECT c.id, c.logto_id, c.name, c.description,
-			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
-			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count,
-			       `+certifiedApplicationsCount("c.logto_id")+` as applications_count
+			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id`+countCols+`
 			FROM customers c
 			WHERE (
 				c.custom_data->>'createdBy' = $1 OR
@@ -457,11 +477,11 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 		queryArgs = []interface{}{userOrgID, pageSize, offset}
 	}
 
-	return r.executeCustomerQuery(countQuery, countArgs, query, queryArgs)
+	return r.executeCustomerQuery(counts, countQuery, countArgs, query, queryArgs)
 }
 
 // listForReseller handles customer listing for reseller role
-func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalCustomer, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
@@ -513,6 +533,8 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 	// Restrict to the requested owning organizations (see ownedByFilterClause).
 	statusClause += ownedByFilterClause(ownedBy)
 
+	countCols := customerCountColumns(counts)
+
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
@@ -523,9 +545,7 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 
 		query = fmt.Sprintf(`
 			SELECT c.id, c.logto_id, c.name, c.description,
-			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
-			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count,
-			       `+certifiedApplicationsCount("c.logto_id")+` as applications_count
+			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id`+countCols+`
 			FROM customers c
 			WHERE c.custom_data->>'createdBy' = $1%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(c.custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $2 || '%%')))
 			%s
@@ -539,9 +559,7 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 
 		query = fmt.Sprintf(`
 			SELECT c.id, c.logto_id, c.name, c.description,
-			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
-			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count,
-			       `+certifiedApplicationsCount("c.logto_id")+` as applications_count
+			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id`+countCols+`
 			FROM customers c
 			WHERE c.custom_data->>'createdBy' = $1%s%s
 			%s
@@ -550,11 +568,11 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 		queryArgs = []interface{}{userOrgID, pageSize, offset}
 	}
 
-	return r.executeCustomerQuery(countQuery, countArgs, query, queryArgs)
+	return r.executeCustomerQuery(counts, countQuery, countArgs, query, queryArgs)
 }
 
 // listForCustomer handles customer listing for customer role
-func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalCustomer, int, error) {
 	if userOrgID == "" {
 		return []*models.LocalCustomer{}, 0, nil
 	}
@@ -610,6 +628,8 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 	// Restrict to the requested owning organizations (see ownedByFilterClause).
 	statusClause += ownedByFilterClause(ownedBy)
 
+	countCols := customerCountColumns(counts)
+
 	var countQuery, query string
 	var countArgs, queryArgs []interface{}
 
@@ -620,9 +640,7 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 
 		query = fmt.Sprintf(`
 			SELECT c.id, c.logto_id, c.name, c.description,
-			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
-			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count,
-			       `+certifiedApplicationsCount("c.logto_id")+` as applications_count
+			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id`+countCols+`
 			FROM customers c
 			WHERE c.id = $1%s%s AND (LOWER(c.name) LIKE LOWER('%%' || $2 || '%%') OR LOWER(c.description) LIKE LOWER('%%' || $2 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(c.custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $2 || '%%')))
 			%s
@@ -636,9 +654,7 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 
 		query = fmt.Sprintf(`
 			SELECT c.id, c.logto_id, c.name, c.description,
-			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id,
-			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count,
-			       `+certifiedApplicationsCount("c.logto_id")+` as applications_count
+			       c.custom_data, c.created_at, c.updated_at, c.logto_synced_at, c.logto_sync_error, c.deleted_at, c.suspended_at, c.suspended_by_org_id`+countCols+`
 			FROM customers c
 			WHERE c.id = $1%s%s
 			%s
@@ -647,11 +663,11 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 		queryArgs = []interface{}{userOrgID, pageSize, offset}
 	}
 
-	return r.executeCustomerQuery(countQuery, countArgs, query, queryArgs)
+	return r.executeCustomerQuery(counts, countQuery, countArgs, query, queryArgs)
 }
 
 // executeCustomerQuery executes the count and query operations
-func (r *LocalCustomerRepository) executeCustomerQuery(countQuery string, countArgs []interface{}, query string, queryArgs []interface{}) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) executeCustomerQuery(counts models.CountsMode, countQuery string, countArgs []interface{}, query string, queryArgs []interface{}) ([]*models.LocalCustomer, int, error) {
 	// Get total count
 	var totalCount int
 	if len(countArgs) > 0 {
@@ -679,13 +695,22 @@ func (r *LocalCustomerRepository) executeCustomerQuery(countQuery string, countA
 		var customDataJSON []byte
 		var systemsCount, applicationsCount int
 
-		err := rows.Scan(
+		// The counter columns are only in the SELECT when they were asked for,
+		// so the scan targets have to follow customerCountColumns.
+		dest := []interface{}{
 			&customer.ID, &customer.LogtoID, &customer.Name, &customer.Description,
 			&customDataJSON, &customer.CreatedAt, &customer.UpdatedAt,
 			&customer.LogtoSyncedAt, &customer.LogtoSyncError, &customer.DeletedAt,
 			&customer.SuspendedAt, &customer.SuspendedByOrgID,
-			&systemsCount, &applicationsCount,
-		)
+		}
+		if counts.WantsCounters() {
+			dest = append(dest, &systemsCount)
+			if counts.WantsApplications() {
+				dest = append(dest, &applicationsCount)
+			}
+		}
+
+		err := rows.Scan(dest...)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan customer: %w", err)
 		}
@@ -700,8 +725,12 @@ func (r *LocalCustomerRepository) executeCustomerQuery(countQuery string, countA
 		}
 
 		customer.CreatedBy = models.ExtractOrgCreator(customer.CustomData)
-		customer.SystemsCount = &systemsCount
-		customer.ApplicationsCount = &applicationsCount
+		if counts.WantsCounters() {
+			customer.SystemsCount = &systemsCount
+			if counts.WantsApplications() {
+				customer.ApplicationsCount = &applicationsCount
+			}
+		}
 
 		customers = append(customers, customer)
 	}

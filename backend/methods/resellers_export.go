@@ -19,6 +19,7 @@ import (
 
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
+	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services/export"
 	"github.com/nethesis/my/backend/services/local"
@@ -68,7 +69,7 @@ func ExportResellers(c *gin.Context) {
 
 	// Get resellers based on RBAC without pagination limit (but with max export limit)
 	userOrgRole := strings.ToLower(user.OrgRole)
-	resellers, totalCount, err := service.ListResellers(userOrgRole, user.OrganizationID, 1, MaxResellersExportLimit, search, sortBy, sortDirection, statuses, c.QueryArray("created_by"), ownedBy)
+	resellers, totalCount, err := service.ListResellers(userOrgRole, user.OrganizationID, 1, MaxResellersExportLimit, search, sortBy, sortDirection, statuses, c.QueryArray("created_by"), ownedBy, models.CountsNone)
 	if err != nil {
 		logger.Error().
 			Err(err).

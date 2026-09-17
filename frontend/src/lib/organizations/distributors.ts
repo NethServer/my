@@ -129,6 +129,12 @@ export const getQueryStringParams = (
     page_size: pageSize.toString(),
     sort_by: sortBy || '',
     sort_direction: sortDescending ? 'desc' : 'asc',
+    // The table renders the per-row counters, so it asks for them. They are
+    // opt-in because they cost a query each: everything that only needs the
+    // rows (the exports, the legacy-counts sync) leaves this out. 'all' would
+    // add applications_count, which no column shows and which is slow on the
+    // reseller list.
+    include_counts: 'true',
   })
 
   if (textFilter?.trim()) {

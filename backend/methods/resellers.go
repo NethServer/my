@@ -218,9 +218,14 @@ func GetResellers(c *gin.Context) {
 		ownedBy = expanded
 	}
 
+	// include_counts selects the inline counters: absent for none, "true" for
+	// the ones the portal lists render, "all" to also pay for
+	// applications_count. See models.CountsMode.
+	counts := models.ParseCountsMode(c.Query("include_counts"))
+
 	// Get resellers based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	resellers, totalCount, err := service.ListResellers(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy, ownedBy)
+	resellers, totalCount, err := service.ListResellers(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
 	if err != nil {
 		logger.Error().
 			Err(err).

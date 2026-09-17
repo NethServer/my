@@ -128,10 +128,16 @@ describe('resellers getQueryStringParamsForExport', () => {
     )
 
     for (const key of new Set(list.keys())) {
-      if (key === 'page' || key === 'page_size') {
+      // page/page_size do not apply to an export, and include_counts is not a
+      // filter: it is what the table pays to render its counter columns, and
+      // the export renders none of them.
+      if (key === 'page' || key === 'page_size' || key === 'include_counts') {
         continue
       }
       expect(exported.getAll(key), `export is missing ${key}`).toEqual(list.getAll(key))
     }
+
+    expect(list.get('include_counts')).toBe('true')
+    expect(exported.has('include_counts'), 'the export must not pay for counters').toBe(false)
   })
 })
