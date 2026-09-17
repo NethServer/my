@@ -1,7 +1,8 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { MockInstance } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h, ref } from 'vue'
 import { createPinia } from 'pinia'
@@ -107,9 +108,20 @@ const assetTooLargeFailure = {
   response: { status: 413, data: { data: { field: 'logo_light_rect', max_size: 2097152 } } },
 }
 
+// The save error path logs the rejection before mapping it to a field message,
+// and the tests below drive exactly that path. Silencing the log keeps the run
+// readable and leaves a genuinely unexpected console.error visible; where the
+// logging is itself part of the behaviour, the spy is asserted instead.
+let consoleError: MockInstance
+
 beforeEach(() => {
   putRebrandingProduct.mockReset()
   state.value = { status: 'pending', data: undefined, error: null }
+  consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+})
+
+afterEach(() => {
+  consoleError.mockRestore()
 })
 
 describe('seeding the draft', () => {
@@ -179,6 +191,10 @@ describe('reporting a rejected save', () => {
     await flushPromises()
 
     expect(brandNameInvalidMessage.value).toBe(en.rebranding.product_name_max)
+    expect(consoleError).toHaveBeenCalledWith(
+      'Error saving rebranding configuration:',
+      nameTooLongFailure,
+    )
   })
 
   it('keeps the draft and the message when the failed save is invalidated', async () => {
