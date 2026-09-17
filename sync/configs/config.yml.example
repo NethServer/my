@@ -313,6 +313,7 @@ third_party_apps:
       post_logout_redirect_uris:
         - "https://support.company.com"
       access_control:
+        idp_enforced: true
         organization_roles:  # Multiple organization roles can access
           - "owner"
           - "distributor"
@@ -329,6 +330,7 @@ third_party_apps:
       post_logout_redirect_uris:
         - "https://portal.company.com"
       access_control:
+        idp_enforced: true
         organization_roles:  # All organization roles can access
           - "reseller"
         user_roles:          # All user roles can access
@@ -342,6 +344,7 @@ third_party_apps:
       redirect_uris:
         - "https://api.example.com/auth/callback"
       access_control:
+        idp_enforced: true
         organization_roles:
           - "distributor"
         user_roles:
