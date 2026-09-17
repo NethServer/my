@@ -211,6 +211,15 @@ type rbacAccessControl struct {
 	OrganizationIDs   []string `yaml:"organization_ids"`
 	OrganizationRoles []string `yaml:"organization_roles"`
 	UserRoles         []string `yaml:"user_roles"`
+	// IDPEnforced mirrors config.yml: when true the backend pushes the
+	// organization dimension of this access control into Logto app-level
+	// access control, and the IdP probe expects Logto to refuse the
+	// organizations outside it.
+	IDPEnforced *bool `yaml:"idp_enforced"`
+}
+
+func (ac rbacAccessControl) idpEnforced() bool {
+	return ac.IDPEnforced != nil && *ac.IDPEnforced
 }
 
 type rbacThirdPartyApp struct {

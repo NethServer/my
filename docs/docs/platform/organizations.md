@@ -100,7 +100,7 @@ The portals a partner sees on its [Dashboard](../features/dashboard.md#third-par
 Only members of the Owner organization see and edit the field, both when creating and when editing a distributor. The distributor detail card lists the enabled portals.
 
 :::note
-Hiding a portal on the Dashboard removes the shortcut, not the portal's own login page. Which portals also refuse the sign-in of a user outside an enabled hierarchy is decided on the identity provider, per application.
+Hiding a portal on the Dashboard removes the shortcut, not the portal's own login page. For the portals Nethesis flags as enforced on the identity provider, the sign-in itself is refused to users of a reseller or customer whose distributor does not grant the portal; the identity provider enforces the organization, while the role filter stays on the Dashboard and in the portals that check it themselves.
 :::
 
 ### Creating a Reseller

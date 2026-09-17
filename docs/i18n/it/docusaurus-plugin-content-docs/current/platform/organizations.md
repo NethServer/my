@@ -77,6 +77,7 @@ Clienti
    - **Nome azienda**: ragione sociale del distributore (es. "ACME Distribution Ltd")
    - **Descrizione** (facoltativa): informazioni aggiuntive
    - **Partita IVA**: identificazione IVA univoca per l'azienda
+   - **Portali**: i portali di terze parti (NethShop, Helpdesk, NethSpot, ...) che i rivenditori e i clienti del distributore possono usare, vedi sotto
 4. Clicca su **Crea distributore**
 
 **Esempio:**
@@ -84,7 +85,23 @@ Clienti
 Nome: ACME Distribution Europe
 Descrizione: Distributore principale per il mercato europeo
 Partita IVA: 12345678901
+Portali: NethShop, NethSpot
 ```
+
+#### Portali
+
+I portali che un partner vede nella sua [Dashboard](../features/dashboard.md#applicazioni-di-terze-parti) sono una questione commerciale: il contratto di un distributore stabilisce quali ne fanno parte per i suoi rivenditori e clienti. L'organizzazione Owner registra questa scelta sul distributore, e le organizzazioni sotto di lui la ereditano:
+
+- Gli utenti dei rivenditori del distributore e dei loro clienti vedono solo i portali selezionati sul distributore. Rivenditori e clienti non hanno un'impostazione dei portali propria.
+- Gli utenti del distributore non sono vincolati dalla lista: vedono tutti i portali ammessi dai loro ruoli, come l'organizzazione Owner.
+- Un distributore senza portali selezionati nasconde ogni portale ai suoi rivenditori e clienti. Di default non è concesso nulla: un distributore appena creato parte senza portali per la sua gerarchia finché l'organizzazione Owner non ne seleziona qualcuno.
+- Il filtro per ruolo dichiarato da ogni portale resta valido in aggiunta: un portale riservato agli utenti Admin e Support resta nascosto a un Reader anche se il distributore lo ha.
+
+Solo i membri dell'organizzazione Owner vedono e modificano il campo, sia alla creazione sia alla modifica di un distributore. La scheda di dettaglio del distributore elenca i portali abilitati.
+
+:::note
+Nascondere un portale nella Dashboard rimuove la scorciatoia, non la pagina di accesso del portale. Per i portali che Nethesis contrassegna come protetti sull'identity provider, anche l'accesso viene rifiutato agli utenti di un rivenditore o cliente il cui distributore non concede il portale; l'identity provider applica la regola sull'organizzazione, mentre il filtro per ruolo resta nella Dashboard e nei portali che lo verificano da soli.
+:::
 
 ### Creare un Rivenditore
 

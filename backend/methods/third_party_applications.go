@@ -261,3 +261,39 @@ func GetThirdPartyApplicationsCatalog(c *gin.Context) {
 
 	c.JSON(http.StatusOK, response.Success(http.StatusOK, "third-party applications catalogue retrieved successfully", items))
 }
+
+// ReconcileThirdPartyApplicationsAccess handles POST /api/third-party-applications/reconcile-access
+// Aligns Logto app-level access control with the distributor portal lists for
+// every application the sync config flags idp_enforced, and reports what was
+// (or, with ?dry_run=true, would be) changed. Owner organization only. The
+// same reconcile runs on its own after organization changes and periodically;
+// this endpoint is for the rollout and for checking the state on demand.
+func ReconcileThirdPartyApplicationsAccess(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	if !models.IsGlobalOrgRole(user.OrgRole) {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied: only the owner organization can reconcile the portal access rules", nil))
+		return
+	}
+
+	dryRun := c.Query("dry_run") == "true"
+	reports, err := local.NewThirdPartyAppsService().ReconcileIdPAccess(dryRun)
+	if err != nil {
+		logger.NewHTTPErrorLogger(c, "third-party-applications").LogError(err, "reconcile_access", http.StatusInternalServerError, "Failed to reconcile Logto app-level access control")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to reconcile the portal access rules", err.Error()))
+		return
+	}
+
+	logger.LogBusinessOperationDetails(c, "third-party-applications", "reconcile_access", "third-party-applications", "", true, nil, map[string]interface{}{
+		"dry_run":      dryRun,
+		"applications": len(reports),
+	})
+
+	c.JSON(http.StatusOK, response.Success(http.StatusOK, "portal access rules reconciled", gin.H{
+		"dry_run":      dryRun,
+		"applications": reports,
+	}))
+}

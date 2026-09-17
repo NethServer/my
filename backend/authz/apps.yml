@@ -9,58 +9,64 @@
 # by it). The result is compared with what my actually offers each persona.
 # Nothing here is derived from the backend's filtering code.
 #
-# The IdP half is a different question. Logto does not read our access_control,
-# so a persona the portal hides can still complete SSO by going straight to the
-# app's login URL, which is a public and predictable address. Whether that
-# matters depends on what the application itself checks on the token.
+# The IdP half is a different question. Logto only knows the rule the backend
+# pushes for the apps config.yml flags access_control.idp_enforced: the
+# ORGANIZATION dimension (owner, admitted distributors, resellers and customers
+# whose distributor grants the portal). Logto combines its rules with OR, so the
+# user-role dimension cannot be ANDed in and stays a portal-side filter — a
+# Reader in an admitted organization is refused the tile, not the sign-in. For
+# an app without the flag, Logto enforces nothing: a persona the portal hides
+# can still complete SSO by going straight to the app's login URL, and only the
+# application's own checks stand in the way.
 #
 # idp_probe drives a real authorization-code flow per persona per app. That is a
 # full interactive login each time, so it is off by default; turn it on when
-# changing anything about third-party apps:
+# changing anything about third-party apps or their idp_enforced flag:
 #     ./apitool authz run --layer=apps --idp-probe
+# For an idp_enforced app the probe expects Logto to issue a code exactly to
+# the organizations of the rule; for the others it records the gap as accepted.
 
 idp_probe: false
 
 apps:
   - name: nethshop.nethesis.it
-    idp_enforced: false
     note: |
       access_control admits Owner/Distributor/Reseller organizations with
-      Owner, Staff, Admin or Backoffice. Logto is not configured to enforce that,
-      so a hidden persona still gets an authorization code and only NethShop's own
-      checks stand in the way. Recorded as an accepted gap rather than a failure —
-      flip idp_enforced to true the day Logto is made to enforce it, and the suite
-      will then require refusals.
+      Owner, Staff, Admin or Backoffice. Resellers also need their distributor
+      to grant the portal.
 
   - name: stock.nethesis.it
-    idp_enforced: false
     note: |
       The only app that also pins organization_ids, to the Owner organization.
       Note that the id in config.yml (guwy6opsll17) is the one from the
       environment the config was written for, so on any other tenant — including
       a local one — the app is expected to be visible to nobody at all. That is
-      the fail-closed behaviour and it is what the suite asserts.
+      the fail-closed behaviour and it is what the suite asserts. With
+      idp_enforced the rule pushed to Logto is exactly that organization id.
 
   - name: my.nethspot.com
-    idp_enforced: false
-    note: Owner/Reseller organizations with Owner, Staff or Admin.
+    note: Owner/Reseller organizations with Owner, Staff, Admin or Support.
 
   - name: helpdesk.nethesis.it
-    idp_enforced: false
     note: |
       The widest of the four: Owner/Distributor/Reseller with Owner, Staff, Admin
       or Support. Customer organizations are excluded, which is the boundary that
-      matters here.
+      matters here. The fixture leaves it out of d1's portal list, so d1r1's
+      personas must not see it while d1's own do.
 
   - name: formazione.nethesis.it
-    idp_enforced: false
     note: |
       Owner/Distributor/Reseller organizations with any technical role: the
       training catalogue is for people, not a privileged operation. Customer
       organizations are the boundary that matters.
 
-      idp_enforced stays false because it describes Logto, and Logto enforces
-      nothing here either. Moodle does: its auth_nethesis_sso plugin reads
+      Moodle also checks on its side: its auth_nethesis_sso plugin reads
       organization_roles off the token and refuses anything outside
       distributor/reseller/owner before an account exists, so unlike the other
       four this app does not rely on the portal alone.
+
+  - name: partner.nethesis.it
+    note: |
+      Owner/Distributor/Reseller organizations with every technical role but
+      Reader. The forum enforces nothing on the token: without idp_enforced the
+      portal filter is the only gate.

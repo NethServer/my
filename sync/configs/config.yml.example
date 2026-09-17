@@ -290,6 +290,15 @@ third_party_apps:
           - "owner"
         user_roles:          # Only specific user roles can access
           - "support"
+        # idp_enforced: the backend mirrors the ORGANIZATION dimension above
+        # (organization_ids, or organization_roles combined with each
+        # distributor's portal list) into Logto app-level access control, so a
+        # user outside those organizations is refused at sign-in, not just
+        # hidden the tile. true = enforce; false = make sure Logto enforces
+        # nothing; omitted = Logto is left alone. User roles stay a portal
+        # filter: Logto combines its rules with OR and cannot express
+        # "organization AND role".
+        idp_enforced: true
 
     # Example: Support portal - accessible by multiple roles
     - name: "support.company.com"

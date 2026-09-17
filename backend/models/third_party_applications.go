@@ -36,6 +36,11 @@ type AccessControl struct {
 	UserRoles         []string `json:"user_roles,omitempty"`
 	UserRoleIDs       []string `json:"user_role_ids,omitempty"`
 	OrganizationIDs   []string `json:"organization_ids,omitempty"`
+	// IDPEnforced is the sync config's idp_enforced flag: true asks the
+	// backend to mirror the organization dimension of this access control
+	// into Logto app-level access control, false asks it to keep Logto
+	// disabled for this application, nil leaves Logto alone.
+	IDPEnforced *bool `json:"idp_enforced,omitempty"`
 }
 
 // LogtoThirdPartyApp represents the raw application data from Logto API
@@ -47,6 +52,9 @@ type LogtoThirdPartyApp struct {
 	IsThirdParty       bool                   `json:"isThirdParty"`
 	CustomData         map[string]interface{} `json:"customData,omitempty"`
 	OidcClientMetadata *OidcClientMetadata    `json:"oidcClientMetadata,omitempty"`
+	// AppLevelAccessControlEnabled reports whether Logto evaluates the
+	// application's access-control rules at sign-in.
+	AppLevelAccessControlEnabled bool `json:"appLevelAccessControlEnabled"`
 }
 
 // OidcClientMetadata represents OIDC client metadata from Logto
@@ -183,6 +191,12 @@ func (l *LogtoThirdPartyApp) ExtractAccessControlFromCustomData() *AccessControl
 					accessControl.OrganizationIDs = append(accessControl.OrganizationIDs, orgIDStr)
 				}
 			}
+		}
+	}
+
+	if enforced, exists := accessControlMap["idp_enforced"]; exists {
+		if enforcedBool, ok := enforced.(bool); ok {
+			accessControl.IDPEnforced = &enforcedBool
 		}
 	}
 

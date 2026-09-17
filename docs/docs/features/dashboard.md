@@ -44,6 +44,8 @@ Which tiles you see depends on two things:
 
 Distributors and the Owner organization are never restricted by a distributor's list: their users see every portal their roles admit.
 
+For the portals Nethesis flags as enforced on the identity provider, the same organization rule also applies at sign-in: a user of a reseller or customer outside an enabled hierarchy is refused by the identity provider even with the portal's login page at hand. The role filter is not enforced there and remains a Dashboard rule.
+
 An application that is not enabled for your organization is shown with the button disabled.
 
 Some applications also publish a small summary widget read live from the application itself -- the NethShop account summary, for instance. The widget is hidden for the Owner organization, because the shop account data is meaningful to the partners that transact, not to platform administrators.

@@ -210,7 +210,14 @@ Key sections:
 - `resources` - API resources and actions
 - `third_party_apps` - External application access control, plus the consent
   page icons in `configs/apps/` (optional, see
-  [`configs/apps/README.md`](configs/apps/README.md))
+  [`configs/apps/README.md`](configs/apps/README.md)). `access_control` is the
+  role filter the portal applies; `access_control.idp_enforced: true` also asks
+  the backend to mirror its organization dimension into Logto app-level access
+  control, so the application refuses at sign-in any organization the portal
+  would not offer it to (`false` keeps Logto disabled, omitted leaves Logto
+  alone). The backend applies it after organization changes, periodically and
+  on `POST /third-party-applications/reconcile-access`. Enable it one
+  application at a time, checking the dry run first.
 - `sign_in_experience` - Branding, colors, sign-in methods (optional)
 - `connectors` - SMTP email connector for password reset (optional)
 

@@ -231,6 +231,7 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 		Msg("Distributor created successfully with Logto sync")
 
 	refreshUnifiedOrganizationsAsync()
+	RequestIdPAccessReconcile()
 
 	distributor.CreatedBy = creator
 	delete(distributor.CustomData, "createdByUser")
@@ -398,6 +399,7 @@ func (s *LocalOrganizationService) CreateReseller(req *models.CreateLocalReselle
 		Msg("Reseller created successfully with Logto sync")
 
 	refreshUnifiedOrganizationsAsync()
+	RequestIdPAccessReconcile()
 
 	reseller.CreatedBy = creator
 	delete(reseller.CustomData, "createdByUser")
@@ -567,6 +569,7 @@ func (s *LocalOrganizationService) CreateCustomer(req *models.CreateLocalCustome
 		Msg("Customer created successfully with Logto sync")
 
 	refreshUnifiedOrganizationsAsync()
+	RequestIdPAccessReconcile()
 
 	customer.CreatedBy = creator
 	delete(customer.CustomData, "createdByUser")
@@ -1087,6 +1090,7 @@ func (s *LocalOrganizationService) UpdateDistributor(id string, req *models.Upda
 	}
 
 	refreshUnifiedOrganizationsAsync()
+	RequestIdPAccessReconcile()
 	return distributor, nil
 }
 
@@ -1309,6 +1313,7 @@ func (s *LocalOrganizationService) UpdateReseller(id string, req *models.UpdateL
 	}
 
 	refreshUnifiedOrganizationsAsync()
+	RequestIdPAccessReconcile()
 	return reseller, nil
 }
 
@@ -1531,6 +1536,7 @@ func (s *LocalOrganizationService) UpdateCustomer(id string, req *models.UpdateL
 	}
 
 	refreshUnifiedOrganizationsAsync()
+	RequestIdPAccessReconcile()
 	return customer, nil
 }
 
@@ -1632,6 +1638,7 @@ func (s *LocalOrganizationService) DeleteDistributor(id, deletedByUserID, delete
 		Msg("Distributor soft-deleted successfully")
 
 	refreshUnifiedOrganizationsAsync()
+	RequestIdPAccessReconcile()
 	return deletedSystemsCount, deletedUsersCount, nil
 }
 
@@ -1693,6 +1700,7 @@ func (s *LocalOrganizationService) DeleteReseller(id, deletedByUserID, deletedBy
 		Msg("Reseller soft-deleted successfully")
 
 	refreshUnifiedOrganizationsAsync()
+	RequestIdPAccessReconcile()
 	return deletedSystemsCount, deletedUsersCount, nil
 }
 
@@ -1745,6 +1753,7 @@ func (s *LocalOrganizationService) DeleteCustomer(id, deletedByUserID, deletedBy
 		Msg("Customer soft-deleted successfully")
 
 	refreshUnifiedOrganizationsAsync()
+	RequestIdPAccessReconcile()
 	return deletedSystemsCount, deletedUsersCount, nil
 }
 
@@ -1801,6 +1810,7 @@ func (s *LocalOrganizationService) RestoreDistributor(id, restoredByUserID, rest
 		Msg("Distributor restored successfully")
 
 	refreshUnifiedOrganizationsAsync()
+	RequestIdPAccessReconcile()
 	return restoredSystemsCount, restoredUsersCount, nil
 }
 
@@ -1853,6 +1863,7 @@ func (s *LocalOrganizationService) RestoreReseller(id, restoredByUserID, restore
 		Msg("Reseller restored successfully")
 
 	refreshUnifiedOrganizationsAsync()
+	RequestIdPAccessReconcile()
 	return restoredSystemsCount, restoredUsersCount, nil
 }
 
@@ -1905,6 +1916,7 @@ func (s *LocalOrganizationService) RestoreCustomer(id, restoredByUserID, restore
 		Msg("Customer restored successfully")
 
 	refreshUnifiedOrganizationsAsync()
+	RequestIdPAccessReconcile()
 	return restoredSystemsCount, restoredUsersCount, nil
 }
 
@@ -1997,6 +2009,7 @@ func (s *LocalOrganizationService) DestroyDistributor(id, destroyedByUserID, des
 		Msg("Distributor permanently destroyed with entire hierarchy")
 
 	refreshUnifiedOrganizationsAsync()
+	RequestIdPAccessReconcile()
 	return nil
 }
 
@@ -2068,6 +2081,7 @@ func (s *LocalOrganizationService) DestroyReseller(id, destroyedByUserID, destro
 		Msg("Reseller permanently destroyed with child hierarchy")
 
 	refreshUnifiedOrganizationsAsync()
+	RequestIdPAccessReconcile()
 	return nil
 }
 
@@ -2117,6 +2131,7 @@ func (s *LocalOrganizationService) DestroyCustomer(id, destroyedByUserID, destro
 		Msg("Customer permanently destroyed")
 
 	refreshUnifiedOrganizationsAsync()
+	RequestIdPAccessReconcile()
 	return nil
 }
 
@@ -2936,6 +2951,7 @@ func (s *LocalOrganizationService) PromoteResellerToDistributor(resellerLogtoID 
 		Msg("Reseller promoted to distributor")
 
 	refreshUnifiedOrganizationsAsync()
+	RequestIdPAccessReconcile()
 	return summary, nil
 }
 

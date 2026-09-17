@@ -140,6 +140,14 @@ type AccessControl struct {
 	OrganizationIDs   []string `yaml:"organization_ids,omitempty" json:"organization_ids,omitempty"`     // Organization IDs that can access the app
 	OrganizationRoles []string `yaml:"organization_roles,omitempty" json:"organization_roles,omitempty"` // Organization roles that can access the app
 	UserRoles         []string `yaml:"user_roles,omitempty" json:"user_roles,omitempty"`                 // User roles that can access the app
+	// IDPEnforced asks the backend to mirror the organization dimension of this
+	// access control into Logto app-level access control: the application then
+	// refuses the sign-in of any organization the portal would not offer it to
+	// (owner, admitted distributors, resellers/customers whose distributor
+	// grants the portal). true = enforce, false = make sure Logto enforces
+	// nothing, omitted = leave Logto alone. User roles cannot be enforced this
+	// way (Logto combines its rules with OR) and stay a portal-side filter.
+	IDPEnforced *bool `yaml:"idp_enforced,omitempty" json:"idp_enforced,omitempty"`
 }
 
 // Validate validates the configuration

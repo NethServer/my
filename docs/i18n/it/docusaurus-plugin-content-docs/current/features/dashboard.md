@@ -37,6 +37,15 @@ Le card seguono i **permessi**, non solo la posizione in gerarchia. Un utente Su
 
 Sotto i contatori, la dashboard elenca le applicazioni di terze parti registrate sulla piattaforma. Ogni riquadro mostra il nome dell'applicazione, la sua descrizione e un pulsante che la apre con la tua identità My già autenticata.
 
+Quali riquadri vedi dipende da due cose:
+
+- **I portali del tuo distributore.** L'organizzazione Owner decide, distributore per distributore, quali portali possono usare i suoi rivenditori e clienti (vedi [Creare un Distributore](../platform/organizations.md#portali)). Gli utenti di un rivenditore o di un cliente vedono solo quelli; un rivenditore il cui distributore non ha portali abilitati non vede alcun riquadro.
+- **I tuoi ruoli.** Ogni portale dichiara quali ruoli organizzazione e ruoli utente possono aprirlo: un portale per utenti Admin e Support non viene offerto a un Reader, anche se il distributore lo ha.
+
+Distributori e organizzazione Owner non sono mai limitati dalla lista di un distributore: i loro utenti vedono tutti i portali ammessi dai loro ruoli.
+
+Per i portali che Nethesis contrassegna come protetti sull'identity provider, la stessa regola sull'organizzazione vale anche all'accesso: un utente di un rivenditore o cliente fuori da una gerarchia abilitata viene rifiutato dall'identity provider anche avendo a portata di mano la pagina di accesso del portale. Il filtro per ruolo non viene applicato lì e resta una regola della Dashboard.
+
 Un'applicazione non abilitata per la tua organizzazione viene mostrata con il pulsante disabilitato.
 
 Alcune applicazioni pubblicano anche un piccolo widget di riepilogo letto in tempo reale dall'applicazione stessa -- ad esempio il riepilogo dell'account NethShop. Il widget è nascosto per l'organizzazione Owner, perché i dati dell'account dello shop interessano ai partner che acquistano, non agli amministratori della piattaforma.

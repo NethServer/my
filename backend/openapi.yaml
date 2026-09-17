@@ -1713,6 +1713,46 @@ components:
           description: Organization type
           example: "customer"
 
+    ThirdPartyApplicationIdPAccessReport:
+      type: object
+      description: Outcome of the Logto access-rule reconcile for one idp_enforced application
+      required:
+        - application
+        - application_id
+        - enforced
+        - organization_ids
+        - enabled
+        - rules_changed
+        - enabled_changed
+      properties:
+        application:
+          type: string
+          example: "helpdesk.nethesis.it"
+        application_id:
+          type: string
+          description: Logto application id
+          example: "6mcxf9pv2yjv4hiw7xjri"
+        enforced:
+          type: boolean
+          description: The idp_enforced flag of the application in the sync config
+        organization_ids:
+          type: array
+          items:
+            type: string
+          description: The organizations the rule admits (empty when enforced is false)
+        enabled:
+          type: boolean
+          description: Whether Logto evaluates the rule after the reconcile (or would, in a dry run)
+        rules_changed:
+          type: boolean
+          description: Whether the organization list was (or would be) rewritten
+        enabled_changed:
+          type: boolean
+          description: Whether the enabled flag was (or would be) flipped
+        error:
+          type: string
+          description: Why the application was left untouched, when it was
+
     ThirdPartyApplicationCatalogItem:
       type: object
       description: >-
@@ -5762,6 +5802,64 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ThirdPartyApplicationCatalogItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /third-party-applications/reconcile-access:
+    post:
+      operationId: reconcileThirdPartyApplicationsAccess
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
+      tags:
+        - Backend - Metadata
+      summary: /third-party-applications/reconcile-access - Align Logto access rules with the portal lists
+      description: >-
+        For every third-party application whose sync config sets
+        access_control.idp_enforced, aligns Logto app-level access control with
+        the organizations the portal admits: the Owner organization, every
+        distributor when the distributor role is admitted, and the resellers and
+        customers whose distributor grants the portal. An application pinned to
+        organization_ids gets exactly those. idp_enforced: false makes sure
+        Logto enforces nothing for the application. The same reconcile runs on
+        its own after organization changes and periodically; call this for the
+        rollout or to check the state. Never enables enforcement over an empty
+        organization list. Owner organization only.
+      parameters:
+        - name: dry_run
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: When true nothing is written to Logto; the report says what would change.
+      responses:
+        '200':
+          description: Reconcile report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "portal access rules reconciled"
+                  data:
+                    type: object
+                    properties:
+                      dry_run:
+                        type: boolean
+                      applications:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ThirdPartyApplicationIdPAccessReport'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

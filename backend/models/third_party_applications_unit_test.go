@@ -509,3 +509,29 @@ func TestNormalizeThirdPartyAppNames(t *testing.T) {
 		NormalizeThirdPartyAppNames([]string{" nethshop.nethesis.it ", "my.nethspot.com", "nethshop.nethesis.it", ""}),
 		"trims, keeps first-occurrence order and drops duplicates and blanks")
 }
+
+func TestExtractAccessControlIdPEnforced(t *testing.T) {
+	enforced := LogtoThirdPartyApp{CustomData: map[string]interface{}{
+		"access_control": map[string]interface{}{"organization_roles": []interface{}{"owner"}, "idp_enforced": true},
+	}}
+	ac := enforced.ExtractAccessControlFromCustomData()
+	assert.NotNil(t, ac.IDPEnforced)
+	assert.True(t, *ac.IDPEnforced)
+
+	disabled := LogtoThirdPartyApp{CustomData: map[string]interface{}{
+		"access_control": map[string]interface{}{"idp_enforced": false},
+	}}
+	ac = disabled.ExtractAccessControlFromCustomData()
+	assert.NotNil(t, ac.IDPEnforced)
+	assert.False(t, *ac.IDPEnforced)
+
+	unmanaged := LogtoThirdPartyApp{CustomData: map[string]interface{}{
+		"access_control": map[string]interface{}{"organization_roles": []interface{}{"owner"}},
+	}}
+	assert.Nil(t, unmanaged.ExtractAccessControlFromCustomData().IDPEnforced, "absent flag = Logto left alone")
+
+	malformed := LogtoThirdPartyApp{CustomData: map[string]interface{}{
+		"access_control": map[string]interface{}{"idp_enforced": "yes"},
+	}}
+	assert.Nil(t, malformed.ExtractAccessControlFromCustomData().IDPEnforced, "a non-boolean flag is ignored")
+}

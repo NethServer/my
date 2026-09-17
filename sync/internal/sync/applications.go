@@ -80,6 +80,9 @@ func (e *Engine) buildAppPayload(appConfig config.Application, cfg *config.Confi
 		if len(appConfig.AccessControl.OrganizationIDs) > 0 {
 			accessControlData["organization_ids"] = appConfig.AccessControl.OrganizationIDs
 		}
+		if appConfig.AccessControl.IDPEnforced != nil {
+			accessControlData["idp_enforced"] = *appConfig.AccessControl.IDPEnforced
+		}
 		customData["access_control"] = accessControlData
 	}
 

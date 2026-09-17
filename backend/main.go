@@ -638,11 +638,12 @@ func main() {
 		// ===========================================
 		// METADATA - roles, organizations, third-party apps
 		// ===========================================
-		customAuthWithAudit.GET("/roles", methods.GetRoles)                                                                                                    // Get available user roles
-		customAuthWithAudit.GET("/organization-roles", methods.GetOrganizationRoles)                                                                           // Get available organization roles
-		customAuthWithAudit.GET("/organizations", methods.GetOrganizations)                                                                                    // Get organizations for user assignment
-		customAuthWithAudit.GET("/third-party-applications", methods.GetThirdPartyApplications)                                                                // Get third-party applications filtered by user access and by the distributor portal list
-		customAuthWithAudit.GET("/third-party-applications/catalog", middleware.RequireOrgRole(models.OwnerOrgRole), methods.GetThirdPartyApplicationsCatalog) // Portals a distributor can be granted (Owner organization only)
+		customAuthWithAudit.GET("/roles", methods.GetRoles)                                                                                                                   // Get available user roles
+		customAuthWithAudit.GET("/organization-roles", methods.GetOrganizationRoles)                                                                                          // Get available organization roles
+		customAuthWithAudit.GET("/organizations", methods.GetOrganizations)                                                                                                   // Get organizations for user assignment
+		customAuthWithAudit.GET("/third-party-applications", methods.GetThirdPartyApplications)                                                                               // Get third-party applications filtered by user access and by the distributor portal list
+		customAuthWithAudit.GET("/third-party-applications/catalog", middleware.RequireOrgRole(models.OwnerOrgRole), methods.GetThirdPartyApplicationsCatalog)                // Portals a distributor can be granted (Owner organization only)
+		customAuthWithAudit.POST("/third-party-applications/reconcile-access", middleware.RequireOrgRole(models.OwnerOrgRole), methods.ReconcileThirdPartyApplicationsAccess) // Align Logto app-level access control with the portal lists (Owner organization only)
 
 		// ===========================================
 		// VALIDATORS - validation endpoints
@@ -667,6 +668,10 @@ func main() {
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
+
+	// Keep Logto app-level access control of the idp_enforced third-party
+	// applications aligned with the distributor portal lists.
+	local.StartIdPAccessReconciler(configuration.Config.ThirdPartyAppsIdPReconcileInterval)
 
 	// Start server in a goroutine
 	go func() {

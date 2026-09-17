@@ -100,6 +100,13 @@ type Configuration struct {
 	S3SecretKey             string        `json:"s3_secret_key"`
 	BackupS3UsePathStyle    bool          `json:"backup_s3_use_path_style"`
 	BackupPresignTTL        time.Duration `json:"backup_presign_ttl"`
+
+	// ThirdPartyAppsIdPReconcileInterval is how often the backend re-aligns
+	// the Logto app-level access control of the idp_enforced third-party
+	// applications with the distributor portal lists. Organization changes
+	// trigger a run on their own; the loop catches config changes pushed by
+	// sync and any failed push. 0 disables the loop.
+	ThirdPartyAppsIdPReconcileInterval time.Duration `json:"third_party_apps_idp_reconcile_interval"`
 }
 
 var Config = Configuration{}
@@ -316,6 +323,8 @@ func Init() {
 	Config.S3AccessKey = os.Getenv("S3_ACCESS_KEY")
 	Config.S3SecretKey = os.Getenv("S3_SECRET_KEY")
 	Config.BackupS3UsePathStyle = parseBoolWithDefault("BACKUP_S3_USE_PATH_STYLE", false)
+	Config.ThirdPartyAppsIdPReconcileInterval = parseDurationWithDefault("THIRD_PARTY_APPS_IDP_RECONCILE_INTERVAL", 15*time.Minute)
+
 	// Cap the presigned URL lifetime at 15 minutes so a misconfigured
 	// env can never mint long-lived bearer URLs to backup objects.
 	ttl := parseDurationWithDefault("BACKUP_PRESIGN_TTL", 5*time.Minute)

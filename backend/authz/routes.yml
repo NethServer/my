@@ -1006,6 +1006,16 @@ routes:
       organization sets that field, so only it reads the catalogue: a partner
       learns which portals exist from its own dashboard, not from here.
 
+  - method: POST
+    path: /api/third-party-applications/reconcile-access
+    intent: owner_only
+    note: |
+      Pushes to Logto the organizations each idp_enforced application admits
+      and reports the outcome. Idempotent: the owner persona's probe re-applies
+      the state config.yml and the portal lists already describe, so firing it
+      from the suite changes nothing on a tenant that is in sync. Nethesis-only
+      by nature — it rewrites identity-provider rules for the whole platform.
+
   - method: GET
     path: /api/validators/vat/:entity_type
     intent: authenticated

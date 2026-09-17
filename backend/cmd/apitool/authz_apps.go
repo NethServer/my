@@ -34,11 +34,7 @@ type AppsSpec struct {
 
 type AppExpectation struct {
 	Name string `yaml:"name"`
-	// IDPEnforced records whether Logto itself is expected to refuse personas
-	// that the portal hides. Today no app is provisioned that way; setting it
-	// false documents the accepted gap instead of failing on every persona.
-	IDPEnforced bool   `yaml:"idp_enforced"`
-	Note        string `yaml:"note"`
+	Note string `yaml:"note"`
 }
 
 // portalVisible evaluates access_control the way the product intends it: every
@@ -74,6 +70,28 @@ func (a *authzRunner) portalVisible(app rbacThirdPartyApp, p *persona) bool {
 		}
 	}
 	return true
+}
+
+// idpAdmits mirrors the organization rule the backend pushes to Logto for an
+// idp_enforced app: exactly organization_ids when pinned; otherwise the owner
+// organization always, a distributor when its role is admitted, a reseller or
+// customer when its role is admitted and its distributor grants the portal.
+func (a *authzRunner) idpAdmits(app rbacThirdPartyApp, p *persona) bool {
+	ac := app.AccessControl
+	if len(ac.OrganizationIDs) > 0 {
+		return containsFold(ac.OrganizationIDs, p.orgID)
+	}
+	if strings.EqualFold(p.orgRole, "owner") {
+		return true
+	}
+	if !containsFold(ac.OrganizationRoles, p.orgRole) {
+		return false
+	}
+	allowed, restricted := a.branchPortals(p.orgKey)
+	if !restricted {
+		return true
+	}
+	return containsFold(allowed, app.Name)
 }
 
 // branchPortals walks the fixture from an org key up to the distributor at the
@@ -145,11 +163,6 @@ func (a *authzRunner) runAppsLayer(filter string) error {
 		byName[app.Name] = app
 	}
 
-	expectations := map[string]AppExpectation{}
-	for _, e := range a.spec.Apps.Apps {
-		expectations[e.Name] = e
-	}
-
 	checks := 0
 	for _, p := range a.personas {
 		visible, err := a.personaPortalApps(p)
@@ -196,23 +209,41 @@ func (a *authzRunner) runAppsLayer(filter string) error {
 				return err
 			}
 			checks++
-			exp := expectations[app.Name]
 			idpRes := checkResult{
 				Layer: "apps", Persona: p.id, Target: "idp " + app.Name,
-				Expected: fmt.Sprintf("code_issued=%v", want), Got: fmt.Sprintf("code_issued=%v", codeIssued),
-				Detail: detail,
+				Got: fmt.Sprintf("code_issued=%v", codeIssued), Detail: detail,
 			}
+			if app.AccessControl.idpEnforced() {
+				// Logto enforces the ORGANIZATION dimension only (its rules
+				// combine with OR, so a role rule cannot be ANDed with an
+				// organization rule): the expectation is organization-level,
+				// and a persona hidden by its user role alone still gets a
+				// code — the portal and the application keep that gate.
+				wantIdP := a.idpAdmits(app, p)
+				idpRes.Expected = fmt.Sprintf("code_issued=%v (organization rule)", wantIdP)
+				switch {
+				case codeIssued == wantIdP:
+					idpRes.Verdict = vPass
+				case codeIssued:
+					idpRes.Verdict = vFailOpen
+					idpRes.Detail = "Logto authorized an organization outside the idp_enforced rule: " + detail
+				default:
+					idpRes.Verdict = vFailClosed
+					idpRes.Detail = "Logto refused an organization the idp_enforced rule admits: " + detail
+				}
+				a.record(idpRes)
+				continue
+			}
+			idpRes.Expected = fmt.Sprintf("code_issued=%v", want)
 			switch {
 			case codeIssued == want:
 				idpRes.Verdict = vPass
-			case codeIssued && !want && !exp.IDPEnforced:
-				// Known and accepted: Logto ignores our access_control. Recorded
-				// as PASS so the suite stays green, with the gap spelled out.
-				idpRes.Verdict = vPass
-				idpRes.Detail = "accepted gap: portal hides the app but Logto issues a code (idp_enforced=false)"
 			case codeIssued && !want:
-				idpRes.Verdict = vFailOpen
-				idpRes.Detail = "Logto authorized a persona the portal hides, and this app is marked idp_enforced"
+				// Known and accepted: Logto is not asked to enforce this app.
+				// Recorded as PASS so the suite stays green, with the gap
+				// spelled out.
+				idpRes.Verdict = vPass
+				idpRes.Detail = "accepted gap: portal hides the app but Logto issues a code (idp_enforced not set)"
 			default:
 				idpRes.Verdict = vFailClosed
 				idpRes.Detail = "Logto refused a persona that access_control admits: " + detail
