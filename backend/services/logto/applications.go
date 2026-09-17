@@ -133,6 +133,53 @@ func FilterApplicationsByAccess(logtoApps []models.LogtoThirdPartyApp, organizat
 	return filteredApps
 }
 
+// partnerOrgRoles are the organization roles of the partner hierarchy. An
+// application that admits none of them, or that pins organization_ids, is not
+// something a distributor can be granted: the Owner organization's picker
+// leaves it out and a request naming it is refused.
+var partnerOrgRoles = []string{"distributor", "reseller", "customer"}
+
+// IsPartnerAccessible reports whether the application can be offered to a
+// partner hierarchy at all according to its own access_control: no
+// organization_ids pin and at least one partner organization role admitted.
+func IsPartnerAccessible(app models.LogtoThirdPartyApp) bool {
+	accessControl := app.ExtractAccessControlFromCustomData()
+	if accessControl == nil || len(accessControl.OrganizationIDs) > 0 {
+		return false
+	}
+	for _, role := range accessControl.OrganizationRoles {
+		for _, partnerRole := range partnerOrgRoles {
+			if strings.EqualFold(role, partnerRole) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// FilterApplicationsByNames keeps only the applications whose name is in the
+// allowed list. It is the distributor-level filter: on top of the role filter,
+// a reseller or customer user sees only the portals the Owner organization
+// listed on the distributor at the top of its branch.
+func FilterApplicationsByNames(logtoApps []models.LogtoThirdPartyApp, allowed []string) []models.LogtoThirdPartyApp {
+	allowedSet := make(map[string]bool, len(allowed))
+	for _, name := range allowed {
+		allowedSet[name] = true
+	}
+	filtered := make([]models.LogtoThirdPartyApp, 0, len(logtoApps))
+	for _, app := range logtoApps {
+		if allowedSet[app.Name] {
+			filtered = append(filtered, app)
+		}
+	}
+	logger.ComponentLogger("access_control").Debug().
+		Int("total", len(logtoApps)).
+		Int("filtered", len(filtered)).
+		Strs("allowed", allowed).
+		Msg("Filtered applications by the distributor portal list")
+	return filtered
+}
+
 // =============================================================================
 // PRIVATE METHODS
 // =============================================================================

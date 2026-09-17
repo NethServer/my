@@ -9,6 +9,8 @@
 
 package models
 
+import "strings"
+
 // ThirdPartyApplication represents a third-party application from Logto
 type ThirdPartyApplication struct {
 	ID                     string               `json:"id"`
@@ -185,4 +187,31 @@ func (l *LogtoThirdPartyApp) ExtractAccessControlFromCustomData() *AccessControl
 	}
 
 	return accessControl
+}
+
+// ThirdPartyApplicationCatalogItem is one entry of the portal catalogue the
+// Owner organization picks from when it decides which portals a distributor's
+// hierarchy may use: the application name (the stable key, identical across
+// Logto tenants) with the display name and description shown in the picker.
+type ThirdPartyApplicationCatalogItem struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name"`
+	Description string `json:"description,omitempty"`
+}
+
+// NormalizeThirdPartyAppNames trims, drops empty entries and duplicates while
+// keeping the first occurrence order. The result is never nil, so a
+// distributor without portals serializes as an empty array rather than null.
+func NormalizeThirdPartyAppNames(names []string) []string {
+	out := make([]string, 0, len(names))
+	seen := make(map[string]bool, len(names))
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		out = append(out, name)
+	}
+	return out
 }

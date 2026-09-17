@@ -28,6 +28,13 @@ type LocalDistributor struct {
 	DeletedAt      *time.Time             `json:"deleted_at" db:"deleted_at"`
 	SuspendedAt    *time.Time             `json:"suspended_at" db:"suspended_at"`
 
+	// ThirdPartyApps lists the third-party portals (application names as
+	// registered in Logto) the resellers and customers under this distributor
+	// may use on the dashboard. Set by the Owner organization only; the
+	// distributor's own users are not bound by it. Empty = no portal for the
+	// subtree. Always serialized as an array.
+	ThirdPartyApps []string `json:"third_party_apps" db:"third_party_apps"`
+
 	// Rebranding info (populated by handler)
 	RebrandingEnabled bool    `json:"rebranding_enabled"`
 	RebrandingOrgID   *string `json:"rebranding_org_id,omitempty"`
@@ -434,6 +441,10 @@ type CreateLocalDistributorRequest struct {
 	Name        string                 `json:"name" validate:"required,min=1,max=255"`
 	Description string                 `json:"description,omitempty"`
 	CustomData  map[string]interface{} `json:"custom_data,omitempty"`
+	// ThirdPartyApps: the portals the new distributor's resellers and
+	// customers may use (application names as in Logto). Omitted or empty =
+	// none.
+	ThirdPartyApps []string `json:"third_party_apps,omitempty"`
 }
 
 type CreateLocalResellerRequest struct {
@@ -465,6 +476,9 @@ type UpdateLocalDistributorRequest struct {
 	Name        *string                 `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
 	Description *string                 `json:"description,omitempty"`
 	CustomData  *map[string]interface{} `json:"custom_data,omitempty"`
+	// ThirdPartyApps replaces the portal list when present; nil leaves it
+	// untouched, an empty array clears it.
+	ThirdPartyApps *[]string `json:"third_party_apps,omitempty"`
 }
 
 type UpdateLocalResellerRequest struct {

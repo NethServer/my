@@ -27,6 +27,12 @@ CREATE TABLE IF NOT EXISTS distributors (
     -- Flexible metadata (VAT, address, contact, etc.)
     custom_data JSONB,                      -- {vat, address, city, contact, email, phone, language, notes, createdBy}
 
+    -- Third-party portals the resellers and customers below may use
+    -- (application names as in Logto). NULL or empty = none for them; the
+    -- distributor itself is not bound. Owner organization only; local, never
+    -- mirrored to Logto.
+    third_party_apps TEXT[],
+
     -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -40,6 +46,7 @@ CREATE TABLE IF NOT EXISTS distributors (
 COMMENT ON TABLE distributors IS 'Top-level business partners that can have resellers and customers';
 COMMENT ON COLUMN distributors.logto_id IS 'Logto organization ID for identity provider sync';
 COMMENT ON COLUMN distributors.custom_data IS 'Flexible JSON: {vat, address, city, contact, email, phone, language, notes, createdBy}';
+COMMENT ON COLUMN distributors.third_party_apps IS 'Third-party application names (as in Logto) the resellers and customers under the distributor may use on the dashboard. NULL or empty = none for them. Set by the Owner organization only; the distributor itself is not bound by it';
 COMMENT ON COLUMN distributors.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted';
 COMMENT ON COLUMN distributors.suspended_at IS 'Suspension timestamp. NULL means active, non-NULL means blocked';
 

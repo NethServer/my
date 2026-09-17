@@ -16,6 +16,7 @@ import {
 import { useI18n } from 'vue-i18n'
 
 export const THIRD_PARTY_APPS_KEY = 'thirdPartyApps'
+export const THIRD_PARTY_APPS_CATALOG_KEY = 'thirdPartyAppsCatalog'
 
 const ENABLED_APPS = [
   'helpdesk.nethesis.it',
@@ -113,7 +114,30 @@ export const getThirdPartyApps = () => {
     .then((res) => res.data.data.sort(sortThirdPartyApps) as ThirdPartyApp[])
 }
 
-export const getThirdPartyAppIcon = (thirdPartyApp: ThirdPartyApp) => {
+// One portal the Owner organization can grant a distributor. The name is the
+// stable key stored on the distributor (third_party_apps); the display name
+// comes from the application branding.
+export type ThirdPartyAppCatalogItem = {
+  name: string
+  display_name: string
+  description?: string
+}
+
+// The portals a distributor can be granted (Owner organization only): the
+// picker behind the "Portals" field of the distributor drawer.
+export const getThirdPartyAppsCatalog = () => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .get<{ data: ThirdPartyAppCatalogItem[] }>(`${API_URL}/third-party-applications/catalog`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data.sort(sortThirdPartyApps))
+}
+
+// Icon and ordering only need the application name, so both accept anything
+// carrying one: the dashboard tiles as well as the catalog items of the picker.
+export const getThirdPartyAppIcon = (thirdPartyApp: Pick<ThirdPartyApp, 'name'>) => {
   switch (thirdPartyApp.name) {
     case 'helpdesk.nethesis.it':
       return faHeadset
@@ -149,7 +173,10 @@ export const openThirdPartyApp = (thirdPartyApp: ThirdPartyApp) => {
   window.open(url, '_blank', 'noopener')
 }
 
-export const sortThirdPartyApps = (app1: ThirdPartyApp, app2: ThirdPartyApp) => {
+export const sortThirdPartyApps = (
+  app1: Pick<ThirdPartyApp, 'name'>,
+  app2: Pick<ThirdPartyApp, 'name'>,
+) => {
   const appsOrder = [
     'stock.nethesis.it',
     'nethshop.nethesis.it',

@@ -77,6 +77,7 @@ Customers
    - **Company name**: Distributor company name (e.g., "ACME Distribution Ltd")
    - **Description** (optional): Additional information
    - **VAT number**: unique VAT identification for a company
+   - **Portals**: the third-party portals (NethShop, Helpdesk, NethSpot, ...) the distributor's resellers and customers may use, see below
 4. Click **Create distributor**
 
 **Example:**
@@ -84,7 +85,23 @@ Customers
 Name: ACME Distribution Europe
 Description: Main distributor for European market
 VAT: 12345678901
+Portals: NethShop, NethSpot
 ```
+
+#### Portals
+
+The portals a partner sees on its [Dashboard](../features/dashboard.md#third-party-applications) are a commercial matter: a distributor's contract says which of them its resellers and customers get. The Owner organization records that choice on the distributor, and the organizations below inherit it:
+
+- The users of the distributor's resellers and of their customers see only the portals ticked on the distributor. Resellers and customers have no portal setting of their own.
+- The distributor's own users are not bound by the list: they see every portal their roles admit, like the Owner organization.
+- A distributor with no portal ticked hides every portal from its resellers and customers. Nothing is granted by default: a newly created distributor starts with no portal for its subtree until the Owner organization ticks some.
+- The role filter each portal declares still applies on top: a portal reserved to Admin and Support users stays hidden from a Reader even when the distributor has it.
+
+Only members of the Owner organization see and edit the field, both when creating and when editing a distributor. The distributor detail card lists the enabled portals.
+
+:::note
+Hiding a portal on the Dashboard removes the shortcut, not the portal's own login page. Which portals also refuse the sign-in of a user outside an enabled hierarchy is decided on the identity provider, per application.
+:::
 
 ### Creating a Reseller
 

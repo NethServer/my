@@ -388,8 +388,25 @@ func (c *Client) api(method, path string, payload interface{}) (*apiResp, error)
 	return &apiResp{status: resp.StatusCode, body: data}, nil
 }
 
+// SetDistributorThirdPartyApps replaces the portal list of a distributor
+// (PUT /distributors/{id} with third_party_apps). Owner organization only.
+func (c *Client) SetDistributorThirdPartyApps(logtoID string, apps []string) error {
+	if apps == nil {
+		apps = []string{}
+	}
+	r, err := c.api("PUT", "/distributors/"+logtoID, map[string]interface{}{"third_party_apps": apps})
+	if err != nil {
+		return err
+	}
+	if r.status >= 400 {
+		return fmt.Errorf("set third_party_apps on distributor %s failed (%d): %s", logtoID, r.status, r.body)
+	}
+	return nil
+}
+
 // CreateOrg creates a distributor/reseller/customer; returns its logto_id.
-func (c *Client) CreateOrg(orgType, name, description string, customData map[string]interface{}) (string, error) {
+// thirdPartyApps, when non-nil, is sent as the distributor portal list.
+func (c *Client) CreateOrg(orgType, name, description string, customData map[string]interface{}, thirdPartyApps ...[]string) (string, error) {
 	if !validOrgType(orgType) {
 		return "", fmt.Errorf("invalid org type: %s", orgType)
 	}
@@ -399,6 +416,9 @@ func (c *Client) CreateOrg(orgType, name, description string, customData map[str
 	}
 	if len(customData) > 0 {
 		payload["custom_data"] = customData
+	}
+	if len(thirdPartyApps) > 0 && thirdPartyApps[0] != nil {
+		payload["third_party_apps"] = thirdPartyApps[0]
 	}
 	r, err := c.api("POST", "/"+orgType+"s", payload)
 	if err != nil {

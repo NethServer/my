@@ -13,7 +13,9 @@ import {
   NeTextArea,
   NeCombobox,
   NeFormItemLabel,
+  NeMultiselectCombobox,
   type NeComboboxOption,
+  type NeMultiselectComboboxOption,
   getPreference,
 } from '@nethesis/vue-components'
 import { computed, ref, useTemplateRef, type ShallowRef } from 'vue'
@@ -29,7 +31,12 @@ import {
   type EditDistributor,
 } from '@/lib/organizations/distributors'
 import * as v from 'valibot'
-import { useMutation, useQueryCache } from '@pinia/colada'
+import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
+import {
+  getThirdPartyAppIcon,
+  getThirdPartyAppsCatalog,
+  THIRD_PARTY_APPS_CATALOG_KEY,
+} from '@/lib/thirdPartyApps'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import { getValidationIssues, isValidationError } from '@/lib/validation'
@@ -134,7 +141,55 @@ const language = ref('it')
 const languageRef = useTemplateRef<HTMLInputElement>('languageRef')
 const notes = ref('')
 const notesRef = useTemplateRef<HTMLInputElement>('notesRef')
+// Portals the resellers and customers under the distributor may use
+// (application names); the distributor's own users are not bound by it. Only
+// the Owner organization sees and edits the field, and it exists on this
+// drawer alone: the organizations below inherit the choice.
+const selectedApps = ref<string[]>([])
 const validationIssues = ref<Record<string, string[]>>({})
+
+const canSetThirdPartyApps = computed(() => loginStore.isOwner)
+
+// The catalogue of grantable portals, fetched only while the drawer is open
+// for an Owner user (the endpoint is owner-only).
+const { state: catalog, asyncStatus: catalogStatus } = useQuery({
+  key: [THIRD_PARTY_APPS_CATALOG_KEY],
+  enabled: () => isShown && canSetThirdPartyApps.value,
+  query: getThirdPartyAppsCatalog,
+})
+
+// The option id is the application name, which is what the API stores.
+const thirdPartyAppOptions = computed<NeMultiselectComboboxOption[]>(() =>
+  (catalog.value.data ?? []).map((app) => ({
+    id: app.name,
+    label: app.display_name,
+    description: app.name,
+    icon: getThirdPartyAppIcon(app),
+  })),
+)
+
+// The names are the source of truth (they are what a distributor carries and
+// what the API expects); the picker works on options, resolved against the
+// catalogue as soon as it is loaded. A name the catalogue no longer lists is
+// still shown, by name, so it can be removed.
+const selectedThirdPartyAppOptions = computed<NeMultiselectComboboxOption[]>({
+  get: () =>
+    selectedApps.value.map(
+      (name) =>
+        thirdPartyAppOptions.value.find((option) => option.id === name) ?? {
+          id: name,
+          label: name,
+        },
+    ),
+  set: (options) => {
+    selectedApps.value = options.map((option) => option.id)
+  },
+})
+
+const thirdPartyAppsInvalidMessage = computed(() => {
+  const issue = validationIssues.value.third_party_apps?.[0]
+  return issue ? t(issue) : ''
+})
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
   name: nameRef,
@@ -186,6 +241,7 @@ function onShow() {
 
     language.value = currentDistributor.custom_data?.language || ''
     notes.value = currentDistributor.custom_data?.notes || ''
+    selectedApps.value = [...(currentDistributor.third_party_apps ?? [])]
   } else {
     // creating distributor, reset form to defaults
     name.value = ''
@@ -198,6 +254,7 @@ function onShow() {
     phone.value = ''
     language.value = 'it'
     notes.value = ''
+    selectedApps.value = []
   }
 }
 
@@ -284,6 +341,9 @@ async function saveDistributor() {
       language: language.value,
       notes: notes.value,
     },
+    // Sent only by the Owner organization, which is the only one allowed to
+    // change the list; anyone else leaves it untouched.
+    ...(canSetThirdPartyApps.value ? { third_party_apps: selectedApps.value } : {}),
   }
 
   if (currentDistributor?.logto_id) {
@@ -470,6 +530,31 @@ async function saveDistributor() {
           :optional="true"
           :optional-label="t('common.optional')"
         />
+        <!-- portals (owner only): the resellers and customers below inherit this list -->
+        <template v-if="canSetThirdPartyApps">
+          <NeMultiselectCombobox
+            v-model="selectedThirdPartyAppOptions"
+            :options="thirdPartyAppOptions"
+            :label="$t('organizations.third_party_apps')"
+            :placeholder="$t('organizations.choose_third_party_apps')"
+            :helper-text="$t('organizations.third_party_apps_helper')"
+            :invalid-message="thirdPartyAppsInvalidMessage"
+            :disabled="saving"
+            :loading-options="catalogStatus === 'loading'"
+            :no-results-label="$t('ne_combobox.no_results')"
+            :no-options-label="$t('ne_combobox.no_options_label')"
+            :limited-options-label="$t('ne_combobox.limited_options_label')"
+            :user-input-label="$t('ne_combobox.user_input_label')"
+            :optional="true"
+            :optional-label="$t('common.optional')"
+          />
+          <NeInlineNotification
+            v-if="catalog.status === 'error'"
+            kind="error"
+            :title="t('organizations.cannot_retrieve_third_party_apps')"
+            :description="catalog.error?.message"
+          />
+        </template>
         <!-- create distributor error notification -->
         <NeInlineNotification
           v-if="createDistributorError?.message && !isValidationError(createDistributorError)"

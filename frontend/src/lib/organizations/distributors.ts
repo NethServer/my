@@ -43,6 +43,11 @@ export const CreateDistributorSchema = v.object({
   // caller's own org) to preserve hierarchical ownership when an upper tier
   // creates it on behalf of a lower one. Empty = owned by the caller's org.
   created_by_organization_id: v.optional(v.string()),
+  // The third-party portals (application names as registered in Logto) the
+  // resellers and customers under the distributor may use on the dashboard;
+  // the distributor's own users are not bound by it. Set by the Owner
+  // organization only. Omitted = untouched on edit, no portal on create.
+  third_party_apps: v.optional(v.array(v.string())),
 })
 
 export const EditDistributorSchema = v.object({

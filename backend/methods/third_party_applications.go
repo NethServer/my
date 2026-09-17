@@ -11,13 +11,16 @@ package methods
 
 import (
 	"net/http"
+	"sort"
 	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/nethesis/my/backend/cache"
+	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
+	"github.com/nethesis/my/backend/services/local"
 	"github.com/nethesis/my/backend/services/logto"
 )
 
@@ -42,17 +45,6 @@ func GetThirdPartyApplications(c *gin.Context) {
 	logger.Info().
 		Str("user_id", userIDStr).
 		Msg("Fetching third-party applications for user")
-
-	// Create Logto client
-	client := logto.NewManagementClient()
-
-	// Fetch all third-party applications from Logto
-	logtoApplications, err := client.GetThirdPartyApplications()
-	if err != nil {
-		logger.NewHTTPErrorLogger(c, "third-party-applications").LogError(err, "fetch_applications", http.StatusInternalServerError, "Failed to fetch third-party applications from Logto")
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch third-party applications", err.Error()))
-		return
-	}
 
 	// Get user's organization role
 	var organizationRoles []string
@@ -85,8 +77,44 @@ func GetThirdPartyApplications(c *gin.Context) {
 		Strs("user_role_ids", userRoleIDs).
 		Msg("User context for application filtering")
 
+	// For a reseller or customer, the distributor at the top of its branch
+	// decides which portals it may use. Resolved first: a branch with no
+	// portal at all is answered without a round trip to Logto.
+	userOrgRole := ""
+	if len(organizationRoles) > 0 {
+		userOrgRole = organizationRoles[0]
+	}
+	allowedApps, restricted, err := local.NewThirdPartyAppsService().ResolveAllowedApps(userOrgRole, userOrganizationID)
+	if err != nil {
+		logger.NewHTTPErrorLogger(c, "third-party-applications").LogError(err, "resolve_allowed_apps", http.StatusInternalServerError, "Failed to resolve the portals allowed for the user's hierarchy")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch third-party applications", err.Error()))
+		return
+	}
+	if restricted && len(allowedApps) == 0 {
+		logger.Info().
+			Str("user_id", userIDStr).
+			Str("organization_id", userOrganizationID).
+			Msg("No portal enabled for the user's hierarchy")
+		c.JSON(http.StatusOK, response.Success(http.StatusOK, "third-party applications retrieved successfully", []models.ThirdPartyApplication{}))
+		return
+	}
+
+	// Create Logto client
+	client := logto.NewManagementClient()
+
+	// Fetch all third-party applications from Logto
+	logtoApplications, err := client.GetThirdPartyApplications()
+	if err != nil {
+		logger.NewHTTPErrorLogger(c, "third-party-applications").LogError(err, "fetch_applications", http.StatusInternalServerError, "Failed to fetch third-party applications from Logto")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch third-party applications", err.Error()))
+		return
+	}
+
 	// Filter applications based on user's roles and organization membership
 	filteredLogtoApps := logto.FilterApplicationsByAccess(logtoApplications, organizationRoles, userRoleIDs, userOrganizationID)
+	if restricted {
+		filteredLogtoApps = logto.FilterApplicationsByNames(filteredLogtoApps, allowedApps)
+	}
 
 	// Get cached domain validation result
 	domainValidation := cache.GetDomainValidation()
@@ -161,4 +189,75 @@ func GetThirdPartyApplications(c *gin.Context) {
 
 	// Return filtered applications
 	c.JSON(http.StatusOK, response.Success(http.StatusOK, "third-party applications retrieved successfully", responseApplications))
+}
+
+// GetThirdPartyApplicationsCatalog handles GET /api/third-party-applications/catalog
+// Returns the portals a distributor's resellers and customers can be granted: every
+// third-party application whose own access_control admits a partner
+// organization role. Owner organization only: this is the picker the Owner
+// uses when it fills in a distributor's portal list, not a user-facing list.
+func GetThirdPartyApplicationsCatalog(c *gin.Context) {
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	if !models.IsGlobalOrgRole(user.OrgRole) {
+		c.JSON(http.StatusForbidden, response.Forbidden("access denied: only the owner organization can list the portal catalogue", nil))
+		return
+	}
+
+	client := logto.NewManagementClient()
+	logtoApplications, err := client.GetThirdPartyApplications()
+	if err != nil {
+		logger.NewHTTPErrorLogger(c, "third-party-applications").LogError(err, "fetch_applications", http.StatusInternalServerError, "Failed to fetch third-party applications from Logto")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch third-party applications", err.Error()))
+		return
+	}
+
+	items := make([]models.ThirdPartyApplicationCatalogItem, 0, len(logtoApplications))
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	sem := make(chan struct{}, 10)
+
+	for _, app := range logtoApplications {
+		if !logto.IsPartnerAccessible(app) {
+			continue
+		}
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(app models.LogtoThirdPartyApp) {
+			defer func() { <-sem }()
+			defer wg.Done()
+
+			item := models.ThirdPartyApplicationCatalogItem{
+				Name:        app.Name,
+				DisplayName: app.Name,
+				Description: app.Description,
+			}
+			branding, err := client.GetApplicationBranding(app.ID)
+			if err != nil {
+				logger.Warn().
+					Err(err).
+					Str("app_id", app.ID).
+					Msg("Failed to get branding for app")
+			} else if branding != nil && branding.DisplayName != "" {
+				item.DisplayName = branding.DisplayName
+			}
+
+			mu.Lock()
+			items = append(items, item)
+			mu.Unlock()
+		}(app)
+	}
+	wg.Wait()
+
+	sort.Slice(items, func(i, j int) bool { return items[i].Name < items[j].Name })
+
+	logger.Info().
+		Int("count", len(items)).
+		Str("user_id", user.ID).
+		Msg("Returning third-party applications catalogue")
+
+	c.JSON(http.StatusOK, response.Success(http.StatusOK, "third-party applications catalogue retrieved successfully", items))
 }

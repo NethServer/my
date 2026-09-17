@@ -118,6 +118,7 @@ func authzProvision(dir string, reg *Registry, flags map[string]string) error {
 		}
 		todoUsers[fu.Key] = true
 	}
+	ensuredPortals := map[string]bool{}
 	todoSystems := map[string]bool{}
 	for _, fs := range spec.Fixture.Systems {
 		if _, ok := reg.Systems[fixtureRegKey(prefix, fs.Key)]; !ok {
@@ -150,7 +151,11 @@ func authzProvision(dir string, reg *Registry, flags map[string]string) error {
 				"vat":   vat,
 				"notes": "authz suite fixture — safe to delete",
 			}
-			logtoID, err := client.CreateOrg(fo.Type, regKey, "authz suite fixture", customData)
+			var portals []string
+			if fo.Type == "distributor" {
+				portals = fixturePortals(fo)
+			}
+			logtoID, err := client.CreateOrg(fo.Type, regKey, "authz suite fixture", customData, portals)
 			if err != nil {
 				return fmt.Errorf("create org %s: %w", regKey, err)
 			}
@@ -161,6 +166,30 @@ func authzProvision(dir string, reg *Registry, flags map[string]string) error {
 			delete(todoOrgs, fo.Key)
 			progress = true
 			fmt.Printf("  org    %-26s %-12s by %-14s %s\n", regKey, fo.Type, defaultAs(fo.CreatedBy), logtoID)
+		}
+
+		// Distributor portal lists must match the spec on fixtures that already
+		// existed before the list was introduced (or whose spec changed): the
+		// apps layer derives its expectations from fixture.yml, so the live
+		// distributor has to carry the same list.
+		for _, fo := range spec.Fixture.Orgs {
+			if fo.Type != "distributor" || todoOrgs[fo.Key] || ensuredPortals[fo.Key] {
+				continue
+			}
+			regKey := fixtureRegKey(prefix, fo.Key)
+			org, ok := reg.Orgs[regKey]
+			if !ok {
+				continue
+			}
+			client, err := p.clientFor("owner")
+			if err != nil {
+				return err
+			}
+			if err := client.SetDistributorThirdPartyApps(org.LogtoID, fixturePortals(fo)); err != nil {
+				return fmt.Errorf("set portals on %s: %w", regKey, err)
+			}
+			ensuredPortals[fo.Key] = true
+			fmt.Printf("  org    %-26s portals %s\n", regKey, strings.Join(fixturePortals(fo), ","))
 		}
 
 		for _, fu := range spec.Fixture.Users {
@@ -361,4 +390,13 @@ func renderEmail(template, key string) string {
 		template = "authz+{key}@example.com"
 	}
 	return strings.ReplaceAll(template, "{key}", key)
+}
+
+// fixturePortals is the portal list fixture.yml grants a distributor, never
+// nil: an unset list is "no portal", which is what the API stores as well.
+func fixturePortals(fo FixtureOrg) []string {
+	if fo.ThirdPartyApps == nil {
+		return []string{}
+	}
+	return fo.ThirdPartyApps
 }

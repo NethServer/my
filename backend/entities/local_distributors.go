@@ -55,12 +55,14 @@ func (r *LocalDistributorRepository) create(exec dbExecer, req *models.CreateLoc
 		return nil, fmt.Errorf("failed to marshal custom_data: %w", err)
 	}
 
+	apps := models.NormalizeThirdPartyAppNames(req.ThirdPartyApps)
+
 	query := `
-		INSERT INTO distributors (id, logto_id, name, description, custom_data, created_at, updated_at, deleted_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO distributors (id, logto_id, name, description, custom_data, third_party_apps, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 
-	_, err = exec.Exec(query, id, nil, req.Name, req.Description, customDataJSON, now, now, nil)
+	_, err = exec.Exec(query, id, nil, req.Name, req.Description, customDataJSON, pq.Array(apps), now, now, nil)
 	if err != nil {
 		// Check for VAT constraint violation (from trigger function)
 		if strings.Contains(err.Error(), "VAT") && strings.Contains(err.Error(), "already exists") {
@@ -70,21 +72,22 @@ func (r *LocalDistributorRepository) create(exec dbExecer, req *models.CreateLoc
 	}
 
 	return &models.LocalDistributor{
-		ID:          id,
-		LogtoID:     nil,
-		Name:        req.Name,
-		Description: req.Description,
-		CustomData:  req.CustomData,
-		CreatedAt:   now,
-		UpdatedAt:   now,
-		DeletedAt:   nil,
+		ID:             id,
+		LogtoID:        nil,
+		Name:           req.Name,
+		Description:    req.Description,
+		CustomData:     req.CustomData,
+		ThirdPartyApps: apps,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		DeletedAt:      nil,
 	}, nil
 }
 
 // GetByID retrieves a distributor by ID from local database
 func (r *LocalDistributorRepository) GetByID(id string) (*models.LocalDistributor, error) {
 	query := `
-		SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
+		SELECT id, logto_id, name, description, custom_data, third_party_apps, created_at, updated_at,
 		       logto_synced_at, logto_sync_error, deleted_at, suspended_at
 		FROM distributors
 		WHERE logto_id = $1 AND deleted_at IS NULL
@@ -92,10 +95,11 @@ func (r *LocalDistributorRepository) GetByID(id string) (*models.LocalDistributo
 
 	distributor := &models.LocalDistributor{}
 	var customDataJSON []byte
+	var apps pq.StringArray
 
 	err := r.db.QueryRow(query, id).Scan(
 		&distributor.ID, &distributor.LogtoID, &distributor.Name, &distributor.Description,
-		&customDataJSON, &distributor.CreatedAt, &distributor.UpdatedAt,
+		&customDataJSON, &apps, &distributor.CreatedAt, &distributor.UpdatedAt,
 		&distributor.LogtoSyncedAt, &distributor.LogtoSyncError, &distributor.DeletedAt,
 		&distributor.SuspendedAt,
 	)
@@ -116,6 +120,7 @@ func (r *LocalDistributorRepository) GetByID(id string) (*models.LocalDistributo
 		distributor.CustomData = make(map[string]interface{})
 	}
 
+	distributor.ThirdPartyApps = models.NormalizeThirdPartyAppNames(apps)
 	distributor.CreatedBy = models.ExtractOrgCreator(distributor.CustomData)
 	distributor.PromotedFrom = models.ExtractOrgPromotion(distributor.CustomData)
 
@@ -140,6 +145,9 @@ func (r *LocalDistributorRepository) Update(id string, req *models.UpdateLocalDi
 	if req.CustomData != nil {
 		current.CustomData = *req.CustomData
 	}
+	if req.ThirdPartyApps != nil {
+		current.ThirdPartyApps = models.NormalizeThirdPartyAppNames(*req.ThirdPartyApps)
+	}
 
 	current.UpdatedAt = time.Now()
 	current.LogtoSyncedAt = nil // Mark as needing sync
@@ -151,11 +159,11 @@ func (r *LocalDistributorRepository) Update(id string, req *models.UpdateLocalDi
 
 	query := `
 		UPDATE distributors
-		SET name = $2, description = $3, custom_data = $4, updated_at = $5, logto_synced_at = NULL
+		SET name = $2, description = $3, custom_data = $4, third_party_apps = $5, updated_at = $6, logto_synced_at = NULL
 		WHERE logto_id = $1
 	`
 
-	_, err = r.db.Exec(query, id, current.Name, current.Description, customDataJSON, current.UpdatedAt)
+	_, err = r.db.Exec(query, id, current.Name, current.Description, customDataJSON, pq.Array(current.ThirdPartyApps), current.UpdatedAt)
 	if err != nil {
 		// Check for VAT constraint violation (from trigger function)
 		if strings.Contains(err.Error(), "VAT") && strings.Contains(err.Error(), "already exists") {
@@ -300,7 +308,7 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 		countArgs = []interface{}{search}
 
 		query = fmt.Sprintf(`
-			SELECT d.id, d.logto_id, d.name, d.description, d.custom_data, d.created_at, d.updated_at,
+			SELECT d.id, d.logto_id, d.name, d.description, d.custom_data, d.third_party_apps, d.created_at, d.updated_at,
 			       d.logto_synced_at, d.logto_sync_error, d.deleted_at, d.suspended_at
 			FROM distributors d
 			WHERE 1=1%s%s AND (LOWER(d.name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(d.description) LIKE LOWER('%%' || $1 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(d.custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $1 || '%%')))
@@ -314,7 +322,7 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 		countArgs = []interface{}{}
 
 		query = fmt.Sprintf(`
-			SELECT d.id, d.logto_id, d.name, d.description, d.custom_data, d.created_at, d.updated_at,
+			SELECT d.id, d.logto_id, d.name, d.description, d.custom_data, d.third_party_apps, d.created_at, d.updated_at,
 			       d.logto_synced_at, d.logto_sync_error, d.deleted_at, d.suspended_at
 			FROM distributors d
 			WHERE 1=1%s%s
@@ -349,16 +357,18 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 	for rows.Next() {
 		distributor := &models.LocalDistributor{}
 		var customDataJSON []byte
+		var apps pq.StringArray
 
 		err := rows.Scan(
 			&distributor.ID, &distributor.LogtoID, &distributor.Name, &distributor.Description,
-			&customDataJSON, &distributor.CreatedAt, &distributor.UpdatedAt,
+			&customDataJSON, &apps, &distributor.CreatedAt, &distributor.UpdatedAt,
 			&distributor.LogtoSyncedAt, &distributor.LogtoSyncError, &distributor.DeletedAt,
 			&distributor.SuspendedAt,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan distributor: %w", err)
 		}
+		distributor.ThirdPartyApps = models.NormalizeThirdPartyAppNames(apps)
 
 		// Parse custom_data JSON
 		if len(customDataJSON) > 0 {
@@ -667,7 +677,7 @@ func (r *LocalDistributorRepository) GetTrend(userOrgRole, userOrgID string, per
 // GetByIDIncludeDeleted retrieves a distributor by logto_id including soft-deleted ones
 func (r *LocalDistributorRepository) GetByIDIncludeDeleted(id string) (*models.LocalDistributor, error) {
 	query := `
-		SELECT id, logto_id, name, description, custom_data, created_at, updated_at,
+		SELECT id, logto_id, name, description, custom_data, third_party_apps, created_at, updated_at,
 		       logto_synced_at, logto_sync_error, deleted_at, suspended_at
 		FROM distributors
 		WHERE logto_id = $1
@@ -675,10 +685,11 @@ func (r *LocalDistributorRepository) GetByIDIncludeDeleted(id string) (*models.L
 
 	distributor := &models.LocalDistributor{}
 	var customDataJSON []byte
+	var apps pq.StringArray
 
 	err := r.db.QueryRow(query, id).Scan(
 		&distributor.ID, &distributor.LogtoID, &distributor.Name, &distributor.Description,
-		&customDataJSON, &distributor.CreatedAt, &distributor.UpdatedAt,
+		&customDataJSON, &apps, &distributor.CreatedAt, &distributor.UpdatedAt,
 		&distributor.LogtoSyncedAt, &distributor.LogtoSyncError, &distributor.DeletedAt,
 		&distributor.SuspendedAt,
 	)
@@ -699,6 +710,7 @@ func (r *LocalDistributorRepository) GetByIDIncludeDeleted(id string) (*models.L
 		distributor.CustomData = make(map[string]interface{})
 	}
 
+	distributor.ThirdPartyApps = models.NormalizeThirdPartyAppNames(apps)
 	distributor.CreatedBy = models.ExtractOrgCreator(distributor.CustomData)
 	distributor.PromotedFrom = models.ExtractOrgPromotion(distributor.CustomData)
 

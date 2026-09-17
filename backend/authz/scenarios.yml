@@ -757,3 +757,73 @@ scenarios:
     method: GET
     path: /api/rebranding/organizations/available?limit=200
     must_not_contain: ["{org:d2}", "{org:d1r2}", "{org_name:d1r2}"]
+
+  # ===========================================================================
+  # Portals of a distributor (distributors.third_party_apps).
+  #
+  # The owner grants each distributor the portals its resellers and customers
+  # may use; the fixture gives d1 every partner portal but the helpdesk and d2
+  # nothing (see fixture.yml). The apps layer checks every persona against
+  # every app; these scenarios spell out the hierarchy rules in words: only the
+  # owner writes the list, resellers and customers inherit it, a branch without
+  # a list sees no portal, and the list never restricts the distributor itself
+  # nor the owner.
+  # ===========================================================================
+  - name: portals — distributor cannot grant itself a portal
+    as: d1-admin
+    method: PUT
+    path: /api/distributors/{my_org}
+    body: '{"third_party_apps":["helpdesk.nethesis.it"]}'
+    expect: denied
+    note: the list is the owner's commercial decision; a distributor cannot widen its own contract
+
+  - name: portals — reseller cannot read the catalogue of grantable portals
+    as: d1r1-admin
+    method: GET
+    path: /api/third-party-applications/catalog
+    expect: denied
+
+  - name: portals — distributor cannot read the catalogue either
+    as: d1-admin
+    method: GET
+    path: /api/third-party-applications/catalog
+    expect: denied
+
+  - name: portals — reseller inherits its distributor's list
+    as: d1r1-admin
+    method: GET
+    path: /api/third-party-applications
+    must_contain: ["nethshop.nethesis.it"]
+    must_not_contain: ["helpdesk.nethesis.it"]
+    note: |
+      access_control admits a reseller Admin on the helpdesk, so its absence
+      here can only come from d1's list — the distributor filter, not the role
+      filter.
+
+  - name: portals — the list does not bind the distributor itself
+    as: d1-admin
+    method: GET
+    path: /api/third-party-applications
+    must_contain: ["nethshop.nethesis.it", "helpdesk.nethesis.it"]
+    note: |
+      d1's list leaves the helpdesk out, yet its own Admin still gets it: the
+      list is for the resellers and customers below, the distributor sees every
+      portal its roles admit.
+
+  - name: portals — a distributor without a list still sees its portals
+    as: d2-admin
+    method: GET
+    path: /api/third-party-applications
+    must_contain: ["nethshop.nethesis.it", "helpdesk.nethesis.it"]
+
+  - name: portals — a branch without a list sees no portal (reseller below it)
+    as: d2r1-admin
+    method: GET
+    path: /api/third-party-applications
+    must_not_contain: ["nethshop.nethesis.it", "helpdesk.nethesis.it", "my.nethspot.com", "formazione.nethesis.it", "partner.nethesis.it"]
+
+  - name: portals — no distributor list restricts the owner organization
+    as: owner-staff
+    method: GET
+    path: /api/third-party-applications
+    must_contain: ["helpdesk.nethesis.it", "nethshop.nethesis.it"]

@@ -638,10 +638,11 @@ func main() {
 		// ===========================================
 		// METADATA - roles, organizations, third-party apps
 		// ===========================================
-		customAuthWithAudit.GET("/roles", methods.GetRoles)                                     // Get available user roles
-		customAuthWithAudit.GET("/organization-roles", methods.GetOrganizationRoles)            // Get available organization roles
-		customAuthWithAudit.GET("/organizations", methods.GetOrganizations)                     // Get organizations for user assignment
-		customAuthWithAudit.GET("/third-party-applications", methods.GetThirdPartyApplications) // Get third-party applications filtered by user access
+		customAuthWithAudit.GET("/roles", methods.GetRoles)                                                                                                    // Get available user roles
+		customAuthWithAudit.GET("/organization-roles", methods.GetOrganizationRoles)                                                                           // Get available organization roles
+		customAuthWithAudit.GET("/organizations", methods.GetOrganizations)                                                                                    // Get organizations for user assignment
+		customAuthWithAudit.GET("/third-party-applications", methods.GetThirdPartyApplications)                                                                // Get third-party applications filtered by user access and by the distributor portal list
+		customAuthWithAudit.GET("/third-party-applications/catalog", middleware.RequireOrgRole(models.OwnerOrgRole), methods.GetThirdPartyApplicationsCatalog) // Portals a distributor can be granted (Owner organization only)
 
 		// ===========================================
 		// VALIDATORS - validation endpoints

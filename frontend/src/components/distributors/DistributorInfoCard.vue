@@ -5,6 +5,7 @@
 
 <script setup lang="ts">
 import {
+  NeBadgeV2,
   NeCard,
   NeDropdown,
   NeHeading,
@@ -36,9 +37,24 @@ import ReactivateDistributorModal from './ReactivateDistributorModal.vue'
 import { getLanguageLabel } from '@/lib/locale'
 import { formatPhoneForDisplay } from '@/lib/phone'
 import UserAvatar from '../users/UserAvatar.vue'
+import { useLoginStore } from '@/stores/login'
+import { useQuery } from '@pinia/colada'
+import { getThirdPartyAppsCatalog, THIRD_PARTY_APPS_CATALOG_KEY } from '@/lib/thirdPartyApps'
 
 const { t, locale } = useI18n()
+const loginStore = useLoginStore()
 const { state: distributorDetail, asyncStatus } = useDistributorDetail()
+
+// The portal list is an Owner-organization matter: only the Owner sees the
+// row, and the catalogue (owner-only endpoint) turns names into display names.
+const canSeeThirdPartyApps = computed(() => loginStore.isOwner)
+const { state: catalog } = useQuery({
+  key: [THIRD_PARTY_APPS_CATALOG_KEY],
+  enabled: () => canSeeThirdPartyApps.value,
+  query: getThirdPartyAppsCatalog,
+})
+const portalLabel = (name: string) =>
+  catalog.value.data?.find((app) => app.name === name)?.display_name ?? name
 
 const rebrandingEnabled = computed(() => distributorDetail.value.data?.rebranding_enabled === true)
 const isNotesModalShown = ref(false)
@@ -219,6 +235,27 @@ function getKebabMenuItems() {
                 ? getLanguageLabel(distributorDetail.data.custom_data.language, $i18n.locale)
                 : '-'
             }}
+          </template>
+        </DataItem>
+        <!-- portals (owner only) -->
+        <DataItem v-if="canSeeThirdPartyApps">
+          <template #label>
+            {{ $t('organizations.third_party_apps') }}
+          </template>
+          <template #data>
+            <div
+              v-if="distributorDetail.data.third_party_apps?.length"
+              class="flex flex-wrap justify-end gap-2"
+            >
+              <NeBadgeV2
+                v-for="name in distributorDetail.data.third_party_apps"
+                :key="name"
+                kind="gray"
+              >
+                {{ portalLabel(name) }}
+              </NeBadgeV2>
+            </div>
+            <template v-else>{{ $t('organizations.no_third_party_apps') }}</template>
           </template>
         </DataItem>
         <!-- promoted to distributor -->

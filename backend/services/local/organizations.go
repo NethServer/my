@@ -102,6 +102,14 @@ func (s *LocalOrganizationService) CreateDistributor(req *models.CreateLocalDist
 		}
 		return nil, validationErr
 	}
+
+	// The portal list names applications registered in Logto: refuse unknown
+	// names and applications no partner hierarchy can be offered.
+	req.ThirdPartyApps = models.NormalizeThirdPartyAppNames(req.ThirdPartyApps)
+	if err := s.validateThirdPartyApps(req.ThirdPartyApps); err != nil {
+		return nil, err
+	}
+
 	tx, err := database.DB.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
@@ -586,6 +594,47 @@ func (s *LocalOrganizationService) markCustomerSynced(exec sqlExecer, id, logtoI
 }
 
 // RBAC validation methods
+// validateThirdPartyApps refuses a portal list naming an application that is
+// not a third-party application in Logto or that no partner hierarchy can be
+// offered (see logto.IsPartnerAccessible). An empty list needs no lookup.
+func (s *LocalOrganizationService) validateThirdPartyApps(names []string) error {
+	if len(names) == 0 {
+		return nil
+	}
+
+	apps, err := s.logtoClient.GetThirdPartyApplications()
+	if err != nil {
+		return fmt.Errorf("failed to load third-party applications for validation: %w", err)
+	}
+	grantable := make(map[string]bool, len(apps))
+	for _, app := range apps {
+		if logto.IsPartnerAccessible(app) {
+			grantable[app.Name] = true
+		}
+	}
+
+	var validationErrors []response.ValidationError
+	for _, name := range names {
+		if !grantable[name] {
+			validationErrors = append(validationErrors, response.ValidationError{
+				Key:     "third_party_apps",
+				Message: "unknown_application",
+				Value:   name,
+			})
+		}
+	}
+	if len(validationErrors) > 0 {
+		return &ValidationError{
+			StatusCode: 400,
+			ErrorData: response.ErrorData{
+				Type:   "validation_error",
+				Errors: validationErrors,
+			},
+		}
+	}
+	return nil
+}
+
 func (s *LocalOrganizationService) CanCreateDistributor(userOrgRole, userOrgID string) (bool, string) {
 	// Only the Owner organization (Owner or Staff role) can create distributors
 	if !models.IsGlobalOrgRole(userOrgRole) {
@@ -808,6 +857,16 @@ func (s *LocalOrganizationService) UpdateDistributor(id string, req *models.Upda
 	currentDistributor, err := s.distributorRepo.GetByID(id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current distributor for update: %w", err)
+	}
+
+	// The portal list is local only (never mirrored to Logto), but it is
+	// validated here, before anything is written anywhere.
+	if req.ThirdPartyApps != nil {
+		apps := models.NormalizeThirdPartyAppNames(*req.ThirdPartyApps)
+		if err := s.validateThirdPartyApps(apps); err != nil {
+			return nil, err
+		}
+		req.ThirdPartyApps = &apps
 	}
 
 	// Check if distributor is synced to Logto

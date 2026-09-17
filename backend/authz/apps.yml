@@ -2,8 +2,12 @@
 #
 # Expected portal visibility is evaluated from the per-app access_control in
 # sync/configs/config.yml — organization_ids AND organization_roles AND
-# user_roles, fail-closed — and compared with what my actually offers each
-# persona. Nothing here is derived from the backend's filtering code.
+# user_roles, fail-closed — AND, for reseller and customer personas, from the
+# portal list the owner set on the distributor at the top of their branch
+# (fixture.yml third_party_apps: a branch without one sees no portal; the
+# distributor's own personas and the owner organization are never restricted
+# by it). The result is compared with what my actually offers each persona.
+# Nothing here is derived from the backend's filtering code.
 #
 # The IdP half is a different question. Logto does not read our access_control,
 # so a persona the portal hides can still complete SSO by going straight to the

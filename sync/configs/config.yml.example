@@ -253,6 +253,15 @@ resources:
     container: "permissions"
 
 # Third-party applications
+#
+# access_control below is the role filter each application declares. On top of
+# it, the Owner organization decides per distributor which portals its
+# resellers and customers may use (distributors.third_party_apps, set from the
+# distributor drawer): a reseller or customer user sees an application only
+# when both admit it, while distributors are bound by the role filter only. That
+# per-distributor list lives in the backend database, not here, and only
+# applications admitting a partner organization role (distributor, reseller,
+# customer) without an organization_ids pin can be granted.
 third_party_apps:
     # Example: Management app - only accessible by specific organizations and roles
     - name: "management.company.com"

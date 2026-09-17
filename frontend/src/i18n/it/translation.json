@@ -253,7 +253,13 @@
     "distributors_lc": "distributore | distributori",
     "resellers_lc": "rivenditore | rivenditori",
     "customers_lc": "cliente | clienti",
-    "rebranding": "Rebranding"
+    "rebranding": "Rebranding",
+    "third_party_apps": "Portali",
+    "third_party_apps_helper": "Gli utenti dei rivenditori e dei clienti sotto questo distributore vedono in dashboard solo i portali selezionati. Gli utenti del distributore non sono limitati. Di default nessuno è selezionato.",
+    "no_third_party_apps": "Nessuno",
+    "cannot_retrieve_third_party_apps": "Impossibile recuperare i portali",
+    "third_party_apps_unknown_application": "Uno dei portali selezionati non è disponibile",
+    "choose_third_party_apps": "Scegli i portali"
   },
   "users": {
     "title": "Utenti",

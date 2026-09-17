@@ -37,6 +37,13 @@ The cards follow **permissions**, not just the hierarchy position. A Support use
 
 Below the counters, the Dashboard lists the third-party applications registered on the platform. Each tile shows the application name, its description and a button that opens it with your My identity already signed in.
 
+Which tiles you see depends on two things:
+
+- **Your distributor's portals.** The Owner organization decides, distributor by distributor, which portals its resellers and customers may use (see [Creating a Distributor](../platform/organizations.md#portals)). Users of a reseller or of a customer only see those; a reseller whose distributor has no portal enabled sees no tile at all.
+- **Your roles.** Each portal declares which organization roles and user roles may open it: a portal for Admin and Support users is not offered to a Reader, even when the distributor has it.
+
+Distributors and the Owner organization are never restricted by a distributor's list: their users see every portal their roles admit.
+
 An application that is not enabled for your organization is shown with the button disabled.
 
 Some applications also publish a small summary widget read live from the application itself -- the NethShop account summary, for instance. The widget is hidden for the Owner organization, because the shop account data is meaningful to the partners that transact, not to platform administrators.

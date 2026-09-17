@@ -24,9 +24,23 @@ email_template: edoardo.spadoni+authz-{key}@nethesis.it
 
 orgs:
   # Branch 1 — the branch the matrix personas live in.
+  #
+  # third_party_apps is the portal list the owner grants a distributor for the
+  # resellers and customers below it; the distributor's own users are not bound
+  # by it, and a reseller whose distributor has no list sees no portal at all.
+  # d1 gets every partner portal but the helpdesk, so the apps layer can tell
+  # the distributor filter from the role filter: helpdesk is admitted by
+  # access_control for d1r1's personas yet must stay hidden from them, while
+  # d1's own personas still see it. d2 has none, the default: its reseller and
+  # customer personas must see nothing.
   - key: d1
     type: distributor
     created_by: owner
+    third_party_apps:
+      - nethshop.nethesis.it
+      - my.nethspot.com
+      - partner.nethesis.it
+      - formazione.nethesis.it
   - key: d1r1
     type: reseller
     created_by: d1-admin
@@ -47,7 +61,7 @@ orgs:
     type: customer
     created_by: d1r2-admin
 
-  # Branch 2 — a completely separate distributor subtree.
+  # Branch 2 — a completely separate distributor subtree. No portal granted.
   - key: d2
     type: distributor
     created_by: owner

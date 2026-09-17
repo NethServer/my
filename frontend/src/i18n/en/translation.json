@@ -253,7 +253,13 @@
     "promote_organization_not_synced": "This company is not synchronised with the identity provider yet. Try again later.",
     "promote_owner_organization_not_found": "The owner company could not be determined, so the promoted company cannot be attached to it.",
     "promoted_to_distributor": "Promoted to distributor",
-    "promoted_by_name": "Promoted by {name}"
+    "promoted_by_name": "Promoted by {name}",
+    "third_party_apps": "Portals",
+    "third_party_apps_helper": "Users of the resellers and customers under this distributor see only the selected portals on their dashboard. The distributor’s own users are not affected. Nothing is selected by default.",
+    "no_third_party_apps": "None",
+    "cannot_retrieve_third_party_apps": "Cannot retrieve portals",
+    "third_party_apps_unknown_application": "One of the selected portals is not available",
+    "choose_third_party_apps": "Choose portals"
   },
   "import": {
     "download_the_template": "Download the template",

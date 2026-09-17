@@ -1267,6 +1267,17 @@ components:
             email: "contact@acme-distribution.com"
             contactPerson: "John Smith"
             region: "Italy"
+        third_party_apps:
+          type: array
+          items:
+            type: string
+          description: >-
+            Distributors only. The portals the distributor's resellers and
+            customers may use on the dashboard (application names as registered
+            in Logto); the distributor's own users are not bound by it. Always
+            present on a distributor, as an empty array when no portal is
+            enabled for the subtree. Absent on resellers and customers.
+          example: ["nethshop.nethesis.it", "my.nethspot.com"]
         suspended_at:
           type: string
           format: date-time
@@ -1345,6 +1356,24 @@ components:
             When set, the created_by snapshot in responses shows the attributed
             org and carries on_behalf_of: true.
           example: "eeex9cffzsd7"
+        third_party_apps:
+          type: array
+          items:
+            type: string
+          description: >-
+            Distributors only. The third-party portals (application names as
+            registered in Logto, e.g. nethshop.nethesis.it) the resellers and
+            customers under the distributor may use on the dashboard: their
+            users see only these portals, on top of the role filter each
+            application declares. The distributor's own users are not bound by
+            the list and see every portal their roles admit. Omitted or empty =
+            no portal for the subtree. Names must belong to the catalogue returned by
+            GET /third-party-applications/catalog, otherwise the request fails
+            validation (third_party_apps: unknown_application). Ignored for
+            resellers and customers, which inherit the list of the distributor
+            above them. On update, omitting the field leaves the list
+            untouched; an empty array clears it.
+          example: ["nethshop.nethesis.it", "my.nethspot.com"]
         custom_data:
           type: object
           description: Custom organization data (vat field is required)
@@ -1683,6 +1712,30 @@ components:
           enum: [owner, distributor, reseller, customer]
           description: Organization type
           example: "customer"
+
+    ThirdPartyApplicationCatalogItem:
+      type: object
+      description: >-
+        One portal a distributor can be granted: a third-party application whose
+        own access_control admits a partner organization role and pins no
+        organization id. The name is the stable key (identical across Logto
+        tenants); the display name comes from the application branding.
+      required:
+        - name
+        - display_name
+      properties:
+        name:
+          type: string
+          description: Application name as registered in Logto and in the sync config
+          example: "nethshop.nethesis.it"
+        display_name:
+          type: string
+          description: Display name from the application branding (falls back to the name)
+          example: "NethShop"
+        description:
+          type: string
+          description: Application description
+          example: "NethShop Nethesis"
 
     ThirdPartyApplication:
       type: object
@@ -5677,6 +5730,45 @@ paths:
   # ===========================================================================
   # THIRD-PARTY APPLICATIONS (from Logto)
   # ===========================================================================
+  /third-party-applications/catalog:
+    get:
+      operationId: getThirdPartyApplicationsCatalog
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
+      tags:
+        - Backend - Metadata
+      summary: /third-party-applications/catalog - Portals a distributor can be granted
+      description: >-
+        The catalogue the Owner organization picks from when it sets a
+        distributor's third_party_apps: every third-party application whose
+        access_control admits a partner organization role (distributor, reseller
+        or customer) and pins no organization id. Owner organization only.
+      responses:
+        '200':
+          description: Catalogue retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "third-party applications catalogue retrieved successfully"
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ThirdPartyApplicationCatalogItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /third-party-applications:
     get:
       operationId: getThirdPartyApplications
@@ -5686,7 +5778,14 @@ paths:
       tags:
         - Backend - Metadata
       summary: /third-party-applications - Get third-party applications
-      description: Get third-party applications filtered by user's organization membership, organization roles, and user roles
+      description: >-
+        Get the third-party applications the caller may open: filtered by the
+        application's own access_control (organization roles, user roles,
+        organization ids) and, for resellers and customers, by the
+        third_party_apps list of the distributor at the top of the caller's
+        branch. A branch whose distributor lists no portal gets an empty array.
+        Distributors and the Owner organization are never restricted by a
+        distributor list.
       responses:
         '200':
           description: Third-party applications retrieved successfully

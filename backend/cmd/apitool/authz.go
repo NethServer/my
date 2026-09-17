@@ -65,7 +65,12 @@ type FixtureOrg struct {
 	// puts it in that user's branch of the hierarchy. "owner" for the top.
 	CreatedBy string `yaml:"created_by"`
 	VAT       string `yaml:"vat"`
-	Note      string `yaml:"note"`
+	// ThirdPartyApps is the portal list the owner sets on a distributor
+	// (distributors.third_party_apps); the resellers and customers below
+	// inherit it, the distributor itself is not bound. Only meaningful on type
+	// distributor. Nil = no portal for the subtree, which is the default.
+	ThirdPartyApps []string `yaml:"third_party_apps"`
+	Note           string   `yaml:"note"`
 }
 
 type FixtureUser struct {

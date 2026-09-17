@@ -43,8 +43,14 @@ type AppExpectation struct {
 
 // portalVisible evaluates access_control the way the product intends it: every
 // declared dimension must match, and an app with no access_control is visible to
-// nobody (fail-closed).
+// nobody (fail-closed). On top of that, a reseller or customer persona only sees
+// the portals listed on the distributor at the top of its branch (fixture.yml
+// third_party_apps); no list means no portal. Distributors and the owner
+// organization are never restricted by a distributor list.
 func (a *authzRunner) portalVisible(app rbacThirdPartyApp, p *persona) bool {
+	if allowed, restricted := a.branchPortals(p.orgKey); restricted && !containsFold(allowed, app.Name) {
+		return false
+	}
 	ac := app.AccessControl
 	if len(ac.OrganizationIDs) == 0 && len(ac.OrganizationRoles) == 0 && len(ac.UserRoles) == 0 {
 		return false
@@ -68,6 +74,42 @@ func (a *authzRunner) portalVisible(app rbacThirdPartyApp, p *persona) bool {
 		}
 	}
 	return true
+}
+
+// branchPortals walks the fixture from an org key up to the distributor at the
+// top of its branch (org -> created_by user -> that user's org -> ...) and
+// returns that distributor's portal list, which binds the organizations below
+// it. The owner organization and a distributor itself are unrestricted; a
+// branch with no distributor above it is empty.
+func (a *authzRunner) branchPortals(orgKey string) (allowed []string, restricted bool) {
+	orgs := map[string]FixtureOrg{}
+	for _, o := range a.spec.Fixture.Orgs {
+		orgs[o.Key] = o
+	}
+	userOrg := map[string]string{}
+	for _, u := range a.spec.Fixture.Users {
+		userOrg[u.Key] = u.Org
+	}
+	for hops := 0; hops < 8; hops++ {
+		if orgKey == "" || orgKey == "owner" {
+			if hops == 0 {
+				return nil, false
+			}
+			return []string{}, true
+		}
+		o, ok := orgs[orgKey]
+		if !ok {
+			return []string{}, true
+		}
+		if o.Type == "distributor" {
+			if hops == 0 {
+				return nil, false
+			}
+			return o.ThirdPartyApps, true
+		}
+		orgKey = userOrg[o.CreatedBy]
+	}
+	return []string{}, true
 }
 
 func containsFold(list []string, v string) bool {
@@ -131,11 +173,11 @@ func (a *authzRunner) runAppsLayer(filter string) error {
 				res.Verdict = vPass
 			case got && !want:
 				res.Verdict = vFailOpen
-				res.Detail = fmt.Sprintf("access_control excludes org_role=%s user_roles=%s but my offers the app",
+				res.Detail = fmt.Sprintf("access_control or the distributor portal list excludes org_role=%s user_roles=%s but my offers the app",
 					p.orgRole, strings.Join(p.userRoles, ","))
 			default:
 				res.Verdict = vFailClosed
-				res.Detail = fmt.Sprintf("access_control admits org_role=%s user_roles=%s but my hides the app",
+				res.Detail = fmt.Sprintf("access_control and the distributor portal list admit org_role=%s user_roles=%s but my hides the app",
 					p.orgRole, strings.Join(p.userRoles, ","))
 			}
 			a.record(res)

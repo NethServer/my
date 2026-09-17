@@ -500,3 +500,12 @@ func TestToThirdPartyApplicationWithLoginURLFromCustomData(t *testing.T) {
 		assert.Empty(t, app.LoginURL) // Should be empty as no login_url in custom_data and no redirect URIs
 	})
 }
+
+func TestNormalizeThirdPartyAppNames(t *testing.T) {
+	assert.Equal(t, []string{}, NormalizeThirdPartyAppNames(nil), "nil input yields an empty, non-nil slice")
+	assert.Equal(t, []string{}, NormalizeThirdPartyAppNames([]string{"", "   "}))
+	assert.Equal(t,
+		[]string{"nethshop.nethesis.it", "my.nethspot.com"},
+		NormalizeThirdPartyAppNames([]string{" nethshop.nethesis.it ", "my.nethspot.com", "nethshop.nethesis.it", ""}),
+		"trims, keeps first-occurrence order and drops duplicates and blanks")
+}

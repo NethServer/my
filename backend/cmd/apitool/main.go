@@ -39,6 +39,8 @@ func main() {
 		err = cmdToken(args)
 	case "create-org":
 		err = cmdCreateOrg(args)
+	case "set-apps":
+		err = cmdSetApps(args)
 	case "create-user":
 		err = cmdCreateUser(args)
 	case "list":
@@ -84,11 +86,21 @@ Usage:
 
   apitool create-org <type> <name> --vat=<12 digits> [--description=...]
                                     [--data-<key>=<value>] [--as=<user-key>]
+                                    [--apps=<app,app,...>]
       Create distributor|reseller|customer.
       Repeat --data-<key>=<value> for any extra custom_data field
       (e.g. --data-address='Via Roma 1' --data-language=it --data-email=...).
-      --as  acts as a non-owner user (e.g., the parent's admin), so the new
-            org becomes a child in the caller's hierarchy. Default: owner.
+      --as    acts as a non-owner user (e.g., the parent's admin), so the new
+              org becomes a child in the caller's hierarchy. Default: owner.
+      --apps  distributors only: the third-party portals its whole hierarchy
+              may use, by application name (e.g. nethshop.nethesis.it).
+              Omitted = no portal.
+
+  apitool set-apps <distributor-name|logto-id> --apps=<app,app,...>
+      Replace the portal list of a distributor (PUT /distributors/:id
+      third_party_apps) as the owner. --apps= (empty) clears it. Accepts a
+      registered org name or a raw Logto organization id, so it also serves
+      the one-off enablement on a shared environment.
 
   apitool create-user --org=<name> --email=<email> --name=<name>
                        [--role=Admin] [--username=...] [--key=<reg-name>]
@@ -302,7 +314,15 @@ func cmdCreateOrg(args []string) error {
 		return err
 	}
 
-	logtoID, err := client.CreateOrg(orgType, name, flags["description"], customData)
+	var apps []string
+	if raw, ok := flags["apps"]; ok {
+		if orgType != "distributor" {
+			return fmt.Errorf("--apps applies to distributors only: resellers and customers inherit the distributor's portals")
+		}
+		apps = splitApps(raw)
+	}
+
+	logtoID, err := client.CreateOrg(orgType, name, flags["description"], customData, apps)
 	if err != nil {
 		return err
 	}
@@ -317,6 +337,54 @@ func cmdCreateOrg(args []string) error {
 		return err
 	}
 	fmt.Printf("Created %s %q (logto_id=%s) as %q\n", orgType, name, logtoID, defaultAs(flags["as"]))
+	return nil
+}
+
+// splitApps turns "a,b, c" into ["a","b","c"]; an empty string is an empty,
+// non-nil list, which the API reads as "clear the portals".
+func splitApps(raw string) []string {
+	apps := []string{}
+	for _, part := range strings.Split(raw, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			apps = append(apps, part)
+		}
+	}
+	return apps
+}
+
+func cmdSetApps(args []string) error {
+	flags, pos := parseFlags(args)
+	if len(pos) < 1 {
+		return fmt.Errorf("usage: apitool set-apps <distributor-name|logto-id> --apps=<app,app,...>")
+	}
+	raw, ok := flags["apps"]
+	if !ok {
+		return fmt.Errorf("--apps=<app,app,...> is required (use --apps= to clear the list)")
+	}
+
+	r, err := loadOrInit()
+	if err != nil {
+		return err
+	}
+
+	target := pos[0]
+	logtoID := target
+	if org, found := r.Orgs[target]; found {
+		if org.Type != "distributor" {
+			return fmt.Errorf("%q is a %s: portals are set on distributors only", target, org.Type)
+		}
+		logtoID = org.LogtoID
+	}
+
+	client, err := loginAs(r, "")
+	if err != nil {
+		return err
+	}
+	apps := splitApps(raw)
+	if err := client.SetDistributorThirdPartyApps(logtoID, apps); err != nil {
+		return err
+	}
+	fmt.Printf("Portals of distributor %s (logto_id=%s) set to [%s]\n", target, logtoID, strings.Join(apps, ", "))
 	return nil
 }
 
