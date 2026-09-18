@@ -11,7 +11,8 @@ The connectors configuration enables professional email communication for authen
 ```
 configs/connectors/
 ├── README.md                    # This documentation file
-└── forgot-password.html        # HTML template for password reset emails
+├── forgot-password.html         # HTML template for password reset codes (ForgotPassword)
+└── verification-code.html       # HTML template for Management API codes (Generic)
 ```
 
 ## SMTP Connector Configuration
@@ -63,30 +64,31 @@ Templates support dynamic variable replacement:
 
 ## Email Templates
 
+Both HTML templates share the look of the welcome email (`internal/sync/templates/welcome_*.html`):
+dark header with the Nethesis logo, the code in a card, an info box and the same footer.
+
+Logto picks one template per usage type and never learns the user's language, so each
+template carries **Italian and English together** (Italian first), and so do the subjects
+set in `internal/client/connectors.go`.
+
 ### Password Reset Template (forgot-password.html)
 
-Professional HTML template for password reset emails featuring:
+Sent by Logto during the "forgot password" flow on the sign-in page (usage type
+`ForgotPassword`). Says why the code arrived, shows it, and reminds that the current
+password stays in place if the request was not the reader's.
 
-- **Branded Header**: Company logo and gradient background
-- **Clear Messaging**: Professional password reset instructions
-- **Prominent Code Display**: Verification code in highlighted box
-- **Security Notice**: Important warnings about unauthorized requests
-- **Professional Footer**: Company branding and contact information
-- **Mobile Responsive**: Optimized for all device sizes
+### Verification Code Template (verification-code.html)
 
-#### Template Features:
-- Custom Nethesis branding with logo
-- Red gradient header for urgency/security
-- Monospace code display for clarity
-- Warning section with security notice
-- Professional typography (Poppins font family)
-- Mobile-responsive design with breakpoints
+Sent for every code requested through the Management API (`POST /api/verification-codes`,
+usage type `Generic`). Today that is the verified email change on my (`POST /me/change-info`):
+the wording is deliberately neutral ("you requested a verification") because the same
+template serves any future Management API code.
 
 ### Template Customization
 
-To customize the password reset template:
+To customize a template:
 
-1. Edit `forgot-password.html` in this directory
+1. Edit `forgot-password.html` or `verification-code.html` in this directory
 2. Use template variables for dynamic content:
    - `{{code}}` - The verification code
    - `{{.CompanyName}}` - Your company name
@@ -174,9 +176,9 @@ connectors:
 Currently supported template types:
 
 - **ForgotPassword**: Custom HTML template from `forgot-password.html`
-- **SignIn**: Default plain text template
-- **Register**: Default plain text template  
-- **Generic**: Default plain text template
+- **Generic**: Custom HTML template from `verification-code.html` (Management API codes)
+- **SignIn**: Default plain text template (passwordless flow, not used by my)
+- **Register**: Default plain text template (passwordless flow, not used by my)
 
 ## Testing
 
@@ -202,7 +204,7 @@ After configuration, test the SMTP setup:
 - Ensure TLS settings match your provider
 
 **Template Not Loading**
-- Verify `forgot-password.html` exists in this directory
+- Verify `forgot-password.html` and `verification-code.html` exist in this directory
 - Check file permissions and path
 - Review sync logs for template loading errors
 

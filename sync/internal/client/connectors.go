@@ -187,7 +187,15 @@ func (c *LogtoClient) getCustomHeadersOrDefault(headers map[string]string) map[s
 func (c *LogtoClient) loadEmailTemplates(templateSettings *config.SMTPTemplateSettings) ([]map[string]interface{}, error) {
 	templates := []map[string]interface{}{}
 
-	// Define template configurations
+	// Define template configurations. Logto picks one template per usage
+	// type and never learns the user's language, so the HTML ones carry
+	// Italian and English together and the subjects do the same.
+	//
+	//   ForgotPassword  the reset flow on the Logto sign-in page
+	//   Generic         every code sent through the Management API
+	//                   (POST /api/verification-codes): today the verified
+	//                   email change on my, so the wording stays neutral
+	//   SignIn/Register passwordless flows my does not use; plain default
 	templateConfigs := []struct {
 		usageType string
 		subject   string
@@ -205,25 +213,24 @@ func (c *LogtoClient) loadEmailTemplates(templateSettings *config.SMTPTemplateSe
 		},
 		{
 			usageType: "ForgotPassword",
-			subject:   "Password Reset Verification Code",
+			subject:   "My Nethesis: reimposta la password / reset your password",
 			htmlFile:  "forgot-password.html",
 		},
 		{
 			usageType: "Generic",
-			subject:   "Verification Code",
-			htmlFile:  "",
+			subject:   "My Nethesis: codice di verifica / verification code",
+			htmlFile:  "verification-code.html",
 		},
 	}
 
 	for _, tc := range templateConfigs {
-		// For ForgotPassword, load HTML template from file
-		if tc.usageType == "ForgotPassword" && tc.htmlFile != "" {
+		// Usage types with an HTML file get the branded template
+		if tc.htmlFile != "" {
 			htmlContent, err := c.loadTemplateFile(tc.htmlFile, templateSettings)
 			if err != nil {
 				return nil, fmt.Errorf("failed to load HTML template %s: %w", tc.htmlFile, err)
 			}
 
-			// Use HTML template for ForgotPassword
 			templates = append(templates, map[string]interface{}{
 				"content":     htmlContent,
 				"subject":     tc.subject,
