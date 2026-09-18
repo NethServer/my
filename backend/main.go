@@ -221,6 +221,7 @@ func main() {
 			meGroup.GET("", methods.GetCurrentUser)
 			meGroup.POST("/change-password", middleware.DisableOnImpersonate(), methods.ChangePassword)
 			meGroup.POST("/change-info", middleware.DisableOnImpersonate(), methods.ChangeInfo)
+			meGroup.POST("/change-info/verify-email", middleware.DisableOnImpersonate(), middleware.RateLimit(1, 10), methods.VerifyEmailChange)
 			meGroup.PUT("/avatar", middleware.DisableOnImpersonate(), methods.UploadMyAvatar)
 			meGroup.DELETE("/avatar", middleware.DisableOnImpersonate(), methods.DeleteMyAvatar)
 

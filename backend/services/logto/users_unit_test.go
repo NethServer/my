@@ -853,3 +853,121 @@ func TestLogtoManagementClient_RequestHeaders(t *testing.T) {
 func stringPtr(s string) *string {
 	return &s
 }
+
+// TestLogtoManagementClient_SendEmailVerificationCode covers the request shape
+// and the status handling of the verification-code request.
+func TestLogtoManagementClient_SendEmailVerificationCode(t *testing.T) {
+	tests := []struct {
+		name           string
+		email          string
+		serverResponse func(w http.ResponseWriter, r *http.Request)
+		expectedError  string
+	}{
+		{
+			name:  "code sent",
+			email: "new.address@example.com",
+			serverResponse: func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "POST", r.Method)
+				assert.Equal(t, "/verification-codes", r.URL.Path)
+				body, _ := io.ReadAll(r.Body)
+				assert.JSONEq(t, `{"email":"new.address@example.com"}`, string(body))
+				w.WriteHeader(http.StatusNoContent)
+			},
+		},
+		{
+			name:  "connector missing",
+			email: "new.address@example.com",
+			serverResponse: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"code":"connector.not_found"}`))
+			},
+			expectedError: "failed to send verification code, status 404",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			seedTestTokenCache()
+			server := httptest.NewServer(http.HandlerFunc(tt.serverResponse))
+			defer server.Close()
+
+			client := &LogtoManagementClient{baseURL: server.URL}
+			err := client.SendEmailVerificationCode(tt.email)
+
+			if tt.expectedError != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestLogtoManagementClient_VerifyEmailCode checks that a rejected code is a
+// distinguishable error, so the handler can count it as an attempt rather than
+// report an outage.
+func TestLogtoManagementClient_VerifyEmailCode(t *testing.T) {
+	tests := []struct {
+		name           string
+		serverResponse func(w http.ResponseWriter, r *http.Request)
+		wantInvalid    bool
+		expectedError  string
+	}{
+		{
+			name: "code accepted",
+			serverResponse: func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "POST", r.Method)
+				assert.Equal(t, "/verification-codes/verify", r.URL.Path)
+				body, _ := io.ReadAll(r.Body)
+				assert.JSONEq(t, `{"email":"new.address@example.com","verificationCode":"482913"}`, string(body))
+				w.WriteHeader(http.StatusNoContent)
+			},
+		},
+		{
+			name: "wrong code",
+			serverResponse: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"code":"verification_code.code_mismatch"}`))
+			},
+			wantInvalid: true,
+		},
+		{
+			name: "expired code",
+			serverResponse: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"code":"verification_code.expired"}`))
+			},
+			wantInvalid: true,
+		},
+		{
+			name: "logto down",
+			serverResponse: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusInternalServerError)
+			},
+			expectedError: "failed to verify code, status 500",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			seedTestTokenCache()
+			server := httptest.NewServer(http.HandlerFunc(tt.serverResponse))
+			defer server.Close()
+
+			client := &LogtoManagementClient{baseURL: server.URL}
+			err := client.VerifyEmailCode("new.address@example.com", "482913")
+
+			switch {
+			case tt.wantInvalid:
+				assert.ErrorIs(t, err, ErrVerificationCodeInvalid)
+			case tt.expectedError != "":
+				assert.Error(t, err)
+				assert.NotErrorIs(t, err, ErrVerificationCodeInvalid)
+				assert.Contains(t, err.Error(), tt.expectedError)
+			default:
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

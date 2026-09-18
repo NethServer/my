@@ -1023,6 +1023,16 @@ components:
           description: User's phone number (can be empty to remove)
           example: "+39 333 123456"
 
+    VerifyEmailChangeRequest:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          description: The one-time code mailed to the new address by `POST /me/change-info`
+          example: "482913"
+
     AuthResponse:
       type: object
       properties:
@@ -6150,7 +6160,14 @@ paths:
       tags:
         - Backend - Me
       summary: /me/change-info - Change current user information
-      description: Allow the current authenticated user to change their name, email, and phone number. Name and email cannot be empty if provided.
+      description: |
+        Allow the current authenticated user to change their name, email, and phone number. Name and email cannot be empty if provided.
+
+        Name and phone are applied at once. A **different email is never applied by this call**: a one-time
+        code is mailed to the new address and the response is `202` with `email_verification_required: true`.
+        The change is completed by `POST /me/change-info/verify-email` with that code. An email equal to the
+        current one (case-insensitive) is not a change. At most one code per minute is sent per user (`429`
+        otherwise); the pending change expires after 10 minutes.
       requestBody:
         required: true
         content:
@@ -6159,7 +6176,7 @@ paths:
               $ref: '#/components/schemas/ChangeInfoRequest'
       responses:
         '200':
-          description: User information changed successfully
+          description: User information changed successfully (no email change requested)
           content:
             application/json:
               schema:
@@ -6170,13 +6187,66 @@ paths:
                     example: 200
                   message:
                     type: string
-                    example: "user information changed successfully"
+                    example: "profile updated successfully"
                   data:
                     type: object
-                    nullable: true
-                    example: null
+                    properties:
+                      updated_fields:
+                        type: array
+                        items:
+                          type: string
+                        example: ["name", "phone"]
+        '202':
+          description: Name/phone applied (if any); a verification code was mailed to the new email, which is pending until verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 202
+                  message:
+                    type: string
+                    example: "verification code sent to the new email address"
+                  data:
+                    type: object
+                    properties:
+                      updated_fields:
+                        type: array
+                        items:
+                          type: string
+                        example: ["name"]
+                      email_verification_required:
+                        type: boolean
+                        example: true
+                      pending_email:
+                        type: string
+                        format: email
+                        example: "new.address@example.com"
+        '429':
+          description: A verification code was sent less than a minute ago
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 429
+                  message:
+                    type: string
+                    example: "a verification code was sent recently, wait before requesting another"
+                  data:
+                    type: object
+                    properties:
+                      retry_after_seconds:
+                        type: integer
+                        example: 42
+        '503':
+          description: The verification store or mail delivery is unavailable; nothing was applied for the email
         '400':
-          description: Bad request - validation error for name or phone
+          description: Bad request - validation error for name, email or phone
           content:
             application/json:
               schema:
@@ -6235,6 +6305,114 @@ paths:
                     type: object
                     nullable: true
                     example: null
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /me/change-info/verify-email:
+    post:
+      operationId: verifyMyEmailChange
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
+      tags:
+        - Backend - Me
+      summary: /me/change-info/verify-email - Complete a pending email change
+      description: |
+        Apply the email change parked by `POST /me/change-info`, once the one-time code mailed to the new
+        address proves the caller controls it. The address is taken from the pending change, never from this
+        request. Five wrong codes drop the pending change; a new one must then be requested. The old address
+        stays in effect until this call succeeds. Rate limited per client IP.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyEmailChangeRequest'
+      responses:
+        '200':
+          description: Email changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "profile updated successfully"
+                  data:
+                    type: object
+                    properties:
+                      updated_fields:
+                        type: array
+                        items:
+                          type: string
+                        example: ["email"]
+        '400':
+          description: |
+            Wrong or expired code (`validation_error` on key `code`), no pending email change
+            (`data.type = no_pending_email_change`), or too many wrong codes (same type; the pending
+            change was dropped)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 400
+                  message:
+                    type: string
+                    example: "validation failed"
+                  data:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                        enum: [validation_error, no_pending_email_change]
+                      errors:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                              enum: [code]
+                            message:
+                              type: string
+                              enum: ["invalid verification code", "invalid or expired verification code"]
+                            value:
+                              type: string
+        '409':
+          description: The verified address already belongs to another account
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 409
+                  message:
+                    type: string
+                    example: "email already in use by another account"
+                  data:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                        example: "already_exists"
+                      key:
+                        type: string
+                        example: "email"
+        '401':
+          description: Unauthorized - invalid or missing JWT token
+        '429':
+          description: Rate limit exceeded
+        '503':
+          description: The verification store is unavailable; nothing was applied
         '500':
           $ref: '#/components/responses/InternalServerError'
 

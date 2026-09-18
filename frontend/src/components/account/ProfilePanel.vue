@@ -31,6 +31,7 @@ import UserRoleBadge from '../users/UserRoleBadge.vue'
 import UserAvatar from '../users/UserAvatar.vue'
 import ChangePictureDrawer from './ChangePictureDrawer.vue'
 import RemoveAvatarModal from './RemoveAvatarModal.vue'
+import VerifyEmailModal from './VerifyEmailModal.vue'
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
@@ -45,11 +46,19 @@ const {
   mutation: (profile: ProfileInfo) => {
     return postChangeInfo(profile)
   },
-  onSuccess() {
-    notificationsStore.createNotification({
-      kind: 'success',
-      title: t('account.profile_saved'),
-    })
+  onSuccess(res) {
+    // A changed email is not saved yet: the backend mailed a code to the new
+    // address and applies it only once that code comes back. Name and phone
+    // were applied regardless.
+    if (res.data.data.email_verification_required && res.data.data.pending_email) {
+      pendingEmail.value = res.data.data.pending_email
+      isVerifyEmailModalShown.value = true
+    } else {
+      notificationsStore.createNotification({
+        kind: 'success',
+        title: t('account.profile_saved'),
+      })
+    }
 
     loginStore.fetchTokenAndUserInfo()
   },
@@ -64,6 +73,8 @@ const {
 
 const isChangePictureDrawerShown = ref(false)
 const isRemoveAvatarModalShown = ref(false)
+const isVerifyEmailModalShown = ref(false)
+const pendingEmail = ref('')
 // The profile payload already says whether a picture is stored, so there is no
 // need to probe the avatar endpoint just to enable/disable "Remove picture".
 const hasCustomAvatar = computed(() => loginStore.userInfo?.has_avatar ?? false)
@@ -145,6 +156,17 @@ function validate(profile: ProfileInfo): boolean {
     }
     return false
   }
+}
+
+function onEmailVerified() {
+  isVerifyEmailModalShown.value = false
+  loginStore.fetchTokenAndUserInfo()
+}
+
+function onVerifyEmailClosed() {
+  // Abandoned: the account still carries the old address, show that.
+  isVerifyEmailModalShown.value = false
+  email.value = loginStore.userInfo?.email || ''
 }
 
 function getKebabMenuItems() {
@@ -303,5 +325,11 @@ function getKebabMenuItems() {
   <RemoveAvatarModal
     :visible="isRemoveAvatarModalShown"
     @close="isRemoveAvatarModalShown = false"
+  />
+  <VerifyEmailModal
+    :visible="isVerifyEmailModalShown"
+    :pending-email="pendingEmail"
+    @close="onVerifyEmailClosed"
+    @verified="onEmailVerified"
   />
 </template>

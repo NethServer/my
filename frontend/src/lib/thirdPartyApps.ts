@@ -165,7 +165,10 @@ export const openThirdPartyApp = (thirdPartyApp: ThirdPartyApp) => {
   let url = thirdPartyApp.login_url
   // Entitlement admins (Owner organization) are Administrators on the
   // shop: land them on the backoffice instead of the storefront. redirect_to
-  // is honored by the shop's SSO handler (host-whitelisted).
+  // is consumed by the shop's OIDC plugin after the handshake; the shop's own
+  // plugin refuses a target on another host (the Referer allowlist on the
+  // activate handler is a different check: it decides whether the deep-link
+  // may start the SSO at all).
   if (thirdPartyApp.name === 'nethshop.nethesis.it' && isEntitlementAdmin()) {
     const sep = url.includes('?') ? '&' : '?'
     url += `${sep}redirect_to=${encodeURIComponent(`${SHOP_BASE_URL}/wp-admin/`)}`

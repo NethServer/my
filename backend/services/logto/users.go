@@ -12,6 +12,7 @@ package logto
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -215,4 +216,48 @@ func (c *LogtoManagementClient) ReactivateUser(userID string) error {
 	}
 
 	return checkStatus(resp, []int{http.StatusOK, http.StatusNoContent}, "reactivate user")
+}
+
+// ErrVerificationCodeInvalid is returned when Logto rejects the code presented
+// for an email address: wrong code, expired code, or no code ever sent.
+var ErrVerificationCodeInvalid = errors.New("verification code invalid or expired")
+
+// SendEmailVerificationCode asks Logto to email a one-time code to the address.
+// Logto stores the code against the address (not against a user), so the same
+// address must be presented again to VerifyEmailCode. The tenant's email
+// connector does the delivery.
+func (c *LogtoManagementClient) SendEmailVerificationCode(email string) error {
+	reqBody, err := json.Marshal(map[string]string{"email": email})
+	if err != nil {
+		return fmt.Errorf("failed to marshal verification code request: %w", err)
+	}
+
+	resp, err := c.makeRequest("POST", "/verification-codes", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return fmt.Errorf("failed to send verification code: %w", err)
+	}
+
+	return checkStatus(resp, []int{http.StatusOK, http.StatusNoContent}, "send verification code")
+}
+
+// VerifyEmailCode checks a one-time code Logto emailed to the address. Logto
+// answers 400 for a wrong or expired code, which is mapped to
+// ErrVerificationCodeInvalid so the caller can tell "try again" from an outage.
+func (c *LogtoManagementClient) VerifyEmailCode(email, code string) error {
+	reqBody, err := json.Marshal(map[string]string{"email": email, "verificationCode": code})
+	if err != nil {
+		return fmt.Errorf("failed to marshal verification request: %w", err)
+	}
+
+	resp, err := c.makeRequest("POST", "/verification-codes/verify", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return fmt.Errorf("failed to verify code: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusNotFound {
+		_ = resp.Body.Close()
+		return ErrVerificationCodeInvalid
+	}
+
+	return checkStatus(resp, []int{http.StatusOK, http.StatusNoContent}, "verify code")
 }

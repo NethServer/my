@@ -152,6 +152,12 @@ func CreateUser(c *gin.Context) {
 				Str("validation_reason", validationErr.ErrorData.Errors[0].Message).
 				Msg("User creation validation failed")
 
+			// An authorization refusal from the service (Owner-organization
+			// membership is an Owner-role exclusive) is a 403, not a 400.
+			if validationErr.StatusCode == http.StatusForbidden {
+				c.JSON(http.StatusForbidden, response.Forbidden("access denied: "+validationErr.ErrorData.Errors[0].Message, nil))
+				return
+			}
 			c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", validationErr.ErrorData.Errors))
 			return
 		}

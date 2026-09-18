@@ -114,6 +114,11 @@ routes:
     path: /api/me/change-info
     intent: authenticated
 
+  - method: POST
+    path: /api/me/change-info/verify-email
+    intent: authenticated
+    note: applies a parked email change; without a pending one the handler answers 400
+
   - method: PUT
     path: /api/me/avatar
     intent: authenticated

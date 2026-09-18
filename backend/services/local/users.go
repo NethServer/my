@@ -105,7 +105,7 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, creato
 		}
 		if isOwnerOrg && !models.HasOwnerUserRole(callerUserRoles) {
 			return nil, &ValidationError{
-				StatusCode: 400,
+				StatusCode: 403,
 				ErrorData: response.ErrorData{
 					Errors: []response.ValidationError{
 						{
@@ -654,7 +654,7 @@ func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequ
 		!models.IsPartnerOrgType(s.GetOrganizationType(*currentUser.OrganizationID))
 	if (targetIsOwnerOrg || currentIsOwnerOrg) && !models.HasOwnerUserRole(callerUserRoles) {
 		return nil, &ValidationError{
-			StatusCode: 400,
+			StatusCode: 403,
 			ErrorData: response.ErrorData{
 				Errors: []response.ValidationError{
 					{

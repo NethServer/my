@@ -51,13 +51,41 @@ export const ChangePasswordSchema = v.pipe(
   ),
 )
 
+export const VerifyEmailChangeSchema = v.object({
+  code: v.pipe(v.string(), v.trim(), v.nonEmpty('account.verification_code_required')),
+})
+
 export type ProfileInfo = v.InferOutput<typeof ProfileInfoSchema>
 export type ChangePassword = v.InferOutput<typeof ChangePasswordSchema>
+export type VerifyEmailChange = v.InferOutput<typeof VerifyEmailChangeSchema>
 
-export const postChangeInfo = (profileInfo: ProfileInfo) => {
+// POST /me/change-info answers 200 when everything was applied, or 202 when the
+// email differs from the current one: name and phone are applied, the email is
+// parked and a one-time code is mailed to it. The change completes only through
+// postVerifyEmailChange, so the address on the account can never be one its
+// owner has not proven to read.
+export interface ChangeInfoResponse {
+  code: number
+  message: string
+  data: {
+    updated_fields: string[]
+    email_verification_required?: boolean
+    pending_email?: string
+  }
+}
+
+export const postChangeInfo = (profileInfo: Partial<ProfileInfo>) => {
   const loginStore = useLoginStore()
 
-  return axios.post(`${API_URL}/me/change-info`, profileInfo, {
+  return axios.post<ChangeInfoResponse>(`${API_URL}/me/change-info`, profileInfo, {
+    headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+  })
+}
+
+export const postVerifyEmailChange = (payload: VerifyEmailChange) => {
+  const loginStore = useLoginStore()
+
+  return axios.post<ChangeInfoResponse>(`${API_URL}/me/change-info/verify-email`, payload, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
 }

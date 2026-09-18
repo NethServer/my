@@ -609,9 +609,6 @@ func ChangeInfo(c *gin.Context) {
 		return
 	}
 
-	// Create Logto client
-	logtoClient := logto.NewManagementClient()
-
 	// Manual validation with proper field names
 	var validationErrors []gin.H
 
@@ -657,9 +654,19 @@ func ChangeInfo(c *gin.Context) {
 		changedFields = append(changedFields, "name")
 	}
 
+	// A different email is never written here: it is parked and a one-time
+	// code is mailed to it, see startEmailChange. An address equal to the
+	// current one (case and whitespace aside) is simply not a change.
+	pendingEmail := ""
 	if req.Email != nil {
-		updateData.PrimaryEmail = req.Email
-		changedFields = append(changedFields, "email")
+		newEmail := normalizeEmail(*req.Email)
+		if newEmail != normalizeEmail(user.Email) {
+			if !emailShape.MatchString(newEmail) {
+				changeInfoValidationError(c, "email", "invalid email format", *req.Email)
+				return
+			}
+			pendingEmail = newEmail
+		}
 	}
 
 	if req.Phone != nil {
@@ -675,7 +682,46 @@ func ChangeInfo(c *gin.Context) {
 		}
 	}
 
-	// Update user profile in Logto
+	// Update user profile in Logto (name and phone only; the email has its
+	// own verified path)
+	if len(changedFields) > 0 {
+		if err := applyProfileUpdate(c, user, updateData, changedFields); err != nil {
+			return
+		}
+	}
+
+	if pendingEmail != "" {
+		if !startEmailChange(c, user, pendingEmail) {
+			return
+		}
+		logger.LogAccountOperation(c, "change_info", user.ID, user.OrganizationID, user.ID, user.OrganizationID, true, nil)
+		c.JSON(http.StatusAccepted, response.Success(http.StatusAccepted,
+			"verification code sent to the new email address",
+			gin.H{
+				"updated_fields":              changedFields,
+				"email_verification_required": true,
+				"pending_email":               pendingEmail,
+			},
+		))
+		return
+	}
+
+	// Log successful profile change
+	logger.LogAccountOperation(c, "change_info", user.ID, user.OrganizationID, user.ID, user.OrganizationID, true, nil)
+
+	c.JSON(http.StatusOK, response.OK(
+		"profile updated successfully",
+		gin.H{
+			"updated_fields": changedFields,
+		},
+	))
+}
+
+// applyProfileUpdate writes name/phone to Logto and mirrors them locally. On
+// failure it has already answered the request and returns the error.
+func applyProfileUpdate(c *gin.Context, user *models.User, updateData models.UpdateUserRequest, changedFields []string) error {
+	logtoClient := logto.NewManagementClient()
+
 	_, err := logtoClient.UpdateUser(*user.LogtoID, updateData)
 	if err != nil {
 		logger.RequestLogger(c, "auth").Error().
@@ -688,11 +734,9 @@ func ChangeInfo(c *gin.Context) {
 
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
 			"failed to update profile",
-			map[string]interface{}{
-				"error": err.Error(),
-			},
+			nil,
 		))
-		return
+		return err
 	}
 
 	// Mirror the change into the local users table so list endpoints (GET /users),
@@ -717,9 +761,6 @@ func ChangeInfo(c *gin.Context) {
 		_ = rc.Delete("user_profile:" + *user.LogtoID)
 	}
 
-	// Log successful profile change
-	logger.LogAccountOperation(c, "change_info", user.ID, user.OrganizationID, user.ID, user.OrganizationID, true, nil)
-
 	logger.RequestLogger(c, "auth").Info().
 		Str("operation", "change_info").
 		Str("user_id", user.ID).
@@ -727,12 +768,7 @@ func ChangeInfo(c *gin.Context) {
 		Strs("changed_fields", changedFields).
 		Msg("Profile updated successfully")
 
-	c.JSON(http.StatusOK, response.OK(
-		"profile updated successfully",
-		gin.H{
-			"updated_fields": changedFields,
-		},
-	))
+	return nil
 }
 
 // Logout invalidates the current JWT token by adding it to the blacklist

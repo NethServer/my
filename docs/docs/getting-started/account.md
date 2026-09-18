@@ -46,7 +46,7 @@ The change applies to the whole interface immediately, and is remembered for you
 3. Click **Save profile**
 
 :::note
-Changing your email may require re-authentication, and you may be asked to verify the new address before the change takes effect.
+A new email address is not applied right away: a verification code is sent to it, and the change takes effect only once you enter that code. Your current address stays active until then. The code expires after 10 minutes, and you can request a new one from the same dialog.
 :::
 
 ## Avatar Management
@@ -111,7 +111,7 @@ Consent is optional and always yours to revoke. With consent revoked, nobody can
 - Ensure all required fields are filled in
 - Check that your email address is valid
 - Try refreshing the page and making the changes again
-- If changing email, complete the re-authentication process
+- If changing email, enter the verification code sent to the new address; if it expired, request a new one
 
 ### Avatar Upload Fails
 

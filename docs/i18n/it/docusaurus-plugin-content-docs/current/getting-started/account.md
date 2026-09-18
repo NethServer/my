@@ -46,7 +46,7 @@ La modifica viene applicata immediatamente a tutta l'interfaccia e viene ricorda
 3. Clicca su **Salva profilo**
 
 :::note
-La modifica dell'email può richiedere una nuova autenticazione, e potrebbe esserti chiesto di verificare il nuovo indirizzo prima che la modifica diventi effettiva.
+Un nuovo indirizzo email non viene applicato subito: riceverai un codice di verifica a quell'indirizzo e la modifica diventa effettiva solo quando lo inserisci. Fino ad allora resta attivo l'indirizzo attuale. Il codice scade dopo 10 minuti e puoi richiederne uno nuovo dalla stessa finestra.
 :::
 
 ## Gestione Avatar
@@ -111,7 +111,7 @@ Il consenso è facoltativo e sempre revocabile da te. Con il consenso revocato, 
 - Verifica che tutti i campi obbligatori siano compilati
 - Controlla che l'indirizzo email sia valido
 - Ricarica la pagina e ripeti la modifica
-- Se stai cambiando l'email, completa la procedura di nuova autenticazione
+- Se stai cambiando l'email, inserisci il codice di verifica ricevuto al nuovo indirizzo; se è scaduto, richiedine uno nuovo
 
 ### L'Upload dell'Avatar Fallisce
 
