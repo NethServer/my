@@ -345,7 +345,10 @@ const SHOP_ORG_ORDER_ROLES = ['Admin', 'Backoffice']
 // Whether the shop will actually show this order to the current user — the
 // link is only rendered when the answer is yes, because a link that lands on
 // "order not found" reads as a bug (and the beta testers filed it as one).
-//   - add-on admins open the wp-admin editor, always theirs to open;
+//   - add-on admins (Owner organization) get no link: signing in through my
+//     never grants administration on the shop, and the customer area is not
+//     theirs. They read the order number and open it in the shop backoffice
+//     with their own shop session;
 //   - the buyer opens their own order;
 //   - a colleague of the buyer's organization opens it when their my role is
 //     one the shop lets buy for the organization (same list, on purpose);
@@ -357,7 +360,7 @@ export const canOpenOrder = (grant: AddonGrant) => {
     return false
   }
   if (isAddonAdmin()) {
-    return true
+    return false
   }
 
   const buyer = grant.purchased_by
@@ -385,20 +388,17 @@ export const canOpenOrder = (grant: AddonGrant) => {
   )
 }
 
-// Buyers open their own order in the customer area; add-on admins are shop
-// Administrators and open the backoffice editor, because the customer page
-// rejects orders that are not theirs.
-export const getOrderUrl = (grant: AddonGrant, isAdmin: boolean) => {
+// The order in the shop's customer area, reached through the SSO deep-link.
+// Only for the people canOpenOrder() admits: my never links into the shop
+// backoffice.
+export const getOrderUrl = (grant: AddonGrant) => {
   const orderNumber = getOrderNumber(grant)
 
   if (!orderNumber) {
     return ''
   }
 
-  const target = isAdmin
-    ? `${SHOP_BASE_URL}/wp-admin/post.php?post=${orderNumber}&action=edit`
-    : `${SHOP_BASE_URL}/mio-account/view-order/${orderNumber}/`
-
+  const target = `${SHOP_BASE_URL}/mio-account/view-order/${orderNumber}/`
   return `${SHOP_ACTIVATE_URL}&redirect_to=${encodeURIComponent(target)}`
 }
 

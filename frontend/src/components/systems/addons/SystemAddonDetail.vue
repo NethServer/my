@@ -48,7 +48,6 @@ import {
   type SystemAddonRow,
 } from '@/lib/addons/systemAddons'
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
-import { isAddonAdmin } from '@/lib/permissions'
 import {
   DEFAULT_PAGE_SIZE,
   PAGE_SIZE_OPTIONS,
@@ -314,7 +313,7 @@ function clearFilters() {
                    instead of signed in on the order -->
               <a
                 v-if="canOpenOrder(row.grant)"
-                :href="getOrderUrl(row.grant, isAddonAdmin())"
+                :href="getOrderUrl(row.grant)"
                 target="_blank"
                 rel="noopener"
                 class="text-primary-700 dark:text-primary-500 hover:underline"

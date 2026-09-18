@@ -33,7 +33,6 @@ import {
   type AddonRowStatus,
   type SystemAddonRow,
 } from '@/lib/addons/systemAddons'
-import { isAddonAdmin } from '@/lib/permissions'
 import type { Addon } from '@/lib/addons/addons'
 import type { AddonAction } from './AddonActionModal.vue'
 import AddonStatusIcon from './AddonStatusIcon.vue'
@@ -123,7 +122,7 @@ const actions = computed(
                    instead of signed in on the order -->
               <a
                 v-if="canOpenOrder(row.grant)"
-                :href="getOrderUrl(row.grant, isAddonAdmin())"
+                :href="getOrderUrl(row.grant)"
                 target="_blank"
                 rel="noopener"
                 class="text-primary-700 dark:text-primary-500 hover:underline"
