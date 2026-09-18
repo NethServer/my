@@ -39,6 +39,12 @@ const logtoConfig: LogtoConfig = {
     // same identity contract used by their OIDC login
     'urn:logto:scope:organizations',
     'urn:logto:scope:organization_roles',
+    // The technical role, in the same token. An app's access_control names an
+    // organization list *and* a user-role list, and a widget endpoint has to
+    // be able to apply both: without this claim it can only tell which
+    // organization the caller belongs to, so it would serve a Reader the data
+    // behind a tile My does not show them.
+    'roles',
   ],
 }
 

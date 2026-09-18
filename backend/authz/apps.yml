@@ -56,14 +56,15 @@ apps:
 
   - name: formazione.nethesis.it
     note: |
-      Owner/Distributor/Reseller organizations with any technical role: the
-      training catalogue is for people, not a privileged operation. Customer
-      organizations are the boundary that matters.
+      Owner/Distributor/Reseller organizations with every technical role but
+      Reader, the same pair as the partner forum. Customer organizations are
+      the boundary that matters.
 
-      Moodle also checks on its side: its auth_nethesis_sso plugin reads
-      organization_roles off the token and refuses anything outside
-      distributor/reseller/owner before an account exists, so unlike the other
-      four this app does not rely on the portal alone.
+      Moodle also checks on its side: its auth_nethesis_sso plugin reads both
+      organization_roles and roles off the token and refuses anything these two
+      lists do not name, before an account exists, so unlike the other four this
+      app does not rely on the portal alone. Its own settings mirror the lists
+      written here and have to be changed with them.
 
   - name: partner.nethesis.it
     note: |
