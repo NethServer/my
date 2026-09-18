@@ -1,0 +1,491 @@
+<!doctype html><html lang=it dir=ltr class="docs-wrapper plugin-docs plugin-id-default docs-version-current docs-doc-page docs-doc-id-platform/impersonation" data-has-hydrated=false><head><meta charset=UTF-8><meta name=generator content="Docusaurus v3.10.2"><title data-rh=true>Impersonificazione Utente | My Nethesis</title><meta data-rh=true name=viewport content="width=device-width, initial-scale=1.0"/><meta data-rh=true name=twitter:card content=summary_large_image /><meta data-rh=true property=og:image content=https://nethserver.github.io/my/it/img/logo.svg /><meta data-rh=true name=twitter:image content=https://nethserver.github.io/my/it/img/logo.svg /><meta data-rh=true property=og:url content=https://nethserver.github.io/my/it/docs/platform/impersonation /><meta data-rh=true property=og:locale content=it /><meta data-rh=true property=og:locale:alternate content=en /><meta data-rh=true name=docusaurus_locale content=it /><meta data-rh=true name=docsearch:language content=it /><meta data-rh=true name=docusaurus_version content=current /><meta data-rh=true name=docusaurus_tag content=docs-default-current /><meta data-rh=true name=docsearch:version content=current /><meta data-rh=true name=docsearch:docusaurus_tag content=docs-default-current /><meta data-rh=true property=og:title content="Impersonificazione Utente | My Nethesis"/><meta data-rh=true name=description content="Accesso temporaneo alla piattaforma come un altro utente, con il suo consenso e sotto audit completo."/><meta data-rh=true property=og:description content="Accesso temporaneo alla piattaforma come un altro utente, con il suo consenso e sotto audit completo."/><link data-rh=true rel=icon href=/my/it/img/favicon.ico /><link data-rh=true rel=canonical href=https://nethserver.github.io/my/it/docs/platform/impersonation /><link data-rh=true rel=alternate href=https://nethserver.github.io/my/docs/platform/impersonation hreflang=en /><link data-rh=true rel=alternate href=https://nethserver.github.io/my/it/docs/platform/impersonation hreflang=it /><link data-rh=true rel=alternate href=https://nethserver.github.io/my/docs/platform/impersonation hreflang=x-default /><script data-rh=true type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","item":"https://nethserver.github.io/my/it/docs/platform/impersonation","name":"Impersonificazione Utente","position":1}]}</script><link rel=stylesheet href=/my/it/assets/css/styles.58b825bf.css /><script src=/my/it/assets/js/runtime~main.ca40ca58.js defer></script><script src=/my/it/assets/js/main.a4865d9f.js defer></script></head><body><svg style="display: none;"><defs>
+<symbol id=theme-svg-external-link viewBox="0 0 24 24"><path fill=currentColor d="M21 13v10h-21v-19h12v2h-10v15h17v-8h2zm3-12h-10.988l4.035 4-6.977 7.07 2.828 2.828 6.977-7.07 4.125 4.172v-11z"/></symbol>
+</defs></svg>
+<script>!function(){var t=function(){try{return new URLSearchParams(window.location.search).get("docusaurus-theme")}catch(t){}}()||function(){try{return window.localStorage.getItem("theme-094")}catch(t){}}();document.documentElement.setAttribute("data-theme",t||(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")),document.documentElement.setAttribute("data-theme-choice",t||"system")}(),function(){try{for(var[t,e]of new URLSearchParams(window.location.search).entries())if(t.startsWith("docusaurus-data-")){var a=t.replace("docusaurus-data-","data-");document.documentElement.setAttribute(a,e)}}catch(t){}}()</script><div id=__docusaurus><link rel=preload as=image href=/my/it/img/logo-dark.svg /><link rel=preload as=image href=/my/it/img/logo.svg /><div role=region aria-label="Passa al contenuto principale"><a class=skipToContent_fXgn href=#__docusaurus_skipToContent_fallback>Passa al contenuto principale</a></div><nav aria-label=Principale class="theme-layout-navbar navbar navbar--fixed-top"><div class=navbar__inner><div class="theme-layout-navbar-left navbar__items"><button aria-label="Attiva/disattiva la barra di navigazione" aria-expanded=false class="navbar__toggle clean-btn" type=button><svg width=30 height=30 viewBox="0 0 30 30" aria-hidden=true><path stroke=currentColor stroke-linecap=round stroke-miterlimit=10 stroke-width=2 d="M4 7h22M4 15h22M4 23h22"/></svg></button><a class=navbar__brand href=/my/it/><div class=navbar__logo><img src=/my/it/img/logo-dark.svg alt="My Nethesis" class="themedComponent_mlkZ themedComponent--light_NVdE"/><img src=/my/it/img/logo.svg alt="My Nethesis" class="themedComponent_mlkZ themedComponent--dark_xIcU"/></div><b class="navbar__title text--truncate"></b></a><a aria-current=page class="navbar__item navbar__link navbar__link--active" href=/my/it/docs/intro>Guida Utente</a><div class="navbar__item dropdown dropdown--hoverable"><a href=# aria-haspopup=true aria-expanded=false role=button class=navbar__link>Documentazione Sviluppatori</a><ul class=dropdown__menu><li><a href=https://github.com/NethServer/my/blob/main/README.md target=_blank rel="noopener noreferrer" class=dropdown__link>Panoramica del progetto<svg width=12 height=12 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li><a href=https://api.my.nethesis.it/ target=_blank rel="noopener noreferrer" class=dropdown__link>Backend API<svg width=12 height=12 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li><a href=https://github.com/NethServer/my/blob/main/collect/README.md target=_blank rel="noopener noreferrer" class=dropdown__link>Collect Service<svg width=12 height=12 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li><a href=https://github.com/NethServer/my/blob/main/services/mimir/README.md target=_blank rel="noopener noreferrer" class=dropdown__link>Sistema di alerting<svg width=12 height=12 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li><a href=https://github.com/NethServer/my/blob/main/sync/README.md target=_blank rel="noopener noreferrer" class=dropdown__link>Sync Tool<svg width=12 height=12 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a></ul></div></div><div class="theme-layout-navbar-right navbar__items navbar__items--right"><div class="navbar__item dropdown dropdown--hoverable dropdown--right"><a href=# aria-haspopup=true aria-expanded=false role=button class=navbar__link><svg viewBox="0 0 24 24" width=20 height=20 aria-hidden=true class=iconLanguage_nlXk><path fill=currentColor d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>Italiano</a><ul class=dropdown__menu><li><a href=/my/docs/platform/impersonation target=_self rel="noopener noreferrer" class=dropdown__link lang=en>English</a><li><a href=/my/it/docs/platform/impersonation target=_self rel="noopener noreferrer" class="dropdown__link dropdown__link--active" lang=it>Italiano</a></ul></div><a href=https://github.com/NethServer/my target=_blank rel="noopener noreferrer" class="navbar__item navbar__link">GitHub<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><div class="toggle_vylO colorModeToggle_DEke"><button class="clean-btn toggleButton_gllP toggleButtonDisabled_aARS" type=button disabled title="system mode" aria-label="Passa dalla modalità scura a quella chiara (currently system mode)"><svg viewBox="0 0 24 24" width=24 height=24 aria-hidden=true class="toggleIcon_g3eP lightToggleIcon_pyhR"><path fill=currentColor d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"/></svg><svg viewBox="0 0 24 24" width=24 height=24 aria-hidden=true class="toggleIcon_g3eP darkToggleIcon_wfgR"><path fill=currentColor d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"/></svg><svg viewBox="0 0 24 24" width=24 height=24 aria-hidden=true class="toggleIcon_g3eP systemToggleIcon_QzmC"><path fill=currentColor d="m12 21c4.971 0 9-4.029 9-9s-4.029-9-9-9-9 4.029-9 9 4.029 9 9 9zm4.95-13.95c1.313 1.313 2.05 3.093 2.05 4.95s-0.738 3.637-2.05 4.95c-1.313 1.313-3.093 2.05-4.95 2.05v-14c1.857 0 3.637 0.737 4.95 2.05z"/></svg></button></div><div class=navbarSearchContainer_Bca1></div></div></div><div role=presentation class=navbar-sidebar__backdrop></div></nav><div id=__docusaurus_skipToContent_fallback class="theme-layout-main main-wrapper mainWrapper_z2l0"><div class=docsWrapper_hBAB><button aria-label="Torna indietro all'inizio" class="clean-btn theme-back-to-top-button backToTopButton_sjWU" type=button></button><div class=docRoot_UBD9><aside class="theme-doc-sidebar-container docSidebarContainer_YfHR"><div class=sidebarViewport_aRkj><div class=sidebar_njMd><nav aria-label="Barra laterale dei documenti" class="menu thin-scrollbar menu_SIkG"><ul class="theme-doc-sidebar-menu menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class=menu__link href=/my/it/docs/intro><span class=linkLabel_WmDU>Benvenuto in My</span></a><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class=menu__list-item-collapsible><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role=button aria-expanded=true href=/my/it/docs/getting-started/authentication><span class=categoryLinkLabel_W154>Primi passi</span></a></div><ul class=menu__list><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class=menu__link tabindex=0 href=/my/it/docs/getting-started/authentication><span class=linkLabel_WmDU>Autenticazione</span></a><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class=menu__link tabindex=0 href=/my/it/docs/getting-started/account><span class=linkLabel_WmDU>Impostazioni Account</span></a><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class=menu__link tabindex=0 href=/my/it/docs/getting-started/api-keys><span class=linkLabel_WmDU>API Key</span></a></ul><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class=menu__list-item-collapsible><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret menu__link--active" role=button aria-expanded=true href=/my/it/docs/platform/organizations><span class=categoryLinkLabel_W154>Gestione della piattaforma</span></a></div><ul class=menu__list><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class=menu__link tabindex=0 href=/my/it/docs/platform/organizations><span class=linkLabel_WmDU>Gestione Organizzazioni</span></a><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class=menu__link tabindex=0 href=/my/it/docs/platform/users><span class=linkLabel_WmDU>Gestione Utenti</span></a><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link menu__link--active" aria-current=page tabindex=0 href=/my/it/docs/platform/impersonation><span class=linkLabel_WmDU>Impersonificazione Utente</span></a></ul><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item menu__list-item--collapsed"><div class=menu__list-item-collapsible><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role=button aria-expanded=false href=/my/it/docs/systems/management><span class=categoryLinkLabel_W154>Sistemi</span></a></div><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item menu__list-item--collapsed"><div class=menu__list-item-collapsible><a class="categoryLink_byQd menu__link menu__link--sublist menu__link--sublist-caret" role=button aria-expanded=false href=/my/it/docs/features/dashboard><span class=categoryLinkLabel_W154>Funzionalità</span></a></div><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class=menu__link href=/my/it/docs/contributing><span class=linkLabel_WmDU>Contribuire alla Documentazione My Nethesis</span></a></ul></nav></div></div></aside><main class=docMainContainer_TBSr><div class="container padding-top--md padding-bottom--lg"><div class=row><div class="col docItemCol_VOVn"><div class=docItemContainer_Djhp><article><nav class="theme-doc-breadcrumbs breadcrumbsContainer_Z_bl" aria-label="Briciole di pane"><ul class=breadcrumbs><li class=breadcrumbs__item><a aria-label="Pagina principale" class=breadcrumbs__link href=/my/it/><svg viewBox="0 0 24 24" class=breadcrumbHomeIcon_YNFT><path d="M10 19v-5h4v5c0 .55.45 1 1 1h3c.55 0 1-.45 1-1v-7h1.7c.46 0 .68-.57.33-.87L12.67 3.6c-.38-.34-.96-.34-1.34 0l-8.36 7.53c-.34.3-.13.87.33.87H5v7c0 .55.45 1 1 1h3c.55 0 1-.45 1-1z" fill=currentColor /></svg></a><li class=breadcrumbs__item><span class=breadcrumbs__link>Gestione della piattaforma</span><li class="breadcrumbs__item breadcrumbs__item--active"><span class=breadcrumbs__link>Impersonificazione Utente</span></ul></nav><div class="tocCollapsible_ETCw theme-doc-toc-mobile tocMobile_ITEo"><button type=button class="clean-btn tocCollapsibleButton_TO0P">Su questa pagina</button></div><div class="theme-doc-markdown markdown"><header><h1>Impersonificazione Utente</h1></header>
+<p>Accesso temporaneo alla piattaforma come un altro utente, con il suo consenso e sotto audit completo.</p>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=cosè-limpersonificazione>Cos'è l'Impersonificazione<a href=#cosè-limpersonificazione class=hash-link aria-label="Link diretto a Cos'è l'Impersonificazione" title="Link diretto a Cos'è l'Impersonificazione" translate=no>​</a></h2>
+<p>L'impersonificazione permette agli amministratori autorizzati di accedere temporaneamente a My come un altro utente. È utile per:</p>
+<ul>
+<li class=""><strong>Diagnosi</strong>: riprodurre i problemi segnalati dagli utenti</li>
+<li class=""><strong>Supporto</strong>: assistere gli utenti in operazioni complesse</li>
+<li class=""><strong>Formazione</strong>: mostrare le funzionalità agli utenti</li>
+<li class=""><strong>Verifica</strong>: controllare permessi e accessi</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=caratteristiche-principali>Caratteristiche Principali<a href=#caratteristiche-principali class=hash-link aria-label="Link diretto a Caratteristiche Principali" title="Link diretto a Caratteristiche Principali" translate=no>​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=progettata-attorno-alla-privacy>Progettata attorno alla Privacy<a href=#progettata-attorno-alla-privacy class=hash-link aria-label="Link diretto a Progettata attorno alla Privacy" title="Link diretto a Progettata attorno alla Privacy" translate=no>​</a></h3>
+<ul>
+<li class=""><strong>Consenso obbligatorio</strong>: l'utente deve abilitare esplicitamente l'impersonificazione</li>
+<li class=""><strong>A tempo</strong>: è l'utente a decidere per quanto resta permessa (1-168 ore)</li>
+<li class=""><strong>Trasparenza totale</strong>: tutte le azioni sono registrate e visibili all'utente</li>
+<li class=""><strong>Revoca immediata</strong>: l'utente può disattivare il consenso in qualsiasi momento</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=controlli-di-sicurezza>Controlli di Sicurezza<a href=#controlli-di-sicurezza class=hash-link aria-label="Link diretto a Controlli di Sicurezza" title="Link diretto a Controlli di Sicurezza" translate=no>​</a></h3>
+<ul>
+<li class=""><strong>Basata sui permessi</strong>: solo il personale Nethesis (utenti dell'organizzazione Owner) può impersonificare</li>
+<li class=""><strong>Nessuna auto-impersonificazione</strong>: non si può impersonificare il proprio account</li>
+<li class=""><strong>Nessun concatenamento</strong>: non si può impersonificare mentre si sta già impersonificando qualcun altro</li>
+<li class=""><strong>Scadenza automatica</strong>: il consenso scade da solo alla durata scelta dall'utente</li>
+<li class=""><strong>Tracciamento di sessione</strong>: ogni sessione ha un identificativo univoco per l'audit</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=tracciabilità-completa>Tracciabilità Completa<a href=#tracciabilità-completa class=hash-link aria-label="Link diretto a Tracciabilità Completa" title="Link diretto a Tracciabilità Completa" translate=no>​</a></h3>
+<ul>
+<li class="">Ogni chiamata API durante l'impersonificazione viene registrata</li>
+<li class="">L'utente può rivedere tutte le azioni compiute a suo nome</li>
+<li class="">I dati sensibili vengono oscurati automaticamente nei log</li>
+<li class="">L'organizzazione per sessione rende la revisione semplice</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=chi-può-impersonificare>Chi Può Impersonificare<a href=#chi-può-impersonificare class=hash-link aria-label="Link diretto a Chi Può Impersonificare" title="Link diretto a Chi Può Impersonificare" translate=no>​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=permessi-richiesti>Permessi Richiesti<a href=#permessi-richiesti class=hash-link aria-label="Link diretto a Permessi Richiesti" title="Link diretto a Permessi Richiesti" translate=no>​</a></h3>
+<p><strong>Personale Nethesis (organizzazione Owner):</strong></p>
+<ul>
+<li class="">Gli utenti dell'organizzazione Owner — ruolo Staff o account <code>owner</code> — hanno il permesso <code>impersonate:users</code></li>
+<li class="">Possono impersonificare qualsiasi utente dell'intera gerarchia (con il suo consenso)</li>
+<li class="">Non serve assegnare altri ruoli</li>
+</ul>
+<p><strong>Tutti gli altri:</strong></p>
+<ul>
+<li class="">Non vedono le funzionalità di impersonificazione</li>
+<li class="">Non possono impersonificare nessun utente</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=flusso-di-lavoro>Flusso di Lavoro<a href=#flusso-di-lavoro class=hash-link aria-label="Link diretto a Flusso di Lavoro" title="Link diretto a Flusso di Lavoro" translate=no>​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=passo-1-lutente-abilita-il-consenso>Passo 1: L'Utente Abilita il Consenso<a href=#passo-1-lutente-abilita-il-consenso class=hash-link aria-label="Link diretto a Passo 1: L'Utente Abilita il Consenso" title="Link diretto a Passo 1: L'Utente Abilita il Consenso" translate=no>​</a></h3>
+<p>Prima che l'impersonificazione possa avvenire, l'utente bersaglio deve abilitare il consenso.</p>
+<p><strong>Per gli utenti:</strong></p>
+<ol>
+<li class="">Accedi al tuo account</li>
+<li class="">Vai su <strong>Account</strong> > <strong>Impersonificazione</strong></li>
+<li class="">Individua la sezione <strong>Consenso all'impersonificazione</strong></li>
+<li class="">Clicca su <strong>Abilita impersonificazione</strong></li>
+<li class="">Imposta la durata (1-168 ore)</li>
+<li class="">Clicca su <strong>Salva</strong></li>
+</ol>
+<p><strong>Cosa succede:</strong></p>
+<ul>
+<li class="">Il consenso viene registrato con data e ora</li>
+<li class="">L'amministratore vede che il consenso è disponibile</li>
+<li class="">Scade automaticamente alla fine della durata</li>
+<li class="">Può essere revocato in qualsiasi momento</li>
+</ul>
+<p><strong>Durate tipiche:</strong></p>
+<ul>
+<li class=""><strong>1-24 ore</strong>: diagnosi rapida</li>
+<li class=""><strong>24-72 ore</strong>: supporto su più giorni</li>
+<li class=""><strong>72-168 ore</strong>: accesso prolungato (massimo una settimana)</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=passo-2-lamministratore-impersonifica-lutente>Passo 2: L'Amministratore Impersonifica l'Utente<a href=#passo-2-lamministratore-impersonifica-lutente class=hash-link aria-label="Link diretto a Passo 2: L'Amministratore Impersonifica l'Utente" title="Link diretto a Passo 2: L'Amministratore Impersonifica l'Utente" translate=no>​</a></h3>
+<p><strong>Per gli amministratori (personale Nethesis):</strong></p>
+<ol>
+<li class="">Vai su <strong>Utenti</strong></li>
+<li class="">Trova l'utente bersaglio</li>
+<li class="">Controlla che <strong>Impersonifica utente</strong> sia disponibile (dal menu contestuale)</li>
+<li class="">Clicca su <strong>Impersonifica utente</strong></li>
+<li class="">Conferma l'operazione</li>
+<li class="">Da quel momento stai agendo come quell'utente</li>
+</ol>
+<p><strong>Durante l'impersonificazione vedrai:</strong></p>
+<ul>
+<li class=""><strong>Banner in alto</strong>: "Stai impersonificando [Nome Utente]"</li>
+<li class=""><strong>Pulsante di uscita</strong>: per tornare al tuo account</li>
+<li class=""><strong>Tutte le funzionalità</strong>: esattamente come le vede l'utente</li>
+<li class=""><strong>I permessi dell'utente</strong>: filtrati sui suoi permessi reali</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=passo-3-svolgere-le-azioni-di-supporto>Passo 3: Svolgere le Azioni di Supporto<a href=#passo-3-svolgere-le-azioni-di-supporto class=hash-link aria-label="Link diretto a Passo 3: Svolgere le Azioni di Supporto" title="Link diretto a Passo 3: Svolgere le Azioni di Supporto" translate=no>​</a></h3>
+<p>Mentre impersonifichi:</p>
+<ul>
+<li class="">Naviga la piattaforma come farebbe l'utente</li>
+<li class="">Riproduci i problemi segnalati</li>
+<li class="">Compi azioni per conto dell'utente</li>
+<li class="">Verifica funzionalità e permessi</li>
+<li class="">Documenta quello che trovi</li>
+</ul>
+<div class="theme-admonition theme-admonition-warning admonition_xJq3 alert alert--warning"><div class=admonitionHeading_Gvgb><span class=admonitionIcon_Rf37><svg viewBox="0 0 16 16"><path fill-rule=evenodd d="M8.893 1.5c-.183-.31-.52-.5-.887-.5s-.703.19-.886.5L.138 13.499a.98.98 0 0 0 0 1.001c.193.31.53.501.886.501h13.964c.367 0 .704-.19.877-.5a1.03 1.03 0 0 0 .01-1.002L8.893 1.5zm.133 11.497H6.987v-2.003h2.039v2.003zm0-3.004H6.987V5.987h2.039v4.006z"/></svg></span>warning</div><div class=admonitionContent_BuS1><p>Tutte le azioni vengono registrate e sono visibili all'utente impersonificato. Tratta i suoi dati con rispetto ed esci dall'impersonificazione appena hai finito.</div></div>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=passo-4-uscire-dallimpersonificazione>Passo 4: Uscire dall'Impersonificazione<a href=#passo-4-uscire-dallimpersonificazione class=hash-link aria-label="Link diretto a Passo 4: Uscire dall'Impersonificazione" title="Link diretto a Passo 4: Uscire dall'Impersonificazione" translate=no>​</a></h3>
+<p><strong>Per uscire:</strong></p>
+<ol>
+<li class="">Clicca sul pulsante <strong>Esci dall'impersonificazione</strong> nel banner</li>
+<li class="">Torni al tuo account originale</li>
+<li class="">La sessione di impersonificazione viene chiusa</li>
+</ol>
+<p><strong>Uscita automatica:</strong></p>
+<ul>
+<li class="">La sessione scade alla fine della durata del consenso</li>
+<li class="">L'utente revoca il consenso durante la sessione</li>
+<li class="">Il token scade (segue la durata del consenso)</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=per-gli-utenti-gestione-del-consenso>Per gli Utenti: Gestione del Consenso<a href=#per-gli-utenti-gestione-del-consenso class=hash-link aria-label="Link diretto a Per gli Utenti: Gestione del Consenso" title="Link diretto a Per gli Utenti: Gestione del Consenso" translate=no>​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=attivazione-del-consenso>Attivazione del Consenso<a href=#attivazione-del-consenso class=hash-link aria-label="Link diretto a Attivazione del Consenso" title="Link diretto a Attivazione del Consenso" translate=no>​</a></h3>
+<p><strong>Quando attivarlo:</strong></p>
+<ul>
+<li class="">Quando hai un problema e ti serve assistenza</li>
+<li class="">Quando chiedi aiuto a un amministratore</li>
+<li class="">Prima di una sessione di formazione</li>
+<li class="">Quando l'amministratore te lo chiede</li>
+</ul>
+<p><strong>Come attivarlo:</strong></p>
+<ol>
+<li class="">Vai su <strong>Account</strong> > <strong>Impersonificazione</strong></li>
+<li class="">Clicca su <strong>Consenso all'impersonificazione</strong></li>
+<li class="">Scegli la durata:<!-- -->
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style=--prism-color:#393A34;--prism-background-color:#f6f8fa><div class=codeBlockContent_QJqH><pre tabindex=0 class="prism-code language-text codeBlock_bY9V thin-scrollbar" style=color:#393A34;background-color:#f6f8fa><code class=codeBlockLines_e6Vv><div class=token-line style=color:#393A34><span class="token plain">1 ora    - Supporto rapido</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">24 ore   - Supporto in giornata</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">72 ore   - Problema su più giorni</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">Custom   - Specifica le ore (massimo 168)</span><br/></div></code></pre></div></div>
+</li>
+<li class="">Clicca su <strong>Abilita</strong></li>
+</ol>
+<p><strong>Conferma:</strong></p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style=--prism-color:#393A34;--prism-background-color:#f6f8fa><div class=codeBlockContent_QJqH><pre tabindex=0 class="prism-code language-text codeBlock_bY9V thin-scrollbar" style=color:#393A34;background-color:#f6f8fa><code class=codeBlockLines_e6Vv><div class=token-line style=color:#393A34><span class="token plain">Consenso all'impersonificazione abilitato</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  Scade: [data e ora]</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  Durata: [X] ore</span><br/></div></code></pre></div></div>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=verifica-dello-stato-del-consenso>Verifica dello Stato del Consenso<a href=#verifica-dello-stato-del-consenso class=hash-link aria-label="Link diretto a Verifica dello Stato del Consenso" title="Link diretto a Verifica dello Stato del Consenso" translate=no>​</a></h3>
+<p><strong>Per controllare se il consenso è attivo:</strong></p>
+<ol>
+<li class="">Vai su <strong>Account</strong> > <strong>Impersonificazione</strong></li>
+<li class="">Guarda la sezione <strong>Consenso all'impersonificazione</strong>:<!-- -->
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style=--prism-color:#393A34;--prism-background-color:#f6f8fa><div class=codeBlockContent_QJqH><pre tabindex=0 class="prism-code language-text codeBlock_bY9V thin-scrollbar" style=color:#393A34;background-color:#f6f8fa><code class=codeBlockLines_e6Vv><div class=token-line style=color:#393A34><span class="token plain">Stato: Attivo</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">Scade: 2025-11-07 10:30:00 UTC</span><br/></div></code></pre></div></div>
+</li>
+</ol>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=revoca-del-consenso>Revoca del Consenso<a href=#revoca-del-consenso class=hash-link aria-label="Link diretto a Revoca del Consenso" title="Link diretto a Revoca del Consenso" translate=no>​</a></h3>
+<p><strong>Per disattivare il consenso:</strong></p>
+<ol>
+<li class="">Vai su <strong>Account</strong> > <strong>Impersonificazione</strong></li>
+<li class="">Clicca su <strong>Revoca consenso</strong></li>
+<li class="">Conferma l'operazione</li>
+</ol>
+<p><strong>Effetti:</strong></p>
+<ul>
+<li class="">Il consenso viene disabilitato immediatamente</li>
+<li class="">Le sessioni di impersonificazione attive vengono terminate</li>
+<li class="">L'amministratore non può più impersonificarti</li>
+<li class="">Puoi riabilitarlo quando vuoi</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=visualizzazione-dellaudit>Visualizzazione dell'Audit<a href=#visualizzazione-dellaudit class=hash-link aria-label="Link diretto a Visualizzazione dell'Audit" title="Link diretto a Visualizzazione dell'Audit" translate=no>​</a></h3>
+<p><strong>Per vedere chi ti ha impersonificato:</strong></p>
+<ol>
+<li class="">
+<p>Vai su <strong>Account</strong> > <strong>Impersonificazione</strong></p>
+</li>
+<li class="">
+<p>Apri la sezione <strong>Sessioni</strong></p>
+</li>
+<li class="">
+<p>Trovi lo storico completo:</p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style=--prism-color:#393A34;--prism-background-color:#f6f8fa><div class=codeBlockContent_QJqH><pre tabindex=0 class="prism-code language-text codeBlock_bY9V thin-scrollbar" style=color:#393A34;background-color:#f6f8fa><code class=codeBlockLines_e6Vv><div class=token-line style=color:#393A34><span class="token plain">Inizio: 2025-11-06 10:00:00 UTC</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">Fine: 2025-11-06 11:30:00 UTC</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">Durata: 1,5 ore</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">Impersonificatore: John Admin (john@example.com)</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">Stato: In corso</span><br/></div></code></pre></div></div>
+</li>
+<li class="">
+<p>Clicca su <strong>Mostra log di audit</strong> per vedere tutte le azioni</p>
+</li>
+</ol>
+<p><strong>Informazioni registrate:</strong></p>
+<ul>
+<li class="">Data e ora di ogni azione</li>
+<li class="">Endpoint API chiamato</li>
+<li class="">Dati sensibili oscurati automaticamente</li>
+<li class="">Esito (successo/errore)</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=per-gli-amministratori-uso-dellimpersonificazione>Per gli Amministratori: Uso dell'Impersonificazione<a href=#per-gli-amministratori-uso-dellimpersonificazione class=hash-link aria-label="Link diretto a Per gli Amministratori: Uso dell'Impersonificazione" title="Link diretto a Per gli Amministratori: Uso dell'Impersonificazione" translate=no>​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=verifica-della-disponibilità>Verifica della Disponibilità<a href=#verifica-della-disponibilità class=hash-link aria-label="Link diretto a Verifica della Disponibilità" title="Link diretto a Verifica della Disponibilità" translate=no>​</a></h3>
+<p><strong>Nell'elenco utenti:</strong></p>
+<p>Gli utenti con consenso attivo mostrano:</p>
+<ul>
+<li class="">La voce <strong>Impersonifica utente</strong> abilitata</li>
+<li class="">La data di scadenza del consenso</li>
+<li class="">Il click avvia l'impersonificazione</li>
+</ul>
+<p><strong>Gli utenti senza consenso:</strong></p>
+<ul>
+<li class="">Hanno la voce <strong>Impersonifica utente</strong> disabilitata</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=avvio-dellimpersonificazione>Avvio dell'Impersonificazione<a href=#avvio-dellimpersonificazione class=hash-link aria-label="Link diretto a Avvio dell'Impersonificazione" title="Link diretto a Avvio dell'Impersonificazione" translate=no>​</a></h3>
+<p><strong>Requisiti:</strong></p>
+<ul>
+<li class="">L'utente ha un consenso attivo</li>
+<li class="">Appartieni all'organizzazione Owner (ruolo Staff o account <code>owner</code>)</li>
+<li class="">L'utente non è eliminato né sospeso</li>
+<li class="">Non stai già impersonificando qualcun altro</li>
+</ul>
+<p><strong>Procedura:</strong></p>
+<ol>
+<li class="">
+<p><strong>Trova l'utente</strong>:</p>
+<ul>
+<li class="">Vai su <strong>Utenti</strong></li>
+<li class="">Cerca l'utente bersaglio</li>
+</ul>
+</li>
+<li class="">
+<p><strong>Verifica il consenso</strong>:</p>
+<ul>
+<li class="">Controlla che <strong>Impersonifica utente</strong> sia abilitato</li>
+<li class="">Controlla la scadenza del consenso</li>
+<li class="">Assicurati che il tempo residuo ti basti</li>
+</ul>
+</li>
+<li class="">
+<p><strong>Avvia l'impersonificazione</strong>:</p>
+<ul>
+<li class="">Clicca su <strong>Impersonifica utente</strong> (dal menu contestuale)</li>
+<li class="">Conferma nel dialogo:<!-- -->
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style=--prism-color:#393A34;--prism-background-color:#f6f8fa><div class=codeBlockContent_QJqH><pre tabindex=0 class="prism-code language-text codeBlock_bY9V thin-scrollbar" style=color:#393A34;background-color:#f6f8fa><code class=codeBlockLines_e6Vv><div class=token-line style=color:#393A34><span class="token plain">Agirai temporaneamente come l'utente [Nome] e avrai i suoi permessi.</span><br/></div><div class=token-line style=color:#393A34><span class="token plain" style=display:inline-block></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">Per tornare al tuo account, clicca sull'icona di chiusura sul badge</span><br/></div><div class=token-line style=color:#393A34><span class="token plain">di impersonificazione nella barra in alto.</span><br/></div><div class=token-line style=color:#393A34><span class="token plain" style=display:inline-block></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">[Annulla] [Impersonifica utente]</span><br/></div></code></pre></div></div>
+</li>
+</ul>
+</li>
+<li class="">
+<p><strong>Conferma</strong>:</p>
+<ul>
+<li class="">Stai impersonificando l'utente</li>
+<li class="">Compare il banner in alto</li>
+<li class="">La sessione è iniziata</li>
+</ul>
+</li>
+</ol>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=durante-la-sessione>Durante la Sessione<a href=#durante-la-sessione class=hash-link aria-label="Link diretto a Durante la Sessione" title="Link diretto a Durante la Sessione" translate=no>​</a></h3>
+<p><strong>Cosa vedi:</strong></p>
+<ul>
+<li class="">Esattamente la stessa interfaccia dell'utente</li>
+<li class="">I permessi dell'utente (possono essere più restrittivi dei tuoi)</li>
+<li class="">L'organizzazione e i dati dell'utente</li>
+<li class="">Le sue personalizzazioni e preferenze</li>
+</ul>
+<p><strong>Cosa puoi fare:</strong></p>
+<ul>
+<li class="">Navigare tutte le pagine a cui l'utente accede</li>
+<li class="">Compiere qualsiasi azione che l'utente può compiere</li>
+<li class="">Creare, modificare o eliminare in base ai permessi dell'utente</li>
+<li class="">Verificare funzionalità e riprodurre problemi</li>
+</ul>
+<p><strong>Cosa non puoi fare:</strong></p>
+<ul>
+<li class="">Accedere a funzionalità precluse all'utente</li>
+<li class="">Aggirare le restrizioni di permesso dell'utente</li>
+<li class="">Impersonificare un altro utente mentre stai già impersonificando</li>
+<li class="">Modificare il tuo account</li>
+</ul>
+<p><strong>Buone pratiche:</strong></p>
+<ul>
+<li class="">Documenta le tue azioni</li>
+<li class="">Riduci al minimo il tempo in impersonificazione</li>
+<li class="">Compi solo le operazioni necessarie</li>
+<li class="">Informa l'utente di cosa hai fatto</li>
+<li class="">Esci appena hai finito</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=uscita-dallimpersonificazione>Uscita dall'Impersonificazione<a href=#uscita-dallimpersonificazione class=hash-link aria-label="Link diretto a Uscita dall'Impersonificazione" title="Link diretto a Uscita dall'Impersonificazione" translate=no>​</a></h3>
+<p><strong>Uscita normale:</strong></p>
+<ul>
+<li class="">Clicca sulla <strong>X</strong> nel banner</li>
+<li class="">Torni al tuo account</li>
+</ul>
+<p><strong>Uscita automatica:</strong></p>
+<p>L'impersonificazione termina da sola quando:</p>
+<ul>
+<li class="">La durata del consenso scade</li>
+<li class="">L'utente revoca il consenso</li>
+<li class="">Il token di sessione scade</li>
+<li class="">Effettui il logout</li>
+<li class="">L'utente viene sospeso o eliminato</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=sicurezza-e-privacy>Sicurezza e Privacy<a href=#sicurezza-e-privacy class=hash-link aria-label="Link diretto a Sicurezza e Privacy" title="Link diretto a Sicurezza e Privacy" translate=no>​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=cosa-viene-registrato>Cosa Viene Registrato<a href=#cosa-viene-registrato class=hash-link aria-label="Link diretto a Cosa Viene Registrato" title="Link diretto a Cosa Viene Registrato" translate=no>​</a></h3>
+<p><strong>Informazioni registrate:</strong></p>
+<ul>
+<li class="">Data e ora di ogni azione</li>
+<li class="">Endpoint API e metodo (GET, POST, ecc.)</li>
+<li class="">Codice di stato HTTP (200, 404, ecc.)</li>
+<li class="">Parametri della richiesta (con i dati sensibili oscurati)</li>
+<li class="">Esito della risposta (con i dati sensibili oscurati)</li>
+</ul>
+<p><strong>Oscurati automaticamente:</strong></p>
+<ul>
+<li class="">Password</li>
+<li class="">Token di autenticazione</li>
+<li class="">Secret di sistema</li>
+<li class="">Qualsiasi campo che contenga "password", "secret", "token", "api_key" o "key"</li>
+</ul>
+<p><strong>Esempio di voce di log:</strong></p>
+<div class="language-json codeBlockContainer_Ckt0 theme-code-block" style=--prism-color:#393A34;--prism-background-color:#f6f8fa><div class=codeBlockContent_QJqH><pre tabindex=0 class="prism-code language-json codeBlock_bY9V thin-scrollbar" style=color:#393A34;background-color:#f6f8fa><code class=codeBlockLines_e6Vv><div class=token-line style=color:#393A34><span class="token punctuation" style=color:#393A34>{</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"timestamp"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token string" style=color:#e3116c>"2025-11-06T10:15:23Z"</span><span class="token punctuation" style=color:#393A34>,</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"session_id"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token string" style=color:#e3116c>"imp_abc123"</span><span class="token punctuation" style=color:#393A34>,</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"impersonator"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token string" style=color:#e3116c>"admin@example.com"</span><span class="token punctuation" style=color:#393A34>,</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"impersonated_user"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token string" style=color:#e3116c>"user@example.com"</span><span class="token punctuation" style=color:#393A34>,</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"method"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token string" style=color:#e3116c>"POST"</span><span class="token punctuation" style=color:#393A34>,</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"endpoint"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token string" style=color:#e3116c>"/api/users"</span><span class="token punctuation" style=color:#393A34>,</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"status"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token number" style=color:#36acaa>201</span><span class="token punctuation" style=color:#393A34>,</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token property" style=color:#36acaa>"request_body"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token punctuation" style=color:#393A34>{</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">    </span><span class="token property" style=color:#36acaa>"name"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token string" style=color:#e3116c>"John Doe"</span><span class="token punctuation" style=color:#393A34>,</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">    </span><span class="token property" style=color:#36acaa>"email"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token string" style=color:#e3116c>"john@example.com"</span><span class="token punctuation" style=color:#393A34>,</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">    </span><span class="token property" style=color:#36acaa>"password"</span><span class="token operator" style=color:#393A34>:</span><span class="token plain"> </span><span class="token string" style=color:#e3116c>"[REDACTED]"</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain">  </span><span class="token punctuation" style=color:#393A34>}</span><span class="token plain"></span><br/></div><div class=token-line style=color:#393A34><span class="token plain"></span><span class="token punctuation" style=color:#393A34>}</span><br/></div></code></pre></div></div>
+<div class="theme-admonition theme-admonition-note admonition_xJq3 alert alert--secondary"><div class=admonitionHeading_Gvgb><span class=admonitionIcon_Rf37><svg viewBox="0 0 14 16"><path fill-rule=evenodd d="M6.3 5.69a.942.942 0 0 1-.28-.7c0-.28.09-.52.28-.7.19-.18.42-.28.7-.28.28 0 .52.09.7.28.18.19.28.42.28.7 0 .28-.09.52-.28.7a1 1 0 0 1-.7.3c-.28 0-.52-.11-.7-.3zM8 7.99c-.02-.25-.11-.48-.31-.69-.2-.19-.42-.3-.69-.31H6c-.27.02-.48.13-.69.31-.2.2-.3.44-.31.69h1v3c.02.27.11.5.31.69.2.2.42.31.69.31h1c.27 0 .48-.11.69-.31.2-.19.3-.42.31-.69H8V7.98v.01zM7 2.3c-3.14 0-5.7 2.54-5.7 5.68 0 3.14 2.56 5.7 5.7 5.7s5.7-2.55 5.7-5.7c0-3.15-2.56-5.69-5.7-5.69v.01zM7 .98c3.86 0 7 3.14 7 7s-3.14 7-7 7-7-3.12-7-7 3.14-7 7-7z"/></svg></span>note</div><div class=admonitionContent_BuS1><p>Nel log l'<code>endpoint</code> è il percorso come lo vede il backend, dopo il rewrite del proxy: <code>/api/users</code>, non <code>/backend/api/users</code>.</div></div>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=protezione-dei-dati>Protezione dei Dati<a href=#protezione-dei-dati class=hash-link aria-label="Link diretto a Protezione dei Dati" title="Link diretto a Protezione dei Dati" translate=no>​</a></h3>
+<p><strong>Controllo dell'utente:</strong></p>
+<ul>
+<li class="">È l'utente a scegliere quando abilitare il consenso</li>
+<li class="">È l'utente a decidere la durata</li>
+<li class="">L'utente può revocare in qualsiasi momento</li>
+<li class="">L'utente vede la tracciabilità completa</li>
+</ul>
+<p><strong>Protezione della piattaforma:</strong></p>
+<ul>
+<li class="">Nessun accesso senza consenso</li>
+<li class="">Scadenza automatica</li>
+<li class="">Registrazione completa</li>
+<li class="">Oscuramento dei dati sensibili</li>
+</ul>
+<p><strong>Conformità:</strong></p>
+<ul>
+<li class="">Tracciabilità per i requisiti normativi</li>
+<li class="">Modello di accesso basato sul consenso</li>
+<li class="">Visibilità e controllo in capo all'utente</li>
+<li class="">Privacy dei dati rispettata</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=casi-duso-comuni>Casi d'Uso Comuni<a href=#casi-duso-comuni class=hash-link aria-label="Link diretto a Casi d'Uso Comuni" title="Link diretto a Casi d'Uso Comuni" translate=no>​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=risoluzione-dei-problemi-di-un-utente>Risoluzione dei Problemi di un Utente<a href=#risoluzione-dei-problemi-di-un-utente class=hash-link aria-label="Link diretto a Risoluzione dei Problemi di un Utente" title="Link diretto a Risoluzione dei Problemi di un Utente" translate=no>​</a></h3>
+<p><strong>Scenario:</strong> un utente segnala di non vedere una funzionalità</p>
+<p><strong>Flusso:</strong></p>
+<ol>
+<li class="">L'utente abilita il consenso (1 ora)</li>
+<li class="">L'amministratore lo impersonifica</li>
+<li class="">L'amministratore va nella sezione segnalata</li>
+<li class="">Riproduce il problema</li>
+<li class="">Individua il problema di permessi o configurazione</li>
+<li class="">Esce dall'impersonificazione</li>
+<li class="">Corregge le impostazioni dell'utente</li>
+<li class="">L'utente conferma la risoluzione</li>
+</ol>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=formazione-di-nuovi-utenti>Formazione di Nuovi Utenti<a href=#formazione-di-nuovi-utenti class=hash-link aria-label="Link diretto a Formazione di Nuovi Utenti" title="Link diretto a Formazione di Nuovi Utenti" translate=no>​</a></h3>
+<p><strong>Scenario:</strong> formazione su un flusso di lavoro complesso</p>
+<p><strong>Flusso:</strong></p>
+<ol>
+<li class="">L'utente abilita il consenso (24 ore)</li>
+<li class="">L'amministratore lo impersonifica</li>
+<li class="">Esegue i passaggi del flusso</li>
+<li class="">Documenta ogni azione</li>
+<li class="">Esce dall'impersonificazione</li>
+<li class="">Condivide l'audit con l'utente</li>
+<li class="">L'utente rivede le azioni compiute</li>
+<li class="">L'utente si esercita in autonomia</li>
+</ol>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=verifica-dei-permessi>Verifica dei Permessi<a href=#verifica-dei-permessi class=hash-link aria-label="Link diretto a Verifica dei Permessi" title="Link diretto a Verifica dei Permessi" translate=no>​</a></h3>
+<p><strong>Scenario:</strong> verificare che un utente abbia i permessi corretti</p>
+<p><strong>Flusso:</strong></p>
+<ol>
+<li class="">L'utente abilita il consenso (1 ora)</li>
+<li class="">L'amministratore lo impersonifica</li>
+<li class="">Prova l'accesso alle varie funzionalità</li>
+<li class="">Documenta cosa è visibile e accessibile</li>
+<li class="">Esce dall'impersonificazione</li>
+<li class="">Corregge i permessi se necessario</li>
+</ol>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=risoluzione-problemi>Risoluzione Problemi<a href=#risoluzione-problemi class=hash-link aria-label="Link diretto a Risoluzione Problemi" title="Link diretto a Risoluzione Problemi" translate=no>​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=impossibile-impersonificare-un-utente>Impossibile Impersonificare un Utente<a href=#impossibile-impersonificare-un-utente class=hash-link aria-label="Link diretto a Impossibile Impersonificare un Utente" title="Link diretto a Impossibile Impersonificare un Utente" translate=no>​</a></h3>
+<p><strong>Problema:</strong> il pulsante di impersonificazione è disabilitato</p>
+<p><strong>Soluzioni:</strong></p>
+<ol>
+<li class="">Controlla che l'utente abbia abilitato il consenso:<!-- -->
+<ul>
+<li class="">Chiedigli di abilitarlo in <strong>Account</strong> > <strong>Impersonificazione</strong></li>
+<li class="">Verifica che il consenso non sia scaduto</li>
+</ul>
+</li>
+<li class="">Verifica di avere i permessi:<!-- -->
+<ul>
+<li class="">Devi appartenere all'organizzazione Owner (ruolo Staff o account <code>owner</code>)</li>
+</ul>
+</li>
+<li class="">Controlla lo stato dell'utente:<!-- -->
+<ul>
+<li class="">L'utente non deve essere sospeso</li>
+<li class="">L'utente non deve essere eliminato</li>
+</ul>
+</li>
+<li class="">Verifica di non stare già impersonificando:<!-- -->
+<ul>
+<li class="">Esci prima dall'impersonificazione in corso</li>
+</ul>
+</li>
+</ol>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=consenso-non-mostrato>Consenso Non Mostrato<a href=#consenso-non-mostrato class=hash-link aria-label="Link diretto a Consenso Non Mostrato" title="Link diretto a Consenso Non Mostrato" translate=no>​</a></h3>
+<p><strong>Problema:</strong> l'utente ha abilitato il consenso ma l'amministratore non lo vede</p>
+<p><strong>Soluzioni:</strong></p>
+<ol>
+<li class="">Ricarica la pagina (Ctrl+F5)</li>
+<li class="">Aspetta 30 secondi (propagazione della cache)</li>
+<li class="">Controlla la scadenza del consenso</li>
+<li class="">Verifica che l'utente abbia salvato il consenso</li>
+<li class="">Controlla che non l'abbia revocato per errore</li>
+</ol>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=la-sessione-termina-inaspettatamente>La Sessione Termina Inaspettatamente<a href=#la-sessione-termina-inaspettatamente class=hash-link aria-label="Link diretto a La Sessione Termina Inaspettatamente" title="Link diretto a La Sessione Termina Inaspettatamente" translate=no>​</a></h3>
+<p><strong>Problema:</strong> vieni espulso dalla sessione di impersonificazione</p>
+<p><strong>Cause possibili:</strong></p>
+<ul>
+<li class="">L'utente ha revocato il consenso</li>
+<li class="">La durata del consenso è scaduta</li>
+<li class="">Il token è scaduto</li>
+<li class="">L'utente è stato sospeso</li>
+<li class="">Interruzione di rete</li>
+</ul>
+<p><strong>Soluzioni:</strong></p>
+<ol>
+<li class="">Controlla se il consenso è ancora attivo</li>
+<li class="">Chiedi all'utente di riabilitarlo</li>
+<li class="">Controlla la scadenza del consenso</li>
+<li class="">Verifica la tua connessione di rete</li>
+</ol>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=non-vedi-i-dati-dellutente>Non Vedi i Dati dell'Utente<a href=#non-vedi-i-dati-dellutente class=hash-link aria-label="Link diretto a Non Vedi i Dati dell'Utente" title="Link diretto a Non Vedi i Dati dell'Utente" translate=no>​</a></h3>
+<p><strong>Problema:</strong> durante l'impersonificazione non vedi i dati che ti aspetti</p>
+<p><strong>Spiegazione:</strong></p>
+<ul>
+<li class="">Vedi esattamente ciò che vede l'utente</li>
+<li class="">L'utente potrebbe avere permessi ristretti</li>
+<li class="">L'accesso alle organizzazioni potrebbe essere limitato</li>
+<li class="">È il comportamento atteso</li>
+</ul>
+<p><strong>Soluzioni:</strong></p>
+<ol>
+<li class="">Verifica i ruoli assegnati all'utente</li>
+<li class="">Controlla la sua appartenenza organizzativa</li>
+<li class="">Rivedi i permessi gerarchici</li>
+<li class="">Correggi i permessi dell'utente se necessario</li>
+</ol>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=best-practice>Best Practice<a href=#best-practice class=hash-link aria-label="Link diretto a Best Practice" title="Link diretto a Best Practice" translate=no>​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=per-gli-utenti>Per gli Utenti<a href=#per-gli-utenti class=hash-link aria-label="Link diretto a Per gli Utenti" title="Link diretto a Per gli Utenti" translate=no>​</a></h3>
+<p><strong>Abilitare il consenso:</strong></p>
+<ul>
+<li class="">Abilitalo solo quando serve o ti viene chiesto</li>
+<li class="">Imposta la durata minima necessaria</li>
+<li class="">Revocalo quando il supporto è concluso</li>
+<li class="">Rivedi l'audit dopo l'impersonificazione</li>
+</ul>
+<p><strong>Privacy:</strong></p>
+<ul>
+<li class="">Il consenso è del tutto volontario</li>
+<li class="">Sei tu a decidere quando e per quanto</li>
+<li class="">Puoi vedere tutto quello che è stato fatto</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=per-gli-amministratori>Per gli Amministratori<a href=#per-gli-amministratori class=hash-link aria-label="Link diretto a Per gli Amministratori" title="Link diretto a Per gli Amministratori" translate=no>​</a></h3>
+<p><strong>Prima di impersonificare:</strong></p>
+<ul>
+<li class="">Abbi uno scopo chiaro</li>
+<li class="">Chiedi all'utente di abilitare il consenso</li>
+<li class="">Pianifica cosa devi fare</li>
+<li class="">Stima il tempo necessario</li>
+</ul>
+<p><strong>Durante l'impersonificazione:</strong></p>
+<ul>
+<li class="">Lavora in modo efficiente</li>
+<li class="">Documenta le tue azioni</li>
+<li class="">Compi solo le operazioni necessarie</li>
+<li class="">Rispetta la privacy dell'utente</li>
+<li class="">Esci appena hai finito</li>
+</ul>
+<p><strong>Dopo l'impersonificazione:</strong></p>
+<ul>
+<li class="">Informa l'utente di cosa è stato fatto</li>
+<li class="">Documenta quello che hai trovato</li>
+<li class="">Condividi l'audit se richiesto</li>
+<li class="">Dai seguito ai problemi individuati</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id=per-le-organizzazioni>Per le Organizzazioni<a href=#per-le-organizzazioni class=hash-link aria-label="Link diretto a Per le Organizzazioni" title="Link diretto a Per le Organizzazioni" translate=no>​</a></h3>
+<p><strong>Policy:</strong></p>
+<ul>
+<li class="">Definisci quando l'impersonificazione è appropriata</li>
+<li class="">Documenta il processo di approvazione</li>
+<li class="">Forma gli amministratori</li>
+<li class="">Rivedi periodicamente i log di audit</li>
+</ul>
+<p><strong>Sicurezza:</strong></p>
+<ul>
+<li class="">Ricorda che l'impersonificazione è riservata al personale Nethesis (organizzazione Owner)</li>
+<li class="">Monitora l'uso dell'impersonificazione</li>
+<li class="">Rivedi i log di audit</li>
+<li class="">Indaga sugli schemi inusuali</li>
+</ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id=documentazione-correlata>Documentazione Correlata<a href=#documentazione-correlata class=hash-link aria-label="Link diretto a Documentazione Correlata" title="Link diretto a Documentazione Correlata" translate=no>​</a></h2>
+<ul>
+<li class=""><a class="" href=/my/it/docs/platform/users>Gestione Utenti</a></li>
+<li class=""><a class="" href=/my/it/docs/getting-started/authentication>Guida all'Autenticazione</a></li>
+<li class=""><a href=https://github.com/NethServer/my/blob/main/backend/README.md target=_blank rel="noopener noreferrer" class="">Documentazione API Backend</a></li>
+</ul></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col noPrint_WFHX"><a href=https://github.com/NethServer/my/tree/main/docs/docs/platform/impersonation.md target=_blank rel="noopener noreferrer" class=theme-edit-this-page><svg fill=currentColor height=20 width=20 viewBox="0 0 40 40" class=iconEdit_Z9Sw aria-hidden=true><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"/></g></svg>Modifica questa pagina</a></div><div class="col lastUpdated_JAkA"></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Pagina del documento"><a class="pagination-nav__link pagination-nav__link--prev" href=/my/it/docs/platform/users><div class=pagination-nav__sublabel>Precedente</div><div class=pagination-nav__label>Gestione Utenti</div></a><a class="pagination-nav__link pagination-nav__link--next" href=/my/it/docs/systems/management><div class=pagination-nav__sublabel>Successivo</div><div class=pagination-nav__label>Gestione Sistemi</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href=#cosè-limpersonificazione class="table-of-contents__link toc-highlight">Cos'è l'Impersonificazione</a><li><a href=#caratteristiche-principali class="table-of-contents__link toc-highlight">Caratteristiche Principali</a><ul><li><a href=#progettata-attorno-alla-privacy class="table-of-contents__link toc-highlight">Progettata attorno alla Privacy</a><li><a href=#controlli-di-sicurezza class="table-of-contents__link toc-highlight">Controlli di Sicurezza</a><li><a href=#tracciabilità-completa class="table-of-contents__link toc-highlight">Tracciabilità Completa</a></ul><li><a href=#chi-può-impersonificare class="table-of-contents__link toc-highlight">Chi Può Impersonificare</a><ul><li><a href=#permessi-richiesti class="table-of-contents__link toc-highlight">Permessi Richiesti</a></ul><li><a href=#flusso-di-lavoro class="table-of-contents__link toc-highlight">Flusso di Lavoro</a><ul><li><a href=#passo-1-lutente-abilita-il-consenso class="table-of-contents__link toc-highlight">Passo 1: L'Utente Abilita il Consenso</a><li><a href=#passo-2-lamministratore-impersonifica-lutente class="table-of-contents__link toc-highlight">Passo 2: L'Amministratore Impersonifica l'Utente</a><li><a href=#passo-3-svolgere-le-azioni-di-supporto class="table-of-contents__link toc-highlight">Passo 3: Svolgere le Azioni di Supporto</a><li><a href=#passo-4-uscire-dallimpersonificazione class="table-of-contents__link toc-highlight">Passo 4: Uscire dall'Impersonificazione</a></ul><li><a href=#per-gli-utenti-gestione-del-consenso class="table-of-contents__link toc-highlight">Per gli Utenti: Gestione del Consenso</a><ul><li><a href=#attivazione-del-consenso class="table-of-contents__link toc-highlight">Attivazione del Consenso</a><li><a href=#verifica-dello-stato-del-consenso class="table-of-contents__link toc-highlight">Verifica dello Stato del Consenso</a><li><a href=#revoca-del-consenso class="table-of-contents__link toc-highlight">Revoca del Consenso</a><li><a href=#visualizzazione-dellaudit class="table-of-contents__link toc-highlight">Visualizzazione dell'Audit</a></ul><li><a href=#per-gli-amministratori-uso-dellimpersonificazione class="table-of-contents__link toc-highlight">Per gli Amministratori: Uso dell'Impersonificazione</a><ul><li><a href=#verifica-della-disponibilità class="table-of-contents__link toc-highlight">Verifica della Disponibilità</a><li><a href=#avvio-dellimpersonificazione class="table-of-contents__link toc-highlight">Avvio dell'Impersonificazione</a><li><a href=#durante-la-sessione class="table-of-contents__link toc-highlight">Durante la Sessione</a><li><a href=#uscita-dallimpersonificazione class="table-of-contents__link toc-highlight">Uscita dall'Impersonificazione</a></ul><li><a href=#sicurezza-e-privacy class="table-of-contents__link toc-highlight">Sicurezza e Privacy</a><ul><li><a href=#cosa-viene-registrato class="table-of-contents__link toc-highlight">Cosa Viene Registrato</a><li><a href=#protezione-dei-dati class="table-of-contents__link toc-highlight">Protezione dei Dati</a></ul><li><a href=#casi-duso-comuni class="table-of-contents__link toc-highlight">Casi d'Uso Comuni</a><ul><li><a href=#risoluzione-dei-problemi-di-un-utente class="table-of-contents__link toc-highlight">Risoluzione dei Problemi di un Utente</a><li><a href=#formazione-di-nuovi-utenti class="table-of-contents__link toc-highlight">Formazione di Nuovi Utenti</a><li><a href=#verifica-dei-permessi class="table-of-contents__link toc-highlight">Verifica dei Permessi</a></ul><li><a href=#risoluzione-problemi class="table-of-contents__link toc-highlight">Risoluzione Problemi</a><ul><li><a href=#impossibile-impersonificare-un-utente class="table-of-contents__link toc-highlight">Impossibile Impersonificare un Utente</a><li><a href=#consenso-non-mostrato class="table-of-contents__link toc-highlight">Consenso Non Mostrato</a><li><a href=#la-sessione-termina-inaspettatamente class="table-of-contents__link toc-highlight">La Sessione Termina Inaspettatamente</a><li><a href=#non-vedi-i-dati-dellutente class="table-of-contents__link toc-highlight">Non Vedi i Dati dell'Utente</a></ul><li><a href=#best-practice class="table-of-contents__link toc-highlight">Best Practice</a><ul><li><a href=#per-gli-utenti class="table-of-contents__link toc-highlight">Per gli Utenti</a><li><a href=#per-gli-amministratori class="table-of-contents__link toc-highlight">Per gli Amministratori</a><li><a href=#per-le-organizzazioni class="table-of-contents__link toc-highlight">Per le Organizzazioni</a></ul><li><a href=#documentazione-correlata class="table-of-contents__link toc-highlight">Documentazione Correlata</a></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class=footer__title>Documentazione</div><ul class="footer__items clean-list"><li class=footer__item><a class=footer__link-item href=/my/it/docs/intro>Guida Utente</a><li class=footer__item><a class=footer__link-item href=/my/it/docs/getting-started/authentication>Autenticazione</a><li class=footer__item><a class=footer__link-item href=/my/it/docs/systems/management>Sistemi</a></ul></div><div class="theme-layout-footer-column col footer__col"><div class=footer__title>Sviluppatori</div><ul class="footer__items clean-list"><li class=footer__item><a href=https://api.my.nethesis.it/ target=_blank rel="noopener noreferrer" class=footer__link-item>Backend API<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li class=footer__item><a href=https://github.com/NethServer/my/blob/main/collect/README.md target=_blank rel="noopener noreferrer" class=footer__link-item>Collect Service<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li class=footer__item><a href=https://github.com/NethServer/my/blob/main/services/mimir/README.md target=_blank rel="noopener noreferrer" class=footer__link-item>Alerting System<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li class=footer__item><a href=https://github.com/NethServer/my/blob/main/sync/README.md target=_blank rel="noopener noreferrer" class=footer__link-item>Sync Tool<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a></ul></div><div class="theme-layout-footer-column col footer__col"><div class=footer__title>Comunità</div><ul class="footer__items clean-list"><li class=footer__item><a href=https://github.com/NethServer/my target=_blank rel="noopener noreferrer" class=footer__link-item>GitHub<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a><li class=footer__item><a href=https://www.nethesis.it target=_blank rel="noopener noreferrer" class=footer__link-item>Nethesis<svg width=13.5 height=13.5 aria-label="(opens in new tab)" class=iconExternalLink_nPIU><use href=#theme-svg-external-link /></svg></a></ul></div></div><div class="footer__bottom text--center"><div class=footer__copyright>Copyright © 2026 Nethesis S.r.l.</div></div></div></footer></div></body>
