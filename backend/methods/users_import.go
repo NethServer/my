@@ -436,6 +436,20 @@ func ConfirmUsersImport(c *gin.Context) {
 // createUserFromImportRow creates a new user from an import row and appends the result.
 func createUserFromImportRow(c *gin.Context, userService *local.LocalUserService, user *models.User, row models.ImportRow, result *models.ImportConfirmResult) {
 	createReq := csvimport.UserDataToCreateRequest(row.Data)
+
+	// The organization was scoped at validate time, but the session lives for
+	// a while: re-check at confirm, exactly as POST /users does, so an
+	// organization that left the caller's hierarchy meanwhile is refused.
+	if canCreate, reason := userService.CanCreateUser(strings.ToLower(user.OrgRole), user.OrganizationID, createReq); !canCreate {
+		result.Failed++
+		result.Results = append(result.Results, models.ImportResultRow{
+			RowNumber: row.RowNumber,
+			Status:    models.ImportResultFailed,
+			Error:     reason,
+		})
+		return
+	}
+
 	account, createErr := userService.CreateUser(createReq, models.NewOrgCreatorFromUser(*user), user.OrganizationID, user.UserRoles)
 	if createErr != nil {
 		result.Failed++

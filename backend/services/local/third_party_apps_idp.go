@@ -103,6 +103,15 @@ func (s *ThirdPartyAppsService) ReconcileIdPAccess(dryRun bool) ([]IdPAccessRepo
 		}
 		if r.Error != "" {
 			failed++
+			// A rule written but not enabled, or a push Logto refused, leaves
+			// that portal open (or stale) until the next run: name it, so the
+			// failure is visible without calling the reconcile endpoint.
+			logger.Warn().
+				Str("application", r.Application).
+				Bool("enabled", r.Enabled).
+				Int("organizations", len(r.OrganizationIDs)).
+				Str("error", r.Error).
+				Msg("Logto app-level access control reconcile failed for a third-party application")
 		}
 	}
 	logger.Info().
