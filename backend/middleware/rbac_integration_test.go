@@ -832,7 +832,7 @@ func setupTestEnvironment() {
 		_ = os.Setenv("LOGTO_BACKEND_APP_ID", "test-client-id")
 		_ = os.Setenv("LOGTO_BACKEND_APP_SECRET", "test-client-secret")
 		_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
-		_ = os.Setenv("REDIS_URL", "redis://localhost:6379")
+		testRedisEnv()
 
 		gin.SetMode(gin.TestMode)
 		_ = logger.Init(&logger.Config{Level: logger.InfoLevel, Format: logger.JSONFormat, Output: logger.StdoutOutput, AppName: "[TEST]"})

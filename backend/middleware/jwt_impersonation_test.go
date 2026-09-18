@@ -31,7 +31,7 @@ func TestMain(m *testing.M) {
 	_ = os.Setenv("LOGTO_BACKEND_APP_ID", "test-client-id")
 	_ = os.Setenv("LOGTO_BACKEND_APP_SECRET", "test-client-secret")
 	_ = os.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/test_db")
-	_ = os.Setenv("REDIS_URL", "redis://localhost:6379")
+	testRedisEnv()
 
 	// Initialize configuration
 	configuration.Init()
