@@ -12,7 +12,7 @@ import {
   NeSkeleton,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faFolderPlus } from '@fortawesome/free-solid-svg-icons'
+import { faPuzzlePiece } from '@fortawesome/free-solid-svg-icons'
 import EnabledStatus from '@/components/common/EnabledStatus.vue'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import { computed } from 'vue'
@@ -35,9 +35,8 @@ interface AddonItem {
 // they are written here rather than kept as i18n keys that invite a
 // translator to render them.
 const ADDON_LABELS = {
-  threat_shield: 'Threat Shield',
-  threat_shield_enterprise: 'Advanced Threat Shield',
-  flashstart: 'FlashStart',
+  threat_shield: 'Advanced Threat Shield',
+  flashstart: 'FlashStart Pro',
   flashstart_pro_plus: 'FlashStart Pro Plus',
   netifyd: 'Netify Informatics',
   ha: 'High Availability',
@@ -50,11 +49,8 @@ const addons = computed<AddonItem[]>(() => {
   return [
     {
       key: 'threat_shield',
-      label:
-        (f.threat_shield?.enterprise ?? 0) > 0
-          ? ADDON_LABELS.threat_shield_enterprise
-          : ADDON_LABELS.threat_shield,
-      enabled: f.threat_shield?.enabled ?? false,
+      label: ADDON_LABELS.threat_shield,
+      enabled: (f.threat_shield?.enabled ?? false) && (f.threat_shield?.enterprise ?? 0) > 0,
     },
     {
       key: 'flashstart',
@@ -78,7 +74,7 @@ const sortedAddons = computed<AddonItem[]>(() =>
 <template>
   <NeCard>
     <div class="mb-4 flex h-10 items-center gap-4">
-      <FontAwesomeIcon :icon="faFolderPlus" class="size-5 shrink-0" aria-hidden="true" />
+      <FontAwesomeIcon :icon="faPuzzlePiece" class="size-5 shrink-0" aria-hidden="true" />
       <NeHeading tag="h6">
         {{ $t('system_detail.addons').toUpperCase() }}
       </NeHeading>
@@ -110,7 +106,7 @@ const sortedAddons = computed<AddonItem[]>(() =>
     <NeEmptyState
       v-else
       :title="$t('system_detail.no_addons')"
-      :icon="faFolderPlus"
+      :icon="faPuzzlePiece"
       class="bg-white dark:bg-gray-950"
     />
   </NeCard>

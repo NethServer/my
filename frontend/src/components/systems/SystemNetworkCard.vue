@@ -18,18 +18,38 @@ import {
 } from '@fortawesome/free-solid-svg-icons'
 import { computed } from 'vue'
 import type { InventoryNetworkInterface, NsecFacts } from '@/lib/systems/inventory'
+import type { Ns8Facts, Ns8NetworkInterface } from '@/lib/systems/ns8Facts'
 import { netmaskToCIDR } from '@/lib/network'
+
+// ns8 keeps network facts per cluster node, so the card is told which one to
+// show; without a node id it reads the single nsec configuration.
+const { nodeId } = defineProps<{
+  nodeId?: string
+}>()
 
 const { state: latestInventory } = useLatestInventory()
 
+const ns8Node = computed(() => {
+  if (!nodeId) {
+    return undefined
+  }
+  const facts = latestInventory.value.data?.data?.facts as Ns8Facts | undefined
+  return facts?.nodes?.[nodeId]
+})
+
 const dnsServers = computed(() => {
+  if (nodeId) {
+    return ns8Node.value?.dns_servers || []
+  }
   const facts = latestInventory.value.data?.data?.facts as NsecFacts | undefined
   return facts?.dns_servers || []
 })
 
-const networkInterfaces = computed(() => {
+const networkInterfaces = computed((): (InventoryNetworkInterface | Ns8NetworkInterface)[] => {
   const facts = latestInventory.value.data?.data?.facts as NsecFacts | undefined
-  const networkConfig = facts?.features?.network?.configuration
+  const networkConfig = nodeId
+    ? ns8Node.value?.network?.configuration
+    : facts?.features?.network?.configuration
   if (!networkConfig) {
     return []
   }
@@ -39,7 +59,7 @@ const networkInterfaces = computed(() => {
   )
 })
 
-const getIpAddressWithCidr = (iface: InventoryNetworkInterface) => {
+const getIpAddressWithCidr = (iface: InventoryNetworkInterface | Ns8NetworkInterface) => {
   const ipaddr = iface.props?.ipaddr || ''
   const netmask = iface.props?.netmask || ''
 
@@ -50,6 +70,30 @@ const getIpAddressWithCidr = (iface: InventoryNetworkInterface) => {
   } else {
     return '-'
   }
+}
+
+// ns8 assigns no role to its interfaces, so they get a neutral look of their
+// own and the role is left out of the subtitle
+const getInterfaceRole = (iface: InventoryNetworkInterface | Ns8NetworkInterface) =>
+  'role' in iface.props ? iface.props.role : undefined
+
+const getInterfaceIcon = (iface: InventoryNetworkInterface | Ns8NetworkInterface) => {
+  const role = getInterfaceRole(iface)
+  return role === undefined ? faNetworkWired : getNetworkRoleIcon(role)
+}
+
+const getInterfaceBackgroundStyle = (iface: InventoryNetworkInterface | Ns8NetworkInterface) => {
+  const role = getInterfaceRole(iface)
+  return role === undefined
+    ? 'bg-indigo-100 dark:bg-indigo-700'
+    : getNetworkRoleBackgroundStyle(role)
+}
+
+const getInterfaceForegroundStyle = (iface: InventoryNetworkInterface | Ns8NetworkInterface) => {
+  const role = getInterfaceRole(iface)
+  return role === undefined
+    ? 'text-indigo-700 dark:text-indigo-50'
+    : getNetworkRoleForegroundStyle(role)
 }
 
 const getNetworkRoleIcon = (role: string | undefined) => {
@@ -131,12 +175,12 @@ const getNetworkRoleForegroundStyle = (role: string | undefined) => {
         >
           <!-- icon -->
           <div
-            :class="`flex size-16 shrink-0 items-center justify-center rounded-full ${getNetworkRoleBackgroundStyle(iface.props?.role)}`"
+            :class="`flex size-16 shrink-0 items-center justify-center rounded-full ${getInterfaceBackgroundStyle(iface)}`"
           >
             <FontAwesomeIcon
-              :icon="getNetworkRoleIcon(iface.props?.role)"
+              :icon="getInterfaceIcon(iface)"
               aria-hidden="true"
-              :class="`size-8 ${getNetworkRoleForegroundStyle(iface.props?.role)}`"
+              :class="`size-8 ${getInterfaceForegroundStyle(iface)}`"
             />
           </div>
           <!-- name -->
@@ -146,9 +190,9 @@ const getNetworkRoleForegroundStyle = (role: string | undefined) => {
           <!-- type and role -->
           <div class="text-tertiary-neutral dark:text-tertiary-neutral mt-1">
             {{ iface?.type || '-' }}
-            <span
+            <span v-if="getInterfaceRole(iface)"
               >&bull;
-              {{ iface.props?.role || '-' }}
+              {{ getInterfaceRole(iface) }}
             </span>
           </div>
           <!-- ip address -->

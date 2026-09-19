@@ -47,6 +47,7 @@ import UserAvatar from '../users/UserAvatar.vue'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import type { Ns8Facts } from '@/lib/systems/ns8Facts'
 import type { NsecFacts } from '@/lib/systems/nsecFacts'
+import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 
 const { t, locale } = useI18n()
 const { state: systemDetail, asyncStatus } = useSystemDetail()
@@ -280,7 +281,7 @@ function getKebabMenuItems() {
             {{ $t('systems.created') }}
           </template>
           <template #data>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center justify-end gap-2">
               <NeTooltip trigger-event="mouseenter focus" placement="top">
                 <template #trigger>
                   <UserAvatar
@@ -298,7 +299,17 @@ function getKebabMenuItems() {
                   }}
                 </template>
               </NeTooltip>
-              {{ formatDateTimeNoSeconds(new Date(systemDetail.data.created_at), locale) }}
+              <div class="space-y-0.5 text-start">
+                <div>
+                  {{ formatDateTimeNoSeconds(new Date(systemDetail.data.created_at), locale) }}
+                </div>
+                <div
+                  v-if="systemDetail.data.created_by.organization_name"
+                  class="text-gray-500 dark:text-gray-400"
+                >
+                  <CreatorOrganization :creator="systemDetail.data.created_by" />
+                </div>
+              </div>
             </div>
           </template>
         </DataItem>

@@ -116,6 +116,7 @@ func (r *LocalCustomerRepository) GetByID(id string) (*models.LocalCustomer, err
 	}
 
 	customer.CreatedBy = models.ExtractOrgCreator(customer.CustomData)
+	fillCreatorOrgTypes(r.db, customer.CreatedBy)
 
 	return customer, nil
 }
@@ -739,6 +740,8 @@ func (r *LocalCustomerRepository) executeCustomerQuery(counts models.CountsMode,
 		return nil, 0, fmt.Errorf("error iterating customers: %w", err)
 	}
 
+	fillCreatorOrgTypes(r.db, creatorRefsOf(customers, func(c *models.LocalCustomer) models.CreatorOrgRef { return c.CreatedBy })...)
+
 	return customers, totalCount, nil
 }
 
@@ -993,6 +996,7 @@ func (r *LocalCustomerRepository) GetByIDIncludeDeleted(id string) (*models.Loca
 	}
 
 	customer.CreatedBy = models.ExtractOrgCreator(customer.CustomData)
+	fillCreatorOrgTypes(r.db, customer.CreatedBy)
 
 	return customer, nil
 }

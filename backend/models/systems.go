@@ -25,6 +25,11 @@ type SystemCreator struct {
 	Email            string `json:"email" structs:"email"`
 	OrganizationID   string `json:"organization_id" structs:"organization_id"`
 	OrganizationName string `json:"organization_name" structs:"organization_name"`
+	// OrganizationType is the creator organization's current level, resolved at
+	// read time rather than stored, so a promotion is reflected without a
+	// backfill of the snapshots. Omitted when the organization is not linkable
+	// (owner organization or soft-deleted). See models.CreatorOrgRef.
+	OrganizationType string `json:"organization_type,omitempty" structs:"-"`
 	// OnBehalfOf is true when the system was attributed to a different org via
 	// created_by_organization_id: the user acted on behalf of organization_name
 	// rather than belonging to it. Omitted (false) on the default own-org path.
@@ -43,6 +48,22 @@ func (c *SystemCreator) AttributeToOrg(orgID, orgName string) {
 	c.OrganizationID = orgID
 	c.OrganizationName = orgName
 	c.OnBehalfOf = true
+}
+
+// CreatorOrgID implements CreatorOrgRef.
+func (c *SystemCreator) CreatorOrgID() string {
+	if c == nil {
+		return ""
+	}
+	return c.OrganizationID
+}
+
+// SetCreatorOrgType implements CreatorOrgRef.
+func (c *SystemCreator) SetCreatorOrgType(orgType string) {
+	if c == nil {
+		return
+	}
+	c.OrganizationType = orgType
 }
 
 // System represents a managed system in the infrastructure
