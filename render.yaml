@@ -24,13 +24,17 @@ databases:
     plan: basic-256mb
     region: frankfurt
     databaseName: noc
-    ipAllowList: []
+    ipAllowList:
+      - source: 2.119.67.169/32
+        description: Nethesis HQ
 
   # QA PostgreSQL Database
   - name: my-postgres-qa
     plan: basic-256mb
     databaseName: noc
-    ipAllowList: []
+    ipAllowList:
+      - source: 2.119.67.169/32
+        description: Nethesis HQ
 
 # =============================================================================
 # ENVIRONMENT VARIABLE GROUPS
