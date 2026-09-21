@@ -45,7 +45,7 @@ const distribution = computed(() => {
       </NeHeading>
     </div>
     <!-- product name and virtualization -->
-    <div class="my-6 flex items-center gap-6">
+    <div class="mt-6 mb-4 flex items-center gap-6">
       <NeAvatar size="2xl" aria-hidden="true">
         <template #placeholder>
           <div

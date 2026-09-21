@@ -95,7 +95,7 @@ const getNodeForegroundStyle = (node: ClusterNode) => {
           {{ node.fqdn || '-' }}
         </div>
         <!-- role -->
-        <NeBadgeV2 :kind="getNodeBadgeKind(node)" size="xs" class="mt-1">
+        <NeBadgeV2 :kind="getNodeBadgeKind(node)" size="xs" class="mt-2">
           {{ getNodeRole(node) }}
         </NeBadgeV2>
       </div>
