@@ -2,7 +2,7 @@
   "common": {
     "access_denied": "Accesso negato",
     "this_section_is_accessible_only_by_owner": "Questa sezione è accessibile solo dall'organizzazione owner.",
-    "breadcrumb": "Breadcrumb",
+    "breadcrumb": "Percorso di navigazione",
     "save": "Salva",
     "cancel": "Annulla",
     "search": "Cerca",
@@ -42,7 +42,7 @@
     "loading": "Caricamento…",
     "show": "Mostra",
     "hide": "Nascondi",
-    "coming_soon": "Coming soon",
+    "coming_soon": "Prossimamente",
     "details": "Dettagli",
     "ip_address": "Indirizzo IP",
     "click_to_copy": "Clicca per copiare",
