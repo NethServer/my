@@ -8,6 +8,7 @@ import AlertsCounterCard from '@/components/dashboard/AlertsCounterCard.vue'
 import ApplicationsCounterCard from '@/components/dashboard/ApplicationsCounterCard.vue'
 import CustomersCounterCard from '@/components/dashboard/CustomersCounterCard.vue'
 import DistributorsCounterCard from '@/components/dashboard/DistributorsCounterCard.vue'
+import LegacySystemsCounterCard from '@/components/dashboard/LegacySystemsCounterCard.vue'
 import ResellersCounterCard from '@/components/dashboard/ResellersCounterCard.vue'
 import SystemsCounterCard from '@/components/dashboard/SystemsCounterCard.vue'
 import UsersCounterCard from '@/components/dashboard/UsersCounterCard.vue'
@@ -59,6 +60,7 @@ const { state: thirdPartyApps } = useQuery({
       <div class="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
         <AlertsCounterCard v-if="canReadSystems()" />
         <SystemsCounterCard v-if="canReadSystems()" />
+        <LegacySystemsCounterCard v-if="canReadSystems()" />
         <ApplicationsCounterCard v-if="canReadApplications()" />
       </div>
       <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">

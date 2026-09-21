@@ -109,6 +109,7 @@ interface SystemsTotalResponse {
     active: number
     inactive: number
     unknown: number
+    legacy: number
     timeout_minutes: number
   }
 }
