@@ -8,6 +8,7 @@ import { NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-compo
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import { useCustomerDetail } from '@/queries/organizations/customerDetail'
 import CustomerInfoCard from '@/components/customers/CustomerInfoCard.vue'
+import OrganizationContactsCard from '@/components/organizations/OrganizationContactsCard.vue'
 import { useCustomerStats } from '@/queries/organizations/customerStats'
 import { useCustomerSystems } from '@/queries/systems/customerSystems'
 import OrganizationSystemsCard from '@/components/organizations/OrganizationSystemsCard.vue'
@@ -42,6 +43,12 @@ const { state: customerSystems } = useCustomerSystems()
     <div class="3xl:grid-cols-4 grid grid-cols-1 gap-x-6 gap-y-6 md:grid-cols-2">
       <!-- customer info -->
       <CustomerInfoCard class="3xl:row-span-2 md:row-span-2" />
+      <!-- customer contacts -->
+      <OrganizationContactsCard
+        :contacts="customerDetail.data?.custom_data"
+        :loading="customerDetail.status === 'pending'"
+        class="3xl:row-span-2 md:row-span-2"
+      />
       <!-- organization systems -->
       <OrganizationSystemsCard
         :systems-count="customerStats.data?.systems_count ?? 0"

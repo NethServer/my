@@ -17,7 +17,7 @@ import {
 } from '@nethesis/vue-components'
 import { useDistributorDetail } from '@/queries/organizations/distributorDetail'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { getOrganizationIcon } from '@/lib/organizations/organizations'
+import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
 import DataItem from '../common/DataItem.vue'
 import { computed, ref } from 'vue'
 import NotesModal from '../common/NotesModal.vue'
@@ -34,8 +34,6 @@ import { useI18n } from 'vue-i18n'
 import CreateOrEditDistributorDrawer from './CreateOrEditDistributorDrawer.vue'
 import SuspendDistributorModal from './SuspendDistributorModal.vue'
 import ReactivateDistributorModal from './ReactivateDistributorModal.vue'
-import { getLanguageLabel } from '@/lib/locale'
-import { formatPhoneForDisplay } from '@/lib/phone'
 import UserAvatar from '../users/UserAvatar.vue'
 import { useLoginStore } from '@/stores/login'
 import { useQuery } from '@pinia/colada'
@@ -108,7 +106,7 @@ function getKebabMenuItems() {
       <!-- logo and name -->
       <div class="mb-4 flex items-center justify-between gap-4">
         <div class="flex items-center gap-4">
-          <FontAwesomeIcon :icon="getOrganizationIcon('distributor')" class="size-5" />
+          <OrganizationIcon org-type="distributor" size="sm" />
           <NeHeading tag="h6">
             {{ distributorDetail.data.name }}
           </NeHeading>
@@ -163,79 +161,6 @@ function getKebabMenuItems() {
           </template>
           <template #data>
             {{ distributorDetail.data.custom_data.vat || '-' }}
-          </template>
-        </DataItem>
-        <!-- address -->
-        <DataItem>
-          <template #label>
-            {{ $t('organizations.address') }}
-          </template>
-          <template #data>
-            {{ distributorDetail.data.custom_data.address || '-' }}
-          </template>
-        </DataItem>
-        <!-- city -->
-        <DataItem>
-          <template #label>
-            {{ $t('organizations.city') }}
-          </template>
-          <template #data>
-            {{ distributorDetail.data.custom_data.city || '-' }}
-          </template>
-        </DataItem>
-        <!-- main contact -->
-        <DataItem>
-          <template #label>
-            {{ $t('organizations.main_contact') }}
-          </template>
-          <template #data>
-            {{ distributorDetail.data.custom_data.main_contact || '-' }}
-          </template>
-        </DataItem>
-        <!-- email -->
-        <DataItem>
-          <template #label>
-            {{ $t('organizations.email') }}
-          </template>
-          <template #data>
-            <NeLink
-              v-if="distributorDetail.data.custom_data.email"
-              :href="`mailto:${distributorDetail.data.custom_data.email}`"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="break-all"
-            >
-              {{ distributorDetail.data.custom_data.email }}
-            </NeLink>
-            <template v-else>-</template>
-          </template>
-        </DataItem>
-        <!-- phone number -->
-        <DataItem>
-          <template #label>
-            {{ $t('organizations.phone_number') }}
-          </template>
-          <template #data>
-            <NeLink
-              v-if="distributorDetail.data.custom_data.phone"
-              :href="`tel:${distributorDetail.data.custom_data.phone}`"
-            >
-              {{ formatPhoneForDisplay(distributorDetail.data.custom_data.phone) }}
-            </NeLink>
-            <template v-else>-</template>
-          </template>
-        </DataItem>
-        <!-- language -->
-        <DataItem>
-          <template #label>
-            {{ $t('organizations.language') }}
-          </template>
-          <template #data>
-            {{
-              distributorDetail.data.custom_data.language
-                ? getLanguageLabel(distributorDetail.data.custom_data.language, $i18n.locale)
-                : '-'
-            }}
           </template>
         </DataItem>
         <!-- portals (owner only) -->

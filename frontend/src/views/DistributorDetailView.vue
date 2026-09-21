@@ -9,6 +9,7 @@ import { faCity, faServer } from '@fortawesome/free-solid-svg-icons'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import { useDistributorDetail } from '@/queries/organizations/distributorDetail'
 import DistributorInfoCard from '@/components/distributors/DistributorInfoCard.vue'
+import OrganizationContactsCard from '@/components/organizations/OrganizationContactsCard.vue'
 import CounterCard from '@/components/common/CounterCard.vue'
 import { useDistributorStats } from '@/queries/organizations/distributorStats'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
@@ -96,7 +97,13 @@ const hierarchyApplicationsRoute = computed(() => {
     </NeHeading>
     <div class="3xl:grid-cols-4 grid grid-cols-1 gap-x-6 gap-y-6 md:grid-cols-2">
       <!-- distributor info -->
-      <DistributorInfoCard class="3xl:row-span-2 md:row-span-3" />
+      <DistributorInfoCard class="row-span-4" />
+      <!-- distributor contacts -->
+      <OrganizationContactsCard
+        :contacts="distributorDetail.data?.custom_data"
+        :loading="distributorDetail.status === 'pending'"
+        class="row-span-4"
+      />
       <!-- resellers -->
       <CounterCard
         :title="$t('resellers.title')"

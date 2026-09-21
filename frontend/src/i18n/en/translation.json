@@ -209,6 +209,7 @@
     "address": "Address",
     "city": "City",
     "main_contact": "Main contact",
+    "contacts": "Contacts",
     "owner": "Owner",
     "distributor": "Distributor",
     "distributors_lc": "distributor | distributors",

@@ -18,6 +18,16 @@ export const OrganizationSchema = v.object({
 
 export type Organization = v.InferOutput<typeof OrganizationSchema>
 
+// The contact fields every organization tier carries in its `custom_data`.
+export interface OrganizationContacts {
+  address?: string
+  city?: string
+  main_contact?: string
+  email?: string
+  phone?: string
+  language?: string
+}
+
 export const getOrganizations = () => {
   const loginStore = useLoginStore()
 
