@@ -129,11 +129,12 @@ type OrgCreator struct {
 	OrganizationID   string `json:"organization_id"`
 	OrganizationName string `json:"organization_name"`
 	// OrganizationType is the creator organization's current level, so a client
-	// can link the organization without looking it up. It is NOT part of the
-	// stored snapshot: it is resolved on every read (see CreatorOrgRef), which
-	// keeps it right after a promotion without a retroactive backfill. It is
-	// omitted when the organization is not linkable (owner organization or
-	// soft-deleted), so the absence of a level is never read as "owner".
+	// can pick its icon and link the organization without looking it up. It is
+	// NOT part of the stored snapshot: it is resolved on every read (see
+	// CreatorOrgRef), which keeps it right after a promotion without a
+	// retroactive backfill. The Owner organization is labelled "owner", like the
+	// organization_type of users and systems; only a deleted organization, which
+	// has no level to assert, leaves the field omitted.
 	OrganizationType string `json:"organization_type,omitempty"`
 	// OnBehalfOf is true when the entity was attributed to a different org via
 	// created_by_organization_id: the user acted on behalf of organization_name

@@ -17,26 +17,55 @@ import (
 	"github.com/nethesis/my/backend/models"
 )
 
-// fillCreatorOrgTypes resolves the current level (distributor, reseller,
-// customer) of every organization referenced by the given creator snapshots and
-// fills it into organization_type, so a client can build the link to the
-// creator's organization without a second lookup.
+// ownerOrgType is the organization_type of the Owner organization: the one
+// organization outside the three levels, so the one the organization tables
+// cannot answer for. It is the value the organization_type of users and systems
+// carries for it, so a client draws it with the same icon everywhere.
+const ownerOrgType = "owner"
+
+// creatorOrgTypesQuery looks the creator organizations up in the three
+// organization tables rather than in unified_organizations: the materialized
+// view refreshes asynchronously and leaves soft-deleted rows out, so it cannot
+// tell a fresh insert, a deleted organization and the Owner organization apart.
+// Live and deleted rows are probed separately so every branch runs on an index:
+// the partial unique index on logto_id for the live rows, the deleted_at index
+// for the few deleted ones.
+const creatorOrgTypesQuery = `
+	SELECT logto_id, 'distributor' AS org_type, TRUE AS live FROM distributors WHERE logto_id = ANY($1) AND deleted_at IS NULL
+	UNION ALL
+	SELECT logto_id, 'reseller', TRUE FROM resellers WHERE logto_id = ANY($1) AND deleted_at IS NULL
+	UNION ALL
+	SELECT logto_id, 'customer', TRUE FROM customers WHERE logto_id = ANY($1) AND deleted_at IS NULL
+	UNION ALL
+	SELECT logto_id, 'distributor', FALSE FROM distributors WHERE logto_id = ANY($1) AND deleted_at IS NOT NULL
+	UNION ALL
+	SELECT logto_id, 'reseller', FALSE FROM resellers WHERE logto_id = ANY($1) AND deleted_at IS NOT NULL
+	UNION ALL
+	SELECT logto_id, 'customer', FALSE FROM customers WHERE logto_id = ANY($1) AND deleted_at IS NOT NULL`
+
+// fillCreatorOrgTypes resolves the current level of every organization
+// referenced by the given creator snapshots and fills it into
+// organization_type, so a client can pick the organization's icon and build
+// the link to its detail page without a second lookup.
 //
 // The level is resolved on every read instead of being stored with the
 // snapshot: an organization promoted after the fact (reseller -> distributor)
 // is then labelled with its current level, with no retroactive backfill of the
-// stored snapshots. The whole page costs one indexed query on
-// unified_organizations, whatever the number of rows.
+// stored snapshots. The whole page costs one query, whatever the number of
+// rows.
 //
-// An organization the view does not carry gets no type at all: the field is
-// omitted rather than guessed. Three different cases land there, and none of
-// them is linkable: the owner organization, which is not one of the three
-// levels; a soft-deleted organization, which the view filters out; and the
-// window in which the asynchronous refresh has not caught up with a fresh
-// insert. Answering "owner" would be a link the client cannot follow in all
-// three, and a false attribution in the last two. The enrichment is a
-// nice-to-have: on a query error the field is left empty rather than failing
-// the read.
+// Each organization gets one of three answers:
+//   - a live row in one of the organization tables: its level;
+//   - a soft-deleted row only: no type at all. A deleted organization has no
+//     detail page to link to and no current level to assert, so the field is
+//     omitted rather than guessed;
+//   - no row anywhere: "owner". The Owner organization is the only one outside
+//     the three levels, and this is the value the organization_type of users
+//     and systems answers for it. An organization destroyed outright lands
+//     here too, as it does in those joins.
+//
+// The enrichment is a nice-to-have: on a query error the field is left empty
+// rather than failing the read.
 func fillCreatorOrgTypes(db *sql.DB, creators ...models.CreatorOrgRef) {
 	if db == nil {
 		return
@@ -59,33 +88,46 @@ func fillCreatorOrgTypes(db *sql.DB, creators ...models.CreatorOrgRef) {
 		return
 	}
 
-	rows, err := db.Query(`SELECT logto_id, org_type FROM unified_organizations WHERE logto_id = ANY($1)`, pq.Array(ids))
+	rows, err := db.Query(creatorOrgTypesQuery, pq.Array(ids))
 	if err != nil {
 		return
 	}
 	defer func() { _ = rows.Close() }()
 
-	types := make(map[string]string, len(ids))
+	live := make(map[string]string, len(ids))
+	deleted := make(map[string]bool)
 	for rows.Next() {
 		var logtoID, orgType string
-		if err := rows.Scan(&logtoID, &orgType); err != nil {
+		var isLive bool
+		if err := rows.Scan(&logtoID, &orgType, &isLive); err != nil {
 			continue
 		}
-		types[logtoID] = orgType
+		if isLive {
+			live[logtoID] = orgType
+		} else {
+			deleted[logtoID] = true
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return
 	}
 
 	for _, creator := range creators {
-		if creator == nil || creator.CreatorOrgID() == "" {
+		if creator == nil {
 			continue
 		}
-		orgType, found := types[creator.CreatorOrgID()]
-		if !found {
+		id := creator.CreatorOrgID()
+		if id == "" {
 			continue
 		}
-		creator.SetCreatorOrgType(orgType)
+		if orgType, found := live[id]; found {
+			creator.SetCreatorOrgType(orgType)
+			continue
+		}
+		if deleted[id] {
+			continue
+		}
+		creator.SetCreatorOrgType(ownerOrgType)
 	}
 }
 

@@ -27,8 +27,9 @@ type SystemCreator struct {
 	OrganizationName string `json:"organization_name" structs:"organization_name"`
 	// OrganizationType is the creator organization's current level, resolved at
 	// read time rather than stored, so a promotion is reflected without a
-	// backfill of the snapshots. Omitted when the organization is not linkable
-	// (owner organization or soft-deleted). See models.CreatorOrgRef.
+	// backfill of the snapshots. The Owner organization is labelled "owner";
+	// only a deleted organization leaves the field omitted. See
+	// models.CreatorOrgRef.
 	OrganizationType string `json:"organization_type,omitempty" structs:"-"`
 	// OnBehalfOf is true when the system was attributed to a different org via
 	// created_by_organization_id: the user acted on behalf of organization_name
