@@ -864,7 +864,8 @@
     "virtual": "Virtual device",
     "memory_used_of_total": "{used} used of {total}",
     "storage_free_of_total": "{free} free of {total}",
-    "no_hardware_info": "No hardware information"
+    "no_hardware_info": "No hardware information",
+    "no_hardware_info_description": "Hardware information will appear here after the system has sent at least one inventory."
   },
   "application_detail": {
     "title": "Application detail",

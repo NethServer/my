@@ -127,6 +127,7 @@ const hasMountpoints = computed(() => Object.keys(hardware.value?.mountpoints ||
     <NeEmptyState
       v-else
       :title="$t('system_detail.no_hardware_info')"
+      :description="$t('system_detail.no_hardware_info_description')"
       :icon="faServer"
       class="bg-white dark:bg-gray-950"
     />

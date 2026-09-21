@@ -782,7 +782,8 @@
     "virtual": "Dispositivo virtuale",
     "memory_used_of_total": "{used} usati di {total}",
     "storage_free_of_total": "{free} liberi di {total}",
-    "no_hardware_info": "Nessuna informazione hardware"
+    "no_hardware_info": "Nessuna informazione hardware",
+    "no_hardware_info_description": "Le informazioni hardware appariranno qui dopo che il sistema avrà inviato almeno un inventario."
   },
   "application_detail": {
     "title": "Dettaglio applicazione",
