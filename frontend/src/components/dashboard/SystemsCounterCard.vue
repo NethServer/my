@@ -37,7 +37,7 @@ const pendingCount = computed(() => systemsTotal.value.data?.unknown ?? 0)
     :loading="systemsTotal.status === 'pending'"
     :to="{ name: 'systems' }"
   >
-    <div class="mt-5 flex flex-wrap justify-center gap-2">
+    <div class="flex flex-wrap justify-center gap-2">
       <BadgeLink
         v-if="activeCount > 0"
         :to="{ name: 'systems', query: { status: 'active' } }"

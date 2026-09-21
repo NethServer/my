@@ -7,7 +7,7 @@
 import { NeCard, NeHeading, NeSkeleton, NeTooltip } from '@nethesis/vue-components'
 import { type IconDefinition } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { computed, useAttrs, useSlots } from 'vue'
+import { computed, useAttrs } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, type RouteLocationRaw } from 'vue-router'
 import { abbreviateNumber } from '@/lib/common'
@@ -25,7 +25,6 @@ const {
   loading = false,
   skeletonLines = 2,
   uppercaseTitle = true,
-  centeredCounter = true,
   colorClasses = undefined,
   to = undefined,
   abbreviateCounter = true,
@@ -36,7 +35,6 @@ const {
   loading?: boolean
   skeletonLines?: number
   uppercaseTitle?: boolean
-  centeredCounter?: boolean
   colorClasses?: string
   to?: RouteLocationRaw
   abbreviateCounter?: boolean
@@ -93,16 +91,12 @@ const abbreviatedCounter = computed(() => {
 const formattedCounter = computed(() => {
   return new Intl.NumberFormat(locale.value).format(counter)
 })
-
-const slots = useSlots()
-
-const hasDefaultSlot = computed(() => !!slots.default)
 </script>
 
 <template>
   <NeCard v-bind="containerAttrs">
     <template #title>
-      <div class="flex items-center gap-3">
+      <div class="flex items-start gap-3">
         <FontAwesomeIcon
           v-if="icon"
           :icon="icon"
@@ -122,7 +116,7 @@ const hasDefaultSlot = computed(() => !!slots.default)
         </component>
       </div>
     </template>
-    <template v-if="!centeredCounter" #topRight>
+    <template #topRight>
       <component
         :is="counterTag"
         v-bind="counterAttrs"
@@ -132,7 +126,11 @@ const hasDefaultSlot = computed(() => !!slots.default)
           colorClasses ?? 'text-indigo-700 dark:text-indigo-500',
         ]"
       >
-        <NeTooltip v-if="counter >= ABBREVIATION_THRESHOLD" trigger-event="mouseenter focus">
+        <NeTooltip
+          v-if="counter >= ABBREVIATION_THRESHOLD"
+          trigger-event="mouseenter focus"
+          placement="auto"
+        >
           <template #trigger>
             <span> {{ abbreviatedCounter }} </span>
           </template>
@@ -144,31 +142,9 @@ const hasDefaultSlot = computed(() => !!slots.default)
       </component>
     </template>
     <NeSkeleton v-if="loading" :lines="skeletonLines" class="w-full" />
-    <template v-else>
-      <div v-if="centeredCounter" class="flex flex-col gap-4">
-        <component
-          :is="counterTag"
-          v-bind="counterAttrs"
-          :class="[
-            'self-center text-4xl font-medium',
-            isInteractive && 'cursor-pointer',
-            colorClasses ?? 'text-indigo-700 dark:text-indigo-500',
-          ]"
-        >
-          <NeTooltip v-if="counter >= ABBREVIATION_THRESHOLD" trigger-event="mouseenter focus">
-            <template #trigger>
-              <span> {{ abbreviatedCounter }} </span>
-            </template>
-            <template #content>
-              {{ formattedCounter }}
-            </template>
-          </NeTooltip>
-          <span v-else> {{ abbreviatedCounter }} </span>
-        </component>
-      </div>
-      <div v-if="hasDefaultSlot" class="mt-5">
-        <slot></slot>
-      </div>
-    </template>
+    <!-- `empty:hidden` drops the spacing when the slot renders nothing -->
+    <div v-else class="mt-2 empty:hidden">
+      <slot></slot>
+    </div>
   </NeCard>
 </template>

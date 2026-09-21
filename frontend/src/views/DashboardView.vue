@@ -72,7 +72,7 @@ const { state: thirdPartyApps } = useQuery({
       <!-- loading third party apps -->
       <template v-if="thirdPartyApps.status === 'pending'">
         <NeCard v-for="i in 4" :key="i">
-          <div class="flex flex-col items-start gap-3">
+          <div class="flex flex-col items-start gap-4">
             <NeSkeleton :lines="3" class="w-full" />
           </div>
         </NeCard>
@@ -80,7 +80,7 @@ const { state: thirdPartyApps } = useQuery({
       <!-- third party apps -->
       <NeCard v-else v-for="thirdPartyApp in thirdPartyApps.data" :key="thirdPartyApp.id">
         <div class="flex h-full flex-col justify-between gap-4">
-          <div class="flex flex-col items-start gap-3">
+          <div class="flex flex-col items-start gap-4">
             <div class="flex items-center gap-3">
               <NeRoundedIcon kind="gray" :customIcon="getThirdPartyAppIcon(thirdPartyApp)" />
               <NeHeading tag="h6">
