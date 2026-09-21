@@ -114,6 +114,11 @@ const formattedCounter = computed(() => {
             {{ uppercaseTitle ? title.toUpperCase() : title }}
           </NeHeading>
         </component>
+        <NeTooltip v-if="$slots['title-tooltip']" trigger-event="mouseenter focus" placement="auto">
+          <template #content>
+            <slot name="title-tooltip"></slot>
+          </template>
+        </NeTooltip>
       </div>
     </template>
     <template #topRight>

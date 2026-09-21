@@ -665,6 +665,8 @@
     "system_destroyed": "Sistema eliminato",
     "cannot_destroy_system": "Impossibile eliminare il sistema",
     "total_systems": "Sistemi totali",
+    "total_legacy_systems": "Sistemi legacy totali",
+    "total_legacy_systems_tooltip": "Sistemi NethServer 7 e precedenti associati a questa azienda e alle sue consociate. Puoi accedere alle informazioni su questi sistemi all'indirizzo {url}.",
     "organization_systems": "Sistemi dell'azienda",
     "count_active": "{count} attivo | {count} attivi",
     "count_inactive": "{count} inattivo | {count} inattivi",

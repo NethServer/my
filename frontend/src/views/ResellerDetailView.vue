@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
+import { NeHeading, NeInlineNotification, NeLink, NeSkeleton } from '@nethesis/vue-components'
 import { faServer, faBuilding } from '@fortawesome/free-solid-svg-icons'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import { useResellerDetail } from '@/queries/organizations/resellerDetail'
@@ -19,6 +19,8 @@ import OrganizationSystemsCard from '@/components/organizations/OrganizationSyst
 import OrganizationApplicationsCard from '@/components/organizations/OrganizationApplicationsCard.vue'
 import { canReadResellers } from '@/lib/permissions'
 import { computed } from 'vue'
+
+const legacySystemsUrl = 'https://legacy.my.nethesis.it'
 
 const { state: resellerDetail } = useResellerDetail()
 const { state: resellerStats } = useResellerStats()
@@ -104,14 +106,6 @@ const hierarchyApplicationsRoute = computed(() => {
         :loading="resellerDetail.status === 'pending'"
         class="3xl:row-span-2 md:row-span-2"
       />
-      <!-- customers -->
-      <CounterCard
-        :title="$t('customers.title')"
-        :counter="resellerStats.data?.customers_count ?? 0"
-        :icon="faBuilding"
-        :loading="resellerStats.status === 'pending'"
-        :to="customersRoute"
-      />
       <!-- total systems -->
       <CounterCard
         :title="$t('systems.total_systems')"
@@ -120,6 +114,23 @@ const hierarchyApplicationsRoute = computed(() => {
         :loading="resellerStats.status === 'pending'"
         :to="hierarchySystemsRoute"
       />
+      <!-- total legacy systems -->
+      <CounterCard
+        :title="$t('systems.total_legacy_systems')"
+        :counter="resellerStats.data?.legacy_systems_hierarchy_count ?? 0"
+        :icon="faServer"
+        :loading="resellerStats.status === 'pending'"
+      >
+        <template #title-tooltip>
+          <i18n-t keypath="systems.total_legacy_systems_tooltip" tag="span" scope="global">
+            <template #url>
+              <NeLink :href="legacySystemsUrl" target="_blank" rel="noopener noreferrer">
+                {{ legacySystemsUrl }}
+              </NeLink>
+            </template>
+          </i18n-t>
+        </template>
+      </CounterCard>
       <!-- total applications -->
       <CounterCard
         :title="$t('applications.total_applications')"
@@ -142,6 +153,14 @@ const hierarchyApplicationsRoute = computed(() => {
         :applications-status="applicationsSummary.status"
         :summary-data="applicationsSummary.data"
         :organization-name="resellerDetail.data?.name"
+      />
+      <!-- customers -->
+      <CounterCard
+        :title="$t('customers.title')"
+        :counter="resellerStats.data?.customers_count ?? 0"
+        :icon="faBuilding"
+        :loading="resellerStats.status === 'pending'"
+        :to="customersRoute"
       />
     </div>
   </div>
