@@ -32,7 +32,7 @@ const mutedCount = computed(() => totals.value?.muted ?? 0)
     :loading="isLoading"
     :to="{ name: 'alerts' }"
   >
-    <div class="flex flex-wrap justify-center gap-2">
+    <div class="flex flex-wrap gap-2">
       <BadgeLink
         v-if="criticalCount > 0"
         :to="{ name: 'alerts', query: { severity: 'critical' } }"

@@ -24,7 +24,7 @@ const { state: applicationsTotal } = useApplicationsTotal()
     :loading="applicationsTotal.status === 'pending'"
     :to="{ name: 'applications' }"
   >
-    <div v-if="applicationsTotal.data?.total ?? 0 > 0" class="flex justify-center">
+    <div v-if="applicationsTotal.data?.total ?? 0 > 0" class="flex">
       <BadgeLink
         :to="{ name: 'applications', query: { unassigned: 'true' } }"
         kind="blue"
