@@ -35,6 +35,7 @@ import ReactivateResellerModal from './ReactivateResellerModal.vue'
 import PromoteResellerModal from './PromoteResellerModal.vue'
 import UserAvatar from '../users/UserAvatar.vue'
 import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
+import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
 
 const { t } = useI18n()
 const { state: resellerDetail, asyncStatus } = useResellerDetail()
@@ -167,6 +168,15 @@ function getKebabMenuItems() {
           </template>
           <template #data>
             <EnabledStatus :enabled="rebrandingEnabled" />
+          </template>
+        </DataItem>
+        <!-- parent company -->
+        <DataItem>
+          <template #label>
+            {{ $t('organizations.parent_company') }}
+          </template>
+          <template #data>
+            <ParentCompanyLink :creator="resellerDetail.data.created_by" />
           </template>
         </DataItem>
         <!-- created by -->

@@ -46,7 +46,6 @@ const { state: customerSystems } = useCustomerSystems()
       <!-- customer contacts -->
       <OrganizationContactsCard
         :contacts="customerDetail.data?.custom_data"
-        :parent-company="customerDetail.data?.created_by"
         :loading="customerDetail.status === 'pending'"
         class="3xl:row-span-2 md:row-span-2"
       />

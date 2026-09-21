@@ -33,6 +33,7 @@ import SuspendCustomerModal from './SuspendCustomerModal.vue'
 import ReactivateCustomerModal from './ReactivateCustomerModal.vue'
 import UserAvatar from '../users/UserAvatar.vue'
 import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
+import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
 
 const { t } = useI18n()
 const { state: customerDetail, asyncStatus } = useCustomerDetail()
@@ -152,6 +153,15 @@ function getKebabMenuItems() {
           </template>
           <template #data>
             <EnabledStatus :enabled="rebrandingEnabled" />
+          </template>
+        </DataItem>
+        <!-- parent company -->
+        <DataItem>
+          <template #label>
+            {{ $t('organizations.parent_company') }}
+          </template>
+          <template #data>
+            <ParentCompanyLink :creator="customerDetail.data.created_by" />
           </template>
         </DataItem>
         <!-- created by -->

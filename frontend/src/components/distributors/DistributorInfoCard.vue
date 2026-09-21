@@ -39,6 +39,7 @@ import { useLoginStore } from '@/stores/login'
 import { useQuery } from '@pinia/colada'
 import { getThirdPartyAppsCatalog, THIRD_PARTY_APPS_CATALOG_KEY } from '@/lib/thirdPartyApps'
 import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
+import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
 
 const { t, locale } = useI18n()
 const loginStore = useLoginStore()
@@ -225,6 +226,15 @@ function getKebabMenuItems() {
           </template>
           <template #data>
             <EnabledStatus :enabled="rebrandingEnabled" />
+          </template>
+        </DataItem>
+        <!-- parent company -->
+        <DataItem>
+          <template #label>
+            {{ $t('organizations.parent_company') }}
+          </template>
+          <template #data>
+            <ParentCompanyLink :creator="distributorDetail.data.created_by" />
           </template>
         </DataItem>
         <!-- created by -->
