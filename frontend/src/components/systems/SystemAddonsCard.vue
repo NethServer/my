@@ -5,6 +5,7 @@
 
 <script setup lang="ts">
 import {
+  NeButton,
   NeCard,
   NeEmptyState,
   NeHeading,
@@ -12,11 +13,18 @@ import {
   NeSkeleton,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faPuzzlePiece } from '@fortawesome/free-solid-svg-icons'
+import { faArrowRight, faPuzzlePiece } from '@fortawesome/free-solid-svg-icons'
 import EnabledStatus from '@/components/common/EnabledStatus.vue'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
+import router from '@/router'
+import { canReadAddons } from '@/lib/permissions'
 import type { NsecFacts, NsecFeatures } from '@/lib/systems/inventory'
+
+const { t } = useI18n()
+const route = useRoute()
 
 const { state: latestInventory } = useLatestInventory()
 
@@ -69,6 +77,18 @@ const addons = computed<AddonItem[]>(() => {
 const sortedAddons = computed<AddonItem[]>(() =>
   [...addons.value].sort((a, b) => Number(b.enabled) - Number(a.enabled)),
 )
+
+// The add-ons tab is only listed to companies allowed to read add-ons, so the
+// link is offered on the same condition the tab itself is.
+const canGoToAddons = computed(() => canReadAddons())
+
+const goToAddons = () => {
+  router.push({
+    name: 'system_detail',
+    params: { systemId: route.params.systemId },
+    query: { ...route.query, tab: 'addons' },
+  })
+}
 </script>
 
 <template>
@@ -109,5 +129,13 @@ const sortedAddons = computed<AddonItem[]>(() =>
       :icon="faPuzzlePiece"
       class="bg-white dark:bg-gray-950"
     />
+    <div v-if="canGoToAddons && latestInventory.status !== 'pending'" class="flex justify-end">
+      <NeButton kind="tertiary" class="mt-2" @click="goToAddons()">
+        <template #prefix>
+          <FontAwesomeIcon :icon="faArrowRight" aria-hidden="true" />
+        </template>
+        {{ t('common.go_to_page', { page: t('addons.title') }) }}
+      </NeButton>
+    </div>
   </NeCard>
 </template>
