@@ -101,6 +101,7 @@ const hierarchyApplicationsRoute = computed(() => {
       <!-- reseller contacts -->
       <OrganizationContactsCard
         :contacts="resellerDetail.data?.custom_data"
+        :parent-company="resellerDetail.data?.created_by"
         :loading="resellerDetail.status === 'pending'"
         class="3xl:row-span-2 md:row-span-2"
       />

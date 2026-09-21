@@ -101,6 +101,7 @@ const hierarchyApplicationsRoute = computed(() => {
       <!-- distributor contacts -->
       <OrganizationContactsCard
         :contacts="distributorDetail.data?.custom_data"
+        :parent-company="distributorDetail.data?.created_by"
         :loading="distributorDetail.status === 'pending'"
         class="row-span-4"
       />

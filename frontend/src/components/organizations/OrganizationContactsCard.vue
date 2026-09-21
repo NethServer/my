@@ -7,17 +7,46 @@
 import { NeCard, NeHeading, NeLink, NeSkeleton } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faAddressCard } from '@fortawesome/free-solid-svg-icons'
+import { computed } from 'vue'
 import DataItem from '../common/DataItem.vue'
+import OrganizationIconAndLink from './OrganizationIconAndLink.vue'
 import { getLanguageLabel } from '@/lib/locale'
 import { formatPhoneForDisplay } from '@/lib/phone'
 import type { OrganizationContacts } from '@/lib/organizations/organizations'
 
 // Distributors, resellers and customers carry the same contact fields, so the
 // card takes the plain `custom_data` subset instead of an organization type.
-const { contacts = undefined, loading = false } = defineProps<{
+// The parent company is the organization the entity was attributed to at
+// creation (`custom_data.createdBy`), which the creator snapshot already
+// carries: the same field the parent company list filter matches on.
+const {
+  contacts = undefined,
+  parentCompany = undefined,
+  loading = false,
+} = defineProps<{
   contacts?: OrganizationContacts
+  parentCompany?: {
+    organization_id: string
+    organization_name: string
+    organization_type?: string
+  }
   loading?: boolean
 }>()
+
+// OrganizationIconAndLink drops the link (and the level icon) on its own when
+// the organization has no detail page or the user may not read it, so the Owner
+// organization and an out-of-scope parent degrade to the plain name.
+const parentOrganization = computed(() => {
+  if (!parentCompany?.organization_name) {
+    return null
+  }
+
+  return {
+    logto_id: parentCompany.organization_id,
+    name: parentCompany.organization_name,
+    type: parentCompany.organization_type ?? '',
+  }
+})
 </script>
 
 <template>
@@ -94,6 +123,20 @@ const { contacts = undefined, loading = false } = defineProps<{
         </template>
         <template #data>
           {{ contacts?.language ? getLanguageLabel(contacts.language, $i18n.locale) : '-' }}
+        </template>
+      </DataItem>
+      <!-- parent company -->
+      <DataItem>
+        <template #label>
+          {{ $t('organizations.parent_company') }}
+        </template>
+        <template #data>
+          <OrganizationIconAndLink
+            v-if="parentOrganization"
+            :organization="parentOrganization"
+            icon-size="xs"
+          />
+          <template v-else>-</template>
         </template>
       </DataItem>
     </div>
