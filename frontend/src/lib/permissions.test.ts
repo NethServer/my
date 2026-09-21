@@ -4,11 +4,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { canReadOrganizationDetail } from './permissions'
 
-// The helper only reads permissions and the caller's own organization id, so the
-// store is stubbed down to those two.
+// The helper only reads the caller's permissions, so the store is stubbed down
+// to those.
 const store = {
   permissions: [] as string[],
-  userInfo: { organization_id: '' } as { organization_id: string } | undefined,
   isOwner: false,
 }
 
@@ -16,52 +15,59 @@ vi.mock('@/stores/login', () => ({
   useLoginStore: () => store,
 }))
 
-const signInAs = (organizationId: string, permissions: string[]) => {
-  store.userInfo = { organization_id: organizationId }
+const signInWith = (permissions: string[]) => {
   store.permissions = permissions
 }
 
 describe('canReadOrganizationDetail', () => {
   beforeEach(() => {
-    signInAs('', [])
+    signInWith([])
   })
 
   it('offers each level the caller holds the read permission for', () => {
-    signInAs('d1', ['read:distributors', 'read:resellers', 'read:customers'])
+    signInWith(['read:distributors', 'read:resellers', 'read:customers'])
 
-    expect(canReadOrganizationDetail('distributor', 'other-d')).toBe(true)
-    expect(canReadOrganizationDetail('reseller', 'r1')).toBe(true)
-    expect(canReadOrganizationDetail('customer', 'c1')).toBe(true)
+    expect(canReadOrganizationDetail('distributor')).toBe(true)
+    expect(canReadOrganizationDetail('reseller')).toBe(true)
+    expect(canReadOrganizationDetail('customer')).toBe(true)
   })
 
   it('refuses a level the caller has no read permission for', () => {
     // A reseller can open its customers but not the distributor above it.
-    signInAs('r1', ['read:customers'])
+    signInWith(['read:customers'])
 
-    expect(canReadOrganizationDetail('customer', 'c1')).toBe(true)
-    expect(canReadOrganizationDetail('distributor', 'd1')).toBe(false)
-    expect(canReadOrganizationDetail('reseller', 'other-r')).toBe(false)
+    expect(canReadOrganizationDetail('customer')).toBe(true)
+    expect(canReadOrganizationDetail('distributor')).toBe(false)
+    expect(canReadOrganizationDetail('reseller')).toBe(false)
   })
 
-  it('always allows the caller its own organization', () => {
-    // A customer organization holds no read:customers at all, but the detail
-    // route grants self-access.
-    signInAs('c1', [])
+  it('refuses the caller its own organization', () => {
+    // A customer organization holds no read:customers at all: the API would
+    // answer the self GET, but the page has no menu entry behind it, so the
+    // link is not offered.
+    signInWith([])
 
-    expect(canReadOrganizationDetail('customer', 'c1')).toBe(true)
-    expect(canReadOrganizationDetail('customer', 'c2')).toBe(false)
+    expect(canReadOrganizationDetail('customer')).toBe(false)
+  })
+
+  it('refuses the level the caller itself sits at', () => {
+    // A reseller reads its customers, never the reseller level it belongs to,
+    // so its own company name stays plain text.
+    signInWith(['read:customers'])
+
+    expect(canReadOrganizationDetail('reseller')).toBe(false)
   })
 
   it('refuses a level with no detail page', () => {
-    signInAs('own', ['read:distributors', 'read:resellers', 'read:customers'])
+    signInWith(['read:distributors', 'read:resellers', 'read:customers'])
 
-    expect(canReadOrganizationDetail('owner', 'owner-org')).toBe(false)
-    expect(canReadOrganizationDetail('', '')).toBe(false)
+    expect(canReadOrganizationDetail('owner')).toBe(false)
+    expect(canReadOrganizationDetail('')).toBe(false)
   })
 
   it('accepts the level in any case', () => {
-    signInAs('d1', ['read:resellers'])
+    signInWith(['read:resellers'])
 
-    expect(canReadOrganizationDetail('Reseller', 'r1')).toBe(true)
+    expect(canReadOrganizationDetail('Reseller')).toBe(true)
   })
 })

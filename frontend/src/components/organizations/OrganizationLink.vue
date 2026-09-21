@@ -16,11 +16,12 @@ const { organization } = defineProps<{
   }
 }>()
 
-// The three detail routes are gated on the level's read:* permission, with the
-// own-organization exemption, so a link the API would refuse degrades to the
-// plain name rather than to /forbidden.
+// The three detail routes are gated on the level's read:* permission, so a
+// company whose detail page the user cannot reach degrades to the plain name.
+// This includes the user's own company: its level is the one level its org role
+// carries no read:* for, so the page has no menu entry to return to.
 const detailRoute = computed(() => {
-  if (!canReadOrganizationDetail(organization.type, organization.logto_id ?? '')) {
+  if (!canReadOrganizationDetail(organization.type)) {
     return null
   }
 

@@ -29,9 +29,7 @@ const { organization } = defineProps<{
 }>()
 
 const detailRoute = computed(() => {
-  if (
-    !canReadOrganizationDetail(organization.organization_type ?? '', organization.organization_id)
-  ) {
+  if (!canReadOrganizationDetail(organization.organization_type ?? '')) {
     return null
   }
 

@@ -192,21 +192,15 @@ export const isRebrandingAdmin = () => hasOwnerLevelAuthority()
 // a button the API refuses.
 export const canManageRebrandingOrganizations = () => isRebrandingAdmin() && canManageRebranding()
 
-// Whether the organization detail page of the given company would open for the
-// current user. The three detail routes sit behind read:distributors /
-// read:resellers / read:customers, with one exemption:
-// RequireResourcePermissionOrSelf lets any user GET its own organization even
-// without that permission. Both halves are mirrored here so a link is only
-// offered where the API would answer — a customer organization holds no
-// read:customers at all, and a creator line naming an upper tier would
-// otherwise hand it a link to a page that can only render an error.
-export const canReadOrganizationDetail = (organizationType: string, logtoId: string) => {
-  const loginStore = useLoginStore()
-
-  if (logtoId && logtoId === loginStore.userInfo?.organization_id) {
-    return true
-  }
-
+// Whether the organization detail page of the given company is reachable for
+// the current user. The three detail routes sit behind read:distributors /
+// read:resellers / read:customers, and the caller's own organization is no
+// exception: org roles only carry permissions for downstream levels, so the
+// level a company sits at is the one level its own users cannot list. The API
+// would still answer the self GET (RequireResourcePermissionOrSelf), but the
+// page it renders has no menu entry and no list to come back to, so linking to
+// it would strand the user on a page reachable no other way.
+export const canReadOrganizationDetail = (organizationType: string) => {
   switch (organizationType.toLowerCase()) {
     case 'distributor':
       return canReadDistributors()
