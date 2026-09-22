@@ -24,6 +24,19 @@ right navigation for that same persona.
    pair, fixing a password on each via the Logto Management API. Credentials land in
    `backend/.api-registry.json` (gitignored, mode 0600).
 
+3. **Refresh token rotation off** on the tenant's SPA: Logto Console → _Applications_ → the
+   application the fixture is provisioned against → _Rotate refresh token_ → off.
+
+   Since `/auth/exchange` accepts only a token bound to the API resource, every page boot spends the
+   refresh token to get a resource-scoped one — the SDK does not persist that access token. Logto
+   rotates on each use, so the single token in `e2e/.auth/<persona>.json` is good for one boot, and
+   every later spec falls back to a full sign-in: silent where the Logto session is reusable, on the
+   credentials form where it is not. The symptom is `invalid_grant` on `POST /oidc/token` followed
+   by `waitForResponse` timing out on `/auth/exchange`, which reads as the application being slow.
+
+   Production keeps rotation on. This is a property of the tenants the suite drives, not of the
+   product.
+
 ## Running
 
 ```bash
@@ -173,7 +186,8 @@ re-runs `POST /api/auth/exchange` on boot for a fresh pair — race-free, and th
 ## Gotchas
 
 - **Keep `workers` low.** Several workers driving one persona's saved session share that persona's
-  Logto refresh token, and rotating it in parallel looks like token theft. It stays quiet while the
+  Logto refresh token. With rotation off (see Prerequisites) they can spend it side by side; turn it
+  back on and rotating it in parallel looks like token theft. It stays quiet while the
   access token the setup project minted is still valid, so the risk grows with how long a run takes
   rather than with how many specs there are — and more than one spec now iterates `matrixPersonas`,
   so two workers on two files really do drive the same persona at once. Partition personas across

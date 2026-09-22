@@ -117,6 +117,18 @@ during provisioning, not lost data.)
 | `E2E_SMOKE_EMAIL` | Dedicated read-only account in the **QA** tenant | `e2e@example.com` |
 | `E2E_SMOKE_PASSWORD` | That account's password | `your-password-here` |
 
+Two things about that tenant no file here can set, and both fail in ways that point elsewhere:
+
+- **Rotate refresh token: off** on the SPA (`E2E_LOGTO_APP_ID`). Every page boot spends the refresh
+  token for one bound to the API resource, Logto rotates on use, and the token saved by the setup
+  project is then good for a single boot — every later spec times out waiting for
+  `/auth/exchange`. See `frontend/e2e/README.md` for the long version.
+- **A sign-in redirect URI of `http://localhost:5173/login-redirect`**, the only origin the suite
+  can use: `docker-compose.e2e.yml` publishes the proxy there for exactly this reason.
+
+Everything else the tenant needs — the API resource, the scopes, the roles, the third-party
+applications — the job provisions itself from `sync/configs/config.ci.yml`.
+
 Without the two `E2E_SMOKE_*` values the smoke job still runs, covering only the public surface.
 
 There are deliberately no `SMTP_*` secrets here. Creating a user makes the backend send a welcome
