@@ -264,6 +264,14 @@ export const useLoginStore = defineStore('login', () => {
       return
     }
     reauthStarted = true
+    // Keep the page the user is on: this re-auth is a full-page redirect and
+    // LoginRedirectView resumes whatever the router guard saved, so without
+    // this a session that dies mid-visit comes back on the dashboard. Same
+    // key, same exclusions as the guard (router/index.ts).
+    const here = window.location.pathname + window.location.search
+    if (!['/', '/login', '/dashboard', '/login-redirect'].includes(window.location.pathname)) {
+      localStorage.setItem('pathRequested', JSON.stringify(here))
+    }
     stopAutoRefresh()
     jwtToken.value = ''
     accessToken.value = ''
