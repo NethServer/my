@@ -170,6 +170,7 @@ services:
         VITE_PRODUCT_NAME: "${VITE_PRODUCT_NAME:-My Nethesis}"
         VITE_LOGTO_ENDPOINT: "${VITE_LOGTO_ENDPOINT:?Set VITE_LOGTO_ENDPOINT in .env or environment}"
         VITE_LOGTO_APP_ID: "${VITE_LOGTO_APP_ID:?Set VITE_LOGTO_APP_ID in .env or environment}"
+        VITE_LOGTO_API_RESOURCE: "${VITE_LOGTO_API_RESOURCE:?Set VITE_LOGTO_API_RESOURCE in .env or environment}"
         VITE_API_BASE_URL: "/backend/api"
         VITE_SIGNIN_REDIRECT_URI: "login-redirect"
         VITE_SIGNOUT_REDIRECT_URI: "login"

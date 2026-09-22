@@ -91,6 +91,7 @@ jobs:
         JWT_SECRET: ${{ secrets.E2E_JWT_SECRET }}
         LOGTO_ENDPOINT: ${{ secrets.E2E_LOGTO_ENDPOINT }}
         LOGTO_APP_ID: ${{ secrets.E2E_LOGTO_APP_ID }}
+        LOGTO_API_RESOURCE: ${{ secrets.E2E_LOGTO_API_RESOURCE }}
       run: |
         set -euo pipefail
 
@@ -106,6 +107,7 @@ jobs:
         LOGTO_TENANT_DOMAIN=${LOGTO_TENANT_DOMAIN}
         LOGTO_BACKEND_APP_ID=${LOGTO_BACKEND_APP_ID}
         LOGTO_BACKEND_APP_SECRET=${LOGTO_BACKEND_APP_SECRET}
+        LOGTO_API_RESOURCE=${LOGTO_API_RESOURCE}
         JWT_SECRET=${JWT_SECRET}
         APP_URL=${APP_URL}
         API_BASE_URL=/api
@@ -119,6 +121,7 @@ jobs:
         cat > .env <<EOF
         VITE_LOGTO_ENDPOINT=${LOGTO_ENDPOINT}
         VITE_LOGTO_APP_ID=${LOGTO_APP_ID}
+        VITE_LOGTO_API_RESOURCE=${LOGTO_API_RESOURCE}
         EOF
 
     - name: Start the stack
@@ -161,6 +164,7 @@ jobs:
         OWNER_PASSWORD: ${{ secrets.E2E_OWNER_PASSWORD }}
         LOGTO_ENDPOINT: ${{ secrets.E2E_LOGTO_ENDPOINT }}
         LOGTO_APP_ID: ${{ secrets.E2E_LOGTO_APP_ID }}
+        LOGTO_API_RESOURCE: ${{ secrets.E2E_LOGTO_API_RESOURCE }}
       working-directory: backend
       run: |
         set -euo pipefail
@@ -172,11 +176,12 @@ jobs:
         jq -n \
           --arg endpoint "${LOGTO_ENDPOINT}" \
           --arg appId "${LOGTO_APP_ID}" \
+          --arg resource "${LOGTO_API_RESOURCE}" \
           --arg authBase "${APP_URL}" \
           --arg backend "${BACKEND_URL}" \
           --arg email "${OWNER_EMAIL}" \
           --arg password "${OWNER_PASSWORD}" \
-          '{config: {logto_endpoint: $endpoint, logto_app_id: $appId, auth_base_url: $authBase, backend_url: $backend},
+          '{config: {logto_endpoint: $endpoint, logto_app_id: $appId, logto_resource: $resource, auth_base_url: $authBase, backend_url: $backend},
             owner: {email: $email, password: $password},
             orgs: {}, users: {}}' > .api-registry.json
         chmod 600 .api-registry.json

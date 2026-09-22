@@ -104,6 +104,7 @@ during provisioning, not lost data.)
 | `E2E_LOGTO_TENANT_DOMAIN` | Tenant domain, for the backend | `your-tenant.logto.app` |
 | `E2E_LOGTO_BACKEND_APP_ID` | M2M application id with Management API access | `abcd1234efgh5678ijkl` |
 | `E2E_LOGTO_BACKEND_APP_SECRET` | M2M application secret | `your-secret-here` |
+| `E2E_LOGTO_API_RESOURCE` | API resource indicator of the e2e tenant; the audience the SPA, `apitool` and the backend all agree on | `https://e2e.example.com/api/permissions` |
 | `E2E_JWT_SECRET` | Signing key for the stack under test (min 32 chars) | `a-32-char-or-longer-random-string` |
 | `E2E_OWNER_EMAIL` | Owner account `apitool` acts as | `owner@example.com` |
 | `E2E_OWNER_PASSWORD` | Owner account password | `your-password-here` |
