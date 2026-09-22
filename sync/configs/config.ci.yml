@@ -249,3 +249,180 @@ resources:
     container: "permissions"
 
 # Third-party applications
+#
+# The fixture grants some of these portals to its distributor
+# (backend/authz/fixture.yml), and the backend refuses a grant naming an
+# application the tenant does not have — so they are defined here rather than
+# registered by hand, and the CI tenant stays reproducible from this file.
+#
+# The URLs are the QA ones: nothing in CI ever signs in through them (the
+# authz apps layer only probes with --idp-probe, off by default), they only
+# have to exist and carry the access_control the suite reasons about.
+third_party_apps:
+  - name: "nethshop.nethesis.it"
+    description: "NethShop Nethesis"
+    display_name: "NethShop"
+    # Icons shown on the Logto consent page
+    branding:
+      logo_path: "apps/nethshop.svg"
+      logo_dark_path: "apps/nethshop-dark.svg"
+    login_url: https://nethshop2.nethesis.it/test/wp-admin/admin-ajax.php?action=activate
+    info_url: https://nethshop2.nethesis.it/test/userinfo/
+    redirect_uris:
+      - https://nethshop2.nethesis.it/test/wp-admin/admin-ajax.php?action=openid-connect-authorize
+    post_logout_redirect_uris:
+      - https://nethshop2.nethesis.it/test/wp-login.php?loggedout=true
+    cors_allowed:
+      - https://nethshop2.nethesis.it
+    # Access control configuration
+    access_control:
+      idp_enforced: true
+      organization_roles:
+        - "owner"
+        - "distributor"
+        - "reseller"
+      user_roles:
+        - "owner"
+        - "staff"
+        - "admin"
+        - "backoffice"
+
+  - name: "stock.nethesis.it"
+    description: "NethStock Nethesis"
+    display_name: "NethStock"
+    # Icons shown on the Logto consent page
+    branding:
+      logo_path: "apps/warehouse.svg"
+      logo_dark_path: "apps/warehouse-dark.svg"
+    login_url: https://stock.nethesis.it/api/auth/oidc/login
+    redirect_uris:
+      - https://stock.nethesis.it/api/auth/oidc/callback
+    post_logout_redirect_uris:
+      - https://stock.nethesis.it/api/login
+    cors_allowed:
+      - https://stock.nethesis.it
+    # Access control configuration
+    access_control:
+      idp_enforced: true
+      # The only app that also pins organization_ids. The id below belongs to
+      # no organization of this tenant, on purpose: backend/authz/apps.yml
+      # expects NethStock to be visible to nobody wherever the config was not
+      # written for, and that fail-closed result is what the suite asserts.
+      # Real ids stay out of this file.
+      organization_ids:
+        - ci000000000000 # no such organization here
+      organization_roles:
+        - "owner"
+      user_roles:
+        - "owner"
+        - "staff"
+
+  - name: "my.nethspot.com"
+    description: "NethSpot Nethesis"
+    display_name: "NethSpot"
+    # Icons shown on the Logto consent page
+    branding:
+      logo_path: "apps/nethspot.svg"
+      logo_dark_path: "apps/nethspot-dark.svg"
+    login_url: https://my.staging.nethspot.com/api/auth/oidc/login
+    info_url: https://my.staging.nethspot.com/api/userinfo
+    redirect_uris:
+      - https://my.staging.nethspot.com/api/auth/oidc/callback
+    post_logout_redirect_uris:
+      - https://my.staging.nethspot.com/api/login
+    cors_allowed:
+      - https://my.staging.nethspot.com
+    # Access control configuration
+    access_control:
+      idp_enforced: true
+      organization_roles:
+        - "owner"
+        - "reseller"
+      user_roles:
+        - "owner"
+        - "staff"
+        - "admin"
+        - "support"
+
+  - name: "helpdesk.nethesis.it"
+    description: "Helpdesk Nethesis"
+    display_name: "Helpdesk Nethesis"
+    # Icons shown on the Logto consent page
+    branding:
+      logo_path: "apps/helpdesk.svg"
+      logo_dark_path: "apps/helpdesk-dark.svg"
+    login_url: https://nethesis.freshworks.com/login/auth/1753180591470?client_id=451979510707337272&redirect_uri=https://nethesis.freshdesk.com/freshid/customer_authorize_callback?hd=helpdesk.nethesis.it
+    redirect_uris:
+      - https://nethesis.freshdesk.com/freshid/customer_authorize_callback?hd=helpdesk.nethesis.it
+      - https://nethesis.freshworks.com/sp/OIDC/867716810680989380/callback
+    post_logout_redirect_uris:
+      - https://nethesis.freshworks.com/login
+    # Access control configuration
+    access_control:
+      idp_enforced: true
+      organization_roles:
+        - "owner"
+        - "distributor"
+        - "reseller"
+      user_roles:
+        - "owner"
+        - "staff"
+        - "admin"
+        - "support"
+
+  - name: "partner.nethesis.it"
+    description: "Forum degli Eroi Digitali"
+    display_name: "Forum degli Eroi Digitali"
+    # Icons shown on the Logto consent page
+    branding:
+      logo_path: "apps/partner.svg"
+      logo_dark_path: "apps/partner-dark.svg"
+    login_url: https://partner.nethesis.it/auth/oidc
+    redirect_uris:
+      - https://partner.nethesis.it/auth/oidc/callback
+    post_logout_redirect_uris:
+      - https://partner.nethesis.it/login
+    cors_allowed:
+      - https://partner.nethesis.it
+    # Access control configuration
+    access_control:
+      idp_enforced: true
+      organization_roles:
+        - "owner"
+        - "distributor"
+        - "reseller"
+      user_roles:
+        - "owner"
+        - "staff"
+        - "admin"
+        - "support"
+        - "backoffice"
+
+  - name: "formazione.nethesis.it"
+    description: "Formazione Nethesis"
+    display_name: "Formazione"
+    # Icons shown on the Logto consent page
+    branding:
+      logo_path: "apps/training.svg"
+      logo_dark_path: "apps/training-dark.svg"
+    login_url: https://formazione.nethesis.it/auth/nethesis_sso/start.php
+    info_url: https://formazione.nethesis.it/auth/nethesis_sso/userinfo.php
+    redirect_uris:
+      - https://formazione.nethesis.it/admin/oauth2callback.php
+    post_logout_redirect_uris:
+      - https://formazione.nethesis.it/login/index.php
+    cors_allowed:
+      - https://formazione.nethesis.it
+    # Access control configuration
+    access_control:
+      idp_enforced: true
+      organization_roles:
+        - "owner"
+        - "distributor"
+        - "reseller"
+      user_roles:
+        - "owner"
+        - "staff"
+        - "admin"
+        - "support"
+        - "backoffice"
