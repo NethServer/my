@@ -16,7 +16,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -39,7 +41,21 @@ type Client struct {
 	cookies map[string]string
 }
 
+// Said once per run, however many clients the command builds: a registry
+// written before the backend bound the exchange to an audience has no
+// logto_resource, so every login here obtains an opaque token and the backend
+// answers "invalid access token" — which reads as a backend fault rather than
+// as this file being out of date.
+var warnNoResource sync.Once
+
 func NewClient(cfg Config) (*Client, error) {
+	if cfg.LogtoResource == "" {
+		warnNoResource.Do(func() {
+			fmt.Fprintln(os.Stderr,
+				"apitool: the registry has no logto_resource, so /auth/exchange will refuse every token.\n"+
+					"         Set it to the backend's LOGTO_API_RESOURCE, or run: ./apitool init")
+		})
+	}
 	return &Client{
 		cfg: cfg,
 		http: &http.Client{
