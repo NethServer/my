@@ -75,7 +75,7 @@ const getIpAddressWithCidr = (iface: InventoryNetworkInterface | Ns8NetworkInter
 // ns8 assigns no role to its interfaces, so they get a neutral look of their
 // own and the role is left out of the subtitle
 const getInterfaceRole = (iface: InventoryNetworkInterface | Ns8NetworkInterface) =>
-  'role' in iface.props ? iface.props.role : undefined
+  iface.props && 'role' in iface.props ? iface.props.role : undefined
 
 const getInterfaceIcon = (iface: InventoryNetworkInterface | Ns8NetworkInterface) => {
   const role = getInterfaceRole(iface)
