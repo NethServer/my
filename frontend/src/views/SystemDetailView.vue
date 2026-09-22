@@ -23,6 +23,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Tab } from '@nethesis/vue-components'
 import SystemOverviewPanel from '@/components/systems/SystemOverviewPanel.vue'
+import SystemHardwarePanel from '@/components/systems/SystemHardwarePanel.vue'
 import SystemChangeHistoryPanel from '@/components/systems/SystemChangeHistoryPanel.vue'
 import SystemBackupsPanel from '@/components/systems/SystemBackupsPanel.vue'
 import SystemAlertsPanel from '@/components/systems/SystemAlertsPanel.vue'
@@ -41,6 +42,7 @@ const { state: latestInventory } = useLatestInventory()
 const tabsConfig = computed((): Tab[] => {
   const tabs: Tab[] = [
     { name: 'overview', label: t('system_detail.overview') },
+    { name: 'hardware', label: t('system_detail.hardware') },
     { name: 'change_history', label: t('system_detail.change_history') },
     { name: 'alert_history', label: t('alerts.title') },
     { name: 'backups', label: t('backups.title') },
@@ -165,6 +167,7 @@ const { tabs, selectedTab } = useTabs(tabsConfig)
       @select-tab="selectedTab = $event"
     />
     <SystemOverviewPanel v-if="selectedTab === 'overview'" />
+    <SystemHardwarePanel v-else-if="selectedTab === 'hardware'" />
     <SystemChangeHistoryPanel v-else-if="selectedTab === 'change_history'" />
     <SystemAlertsPanel v-else-if="selectedTab === 'alert_history'" />
     <SystemBackupsPanel v-else-if="selectedTab === 'backups'" />

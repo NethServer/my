@@ -64,10 +64,9 @@ const goToSystems = () => {
     :counter="systemsCount"
     :icon="faServer"
     :loading="statsStatus === 'pending' || systemsStatus === 'pending'"
-    :centeredCounter="!systemsCount"
     @counter-click="goToSystems"
   >
-    <div class="divide-y divide-gray-200 dark:divide-gray-700">
+    <div v-if="systemsData?.systems.length" class="divide-y divide-gray-200 dark:divide-gray-700">
       <div
         v-for="system in systemsData?.systems"
         :key="system.id"

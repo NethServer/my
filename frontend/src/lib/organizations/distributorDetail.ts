@@ -20,6 +20,7 @@ export interface DistributorStats {
   applications_count: number
   applications_hierarchy_count: number
   systems_hierarchy_count: number
+  legacy_systems_hierarchy_count: number
 }
 
 interface DistributorStatsResponse {

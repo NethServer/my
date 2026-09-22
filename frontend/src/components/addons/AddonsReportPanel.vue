@@ -92,7 +92,7 @@ const expiryBadges = computed(() =>
         :icon="faServer"
         :loading="loading"
       >
-        <div class="flex flex-wrap justify-center gap-2">
+        <div class="flex flex-wrap gap-2">
           <NeBadgeV2 v-for="badge in systemBadges" :key="badge.label" kind="gray">
             {{ $t(badge.label, { n: badge.count }) }}
           </NeBadgeV2>
@@ -104,7 +104,7 @@ const expiryBadges = computed(() =>
         :icon="faCalendar"
         :loading="loading"
       >
-        <div class="flex flex-wrap justify-center gap-2">
+        <div class="flex flex-wrap gap-2">
           <NeBadgeV2 v-for="badge in expiryBadges" :key="badge.label" kind="gray">
             {{ $t(badge.label, { n: badge.count }) }}
           </NeBadgeV2>

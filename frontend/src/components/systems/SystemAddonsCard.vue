@@ -5,6 +5,7 @@
 
 <script setup lang="ts">
 import {
+  NeButton,
   NeCard,
   NeEmptyState,
   NeHeading,
@@ -12,11 +13,18 @@ import {
   NeSkeleton,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faFolderPlus } from '@fortawesome/free-solid-svg-icons'
+import { faArrowRight, faPuzzlePiece } from '@fortawesome/free-solid-svg-icons'
 import EnabledStatus from '@/components/common/EnabledStatus.vue'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
+import router from '@/router'
+import { canReadAddons } from '@/lib/permissions'
 import type { NsecFacts, NsecFeatures } from '@/lib/systems/inventory'
+
+const { t } = useI18n()
+const route = useRoute()
 
 const { state: latestInventory } = useLatestInventory()
 
@@ -35,9 +43,8 @@ interface AddonItem {
 // they are written here rather than kept as i18n keys that invite a
 // translator to render them.
 const ADDON_LABELS = {
-  threat_shield: 'Threat Shield',
-  threat_shield_enterprise: 'Advanced Threat Shield',
-  flashstart: 'FlashStart',
+  threat_shield: 'Advanced Threat Shield',
+  flashstart: 'FlashStart Pro',
   flashstart_pro_plus: 'FlashStart Pro Plus',
   netifyd: 'Netify Informatics',
   ha: 'High Availability',
@@ -50,11 +57,8 @@ const addons = computed<AddonItem[]>(() => {
   return [
     {
       key: 'threat_shield',
-      label:
-        (f.threat_shield?.enterprise ?? 0) > 0
-          ? ADDON_LABELS.threat_shield_enterprise
-          : ADDON_LABELS.threat_shield,
-      enabled: f.threat_shield?.enabled ?? false,
+      label: ADDON_LABELS.threat_shield,
+      enabled: (f.threat_shield?.enabled ?? false) && (f.threat_shield?.enterprise ?? 0) > 0,
     },
     {
       key: 'flashstart',
@@ -73,12 +77,24 @@ const addons = computed<AddonItem[]>(() => {
 const sortedAddons = computed<AddonItem[]>(() =>
   [...addons.value].sort((a, b) => Number(b.enabled) - Number(a.enabled)),
 )
+
+// The add-ons tab is only listed to companies allowed to read add-ons, so the
+// link is offered on the same condition the tab itself is.
+const canGoToAddons = computed(() => canReadAddons())
+
+const goToAddons = () => {
+  router.push({
+    name: 'system_detail',
+    params: { systemId: route.params.systemId },
+    query: { ...route.query, tab: 'addons' },
+  })
+}
 </script>
 
 <template>
   <NeCard>
     <div class="mb-4 flex h-10 items-center gap-4">
-      <FontAwesomeIcon :icon="faFolderPlus" class="size-5 shrink-0" aria-hidden="true" />
+      <FontAwesomeIcon :icon="faPuzzlePiece" class="size-5 shrink-0" aria-hidden="true" />
       <NeHeading tag="h6">
         {{ $t('system_detail.addons').toUpperCase() }}
       </NeHeading>
@@ -110,8 +126,16 @@ const sortedAddons = computed<AddonItem[]>(() =>
     <NeEmptyState
       v-else
       :title="$t('system_detail.no_addons')"
-      :icon="faFolderPlus"
+      :icon="faPuzzlePiece"
       class="bg-white dark:bg-gray-950"
     />
+    <div v-if="canGoToAddons && latestInventory.status !== 'pending'" class="flex justify-end">
+      <NeButton kind="tertiary" class="mt-2" @click="goToAddons()">
+        <template #prefix>
+          <FontAwesomeIcon :icon="faArrowRight" aria-hidden="true" />
+        </template>
+        {{ t('common.go_to_page', { page: t('addons.title') }) }}
+      </NeButton>
+    </div>
   </NeCard>
 </template>

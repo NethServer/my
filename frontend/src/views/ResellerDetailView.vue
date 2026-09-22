@@ -9,6 +9,8 @@ import { faServer, faBuilding } from '@fortawesome/free-solid-svg-icons'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import { useResellerDetail } from '@/queries/organizations/resellerDetail'
 import ResellerInfoCard from '@/components/resellers/ResellerInfoCard.vue'
+import OrganizationContactsCard from '@/components/organizations/OrganizationContactsCard.vue'
+import LegacySystemsCard from '@/components/systems/LegacySystemsCard.vue'
 import CounterCard from '@/components/common/CounterCard.vue'
 import { useResellerStats } from '@/queries/organizations/resellerStats'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
@@ -96,14 +98,12 @@ const hierarchyApplicationsRoute = computed(() => {
     </NeHeading>
     <div class="3xl:grid-cols-4 grid grid-cols-1 gap-x-6 gap-y-6 md:grid-cols-2">
       <!-- reseller info -->
-      <ResellerInfoCard class="3xl:row-span-2 md:row-span-3" />
-      <!-- customers -->
-      <CounterCard
-        :title="$t('customers.title')"
-        :counter="resellerStats.data?.customers_count ?? 0"
-        :icon="faBuilding"
-        :loading="resellerStats.status === 'pending'"
-        :to="customersRoute"
+      <ResellerInfoCard class="3xl:row-span-2 md:row-span-2" />
+      <!-- reseller contacts -->
+      <OrganizationContactsCard
+        :contacts="resellerDetail.data?.custom_data"
+        :loading="resellerDetail.status === 'pending'"
+        class="3xl:row-span-2 md:row-span-2"
       />
       <!-- total systems -->
       <CounterCard
@@ -112,6 +112,11 @@ const hierarchyApplicationsRoute = computed(() => {
         :icon="faServer"
         :loading="resellerStats.status === 'pending'"
         :to="hierarchySystemsRoute"
+      />
+      <!-- total legacy systems -->
+      <LegacySystemsCard
+        :counter="resellerStats.data?.legacy_systems_hierarchy_count ?? 0"
+        :loading="resellerStats.status === 'pending'"
       />
       <!-- total applications -->
       <CounterCard
@@ -135,6 +140,14 @@ const hierarchyApplicationsRoute = computed(() => {
         :applications-status="applicationsSummary.status"
         :summary-data="applicationsSummary.data"
         :organization-name="resellerDetail.data?.name"
+      />
+      <!-- customers -->
+      <CounterCard
+        :title="$t('customers.title')"
+        :counter="resellerStats.data?.customers_count ?? 0"
+        :icon="faBuilding"
+        :loading="resellerStats.status === 'pending'"
+        :to="customersRoute"
       />
     </div>
   </div>

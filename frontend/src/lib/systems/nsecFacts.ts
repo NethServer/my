@@ -3,6 +3,7 @@
 
 import type {
   InventoryNetworkInterface,
+  Mountpoint,
   PciDevice,
   Distro,
   Memory,
@@ -23,7 +24,7 @@ export interface NsecFacts {
   timezone: string
   processors: Processors
   dns_servers: string[]
-  mountpoints: Record<string, { used_bytes: number; total_bytes: number; available_bytes: number }>
+  mountpoints: Record<string, Mountpoint>
   default_ipv4: string
   default_ipv6: string
   kernel_version: string
@@ -53,6 +54,9 @@ export interface NsecFeatures {
       enabled: boolean
       download: number
     }[]
+  }
+  clm: {
+    enabled: boolean
   }
   ddns: {
     enabled: boolean

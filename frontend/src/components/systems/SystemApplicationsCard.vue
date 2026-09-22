@@ -62,7 +62,6 @@ const goToApplications = () => {
     :counter="applicationsCount"
     :icon="faGridOne"
     :loading="applicationsSummary.status === 'pending'"
-    :centeredCounter="!applicationsCount"
     @counter-click="goToApplications"
   >
     <div class="divide-y divide-gray-200 dark:divide-gray-700">

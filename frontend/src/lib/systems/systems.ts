@@ -14,6 +14,10 @@ export const SYSTEMS_TOTAL_KEY = 'systemsTotal'
 export const SYSTEMS_TABLE_ID = 'systemsTable'
 export const SYSTEM_REACHABILITY_KEY = 'systemReachability'
 
+// Home of the systems still running NethServer 7 and older: the legacy counters
+// point there, since my has no page of its own for them.
+export const LEGACY_SYSTEMS_URL = 'https://legacy.my.nethesis.it'
+
 const SystemStatusSchema = v.picklist(['active', 'inactive', 'unknown', 'deleted', 'suspended'])
 
 export const CreateSystemSchema = v.object({
@@ -69,6 +73,11 @@ export const SystemSchema = v.object({
     email: v.string(),
     organization_id: v.string(),
     organization_name: v.string(),
+    // Level of organization_id, resolved live by the backend (it is not part
+    // of the stored snapshot: an organization can be promoted after the fact).
+    // Absent for the Owner organization and for deleted ones, which have no
+    // detail page to link to.
+    organization_type: v.optional(v.string()),
     // True when the creator acted on behalf of organization_name (attributed
     // via created_by_organization_id) rather than belonging to it. Omitted
     // (falsy) on the default own-org path.
@@ -104,6 +113,7 @@ interface SystemsTotalResponse {
     active: number
     inactive: number
     unknown: number
+    legacy: number
     timeout_minutes: number
   }
 }

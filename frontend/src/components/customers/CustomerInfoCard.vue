@@ -14,7 +14,7 @@ import {
 } from '@nethesis/vue-components'
 import { useCustomerDetail } from '@/queries/organizations/customerDetail'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { getOrganizationIcon } from '@/lib/organizations/organizations'
+import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
 import DataItem from '../common/DataItem.vue'
 import { computed, ref } from 'vue'
 import NotesModal from '../common/NotesModal.vue'
@@ -31,9 +31,9 @@ import { useI18n } from 'vue-i18n'
 import CreateOrEditCustomerDrawer from './CreateOrEditCustomerDrawer.vue'
 import SuspendCustomerModal from './SuspendCustomerModal.vue'
 import ReactivateCustomerModal from './ReactivateCustomerModal.vue'
-import { getLanguageLabel } from '@/lib/locale'
-import { formatPhoneForDisplay } from '@/lib/phone'
 import UserAvatar from '../users/UserAvatar.vue'
+import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
+import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
 
 const { t } = useI18n()
 const { state: customerDetail, asyncStatus } = useCustomerDetail()
@@ -89,7 +89,7 @@ function getKebabMenuItems() {
       <!-- logo and name -->
       <div class="mb-4 flex items-center justify-between gap-4">
         <div class="flex items-center gap-4">
-          <FontAwesomeIcon :icon="getOrganizationIcon('customer')" class="size-5" />
+          <OrganizationIcon org-type="customer" size="sm" />
           <NeHeading tag="h6">
             {{ customerDetail.data.name }}
           </NeHeading>
@@ -146,79 +146,6 @@ function getKebabMenuItems() {
             {{ customerDetail.data.custom_data.vat || '-' }}
           </template>
         </DataItem>
-        <!-- address -->
-        <DataItem>
-          <template #label>
-            {{ $t('organizations.address') }}
-          </template>
-          <template #data>
-            {{ customerDetail.data.custom_data.address || '-' }}
-          </template>
-        </DataItem>
-        <!-- city -->
-        <DataItem>
-          <template #label>
-            {{ $t('organizations.city') }}
-          </template>
-          <template #data>
-            {{ customerDetail.data.custom_data.city || '-' }}
-          </template>
-        </DataItem>
-        <!-- main contact -->
-        <DataItem>
-          <template #label>
-            {{ $t('organizations.main_contact') }}
-          </template>
-          <template #data>
-            {{ customerDetail.data.custom_data.main_contact || '-' }}
-          </template>
-        </DataItem>
-        <!-- email -->
-        <DataItem>
-          <template #label>
-            {{ $t('organizations.email') }}
-          </template>
-          <template #data>
-            <NeLink
-              v-if="customerDetail.data.custom_data.email"
-              :href="`mailto:${customerDetail.data.custom_data.email}`"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="break-all"
-            >
-              {{ customerDetail.data.custom_data.email }}
-            </NeLink>
-            <template v-else>-</template>
-          </template>
-        </DataItem>
-        <!-- phone number -->
-        <DataItem>
-          <template #label>
-            {{ $t('organizations.phone_number') }}
-          </template>
-          <template #data>
-            <NeLink
-              v-if="customerDetail.data.custom_data.phone"
-              :href="`tel:${customerDetail.data.custom_data.phone}`"
-            >
-              {{ formatPhoneForDisplay(customerDetail.data.custom_data.phone) }}
-            </NeLink>
-            <template v-else>-</template>
-          </template>
-        </DataItem>
-        <!-- language -->
-        <DataItem>
-          <template #label>
-            {{ $t('organizations.language') }}
-          </template>
-          <template #data>
-            {{
-              customerDetail.data.custom_data.language
-                ? getLanguageLabel(customerDetail.data.custom_data.language, $i18n.locale)
-                : '-'
-            }}
-          </template>
-        </DataItem>
         <!-- rebranding -->
         <DataItem>
           <template #label>
@@ -226,6 +153,15 @@ function getKebabMenuItems() {
           </template>
           <template #data>
             <EnabledStatus :enabled="rebrandingEnabled" />
+          </template>
+        </DataItem>
+        <!-- parent company -->
+        <DataItem>
+          <template #label>
+            {{ $t('organizations.parent_company') }}
+          </template>
+          <template #data>
+            <ParentCompanyLink :creator="customerDetail.data.created_by" />
           </template>
         </DataItem>
         <!-- created by -->
@@ -247,13 +183,7 @@ function getKebabMenuItems() {
                   v-if="customerDetail.data.created_by.organization_name"
                   class="text-gray-500 dark:text-gray-400"
                 >
-                  {{
-                    customerDetail.data.created_by.on_behalf_of
-                      ? $t('systems.on_behalf_of', {
-                          organization: customerDetail.data.created_by.organization_name,
-                        })
-                      : customerDetail.data.created_by.organization_name
-                  }}
+                  <CreatorOrganization :creator="customerDetail.data.created_by" />
                 </div>
               </div>
             </div>

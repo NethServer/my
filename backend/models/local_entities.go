@@ -106,6 +106,16 @@ type LocalDistributor struct {
 	PromotedFrom *OrgPromotion `json:"promoted_from,omitempty"`
 }
 
+// CreatorOrgRef is implemented by the creator snapshots (OrgCreator,
+// SystemCreator) whose organization type is not stored but resolved at read
+// time, so a single helper can fill a whole page of them in one query.
+type CreatorOrgRef interface {
+	// CreatorOrgID returns the logto ID of the creator's organization.
+	CreatorOrgID() string
+	// SetCreatorOrgType fills in the organization's current level.
+	SetCreatorOrgType(orgType string)
+}
+
 // OrgCreator is a snapshot of the user who created an organization.
 // It is stored in custom_data.createdByUser at creation and surfaced as the
 // top-level created_by field on the organization, mirroring SystemCreator.
@@ -118,6 +128,14 @@ type OrgCreator struct {
 	Email            string `json:"email"`
 	OrganizationID   string `json:"organization_id"`
 	OrganizationName string `json:"organization_name"`
+	// OrganizationType is the creator organization's current level, so a client
+	// can pick its icon and link the organization without looking it up. It is
+	// NOT part of the stored snapshot: it is resolved on every read (see
+	// CreatorOrgRef), which keeps it right after a promotion without a
+	// retroactive backfill. The Owner organization is labelled "owner", like the
+	// organization_type of users and systems; only a deleted organization, which
+	// has no level to assert, leaves the field omitted.
+	OrganizationType string `json:"organization_type,omitempty"`
 	// OnBehalfOf is true when the entity was attributed to a different org via
 	// created_by_organization_id: the user acted on behalf of organization_name
 	// rather than belonging to it. Lets the UI render "created by <user> on
@@ -155,6 +173,34 @@ func (c *OrgCreator) AttributeToOrg(orgID, orgName string) {
 	c.OrganizationID = orgID
 	c.OrganizationName = orgName
 	c.OnBehalfOf = true
+}
+
+// CreatorOrgID implements CreatorOrgRef.
+func (c *OrgCreator) CreatorOrgID() string {
+	if c == nil {
+		return ""
+	}
+	return c.OrganizationID
+}
+
+// SetCreatorOrgType implements CreatorOrgRef.
+func (c *OrgCreator) SetCreatorOrgType(orgType string) {
+	if c == nil {
+		return
+	}
+	c.OrganizationType = orgType
+}
+
+// ForStorage returns a copy of the snapshot without the fields resolved at read
+// time, so the update paths that write the snapshot back into custom_data never
+// persist a derived value that a later promotion would make stale.
+func (c *OrgCreator) ForStorage() *OrgCreator {
+	if c == nil {
+		return nil
+	}
+	stored := *c
+	stored.OrganizationType = ""
+	return &stored
 }
 
 // ExtractOrgCreator pulls the createdByUser snapshot out of an organization's

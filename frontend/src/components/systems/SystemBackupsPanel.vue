@@ -230,6 +230,7 @@ function getKebabMenuItems(backup: BackupMetadata): NeDropdownItem[] {
     :title="$t('backups.no_backups')"
     :description="$t('backups.no_backups_description')"
     :icon="faBoxArchive"
+    class="bg-white dark:bg-gray-950"
   />
 
   <!-- table -->

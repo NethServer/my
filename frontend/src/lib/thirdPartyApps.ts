@@ -7,6 +7,7 @@ import { useLoginStore } from '@/stores/login'
 import {
   faArrowUpRightFromSquare,
   faGraduationCap,
+  faBoltLightning,
   faHeadset,
   faShop,
   faWarehouse,
@@ -23,6 +24,7 @@ const ENABLED_APPS = [
   'nethshop.nethesis.it',
   'my.nethspot.com',
   'formazione.nethesis.it',
+  'partner.nethesis.it',
 ]
 
 export type ThirdPartyApp = {
@@ -148,6 +150,8 @@ export const getThirdPartyAppIcon = (thirdPartyApp: Pick<ThirdPartyApp, 'name'>)
       return faWarehouse
     case 'formazione.nethesis.it':
       return faGraduationCap
+    case 'partner.nethesis.it':
+      return faBoltLightning
     default:
       // fallback icon
       return faArrowUpRightFromSquare
@@ -172,11 +176,12 @@ export const sortThirdPartyApps = (
   app2: Pick<ThirdPartyApp, 'name'>,
 ) => {
   const appsOrder = [
-    'stock.nethesis.it',
     'nethshop.nethesis.it',
     'helpdesk.nethesis.it',
+    'partner.nethesis.it',
     'my.nethspot.com',
     'formazione.nethesis.it',
+    'stock.nethesis.it',
   ]
   const index1 = appsOrder.indexOf(app1.name)
   const index2 = appsOrder.indexOf(app2.name)
