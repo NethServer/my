@@ -107,6 +107,47 @@ export const useLoginStore = defineStore('login', () => {
   const AUTO_REFRESH_CHECK_INTERVAL = 60 * 1000 // 1 minute
   let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
 
+  // Waking from sleep or switching network makes the Logto SDK's token calls
+  // fail with a plain connectivity error (ERR_INTERNET_DISCONNECTED on the
+  // discovery endpoint): the SDK reports it as "no token", which says nothing
+  // about whether the session is still valid. Treating it as a dead session
+  // would wipe the tokens and redirect to Logto — a redirect that cannot reach
+  // Logto either, leaving the app stuck on its skeletons until a manual
+  // reload. So connectivity failures are retried, never re-authenticated.
+  const MAX_TOKEN_ATTEMPTS = 3
+  const TOKEN_RETRY_DELAY = 5 * 1000
+  let tokenAttempts = 0
+  let tokenRetryPending = false
+  let tokenRetryTimer: ReturnType<typeof setTimeout> | null = null
+  let fetchingTokenAndUserInfo = false
+
+  const isOffline = () => typeof navigator !== 'undefined' && navigator.onLine === false
+
+  const cancelTokenRetry = () => {
+    if (tokenRetryTimer) {
+      clearTimeout(tokenRetryTimer)
+      tokenRetryTimer = null
+    }
+    tokenRetryPending = false
+  }
+
+  const scheduleTokenRetry = () => {
+    tokenRetryPending = true
+
+    if (isOffline() || tokenRetryTimer) {
+      // offline: the 'online' event drives the retry, a timer would only burn
+      // attempts against a network that is known to be down
+      return
+    }
+    tokenRetryTimer = setTimeout(() => {
+      tokenRetryTimer = null
+
+      if (tokenRetryPending) {
+        fetchTokenAndUserInfo()
+      }
+    }, TOKEN_RETRY_DELAY)
+  }
+
   const startAutoRefresh = () => {
     if (autoRefreshTimer) {
       return
@@ -129,7 +170,25 @@ export const useLoginStore = defineStore('login', () => {
   // for an expired token: refresh right away instead of waiting for the tick.
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && shouldRefreshToken()) {
+      if (document.visibilityState !== 'visible') {
+        return
+      }
+
+      if (tokenRetryPending) {
+        fetchTokenAndUserInfo()
+      } else if (shouldRefreshToken()) {
+        doRefreshToken()
+      }
+    })
+  }
+
+  // Connectivity is back (resume from sleep, new Wi-Fi): recover the session
+  // that could not be renewed while the machine was offline.
+  if (typeof window !== 'undefined') {
+    window.addEventListener('online', () => {
+      if (tokenRetryPending) {
+        fetchTokenAndUserInfo()
+      } else if (shouldRefreshToken()) {
         doRefreshToken()
       }
     })
@@ -190,6 +249,12 @@ export const useLoginStore = defineStore('login', () => {
     if (reauthStarted) {
       return
     }
+    if (isOffline()) {
+      // the sign-in redirect cannot reach Logto either: keep the session as it
+      // is and let the 'online' handler recover it
+      scheduleTokenRetry()
+      return
+    }
     reauthStarted = true
     stopAutoRefresh()
     jwtToken.value = ''
@@ -199,7 +264,13 @@ export const useLoginStore = defineStore('login', () => {
     tokenRefreshedAt.value = 0
     tokenExpiresAt.value = 0
     userInfo.value = undefined
-    signIn(LOGIN_REDIRECT_URI)
+    Promise.resolve(signIn(LOGIN_REDIRECT_URI)).catch((error) => {
+      // the redirect never left (the network dropped while it was starting):
+      // release the guard, or no later attempt could ever re-authenticate
+      console.error('Cannot start the sign-in flow, retrying later:', error)
+      reauthStarted = false
+      scheduleTokenRetry()
+    })
   }
 
   // Called after the picture is uploaded or removed: busts the avatar URL cache
@@ -213,18 +284,45 @@ export const useLoginStore = defineStore('login', () => {
     }
   }
 
+  // A token fetch failed. The SDK does not tell a dead session apart from an
+  // unreachable Logto, so retry first and only re-authenticate once several
+  // attempts failed with the browser online.
+  const handleTokenFailure = () => {
+    loadingUserInfo.value = false
+
+    if (isOffline()) {
+      console.warn('Cannot fetch access token while offline, waiting for the network')
+      scheduleTokenRetry()
+      return
+    }
+    tokenAttempts += 1
+
+    if (tokenAttempts < MAX_TOKEN_ATTEMPTS) {
+      console.warn(`Cannot fetch access token, retry ${tokenAttempts}/${MAX_TOKEN_ATTEMPTS}`)
+      scheduleTokenRetry()
+      return
+    }
+    console.error('Cannot fetch access token, re-authenticating')
+    tokenAttempts = 0
+    cancelTokenRetry()
+    forceReauth()
+  }
+
   const fetchTokenAndUserInfo = async () => {
+    if (fetchingTokenAndUserInfo) {
+      // a retry timer and the 'online' / visibility handlers can fire together
+      return
+    }
+    fetchingTokenAndUserInfo = true
+    cancelTokenRetry()
     loadingUserInfo.value = true
 
     try {
       const token = await getAccessToken(LOGTO_API_RESOURCE)
 
       if (!token) {
-        // the Logto SDK cannot mint an access token: re-enter the sign-in
-        // flow, which completes silently while the Logto session is alive
-        console.error('Cannot fetch access token, re-authenticating')
-        loadingUserInfo.value = false
-        forceReauth()
+        fetchingTokenAndUserInfo = false
+        handleTokenFailure()
         return
       }
 
@@ -237,13 +335,15 @@ export const useLoginStore = defineStore('login', () => {
         idToken.value = ''
       }
     } catch (error) {
-      // same as the null-token case: the SDK throws when its refresh token is
-      // dead, and only a new sign-in flow can recover
-      console.error('Cannot fetch access token, re-authenticating:', error)
-      loadingUserInfo.value = false
-      forceReauth()
+      // the SDK throws both when its refresh token is dead and when it cannot
+      // reach Logto at all: handleTokenFailure tells the two apart
+      console.warn('Cannot fetch access token:', error)
+      fetchingTokenAndUserInfo = false
+      handleTokenFailure()
       return
     }
+
+    tokenAttempts = 0
 
     try {
       const res = await axios.post(`${API_URL}/auth/exchange`, {
@@ -277,8 +377,16 @@ export const useLoginStore = defineStore('login', () => {
       }
     } catch (error) {
       console.error('Cannot exchange token:', error)
+
+      // no HTTP response at all: the API was unreachable (offline, network
+      // switch), not a rejected token — retry instead of leaving the app
+      // without a JWT, which keeps every query on its skeleton forever
+      if (!axios.isAxiosError(error) || !error.response) {
+        scheduleTokenRetry()
+      }
     } finally {
       loadingUserInfo.value = false
+      fetchingTokenAndUserInfo = false
     }
   }
 
