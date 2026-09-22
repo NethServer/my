@@ -19,7 +19,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import type { Ns8Facts } from '@/lib/systems/ns8Facts'
-import { type ClusterNode, sortedNs8Nodes } from '@/lib/systems/hardware'
+import { type ClusterNode, ns8NodeName, sortedNs8Nodes } from '@/lib/systems/hardware'
 
 const { t } = useI18n()
 const { state: latestInventory } = useLatestInventory()
@@ -27,13 +27,6 @@ const { state: latestInventory } = useLatestInventory()
 const nodes = computed<ClusterNode[]>(() =>
   sortedNs8Nodes(latestInventory.value.data?.data?.facts as Ns8Facts | undefined),
 )
-
-const getNodeName = (node: ClusterNode) => {
-  if (node.ui_name) {
-    return t('system_detail.node_name_with_label', { id: node.id, label: node.ui_name })
-  }
-  return t('system_detail.node_name', { id: node.id })
-}
 
 const getNodeRole = (node: ClusterNode) => {
   return node.cluster_leader
@@ -88,7 +81,7 @@ const getNodeForegroundStyle = (node: ClusterNode) => {
         </div>
         <!-- name -->
         <div class="mt-2 text-base font-medium">
-          {{ getNodeName(node) }}
+          {{ ns8NodeName(node, t) }}
         </div>
         <!-- fqdn -->
         <div class="text-tertiary-neutral dark:text-tertiary-neutral mt-1">

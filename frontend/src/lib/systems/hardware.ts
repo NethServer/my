@@ -1,6 +1,8 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
+import type { ComposerTranslation } from 'vue-i18n'
+
 import type { Bios, Distro, Memory, Mountpoint, Processors } from './inventory'
 import type { NsecFacts } from './nsecFacts'
 import type { Ns8Facts, Ns8NodeFacts } from './ns8Facts'
@@ -44,6 +46,15 @@ export const sortedNs8Nodes = (facts: Ns8Facts | undefined): ClusterNode[] => {
       }
       return a.id.localeCompare(b.id, undefined, { numeric: true })
     })
+}
+
+// The node label people read: its ui_name when the cluster gives it one, its
+// node id otherwise.
+export const ns8NodeName = (node: ClusterNode, t: ComposerTranslation): string => {
+  if (node.ui_name) {
+    return t('system_detail.node_name_with_label', { id: node.id, label: node.ui_name })
+  }
+  return t('system_detail.node_name', { id: node.id })
 }
 
 export const nsecHardwareInfo = (facts: NsecFacts, uuid: string): HardwareInfo => ({

@@ -22,6 +22,7 @@ import {
   type ClusterNode,
   type HardwareInfo,
   ns8NodeHardwareInfo,
+  ns8NodeName,
   nsecHardwareInfo,
   sortedNs8Nodes,
 } from '@/lib/systems/hardware'
@@ -44,15 +45,8 @@ const nodes = computed<ClusterNode[]>(() => {
   return sortedNs8Nodes(latestInventory.value.data?.data?.facts as Ns8Facts | undefined)
 })
 
-const getNodeName = (node: ClusterNode) => {
-  if (node.ui_name) {
-    return t('system_detail.node_name_with_label', { id: node.id, label: node.ui_name })
-  }
-  return t('system_detail.node_name', { id: node.id })
-}
-
 const nodeOptions = computed((): NeListboxOption[] =>
-  nodes.value.map((node) => ({ id: node.id, label: getNodeName(node) })),
+  nodes.value.map((node) => ({ id: node.id, label: ns8NodeName(node, t) })),
 )
 
 const selectedNodeId = ref('')
