@@ -46,6 +46,12 @@ weekly cron
 **Purpose**: Runs the browser suite (`frontend/e2e/`, `--project=fullstack`) against the full
 compose stack, with personas provisioned by `apitool authz provision`
 
+Before provisioning, the job runs `sync sync` over `sync/configs/config.ci.yml` so the tenant holds
+the API resource and scopes the vocabulary describes. Without the resource, Logto refuses every
+authorization request that names it, and the refusal reaches the log only as a missing interaction
+session. `API_BASE_URL` is derived from `E2E_LOGTO_API_RESOURCE` by dropping the `/permissions`
+suffix, which is why that secret must carry it.
+
 Deliberately separate from `ci-main.yml`: that workflow answers in seconds and gates every branch,
 while this builds four images, boots six services and mutates a shared Logto tenant, so it takes
 minutes. It runs per push to a pull request so a regression is attributed to the commit that caused
@@ -104,7 +110,7 @@ during provisioning, not lost data.)
 | `E2E_LOGTO_TENANT_DOMAIN` | Tenant domain, for the backend | `your-tenant.logto.app` |
 | `E2E_LOGTO_BACKEND_APP_ID` | M2M application id with Management API access | `abcd1234efgh5678ijkl` |
 | `E2E_LOGTO_BACKEND_APP_SECRET` | M2M application secret | `your-secret-here` |
-| `E2E_LOGTO_API_RESOURCE` | API resource indicator of the e2e tenant; the audience the SPA, `apitool` and the backend all agree on | `https://e2e.example.com/api/permissions` |
+| `E2E_LOGTO_API_RESOURCE` | API resource indicator of the e2e tenant; the audience the SPA, `apitool` and the backend all agree on. Must end in `/permissions` | `https://e2e.example.com/api/permissions` |
 | `E2E_JWT_SECRET` | Signing key for the stack under test (min 32 chars) | `a-32-char-or-longer-random-string` |
 | `E2E_OWNER_EMAIL` | Owner account `apitool` acts as | `owner@example.com` |
 | `E2E_OWNER_PASSWORD` | Owner account password | `your-password-here` |

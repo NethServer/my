@@ -159,6 +159,33 @@ jobs:
         # permissions and resources as the deployed tenants, and nothing else.
         cp sync/configs/config.ci.yml sync/configs/config.yml
 
+    - name: Put the RBAC vocabulary in the tenant
+      env:
+        LOGTO_TENANT_ID: ${{ secrets.E2E_LOGTO_TENANT_ID }}
+        LOGTO_BACKEND_APP_ID: ${{ secrets.E2E_LOGTO_BACKEND_APP_ID }}
+        LOGTO_BACKEND_APP_SECRET: ${{ secrets.E2E_LOGTO_BACKEND_APP_SECRET }}
+        LOGTO_API_RESOURCE: ${{ secrets.E2E_LOGTO_API_RESOURCE }}
+      working-directory: sync
+      run: |
+        set -euo pipefail
+
+        # The API resource the whole run is bound to has to exist in the
+        # tenant: Logto refuses an authorization request that names an unknown
+        # resource, and that refusal only surfaces later as a missing
+        # interaction session. `sync` names each resource
+        # {API_BASE_URL}/{container} and the vocabulary has one container,
+        # "permissions", so API_BASE_URL is the indicator minus that suffix.
+        case "${LOGTO_API_RESOURCE}" in
+          */permissions) ;;
+          *) echo "::error::E2E_LOGTO_API_RESOURCE must end in /permissions"; exit 1 ;;
+        esac
+        export API_BASE_URL="${LOGTO_API_RESOURCE%/permissions}"
+
+        # No --cleanup: it deletes whatever the config does not define, and
+        # this tenant also carries the applications the suite signs in with.
+        make build
+        ./build/sync sync -c configs/config.yml
+
     - name: Provision the persona fixture
       env:
         OWNER_EMAIL: ${{ secrets.E2E_OWNER_EMAIL }}
