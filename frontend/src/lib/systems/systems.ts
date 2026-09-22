@@ -14,6 +14,10 @@ export const SYSTEMS_TOTAL_KEY = 'systemsTotal'
 export const SYSTEMS_TABLE_ID = 'systemsTable'
 export const SYSTEM_REACHABILITY_KEY = 'systemReachability'
 
+// Home of the systems still running NethServer 7 and older: the legacy counters
+// point there, since my has no page of its own for them.
+export const LEGACY_SYSTEMS_URL = 'https://legacy.my.nethesis.it'
+
 const SystemStatusSchema = v.picklist(['active', 'inactive', 'unknown', 'deleted', 'suspended'])
 
 export const CreateSystemSchema = v.object({

@@ -4,12 +4,13 @@
 -->
 
 <script setup lang="ts">
-import { NeHeading, NeInlineNotification, NeLink, NeSkeleton } from '@nethesis/vue-components'
+import { NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
 import { faServer, faBuilding } from '@fortawesome/free-solid-svg-icons'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import { useResellerDetail } from '@/queries/organizations/resellerDetail'
 import ResellerInfoCard from '@/components/resellers/ResellerInfoCard.vue'
 import OrganizationContactsCard from '@/components/organizations/OrganizationContactsCard.vue'
+import LegacySystemsCard from '@/components/systems/LegacySystemsCard.vue'
 import CounterCard from '@/components/common/CounterCard.vue'
 import { useResellerStats } from '@/queries/organizations/resellerStats'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
@@ -19,8 +20,6 @@ import OrganizationSystemsCard from '@/components/organizations/OrganizationSyst
 import OrganizationApplicationsCard from '@/components/organizations/OrganizationApplicationsCard.vue'
 import { canReadResellers } from '@/lib/permissions'
 import { computed } from 'vue'
-
-const legacySystemsUrl = 'https://legacy.my.nethesis.it'
 
 const { state: resellerDetail } = useResellerDetail()
 const { state: resellerStats } = useResellerStats()
@@ -115,22 +114,10 @@ const hierarchyApplicationsRoute = computed(() => {
         :to="hierarchySystemsRoute"
       />
       <!-- total legacy systems -->
-      <CounterCard
-        :title="$t('systems.total_legacy_systems')"
+      <LegacySystemsCard
         :counter="resellerStats.data?.legacy_systems_hierarchy_count ?? 0"
-        :icon="faServer"
         :loading="resellerStats.status === 'pending'"
-      >
-        <template #title-tooltip>
-          <i18n-t keypath="systems.total_legacy_systems_tooltip" tag="span" scope="global">
-            <template #url>
-              <NeLink :href="legacySystemsUrl" target="_blank" rel="noopener noreferrer">
-                {{ legacySystemsUrl }}
-              </NeLink>
-            </template>
-          </i18n-t>
-        </template>
-      </CounterCard>
+      />
       <!-- total applications -->
       <CounterCard
         :title="$t('applications.total_applications')"
