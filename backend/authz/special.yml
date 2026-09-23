@@ -205,6 +205,42 @@ cases:
     body: '{"current_password":"x","new_password":"Kq7!vTm4Zp9Wd"}'
     expect: denied
 
+  # Promotion (audit 2026-09-09, M14). The only hierarchy-shaping write outside
+  # the resource groups: the permission gate (manage:resellers) sits on the route,
+  # the Owner-organization gate in the handler. A read-mode key of an Owner-org
+  # member must stop at the route gate, a write-mode key must pass both, and a
+  # write-mode key of a distributor admin must stop at the handler.
+  - name: read-mode key of a Staff user cannot promote a reseller
+    kind: api_key
+    as: owner-staff
+    mode: read
+    method: PATCH
+    path: /api/resellers/{bogus}/promote
+    expect: denied
+    note: |
+      The owner of this key is an Owner-organization member, so the refusal can
+      only come from the read mask on manage:resellers. Bogus id on purpose: a
+      404 here would mean the mask let the write through (the M14 finding).
+
+  - name: write-mode key of a Staff user can promote a reseller
+    kind: api_key
+    as: owner-staff
+    mode: write
+    method: PATCH
+    path: /api/resellers/{bogus}/promote
+    expect: allowed
+    note: 404 on a nonexistent reseller — the point is that both gates let it through
+
+  - name: write-mode key of a distributor admin cannot promote a reseller
+    kind: api_key
+    as: d1-admin
+    mode: write
+    method: PATCH
+    path: /api/resellers/{bogus}/promote
+    expect: denied
+    must_contain: ["access denied to promote reseller"]
+    note: the owner of this key holds manage:resellers, so only the Owner-organization gate in the handler can stop it
+
   # ===========================================================================
   # Impersonation. Consent is checked first, so every case here says explicitly
   # which barrier it is testing.
