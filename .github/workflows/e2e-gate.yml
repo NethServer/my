@@ -1,0 +1,71 @@
+name: E2E - Pull Request Gate
+
+# Holds the `e2e/fullstack` commit status that branch protection requires on
+# main. The browser suite itself (e2e-main.yml) runs on a pull request only
+# when someone adds the `run-e2e` label; this job only says, on every new head
+# commit, that it has not run yet.
+#
+# A commit status rather than the suite's own check run: a job skipped by its
+# `if:` reports "skipped", and branch protection counts skipped as passing. A
+# status is written by hand and bound to one SHA, so every push lands on a
+# commit with no green status and the merge stays blocked until the suite
+# passes on that exact commit.
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [ opened, synchronize, reopened ]
+
+permissions:
+  statuses: write
+  pull-requests: write
+
+jobs:
+  gate:
+    name: E2E gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+      STATUS_CONTEXT: e2e/fullstack
+      STATUS_SHA: ${{ github.event.pull_request.head.sha }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+
+    steps:
+    - name: Drop a label that speaks for an older commit
+      # The label was added for the commit before this push; left in place it
+      # reads as if this one had been tested.
+      if: github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'run-e2e')
+      run: |
+        gh api -X DELETE "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels/run-e2e" || true
+
+    - name: Set the status for the head commit
+      run: |
+        set -euo pipefail
+
+        # A reopened pull request can point at a commit the suite already
+        # judged; that verdict stands.
+        existing=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${STATUS_SHA}/statuses" \
+          --jq "[.[] | select(.context == \"${STATUS_CONTEXT}\")] | length")
+        if [ "$existing" -gt 0 ]; then
+          echo "${STATUS_CONTEXT} already reported on ${STATUS_SHA}"
+          exit 0
+        fi
+
+        # Same set e2e-main.yml ignores on main: documentation cannot break
+        # the interface, so a pull request that only touches it needs no run.
+        code=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --jq '.[].filename' \
+          | grep -vE '(\.md$|^docs/)' || true)
+
+        if [ -z "$code" ]; then
+          state=success
+          description="not required: documentation only"
+        else
+          state=pending
+          description="add the run-e2e label to run the browser suite"
+        fi
+
+        gh api "repos/${GITHUB_REPOSITORY}/statuses/${STATUS_SHA}" \
+          -f state="$state" -f context="$STATUS_CONTEXT" -f description="$description" > /dev/null
+        echo "${STATUS_CONTEXT}: ${state} (${description})"

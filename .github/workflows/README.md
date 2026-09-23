@@ -41,8 +41,8 @@ These GitHub Actions automatically manage redirect URIs in your Logto applicatio
 ## End-to-end suite
 
 ### `e2e-main.yml`
-**Trigger**: Every push to a pull request and to `main` (docs-only pushes skipped), manual dispatch,
-weekly cron
+**Trigger**: The `run-e2e` label on a pull request, push to `main` (docs-only pushes skipped),
+manual dispatch, weekly cron
 **Purpose**: Runs the browser suite (`frontend/e2e/`, `--project=fullstack`) against the full
 compose stack, with personas provisioned by `apitool authz provision`
 
@@ -54,14 +54,37 @@ suffix, which is why that secret must carry it.
 
 Deliberately separate from `ci-main.yml`: that workflow answers in seconds and gates every branch,
 while this builds four images, boots six services and mutates a shared Logto tenant, so it takes
-minutes. It runs per push to a pull request so a regression is attributed to the commit that caused
-it rather than to a batch of merges.
+minutes. On a pull request it runs only when somebody adds the `run-e2e` label. The run writes its
+verdict as the `e2e/fullstack` commit status on the pull request's head commit and removes the
+label when it ends, so adding the label again starts another run. It refuses a merge commit whose
+second parent is not that head, so the status never lands on a commit other than the one tested.
+Pull requests from forks get neither the secrets nor a token that can write a status: push the
+branch to this repository and label that pull request instead.
 
 Its concurrency group is **global and queues rather than cancels** — a run cancelled after
 provisioning would abandon real organizations and users in the tenant. GitHub keeps at most one run
-pending per group, so under a burst of pushes the commits in between are simply not tested; that is
-the accepted cost of never cancelling. The weekly cron is a drift canary for breakage with no commit
-behind it, such as a tenant setting changed by hand.
+pending per group and cancels the previously pending one: a pull request whose queued run is
+replaced this way keeps its pending status and its label, and removing and adding the label queues
+it again. The weekly cron is a drift canary for breakage with no commit behind it, such as a tenant
+setting changed by hand.
+
+### `e2e-gate.yml`
+**Trigger**: Pull request opened, pushed to or reopened
+**Purpose**: Resets the `e2e/fullstack` status on every new head commit, so the merge waits for the
+suite to pass on that exact commit
+
+It sets the status to `pending` ("add the run-e2e label…"), or to `success` when the pull request
+touches only `**.md` and `docs/**`, and drops a `run-e2e` label left over from the previous commit.
+A commit that already carries the status keeps it. The gate is a status rather than the suite's own
+check run because a job skipped by its `if:` reports "skipped", which branch protection counts as
+passing.
+
+The status is what makes the gate binding. It needs a ruleset on `main` (`Settings > Rules >
+Rulesets > New branch ruleset`): target the default branch, enable **Require status checks to
+pass** with `e2e/fullstack` from the **GitHub Actions** source, and leave **Require branches to be
+up to date before merging** off — a green run stays valid when `main` moves, and the run on push to
+`main` covers what merging next to other pull requests changes. The label itself is created once
+with `gh label create run-e2e --color 0E8A16 --description "Run the full-stack browser suite"`.
 
 ### `e2e-smoke.yml`
 **Trigger**: Push to `main`, manual dispatch

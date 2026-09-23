@@ -6,25 +6,27 @@ name: E2E - Full Stack
 #
 # Not part of ci-main.yml on purpose. That workflow answers in seconds and gates
 # every branch; this builds four images, boots six services and provisions a
-# shared Logto tenant, so it takes minutes and mutates external state. It runs
-# on pushes to a pull request and on merges to main, which is as often as it is
-# worth paying for.
+# shared Logto tenant, so it takes minutes and mutates external state. On a pull
+# request it runs only when asked, by adding the `run-e2e` label, and it reports
+# the verdict as the `e2e/fullstack` commit status on the pull request's head
+# commit. Branch protection requires that status, and e2e-gate.yml resets it on
+# every push, so a pull request merges only after the suite passed on its last
+# commit.
 
 on:
-  # Docs-only pushes are skipped on both triggers: the job costs minutes and
-  # holds the CI tenant for all of them, whichever branch it was asked from.
+  # Every merge, so an interaction between pull requests merged one after the
+  # other is caught by the commit that completes it. Docs-only pushes are
+  # skipped: the job costs minutes and holds the CI tenant for all of them.
   push:
     branches: [ main ]
     paths-ignore:
       - '**.md'
       - 'docs/**'
-  # Every push to a pull request, so a regression is attributed to the commit
-  # that caused it rather than to a batch of merges.
+  # On request only: adding `run-e2e` starts a run, and the run removes the
+  # label when it ends so adding it again starts another.
   pull_request:
     branches: [ main ]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
+    types: [ labeled ]
   workflow_dispatch:
   schedule:
     # Weekly drift canary: catches breakage with no commit behind it, such as a
@@ -44,12 +46,10 @@ on:
 # teardown can find, which the next provisioning trips over as a name
 # collision. Queueing lets every run reach its teardown.
 #
-# The cost is not a growing queue: GitHub keeps at most one run pending per
-# group and cancels the previously pending one, so at most two commits are ever
-# in flight. It is that under a burst the commits in between are never tested,
-# which is a partial retreat from the per-commit attribution the pull_request
-# trigger exists for. Cancelling instead would trade that for abandoned
-# organizations, which is worse.
+# The cost: GitHub keeps at most one run pending per group and cancels the
+# previously pending one. A pull request whose queued run is replaced this way
+# never starts, so its status stays pending and its label stays on; removing
+# and adding the label again queues it anew.
 concurrency:
   group: e2e-fullstack
   cancel-in-progress: false
@@ -59,15 +59,59 @@ jobs:
     name: Full-stack browser suite
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # Any other label on a pull request is not a request for a run.
+    if: github.event_name != 'pull_request' || github.event.label.name == 'run-e2e'
+
+    permissions:
+      contents: read
+      statuses: write
+      pull-requests: write
 
     env:
+      GH_TOKEN: ${{ github.token }}
+      # Only pull_request runs report a status: the one branch protection
+      # requires, on the head commit rather than on GitHub's merge commit.
+      STATUS_CONTEXT: e2e/fullstack
+      STATUS_SHA: ${{ github.event.pull_request.head.sha }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       # The only origin registered as a Logto sign-in redirect URI, which is why
       # docker-compose.e2e.yml publishes the proxy there.
       APP_URL: http://localhost:5173
       BACKEND_URL: http://127.0.0.1:18080/api
 
     steps:
+    - name: Refuse a pull request from a fork
+      # A fork gets neither the E2E_* secrets nor a token that can write a
+      # status. Push the branch to this repository and label that pull request.
+      if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+      run: |
+        echo "::error::the browser suite runs only on branches of ${GITHUB_REPOSITORY}"
+        exit 1
+
+    - name: Report the run on the pull request
+      if: github.event_name == 'pull_request'
+      run: |
+        gh api "repos/${GITHUB_REPOSITORY}/statuses/${STATUS_SHA}" \
+          -f state=pending -f context="$STATUS_CONTEXT" \
+          -f description="browser suite running" -f target_url="$RUN_URL" > /dev/null
+
     - uses: actions/checkout@v7
+
+    - name: Check the tested commit is the one the status lands on
+      if: github.event_name == 'pull_request'
+      run: |
+        set -euo pipefail
+
+        # GitHub's merge commit has main as first parent and the pull request
+        # head as second. A push between the label and the checkout would make
+        # it merge a newer head than the one the status is written on. Parents
+        # are read from the object itself: the clone is shallow.
+        merged=$(git cat-file -p HEAD | awk '/^parent / { print $2 }' | sed -n 2p)
+        if [ "$merged" != "$STATUS_SHA" ]; then
+          echo "::error::merge commit tests ${merged:-nothing}, the pull request head is ${STATUS_SHA}"
+          exit 1
+        fi
 
     - name: Set up Node.js
       uses: actions/setup-node@v7
@@ -251,3 +295,20 @@ jobs:
       run: |
         docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs --tail=200 || true
         docker compose -f docker-compose.yml -f docker-compose.e2e.yml down -v
+
+    - name: Report the verdict on the pull request
+      if: always() && github.event_name == 'pull_request'
+      env:
+        JOB_STATUS: ${{ job.status }}
+      run: |
+        case "$JOB_STATUS" in
+          success) state=success; description="browser suite passed" ;;
+          failure) state=failure; description="browser suite failed" ;;
+          *)       state=error;   description="browser suite ${JOB_STATUS}" ;;
+        esac
+        gh api "repos/${GITHUB_REPOSITORY}/statuses/${STATUS_SHA}" \
+          -f state="$state" -f context="$STATUS_CONTEXT" \
+          -f description="$description" -f target_url="$RUN_URL" > /dev/null
+
+        # So that adding the label again asks for another run.
+        gh api -X DELETE "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels/run-e2e" > /dev/null 2>&1 || true
