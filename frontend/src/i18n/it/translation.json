@@ -65,7 +65,7 @@
     "show_notifications": "Mostra notifiche",
     "open_account_menu": "Apri menu account",
     "account": "Account",
-    "company_info": "Info azienda",
+    "company_details": "Dettagli azienda",
     "help": "Aiuto",
     "switch_to_dark_theme": "Passa al tema scuro",
     "switch_to_light_theme": "Passa al tema chiaro",
@@ -204,6 +204,7 @@
     "hierarchy_filter_exact": "Filtra solo per questa azienda"
   },
   "organizations": {
+    "your_company": "La tua azienda",
     "name": "Nome azienda",
     "description": "Descrizione",
     "vat_number": "Partita IVA",

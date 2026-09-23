@@ -54,8 +54,8 @@ const accountMenuOptions = computed(() => {
     ...(ownOrganizationRoute
       ? [
           {
-            id: 'companyInfo',
-            label: t('shell.company_info'),
+            id: 'companyDetails',
+            label: t('shell.company_details'),
             icon: getOrganizationIcon(loginStore.userInfo?.org_role ?? ''),
             action: () => router.push(ownOrganizationRoute),
           },

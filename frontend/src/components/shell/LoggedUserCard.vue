@@ -4,7 +4,7 @@
 -->
 
 <script setup lang="ts">
-import { NeCard, NeSkeleton } from '@nethesis/vue-components'
+import { NeCard, NeSkeleton, NeTooltip } from '@nethesis/vue-components'
 import { useLoginStore } from '@/stores/login'
 import UserAvatar from '../users/UserAvatar.vue'
 import { getOrganizationIcon } from '@/lib/organizations/organizations'
@@ -23,13 +23,20 @@ const loginStore = useLoginStore()
     />
     <div v-else class="flex flex-col gap-2">
       <div class="flex items-center gap-2 text-base text-indigo-700 dark:text-indigo-500">
-        <router-link
+        <NeTooltip
           v-if="loginStore.ownOrganizationRoute"
-          :to="loginStore.ownOrganizationRoute"
-          class="hover:underline"
+          trigger-event="mouseenter focus"
+          placement="auto"
         >
-          {{ loginStore.userInfo.organization_name }}
-        </router-link>
+          <template #trigger>
+            <router-link :to="loginStore.ownOrganizationRoute" class="hover:underline">
+              {{ loginStore.userInfo.organization_name }}
+            </router-link>
+          </template>
+          <template #content>
+            {{ $t('shell.company_details') }}
+          </template>
+        </NeTooltip>
         <template v-else>{{ loginStore.userInfo.organization_name }}</template>
         <FontAwesomeIcon
           :icon="getOrganizationIcon(loginStore.userInfo?.org_role)"
