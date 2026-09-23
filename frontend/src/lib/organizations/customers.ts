@@ -53,6 +53,7 @@ export const EditCustomerSchema = v.object({
 export const CustomerSchema = v.object({
   ...CreateCustomerSchema.entries,
   ...EditCustomerSchema.entries,
+  created_at: v.optional(v.string()),
   suspended_at: v.optional(v.string()),
   deleted_at: v.optional(v.string()),
   systems_count: v.number(),

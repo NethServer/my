@@ -246,7 +246,7 @@ function getKebabMenuItems() {
             <div v-if="distributorDetail.data.created_by" class="space-y-0.5 text-end">
               <div class="flex items-center justify-end gap-2">
                 <UserAvatar
-                  size="sm"
+                  size="xs"
                   :is-owner="distributorDetail.data.created_by.username === 'owner'"
                   :name="distributorDetail.data.created_by.name"
                   :logto-id="distributorDetail.data.created_by.user_id"
@@ -255,9 +255,12 @@ function getKebabMenuItems() {
               </div>
               <div
                 v-if="distributorDetail.data.created_by.organization_name"
-                class="text-gray-500 dark:text-gray-400"
+                class="text-tertiary-neutral"
               >
                 <CreatorOrganization :creator="distributorDetail.data.created_by" />
+              </div>
+              <div v-if="distributorDetail.data.created_at" class="text-tertiary-neutral mt-1">
+                {{ formatDateTimeNoSeconds(new Date(distributorDetail.data.created_at), locale) }}
               </div>
             </div>
             <template v-else>-</template>

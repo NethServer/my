@@ -12,7 +12,6 @@ import {
   NeInlineNotification,
   NeLink,
   NeSkeleton,
-  NeTooltip,
   type NeDropdownItem,
   formatDateTimeNoSeconds,
 } from '@nethesis/vue-components'
@@ -278,39 +277,30 @@ function getKebabMenuItems() {
         <!-- created by -->
         <DataItem>
           <template #label>
-            {{ $t('systems.created') }}
+            {{ $t('systems.created_by') }}
           </template>
           <template #data>
-            <div class="space-y-0.5 text-end">
+            <div v-if="systemDetail.data.created_by" class="space-y-0.5 text-end">
               <div class="flex items-center justify-end gap-2">
-                <NeTooltip trigger-event="mouseenter focus" placement="top">
-                  <template #trigger>
-                    <UserAvatar
-                      size="xs"
-                      :is-owner="systemDetail.data.created_by.username === 'owner'"
-                      :name="systemDetail.data.created_by.name"
-                      :logto-id="systemDetail.data.created_by.user_id"
-                    />
-                  </template>
-                  <template #content>
-                    {{
-                      $t('systems.created_by_name', {
-                        name: systemDetail.data.created_by.name,
-                      })
-                    }}
-                  </template>
-                </NeTooltip>
-                <span>
-                  {{ formatDateTimeNoSeconds(new Date(systemDetail.data.created_at), locale) }}
-                </span>
+                <UserAvatar
+                  size="xs"
+                  :is-owner="systemDetail.data.created_by.username === 'owner'"
+                  :name="systemDetail.data.created_by.name"
+                  :logto-id="systemDetail.data.created_by.user_id"
+                />
+                <span>{{ systemDetail.data.created_by.name || '-' }}</span>
               </div>
               <div
                 v-if="systemDetail.data.created_by.organization_name"
-                class="text-gray-500 dark:text-gray-400"
+                class="text-tertiary-neutral"
               >
                 <CreatorOrganization :creator="systemDetail.data.created_by" />
               </div>
+              <div v-if="systemDetail.data.created_at" class="text-tertiary-neutral mt-1">
+                {{ formatDateTimeNoSeconds(new Date(systemDetail.data.created_at), locale) }}
+              </div>
             </div>
+            <template v-else>-</template>
           </template>
         </DataItem>
         <!-- notes -->
