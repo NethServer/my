@@ -38,6 +38,7 @@ import {
   type CreateAddon,
   type EditAddon,
 } from '@/lib/addons/addons'
+import { getApplicationLogo } from '@/lib/applications/applications'
 import { getBackendErrorMessage, getValidationIssues } from '@/lib/validation'
 import { useNotificationsStore } from '@/stores/notifications'
 import ProductTypeSelector from './ProductTypeSelector.vue'
@@ -146,6 +147,7 @@ const applicationOptions = computed((): NeComboboxOption[] =>
   ADDON_APPLICATION_IDS.map((applicationId) => ({
     id: applicationId,
     label: getApplicationDisplayName(applicationId),
+    image: getApplicationLogo(applicationId),
   })).sort((a, b) => a.label.localeCompare(b.label)),
 )
 
@@ -203,7 +205,7 @@ function onShow() {
     focusElement(displayNameRef)
   } else {
     // creating add-on, reset form to defaults
-    product.value = ''
+    product.value = 'nsec'
     application.value = ''
     technicalName.value = ''
     technicalNameEdited.value = false
