@@ -4,9 +4,10 @@
 -->
 
 <script setup lang="ts">
-import { NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
+import { NeBadgeV2, NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
 import { faServer, faBuilding } from '@fortawesome/free-solid-svg-icons'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
+import { useIsOwnCompany } from '@/composables/useIsOwnCompany'
 import { useResellerDetail } from '@/queries/organizations/resellerDetail'
 import ResellerInfoCard from '@/components/resellers/ResellerInfoCard.vue'
 import OrganizationContactsCard from '@/components/organizations/OrganizationContactsCard.vue'
@@ -22,6 +23,7 @@ import { canReadResellers } from '@/lib/permissions'
 import { computed } from 'vue'
 
 const { state: resellerDetail } = useResellerDetail()
+const isOwnCompany = useIsOwnCompany()
 const { state: resellerStats } = useResellerStats()
 const { state: resellerSystems } = useResellerSystems()
 const { state: applicationsSummary } = useApplicationsSummaryByCompany()
@@ -78,7 +80,9 @@ const hierarchyApplicationsRoute = computed(() => {
 
 <template>
   <div>
+    <!-- no list to go back to from the user's own company -->
     <PageBreadcrumb
+      v-if="!isOwnCompany"
       :section="$t('resellers.title')"
       :to="canReadResellers() ? '/resellers' : undefined"
       :current="resellerDetail.data?.name"
@@ -93,17 +97,22 @@ const hierarchyApplicationsRoute = computed(() => {
       class="mb-6"
     />
     <NeSkeleton v-else-if="resellerDetail.status === 'pending'" size="lg" class="mb-9 w-xs" />
-    <NeHeading tag="h3" class="mb-7">
-      {{ resellerDetail.data?.name }}
-    </NeHeading>
+    <div class="mb-7 flex flex-wrap items-center gap-4">
+      <NeHeading tag="h3">
+        {{ resellerDetail.data?.name }}
+      </NeHeading>
+      <NeBadgeV2 v-if="isOwnCompany && resellerDetail.data" kind="indigo">
+        {{ $t('organizations.your_company') }}
+      </NeBadgeV2>
+    </div>
     <div class="3xl:grid-cols-4 grid grid-cols-1 gap-x-6 gap-y-6 md:grid-cols-2">
       <!-- reseller info -->
-      <ResellerInfoCard class="3xl:row-span-2 md:row-span-2" />
+      <ResellerInfoCard class="row-span-4" />
       <!-- reseller contacts -->
       <OrganizationContactsCard
         :contacts="resellerDetail.data?.custom_data"
         :loading="resellerDetail.status === 'pending'"
-        class="3xl:row-span-2 md:row-span-2"
+        class="row-span-4"
       />
       <!-- total systems -->
       <CounterCard

@@ -194,13 +194,17 @@ export const canManageRebrandingOrganizations = () => isRebrandingAdmin() && can
 
 // Whether the organization detail page of the given company is reachable for
 // the current user. The three detail routes sit behind read:distributors /
-// read:resellers / read:customers, and the caller's own organization is no
-// exception: org roles only carry permissions for downstream levels, so the
-// level a company sits at is the one level its own users cannot list. The API
-// would still answer the self GET (RequireResourcePermissionOrSelf), but the
-// page it renders has no menu entry and no list to come back to, so linking to
-// it would strand the user on a page reachable no other way.
-export const canReadOrganizationDetail = (organizationType: string) => {
+// read:resellers / read:customers, which org roles only carry for downstream
+// levels. The caller's own company is the exception: the API answers the self
+// GET (RequireResourcePermissionOrSelf), so it is reachable whatever the level.
+// Pass the company's Logto id to let that exception apply.
+export const canReadOrganizationDetail = (organizationType: string, logtoId?: string) => {
+  const loginStore = useLoginStore()
+  if (logtoId && logtoId === loginStore.userInfo?.organization_id) {
+    // the Owner organization has no detail page, own or not
+    return organizationType.toLowerCase() !== 'owner'
+  }
+
   switch (organizationType.toLowerCase()) {
     case 'distributor':
       return canReadDistributors()

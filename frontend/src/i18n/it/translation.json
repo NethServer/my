@@ -65,6 +65,7 @@
     "show_notifications": "Mostra notifiche",
     "open_account_menu": "Apri menu account",
     "account": "Account",
+    "company_details": "Dettagli azienda",
     "help": "Aiuto",
     "switch_to_dark_theme": "Passa al tema scuro",
     "switch_to_light_theme": "Passa al tema chiaro",
@@ -203,6 +204,7 @@
     "hierarchy_filter_exact": "Filtra solo per questa azienda"
   },
   "organizations": {
+    "your_company": "La tua azienda",
     "name": "Nome azienda",
     "description": "Descrizione",
     "vat_number": "Partita IVA",
@@ -593,9 +595,7 @@
     "filter_systems": "Filtra sistemi",
     "product": "Prodotto",
     "version": "Versione",
-    "created": "Creato",
     "created_by": "Creato da",
-    "created_by_name": "Creato da {name}",
     "on_behalf_of": "Per conto di {organization}",
     "organization": "Azienda",
     "organization_helper": "Scegli l'azienda a cui verrà assegnato questo sistema",
