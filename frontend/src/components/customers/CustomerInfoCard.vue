@@ -170,21 +170,21 @@ function getKebabMenuItems() {
             {{ $t('systems.created_by') }}
           </template>
           <template #data>
-            <div v-if="customerDetail.data.created_by" class="flex items-center justify-end gap-2">
-              <UserAvatar
-                size="sm"
-                :is-owner="customerDetail.data.created_by.username === 'owner'"
-                :name="customerDetail.data.created_by.name"
-                :logto-id="customerDetail.data.created_by.user_id"
-              />
-              <div class="space-y-0.5 text-start">
-                <div>{{ customerDetail.data.created_by.name || '-' }}</div>
-                <div
-                  v-if="customerDetail.data.created_by.organization_name"
-                  class="text-gray-500 dark:text-gray-400"
-                >
-                  <CreatorOrganization :creator="customerDetail.data.created_by" />
-                </div>
+            <div v-if="customerDetail.data.created_by" class="space-y-0.5 text-end">
+              <div class="flex items-center justify-end gap-2">
+                <UserAvatar
+                  size="sm"
+                  :is-owner="customerDetail.data.created_by.username === 'owner'"
+                  :name="customerDetail.data.created_by.name"
+                  :logto-id="customerDetail.data.created_by.user_id"
+                />
+                <span>{{ customerDetail.data.created_by.name || '-' }}</span>
+              </div>
+              <div
+                v-if="customerDetail.data.created_by.organization_name"
+                class="text-gray-500 dark:text-gray-400"
+              >
+                <CreatorOrganization :creator="customerDetail.data.created_by" />
               </div>
             </div>
             <template v-else>-</template>
