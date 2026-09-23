@@ -27,6 +27,9 @@ type CleanupWorker struct {
 	isHealthy    int32
 	lastActivity time.Time
 	mu           sync.RWMutex
+	// lastVacuumDay is the UTC date (YYYY-MM-DD) of the last VACUUM ANALYZE
+	// pass. Only the worker goroutine touches it, so it needs no lock.
+	lastVacuumDay string
 }
 
 // NewCleanupWorker creates a new cleanup worker
@@ -123,10 +126,13 @@ func (cw *CleanupWorker) runCleanup(ctx context.Context, workerLogger *zerolog.L
 		return
 	}
 
-	if err := cw.vacuumAnalyze(ctx, workerLogger); err != nil {
-		workerLogger.Error().Err(err).Msg("Failed to vacuum analyze tables")
-		atomic.StoreInt32(&cw.isHealthy, 0)
-		return
+	if now := time.Now(); cw.vacuumDue(now) {
+		if err := cw.vacuumAnalyze(ctx, workerLogger); err != nil {
+			workerLogger.Error().Err(err).Msg("Failed to vacuum analyze tables")
+			atomic.StoreInt32(&cw.isHealthy, 0)
+			return
+		}
+		cw.lastVacuumDay = now.UTC().Format("2006-01-02")
 	}
 
 	atomic.StoreInt32(&cw.isHealthy, 1)
@@ -198,10 +204,15 @@ func (cw *CleanupWorker) cleanupInventoryRecordsExponential(ctx context.Context,
 	return nil
 }
 
-// loadInventorySystemIDs returns the distinct system_ids present in inventory_records,
-// backed by the (system_id, id) index (index-only scan, low memory).
+// loadInventorySystemIDs returns the systems to prune. It reads the systems
+// table (13k short rows) rather than SELECT DISTINCT system_id over
+// inventory_records: that was a sequential scan of the whole 2 GB table every
+// hour (4.7 s mean, 36 s max on production) that also evicted every other
+// table from the 64 MB of shared buffers. A system without snapshots costs
+// the prune loop one index probe, so the superset is harmless. Soft-deleted
+// systems are kept on purpose: their snapshots still age.
 func loadInventorySystemIDs(ctx context.Context) ([]string, error) {
-	rows, err := database.DB.QueryContext(ctx, `SELECT DISTINCT system_id FROM inventory_records`)
+	rows, err := database.DB.QueryContext(ctx, `SELECT id FROM systems`)
 	if err != nil {
 		return nil, err
 	}
@@ -382,7 +393,24 @@ func (cw *CleanupWorker) cleanupOrphanAlertAssignments(ctx context.Context, work
 	return nil
 }
 
-// vacuumAnalyze runs VACUUM ANALYZE on tables for performance optimization
+// vacuumHourUTC is the hour of the day (UTC) in which the hourly run also
+// performs VACUUM ANALYZE. Autovacuum already keeps these tables healthy; the
+// explicit pass exists to refresh planner statistics after the retention
+// deletes, and doing it every hour on a 2 GB inventory_records (13-19 s mean,
+// 135 s max on production) saturated the I/O of the 256 MB tier and stalled
+// heartbeat authentication for a minute each time. 03:00 UTC is a quiet hour
+// for the European fleet.
+const vacuumHourUTC = 3
+
+// vacuumDue reports whether this run should VACUUM ANALYZE: once per UTC day,
+// on the run that falls in vacuumHourUTC. A day is skipped if collect is down
+// during that hour; autovacuum covers the gap.
+func (cw *CleanupWorker) vacuumDue(now time.Time) bool {
+	now = now.UTC()
+	return now.Hour() == vacuumHourUTC && now.Format("2006-01-02") != cw.lastVacuumDay
+}
+
+// vacuumAnalyze runs VACUUM ANALYZE on the tables the retention deletes touch.
 func (cw *CleanupWorker) vacuumAnalyze(ctx context.Context, workerLogger *zerolog.Logger) error {
 	tables := []string{
 		"inventory_records",
@@ -400,7 +428,7 @@ func (cw *CleanupWorker) vacuumAnalyze(ctx context.Context, workerLogger *zerolo
 			continue
 		}
 
-		workerLogger.Debug().
+		workerLogger.Info().
 			Str("table", table).
 			Msg("Vacuum analyze completed")
 	}
