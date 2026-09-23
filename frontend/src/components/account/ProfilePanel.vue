@@ -280,7 +280,14 @@ function getKebabMenuItems() {
           {{ $t('users.organization') }}
         </NeFormItemLabel>
         <div>
-          <span>{{ loginStore.userInfo?.organization_name || '-' }}</span>
+          <router-link
+            v-if="loginStore.ownOrganizationRoute"
+            :to="loginStore.ownOrganizationRoute"
+            class="cursor-pointer hover:underline"
+          >
+            {{ loginStore.userInfo?.organization_name }}
+          </router-link>
+          <span v-else>{{ loginStore.userInfo?.organization_name || '-' }}</span>
           <span v-if="loginStore.userInfo?.org_role"> ({{ loginStore.userInfo?.org_role }})</span>
         </div>
       </div>

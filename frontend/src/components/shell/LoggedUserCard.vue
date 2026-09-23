@@ -23,7 +23,14 @@ const loginStore = useLoginStore()
     />
     <div v-else class="flex flex-col gap-2">
       <div class="flex items-center gap-2 text-base text-indigo-700 dark:text-indigo-500">
-        {{ loginStore.userInfo.organization_name }}
+        <router-link
+          v-if="loginStore.ownOrganizationRoute"
+          :to="loginStore.ownOrganizationRoute"
+          class="hover:underline"
+        >
+          {{ loginStore.userInfo.organization_name }}
+        </router-link>
+        <template v-else>{{ loginStore.userInfo.organization_name }}</template>
         <FontAwesomeIcon
           :icon="getOrganizationIcon(loginStore.userInfo?.org_role)"
           class="size-4 shrink-0"

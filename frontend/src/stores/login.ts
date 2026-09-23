@@ -18,6 +18,7 @@ import { getBrowserLocale, setLocale } from '@/i18n'
 import router from '@/router'
 import { deleteImpersonate, getImpersonationStatus, postImpersonate } from '@/lib/impersonation'
 import { canImpersonateUsers } from '@/lib/permissions'
+import { organizationDetailRoute } from '@/lib/organizations/organizationDetailRoute'
 
 export const TOKEN_REFRESH_INTERVAL = 20 * 60 * 1000 // 20 minutes
 
@@ -95,6 +96,13 @@ export const useLoginStore = defineStore('login', () => {
   const isOwnerAccount = computed(() => {
     return !!userInfo.value && userInfo.value.id === ''
   })
+
+  // Detail page of the user's own company. The side menu lists only the levels
+  // below the user's, so this is the way there. Null for the Owner organization,
+  // which has no detail page.
+  const ownOrganizationRoute = computed(() =>
+    organizationDetailRoute(userInfo.value?.organization_id, userInfo.value?.org_role),
+  )
 
   const permissions = computed(() => {
     return (userInfo.value?.org_permissions || []).concat(userInfo.value?.user_permissions || [])
@@ -560,6 +568,7 @@ export const useLoginStore = defineStore('login', () => {
     loadingUserInfo,
     isOwner,
     isOwnerAccount,
+    ownOrganizationRoute,
     permissions,
     avatarVersion,
     isImpersonating,

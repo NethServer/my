@@ -26,6 +26,7 @@ import { useImpersonationConsent } from '@/queries/impersonationConsent'
 import UserAvatar from '../users/UserAvatar.vue'
 import ImpersonationBadge from './ImpersonationBadge.vue'
 import ImpersonationConsentBadge from './ImpersonationConsentBadge.vue'
+import { getOrganizationIcon } from '@/lib/organizations/organizations'
 
 const emit = defineEmits(['openSidebar'])
 
@@ -40,6 +41,8 @@ const topBarButtonClasses =
 const shakeNotificationsIcon = ref(false)
 
 const accountMenuOptions = computed(() => {
+  const ownOrganizationRoute = loginStore.ownOrganizationRoute
+
   return [
     {
       id: 'account',
@@ -47,6 +50,17 @@ const accountMenuOptions = computed(() => {
       icon: faCircleUser,
       action: () => router.push('/account'),
     },
+    // absent for the Owner organization, which has no detail page
+    ...(ownOrganizationRoute
+      ? [
+          {
+            id: 'companyInfo',
+            label: t('shell.company_info'),
+            icon: getOrganizationIcon(loginStore.userInfo?.org_role ?? ''),
+            action: () => router.push(ownOrganizationRoute),
+          },
+        ]
+      : []),
     {
       id: 'logout',
       label: t('shell.sign_out'),
