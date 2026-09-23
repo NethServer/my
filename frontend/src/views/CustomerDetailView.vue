@@ -42,12 +42,12 @@ const { state: customerSystems } = useCustomerSystems()
     </NeHeading>
     <div class="3xl:grid-cols-4 grid grid-cols-1 gap-x-6 gap-y-6 md:grid-cols-2">
       <!-- customer info -->
-      <CustomerInfoCard class="3xl:row-span-2 md:row-span-2" />
+      <CustomerInfoCard class="row-span-4" />
       <!-- customer contacts -->
       <OrganizationContactsCard
         :contacts="customerDetail.data?.custom_data"
         :loading="customerDetail.status === 'pending'"
-        class="3xl:row-span-2 md:row-span-2"
+        class="row-span-4"
       />
       <!-- organization systems -->
       <OrganizationSystemsCard

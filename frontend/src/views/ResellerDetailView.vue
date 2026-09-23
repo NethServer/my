@@ -98,12 +98,12 @@ const hierarchyApplicationsRoute = computed(() => {
     </NeHeading>
     <div class="3xl:grid-cols-4 grid grid-cols-1 gap-x-6 gap-y-6 md:grid-cols-2">
       <!-- reseller info -->
-      <ResellerInfoCard class="3xl:row-span-2 md:row-span-2" />
+      <ResellerInfoCard class="row-span-4" />
       <!-- reseller contacts -->
       <OrganizationContactsCard
         :contacts="resellerDetail.data?.custom_data"
         :loading="resellerDetail.status === 'pending'"
-        class="3xl:row-span-2 md:row-span-2"
+        class="row-span-4"
       />
       <!-- total systems -->
       <CounterCard
