@@ -338,9 +338,20 @@ func (r *AlertsTotalsRefresher) fetchTenantAlerts(ctx context.Context, tenantID 
 	return alerts, nil
 }
 
+// alertsTotalsTouchAfter bounds how long an unchanged row may keep its
+// updated_at before the refresher rewrites it anyway. The backend reads
+// MIN(updated_at) over the caller's scope and warns when it is older than
+// alertsTotalsStaleThreshold (5 minutes, backend/methods/alerting.go), so this
+// must stay below that threshold minus one refresh cycle. Rows whose counts
+// did not change are otherwise left alone: rewriting all ~10k rows every
+// minute cost 2% of a 0.1-CPU Postgres in dead tuples, WAL and autovacuum.
+const alertsTotalsTouchAfter = "3 minutes"
+
 // upsertCounts writes the fan-out result in a single multi-VALUES INSERT with
 // ON CONFLICT DO UPDATE. Builds parameter arrays so we round-trip exactly once
-// regardless of tenant count.
+// regardless of tenant count. Existing rows are rewritten only when a counter
+// changed or their updated_at is older than alertsTotalsTouchAfter, so a
+// quiet fleet costs a read, not 10k tuple versions per cycle.
 func (r *AlertsTotalsRefresher) upsertCounts(ctx context.Context, counts map[string]orgCounts) error {
 	if len(counts) == 0 {
 		return nil
@@ -363,9 +374,10 @@ func (r *AlertsTotalsRefresher) upsertCounts(ctx context.Context, counts map[str
 	}
 
 	// unnest expands the parallel arrays into rows. ON CONFLICT updates the
-	// existing row in place; new orgs get inserted.
+	// existing row in place; new orgs get inserted. The WHERE on the update
+	// arm skips rows that are both unchanged and recently touched.
 	query := `
-		INSERT INTO alerts_totals_by_org (
+		INSERT INTO alerts_totals_by_org AS t (
 			organization_id, active, critical, warning, info, muted, updated_at
 		)
 		SELECT unnest($1::text[]),
@@ -382,6 +394,10 @@ func (r *AlertsTotalsRefresher) upsertCounts(ctx context.Context, counts map[str
 			info       = EXCLUDED.info,
 			muted      = EXCLUDED.muted,
 			updated_at = EXCLUDED.updated_at
+		WHERE (t.active, t.critical, t.warning, t.info, t.muted)
+		      IS DISTINCT FROM
+		      (EXCLUDED.active, EXCLUDED.critical, EXCLUDED.warning, EXCLUDED.info, EXCLUDED.muted)
+		   OR t.updated_at < NOW() - $7::interval
 	`
 	if _, err := r.db.ExecContext(ctx, query,
 		pq.Array(orgIDs),
@@ -390,6 +406,7 @@ func (r *AlertsTotalsRefresher) upsertCounts(ctx context.Context, counts map[str
 		pq.Array(warning),
 		pq.Array(info),
 		pq.Array(muted),
+		alertsTotalsTouchAfter,
 	); err != nil {
 		return fmt.Errorf("upsert alerts_totals_by_org: %w", err)
 	}
