@@ -19,13 +19,14 @@ const { size = 'sm' } = defineProps<{
 
 <template>
   <div class="flex items-center gap-2">
-    <span v-if="systemType" class="shrink-0">
+    <!-- no logo at all when there is no system to show -->
+    <span v-if="systemType || systemId || systemName" class="shrink-0">
       <NeTooltip trigger-event="mouseenter focus">
         <template #trigger>
           <SystemLogo :system="systemType" :size="size" />
         </template>
         <template #content>
-          {{ getProductName(systemType) }}
+          {{ getProductName(systemType || '') || $t('system_detail.unknown_product') }}
         </template>
       </NeTooltip>
     </span>
