@@ -5646,6 +5646,25 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          description: Another export is already running on this instance; retry after the number of seconds in Retry-After
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 429
+                  message:
+                    type: string
+                    example: "too many concurrent export requests, retry shortly"
+                  data:
+                    type: object
+                    properties:
+                      retry_after_seconds:
+                        type: string
+                        example: "5"
         '403':
           $ref: '#/components/responses/Forbidden'
 
@@ -8145,6 +8164,25 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          description: Another export is already running on this instance; retry after the number of seconds in Retry-After
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 429
+                  message:
+                    type: string
+                    example: "too many concurrent export requests, retry shortly"
+                  data:
+                    type: object
+                    properties:
+                      retry_after_seconds:
+                        type: string
+                        example: "5"
         '403':
           $ref: '#/components/responses/Forbidden'
 
@@ -8761,6 +8799,25 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          description: Another export is already running on this instance; retry after the number of seconds in Retry-After
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 429
+                  message:
+                    type: string
+                    example: "too many concurrent export requests, retry shortly"
+                  data:
+                    type: object
+                    properties:
+                      retry_after_seconds:
+                        type: string
+                        example: "5"
         '403':
           $ref: '#/components/responses/Forbidden'
 
@@ -10310,6 +10367,25 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          description: Another export is already running on this instance; retry after the number of seconds in Retry-After
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 429
+                  message:
+                    type: string
+                    example: "too many concurrent export requests, retry shortly"
+                  data:
+                    type: object
+                    properties:
+                      retry_after_seconds:
+                        type: string
+                        example: "5"
         '403':
           $ref: '#/components/responses/Forbidden'
 
@@ -11177,6 +11253,25 @@ paths:
                         example: 10000
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          description: Another export is already running on this instance; retry after the number of seconds in Retry-After
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 429
+                  message:
+                    type: string
+                    example: "too many concurrent export requests, retry shortly"
+                  data:
+                    type: object
+                    properties:
+                      retry_after_seconds:
+                        type: string
+                        example: "5"
         '403':
           $ref: '#/components/responses/Forbidden'
 

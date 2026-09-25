@@ -312,7 +312,7 @@ func main() {
 			systemsGroup.GET("/:id/reachability", methods.CheckSystemReachability)      // Check if system web UI is reachable
 
 			// Export endpoint
-			systemsGroup.GET("/export", methods.ExportSystems) // Export systems to CSV or PDF with applied filters
+			systemsGroup.GET("/export", middleware.LimitExports(), middleware.ExtendDeadline(180*time.Second), methods.ExportSystems) // Export systems to CSV or PDF with applied filters
 
 			// Inventory endpoints
 			systemsGroup.GET("/:id/inventory", methods.GetSystemInventoryHistory)                      // Get paginated inventory history
@@ -469,7 +469,7 @@ func main() {
 			distributorsGroup.GET("/:id/stats", methods.GetDistributorStats)
 
 			// Export endpoint
-			distributorsGroup.GET("/export", methods.ExportDistributors) // Export distributors to CSV or PDF with applied filters
+			distributorsGroup.GET("/export", middleware.LimitExports(), middleware.ExtendDeadline(180*time.Second), methods.ExportDistributors) // Export distributors to CSV or PDF with applied filters
 
 			// Import endpoints
 			distributorsGroup.GET("/import/template", methods.GetDistributorsImportTemplate)                                         // Download CSV import template
@@ -504,7 +504,7 @@ func main() {
 			resellersGroup.GET("/:id/stats", methods.GetResellerStats)
 
 			// Export endpoint
-			resellersGroup.GET("/export", methods.ExportResellers) // Export resellers to CSV or PDF with applied filters
+			resellersGroup.GET("/export", middleware.LimitExports(), middleware.ExtendDeadline(180*time.Second), methods.ExportResellers) // Export resellers to CSV or PDF with applied filters
 
 			// Import endpoints
 			resellersGroup.GET("/import/template", methods.GetResellersImportTemplate)                                         // Download CSV import template
@@ -545,7 +545,7 @@ func main() {
 			customersGroup.GET("/:id/stats", methods.GetCustomerStats)
 
 			// Export endpoint
-			customersGroup.GET("/export", methods.ExportCustomers) // Export customers to CSV or PDF with applied filters
+			customersGroup.GET("/export", middleware.LimitExports(), middleware.ExtendDeadline(180*time.Second), methods.ExportCustomers) // Export customers to CSV or PDF with applied filters
 
 			// Import endpoints
 			customersGroup.GET("/import/template", methods.GetCustomersImportTemplate)                                         // Download CSV import template
@@ -585,7 +585,7 @@ func main() {
 			usersGroup.DELETE("/:id/avatar", middleware.PreventSelfModification(), methods.DeleteUserAvatar)
 
 			// Export endpoint
-			usersGroup.GET("/export", methods.ExportUsers) // Export users to CSV or PDF with applied filters
+			usersGroup.GET("/export", middleware.LimitExports(), middleware.ExtendDeadline(180*time.Second), methods.ExportUsers) // Export users to CSV or PDF with applied filters
 
 			// Import endpoints
 			usersGroup.GET("/import/template", methods.GetUsersImportTemplate)                                         // Download CSV import template
