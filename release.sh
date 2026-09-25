@@ -125,7 +125,7 @@ run_tests() {
         fi
     elif [ "$component" = "frontend" ]; then
         # Run frontend tests
-        if ! npm run test -- --run; then
+        if ! npm run test:unit -- --run; then
             error "Tests failed for $component"
         fi
     elif [[ "$component" =~ ^(proxy)$ ]]; then
