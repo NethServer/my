@@ -16,7 +16,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -39,7 +41,21 @@ type Client struct {
 	cookies map[string]string
 }
 
+// Said once per run, however many clients the command builds: a registry
+// written before the backend bound the exchange to an audience has no
+// logto_resource, so every login here obtains an opaque token and the backend
+// answers "invalid access token" — which reads as a backend fault rather than
+// as this file being out of date.
+var warnNoResource sync.Once
+
 func NewClient(cfg Config) (*Client, error) {
+	if cfg.LogtoResource == "" {
+		warnNoResource.Do(func() {
+			fmt.Fprintln(os.Stderr,
+				"apitool: the registry has no logto_resource, so /auth/exchange will refuse every token.\n"+
+					"         Set it to the backend's LOGTO_API_RESOURCE, or run: ./apitool init")
+		})
+	}
 	return &Client{
 		cfg: cfg,
 		http: &http.Client{
@@ -120,13 +136,24 @@ func (c *Client) Authorize(email, password string, req AuthzRequest) (*AuthzOutc
 		q.Set("resource", req.Resource)
 	}
 	out.Stage = "authorize"
-	if _, err := c.followAll(c.cfg.LogtoEndpoint + "/oidc/auth?" + q.Encode()); err != nil {
+	r, err := c.followAll(c.cfg.LogtoEndpoint + "/oidc/auth?" + q.Encode())
+	if err != nil {
 		return out, fmt.Errorf("oidc auth: %w", err)
+	}
+	// A refused authorization request (an unknown resource indicator, a
+	// redirect URI the client does not have) sets no interaction cookie, so
+	// every later call fails as session.not_found and hides the real reason.
+	// Report what Logto actually said instead.
+	if r.status >= 400 {
+		return out, fmt.Errorf("oidc auth refused (%d): %s", r.status, r.body)
 	}
 
 	out.Stage = "interaction"
-	if _, err := c.do("PUT", c.cfg.LogtoEndpoint+"/api/interaction", `{"event":"SignIn"}`, "application/json"); err != nil {
+	if r, err = c.do("PUT", c.cfg.LogtoEndpoint+"/api/interaction", `{"event":"SignIn"}`, "application/json"); err != nil {
 		return out, fmt.Errorf("interaction start: %w", err)
+	}
+	if r.status >= 400 {
+		return out, fmt.Errorf("interaction start refused (%d): %s", r.status, r.body)
 	}
 
 	credBody, err := json.Marshal(map[string]string{"email": email, "password": password})
@@ -134,7 +161,7 @@ func (c *Client) Authorize(email, password string, req AuthzRequest) (*AuthzOutc
 		return out, err
 	}
 	out.Stage = "credentials"
-	r, err := c.do("PATCH", c.cfg.LogtoEndpoint+"/api/interaction/identifiers", string(credBody), "application/json")
+	r, err = c.do("PATCH", c.cfg.LogtoEndpoint+"/api/interaction/identifiers", string(credBody), "application/json")
 	if err != nil {
 		return out, fmt.Errorf("submit creds: %w", err)
 	}

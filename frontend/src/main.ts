@@ -11,7 +11,7 @@ import { createLogto, type LogtoConfig } from '@logto/vue'
 import App from './App.vue'
 import router from './router'
 import i18n from './i18n'
-import { LOGTO_API_RESOURCE, LOGTO_APP_ID, LOGTO_ENDPOINT } from './lib/config'
+import { LOGTO_API_RESOURCE, LOGTO_APP_ID, LOGTO_ENDPOINT, IS_E2E } from './lib/config'
 import { PiniaColada } from '@pinia/colada'
 import { PiniaColadaAutoRefetch } from '@pinia/colada-plugin-auto-refetch'
 
@@ -51,8 +51,10 @@ const logtoConfig: LogtoConfig = {
 const app = createApp(App)
 
 app.use(createPinia())
+// Background refetching races assertions in the e2e suite, which drives a real
+// backend and asserts on settled UI. Left out of e2e builds only.
 app.use(PiniaColada, {
-  plugins: [PiniaColadaAutoRefetch({})],
+  plugins: IS_E2E ? [] : [PiniaColadaAutoRefetch({})],
 })
 app.use(i18n)
 app.use(router)

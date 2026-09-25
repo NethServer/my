@@ -1,0 +1,428 @@
+# The RBAC vocabulary of the CI tenant that the end-to-end workflow drives
+# (.github/workflows/e2e-main.yml), and the only config here that is tracked.
+#
+# It exists because `apitool authz provision` reads the role definitions from
+# sync/configs/config.yml, and a CI checkout has none: every other file in this
+# directory carries tenant ids, application URLs and SMTP credentials, so they
+# are gitignored. This one carries roles, permissions and resources and nothing
+# else — no tenant ids, no third-party applications, no credentials.
+#
+# Keep the vocabulary identical to the deployed configs. A role here whose
+# permissions differ from the tenant's makes the fixture personas assert a
+# permission set the product does not grant; `apitool authz personas` reports
+# exactly that as drift.
+metadata:
+  name: "nethesis-rbac"
+  version: "1.0.0"
+  description: "Nethesis Role-Based Authentication with clear separation between business hierarchy and technical capabilities"
+
+# Organization roles define BUSINESS HIERARCHY permissions
+# Users inherit these based on their organization's role in the commercial chain
+organization_roles:
+  - id: owner
+    name: "Owner"
+    priority: 1
+    type: org
+    permissions:
+      # Complete control over the commercial hierarchy, shared by every member
+      # of the Owner organization (Owner and Staff users). The destroy:* of the
+      # TECHNICAL resources (systems, users) are NOT here: they live on the
+      # "Owner" user role only, so Staff never inherits them.
+      - id: read:distributors
+      - id: manage:distributors
+      - id: destroy:distributors
+      - id: read:resellers
+      - id: manage:resellers
+      - id: destroy:resellers
+      - id: read:customers
+      - id: manage:customers
+      - id: destroy:customers
+
+  - id: distributor
+    name: "Distributor"
+    priority: 2
+    type: org
+    permissions:
+      # Can manage downstream in hierarchy resellers and customers
+      - id: read:resellers
+      - id: manage:resellers
+      - id: read:customers
+      - id: manage:customers
+
+  - id: reseller
+    name: "Reseller"
+    priority: 3
+    type: org
+    permissions:
+      # Can only manage customers
+      - id: read:customers
+      - id: manage:customers
+
+  - id: customer
+    name: "Customer"
+    priority: 4
+    type: org
+    permissions:
+      # Read-only access to own organization data
+
+# User roles define TECHNICAL CAPABILITIES
+# Independent of business hierarchy - define what technical operations a user can perform
+user_roles:
+  - id: admin
+    name: "Admin"
+    priority: 1
+    type: user
+    permissions:
+      # Full technical control including dangerous operations
+      - id: read:systems        # Simple read operation
+      - id: manage:systems      # Standard system management
+
+      - id: read:users          # Simple read operation
+      - id: manage:users        # Standard account management
+
+      - id: read:applications   # Simple read operation
+      - id: manage:applications # Standard applications management
+
+      - id: read:alerts         # View alerting configuration (own + inherited)
+      - id: manage:alerts       # Manage alerting configuration policy (recipients, language, severity/system overrides)
+
+      - id: read:entitlements   # See add-on licenses and expirations
+      - id: manage:entitlements # Buy/cancel add-on subscriptions on the shop
+
+      - id: read:rebranding     # See the branding of own organization
+      - id: manage:rebranding   # Configure logos, favicon and brand name
+
+  - id: support
+    name: "Support"
+    priority: 2
+    type: user
+    permissions:
+      # Standard technical operations (no dangerous operations)
+      - id: read:systems         # Simple read operation
+      - id: manage:systems       # Standard system management
+
+      - id: read:applications    # Simple read operation
+      - id: manage:applications  # Standard applications management
+
+      - id: read:alerts          # View alerting configuration (own + inherited)
+      - id: manage:alerts        # Manage alerting configuration policy (recipients, language, severity/system overrides)
+
+      - id: read:entitlements    # See add-on licenses and expirations
+
+      - id: read:rebranding      # See the branding of own organization
+
+  - id: backoffice
+    name: "Backoffice"
+    priority: 2
+    type: user
+    permissions:
+      # Standard technical operations (no dangerous operations)
+      - id: read:users           # Simple read operation
+      - id: manage:users         # Standard user management
+
+      - id: read:systems         # Simple read systems
+      - id: read:applications    # Simple read operation
+      - id: manage:applications  # Standard applications management
+
+      - id: read:entitlements    # See add-on licenses and expirations
+      - id: manage:entitlements  # Grant/revoke add-on licenses (backoffice duty)
+
+      - id: read:rebranding      # See the branding of own organization
+
+  - id: reader
+    name: "Reader"
+    priority: 2
+    type: user
+    permissions:
+      # Only readable resources
+        - id: read:systems
+        - id: read:users
+        - id: read:applications
+        - id: read:entitlements
+        - id: read:rebranding
+
+  - id: staff
+    name: "Staff"
+    priority: 0
+    type: user
+    permissions:
+      # Everything non-destructive: the technical role of the Nethesis
+      # cross-cutting employees. Assignable only to users of the Owner
+      # organization; every destroy:* stays on the "Owner" user role.
+      - id: read:systems
+      - id: manage:systems
+      - id: read:users
+      - id: manage:users
+      - id: impersonate:users
+      - id: connect:systems
+      - id: read:applications
+      - id: manage:applications
+      - id: read:alerts
+      - id: manage:alerts
+      - id: config:alerts
+      - id: read:entitlements
+      - id: manage:entitlements
+      - id: read:rebranding
+      - id: manage:rebranding
+    # Access control: only Owner users can assign this role
+    access_control:
+      organization_roles:
+        - "owner"
+
+  - id: owner
+    name: "Owner"
+    priority: 0
+    type: user
+    permissions:
+      # Complete control: everything Staff has, plus the destroy:* of the
+      # technical resources (systems, users). The hierarchy destroys come from
+      # the Owner ORGANIZATION role. This is the technical role of the
+      # break-glass owner user; assignable only to users of the Owner
+      # organization.
+      - id: read:systems
+      - id: manage:systems
+      - id: destroy:systems
+      - id: read:users
+      - id: manage:users
+      - id: destroy:users
+      - id: impersonate:users
+      - id: connect:systems
+      - id: read:applications
+      - id: manage:applications
+      - id: read:alerts
+      - id: manage:alerts
+      - id: config:alerts
+      - id: read:entitlements
+      - id: manage:entitlements
+      - id: read:rebranding
+      - id: manage:rebranding
+    # Access control: only Owner users can assign this role
+    access_control:
+      organization_roles:
+        - "owner"
+
+# Resources and their available actions.
+#
+# Scope names are always "{action}:{name}", which is what roles and the backend
+# match on. "container" says which Logto API resource hosts those scopes: Logto
+# bills per API resource and includes 3 in the Pro plan, so everything shares a
+# single container. Omitting it creates one Logto resource per entry.
+resources:
+  - name: "distributors"
+    actions: ["read", "manage", "destroy"]
+    container: "permissions"
+
+  - name: "resellers"
+    actions: ["read", "manage", "destroy"]
+    container: "permissions"
+
+  - name: "customers"
+    actions: ["read", "manage", "destroy"]
+    container: "permissions"
+
+  - name: "systems"
+    actions: ["read", "manage", "destroy", "connect"]
+    container: "permissions"
+
+  - name: "entitlements"
+    actions: ["read", "manage"]
+    container: "permissions"
+
+  - name: "users"
+    actions: ["read", "manage", "destroy", "impersonate"]
+    container: "permissions"
+
+  - name: "applications"
+    actions: ["read", "manage"]
+    container: "permissions"
+
+  - name: "alerts"
+    actions: ["read", "manage", "config"]
+    container: "permissions"
+
+  - name: "rebranding"
+    actions: ["read", "manage"]
+    container: "permissions"
+
+  - name: "role-access-control"
+    actions: ["owner", "distributor", "reseller"]
+    container: "permissions"
+
+# Third-party applications
+#
+# The fixture grants some of these portals to its distributor
+# (backend/authz/fixture.yml), and the backend refuses a grant naming an
+# application the tenant does not have — so they are defined here rather than
+# registered by hand, and the CI tenant stays reproducible from this file.
+#
+# The URLs are the QA ones: nothing in CI ever signs in through them (the
+# authz apps layer only probes with --idp-probe, off by default), they only
+# have to exist and carry the access_control the suite reasons about.
+third_party_apps:
+  - name: "nethshop.nethesis.it"
+    description: "NethShop Nethesis"
+    display_name: "NethShop"
+    # Icons shown on the Logto consent page
+    branding:
+      logo_path: "apps/nethshop.svg"
+      logo_dark_path: "apps/nethshop-dark.svg"
+    login_url: https://nethshop2.nethesis.it/test/wp-admin/admin-ajax.php?action=activate
+    info_url: https://nethshop2.nethesis.it/test/userinfo/
+    redirect_uris:
+      - https://nethshop2.nethesis.it/test/wp-admin/admin-ajax.php?action=openid-connect-authorize
+    post_logout_redirect_uris:
+      - https://nethshop2.nethesis.it/test/wp-login.php?loggedout=true
+    cors_allowed:
+      - https://nethshop2.nethesis.it
+    # Access control configuration
+    access_control:
+      idp_enforced: true
+      organization_roles:
+        - "owner"
+        - "distributor"
+        - "reseller"
+      user_roles:
+        - "owner"
+        - "staff"
+        - "admin"
+        - "backoffice"
+
+  - name: "stock.nethesis.it"
+    description: "NethStock Nethesis"
+    display_name: "NethStock"
+    # Icons shown on the Logto consent page
+    branding:
+      logo_path: "apps/warehouse.svg"
+      logo_dark_path: "apps/warehouse-dark.svg"
+    login_url: https://stock.nethesis.it/api/auth/oidc/login
+    redirect_uris:
+      - https://stock.nethesis.it/api/auth/oidc/callback
+    post_logout_redirect_uris:
+      - https://stock.nethesis.it/api/login
+    cors_allowed:
+      - https://stock.nethesis.it
+    # Access control configuration
+    access_control:
+      idp_enforced: true
+      # The only app that also pins organization_ids. The id below belongs to
+      # no organization of this tenant, on purpose: backend/authz/apps.yml
+      # expects NethStock to be visible to nobody wherever the config was not
+      # written for, and that fail-closed result is what the suite asserts.
+      # Real ids stay out of this file.
+      organization_ids:
+        - ci000000000000 # no such organization here
+      organization_roles:
+        - "owner"
+      user_roles:
+        - "owner"
+        - "staff"
+
+  - name: "my.nethspot.com"
+    description: "NethSpot Nethesis"
+    display_name: "NethSpot"
+    # Icons shown on the Logto consent page
+    branding:
+      logo_path: "apps/nethspot.svg"
+      logo_dark_path: "apps/nethspot-dark.svg"
+    login_url: https://my.staging.nethspot.com/api/auth/oidc/login
+    info_url: https://my.staging.nethspot.com/api/userinfo
+    redirect_uris:
+      - https://my.staging.nethspot.com/api/auth/oidc/callback
+    post_logout_redirect_uris:
+      - https://my.staging.nethspot.com/api/login
+    cors_allowed:
+      - https://my.staging.nethspot.com
+    # Access control configuration
+    access_control:
+      idp_enforced: true
+      organization_roles:
+        - "owner"
+        - "reseller"
+      user_roles:
+        - "owner"
+        - "staff"
+        - "admin"
+        - "support"
+
+  - name: "helpdesk.nethesis.it"
+    description: "Helpdesk Nethesis"
+    display_name: "Helpdesk Nethesis"
+    # Icons shown on the Logto consent page
+    branding:
+      logo_path: "apps/helpdesk.svg"
+      logo_dark_path: "apps/helpdesk-dark.svg"
+    login_url: https://nethesis.freshworks.com/login/auth/1753180591470?client_id=451979510707337272&redirect_uri=https://nethesis.freshdesk.com/freshid/customer_authorize_callback?hd=helpdesk.nethesis.it
+    redirect_uris:
+      - https://nethesis.freshdesk.com/freshid/customer_authorize_callback?hd=helpdesk.nethesis.it
+      - https://nethesis.freshworks.com/sp/OIDC/867716810680989380/callback
+    post_logout_redirect_uris:
+      - https://nethesis.freshworks.com/login
+    # Access control configuration
+    access_control:
+      idp_enforced: true
+      organization_roles:
+        - "owner"
+        - "distributor"
+        - "reseller"
+      user_roles:
+        - "owner"
+        - "staff"
+        - "admin"
+        - "support"
+
+  - name: "partner.nethesis.it"
+    description: "Forum degli Eroi Digitali"
+    display_name: "Forum degli Eroi Digitali"
+    # Icons shown on the Logto consent page
+    branding:
+      logo_path: "apps/partner.svg"
+      logo_dark_path: "apps/partner-dark.svg"
+    login_url: https://partner.nethesis.it/auth/oidc
+    redirect_uris:
+      - https://partner.nethesis.it/auth/oidc/callback
+    post_logout_redirect_uris:
+      - https://partner.nethesis.it/login
+    cors_allowed:
+      - https://partner.nethesis.it
+    # Access control configuration
+    access_control:
+      idp_enforced: true
+      organization_roles:
+        - "owner"
+        - "distributor"
+        - "reseller"
+      user_roles:
+        - "owner"
+        - "staff"
+        - "admin"
+        - "support"
+        - "backoffice"
+
+  - name: "formazione.nethesis.it"
+    description: "Formazione Nethesis"
+    display_name: "Formazione"
+    # Icons shown on the Logto consent page
+    branding:
+      logo_path: "apps/training.svg"
+      logo_dark_path: "apps/training-dark.svg"
+    login_url: https://formazione.nethesis.it/auth/nethesis_sso/start.php
+    info_url: https://formazione.nethesis.it/auth/nethesis_sso/userinfo.php
+    redirect_uris:
+      - https://formazione.nethesis.it/admin/oauth2callback.php
+    post_logout_redirect_uris:
+      - https://formazione.nethesis.it/login/index.php
+    cors_allowed:
+      - https://formazione.nethesis.it
+    # Access control configuration
+    access_control:
+      idp_enforced: true
+      organization_roles:
+        - "owner"
+        - "distributor"
+        - "reseller"
+      user_roles:
+        - "owner"
+        - "staff"
+        - "admin"
+        - "support"
+        - "backoffice"

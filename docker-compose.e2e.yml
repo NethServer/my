@@ -1,0 +1,28 @@
+# End-to-end overlay for the full stack.
+#
+# Used only by the e2e job; the developer path (docker-compose.yml on its own,
+# app on http://localhost:9090) is untouched.
+#
+#   docker-compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --build
+#
+# Two differences from the plain stack:
+#
+#   - the proxy is published on 5173 as well as 9090 (compose appends port
+#     mappings rather than replacing them). The Logto application only accepts
+#     http://localhost:5173/login-redirect as a sign-in redirect URI, so the
+#     OIDC callback fails on any other origin. Serving there rather than
+#     registering a second localhost URI keeps that tenant-wide list as it is.
+#   - the frontend is built with VITE_E2E, which drops query auto-refetch and the
+#     Pinia Colada devtools panel — both race assertions. See frontend/e2e/README.md.
+#
+# Do not run this alongside a local `npm run dev`: both want port 5173.
+
+services:
+  frontend-full:
+    build:
+      args:
+        VITE_E2E: "true"
+
+  proxy-full:
+    ports:
+      - "5173:8080"
