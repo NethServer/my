@@ -318,6 +318,14 @@ services:
       - key: DATABASE_MAX_IDLE
         value: 3
 
+      # Heartbeat auth cache. Appliances beat every ~5 min; with the 10 min
+      # default every second or third beat re-read systems, so a one-minute
+      # Postgres stall turned into hundreds of 503s (2026-09-23). Suspend,
+      # reactivate, delete and regenerate-secret invalidate the entry at once
+      # (backend cache.InvalidateSystemAuth), so a longer TTL delays no revoke.
+      - key: SYSTEM_AUTH_CACHE_TTL
+        value: 1h
+
   # Production Frontend (Private Service)
   - type: pserv
     name: my-frontend-prod
@@ -519,6 +527,14 @@ services:
         value: 10
       - key: DATABASE_MAX_IDLE
         value: 3
+
+      # Heartbeat auth cache. Appliances beat every ~5 min; with the 10 min
+      # default every second or third beat re-read systems, so a one-minute
+      # Postgres stall turned into hundreds of 503s (2026-09-23). Suspend,
+      # reactivate, delete and regenerate-secret invalidate the entry at once
+      # (backend cache.InvalidateSystemAuth), so a longer TTL delays no revoke.
+      - key: SYSTEM_AUTH_CACHE_TTL
+        value: 1h
 
     autoDeploy: true   # Auto-deploy on every commit
     branch: main
