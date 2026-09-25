@@ -6,6 +6,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package entities
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -185,6 +186,7 @@ func (r *LocalApplicationRepository) GetBySystemAndModuleID(systemID, moduleID s
 
 // List returns paginated list of applications with filters
 func (r *LocalApplicationRepository) List(
+	ctx context.Context,
 	allowedSystemIDs []string,
 	page, pageSize int,
 	search, sortBy, sortDirection string,
@@ -350,7 +352,7 @@ func (r *LocalApplicationRepository) List(
 	listArgs[len(args)] = pageSize
 	listArgs[len(args)+1] = offset
 
-	rows, err := r.db.Query(query, listArgs...)
+	rows, err := r.db.QueryContext(ctx, query, listArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query applications: %w", err)
 	}

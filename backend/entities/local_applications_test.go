@@ -6,6 +6,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package entities
 
 import (
+	"context"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -94,7 +95,7 @@ func TestListOwnerScopeRequiresLiveSystem(t *testing.T) {
 		WithArgs(20, 0).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 
-	apps, total, err := repo.List(nil, 1, 20, "", "", "", nil, nil, nil, nil, nil, true)
+	apps, total, err := repo.List(context.Background(), nil, 1, 20, "", "", "", nil, nil, nil, nil, nil, true)
 	require.NoError(t, err)
 	assert.Empty(t, apps)
 	assert.Equal(t, 0, total)

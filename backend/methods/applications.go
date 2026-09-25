@@ -64,6 +64,7 @@ func GetApplications(c *gin.Context) {
 
 	// Get applications with pagination, search, sorting and filters
 	apps, totalCount, err := appsService.GetApplications(
+		c.Request.Context(),
 		userOrgRole, userOrgID,
 		page, pageSize,
 		search, sortBy, sortDirection,

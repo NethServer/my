@@ -6,6 +6,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package local
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -31,6 +32,7 @@ func NewApplicationsService() *LocalApplicationsService {
 
 // GetApplications retrieves paginated list of applications with filters
 func (s *LocalApplicationsService) GetApplications(
+	ctx context.Context,
 	userOrgRole, userOrgID string,
 	page, pageSize int,
 	search, sortBy, sortDirection string,
@@ -48,6 +50,7 @@ func (s *LocalApplicationsService) GetApplications(
 
 	// Only show user-facing applications
 	return s.repo.List(
+		ctx,
 		allowedSystemIDs,
 		page, pageSize,
 		search, sortBy, sortDirection,

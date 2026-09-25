@@ -190,7 +190,7 @@ func GetSystems(c *gin.Context) {
 		Addons:          filterAddons,
 	}
 	systems, totalCount, err := systemsService.GetSystemsByOrganizationPaginated(
-		userID, userOrgID, userOrgRole, page, pageSize, search, sortBy, sortDirection, filters,
+		c.Request.Context(), userID, userOrgID, userOrgRole, page, pageSize, search, sortBy, sortDirection, filters,
 	)
 	if err != nil {
 		logger.Error().

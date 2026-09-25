@@ -85,7 +85,7 @@ func ExportSystems(c *gin.Context) {
 
 	// Get systems without pagination limit (but with max export limit)
 	systems, totalCount, err := systemsService.GetSystemsByOrganizationPaginated(
-		userID, userOrgID, userOrgRole, 1, MaxExportLimit, search, sortBy, sortDirection,
+		c.Request.Context(), userID, userOrgID, userOrgRole, 1, MaxExportLimit, search, sortBy, sortDirection,
 		models.SystemListFilters{
 			Name:            filterName,
 			SystemKeys:      filterSystemKey,

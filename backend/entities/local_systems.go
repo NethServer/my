@@ -10,6 +10,7 @@
 package entities
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -253,7 +254,7 @@ func addonFilterClause(filterAddons []string, argOffset int) (string, []interfac
 }
 
 // ListByCreatedByOrganizations returns paginated list of systems owned by the given organizations with filters
-func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection string, f models.SystemListFilters) ([]*models.System, int, error) {
+func (r *LocalSystemRepository) ListByCreatedByOrganizations(ctx context.Context, allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection string, f models.SystemListFilters) ([]*models.System, int, error) {
 	filterName := f.Name
 	filterSystemKeys := f.SystemKeys
 	filterTypes := f.Types
@@ -445,7 +446,7 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(allowedOrgIDs []str
 	listArgs[len(args)] = pageSize
 	listArgs[len(args)+1] = offset
 
-	rows, err := r.db.Query(query, listArgs...)
+	rows, err := r.db.QueryContext(ctx, query, listArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query systems: %w", err)
 	}
