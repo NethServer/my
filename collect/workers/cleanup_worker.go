@@ -67,15 +67,13 @@ func (cw *CleanupWorker) worker(ctx context.Context, wg *sync.WaitGroup) {
 		Int("worker_id", cw.id).
 		Logger()
 
-	workerLogger.Info().Msg("Cleanup worker started")
+	next := nextCleanupTime(time.Now())
+	workerLogger.Info().Time("next_run", next).Msg("Cleanup worker started")
 
-	// Run cleanup every hour
-	ticker := time.NewTicker(1 * time.Hour)
-	defer ticker.Stop()
-
-	// Run initial cleanup after 5 minutes
-	initialTimer := time.NewTimer(5 * time.Minute)
-	defer initialTimer.Stop()
+	// One run per hour, anchored to the wall clock rather than to the boot
+	// time: see nextCleanupTime for why the minute matters.
+	timer := time.NewTimer(time.Until(next))
+	defer timer.Stop()
 
 	for {
 		select {
@@ -83,13 +81,75 @@ func (cw *CleanupWorker) worker(ctx context.Context, wg *sync.WaitGroup) {
 			workerLogger.Info().Msg("Cleanup worker stopped")
 			return
 
-		case <-initialTimer.C:
+		case <-timer.C:
 			cw.runCleanup(ctx, &workerLogger)
-
-		case <-ticker.C:
-			cw.runCleanup(ctx, &workerLogger)
+			next = nextCleanupTime(time.Now())
+			workerLogger.Info().Time("next_run", next).Msg("Next cleanup scheduled")
+			timer.Reset(time.Until(next))
 		}
 	}
+}
+
+// cleanupMinute is the wall-clock minute (UTC) at which the hourly run starts.
+// The fleet's heartbeats arrive in one burst at every 10-minute boundary
+// (roughly :x0:40 to :x1:15, ~100 requests/s on production) and the retention
+// deletes take about six minutes on the 0.1-CPU tier. A boot-relative ticker
+// landed the run on top of the :01 burst and heartbeat authentication timed
+// out for a minute every hour (2026-09-25). Starting at :02 keeps the whole
+// run inside the quiet window before :10:40.
+const cleanupMinute = 2
+
+// cleanupMinStartupDelay keeps a freshly started collect from running the
+// cleanup while it is still warming up its caches and worker pools.
+const cleanupMinStartupDelay = 2 * time.Minute
+
+// The fleet's heartbeats arrive in one burst after every 10-minute boundary:
+// measured :x0:40 to :x1:15 on production, kept here with a margin on both
+// sides. While the burst is on, thousands of appliances authenticate at once
+// and the database must not also be serving the retention deletes.
+const (
+	heartbeatBurstFrom = 30 * time.Second  // :x0:30
+	heartbeatBurstTo   = 100 * time.Second // :x1:40
+)
+
+// heartbeatBurstEnd returns when the burst window that contains now ends, or
+// the zero time when now is outside a burst window.
+func heartbeatBurstEnd(now time.Time) time.Time {
+	now = now.UTC()
+	boundary := now.Truncate(10 * time.Minute)
+	if off := now.Sub(boundary); off >= heartbeatBurstFrom && off < heartbeatBurstTo {
+		return boundary.Add(heartbeatBurstTo)
+	}
+	return time.Time{}
+}
+
+// waitOutHeartbeatBurst pauses the caller until the current heartbeat burst
+// window is over. Outside a window it returns at once. The prune loop calls
+// it every inventorySystemYieldEvery systems (a few seconds of work), which is
+// finer than the margin built into the window.
+func waitOutHeartbeatBurst(ctx context.Context, now time.Time, workerLogger *zerolog.Logger) error {
+	end := heartbeatBurstEnd(now)
+	if end.IsZero() {
+		return nil
+	}
+	workerLogger.Info().Time("until", end).Msg("Pausing retention deletes for the heartbeat burst")
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(end.Sub(now)):
+		return nil
+	}
+}
+
+// nextCleanupTime returns the next hh:cleanupMinute:00 UTC that is at least
+// cleanupMinStartupDelay away from now.
+func nextCleanupTime(now time.Time) time.Time {
+	now = now.UTC()
+	next := time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), cleanupMinute, 0, 0, time.UTC)
+	for !next.After(now.Add(cleanupMinStartupDelay)) {
+		next = next.Add(time.Hour)
+	}
+	return next
 }
 
 // runCleanup runs all cleanup operations
@@ -180,6 +240,12 @@ func (cw *CleanupWorker) cleanupInventoryRecordsExponential(ctx context.Context,
 
 	totalDeleted := int64(0)
 	for i, systemID := range systemIDs {
+		if i%inventorySystemYieldEvery == 0 {
+			if err := waitOutHeartbeatBurst(ctx, time.Now(), workerLogger); err != nil {
+				return err
+			}
+		}
+
 		deleted, err := pruneSystemInventory(ctx, systemID)
 		if err != nil {
 			return fmt.Errorf("system %s: %w", systemID, err)
