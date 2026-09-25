@@ -122,7 +122,7 @@ test.describe('authenticated surface', () => {
       page
         .getByRole('row')
         .first()
-        .or(page.getByText(t('systems.no_systems_found'))),
+        .or(page.getByText(t('systems.no_systems'))),
     ).toBeVisible({ timeout: 60_000 })
   })
 })
