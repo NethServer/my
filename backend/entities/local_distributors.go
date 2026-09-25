@@ -10,6 +10,7 @@
 package entities
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -240,7 +241,7 @@ func (r *LocalDistributorRepository) Reactivate(id string) error {
 }
 
 // List returns paginated list of distributors visible to the user
-func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy []string, counts models.CountsMode) ([]*models.LocalDistributor, int, error) {
+func (r *LocalDistributorRepository) List(ctx context.Context, userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy []string, counts models.CountsMode) ([]*models.LocalDistributor, int, error) {
 	// Only Owner can see distributors
 	if !models.IsGlobalOrgRole(userOrgRole) {
 		return []*models.LocalDistributor{}, 0, nil
@@ -336,19 +337,19 @@ func (r *LocalDistributorRepository) List(userOrgRole, userOrgID string, page, p
 	// Get total count
 	var totalCount int
 	if len(countArgs) > 0 {
-		err := r.db.QueryRow(countQuery, countArgs...).Scan(&totalCount)
+		err := r.db.QueryRowContext(ctx, countQuery, countArgs...).Scan(&totalCount)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to get distributors count: %w", err)
 		}
 	} else {
-		err := r.db.QueryRow(countQuery).Scan(&totalCount)
+		err := r.db.QueryRowContext(ctx, countQuery).Scan(&totalCount)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to get distributors count: %w", err)
 		}
 	}
 
 	// Get paginated results
-	rows, err := r.db.Query(query, queryArgs...)
+	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query distributors: %w", err)
 	}

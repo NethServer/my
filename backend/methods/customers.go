@@ -221,7 +221,7 @@ func GetCustomers(c *gin.Context) {
 
 	// Get customers based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	customers, totalCount, err := service.ListCustomers(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
+	customers, totalCount, err := service.ListCustomers(c.Request.Context(), userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
 	if err != nil {
 		logger.Error().
 			Err(err).

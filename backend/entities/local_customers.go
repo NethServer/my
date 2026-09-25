@@ -10,6 +10,7 @@
 package entities
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -254,25 +255,25 @@ func customerCountColumns(counts models.CountsMode) string {
 }
 
 // List returns paginated list of customers visible to the user
-func (r *LocalCustomerRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) List(ctx context.Context, userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalCustomer, int, error) {
 	offset := (page - 1) * pageSize
 
 	switch userOrgRole {
 	case "owner":
-		return r.listForOwner(page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
+		return r.listForOwner(ctx, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
 	case "distributor":
-		return r.listForDistributor(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
+		return r.listForDistributor(ctx, userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
 	case "reseller":
-		return r.listForReseller(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
+		return r.listForReseller(ctx, userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
 	case "customer":
-		return r.listForCustomer(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
+		return r.listForCustomer(ctx, userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
 	default:
 		return []*models.LocalCustomer{}, 0, nil
 	}
 }
 
 // listForOwner handles customer listing for owner role
-func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForOwner(ctx context.Context, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalCustomer, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
@@ -359,11 +360,11 @@ func (r *LocalCustomerRepository) listForOwner(page, pageSize, offset int, searc
 		queryArgs = []interface{}{pageSize, offset}
 	}
 
-	return r.executeCustomerQuery(counts, countQuery, countArgs, query, queryArgs)
+	return r.executeCustomerQuery(ctx, counts, countQuery, countArgs, query, queryArgs)
 }
 
 // listForDistributor handles customer listing for distributor role
-func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForDistributor(ctx context.Context, userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalCustomer, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
@@ -478,11 +479,11 @@ func (r *LocalCustomerRepository) listForDistributor(userOrgID string, page, pag
 		queryArgs = []interface{}{userOrgID, pageSize, offset}
 	}
 
-	return r.executeCustomerQuery(counts, countQuery, countArgs, query, queryArgs)
+	return r.executeCustomerQuery(ctx, counts, countQuery, countArgs, query, queryArgs)
 }
 
 // listForReseller handles customer listing for reseller role
-func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForReseller(ctx context.Context, userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalCustomer, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
@@ -569,11 +570,11 @@ func (r *LocalCustomerRepository) listForReseller(userOrgID string, page, pageSi
 		queryArgs = []interface{}{userOrgID, pageSize, offset}
 	}
 
-	return r.executeCustomerQuery(counts, countQuery, countArgs, query, queryArgs)
+	return r.executeCustomerQuery(ctx, counts, countQuery, countArgs, query, queryArgs)
 }
 
 // listForCustomer handles customer listing for customer role
-func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) listForCustomer(ctx context.Context, userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalCustomer, int, error) {
 	if userOrgID == "" {
 		return []*models.LocalCustomer{}, 0, nil
 	}
@@ -664,27 +665,27 @@ func (r *LocalCustomerRepository) listForCustomer(userOrgID string, page, pageSi
 		queryArgs = []interface{}{userOrgID, pageSize, offset}
 	}
 
-	return r.executeCustomerQuery(counts, countQuery, countArgs, query, queryArgs)
+	return r.executeCustomerQuery(ctx, counts, countQuery, countArgs, query, queryArgs)
 }
 
 // executeCustomerQuery executes the count and query operations
-func (r *LocalCustomerRepository) executeCustomerQuery(counts models.CountsMode, countQuery string, countArgs []interface{}, query string, queryArgs []interface{}) ([]*models.LocalCustomer, int, error) {
+func (r *LocalCustomerRepository) executeCustomerQuery(ctx context.Context, counts models.CountsMode, countQuery string, countArgs []interface{}, query string, queryArgs []interface{}) ([]*models.LocalCustomer, int, error) {
 	// Get total count
 	var totalCount int
 	if len(countArgs) > 0 {
-		err := r.db.QueryRow(countQuery, countArgs...).Scan(&totalCount)
+		err := r.db.QueryRowContext(ctx, countQuery, countArgs...).Scan(&totalCount)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to get customers count: %w", err)
 		}
 	} else {
-		err := r.db.QueryRow(countQuery).Scan(&totalCount)
+		err := r.db.QueryRowContext(ctx, countQuery).Scan(&totalCount)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to get customers count: %w", err)
 		}
 	}
 
 	// Get paginated results
-	rows, err := r.db.Query(query, queryArgs...)
+	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query customers: %w", err)
 	}

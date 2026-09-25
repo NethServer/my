@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
@@ -287,4 +288,33 @@ func TestInitSchemaFromFile_SchemaExecutionFails(t *testing.T) {
 	// Expect close to be called by defer
 	mock.ExpectClose()
 	// Close expectations will be checked when defer runs
+}
+
+func TestWithStatementTimeout(t *testing.T) {
+	got, err := withStatementTimeout("postgres://u:p@db.example:5432/noc?sslmode=require", 60*time.Second)
+	require.NoError(t, err)
+	assert.Equal(t, "postgres://u:p@db.example:5432/noc?sslmode=require&statement_timeout=60000", got)
+
+	// An explicit value in the URL wins over the default.
+	got, err = withStatementTimeout("postgresql://u:p@db/noc?statement_timeout=5000", 60*time.Second)
+	require.NoError(t, err)
+	assert.Equal(t, "postgresql://u:p@db/noc?statement_timeout=5000", got)
+
+	// Keyword/value form.
+	got, err = withStatementTimeout("host=db user=u dbname=noc sslmode=disable", 90*time.Second)
+	require.NoError(t, err)
+	assert.Equal(t, "host=db user=u dbname=noc sslmode=disable statement_timeout=90000", got)
+
+	got, err = withStatementTimeout("host=db statement_timeout=1000", 90*time.Second)
+	require.NoError(t, err)
+	assert.Equal(t, "host=db statement_timeout=1000", got)
+}
+
+func TestEnvDuration(t *testing.T) {
+	t.Setenv("DATABASE_STATEMENT_TIMEOUT", "2m")
+	assert.Equal(t, 2*time.Minute, envDuration("DATABASE_STATEMENT_TIMEOUT", time.Second))
+	t.Setenv("DATABASE_STATEMENT_TIMEOUT", "garbage")
+	assert.Equal(t, time.Second, envDuration("DATABASE_STATEMENT_TIMEOUT", time.Second))
+	t.Setenv("DATABASE_STATEMENT_TIMEOUT", "-5s")
+	assert.Equal(t, time.Second, envDuration("DATABASE_STATEMENT_TIMEOUT", time.Second))
 }

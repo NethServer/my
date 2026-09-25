@@ -57,7 +57,7 @@ func ExportDistributors(c *gin.Context) {
 
 	// Get distributors based on RBAC without pagination limit (but with max export limit)
 	userOrgRole := strings.ToLower(user.OrgRole)
-	distributors, totalCount, err := service.ListDistributors(userOrgRole, user.OrganizationID, 1, MaxDistributorsExportLimit, search, sortBy, sortDirection, statuses, c.QueryArray("created_by"), models.CountsNone)
+	distributors, totalCount, err := service.ListDistributors(c.Request.Context(), userOrgRole, user.OrganizationID, 1, MaxDistributorsExportLimit, search, sortBy, sortDirection, statuses, c.QueryArray("created_by"), models.CountsNone)
 	if err != nil {
 		logger.Error().
 			Err(err).

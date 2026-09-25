@@ -6,11 +6,14 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -23,6 +26,47 @@ var (
 
 // envInt reads a positive integer from the environment, falling back to def
 // when the variable is unset, unparseable, or non-positive.
+// defaultStatementTimeout bounds a single SQL statement of the API. It is well
+// above anything a healthy endpoint runs (the slowest legitimate statement
+// observed on production, the organizations view refresh, takes 30 s under
+// load and gets its own exemption) and well below the minutes a runaway list
+// query used to hold the 0.1-CPU tier. Override with DATABASE_STATEMENT_TIMEOUT.
+const defaultStatementTimeout = 60 * time.Second
+
+func envDuration(key string, def time.Duration) time.Duration {
+	if v := os.Getenv(key); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
+	}
+	return def
+}
+
+// withStatementTimeout adds statement_timeout (in milliseconds, the unit
+// Postgres assumes for a bare number) to a DSN unless it already carries one.
+// Both forms lib/pq accepts are handled: a postgres:// URL and the
+// space-separated key=value string.
+func withStatementTimeout(dsn string, d time.Duration) (string, error) {
+	ms := strconv.FormatInt(d.Milliseconds(), 10)
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		u, err := url.Parse(dsn)
+		if err != nil {
+			return "", err
+		}
+		q := u.Query()
+		if q.Has("statement_timeout") {
+			return dsn, nil
+		}
+		q.Set("statement_timeout", ms)
+		u.RawQuery = q.Encode()
+		return u.String(), nil
+	}
+	if strings.Contains(dsn, "statement_timeout=") {
+		return dsn, nil
+	}
+	return strings.TrimSpace(dsn) + " statement_timeout=" + ms, nil
+}
+
 func envInt(key string, def int) int {
 	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -40,8 +84,16 @@ func Init() error {
 		return fmt.Errorf("DATABASE_URL environment variable is required")
 	}
 
+	// Cap every statement server-side. A request that nginx has already
+	// answered with 504 (30 s) otherwise keeps its query running to the end:
+	// the reseller list once reached 188 s on production while users retried.
+	// lib/pq forwards unknown DSN keys to the server as session settings.
+	databaseURL, err := withStatementTimeout(databaseURL, envDuration("DATABASE_STATEMENT_TIMEOUT", defaultStatementTimeout))
+	if err != nil {
+		return fmt.Errorf("invalid DATABASE_URL: %w", err)
+	}
+
 	// Open database connection
-	var err error
 	DB, err = sql.Open("postgres", databaseURL)
 	if err != nil {
 		return fmt.Errorf("failed to open database connection: %w", err)
@@ -76,7 +128,22 @@ func Init() error {
 // RefreshUnifiedOrganizations refreshes the unified_organizations materialized view.
 // Uses CONCURRENTLY to avoid locking reads during refresh.
 func RefreshUnifiedOrganizations() error {
-	_, err := DB.Exec("REFRESH MATERIALIZED VIEW CONCURRENTLY unified_organizations")
+	// REFRESH ... CONCURRENTLY cannot run inside a transaction, so the
+	// statement_timeout exemption is set on a dedicated pooled connection and
+	// reset before the connection goes back to the pool.
+	ctx := context.Background()
+	conn, err := DB.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to acquire connection for unified_organizations refresh: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+	if _, err := conn.ExecContext(ctx, "SET statement_timeout = 0"); err != nil {
+		return fmt.Errorf("failed to lift statement_timeout for unified_organizations refresh: %w", err)
+	}
+	_, err = conn.ExecContext(ctx, "REFRESH MATERIALIZED VIEW CONCURRENTLY unified_organizations")
+	if _, resetErr := conn.ExecContext(ctx, "RESET statement_timeout"); resetErr != nil && err == nil {
+		err = resetErr
+	}
 	if err != nil {
 		return fmt.Errorf("failed to refresh unified_organizations: %w", err)
 	}

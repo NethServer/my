@@ -827,18 +827,18 @@ func (s *LocalOrganizationService) GetCustomer(id string) (*models.LocalCustomer
 }
 
 // ListDistributors returns paginated distributors based on RBAC
-func (s *LocalOrganizationService) ListDistributors(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy []string, counts models.CountsMode) ([]*models.LocalDistributor, int, error) {
-	return s.distributorRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy, counts)
+func (s *LocalOrganizationService) ListDistributors(ctx context.Context, userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy []string, counts models.CountsMode) ([]*models.LocalDistributor, int, error) {
+	return s.distributorRepo.List(ctx, userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy, counts)
 }
 
 // ListResellers returns paginated resellers based on RBAC
-func (s *LocalOrganizationService) ListResellers(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalReseller, int, error) {
-	return s.resellerRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
+func (s *LocalOrganizationService) ListResellers(ctx context.Context, userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalReseller, int, error) {
+	return s.resellerRepo.List(ctx, userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
 }
 
 // ListCustomers returns paginated customers based on RBAC
-func (s *LocalOrganizationService) ListCustomers(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalCustomer, int, error) {
-	return s.customerRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
+func (s *LocalOrganizationService) ListCustomers(ctx context.Context, userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalCustomer, int, error) {
+	return s.customerRepo.List(ctx, userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
 }
 
 // ListDistributorCreators returns the distinct creators of the distributors

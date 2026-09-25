@@ -176,7 +176,7 @@ func GetDistributors(c *gin.Context) {
 
 	// Get distributors based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	distributors, totalCount, err := service.ListDistributors(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy, counts)
+	distributors, totalCount, err := service.ListDistributors(c.Request.Context(), userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy, counts)
 	if err != nil {
 		logger.Error().
 			Err(err).

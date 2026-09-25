@@ -225,7 +225,7 @@ func GetResellers(c *gin.Context) {
 
 	// Get resellers based on RBAC
 	userOrgRole := strings.ToLower(user.OrgRole)
-	resellers, totalCount, err := service.ListResellers(userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
+	resellers, totalCount, err := service.ListResellers(c.Request.Context(), userOrgRole, user.OrganizationID, page, pageSize, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
 	if err != nil {
 		logger.Error().
 			Err(err).

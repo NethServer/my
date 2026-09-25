@@ -10,6 +10,7 @@
 package entities
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -260,14 +261,14 @@ func resellerCountColumns(counts models.CountsMode) string {
 }
 
 // List returns paginated list of resellers visible to the user
-func (r *LocalResellerRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalReseller, int, error) {
+func (r *LocalResellerRepository) List(ctx context.Context, userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalReseller, int, error) {
 	offset := (page - 1) * pageSize
 
 	switch userOrgRole {
 	case "owner":
-		return r.listForOwner(page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
+		return r.listForOwner(ctx, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
 	case "distributor":
-		return r.listForDistributor(userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
+		return r.listForDistributor(ctx, userOrgID, page, pageSize, offset, search, sortBy, sortDirection, statuses, createdBy, ownedBy, counts)
 	default:
 		// Resellers and customers can't see other resellers
 		return []*models.LocalReseller{}, 0, nil
@@ -275,7 +276,7 @@ func (r *LocalResellerRepository) List(userOrgRole, userOrgID string, page, page
 }
 
 // listForOwner handles reseller listing for owner role
-func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalReseller, int, error) {
+func (r *LocalResellerRepository) listForOwner(ctx context.Context, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalReseller, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
@@ -362,11 +363,11 @@ func (r *LocalResellerRepository) listForOwner(page, pageSize, offset int, searc
 		queryArgs = []interface{}{pageSize, offset}
 	}
 
-	return r.executeResellerQuery(counts, countQuery, countArgs, query, queryArgs)
+	return r.executeResellerQuery(ctx, counts, countQuery, countArgs, query, queryArgs)
 }
 
 // listForDistributor handles reseller listing for distributor role
-func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalReseller, int, error) {
+func (r *LocalResellerRepository) listForDistributor(ctx context.Context, userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalReseller, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY created_at DESC" // default sorting
 	if sortBy != "" {
@@ -453,27 +454,27 @@ func (r *LocalResellerRepository) listForDistributor(userOrgID string, page, pag
 		queryArgs = []interface{}{userOrgID, pageSize, offset}
 	}
 
-	return r.executeResellerQuery(counts, countQuery, countArgs, query, queryArgs)
+	return r.executeResellerQuery(ctx, counts, countQuery, countArgs, query, queryArgs)
 }
 
 // executeResellerQuery executes the count and query operations
-func (r *LocalResellerRepository) executeResellerQuery(counts models.CountsMode, countQuery string, countArgs []interface{}, query string, queryArgs []interface{}) ([]*models.LocalReseller, int, error) {
+func (r *LocalResellerRepository) executeResellerQuery(ctx context.Context, counts models.CountsMode, countQuery string, countArgs []interface{}, query string, queryArgs []interface{}) ([]*models.LocalReseller, int, error) {
 	// Get total count
 	var totalCount int
 	if len(countArgs) > 0 {
-		err := r.db.QueryRow(countQuery, countArgs...).Scan(&totalCount)
+		err := r.db.QueryRowContext(ctx, countQuery, countArgs...).Scan(&totalCount)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to get resellers count: %w", err)
 		}
 	} else {
-		err := r.db.QueryRow(countQuery).Scan(&totalCount)
+		err := r.db.QueryRowContext(ctx, countQuery).Scan(&totalCount)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to get resellers count: %w", err)
 		}
 	}
 
 	// Get paginated results
-	rows, err := r.db.Query(query, queryArgs...)
+	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query resellers: %w", err)
 	}
