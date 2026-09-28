@@ -67,7 +67,7 @@
   "devDependencies": {
     "@pinia/colada-devtools": "^1.1.2",
     "@playwright/test": "^1.63.0",
-    "@tsconfig/node22": "^22.0.1",
+    "@tsconfig/node24": "^24.0.0",
     "@types/lodash": "^4.17.18",
     "@types/node": "^24.0.0",
     "@vitejs/plugin-vue": "^5.2.3",
