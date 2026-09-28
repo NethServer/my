@@ -25,20 +25,22 @@ jobs:
   smoke:
     name: QA smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     env:
       E2E_SMOKE_BASE_URL: https://qa.my.nethesis.it
 
     steps:
     - uses: actions/checkout@v7
+      with:
+        # The wait step diffs this push against the previous head of main.
+        fetch-depth: 0
 
     - name: Wait for QA to serve this commit
       id: deployed
       env:
         RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-        # Render names the QA backend this; see pr-preview-resume.yml.
-        SERVICE_NAME: my-backend-qa
+        BEFORE_SHA: ${{ github.event.before }}
       run: |
         set -uo pipefail
 
@@ -47,6 +49,14 @@ jobs:
         # the build either: Render builds from source (render.yaml sets
         # runtime: docker) and nothing passes COMMIT, so /backend/api/health
         # reports commit "unknown" for ever. Ask Render instead.
+        #
+        # Render auto-deploys a service only when the push changes a file
+        # under its rootDir. A frontend-only merge redeploys my-frontend-qa and
+        # leaves every other QA service on its current build, so waiting for
+        # one fixed service to deploy this commit can wait for ever. Wait
+        # instead for a live deploy of this commit on every service whose
+        # rootDir the push touched, and for any deploy still in flight on the
+        # others to settle.
         if [ -z "${RENDER_API_KEY:-}" ]; then
           echo "::warning::RENDER_API_KEY is not set, cannot confirm which build QA is serving. Skipping."
           echo "ready=false" >> "$GITHUB_OUTPUT"
@@ -56,45 +66,83 @@ jobs:
         API="https://api.render.com/v1"
         AUTH="Authorization: Bearer ${RENDER_API_KEY}"
 
-        SERVICE_ID=$(curl -s -G -H "$AUTH" "${API}/services" \
-          --data-urlencode "name=${SERVICE_NAME}" --data "limit=20" \
-          | jq -r --arg n "$SERVICE_NAME" 'first(.[] | select(.service.name == $n) | .service.id) // empty')
-
-        if [ -z "$SERVICE_ID" ]; then
-          echo "::warning::No Render service named ${SERVICE_NAME}. Skipping the smoke run."
-          echo "ready=false" >> "$GITHUB_OUTPUT"
-          exit 0
+        # workflow_dispatch has no previous head: nothing is expected to
+        # deploy, only in-flight deploys are waited for.
+        CHANGED=""
+        if [ -n "${BEFORE_SHA:-}" ] && ! CHANGED=$(git diff --name-only "$BEFORE_SHA" "$GITHUB_SHA" 2>/dev/null); then
+          echo "::warning::Cannot diff ${BEFORE_SHA}..${GITHUB_SHA}; expecting every QA service to deploy this commit."
+          CHANGED="*"
         fi
 
-        for attempt in $(seq 1 60); do
-          DEPLOY=$(curl -s -H "$AUTH" "${API}/services/${SERVICE_ID}/deploys?limit=20" \
-            | jq -r --arg sha "$GITHUB_SHA" \
-              'first(.[] | select(.deploy.commit.id == $sha) | .deploy) // empty')
-          STATUS=$(echo "$DEPLOY" | jq -r '.status // empty')
+        SERVICES=()
+        while read -r NAME ROOT_DIR; do
+          ID=$(curl -s -G -H "$AUTH" "${API}/services" \
+            --data-urlencode "name=${NAME}" --data "limit=20" \
+            | jq -r --arg n "$NAME" 'first(.[] | select(.service.name == $n) | .service.id) // empty')
+          if [ -z "$ID" ]; then
+            echo "::warning::No Render service named ${NAME}. Skipping the smoke run."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          EXPECTED=0
+          if [ "$CHANGED" = "*" ] || grep -q "^${ROOT_DIR}/" <<<"$CHANGED"; then
+            EXPECTED=1
+          fi
+          echo "${NAME} (${ROOT_DIR}/): $([ "$EXPECTED" = 1 ] && echo "expects a deploy of ${GITHUB_SHA}" || echo "unchanged")"
+          SERVICES+=("${NAME} ${ID} ${EXPECTED}")
+        done < <(yq -r '.services[] | select(.name | test("-qa$")) | select(.rootDir) | .name + " " + .rootDir' render.yaml)
 
-          case "$STATUS" in
-            live)
-              # Deployed, but Render reports "live" the moment the instance
-              # accepts traffic; make sure it really answers before asserting.
-              if curl -fsS -o /dev/null --max-time 10 "${E2E_SMOKE_BASE_URL}/backend/api/health"; then
-                echo "QA is serving ${GITHUB_SHA}"
-                echo "ready=true" >> "$GITHUB_OUTPUT"
-                exit 0
-              fi
-              echo "attempt ${attempt}: deploy is live, waiting for the backend to answer"
-              ;;
-            build_failed|update_failed|canceled|pre_deploy_failed)
-              echo "::error::Render deploy for ${GITHUB_SHA} ended as '${STATUS}'."
-              exit 1
-              ;;
-            "")
-              echo "attempt ${attempt}: Render has no deploy for ${GITHUB_SHA} yet"
-              ;;
-            *)
-              echo "attempt ${attempt}: deploy is '${STATUS}'"
-              ;;
-          esac
-          sleep 30
+        if [ "${#SERVICES[@]}" -eq 0 ]; then
+          echo "::error::render.yaml lists no QA service with a rootDir."
+          exit 1
+        fi
+
+        # Poll every 30s for at most 18 minutes. The job timeout is 30 minutes:
+        # the remainder covers the browser install and the suite, and an
+        # environment that never comes up ends in the warning below rather
+        # than in a cancellation.
+        POLL_SECONDS=30
+        MAX_ATTEMPTS=$(( 18 * 60 / POLL_SECONDS ))
+        for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+          PENDING=()
+          for entry in "${SERVICES[@]}"; do
+            read -r NAME ID EXPECTED <<<"$entry"
+            DEPLOYS=$(curl -s -H "$AUTH" "${API}/services/${ID}/deploys?limit=20")
+            if [ "$EXPECTED" = 1 ]; then
+              STATUS=$(jq -r --arg sha "$GITHUB_SHA" \
+                'first(.[] | select(.deploy.commit.id == $sha) | .deploy.status) // "not started"' <<<"$DEPLOYS")
+            else
+              STATUS=$(jq -r 'first(.[] | .deploy.status) // "live"' <<<"$DEPLOYS")
+              case "$STATUS" in
+                created|queued|*_in_progress) ;;
+                *) STATUS=live ;;
+              esac
+            fi
+
+            case "$STATUS" in
+              live) ;;
+              build_failed|update_failed|canceled|pre_deploy_failed)
+                echo "::error::Render deploy of ${GITHUB_SHA} on ${NAME} ended as '${STATUS}'."
+                exit 1
+                ;;
+              *) PENDING+=("${NAME}: ${STATUS}") ;;
+            esac
+          done
+
+          if [ "${#PENDING[@]}" -eq 0 ]; then
+            # Render reports "live" the moment the instance accepts traffic;
+            # make sure it really answers before asserting.
+            if curl -fsS -o /dev/null --max-time 10 "${E2E_SMOKE_BASE_URL}/backend/api/health"; then
+              echo "QA is serving ${GITHUB_SHA}"
+              echo "ready=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            PENDING+=("backend health check not answering")
+          fi
+
+          SUMMARY=$(printf '%s, ' "${PENDING[@]}")
+          echo "attempt ${attempt}: waiting for ${SUMMARY%, }"
+          sleep "$POLL_SECONDS"
         done
 
         # Not a failure. qa-night-schedule.yml suspends the QA services outside
