@@ -27,6 +27,7 @@
 
 import { test, expect } from '@playwright/test'
 import { t } from '../fixtures/i18n'
+import { signIn } from '../fixtures/signIn'
 
 /**
  * Where the backend sits behind the deployed proxy. NOT `/api`, which the proxy
@@ -75,14 +76,7 @@ test.describe('authenticated surface', () => {
   )
 
   test('signs in, loads the dashboard and signs out', async ({ page }) => {
-    await page.goto('/')
-    await page.waitForURL(/\/sign-in/, { timeout: 60_000 })
-
-    await page.locator('input[name="identifier"]').fill(email!)
-    await page.locator('input[name="password"]').fill(password!)
-    await page.locator('button[type="submit"]').click()
-
-    await page.waitForURL((url) => url.pathname === '/dashboard', { timeout: 60_000 })
+    await signIn(page, email!, password!)
 
     // The token exchange completed: this is the application's own JWT, so the
     // backend, the database and the Logto wiring are all reachable.
@@ -94,12 +88,7 @@ test.describe('authenticated surface', () => {
   })
 
   test('renders a list page', async ({ page }) => {
-    await page.goto('/')
-    await page.waitForURL(/\/sign-in/, { timeout: 60_000 })
-    await page.locator('input[name="identifier"]').fill(email!)
-    await page.locator('input[name="password"]').fill(password!)
-    await page.locator('button[type="submit"]').click()
-    await page.waitForURL((url) => url.pathname === '/dashboard', { timeout: 60_000 })
+    await signIn(page, email!, password!)
 
     const systems = page.getByRole('navigation').locator('a[href="/systems"]')
     await expect(systems).toBeVisible()

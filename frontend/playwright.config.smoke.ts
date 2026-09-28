@@ -35,6 +35,9 @@ export default defineConfig({
   use: {
     ...sharedUse,
     baseURL: BASE_URL,
+    // Every authenticated check types the account's password, and a trace
+    // records it in the clear. Screenshot and video still come out on failure.
+    trace: 'off',
   },
 
   projects: [{ name: 'smoke' }],

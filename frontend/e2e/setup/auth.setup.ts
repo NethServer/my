@@ -20,6 +20,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { matrixPersonas, owner, storageStatePath, type Persona } from '../fixtures/personas'
 import { t } from '../fixtures/i18n'
+import { signIn } from '../fixtures/signIn'
 
 /**
  * The owner plus the RBAC matrix — one persona per (organization role x
@@ -50,20 +51,8 @@ async function clearStoredPreferences(page: Page) {
   })
 }
 
-async function signIn(page: Page, who: Persona) {
-  // "/" redirects to /dashboard, the router guard bounces an unauthenticated
-  // visitor to /login, and LoginView immediately calls signIn() — which is a
-  // full-page navigation to the Logto-hosted form on another origin.
-  await page.goto('/')
-  await page.waitForURL(/\/sign-in/, { timeout: 60_000 })
-
-  await page.locator('input[name="identifier"]').fill(who.email)
-  await page.locator('input[name="password"]').fill(who.password)
-  await page.locator('button[type="submit"]').click()
-
-  // Back on our origin: /login-redirect completes the OIDC callback and pushes
-  // to the saved deep link, or the dashboard.
-  await page.waitForURL((url) => url.pathname === '/dashboard', { timeout: 60_000 })
+async function signInAs(page: Page, who: Persona) {
+  await signIn(page, who.email, who.password)
 
   // The dashboard renders before user info arrives. Wait for the exchange to
   // land, otherwise the saved state can be a half-built session.
@@ -80,7 +69,7 @@ for (const who of personas) {
     const file = storageStatePath(who.key)
     mkdirSync(dirname(file), { recursive: true })
 
-    await signIn(page, who)
+    await signInAs(page, who)
     await page.context().storageState({ path: file })
   })
 }

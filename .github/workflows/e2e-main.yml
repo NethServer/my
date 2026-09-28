@@ -272,8 +272,17 @@ jobs:
       # what compose already publishes there rather than starting a dev server.
       run: npx playwright test --project=fullstack
 
-    - name: Upload report, screenshots, video and traces
+    # The repository is public, so the artifact is readable by anyone signed
+    # in to GitHub. The script reads the passwords from the registry, still in
+    # place here: the fixture is removed only after the upload.
+    - name: Check the report carries no password
+      id: redaction
       if: always()
+      working-directory: frontend
+      run: bash e2e/check-no-passwords.sh
+
+    - name: Upload report, screenshots, video and traces
+      if: always() && steps.redaction.outcome == 'success'
       uses: actions/upload-artifact@v4
       with:
         name: playwright-report
