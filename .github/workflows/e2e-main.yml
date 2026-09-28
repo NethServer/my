@@ -32,7 +32,9 @@ on:
     # Weekly drift canary: catches breakage with no commit behind it, such as a
     # Logto setting changed by hand. Weekly rather than nightly — a scheduled
     # failure nobody caused is the fastest way to teach people to ignore a suite.
-    - cron: '0 4 * * 1'
+    # Off the top of the hour: GitHub delays or drops scheduled runs under load,
+    # and the start of each hour is when it is busiest.
+    - cron: '23 4 * * 1'
 
 # One global queue, and never cancel.
 #
@@ -272,8 +274,17 @@ jobs:
       # what compose already publishes there rather than starting a dev server.
       run: npx playwright test --project=fullstack
 
-    - name: Upload report, screenshots, video and traces
+    # The repository is public, so the artifact is readable by anyone signed
+    # in to GitHub. The script reads the passwords from the registry, still in
+    # place here: the fixture is removed only after the upload.
+    - name: Check the report carries no password
+      id: redaction
       if: always()
+      working-directory: frontend
+      run: bash e2e/check-no-passwords.sh
+
+    - name: Upload report, screenshots, video and traces
+      if: always() && steps.redaction.outcome == 'success'
       uses: actions/upload-artifact@v4
       with:
         name: playwright-report

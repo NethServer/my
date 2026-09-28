@@ -129,8 +129,18 @@ jobs:
         E2E_SMOKE_PASSWORD: ${{ secrets.E2E_SMOKE_PASSWORD }}
       run: npx playwright test -c playwright.config.smoke.ts
 
-    - name: Upload report, screenshots, video and traces
+    # The repository is public, so the artifact is readable by anyone signed
+    # in to GitHub.
+    - name: Check the report carries no password
+      id: redaction
       if: always() && steps.deployed.outputs.ready == 'true'
+      working-directory: frontend
+      env:
+        E2E_SMOKE_PASSWORD: ${{ secrets.E2E_SMOKE_PASSWORD }}
+      run: bash e2e/check-no-passwords.sh
+
+    - name: Upload report, screenshots, video and traces
+      if: always() && steps.redaction.outcome == 'success'
       uses: actions/upload-artifact@v4
       with:
         name: playwright-smoke-report

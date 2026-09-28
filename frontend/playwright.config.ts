@@ -37,6 +37,9 @@ export default defineConfig({
     {
       name: 'setup',
       testMatch: /.*\.setup\.ts/,
+      // This is where passwords are typed, and a trace records them in the
+      // clear. Screenshot and video still come out on failure.
+      use: { trace: 'off' },
     },
 
     /** Mutating specs. Require a local backend and a provisioned fixture. */

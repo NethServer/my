@@ -427,7 +427,7 @@ make run-qa                        # uses .env.qa (backend and collect)
 ```bash
 make build        # single platform -> build/
 make build-all    # linux/darwin/windows × amd64/arm64
-./release.sh patch|minor|major    # bumps version.json across all components
+./release.sh patch|minor|major [--skip-tests]   # bumps version.json across all components; requires main == origin/main; runs unit tests and waits for passing CI fullstack + QA smoke runs of HEAD, unless skipped
 ```
 
 ---

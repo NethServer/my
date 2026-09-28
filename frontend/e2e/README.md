@@ -146,7 +146,9 @@ Logto users. See `.github/workflows/README.md`.
 Render rather than by Actions. On timeout it warns and skips instead of failing, so a suspended QA
 does not read as a regression.
 
-Both upload `playwright-report/` and `test-results/` on failure: screenshots, video and traces.
+Both upload `playwright-report/` and `test-results/`: screenshots, video and traces. The upload
+happens only after `e2e/check-no-passwords.sh` passes (see [Credentials in test
+output](#credentials-in-test-output)).
 
 ## Layout
 
@@ -155,6 +157,7 @@ Both upload `playwright-report/` and `test-results/` on failure: screenshots, vi
 | `fixtures/personas.ts` | Reads the apitool registry; exposes `owner`, `matrixPersonas`, `persona(key)`, `fixtureOrg(key)` |
 | `fixtures/i18n.ts`     | Resolves interface copy by translation key, so a reworded label updates the selector             |
 | `fixtures/rows.ts`     | Matches a table row by whole name — the fixture's names nest, so substrings lie                  |
+| `fixtures/signIn.ts`   | The Logto sign-in, without the password reaching the test output                                 |
 | `setup/auth.setup.ts`  | Signs personas in through the real Logto form, saves `storageState`                              |
 | `fullstack/`           | Need a local backend and a provisioned fixture                                                   |
 | `smoke/`               | Read-only specs against a deployed environment                                                   |
@@ -186,6 +189,29 @@ session. The application's own JWT pair is deliberately **not** carried between 
 `sessionStorage` (`src/stores/login.ts`), which `storageState` does not capture anyway, and the
 backend rotates the refresh token on every use and treats a reused one as theft. Each spec therefore
 re-runs `POST /api/auth/exchange` on boot for a fresh pair — race-free, and the real code path.
+
+## Credentials in test output
+
+The repository is public, so a CI artifact is readable by anyone signed in to GitHub, and
+Playwright writes whatever a spec types into its output: `fill` titles its step `Fill "<value>"` in
+the HTML report, and a trace keeps the value in the call arguments, in every DOM snapshot and in
+the sign-in request body. Three things keep passwords out:
+
+- **Sign in through `fixtures/signIn.ts`, never `fill` a password.** It sets the value through
+  `evaluate`, whose step renders no arguments. When sign-in fails it leaves `[REDACTED]` in the
+  field before the error propagates, so the failure screenshot and the page snapshot in
+  `error-context.md` show a field that was filled, without showing the password.
+- **Traces are off where a password is typed**: the `setup` project and the whole smoke
+  configuration. Screenshot and video remain. The `fullstack` specs start from a saved session,
+  type no password and keep their traces.
+- **`e2e/check-no-passwords.sh` gates the upload.** It greps the report, the results and every
+  archive inside them (traces, and the data zip embedded in `index.html`) for the smoke password and
+  every registry password, and CI uploads nothing when it finds one. Run it by hand from `frontend/`
+  after a local run.
+
+**A spec that starts using a new password, secret or API key must add it to the list
+`check-no-passwords.sh` greps for**, and its workflow must pass it to the check step's `env`. A
+credential the script is not told about is one it cannot find.
 
 ## Gotchas
 
