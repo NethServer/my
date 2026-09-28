@@ -21,7 +21,7 @@
 databases:
   # Production PostgreSQL Database
   - name: my-postgres-prod
-    plan: basic-256mb
+    plan: 0.5c-1g
     region: frankfurt
     databaseName: noc
     ipAllowList:
