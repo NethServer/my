@@ -139,6 +139,27 @@ run_tests() {
     success "Tests passed for $component"
 }
 
+# Run the browser end-to-end suite (setup + fullstack) against the local
+# backend. It needs what a developer sets up once, so check for it up front
+# rather than letting Playwright time out on a missing backend.
+run_e2e_tests() {
+    info "Running fullstack end-to-end tests..."
+
+    if ! curl -fsS -o /dev/null --max-time 5 http://localhost:8080/api/health; then
+        error "No backend on localhost:8080. Start it with: cd backend && make dev-up && make run"
+    fi
+    if [ ! -f backend/.api-registry.json ]; then
+        error "No apitool registry. Provision the fixture with: cd backend && make apitool && ./apitool authz provision"
+    fi
+
+    cd frontend
+    if ! npm run test:e2e; then
+        error "End-to-end tests failed. Open the report with: cd frontend && npx playwright show-report"
+    fi
+    cd ..
+    success "End-to-end tests passed"
+}
+
 # Check the documentation site (Docusaurus)
 run_docs_checks() {
     info "Running checks for docs..."
@@ -328,19 +349,25 @@ update_docs_version() {
 
 # Show usage
 usage() {
-    echo "Usage: $0 [patch|minor|major]"
+    echo "Usage: $0 [patch|minor|major] [--skip-tests]"
     echo ""
     echo "Bump version, commit, tag and push for release"
     echo ""
     echo "Options:"
-    echo "  patch    Bump patch version (0.0.1 -> 0.0.2)"
-    echo "  minor    Bump minor version (0.0.1 -> 0.1.0)"
-    echo "  major    Bump major version (0.0.1 -> 1.0.0)"
+    echo "  patch         Bump patch version (0.0.1 -> 0.0.2)"
+    echo "  minor         Bump minor version (0.0.1 -> 0.1.0)"
+    echo "  major         Bump major version (0.0.1 -> 1.0.0)"
+    echo "  --skip-tests  Skip the unit and end-to-end tests (formatting, linting,"
+    echo "                docs and vulnerability checks still run)"
+    echo ""
+    echo "The end-to-end tests need a local backend on :8080 and a provisioned"
+    echo "fixture (cd backend && ./apitool authz provision)."
     echo ""
     echo "Examples:"
-    echo "  $0 patch   # For bug fixes"
-    echo "  $0 minor   # For new features"
-    echo "  $0 major   # For breaking changes"
+    echo "  $0 patch               # For bug fixes"
+    echo "  $0 minor               # For new features"
+    echo "  $0 major               # For breaking changes"
+    echo "  $0 patch --skip-tests  # Tests already run on this commit"
     exit 1
 }
 
@@ -352,13 +379,24 @@ main() {
     fi
 
     # Parse arguments
-    if [ $# -eq 0 ]; then
-        usage
-    fi
+    bump_type=""
+    skip_tests=false
+    for arg in "$@"; do
+        case $arg in
+            patch|minor|major)
+                [ -z "$bump_type" ] || usage
+                bump_type=$arg
+                ;;
+            --skip-tests)
+                skip_tests=true
+                ;;
+            *)
+                usage
+                ;;
+        esac
+    done
 
-    bump_type=$1
-
-    if [[ ! "$bump_type" =~ ^(patch|minor|major)$ ]]; then
+    if [ -z "$bump_type" ]; then
         usage
     fi
 
@@ -380,11 +418,16 @@ main() {
     run_linting "collect"
     run_linting "frontend"
     run_linting "proxy"
-    run_tests "backend"
-    run_tests "sync"
-    run_tests "collect"
-    run_tests "frontend"
-    run_tests "proxy"
+    if [ "$skip_tests" = true ]; then
+        warning "Skipping unit and end-to-end tests (--skip-tests)"
+    else
+        run_tests "backend"
+        run_tests "sync"
+        run_tests "collect"
+        run_tests "frontend"
+        run_tests "proxy"
+        run_e2e_tests
+    fi
     run_docs_checks
     run_vulnerability_checks
     success "All quality checks passed!"

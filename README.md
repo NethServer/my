@@ -227,11 +227,15 @@ git push origin feature/new-feature     # → Create PR
 ./release.sh patch                       # → 0.0.5 → 0.0.6 (bug fixes)
 ./release.sh minor                       # → 0.0.5 → 0.1.0 (new features)
 ./release.sh major                       # → 0.0.5 → 1.0.0 (breaking changes)
+./release.sh patch --skip-tests          # → skips unit and end-to-end tests
 # → Runs tests, formatting, linting → Creates tag → Pushes to GitHub
 ```
 
+Run it on a developer machine. The fullstack end-to-end tests need a local backend on `:8080` and a
+provisioned fixture (`cd backend && ./apitool authz provision`), see `frontend/e2e/README.md`.
+
 The release script will:
-1. Run all quality checks (formatting, linting, tests, docs build, dependency vulnerabilities)
+1. Run all quality checks (formatting, linting, unit tests, fullstack end-to-end tests, docs build, dependency vulnerabilities)
 2. Bump version in all files
 3. Create git commit and tag
 4. Push to GitHub
