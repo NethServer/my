@@ -92,8 +92,11 @@ with `gh label create run-e2e --color 0E8A16 --description "Run the full-stack b
 failures the full-stack job cannot see
 
 QA is deployed by Render rather than by Actions, so the job asks the Render API (via the existing
-`RENDER_API_KEY`) for a deploy of the merge commit, waits for it to go `live`, and then confirms the
-backend actually answers. The health endpoint cannot identify the build: Render builds QA from
+`RENDER_API_KEY`) which deploys the push produced, waits for them to go `live`, and then confirms
+the backend actually answers. Render redeploys a service only when the push changes a file under its
+`rootDir`, so the job reads the QA services from `render.yaml`, expects a deploy of the merge commit
+only on those whose directory the push touched, and on the rest merely waits out any deploy still in
+flight. A push that touches none of them runs the suite against the builds QA already serves. The health endpoint cannot identify the build: Render builds QA from
 source and nothing passes `COMMIT`, so it reports `"unknown"` permanently. A failed Render deploy
 fails the job; an environment that never comes up only warns and skips, since `qa-night-schedule.yml`
 suspends QA outside Mon–Fri 08:00–22:00 Europe/Rome.
