@@ -23,7 +23,7 @@ warning() {
 }
 
 error() {
-    echo -e "${RED}❌ $1${NC}"
+    echo -e "${RED}❌ $1${NC}" >&2
     exit 1
 }
 
@@ -139,25 +139,131 @@ run_tests() {
     success "Tests passed for $component"
 }
 
-# Run the browser end-to-end suite (setup + fullstack) against the local
-# backend. It needs what a developer sets up once, so check for it up front
-# rather than letting Playwright time out on a missing backend.
-run_e2e_tests() {
-    info "Running fullstack end-to-end tests..."
+# The release must be the commit CI tested: the end-to-end verdicts below are
+# read from GitHub Actions for this exact commit, and the push at the end
+# must be a fast-forward.
+check_up_to_date() {
+    info "Checking main is in sync with origin/main..."
 
-    if ! curl -fsS -o /dev/null --max-time 5 http://localhost:8080/api/health; then
-        error "No backend on localhost:8080. Start it with: cd backend && make dev-up && make run"
-    fi
-    if [ ! -f backend/.api-registry.json ]; then
-        error "No apitool registry. Provision the fixture with: cd backend && make apitool && ./apitool authz provision"
+    if ! git fetch --quiet origin main; then
+        error "Could not fetch origin/main"
     fi
 
-    cd frontend
-    if ! npm run test:e2e; then
-        error "End-to-end tests failed. Open the report with: cd frontend && npx playwright show-report"
+    local local_sha remote_sha
+    local_sha=$(git rev-parse HEAD)
+    remote_sha=$(git rev-parse origin/main)
+    if [ "$local_sha" = "$remote_sha" ]; then
+        success "main is at origin/main (${local_sha:0:8})"
+        return
     fi
-    cd ..
-    success "End-to-end tests passed"
+
+    if git merge-base --is-ancestor HEAD origin/main; then
+        error "Local main is behind origin/main. Run 'git pull' first."
+    elif git merge-base --is-ancestor origin/main HEAD; then
+        error "Local main has commits not on origin/main. Push them and let CI run on them first."
+    else
+        error "Local main and origin/main have diverged. Reconcile them first."
+    fi
+}
+
+# Latest run of a workflow on main for a commit, as "id status conclusion url",
+# or nothing when there is none.
+ci_run_for() {
+    local workflow=$1 sha=$2
+    gh run list --workflow "$workflow" --branch main --commit "$sha" --limit 1 \
+        --json databaseId,status,conclusion,url \
+        -q '.[] | "\(.databaseId) \(.status) \(.conclusion) \(.url)"' \
+        || error "Could not read the $workflow runs with gh. Check 'gh auth status'."
+}
+
+# True when every file a commit changes is one e2e-main.yml's paths-ignore
+# skips ('**.md', 'docs/**'), i.e. a commit that never gets a fullstack run.
+is_docs_only_commit() {
+    local changed
+    changed=$(git diff-tree --no-commit-id --name-only -r -m "$1")
+    [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -qvE '(\.md$|^docs/)'
+}
+
+# Waits for a run to complete and requires it to have succeeded.
+CI_WAIT_TIMEOUT=${CI_WAIT_TIMEOUT:-2700}
+CI_POLL_INTERVAL=30
+wait_for_ci_run() {
+    local workflow=$1 label=$2 sha=$3
+    local deadline=$(( $(date +%s) + CI_WAIT_TIMEOUT ))
+    local run id status conclusion url
+
+    while true; do
+        run=$(ci_run_for "$workflow" "$sha")
+        [ -n "$run" ] || error "No $label run for ${sha:0:8} on main."
+        read -r id status conclusion url <<< "$run"
+
+        [ "$status" = "completed" ] && break
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+            error "The $label run for ${sha:0:8} is still $status after $((CI_WAIT_TIMEOUT / 60)) minutes: $url"
+        fi
+        info "The $label run for ${sha:0:8} is $status, waiting: $url"
+        sleep "$CI_POLL_INTERVAL"
+    done
+
+    if [ "$conclusion" != "success" ]; then
+        error "The $label run for ${sha:0:8} ended with '$conclusion': $url"
+    fi
+    CI_RUN_ID=$id
+    CI_RUN_URL=$url
+}
+
+# The fullstack suite runs in CI on every push to main except docs-only ones,
+# so the verdict for HEAD is that of the nearest commit that has a run, as
+# long as everything after it is docs-only.
+check_fullstack_run() {
+    local sha
+    sha=$(git rev-parse HEAD)
+    info "Checking the CI fullstack run for ${sha:0:8}..."
+
+    local candidate run skipped=0
+    for candidate in $(git rev-list --first-parent --max-count=50 HEAD); do
+        run=$(ci_run_for e2e-main.yml "$candidate")
+        if [ -n "$run" ]; then
+            wait_for_ci_run e2e-main.yml "fullstack" "$candidate"
+            if [ "$skipped" -gt 0 ]; then
+                success "CI fullstack run passed on ${candidate:0:8}, followed by $skipped docs-only commit(s): $CI_RUN_URL"
+            else
+                success "CI fullstack run passed: $CI_RUN_URL"
+            fi
+            return
+        fi
+        if ! is_docs_only_commit "$candidate"; then
+            error "No CI fullstack run for ${candidate:0:8}, which changes more than docs. Run the E2E - Full Stack workflow on main, or pass --skip-tests."
+        fi
+        skipped=$((skipped + 1))
+    done
+    error "No CI fullstack run in the last 50 commits of main."
+}
+
+# The smoke suite targets the deployed QA environment rather than any
+# checkout: e2e-smoke.yml runs it on every push to main once QA serves that
+# commit. It runs for every commit, docs-only ones included.
+check_smoke_run() {
+    local sha
+    sha=$(git rev-parse HEAD)
+    info "Checking the QA smoke run for ${sha:0:8}..."
+
+    local run
+    run=$(ci_run_for e2e-smoke.yml "$sha")
+    if [ -z "$run" ]; then
+        error "No QA smoke run for ${sha:0:8}. Run the E2E - QA Smoke workflow on main, or pass --skip-tests."
+    fi
+    wait_for_ci_run e2e-smoke.yml "QA smoke" "$sha"
+
+    # The workflow succeeds without testing anything when QA never came up
+    # with this commit: it warns and skips the suite rather than failing.
+    local ran
+    ran=$(gh run view "$CI_RUN_ID" --json jobs \
+        -q '[.jobs[].steps[] | select(.name == "Run the smoke suite") | .conclusion] | first // ""')
+    if [ "$ran" != "success" ]; then
+        error "The QA smoke run for ${sha:0:8} passed without running the suite (QA did not serve this commit in time): $CI_RUN_URL"
+    fi
+    success "QA smoke run passed: $CI_RUN_URL"
 }
 
 # Check the documentation site (Docusaurus)
@@ -357,17 +463,18 @@ usage() {
     echo "  patch         Bump patch version (0.0.1 -> 0.0.2)"
     echo "  minor         Bump minor version (0.0.1 -> 0.1.0)"
     echo "  major         Bump major version (0.0.1 -> 1.0.0)"
-    echo "  --skip-tests  Skip the unit and end-to-end tests (formatting, linting,"
-    echo "                docs and vulnerability checks still run)"
+    echo "  --skip-tests  Skip the unit tests and the CI end-to-end checks"
+    echo "                (formatting, linting, docs and vulnerability checks still run)"
     echo ""
-    echo "The end-to-end tests need a local backend on :8080 and a provisioned"
-    echo "fixture (cd backend && ./apitool authz provision)."
+    echo "Local main must match origin/main. The E2E - Full Stack and E2E - QA Smoke"
+    echo "runs for that commit must pass on GitHub Actions: the script waits for them"
+    echo "(up to CI_WAIT_TIMEOUT seconds, default 2700) and reads them with gh."
     echo ""
     echo "Examples:"
     echo "  $0 patch               # For bug fixes"
     echo "  $0 minor               # For new features"
     echo "  $0 major               # For breaking changes"
-    echo "  $0 patch --skip-tests  # Tests already run on this commit"
+    echo "  $0 patch --skip-tests  # Skip tests and CI checks"
     exit 1
 }
 
@@ -400,11 +507,16 @@ main() {
         usage
     fi
 
+    if [ "$skip_tests" = false ] && ! command -v gh &> /dev/null; then
+        error "gh is required to read the CI end-to-end runs. Install it from https://cli.github.com, or pass --skip-tests."
+    fi
+
     info "Starting release process..."
 
     # Pre-flight checks
     check_git_status
     check_main_branch
+    check_up_to_date
 
     # Quality checks
     info "Running quality checks..."
@@ -426,7 +538,8 @@ main() {
         run_tests "collect"
         run_tests "frontend"
         run_tests "proxy"
-        run_e2e_tests
+        check_fullstack_run
+        check_smoke_run
     fi
     run_docs_checks
     run_vulnerability_checks
