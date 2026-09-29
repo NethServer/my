@@ -12,8 +12,6 @@ package export
 import (
 	"time"
 
-	"github.com/johnfercher/maroto/v2/pkg/consts/align"
-
 	"github.com/nethesis/my/backend/models"
 )
 
@@ -22,16 +20,16 @@ import (
 // and differ only in which counters their level carries.
 var (
 	distributorPDFColumns = organizationPDFColumns(2, 2,
-		pdfColumn{Title: "Resellers", Width: 1, Align: align.Right},
-		pdfColumn{Title: "Customers", Width: 1, Align: align.Right},
-		pdfColumn{Title: "Systems", Width: 1, Align: align.Right},
+		pdfColumn{Title: "Resellers", Width: 1, Align: alignRight},
+		pdfColumn{Title: "Customers", Width: 1, Align: alignRight},
+		pdfColumn{Title: "Systems", Width: 1, Align: alignRight},
 	)
 	resellerPDFColumns = organizationPDFColumns(3, 2,
-		pdfColumn{Title: "Customers", Width: 1, Align: align.Right},
-		pdfColumn{Title: "Systems", Width: 1, Align: align.Right},
+		pdfColumn{Title: "Customers", Width: 1, Align: alignRight},
+		pdfColumn{Title: "Systems", Width: 1, Align: alignRight},
 	)
 	customerPDFColumns = organizationPDFColumns(3, 3,
-		pdfColumn{Title: "Systems", Width: 1, Align: align.Right},
+		pdfColumn{Title: "Systems", Width: 1, Align: alignRight},
 	)
 )
 

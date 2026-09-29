@@ -10,6 +10,7 @@
 package export
 
 import (
+	"bytes"
 	_ "embed"
 	"fmt"
 	"sort"
@@ -18,19 +19,6 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/johnfercher/maroto/v2"
-	"github.com/johnfercher/maroto/v2/pkg/components/col"
-	"github.com/johnfercher/maroto/v2/pkg/components/image"
-	"github.com/johnfercher/maroto/v2/pkg/components/row"
-	"github.com/johnfercher/maroto/v2/pkg/components/text"
-	"github.com/johnfercher/maroto/v2/pkg/config"
-	"github.com/johnfercher/maroto/v2/pkg/consts/align"
-	"github.com/johnfercher/maroto/v2/pkg/consts/extension"
-	"github.com/johnfercher/maroto/v2/pkg/consts/fontfamily"
-	"github.com/johnfercher/maroto/v2/pkg/consts/fontstyle"
-	"github.com/johnfercher/maroto/v2/pkg/consts/orientation"
-	"github.com/johnfercher/maroto/v2/pkg/core"
-	"github.com/johnfercher/maroto/v2/pkg/props"
 	"github.com/jung-kurt/gofpdf"
 )
 
@@ -42,28 +30,40 @@ const (
 	dateTimeLayout = "2006-01-02 15:04 MST"
 
 	// A4 landscape, millimetres
-	pdfPageWidth    = 297.0
 	pdfMarginX      = 10.0
 	pdfMarginTop    = 10.0
 	pdfMarginBottom = 14.0
 	pdfGridColumns  = 12
 
+	pdfFont         = "Helvetica"
 	pdfCellPadding  = 2.0
 	pdfHeadHeight   = 7.5
 	pdfRowHeight    = 6.5
 	pdfHeadFontSize = 8.0
 	pdfBodyFontSize = 7.5
+	pdfLogoHeight   = 8.0
+	pdfLogoRatio    = 640.0 / 113.0 // width/height of assets/logo.png
 )
 
+type rgb struct{ r, g, b int }
+
 var (
-	pdfBrand = props.Color{Red: 2, Green: 132, Blue: 199} // sky-600, the frontend primary
-	pdfWhite = props.Color{Red: 255, Green: 255, Blue: 255}
-	pdfInk   = props.Color{Red: 31, Green: 41, Blue: 55}    // gray-800
-	pdfMuted = props.Color{Red: 107, Green: 114, Blue: 128} // gray-500
-	pdfZebra = props.Color{Red: 246, Green: 248, Blue: 250}
-	pdfGreen = props.Color{Red: 21, Green: 128, Blue: 61} // green-700
-	pdfAmber = props.Color{Red: 180, Green: 83, Blue: 9}  // amber-700
-	pdfRed   = props.Color{Red: 185, Green: 28, Blue: 28} // red-700
+	pdfBrand = rgb{2, 132, 199} // sky-600, the frontend primary
+	pdfWhite = rgb{255, 255, 255}
+	pdfInk   = rgb{31, 41, 55}    // gray-800
+	pdfMuted = rgb{107, 114, 128} // gray-500
+	pdfZebra = rgb{246, 248, 250}
+	pdfGreen = rgb{21, 128, 61} // green-700
+	pdfAmber = rgb{180, 83, 9}  // amber-700
+	pdfRed   = rgb{185, 28, 28} // red-700
+)
+
+// pdfAlign is the horizontal alignment of a column, in gofpdf notation
+type pdfAlign string
+
+const (
+	alignLeft  pdfAlign = "L"
+	alignRight pdfAlign = "R"
 )
 
 // pdfColumn is one column of a tabular report; the widths of a report's
@@ -71,9 +71,9 @@ var (
 type pdfColumn struct {
 	Title string
 	Width int
-	// Align is the horizontal alignment of both the title and the values;
-	// counters read best right-aligned
-	Align align.Type
+	// Align applies to both the title and the values; counters read best
+	// right-aligned. Empty means left.
+	Align pdfAlign
 	// Status columns colour their value by meaning (active, suspended, ...)
 	Status bool
 }
@@ -93,50 +93,28 @@ type pdfReport struct {
 // with the report metadata, a coloured column header and zebra rows, all
 // repeated on every page. Cell values are cut to the column width, so each
 // record stays on a single line.
+//
+// The table is drawn with gofpdf directly: one CellFormat per cell keeps a
+// 10,000-row export in the order of a second.
 func renderTablePDF(r pdfReport) ([]byte, error) {
 	if err := r.validate(); err != nil {
 		return nil, err
 	}
 
-	cfg := config.NewBuilder().
-		WithOrientation(orientation.Horizontal).
-		WithLeftMargin(pdfMarginX).
-		WithRightMargin(pdfMarginX).
-		WithTopMargin(pdfMarginTop).
-		WithBottomMargin(pdfMarginBottom).
-		WithDefaultFont(&props.Font{Family: fontfamily.Helvetica, Size: pdfBodyFontSize, Color: &pdfInk}).
-		WithPageNumber(props.PageNumber{
-			Pattern: "Page {current} of {total}",
-			Place:   props.RightBottom,
-			Family:  fontfamily.Helvetica,
-			Size:    7,
-			Color:   &pdfMuted,
-		}).
-		// plain (non UTF-8) metadata: browsers show a UTF-16 title as garbled text
-		WithTitle(fmt.Sprintf("%s - Export %s", r.Title, formatDate(time.Now())), false).
-		WithCreator("my.nethesis.it", false).
-		Build()
-
-	m := maroto.New(cfg)
-
-	measure := newTextMeasurer()
-
-	if err := m.RegisterHeader(r.headerRows(measure)...); err != nil {
-		return nil, fmt.Errorf("failed to register PDF header: %w", err)
-	}
+	doc := newPDFDocument(r)
+	doc.pdf.AddPage()
 
 	if len(r.Rows) == 0 {
-		m.AddRows(r.emptyRow())
+		doc.empty(r.Empty)
 	} else {
-		m.AddRows(r.bodyRows(measure)...)
+		doc.rows(r)
 	}
 
-	doc, err := m.Generate()
-	if err != nil {
+	var buf bytes.Buffer
+	if err := doc.pdf.Output(&buf); err != nil {
 		return nil, fmt.Errorf("failed to generate PDF: %w", err)
 	}
-
-	return doc.GetBytes(), nil
+	return buf.Bytes(), nil
 }
 
 func (r pdfReport) validate() error {
@@ -155,149 +133,134 @@ func (r pdfReport) validate() error {
 	return nil
 }
 
-// headerRows are repeated at the top of every page: logo and title, the
-// export metadata, the filters (when any) and the column header.
-func (r pdfReport) headerRows(measure *textMeasurer) []core.Row {
+// pdfDocument wraps the gofpdf document with the pieces every drawing step
+// needs: the core-font translator (built once) and the usable page width.
+type pdfDocument struct {
+	pdf   *gofpdf.Fpdf
+	tr    func(string) string
+	width float64
+}
+
+func newPDFDocument(r pdfReport) *pdfDocument {
+	pdf := gofpdf.New("L", "mm", "A4", "")
+	pdf.SetMargins(pdfMarginX, pdfMarginTop, pdfMarginX)
+	pdf.SetAutoPageBreak(true, pdfMarginBottom)
+	pdf.SetCellMargin(pdfCellPadding)
+	// plain (non UTF-8) metadata: browsers show a UTF-16 title as garbled text
+	pdf.SetTitle(fmt.Sprintf("%s - Export %s", r.Title, formatDate(time.Now())), false)
+	pdf.SetCreator("my.nethesis.it", false)
+	pdf.AliasNbPages("")
+	pdf.RegisterImageOptionsReader("logo", gofpdf.ImageOptions{ImageType: "PNG"}, bytes.NewReader(pdfLogo))
+
+	pageWidth, _ := pdf.GetPageSize()
+	d := &pdfDocument{
+		pdf:   pdf,
+		tr:    pdf.UnicodeTranslatorFromDescriptor(""),
+		width: pageWidth - 2*pdfMarginX,
+	}
+
 	subtitle := fmt.Sprintf("%d records   |   Generated %s", len(r.Rows), time.Now().Format(dateTimeLayout))
 	if r.ExportedBy != "" {
 		subtitle += "   |   Exported by " + r.ExportedBy
 	}
-
-	rows := []core.Row{
-		row.New(12).Add(
-			col.New(4).Add(image.NewFromBytes(pdfLogo, extension.Png, props.Rect{Percent: 62, Top: 1})),
-			col.New(8).Add(
-				text.New(r.Title, props.Text{
-					Size:  15,
-					Style: fontstyle.Bold,
-					Align: align.Right,
-					Color: &pdfInk,
-					Top:   0.5,
-				}),
-				text.New(subtitle, props.Text{
-					Size:  7,
-					Align: align.Right,
-					Color: &pdfMuted,
-					Top:   7.5,
-				}),
-			),
-		),
-	}
-
+	filters := ""
 	if len(r.Filters) > 0 {
-		filtersText := "Filters: " + formatFilters(r.Filters)
-		rows = append(rows, row.New(5).Add(
-			col.New(pdfGridColumns).Add(text.New(measure.fit(filtersText, 7, pdfUsableWidth()), props.Text{
-				Size:  7,
-				Align: align.Right,
-				Color: &pdfMuted,
-				Top:   0.5,
-			})),
-		))
+		filters = "Filters: " + formatFilters(r.Filters)
 	}
 
-	rows = append(rows, row.New(3))
+	pdf.SetHeaderFunc(func() { d.header(r, subtitle, filters) })
+	pdf.SetFooterFunc(d.footer)
 
-	head := row.New(pdfHeadHeight).WithStyle(&props.Cell{BackgroundColor: &pdfBrand})
+	// the body font is the state gofpdf restores after every page header
+	d.setFont("", pdfBodyFontSize, pdfInk)
+	return d
+}
+
+// header is drawn at the top of every page: logo and title, the export
+// metadata, the filters (when any) and the column header.
+func (d *pdfDocument) header(r pdfReport, subtitle, filters string) {
+	pdf := d.pdf
+
+	pdf.ImageOptions("logo", pdfMarginX, pdfMarginTop+1, pdfLogoHeight*pdfLogoRatio, pdfLogoHeight, false, gofpdf.ImageOptions{ImageType: "PNG"}, 0, "")
+
+	pdf.SetXY(pdfMarginX, pdfMarginTop)
+	d.setFont("B", 15, pdfInk)
+	pdf.CellFormat(d.width, 8, d.tr(r.Title), "", 1, "R", false, 0, "")
+
+	d.setFont("", 7, pdfMuted)
+	pdf.CellFormat(d.width, 4, d.tr(subtitle), "", 1, "R", false, 0, "")
+	if filters != "" {
+		pdf.CellFormat(d.width, 4, d.tr(d.fit(filters, d.width-2*pdfCellPadding)), "", 1, "R", false, 0, "")
+	}
+	pdf.Ln(3)
+
+	d.setFont("B", pdfHeadFontSize, pdfWhite)
+	d.setFillColor(pdfBrand)
 	for _, c := range r.Columns {
-		head.Add(text.NewCol(c.Width, c.Title, props.Text{
-			Size:  pdfHeadFontSize,
-			Style: fontstyle.Bold,
-			Color: &pdfWhite,
-			Align: c.Align,
-			Left:  pdfCellPadding,
-			Right: pdfCellPadding,
-			Top:   2.3,
-		}))
+		pdf.CellFormat(d.columnWidth(c.Width), pdfHeadHeight, d.tr(c.Title), "", 0, c.align(), true, 0, "")
 	}
-	rows = append(rows, head)
-
-	return rows
+	pdf.Ln(-1)
 }
 
-func (r pdfReport) bodyRows(measure *textMeasurer) []core.Row {
-	rows := make([]core.Row, 0, len(r.Rows))
+func (d *pdfDocument) footer() {
+	d.pdf.SetY(-10)
+	d.setFont("", 7, pdfMuted)
+	d.pdf.CellFormat(0, 5, fmt.Sprintf("Page %d of {nb}", d.pdf.PageNo()), "", 0, "R", false, 0, "")
+}
+
+func (d *pdfDocument) rows(r pdfReport) {
+	pdf := d.pdf
+	widths := make([]float64, len(r.Columns))
+	for j, c := range r.Columns {
+		widths[j] = d.columnWidth(c.Width)
+	}
+
+	d.setFont("", pdfBodyFontSize, pdfInk)
+	d.setFillColor(pdfZebra)
 	for i, cells := range r.Rows {
-		line := row.New(pdfRowHeight)
-		if i%2 == 0 {
-			line.WithStyle(&props.Cell{BackgroundColor: &pdfZebra})
-		}
+		zebra := i%2 == 0
 		for j, c := range r.Columns {
-			available := pdfColumnWidth(c.Width) - 2*pdfCellPadding
-			color := &pdfInk
+			value := d.fit(cells[j], widths[j]-2*pdfCellPadding)
 			if c.Status {
-				color = statusColor(cells[j])
+				d.setTextColor(statusColor(cells[j]))
 			}
-			line.Add(text.NewCol(c.Width, measure.fit(cells[j], pdfBodyFontSize, available), props.Text{
-				Size:  pdfBodyFontSize,
-				Color: color,
-				Align: c.Align,
-				Left:  pdfCellPadding,
-				Right: pdfCellPadding,
-				Top:   2.0,
-			}))
+			pdf.CellFormat(widths[j], pdfRowHeight, d.tr(value), "", 0, c.align(), zebra, 0, "")
+			if c.Status {
+				d.setTextColor(pdfInk)
+			}
 		}
-		rows = append(rows, line)
-	}
-	return rows
-}
-
-func (r pdfReport) emptyRow() core.Row {
-	return row.New(14).Add(
-		col.New(pdfGridColumns).Add(text.New(r.Empty, props.Text{
-			Size:  9,
-			Style: fontstyle.Italic,
-			Align: align.Center,
-			Color: &pdfMuted,
-			Top:   5,
-		})),
-	)
-}
-
-// statusColor maps a status label to the colour the frontend badges use for it
-func statusColor(label string) *props.Color {
-	switch strings.ToLower(strings.TrimSpace(label)) {
-	case "active", "assigned":
-		return &pdfGreen
-	case "suspended", "deleted":
-		return &pdfRed
-	case "inactive", "not active", "unassigned", "unknown":
-		return &pdfAmber
-	default:
-		return &pdfInk
+		pdf.Ln(-1)
 	}
 }
 
-func pdfUsableWidth() float64 {
-	return pdfPageWidth - 2*pdfMarginX
+func (d *pdfDocument) empty(message string) {
+	d.pdf.Ln(4)
+	d.setFont("I", 9, pdfMuted)
+	d.pdf.CellFormat(d.width, 8, d.tr(message), "", 1, "C", false, 0, "")
 }
 
-func pdfColumnWidth(units int) float64 {
-	return pdfUsableWidth() / pdfGridColumns * float64(units)
+func (d *pdfDocument) columnWidth(units int) float64 {
+	return d.width / pdfGridColumns * float64(units)
 }
 
-// textMeasurer measures strings with the same core font the PDF is rendered
-// with, so a cell is cut exactly where it would stop fitting its column.
-type textMeasurer struct {
-	pdf       *gofpdf.Fpdf
-	translate func(string) string
+func (d *pdfDocument) setFont(style string, size float64, color rgb) {
+	d.pdf.SetFont(pdfFont, style, size)
+	d.setTextColor(color)
 }
 
-func newTextMeasurer() *textMeasurer {
-	pdf := gofpdf.New("L", "mm", "A4", "")
-	return &textMeasurer{pdf: pdf, translate: pdf.UnicodeTranslatorFromDescriptor("")}
+func (d *pdfDocument) setTextColor(c rgb) { d.pdf.SetTextColor(c.r, c.g, c.b) }
+func (d *pdfDocument) setFillColor(c rgb) { d.pdf.SetFillColor(c.r, c.g, c.b) }
+
+// textWidth measures s with the current font, in millimetres
+func (d *pdfDocument) textWidth(s string) float64 {
+	return d.pdf.GetStringWidth(d.tr(s))
 }
 
-func (t *textMeasurer) width(s string, size float64) float64 {
-	t.pdf.SetFont("Helvetica", "", size)
-	return t.pdf.GetStringWidth(t.translate(s))
-}
-
-// fit returns s when it fits in width millimetres at the given font size,
+// fit returns s when it fits in width millimetres with the current font,
 // otherwise the longest prefix that does, followed by an ellipsis.
-func (t *textMeasurer) fit(s string, size, width float64) string {
-	s = strings.TrimSpace(strings.Join(strings.Fields(s), " "))
-	full := t.width(s, size)
+func (d *pdfDocument) fit(s string, width float64) string {
+	s = strings.Join(strings.Fields(s), " ")
+	full := d.textWidth(s)
 	if full <= width {
 		return s
 	}
@@ -312,11 +275,32 @@ func (t *textMeasurer) fit(s string, size, width float64) string {
 	}
 	for ; n > 0; n-- {
 		candidate := strings.TrimRight(string(runes[:n]), " ") + ellipsis
-		if t.width(candidate, size) <= width {
+		if d.textWidth(candidate) <= width {
 			return candidate
 		}
 	}
 	return ellipsis
+}
+
+func (c pdfColumn) align() string {
+	if c.Align == "" {
+		return string(alignLeft)
+	}
+	return string(c.Align)
+}
+
+// statusColor maps a status label to the colour the frontend badges use for it
+func statusColor(label string) rgb {
+	switch strings.ToLower(strings.TrimSpace(label)) {
+	case "active", "assigned":
+		return pdfGreen
+	case "suspended", "deleted":
+		return pdfRed
+	case "inactive", "not active", "unassigned", "unknown":
+		return pdfAmber
+	default:
+		return pdfInk
+	}
 }
 
 // formatFilters renders the applied filters in a stable order

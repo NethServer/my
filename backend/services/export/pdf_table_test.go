@@ -19,21 +19,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTextMeasurerFit(t *testing.T) {
-	m := newTextMeasurer()
+func TestFitText(t *testing.T) {
+	d := newPDFDocument(pdfReport{Title: "Test"})
 
-	assert.Equal(t, "short", m.fit("short", pdfBodyFontSize, 40))
-	assert.Equal(t, "two  words", strings.Join(strings.Fields(m.fit("two  words", pdfBodyFontSize, 40)), "  "),
-		"internal whitespace is collapsed to single spaces")
+	assert.Equal(t, "short", d.fit("short", 40))
+	assert.Equal(t, "two words", d.fit("two   words", 40), "internal whitespace is collapsed")
 
 	long := strings.Repeat("Rimini Informatica ", 10)
-	cut := m.fit(long, pdfBodyFontSize, 30)
+	cut := d.fit(long, 30)
 	assert.True(t, strings.HasSuffix(cut, "..."), "cut text ends with an ellipsis: %q", cut)
 	assert.Less(t, len(cut), len(long))
-	assert.LessOrEqual(t, m.width(cut, pdfBodyFontSize), 30.0, "cut text fits the requested width")
+	assert.LessOrEqual(t, d.textWidth(cut), 30.0, "cut text fits the requested width")
 
-	// a wider prefix must still fit once the ellipsis is accounted for
-	assert.Equal(t, "...", m.fit("WWWWWWWWWW", pdfBodyFontSize, 3))
+	// nothing but the ellipsis fits in a sliver
+	assert.Equal(t, "...", d.fit("WWWWWWWWWW", 3))
 }
 
 func TestFormatFiltersIsSorted(t *testing.T) {
