@@ -132,11 +132,11 @@ export const exportFileName = (name: string, format: 'pdf' | 'csv', date = new D
   return `${slug || 'export'}-${day}.${format}`
 }
 
-export const downloadFile = (fileData: string, filename: string, type: 'pdf' | 'csv') => {
+export const downloadFile = (fileData: Blob | string, filename: string, type: 'pdf' | 'csv') => {
   const mimeType = type === 'pdf' ? 'application/pdf' : 'text/csv;charset=utf-8;'
 
-  // Convert the PDF string to a Blob
-  const blob = new Blob([fileData], { type: mimeType })
+  // a Blob keeps binary bodies (PDF) byte for byte; text is wrapped as is
+  const blob = fileData instanceof Blob ? fileData : new Blob([fileData], { type: mimeType })
 
   // Create a download link
   const link = document.createElement('a')

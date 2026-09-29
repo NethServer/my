@@ -436,8 +436,10 @@ export const getExport = (
   )
 
   return axios
-    .get(`${API_URL}/systems/export?${params}`, {
+    .get<Blob>(`${API_URL}/systems/export?${params}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+      // binary body: reading it as text would corrupt the PDF
+      responseType: 'blob',
     })
     .then((res) => res.data)
 }
