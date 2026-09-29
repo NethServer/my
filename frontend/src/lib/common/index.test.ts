@@ -3,6 +3,7 @@
 
 import {
   abbreviateNumber,
+  exportFileName,
   extractUrls,
   getQueryStringParams,
   normalize,
@@ -189,5 +190,24 @@ describe('abbreviateNumber', () => {
   it('honors a custom number of decimals', () => {
     expect(abbreviateNumber(12345, 'en-US', 10000, 0)).toBe('12K')
     expect(abbreviateNumber(12345, 'en-US', 10000, 2)).toBe('12.35K')
+  })
+})
+
+describe('exportFileName', () => {
+  const day = new Date(2026, 8, 29, 15, 30)
+
+  it('slugifies the name and appends the local export date', () => {
+    expect(exportFileName('Users', 'pdf', day)).toBe('users-2026-09-29.pdf')
+    expect(exportFileName('Sistemi', 'csv', day)).toBe('sistemi-2026-09-29.csv')
+  })
+
+  it('strips accents, spaces and punctuation', () => {
+    expect(exportFileName('Città & Aziende  (test)', 'pdf', day)).toBe(
+      'citta-aziende-test-2026-09-29.pdf',
+    )
+  })
+
+  it('falls back to a generic name when nothing is left', () => {
+    expect(exportFileName('***', 'csv', day)).toBe('export-2026-09-29.csv')
   })
 })

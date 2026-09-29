@@ -115,6 +115,23 @@ export const abbreviateNumber = (
   }).format(value)
 }
 
+// name of a downloaded export, e.g. "users-2026-09-29.pdf": the resource name
+// as a slug plus the local date of the export
+export const exportFileName = (name: string, format: 'pdf' | 'csv', date = new Date()) => {
+  const slug = name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  const day = [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-')
+  return `${slug || 'export'}-${day}.${format}`
+}
+
 export const downloadFile = (fileData: string, filename: string, type: 'pdf' | 'csv') => {
   const mimeType = type === 'pdf' ? 'application/pdf' : 'text/csv;charset=utf-8;'
 

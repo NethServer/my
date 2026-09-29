@@ -28,7 +28,7 @@ import {
   CUSTOMERS_TOTAL_KEY,
   type CustomerStatus,
 } from '@/lib/organizations/customers'
-import { downloadFile } from '@/lib/common'
+import { downloadFile, exportFileName } from '@/lib/common'
 import { useRoute, useRouter } from 'vue-router'
 
 const { t } = useI18n()
@@ -110,7 +110,7 @@ async function exportCustomers(format: 'pdf' | 'csv') {
       sortBy.value,
       sortDescending.value,
     )
-    const fileName = `${t('customers.title')}.${format}`
+    const fileName = exportFileName(t('customers.title'), format)
     downloadFile(exportData, fileName, format)
   } catch (error) {
     console.error(`Cannot export customers to ${format}:`, error)

@@ -28,7 +28,7 @@ import {
   DISTRIBUTORS_TOTAL_KEY,
   type DistributorStatus,
 } from '@/lib/organizations/distributors'
-import { downloadFile } from '@/lib/common'
+import { downloadFile, exportFileName } from '@/lib/common'
 
 const { t } = useI18n()
 const { state, debouncedTextFilter, statusFilter, createdByFilter, sortBy, sortDescending } =
@@ -76,7 +76,7 @@ async function exportDistributors(format: 'pdf' | 'csv') {
       sortBy.value,
       sortDescending.value,
     )
-    const fileName = `${t('distributors.title')}.${format}`
+    const fileName = exportFileName(t('distributors.title'), format)
     downloadFile(exportData, fileName, format)
   } catch (error) {
     console.error(`Cannot export distributors to ${format}:`, error)

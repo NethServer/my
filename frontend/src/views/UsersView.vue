@@ -21,7 +21,7 @@ import { canManageUsers } from '@/lib/permissions'
 import { useUsers } from '@/queries/users/users'
 import { useI18n } from 'vue-i18n'
 import { getExport, type UserStatus } from '@/lib/users/users'
-import { downloadFile } from '@/lib/common'
+import { downloadFile, exportFileName } from '@/lib/common'
 
 const { t } = useI18n()
 const {
@@ -79,7 +79,7 @@ async function exportUsers(format: 'pdf' | 'csv') {
       sortBy.value,
       sortDescending.value,
     )
-    const fileName = `${t('users.title')}.${format}`
+    const fileName = exportFileName(t('users.title'), format)
     downloadFile(exportData, fileName, format)
   } catch (error) {
     console.error(`Cannot export users to ${format}:`, error)

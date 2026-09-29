@@ -19,7 +19,7 @@ import { useSystems } from '@/queries/systems/systems'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { getExport, type SystemStatus } from '@/lib/systems/systems'
-import { downloadFile } from '@/lib/common'
+import { downloadFile, exportFileName } from '@/lib/common'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -102,7 +102,7 @@ async function exportSystems(format: 'pdf' | 'csv') {
       sortBy.value,
       sortDescending.value,
     )
-    const fileName = `${t('systems.title')}.${format}`
+    const fileName = exportFileName(t('systems.title'), format)
     downloadFile(exportData, fileName, format)
   } catch (error) {
     console.error(`Cannot export systems to ${format}:`, error)

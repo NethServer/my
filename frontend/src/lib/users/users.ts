@@ -5,7 +5,7 @@ import axios from 'axios'
 import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
-import { downloadFile, type Pagination } from '../common'
+import { downloadFile, exportFileName, type Pagination } from '../common'
 
 export const USERS_KEY = 'users'
 export const USERS_TOTAL_KEY = 'usersTotal'
@@ -353,7 +353,7 @@ export const getExport = (
 export async function exportUser(user: User, format: 'pdf' | 'csv') {
   try {
     const exportData = await getExport(format, user.email)
-    const fileName = `${user.name}.${format}`
+    const fileName = exportFileName(user.name, format)
     downloadFile(exportData, fileName, format)
   } catch (error) {
     console.error(`Cannot export user to ${format}:`, error)

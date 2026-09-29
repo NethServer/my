@@ -28,7 +28,7 @@ import {
   RESELLERS_TOTAL_KEY,
   type ResellerStatus,
 } from '@/lib/organizations/resellers'
-import { downloadFile } from '@/lib/common'
+import { downloadFile, exportFileName } from '@/lib/common'
 import { useRoute, useRouter } from 'vue-router'
 
 const { t } = useI18n()
@@ -99,7 +99,7 @@ async function exportResellers(format: 'pdf' | 'csv') {
       sortBy.value,
       sortDescending.value,
     )
-    const fileName = `${t('resellers.title')}.${format}`
+    const fileName = exportFileName(t('resellers.title'), format)
     downloadFile(exportData, fileName, format)
   } catch (error) {
     console.error(`Cannot export resellers to ${format}:`, error)
