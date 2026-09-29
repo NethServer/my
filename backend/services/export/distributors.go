@@ -14,19 +14,6 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"strconv"
-	"time"
-
-	"github.com/johnfercher/maroto/v2"
-	"github.com/johnfercher/maroto/v2/pkg/components/col"
-	"github.com/johnfercher/maroto/v2/pkg/components/text"
-	"github.com/johnfercher/maroto/v2/pkg/config"
-	"github.com/johnfercher/maroto/v2/pkg/consts/align"
-	"github.com/johnfercher/maroto/v2/pkg/consts/fontfamily"
-	"github.com/johnfercher/maroto/v2/pkg/consts/fontstyle"
-	"github.com/johnfercher/maroto/v2/pkg/consts/orientation"
-	"github.com/johnfercher/maroto/v2/pkg/core"
-	"github.com/johnfercher/maroto/v2/pkg/props"
 
 	"github.com/nethesis/my/backend/models"
 )
@@ -48,6 +35,10 @@ func (s *DistributorsExportService) ExportToCSV(distributors []*models.LocalDist
 	header := []string{
 		"Name",
 		"Description",
+		"Resellers",
+		"Customers",
+		"Systems",
+		"Legacy Systems",
 		"Custom Data",
 		"Created At",
 		"Updated At",
@@ -79,6 +70,10 @@ func (s *DistributorsExportService) ExportToCSV(distributors []*models.LocalDist
 		row := []string{
 			distributor.Name,
 			distributor.Description,
+			formatCount(distributor.ResellersCount),
+			formatCount(distributor.CustomersCount),
+			formatCount(distributor.SystemsCount),
+			formatCount(distributor.LegacySystemsCount),
 			customDataStr,
 			createdAt,
 			updatedAt,
@@ -100,136 +95,17 @@ func (s *DistributorsExportService) ExportToCSV(distributors []*models.LocalDist
 
 // ExportToPDF exports distributors to PDF format
 func (s *DistributorsExportService) ExportToPDF(distributors []*models.LocalDistributor, filters map[string]interface{}, exportedBy string) ([]byte, error) {
-	cfg := config.NewBuilder().
-		WithPageNumber().
-		WithOrientation(orientation.Horizontal).
-		Build()
-
-	m := maroto.New(cfg)
-
-	// Add header
-	s.addPDFHeader(m, len(distributors), filters, exportedBy)
-
-	// Add table with distributors data
-	if len(distributors) > 0 {
-		s.addPDFTable(m, distributors)
-	} else {
-		m.AddRow(20,
-			col.New(12).Add(text.New("No distributors found with the applied filters.", props.Text{
-				Align: align.Center,
-				Size:  12,
-			})),
-		)
+	rows := make([][]string, 0, len(distributors))
+	for _, org := range distributors {
+		rows = append(rows, organizationPDFRow(org.Name, org.Description, org.CustomData, org.CreatedBy, org.SuspendedAt, org.CreatedAt, org.ResellersCount, org.CustomersCount, org.SystemsCount))
 	}
 
-	// Generate PDF
-	doc, err := m.Generate()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate PDF: %w", err)
-	}
-
-	return doc.GetBytes(), nil
-}
-
-// addPDFHeader adds header section to PDF
-func (s *DistributorsExportService) addPDFHeader(m core.Maroto, totalDistributors int, filters map[string]interface{}, exportedBy string) {
-	// Title
-	m.AddRow(10,
-		col.New(12).Add(text.New("Distributors Export Report", props.Text{
-			Size:   16,
-			Family: fontfamily.Helvetica,
-			Align:  align.Center,
-			Style:  fontstyle.Bold,
-		})),
-	)
-
-	// Metadata
-	m.AddRow(6,
-		col.New(6).Add(text.New("Generated: "+time.Now().Format("2006-01-02 15:04:05 MST"), props.Text{
-			Size: 8,
-		})),
-		col.New(6).Add(text.New("Total Distributors: "+strconv.Itoa(totalDistributors), props.Text{
-			Size:  8,
-			Align: align.Right,
-		})),
-	)
-
-	// Filters applied
-	if len(filters) > 0 {
-		filtersText := "Filters Applied: " + formatFilters(filters)
-		m.AddRow(6,
-			col.New(12).Add(text.New(filtersText, props.Text{
-				Size: 8,
-			})),
-		)
-	}
-
-	// Exported by
-	if exportedBy != "" {
-		m.AddRow(6,
-			col.New(12).Add(text.New("Exported by: "+exportedBy, props.Text{
-				Size: 8,
-			})),
-		)
-	}
-
-	// Spacing
-	m.AddRow(5)
-}
-
-// addPDFTable adds distributors table to PDF with card-style layout
-func (s *DistributorsExportService) addPDFTable(m core.Maroto, distributors []*models.LocalDistributor) {
-	for i, distributor := range distributors {
-		// Add spacing between distributors
-		if i > 0 {
-			m.AddRow(3)
-		}
-
-		// Main info row: Name (bold) | Organization Info | Created At
-		m.AddRow(8,
-			col.New(4).Add(text.New(distributor.Name, props.Text{
-				Size:  9,
-				Style: fontstyle.Bold,
-			})),
-			col.New(4).Add(text.New("Organization Info", props.Text{
-				Size:  7,
-				Style: fontstyle.Bold,
-			})),
-			col.New(4).Add(text.New("Created At", props.Text{
-				Size:  7,
-				Style: fontstyle.Bold,
-			})),
-		)
-
-		// Second row: Empty | Description | Created date
-		descriptionText := distributor.Description
-		if descriptionText == "" {
-			descriptionText = "No description"
-		}
-
-		createdDate := distributor.CreatedAt.Format("2006-01-02 15:04")
-
-		m.AddRow(6,
-			col.New(4).Add(text.New("", props.Text{Size: 6})),
-			col.New(4).Add(text.New("Description: "+truncate(descriptionText, 60), props.Text{Size: 6})),
-			col.New(4).Add(text.New(createdDate, props.Text{Size: 6})),
-		)
-
-		// Third row: Empty | VAT | Empty
-		vatText := "VAT: N/A"
-		if distributor.CustomData != nil {
-			if vat, ok := distributor.CustomData["vat"].(string); ok && vat != "" {
-				vatText = "VAT: " + vat
-			}
-		}
-
-		m.AddRow(6,
-			col.New(4).Add(text.New("", props.Text{Size: 6})),
-			col.New(4).Add(text.New(vatText, props.Text{Size: 6})),
-			col.New(4).Add(text.New("", props.Text{Size: 6})),
-		)
-
-		// Separator line
-		m.AddRow(1)
-	}
+	return renderTablePDF(pdfReport{
+		Title:      "Distributors",
+		Filters:    filters,
+		ExportedBy: exportedBy,
+		Columns:    distributorPDFColumns,
+		Rows:       rows,
+		Empty:      "No distributors found with the applied filters.",
+	})
 }
