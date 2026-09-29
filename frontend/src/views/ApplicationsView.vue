@@ -28,6 +28,10 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 const { t } = useI18n()
+
+// the export runs on the whole filtered list and can take a while: one at a time,
+// with the Actions button showing progress
+const isExporting = ref(false)
 const route = useRoute()
 const router = useRouter()
 const loginStore = useLoginStore()
@@ -109,20 +113,21 @@ function getBulkActionsMenuItems() {
       label: t('applications.export_applications_to_pdf'),
       icon: faFilePdf,
       action: () => exportApplications('pdf'),
-      disabled: !state.value.data?.applications.length,
+      disabled: isExporting.value || !state.value.data?.applications.length,
     },
     {
       id: 'exportFilteredToCsv',
       label: t('applications.export_applications_to_csv'),
       icon: faFileCsv,
       action: () => exportApplications('csv'),
-      disabled: !state.value.data?.applications.length,
+      disabled: isExporting.value || !state.value.data?.applications.length,
     },
   ]
 }
 
 async function exportApplications(format: 'pdf' | 'csv') {
   try {
+    isExporting.value = true
     const exportData = await getExport(
       format,
       debouncedTextFilter.value,
@@ -139,6 +144,8 @@ async function exportApplications(format: 'pdf' | 'csv') {
   } catch (error) {
     console.error(`Cannot export applications to ${format}:`, error)
     throw error
+  } finally {
+    isExporting.value = false
   }
 }
 </script>
@@ -157,7 +164,7 @@ async function exportApplications(format: 'pdf' | 'csv') {
           :openMenuAriaLabel="$t('ne_dropdown.open_menu')"
         >
           <template #button>
-            <NeButton>
+            <NeButton :disabled="isExporting" :loading="isExporting" loading-position="suffix">
               <template #suffix>
                 <FontAwesomeIcon :icon="faChevronDown" class="h-4 w-4" aria-hidden="true" />
               </template>

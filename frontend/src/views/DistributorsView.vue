@@ -31,6 +31,10 @@ import {
 import { downloadFile, exportFileName } from '@/lib/common'
 
 const { t } = useI18n()
+
+// the export runs on the whole filtered list and can take a while: one at a time,
+// with the Actions button showing progress
+const isExporting = ref(false)
 const { state, debouncedTextFilter, statusFilter, createdByFilter, sortBy, sortDescending } =
   useDistributors()
 
@@ -54,20 +58,21 @@ function getBulkActionsMenuItems() {
       label: t('distributors.export_distributors_to_pdf'),
       icon: faFilePdf,
       action: () => exportDistributors('pdf'),
-      disabled: !state.value.data?.distributors.length,
+      disabled: isExporting.value || !state.value.data?.distributors.length,
     },
     {
       id: 'exportFilteredToCsv',
       label: t('distributors.export_distributors_to_csv'),
       icon: faFileCsv,
       action: () => exportDistributors('csv'),
-      disabled: !state.value.data?.distributors.length,
+      disabled: isExporting.value || !state.value.data?.distributors.length,
     },
   ]
 }
 
 async function exportDistributors(format: 'pdf' | 'csv') {
   try {
+    isExporting.value = true
     const exportData = await getExport(
       format,
       debouncedTextFilter.value,
@@ -81,6 +86,8 @@ async function exportDistributors(format: 'pdf' | 'csv') {
   } catch (error) {
     console.error(`Cannot export distributors to ${format}:`, error)
     throw error
+  } finally {
+    isExporting.value = false
   }
 }
 </script>
@@ -100,7 +107,7 @@ async function exportDistributors(format: 'pdf' | 'csv') {
         >
           >
           <template #button>
-            <NeButton>
+            <NeButton :disabled="isExporting" :loading="isExporting" loading-position="suffix">
               <template #suffix>
                 <FontAwesomeIcon
                   :icon="faChevronDown"

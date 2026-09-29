@@ -22,6 +22,10 @@ import { getExport, type SystemStatus } from '@/lib/systems/systems'
 import { downloadFile, exportFileName } from '@/lib/common'
 
 const { t } = useI18n()
+
+// the export runs on the whole filtered list and can take a while: one at a time,
+// with the Actions button showing progress
+const isExporting = ref(false)
 const route = useRoute()
 const router = useRouter()
 
@@ -74,20 +78,21 @@ function getBulkActionsMenuItems() {
       label: t('systems.export_systems_to_pdf'),
       icon: faFilePdf,
       action: () => exportSystems('pdf'),
-      disabled: !state.value.data?.systems.length,
+      disabled: isExporting.value || !state.value.data?.systems.length,
     },
     {
       id: 'exportFilteredToCsv',
       label: t('systems.export_systems_to_csv'),
       icon: faFileCsv,
       action: () => exportSystems('csv'),
-      disabled: !state.value.data?.systems.length,
+      disabled: isExporting.value || !state.value.data?.systems.length,
     },
   ]
 }
 
 async function exportSystems(format: 'pdf' | 'csv') {
   try {
+    isExporting.value = true
     const exportData = await getExport(
       format,
       undefined,
@@ -107,6 +112,8 @@ async function exportSystems(format: 'pdf' | 'csv') {
   } catch (error) {
     console.error(`Cannot export systems to ${format}:`, error)
     throw error
+  } finally {
+    isExporting.value = false
   }
 }
 </script>
@@ -126,7 +133,7 @@ async function exportSystems(format: 'pdf' | 'csv') {
         >
           >
           <template #button>
-            <NeButton>
+            <NeButton :disabled="isExporting" :loading="isExporting" loading-position="suffix">
               <template #suffix>
                 <FontAwesomeIcon
                   :icon="faChevronDown"

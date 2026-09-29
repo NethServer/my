@@ -32,6 +32,10 @@ import { downloadFile, exportFileName } from '@/lib/common'
 import { useRoute, useRouter } from 'vue-router'
 
 const { t } = useI18n()
+
+// the export runs on the whole filtered list and can take a while: one at a time,
+// with the Actions button showing progress
+const isExporting = ref(false)
 const route = useRoute()
 const router = useRouter()
 const {
@@ -86,20 +90,21 @@ function getBulkActionsMenuItems() {
       label: t('customers.export_customers_to_pdf'),
       icon: faFilePdf,
       action: () => exportCustomers('pdf'),
-      disabled: !state.value.data?.customers.length,
+      disabled: isExporting.value || !state.value.data?.customers.length,
     },
     {
       id: 'exportFilteredToCsv',
       label: t('customers.export_customers_to_csv'),
       icon: faFileCsv,
       action: () => exportCustomers('csv'),
-      disabled: !state.value.data?.customers.length,
+      disabled: isExporting.value || !state.value.data?.customers.length,
     },
   ]
 }
 
 async function exportCustomers(format: 'pdf' | 'csv') {
   try {
+    isExporting.value = true
     const exportData = await getExport(
       format,
       debouncedTextFilter.value,
@@ -115,6 +120,8 @@ async function exportCustomers(format: 'pdf' | 'csv') {
   } catch (error) {
     console.error(`Cannot export customers to ${format}:`, error)
     throw error
+  } finally {
+    isExporting.value = false
   }
 }
 </script>
@@ -133,7 +140,7 @@ async function exportCustomers(format: 'pdf' | 'csv') {
           :openMenuAriaLabel="$t('ne_dropdown.open_menu')"
         >
           <template #button>
-            <NeButton>
+            <NeButton :disabled="isExporting" :loading="isExporting" loading-position="suffix">
               <template #suffix>
                 <FontAwesomeIcon
                   :icon="faChevronDown"

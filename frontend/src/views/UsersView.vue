@@ -10,10 +10,10 @@ import ImportUsersModal from '@/components/users/ImportUsersModal.vue'
 import { ref } from 'vue'
 import {
   faChevronDown,
+  faCircleArrowUp,
   faCirclePlus,
   faFileCsv,
   faFilePdf,
-  faCircleArrowUp,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { PRODUCT_NAME } from '@/lib/config'
@@ -24,6 +24,10 @@ import { getExport, type UserStatus } from '@/lib/users/users'
 import { downloadFile, exportFileName } from '@/lib/common'
 
 const { t } = useI18n()
+
+// the export runs on the whole filtered list and can take a while: one at a time,
+// with the Actions button showing progress
+const isExporting = ref(false)
 const {
   state,
   debouncedTextFilter,
@@ -55,20 +59,21 @@ function getBulkActionsMenuItems() {
       label: t('users.export_users_to_pdf'),
       icon: faFilePdf,
       action: () => exportUsers('pdf'),
-      disabled: !state.value.data?.users.length,
+      disabled: isExporting.value || !state.value.data?.users.length,
     },
     {
       id: 'exportFilteredToCsv',
       label: t('users.export_users_to_csv'),
       icon: faFileCsv,
       action: () => exportUsers('csv'),
-      disabled: !state.value.data?.users.length,
+      disabled: isExporting.value || !state.value.data?.users.length,
     },
   ]
 }
 
 async function exportUsers(format: 'pdf' | 'csv') {
   try {
+    isExporting.value = true
     const exportData = await getExport(
       format,
       debouncedTextFilter.value,
@@ -84,6 +89,8 @@ async function exportUsers(format: 'pdf' | 'csv') {
   } catch (error) {
     console.error(`Cannot export users to ${format}:`, error)
     throw error
+  } finally {
+    isExporting.value = false
   }
 }
 </script>
@@ -102,7 +109,7 @@ async function exportUsers(format: 'pdf' | 'csv') {
           :openMenuAriaLabel="$t('ne_dropdown.open_menu')"
         >
           <template #button>
-            <NeButton>
+            <NeButton :disabled="isExporting" :loading="isExporting" loading-position="suffix">
               <template #suffix>
                 <FontAwesomeIcon :icon="faChevronDown" class="h-4 w-4" aria-hidden="true" />
               </template>
