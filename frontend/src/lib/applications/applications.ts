@@ -93,7 +93,57 @@ export const getQueryStringParams = (
     sort_by: sortBy || '',
     sort_direction: sortDescending ? 'desc' : 'asc',
   })
+  appendFilterParams(
+    searchParams,
+    textFilter,
+    typeFilter,
+    versionFilter,
+    systemFilter,
+    organizationFilter,
+    includeHierarchy,
+  )
+  return searchParams.toString()
+}
 
+// the export takes the same filters as the list, so the file carries exactly
+// the rows shown on screen
+export const getQueryStringParamsForExport = (
+  format: 'csv' | 'pdf',
+  textFilter: string,
+  typeFilter: string[],
+  versionFilter: string[],
+  systemFilter: string[],
+  organizationFilter: string[],
+  includeHierarchy: boolean,
+  sortBy: string,
+  sortDescending: boolean,
+) => {
+  const searchParams = new URLSearchParams({
+    format,
+    sort_by: sortBy,
+    sort_direction: sortDescending ? 'desc' : 'asc',
+  })
+  appendFilterParams(
+    searchParams,
+    textFilter,
+    typeFilter,
+    versionFilter,
+    systemFilter,
+    organizationFilter,
+    includeHierarchy,
+  )
+  return searchParams.toString()
+}
+
+const appendFilterParams = (
+  searchParams: URLSearchParams,
+  textFilter: string | null,
+  typeFilter: string[],
+  versionFilter: string[],
+  systemFilter: string[],
+  organizationFilter: string[],
+  includeHierarchy: boolean,
+) => {
   if (textFilter?.trim()) {
     searchParams.append('search', textFilter)
   }
@@ -117,7 +167,6 @@ export const getQueryStringParams = (
   if (includeHierarchy) {
     searchParams.append('include_hierarchy', 'true')
   }
-  return searchParams.toString()
 }
 
 export const getDisplayName = (app: Application) => {
@@ -175,6 +224,37 @@ export const getApplications = (
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)
+}
+
+export const getExport = (
+  format: 'csv' | 'pdf',
+  textFilter: string,
+  typeFilter: string[],
+  versionFilter: string[],
+  systemFilter: string[],
+  organizationFilter: string[],
+  includeHierarchy: boolean,
+  sortBy: string,
+  sortDescending: boolean,
+) => {
+  const loginStore = useLoginStore()
+  const params = getQueryStringParamsForExport(
+    format,
+    textFilter,
+    typeFilter,
+    versionFilter,
+    systemFilter,
+    organizationFilter,
+    includeHierarchy,
+    sortBy,
+    sortDescending,
+  )
+
+  return axios
+    .get<string>(`${API_URL}/applications/export?${params}`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data)
 }
 
 export const assignOrganization = (organizationId: string, applicationId: string) => {

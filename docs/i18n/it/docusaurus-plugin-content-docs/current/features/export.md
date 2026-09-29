@@ -14,11 +14,12 @@ La funzionalità di esportazione consente di scaricare i dati della piattaforma 
 
 | Risorsa | Formati | Contenuto |
 |---------|---------|-----------|
-| **Distributori** | CSV, PDF | Elenco distributori con dettagli |
-| **Rivenditori** | CSV, PDF | Elenco rivenditori con dettagli |
-| **Clienti** | CSV, PDF | Elenco clienti con dettagli |
+| **Distributori** | CSV, PDF | Elenco distributori con contatori di rivenditori, clienti e sistemi |
+| **Rivenditori** | CSV, PDF | Elenco rivenditori con contatori di clienti e sistemi |
+| **Clienti** | CSV, PDF | Elenco clienti con contatore dei sistemi |
 | **Utenti** | CSV, PDF | Elenco utenti con ruoli e stato |
 | **Sistemi** | CSV, PDF | Elenco sistemi con stato e ultimo heartbeat |
+| **Applicazioni** | CSV, PDF | Elenco applicazioni con tipo, versione, sistema che le ospita e azienda |
 
 ## Come Esportare
 
@@ -27,11 +28,11 @@ La funzionalità di esportazione consente di scaricare i dati della piattaforma 
 3. Clicca **Esporta** e scegli il formato:
    - **CSV** -- tabulare, per fogli di calcolo e analisi dati
    - **PDF** -- documento, per stampa e condivisione
-4. Il file viene generato e scaricato dal browser, con nome
-   `<risorsa>_export_<AAAA-MM-GG_HHMMSS>.<est>`
+4. Il file viene generato e scaricato dal browser, con il nome dell'elenco e la data
+   dell'esportazione: `utenti-2026-09-29.pdf`, `sistemi-2026-09-29.csv`
 
 :::tip
-Applica i filtri prima di esportare per ottenere esattamente i dati che ti servono. Ad esempio, filtra i sistemi per organizzazione o stato per esportarne solo un sottoinsieme.
+Applica i filtri prima di esportare per ottenere esattamente i dati che ti servono. Ad esempio, filtra i sistemi per organizzazione o stato per esportarne solo un sottoinsieme, oppure filtra le applicazioni per un'azienda e tutta la sua gerarchia per esportare tutto ciò che è installato per quel partner.
 :::
 
 ## Formato CSV
@@ -43,9 +44,14 @@ Applica i filtri prima di esportare per ottenere esattamente i dati che ti servo
 
 ## Formato PDF
 
-- **Intestazione** con data e ora di generazione
-- I **filtri** applicati e **chi** ha eseguito l'esportazione
-- **Tabella** con i dati formattati
+- **Tabella orizzontale**, una riga per record, con lo stesso impaginato per ogni risorsa
+- **Intestazione** su ogni pagina con logo, numero di record, data e ora di generazione,
+  **chi** ha eseguito l'esportazione e i **filtri** applicati
+- Gli **stati** sono colorati (verde attivo, ambra inattivo o non assegnato,
+  rosso sospeso o cancellato)
+- I valori lunghi vengono troncati con i puntini così ogni record resta su una riga:
+  il testo completo è nel CSV
+- **Numero di pagina** a piè di pagina
 
 ## Limiti
 
@@ -66,6 +72,7 @@ permette di vederne l'elenco:
 | Distributori | `read:distributors` |
 | Rivenditori | `read:resellers` |
 | Clienti | `read:customers` |
+| Applicazioni | `read:applications` |
 
 Se vedi un elenco puoi esportarlo -- e solo quello. Un utente Support, ad
 esempio, non ha `read:users`, quindi non può esportare gli utenti.

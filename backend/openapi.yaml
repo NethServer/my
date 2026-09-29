@@ -16864,6 +16864,123 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /applications/export:
+    get:
+      operationId: exportApplications
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
+      tags:
+        - Backend - Applications Stats
+      summary: /applications/export - Export applications to CSV or PDF
+      description: |
+        Export applications with applied filters to CSV or PDF format.
+
+        **Features:**
+        - Supports all filter parameters from GET /applications, including `include_hierarchy`
+        - Maximum 10,000 applications per export (DoS protection)
+        - CSV format: Simple spreadsheet with all fields
+        - PDF format: Formatted report with metadata and filters applied
+        - File naming: `applications_export_YYYY-MM-DD_HHmmss.[csv|pdf]`
+
+        **Permissions**: Requires `read:applications` permission and respects RBAC hierarchy.
+        The export carries exactly the rows the list returns: user-facing applications on
+        systems the caller can see.
+
+        **Export Fields:**
+        - Name, Module ID, Type, Type ID, Version, Status
+        - Node, URL, Notes, Has Errors
+        - System
+        - Organization, Organization Type
+        - First Seen At, Last Inventory At, Created At
+      parameters:
+        - name: format
+          in: query
+          required: true
+          description: Export format (csv or pdf)
+          schema:
+            type: string
+            enum: [csv, pdf]
+            example: csv
+        - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/AppSortByParam'
+        - $ref: '#/components/parameters/SortDirectionParam'
+        - $ref: '#/components/parameters/AppTypeFilterParam'
+        - $ref: '#/components/parameters/AppVersionFilterParam'
+        - $ref: '#/components/parameters/AppSystemFilterParam'
+        - $ref: '#/components/parameters/AppOrganizationFilterParam'
+        - $ref: '#/components/parameters/IncludeHierarchyParam'
+        - $ref: '#/components/parameters/AppStatusFilterParam'
+      responses:
+        '200':
+          description: Export file generated successfully
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+                description: CSV file with applications data
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+                description: PDF report with applications data
+          headers:
+            Content-Disposition:
+              description: Attachment filename
+              schema:
+                type: string
+                example: 'attachment; filename="applications_export_2026-09-29_153045.csv"'
+            Content-Length:
+              description: File size in bytes
+              schema:
+                type: integer
+        '400':
+          description: Bad request (invalid format or too many applications)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 400
+                  message:
+                    type: string
+                    example: "too many applications to export (15000). maximum allowed: 10000. please apply more filters"
+                  data:
+                    type: object
+                    properties:
+                      total_count:
+                        type: integer
+                        example: 15000
+                      max_limit:
+                        type: integer
+                        example: 10000
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          description: Another export is already running on this instance; retry after the number of seconds in Retry-After
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 429
+                  message:
+                    type: string
+                    example: "too many concurrent export requests, retry shortly"
+                  data:
+                    type: object
+                    properties:
+                      retry_after_seconds:
+                        type: string
+                        example: "5"
+
   /applications/{id}:
     get:
       operationId: getApplicationById

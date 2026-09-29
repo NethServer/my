@@ -862,6 +862,10 @@ routes:
   - method: GET
     path: /api/applications/trend
     intent: read:applications
+  - method: GET
+    path: /api/applications/export
+    intent: read:applications
+    note: an export is a bulk read; same permission, and the scope layer checks the rows
   - method: PATCH
     path: /api/applications/:id/assign
     intent: manage:applications

@@ -878,6 +878,8 @@
   "applications": {
     "title": "Applications",
     "page_description": "List of applications installed on licensed NethServer systems.",
+    "export_applications_to_pdf": "Export applications to PDF",
+    "export_applications_to_csv": "Export applications to CSV",
     "cannot_retrieve_applications": "Cannot retrieve applications",
     "no_applications": "No applications yet",
     "no_applications_description": "Applications will appear here when they are installed on your NethServer systems.",

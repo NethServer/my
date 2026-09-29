@@ -609,6 +609,9 @@ func main() {
 			appsGroup.GET("/summary", methods.GetApplicationTypeSummary)
 			appsGroup.GET("/trend", methods.GetApplicationsTrend)
 
+			// Export applications to CSV or PDF with applied filters (read:applications required)
+			appsGroup.GET("/export", middleware.LimitExports(), middleware.ExtendDeadline(180*time.Second), methods.ExportApplications)
+
 			// Application actions (manage:applications required)
 			appsGroup.PATCH("/:id/assign", methods.AssignApplicationOrganization)     // Assign organization to application
 			appsGroup.PATCH("/:id/unassign", methods.UnassignApplicationOrganization) // Remove organization from application

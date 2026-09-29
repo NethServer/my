@@ -6,13 +6,23 @@
 <script setup lang="ts">
 import ApplicationsTable from '@/components/applications/ApplicationsTable.vue'
 import {
+  getExport,
   saveShowUnassignedAppsNotificationToStorage,
   SHOW_UNASSIGNED_APPS_NOTIFICATION,
 } from '@/lib/applications/applications'
+import { downloadFile, exportFileName } from '@/lib/common'
 import { useApplications } from '@/queries/applications/applications'
 import { useApplicationsTotal } from '@/queries/applications/applicationsTotal'
 import { useLoginStore } from '@/stores/login'
-import { getPreference, NeHeading, NeInlineNotification } from '@nethesis/vue-components'
+import { faChevronDown, faFileCsv, faFilePdf } from '@fortawesome/free-solid-svg-icons'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import {
+  getPreference,
+  NeButton,
+  NeDropdown,
+  NeHeading,
+  NeInlineNotification,
+} from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -24,8 +34,19 @@ const loginStore = useLoginStore()
 
 const { state: applicationsTotal } = useApplicationsTotal()
 
-const { organizationFilter, includeHierarchy, applyHierarchyFilter, clearFilters } =
-  useApplications()
+const {
+  state,
+  debouncedTextFilter,
+  typeFilter,
+  versionFilter,
+  systemFilter,
+  organizationFilter,
+  includeHierarchy,
+  sortBy,
+  sortDescending,
+  applyHierarchyFilter,
+  clearFilters,
+} = useApplications()
 
 const justHiddenUnassignedAppsNotification = ref(false)
 
@@ -80,13 +101,71 @@ const dontShowUnassignedAppsNotificationAgain = () => {
   saveShowUnassignedAppsNotificationToStorage(false)
   justHiddenUnassignedAppsNotification.value = true
 }
+
+function getBulkActionsMenuItems() {
+  return [
+    {
+      id: 'exportFilteredToPdf',
+      label: t('applications.export_applications_to_pdf'),
+      icon: faFilePdf,
+      action: () => exportApplications('pdf'),
+      disabled: !state.value.data?.applications.length,
+    },
+    {
+      id: 'exportFilteredToCsv',
+      label: t('applications.export_applications_to_csv'),
+      icon: faFileCsv,
+      action: () => exportApplications('csv'),
+      disabled: !state.value.data?.applications.length,
+    },
+  ]
+}
+
+async function exportApplications(format: 'pdf' | 'csv') {
+  try {
+    const exportData = await getExport(
+      format,
+      debouncedTextFilter.value,
+      typeFilter.value.map((o) => o.id),
+      versionFilter.value.map((o) => o.id),
+      systemFilter.value.map((o) => o.id),
+      organizationFilter.value.map((o) => o.id),
+      includeHierarchy.value,
+      sortBy.value,
+      sortDescending.value,
+    )
+    const fileName = exportFileName(t('applications.title'), format)
+    downloadFile(exportData, fileName, format)
+  } catch (error) {
+    console.error(`Cannot export applications to ${format}:`, error)
+    throw error
+  }
+}
 </script>
 
 <template>
   <div>
     <NeHeading tag="h3" class="mb-7">{{ $t('applications.title') }}</NeHeading>
-    <div class="mb-8 max-w-2xl text-gray-500 dark:text-gray-400">
-      {{ $t('applications.page_description') }}
+    <div class="mb-8 flex flex-col items-start justify-between gap-6 xl:flex-row">
+      <div class="max-w-2xl text-gray-500 dark:text-gray-400">
+        {{ $t('applications.page_description') }}
+      </div>
+      <div class="flex items-center gap-4">
+        <NeDropdown
+          :items="getBulkActionsMenuItems()"
+          align-to-right
+          :openMenuAriaLabel="$t('ne_dropdown.open_menu')"
+        >
+          <template #button>
+            <NeButton>
+              <template #suffix>
+                <FontAwesomeIcon :icon="faChevronDown" class="h-4 w-4" aria-hidden="true" />
+              </template>
+              {{ $t('common.actions') }}
+            </NeButton>
+          </template>
+        </NeDropdown>
+      </div>
     </div>
     <NeInlineNotification
       v-if="showUnassignedAppsNotification"

@@ -796,6 +796,8 @@
   "applications": {
     "title": "Applicazioni",
     "page_description": "Elenco delle applicazioni installate sui sistemi NethServer con licenza.",
+    "export_applications_to_pdf": "Esporta applicazioni in PDF",
+    "export_applications_to_csv": "Esporta applicazioni in CSV",
     "cannot_retrieve_applications": "Impossibile recuperare le applicazioni",
     "no_applications": "Nessuna applicazione",
     "no_applications_description": "Le applicazioni appariranno qui quando verranno installate sui tuoi sistemi NethServer.",

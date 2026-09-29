@@ -14,11 +14,12 @@ My allows you to export data from any list view in the platform. Exports respect
 
 | Resource | Formats | Contents |
 |----------|---------|----------|
-| **Distributors** | CSV, PDF | Distributor list with details |
-| **Resellers** | CSV, PDF | Reseller list with details |
-| **Customers** | CSV, PDF | Customer list with details |
+| **Distributors** | CSV, PDF | Distributor list with resellers, customers and systems counters |
+| **Resellers** | CSV, PDF | Reseller list with customers and systems counters |
+| **Customers** | CSV, PDF | Customer list with systems counter |
 | **Users** | CSV, PDF | User list with roles and status |
 | **Systems** | CSV, PDF | System list with status and last heartbeat |
+| **Applications** | CSV, PDF | Application list with type, version, hosting system and company |
 
 ## How to Export
 
@@ -27,11 +28,11 @@ My allows you to export data from any list view in the platform. Exports respect
 3. Click the **Export** button and choose the format:
    - **CSV** -- tabular, for spreadsheets and data analysis
    - **PDF** -- document, for printing and sharing
-4. The file is generated and downloaded by the browser, named
-   `<resource>_export_<YYYY-MM-DD_HHMMSS>.<ext>`
+4. The file is generated and downloaded by the browser, named after the list and
+   the day of the export: `users-2026-09-29.pdf`, `systems-2026-09-29.csv`
 
 :::tip
-Apply filters before exporting to get exactly the data you need. For example, filter systems by organization or status to export only a subset.
+Apply filters before exporting to get exactly the data you need. For example, filter systems by organization or status to export only a subset, or filter applications by a company and its whole hierarchy to export everything installed for that partner.
 :::
 
 ## CSV Format
@@ -43,9 +44,14 @@ Apply filters before exporting to get exactly the data you need. For example, fi
 
 ## PDF Format
 
-- **Header** with the generation timestamp
-- The **filters** that were applied, and **who** ran the export
-- **Table** of formatted data
+- **Landscape table**, one row per record, with the same layout for every resource
+- **Header** on every page with the logo, the record count, the generation timestamp,
+  **who** ran the export and the **filters** that were applied
+- **Status** values are colour-coded (green active, amber inactive or unassigned,
+  red suspended or deleted)
+- Long values are cut with an ellipsis so each record stays on one line: the CSV
+  carries the full text
+- **Page numbers** in the footer
 
 ## Export Limits
 
@@ -66,6 +72,7 @@ lets you see the list:
 | Distributors | `read:distributors` |
 | Resellers | `read:resellers` |
 | Customers | `read:customers` |
+| Applications | `read:applications` |
 
 If you can see a list, you can export it -- and only that. A Support user, for
 instance, holds no `read:users`, so it cannot export users.
