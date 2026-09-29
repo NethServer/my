@@ -6,6 +6,17 @@ on:
 
 jobs:
   add-redirect-uris:
+    # Mirror Render's own opt-out for PR previews (label `render-preview-skip`
+    # or a `[skip preview]`-style title marker): no preview, no redirect URI.
+    # Renovate is skipped by author because it adds its labels only after the
+    # PR is opened, when this workflow has already run.
+    if: |
+      github.event.pull_request.user.login != 'renovate[bot]' &&
+      !contains(github.event.pull_request.labels.*.name, 'render-preview-skip') &&
+      !contains(github.event.pull_request.title, '[skip preview]') &&
+      !contains(github.event.pull_request.title, '[preview skip]') &&
+      !contains(github.event.pull_request.title, '[skip render]') &&
+      !contains(github.event.pull_request.title, '[render skip]')
     runs-on: ubuntu-latest
     steps:
       - name: Extract PR number

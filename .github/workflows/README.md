@@ -24,6 +24,16 @@ autodeploy while suspended. To bring a suspended env back:
 
 `down deploy` / `up deploy` require the `RENDER_API_KEY` secret (see below).
 
+### Skipping the preview for a PR
+
+Render itself skips (or, if already built, deprovisions) the preview of any PR that carries the
+`render-preview-skip` label or a `[skip preview]` marker in its title. Renovate PRs get the label
+from `addLabels` in `renovate.json`, so dependency bumps never build a preview environment. The
+label is created once with `gh label create render-preview-skip --color EDEDED --description "Render: do not build a PR preview"`.
+
+The Logto workflows below honour the same opt-out, so a PR without a preview does not get a
+redirect URI either.
+
 ## Logto Redirect URI Management
 
 These GitHub Actions automatically manage redirect URIs in your Logto application configuration for Pull Request deployments on Render.
@@ -33,10 +43,13 @@ These GitHub Actions automatically manage redirect URIs in your Logto applicatio
 ### 1. `pr-redirect-uris-add.yml`
 **Trigger**: When a PR is opened or reopened
 **Purpose**: Adds redirect URIs for the PR's Render deployments to Logto
+**Skipped** for Renovate PRs and for PRs that opt out of the Render preview (`render-preview-skip`
+label or `[skip preview]` title marker): without a preview there is nothing to redirect to.
 
 ### 2. `pr-redirect-uris-remove.yml`
 **Trigger**: When a PR is closed or merged
 **Purpose**: Removes redirect URIs for the PR's Render deployments from Logto
+**Skipped** for Renovate PRs; for every other PR the removal is a no-op when nothing was added.
 
 ## End-to-end suite
 

@@ -6,6 +6,10 @@ on:
 
 jobs:
   remove-redirect-uris:
+    # Renovate PRs never get redirect URIs (see pr-redirect-uris-add.yml), so
+    # there is nothing to remove. Human PRs always run: the removal is a no-op
+    # when the URIs were never added.
+    if: github.event.pull_request.user.login != 'renovate[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Extract PR number
