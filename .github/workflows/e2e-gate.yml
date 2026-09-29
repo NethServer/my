@@ -1,9 +1,9 @@
 name: E2E - Pull Request Gate
 
 # Holds the `e2e/fullstack` commit status that branch protection requires on
-# main. The browser suite itself (e2e-main.yml) runs on a pull request only
-# when someone adds the `run-e2e` label; this job only says, on every new head
-# commit, that it has not run yet.
+# main. The browser suite itself (e2e-main.yml) runs on a pull request when
+# someone adds the `run-e2e` label, or by itself on a Renovate pull request;
+# this job only says, on every new head commit, that it has not run yet.
 #
 # A commit status rather than the suite's own check run: a job skipped by its
 # `if:` reports "skipped", and branch protection counts skipped as passing. A
@@ -31,6 +31,7 @@ jobs:
       STATUS_CONTEXT: e2e/fullstack
       STATUS_SHA: ${{ github.event.pull_request.head.sha }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
+      AUTHOR: ${{ github.event.pull_request.user.login }}
 
     steps:
     - name: Drop a label that speaks for an older commit
@@ -61,6 +62,10 @@ jobs:
         if [ -z "$code" ]; then
           state=success
           description="not required: documentation only"
+        elif [ "$AUTHOR" = "renovate[bot]" ]; then
+          # e2e-main.yml starts on this same event; nothing to ask for.
+          state=pending
+          description="browser suite queued"
         else
           state=pending
           description="add the run-e2e label to run the browser suite"

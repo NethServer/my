@@ -54,8 +54,8 @@ label or `[skip preview]` title marker): without a preview there is nothing to r
 ## End-to-end suite
 
 ### `e2e-main.yml`
-**Trigger**: The `run-e2e` label on a pull request, push to `main` (docs-only pushes skipped),
-manual dispatch, weekly cron
+**Trigger**: The `run-e2e` label on a pull request, every commit of a Renovate pull request, push
+to `main` (docs-only pull requests and pushes skipped), manual dispatch, weekly cron
 **Purpose**: Runs the browser suite (`frontend/e2e/`, `--project=fullstack`) against the full
 compose stack, with personas provisioned by `apitool authz provision`
 
@@ -67,18 +67,25 @@ suffix, which is why that secret must carry it.
 
 Deliberately separate from `ci-main.yml`: that workflow answers in seconds and gates every branch,
 while this builds four images, boots six services and mutates a shared Logto tenant, so it takes
-minutes. On a pull request it runs only when somebody adds the `run-e2e` label. The run writes its
+minutes. On a pull request it runs only when somebody adds the `run-e2e` label, except on Renovate
+pull requests: their automerge waits on the status, so every commit Renovate opens or pushes starts
+a run by itself, and `rebaseWhen: "conflicted"` in `renovate.json` keeps each automerge from
+rebasing, and so re-testing, every other open Renovate pull request. The run writes its
 verdict as the `e2e/fullstack` commit status on the pull request's head commit and removes the
 label when it ends, so adding the label again starts another run. It refuses a merge commit whose
 second parent is not that head, so the status never lands on a commit other than the one tested.
 Pull requests from forks get neither the secrets nor a token that can write a status: push the
 branch to this repository and label that pull request instead.
 
-Its concurrency group is **global and queues rather than cancels** — a run cancelled after
-provisioning would abandon real organizations and users in the tenant. GitHub keeps at most one run
-pending per group and cancels the previously pending one: a pull request whose queued run is
-replaced this way keeps its pending status and its label, and removing and adding the label queues
-it again. The weekly cron is a drift canary for breakage with no commit behind it, such as a tenant
+Runs are **serialized globally and never cancelled** — a run cancelled after provisioning would
+abandon real organizations and users in the tenant. A `concurrency` group cannot do this: GitHub
+keeps at most one run pending per group and cancels the previously pending one, so a burst of
+Renovate pull requests and the pushes their automerge makes would leave the runs in between
+cancelled and their status pending for good. Instead a `queue` job polls the Actions API every two
+minutes and lets the suite start only once every run of the workflow whose current attempt started
+earlier has finished, so a re-run joins the back of the queue. The wait costs runner time only,
+which is free in a public repository; a run still waiting after four hours reports the status as
+`error` ("browser suite never started"). The weekly cron is a drift canary for breakage with no commit behind it, such as a tenant
 setting changed by hand.
 
 ### `e2e-gate.yml`
@@ -86,8 +93,8 @@ setting changed by hand.
 **Purpose**: Resets the `e2e/fullstack` status on every new head commit, so the merge waits for the
 suite to pass on that exact commit
 
-It sets the status to `pending` ("add the run-e2e label…"), or to `success` when the pull request
-touches only `**.md` and `docs/**`, and drops a `run-e2e` label left over from the previous commit.
+It sets the status to `pending` ("add the run-e2e label…", or "browser suite queued" on a Renovate
+pull request), or to `success` when the pull request touches only `**.md` and `docs/**`, and drops a `run-e2e` label left over from the previous commit.
 A commit that already carries the status keeps it. The gate is a status rather than the suite's own
 check run because a job skipped by its `if:` reports "skipped", which branch protection counts as
 passing.
