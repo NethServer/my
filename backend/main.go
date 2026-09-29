@@ -130,6 +130,8 @@ func main() {
 	router.Use(logger.SecurityMiddleware())
 
 	// Add compression
+	// before gzip: keeps the connection reachable for the export deadlines
+	router.Use(middleware.RememberRawWriter())
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 
 	// Global request-body ceiling. Sized for the largest legitimate upload

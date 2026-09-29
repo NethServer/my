@@ -30,7 +30,7 @@ import (
 // simply keeps the server default instead of failing.
 func ExtendDeadline(d time.Duration) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		rc := http.NewResponseController(c.Writer)
+		rc := http.NewResponseController(deadlineWriter(c))
 		deadline := time.Now().Add(d)
 		if err := rc.SetWriteDeadline(deadline); err != nil {
 			logger.Warn().Err(err).Str("path", c.FullPath()).Msg("could not extend write deadline; keeping server WriteTimeout")
@@ -40,4 +40,29 @@ func ExtendDeadline(d time.Duration) gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+const rawWriterKey = "raw_response_writer"
+
+// RememberRawWriter stores the ResponseWriter as gin hands it over, before
+// any other middleware wraps it. It must be registered ahead of the gzip
+// middleware: the gzip wrapper has no Unwrap method, so a ResponseController
+// built on c.Writer cannot reach the connection and every deadline call
+// fails with "feature not supported".
+func RememberRawWriter() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set(rawWriterKey, c.Writer)
+		c.Next()
+	}
+}
+
+// deadlineWriter is the writer ExtendDeadline sets the deadlines on: the one
+// remembered before wrapping when available, the current one otherwise.
+func deadlineWriter(c *gin.Context) http.ResponseWriter {
+	if raw, ok := c.Get(rawWriterKey); ok {
+		if w, ok := raw.(http.ResponseWriter); ok {
+			return w
+		}
+	}
+	return c.Writer
 }
