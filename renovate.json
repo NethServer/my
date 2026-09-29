@@ -11,6 +11,7 @@
     ]
   },
   "ignoreTests": false,
+  "rebaseWhen": "conflicted",
   "packageRules": [
     {
       "description": "Docusaurus requires all @docusaurus/* packages at the same version",

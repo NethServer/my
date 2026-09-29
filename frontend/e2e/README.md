@@ -117,17 +117,17 @@ Note QA is suspended outside Mon–Fri 08:00–22:00 Europe/Rome by `qa-night-sc
 
 ## In CI
 
-| Workflow        | Trigger                                                      | What it runs                                      |
-| --------------- | ------------------------------------------------------------ | ------------------------------------------------- |
-| `e2e-main.yml`  | `run-e2e` label on a PR, push to `main`, manual, weekly cron | The `fullstack` project against the compose stack |
-| `e2e-smoke.yml` | push to `main`, manual                                       | `playwright.config.smoke.ts` against QA           |
+| Workflow        | Trigger                                                                   | What it runs                                      |
+| --------------- | ------------------------------------------------------------------------- | ------------------------------------------------- |
+| `e2e-main.yml`  | `run-e2e` label on a PR, Renovate PR, push to `main`, manual, weekly cron | The `fullstack` project against the compose stack |
+| `e2e-smoke.yml` | push to `main`, manual                                                    | `playwright.config.smoke.ts` against QA           |
 
-On a pull request the suite runs only on request: add the `run-e2e` label. Its verdict is the
+On a pull request the suite runs only on request: add the `run-e2e` label. Renovate pull requests
+are the exception and run on every commit, so their automerge is not left waiting. Its verdict is the
 `e2e/fullstack` commit status on the head commit, which branch protection requires and
 `e2e-gate.yml` resets to pending on every push, so a pull request merges only once the suite has
-passed on its last commit. Docs-only pull requests and pushes need no run. The concurrency group is
-global and never cancels, so a burst of requests leaves the ones in between untested rather than
-queueing.
+passed on its last commit. Docs-only pull requests and pushes need no run. Runs are serialized
+globally and never cancelled: a `queue` job holds each one until every earlier run has finished.
 
 `e2e-main.yml` brings the stack up with `docker-compose.e2e.yml` layered on top, which publishes
 the proxy on 5173 (the registered redirect origin) and builds the frontend with `VITE_E2E`. It

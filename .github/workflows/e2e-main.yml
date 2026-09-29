@@ -7,9 +7,9 @@ name: E2E - Full Stack
 # Not part of ci-main.yml on purpose. That workflow answers in seconds and gates
 # every branch; this builds four images, boots six services and provisions a
 # shared Logto tenant, so it takes minutes and mutates external state. On a pull
-# request it runs only when asked, by adding the `run-e2e` label, and it reports
-# the verdict as the `e2e/fullstack` commit status on the pull request's head
-# commit. Branch protection requires that status, and e2e-gate.yml resets it on
+# request it runs only when asked, by adding the `run-e2e` label, or by itself on
+# every commit of a Renovate pull request, and it reports the verdict as the
+# `e2e/fullstack` commit status on the pull request's head commit. Branch protection requires that status, and e2e-gate.yml resets it on
 # every push, so a pull request merges only after the suite passed on its last
 # commit.
 
@@ -23,10 +23,16 @@ on:
       - '**.md'
       - 'docs/**'
   # On request only: adding `run-e2e` starts a run, and the run removes the
-  # label when it ends so adding it again starts another.
+  # label when it ends so adding it again starts another. Renovate pull
+  # requests need no request: their automerge waits on the status, so every
+  # commit Renovate opens or pushes is tested unasked. Docs-only pull requests
+  # are skipped, as on main: e2e-gate.yml already reports them as passing.
   pull_request:
     branches: [ main ]
-    types: [ labeled ]
+    types: [ labeled, opened, synchronize, reopened ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
   workflow_dispatch:
   schedule:
     # Weekly drift canary: catches breakage with no commit behind it, such as a
@@ -36,51 +42,51 @@ on:
     # and the start of each hour is when it is busiest.
     - cron: '23 4 * * 1'
 
-# One global queue, and never cancel.
+# One global queue, and never cancel: the `queue` job below lets a run through
+# only once every run of this workflow started before it has finished.
 #
 # Global because every run provisions the same fixture keys, with the same
 # persona emails, in the same CI tenant: `prefix` comes from authz/fixture.yml
 # and has no per-run override, so two runs at once would fight over the same
-# Logto users. A per-ref group would let two pull requests collide.
+# Logto users. A per-ref queue would let two pull requests collide.
 #
 # Never cancel because a run stopped after `authz provision` loses the registry
 # recording what it created — that lives on the runner — leaving orgs no
 # teardown can find, which the next provisioning trips over as a name
-# collision. Queueing lets every run reach its teardown.
+# collision. Waiting lets every run reach its teardown.
 #
-# The cost: GitHub keeps at most one run pending per group and cancels the
-# previously pending one. A pull request whose queued run is replaced this way
-# never starts, so its status stays pending and its label stays on; removing
-# and adding the label again queues it anew.
-concurrency:
-  group: e2e-fullstack
-  cancel-in-progress: false
+# A job rather than a `concurrency` group: GitHub keeps at most one run pending
+# per group and cancels the previously pending one, so a burst — Renovate opens
+# its pull requests together, and each automerge pushes to main — would leave
+# the runs in between cancelled and their status pending for good. The job
+# waits on a runner instead, which costs nothing in a public repository.
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  # Only pull_request runs report a status: the one branch protection
+  # requires, on the head commit rather than on GitHub's merge commit.
+  STATUS_CONTEXT: e2e/fullstack
+  STATUS_SHA: ${{ github.event.pull_request.head.sha }}
+  PR_NUMBER: ${{ github.event.pull_request.number }}
+  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
 jobs:
-  fullstack:
-    name: Full-stack browser suite
+  queue:
+    name: Wait for earlier runs
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    # Any other label on a pull request is not a request for a run.
-    if: github.event_name != 'pull_request' || github.event.label.name == 'run-e2e'
+    timeout-minutes: 250
+    # Any other label on a pull request is not a request for a run. A Renovate
+    # pull request needs no label, its commits start the run; `run-e2e` on one
+    # still asks for another.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.label.name == 'run-e2e' ||
+      (github.event.action != 'labeled' && github.event.pull_request.user.login == 'renovate[bot]')
 
     permissions:
-      contents: read
+      actions: read
       statuses: write
       pull-requests: write
-
-    env:
-      GH_TOKEN: ${{ github.token }}
-      # Only pull_request runs report a status: the one branch protection
-      # requires, on the head commit rather than on GitHub's merge commit.
-      STATUS_CONTEXT: e2e/fullstack
-      STATUS_SHA: ${{ github.event.pull_request.head.sha }}
-      PR_NUMBER: ${{ github.event.pull_request.number }}
-      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      # The only origin registered as a Logto sign-in redirect URI, which is why
-      # docker-compose.e2e.yml publishes the proxy there.
-      APP_URL: http://localhost:5173
-      BACKEND_URL: http://127.0.0.1:18080/api
 
     steps:
     - name: Refuse a pull request from a fork
@@ -91,6 +97,75 @@ jobs:
         echo "::error::the browser suite runs only on branches of ${GITHUB_REPOSITORY}"
         exit 1
 
+    - name: Report the run as queued on the pull request
+      if: github.event_name == 'pull_request'
+      run: |
+        gh api "repos/${GITHUB_REPOSITORY}/statuses/${STATUS_SHA}" \
+          -f state=pending -f context="$STATUS_CONTEXT" \
+          -f description="browser suite queued" -f target_url="$RUN_URL" > /dev/null
+
+    - name: Wait until every earlier run has finished
+      # Well above a Monday's worth of runs, about ten at twelve minutes each.
+      timeout-minutes: 240
+      run: |
+        set -uo pipefail
+
+        # Runs are ordered by when their current attempt started, not by run
+        # number: a re-run keeps its number but joins the back of the queue.
+        # Ties, possible to the second, go to the lower run id. Only queued and
+        # in_progress are looked up — no environment makes a run wait and no
+        # concurrency group holds one pending — to keep each poll at two calls,
+        # well inside the token's hourly budget with several runs waiting.
+        workflow=$(basename "${GITHUB_WORKFLOW_REF%@*}")
+        started=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" --jq .run_started_at)
+        ahead_of_me=".workflow_runs[]
+          | select(.id != ${GITHUB_RUN_ID})
+          | select(.run_started_at < \"${started}\" or (.run_started_at == \"${started}\" and .id < ${GITHUB_RUN_ID}))
+          | .html_url"
+
+        while :; do
+          if ahead=$(for status in queued in_progress; do
+              gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs?status=${status}&per_page=100" \
+                --jq "$ahead_of_me" || exit 1
+            done); then
+            [ -z "$ahead" ] && break
+            echo "Waiting for:"
+            echo "$ahead" | sed 's/^/  /'
+          else
+            # A failed lookup says nothing about who is ahead; ask again rather than
+            # risk two runs sharing the tenant.
+            echo "::warning::could not list the runs of ${workflow}, retrying"
+          fi
+          sleep 120
+        done
+        echo "No earlier run left, starting"
+
+    - name: Report a run that never started on the pull request
+      if: failure() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+      run: |
+        gh api "repos/${GITHUB_REPOSITORY}/statuses/${STATUS_SHA}" \
+          -f state=error -f context="$STATUS_CONTEXT" \
+          -f description="browser suite never started" -f target_url="$RUN_URL" > /dev/null
+        gh api -X DELETE "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels/run-e2e" > /dev/null 2>&1 || true
+
+  fullstack:
+    name: Full-stack browser suite
+    needs: queue
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    permissions:
+      contents: read
+      statuses: write
+      pull-requests: write
+
+    env:
+      # The only origin registered as a Logto sign-in redirect URI, which is why
+      # docker-compose.e2e.yml publishes the proxy there.
+      APP_URL: http://localhost:5173
+      BACKEND_URL: http://127.0.0.1:18080/api
+
+    steps:
     - name: Report the run on the pull request
       if: github.event_name == 'pull_request'
       run: |
@@ -106,8 +181,8 @@ jobs:
         set -euo pipefail
 
         # GitHub's merge commit has main as first parent and the pull request
-        # head as second. A push between the label and the checkout would make
-        # it merge a newer head than the one the status is written on. Parents
+        # head as second. A push while the run was queued would make it merge
+        # a newer head than the one the status is written on. Parents
         # are read from the object itself: the clone is shallow.
         merged=$(git cat-file -p HEAD | awk '/^parent / { print $2 }' | sed -n 2p)
         if [ "$merged" != "$STATUS_SHA" ]; then
