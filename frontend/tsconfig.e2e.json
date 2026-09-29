@@ -3,7 +3,7 @@
   // registry off disk and drives a real browser out of process, so it is checked
   // against the Node config rather than tsconfig.app.json (which is DOM-typed and
   // scoped to src/). Same base and rationale as tsconfig.node.json.
-  "extends": "@tsconfig/node22/tsconfig.json",
+  "extends": "@tsconfig/node24/tsconfig.json",
   "include": ["e2e/**/*", "playwright.config.*"],
   "compilerOptions": {
     "noEmit": true,
