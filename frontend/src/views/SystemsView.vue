@@ -16,12 +16,14 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { canManageSystems } from '@/lib/permissions'
 import SystemsTable from '@/components/systems/SystemsTable.vue'
 import { useSystems } from '@/queries/systems/systems'
+import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { getExport, type SystemStatus } from '@/lib/systems/systems'
-import { downloadFile, exportFileName } from '@/lib/common'
+import { downloadFile, exportFileName, getExportLimitError } from '@/lib/common'
 
 const { t } = useI18n()
+const notificationsStore = useNotificationsStore()
 
 // the export runs on the whole filtered list and can take a while: one at a time,
 // with the Actions button showing progress
@@ -110,6 +112,15 @@ async function exportSystems(format: 'pdf' | 'csv') {
     const fileName = exportFileName(t('systems.title'), format)
     downloadFile(exportData, fileName, format)
   } catch (error) {
+    const limit = getExportLimitError(error)
+    if (limit) {
+      notificationsStore.createNotification({
+        kind: 'error',
+        title: t('common.too_many_records_to_export'),
+        description: t('common.too_many_records_to_export_description', limit),
+      })
+      return
+    }
     console.error(`Cannot export systems to ${format}:`, error)
     throw error
   } finally {

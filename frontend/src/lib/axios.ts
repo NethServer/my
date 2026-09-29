@@ -69,6 +69,17 @@ export const configureAxios = () => {
     async function (error) {
       console.error('[interceptor]', error)
 
+      // a binary download (responseType blob) carries its error body as a
+      // Blob: read it back as JSON so the checks below and the caller see the
+      // code and message the backend sent
+      if (error.response?.data instanceof Blob && error.response.data.type.includes('json')) {
+        try {
+          error.response.data = JSON.parse(await error.response.data.text())
+        } catch {
+          // not JSON after all: leave the body as it is
+        }
+      }
+
       // print specific error message, if available
       if (error.response?.data?.message) {
         console.error('[interceptor]', error.response.data.message)

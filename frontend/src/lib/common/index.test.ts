@@ -4,12 +4,14 @@
 import {
   abbreviateNumber,
   exportFileName,
+  getExportLimitError,
   extractUrls,
   getQueryStringParams,
   normalize,
   tokenizeText,
 } from './index'
 import { expect, it, describe } from 'vitest'
+import { AxiosError, AxiosHeaders, type AxiosResponse } from 'axios'
 
 describe('tokenizeText', () => {
   it('returns an empty array for empty text', () => {
@@ -209,5 +211,36 @@ describe('exportFileName', () => {
 
   it('falls back to a generic name when nothing is left', () => {
     expect(exportFileName('***', 'csv', day)).toBe('export-2026-09-29.csv')
+  })
+})
+
+describe('getExportLimitError', () => {
+  const axiosError = (status: number, data: unknown) =>
+    new AxiosError('failed', String(status), undefined, undefined, {
+      status,
+      data,
+      statusText: '',
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+    } as AxiosResponse)
+
+  it('reads the two counters of the export limit refusal', () => {
+    const error = axiosError(400, {
+      code: 400,
+      message:
+        'too many systems to export (13093). maximum allowed: 10000. please apply more filters',
+      data: { total_count: 13093, max_limit: 10000 },
+    })
+    expect(getExportLimitError(error)).toEqual({ total: 13093, max: 10000 })
+  })
+
+  it('ignores other errors', () => {
+    expect(getExportLimitError(new Error('boom'))).toBeUndefined()
+    expect(
+      getExportLimitError(axiosError(400, { code: 400, message: 'format parameter required' })),
+    ).toBeUndefined()
+    expect(
+      getExportLimitError(axiosError(500, { data: { total_count: 1, max_limit: 2 } })),
+    ).toBeUndefined()
   })
 })

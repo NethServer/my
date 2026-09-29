@@ -33,6 +33,8 @@
     "go_to_page": "Vai a {page}",
     "open_page": "Apri {page}",
     "actions": "Azioni",
+    "too_many_records_to_export": "Troppi record da esportare",
+    "too_many_records_to_export_description": "I filtri attuali selezionano {total} record e un'esportazione ne contiene al massimo {max}. Restringi i filtri e riprova.",
     "object_created_successfully": "{name} creato con successo",
     "object_saved_successfully": "{name} è stato aggiornato con successo",
     "object_destroyed_successfully": "{name} è stato distrutto con successo",

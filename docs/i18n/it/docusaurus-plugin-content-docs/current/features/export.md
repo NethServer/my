@@ -56,9 +56,9 @@ Applica i filtri prima di esportare per ottenere esattamente i dati che ti servo
 ## Limiti
 
 - Massimo **10.000 record** per esportazione
-- Oltre quella soglia l'esportazione viene **troncata silenziosamente**: il file
-  viene comunque prodotto, ma le righe eccedenti non ci sono. Restringi i filtri
-  per essere sicuro di avere tutto.
+- Oltre quella soglia l'esportazione viene **rifiutata**: My indica quanti record
+  selezionano i filtri attuali e chiede di restringerli. Non viene prodotto
+  nessun file parziale.
 
 ## Permessi
 

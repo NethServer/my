@@ -19,11 +19,13 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { PRODUCT_NAME } from '@/lib/config'
 import { canManageUsers } from '@/lib/permissions'
 import { useUsers } from '@/queries/users/users'
+import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import { getExport, type UserStatus } from '@/lib/users/users'
-import { downloadFile, exportFileName } from '@/lib/common'
+import { downloadFile, exportFileName, getExportLimitError } from '@/lib/common'
 
 const { t } = useI18n()
+const notificationsStore = useNotificationsStore()
 
 // the export runs on the whole filtered list and can take a while: one at a time,
 // with the Actions button showing progress
@@ -87,6 +89,15 @@ async function exportUsers(format: 'pdf' | 'csv') {
     const fileName = exportFileName(t('users.title'), format)
     downloadFile(exportData, fileName, format)
   } catch (error) {
+    const limit = getExportLimitError(error)
+    if (limit) {
+      notificationsStore.createNotification({
+        kind: 'error',
+        title: t('common.too_many_records_to_export'),
+        description: t('common.too_many_records_to_export_description', limit),
+      })
+      return
+    }
     console.error(`Cannot export users to ${format}:`, error)
     throw error
   } finally {

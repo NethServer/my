@@ -56,9 +56,9 @@ Apply filters before exporting to get exactly the data you need. For example, fi
 ## Export Limits
 
 - Maximum **10,000 records** per export
-- Beyond that the export is **silently truncated**: the file is produced, but the
-  rows past the limit are not in it. Narrow your filters to be sure you have
-  everything.
+- Beyond that the export is **refused**: My tells you how many records the
+  current filters match and asks you to narrow them. No partial file is
+  produced.
 
 ## Permissions
 

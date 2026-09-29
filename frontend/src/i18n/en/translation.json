@@ -34,6 +34,8 @@
     "go_to_page": "Go to {page}",
     "open_page": "Open {page}",
     "actions": "Actions",
+    "too_many_records_to_export": "Too many records to export",
+    "too_many_records_to_export_description": "The current filters match {total} records and an export holds at most {max}. Narrow the filters and try again.",
     "object_created_successfully": "{name} has been created successfully",
     "object_saved_successfully": "{name} has been updated successfully",
     "object_destroyed_successfully": "{name} has been destroyed successfully",

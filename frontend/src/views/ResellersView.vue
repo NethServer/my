@@ -18,6 +18,7 @@ import {
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { canManageResellers } from '@/lib/permissions'
 import { useResellers } from '@/queries/organizations/resellers'
+import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import {
   getExport,
@@ -28,10 +29,11 @@ import {
   RESELLERS_TOTAL_KEY,
   type ResellerStatus,
 } from '@/lib/organizations/resellers'
-import { downloadFile, exportFileName } from '@/lib/common'
+import { downloadFile, exportFileName, getExportLimitError } from '@/lib/common'
 import { useRoute, useRouter } from 'vue-router'
 
 const { t } = useI18n()
+const notificationsStore = useNotificationsStore()
 
 // the export runs on the whole filtered list and can take a while: one at a time,
 // with the Actions button showing progress
@@ -107,6 +109,15 @@ async function exportResellers(format: 'pdf' | 'csv') {
     const fileName = exportFileName(t('resellers.title'), format)
     downloadFile(exportData, fileName, format)
   } catch (error) {
+    const limit = getExportLimitError(error)
+    if (limit) {
+      notificationsStore.createNotification({
+        kind: 'error',
+        title: t('common.too_many_records_to_export'),
+        description: t('common.too_many_records_to_export_description', limit),
+      })
+      return
+    }
     console.error(`Cannot export resellers to ${format}:`, error)
     throw error
   } finally {

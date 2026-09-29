@@ -10,7 +10,7 @@ import {
   saveShowUnassignedAppsNotificationToStorage,
   SHOW_UNASSIGNED_APPS_NOTIFICATION,
 } from '@/lib/applications/applications'
-import { downloadFile, exportFileName } from '@/lib/common'
+import { downloadFile, exportFileName, getExportLimitError } from '@/lib/common'
 import { useApplications } from '@/queries/applications/applications'
 import { useApplicationsTotal } from '@/queries/applications/applicationsTotal'
 import { useLoginStore } from '@/stores/login'
@@ -24,10 +24,12 @@ import {
   NeInlineNotification,
 } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
+import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 const { t } = useI18n()
+const notificationsStore = useNotificationsStore()
 
 // the export runs on the whole filtered list and can take a while: one at a time,
 // with the Actions button showing progress
@@ -142,6 +144,15 @@ async function exportApplications(format: 'pdf' | 'csv') {
     const fileName = exportFileName(t('applications.title'), format)
     downloadFile(exportData, fileName, format)
   } catch (error) {
+    const limit = getExportLimitError(error)
+    if (limit) {
+      notificationsStore.createNotification({
+        kind: 'error',
+        title: t('common.too_many_records_to_export'),
+        description: t('common.too_many_records_to_export_description', limit),
+      })
+      return
+    }
     console.error(`Cannot export applications to ${format}:`, error)
     throw error
   } finally {

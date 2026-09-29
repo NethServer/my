@@ -1,3 +1,5 @@
+import { isAxiosError } from 'axios'
+
 export const MIN_SEARCH_LENGTH = 2
 
 export const OPTIONS_PAGE_SIZE = 50
@@ -130,6 +132,23 @@ export const exportFileName = (name: string, format: 'pdf' | 'csv', date = new D
     String(date.getDate()).padStart(2, '0'),
   ].join('-')
   return `${slug || 'export'}-${day}.${format}`
+}
+
+// the backend refuses an export whose filters match more rows than a file
+// may hold, and says how many rows matched and what the limit is
+export const getExportLimitError = (error: unknown): { total: number; max: number } | undefined => {
+  if (!isAxiosError(error) || error.response?.status !== 400) {
+    return undefined
+  }
+  const payload = error.response.data as
+    | { data?: { total_count?: unknown; max_limit?: unknown } }
+    | undefined
+  const total = payload?.data?.total_count
+  const max = payload?.data?.max_limit
+  if (typeof total !== 'number' || typeof max !== 'number') {
+    return undefined
+  }
+  return { total, max }
 }
 
 export const downloadFile = (fileData: Blob | string, filename: string, type: 'pdf' | 'csv') => {
