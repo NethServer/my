@@ -458,9 +458,8 @@ const goToResellerDetails = (reseller: Reseller) => {
               :to="{
                 name: 'systems',
                 query: {
-                  organization_id: item.logto_id,
-                  organization_name: item.name,
-                  include_hierarchy: 'true',
+                  parent_organization_id: item.logto_id,
+                  parent_organization_name: item.name,
                 },
               }"
               class="flex items-center gap-2 hover:underline"

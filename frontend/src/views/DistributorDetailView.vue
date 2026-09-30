@@ -22,9 +22,7 @@ const { state: distributorDetail } = useDistributorDetail()
 const isOwnCompany = useIsOwnCompany()
 const { state: distributorStats } = useDistributorStats()
 
-// link to the Resellers page filtered by this distributor as parent company.
-// No include_hierarchy: the parent company filter matches exactly, so only the
-// resellers this distributor owns are listed.
+// link to the Resellers page filtered by Managed by = this distributor
 const resellersRoute = computed(() => {
   if (!distributorDetail.value.data) {
     return undefined
@@ -39,7 +37,8 @@ const resellersRoute = computed(() => {
   }
 })
 
-// link to the Systems page filtered by the whole distributor hierarchy
+// link to the Systems page filtered by Managed by = this distributor: the
+// whole subtree, the set the counter counts
 const hierarchySystemsRoute = computed(() => {
   if (!distributorDetail.value.data) {
     return undefined
@@ -48,14 +47,14 @@ const hierarchySystemsRoute = computed(() => {
   return {
     name: 'systems',
     query: {
-      organization_id: distributorDetail.value.data.logto_id,
-      organization_name: distributorDetail.value.data.name,
-      include_hierarchy: 'true',
+      parent_organization_id: distributorDetail.value.data.logto_id,
+      parent_organization_name: distributorDetail.value.data.name,
     },
   }
 })
 
-// link to the Applications page filtered by the whole distributor hierarchy
+// link to the Applications page filtered by Managed by = this distributor: the
+// whole subtree, the set the counter counts
 const hierarchyApplicationsRoute = computed(() => {
   if (!distributorDetail.value.data) {
     return undefined
@@ -64,9 +63,8 @@ const hierarchyApplicationsRoute = computed(() => {
   return {
     name: 'applications',
     query: {
-      organization_id: distributorDetail.value.data.logto_id,
-      organization_name: distributorDetail.value.data.name,
-      include_hierarchy: 'true',
+      parent_organization_id: distributorDetail.value.data.logto_id,
+      parent_organization_name: distributorDetail.value.data.name,
     },
   }
 })

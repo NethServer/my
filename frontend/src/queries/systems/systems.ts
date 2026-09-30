@@ -32,13 +32,10 @@ export const useSystems = defineQuery(() => {
     { id: 'suspended', label: 'suspended' },
   ])
   const organizationFilter = ref<NeDropdownFilterV2Option[]>([])
-  // parent company: the distributor or reseller the system's company sits
-  // directly under (ANDed with organizationFilter)
+  // "Managed by": the systems whose company sits anywhere in the subtree of
+  // these organizations (ANDed with organizationFilter)
   const parentOrganizationFilter = ref<NeDropdownFilterV2Option[]>([])
   const addonFilter = ref<NeDropdownFilterV2Option[]>([])
-  // when true, the systems of every company in the hierarchy of the selected
-  // organization are shown (organizationFilter holds that single organization)
-  const includeHierarchy = ref(false)
   const sortBy = ref<keyof System>('name')
   const sortDescending = ref(false)
 
@@ -55,7 +52,6 @@ export const useSystems = defineQuery(() => {
         organizationFilter: organizationFilter.value.map((o) => o.id),
         parentOrganizationFilter: parentOrganizationFilter.value.map((o) => o.id),
         addonFilter: addonFilter.value.map((o) => o.id),
-        includeHierarchy: includeHierarchy.value,
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -72,7 +68,6 @@ export const useSystems = defineQuery(() => {
         statusFilter.value.map((o) => o.id) as SystemStatus[],
         organizationFilter.value.map((o) => o.id),
         addonFilter.value.map((o) => o.id),
-        includeHierarchy.value,
         sortBy.value,
         sortDescending.value,
         parentOrganizationFilter.value.map((o) => o.id),
@@ -168,33 +163,14 @@ export const useSystems = defineQuery(() => {
     },
   )
 
-  // the organization hierarchy mode is scoped to; lets us tell a genuine user
-  // change apart from OrganizationDropdownFilter re-emitting the same selection
-  // as a fresh array on mount (which must not exit hierarchy mode)
-  const hierarchyOrgId = ref<string | null>(null)
-
   // watch the selected org ids by value (not the array reference): reset to the
-  // first page when the selection changes, and exit hierarchy mode whenever the
-  // selection moves away from the single organization it was applied to
+  // first page when the assigned company selection changes
   watch(
     () => organizationFilter.value.map((o) => o.id).join(','),
-    (ids) => {
+    () => {
       pageNum.value = 1
-
-      if (includeHierarchy.value && ids !== (hierarchyOrgId.value ?? '')) {
-        includeHierarchy.value = false
-        hierarchyOrgId.value = null
-      }
     },
   )
-
-  // filter systems by the given organization and every company in its hierarchy
-  const applyHierarchyFilter = (organization: NeDropdownFilterV2Option) => {
-    resetFilters()
-    organizationFilter.value = [organization]
-    includeHierarchy.value = true
-    hierarchyOrgId.value = organization.id
-  }
 
   const resetFilters = () => {
     textFilter.value = ''
@@ -203,8 +179,6 @@ export const useSystems = defineQuery(() => {
     organizationFilter.value = []
     parentOrganizationFilter.value = []
     addonFilter.value = []
-    includeHierarchy.value = false
-    hierarchyOrgId.value = null
     resetStatusFilter()
   }
 
@@ -230,12 +204,10 @@ export const useSystems = defineQuery(() => {
     organizationFilter,
     parentOrganizationFilter,
     addonFilter,
-    includeHierarchy,
     debouncedTextFilter,
     sortBy,
     sortDescending,
     areDefaultFiltersApplied,
-    applyHierarchyFilter,
     resetFilters,
     resetStatusFilter,
   }

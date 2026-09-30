@@ -114,8 +114,8 @@ export const isUserDistributor = () => {
 // (Owner, a distributor or a reseller) and to a distributor (itself or one of
 // its resellers), never to a reseller (always itself); the parent of a reseller
 // only to the Owner (Owner or a distributor); the parent of a distributor to
-// nobody (always the Owner). Systems and users sit under customers too, so
-// they follow the customer rule.
+// nobody (always the Owner). Systems and applications sit under customers
+// too, so they follow the customer rule.
 export const canSeeParentOfCustomers = () => {
   const loginStore = useLoginStore()
   const orgRole = loginStore.userInfo?.org_role?.toLowerCase()

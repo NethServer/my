@@ -17,7 +17,6 @@ describe('customers getQueryStringParamsForExport', () => {
         ['enabled', 'suspended'],
         ['kyfy0tlnlk3l', 'obhdyclbfx4t'],
         ['org_abc123', 'org_def456'],
-        true,
         'creator_name',
         true,
       ),
@@ -41,7 +40,6 @@ describe('customers getQueryStringParamsForExport', () => {
         ['deleted'],
         undefined,
         undefined,
-        undefined,
         'name',
         false,
       ),
@@ -52,22 +50,24 @@ describe('customers getQueryStringParamsForExport', () => {
     expect(params.get('sort_direction')).toBe('asc')
   })
 
-  it('omits include_hierarchy unless the flag is set', () => {
-    const withoutFlag = parse(
-      getQueryStringParamsForExport(
-        'csv',
-        undefined,
-        undefined,
-        undefined,
-        ['org_abc123'],
-        false,
-        undefined,
-        undefined,
-      ),
-    )
+  it('widens Managed by to the whole subtree, and only when it is set', () => {
+    const exportWith = (organizationFilter: string[] | undefined) =>
+      parse(
+        getQueryStringParamsForExport(
+          'csv',
+          undefined,
+          undefined,
+          undefined,
+          organizationFilter,
+          undefined,
+          undefined,
+        ),
+      )
 
-    expect(withoutFlag.getAll('organization_id')).toEqual(['org_abc123'])
-    expect(withoutFlag.has('include_hierarchy')).toBe(false)
+    expect(exportWith(['org_abc123']).getAll('organization_id')).toEqual(['org_abc123'])
+    expect(exportWith(['org_abc123']).get('include_hierarchy')).toBe('true')
+    expect(exportWith(undefined).has('include_hierarchy')).toBe(false)
+    expect(exportWith([]).has('include_hierarchy')).toBe(false)
   })
 
   it('omits search for undefined and whitespace-only text filters', () => {
@@ -76,7 +76,6 @@ describe('customers getQueryStringParamsForExport', () => {
         getQueryStringParamsForExport(
           'csv',
           textFilter,
-          undefined,
           undefined,
           undefined,
           undefined,
@@ -100,7 +99,6 @@ describe('customers getQueryStringParamsForExport', () => {
         undefined,
         undefined,
         undefined,
-        undefined,
       ),
     )
 
@@ -117,7 +115,6 @@ describe('customers getQueryStringParamsForExport', () => {
         ['enabled'],
         ['kyfy0tlnlk3l'],
         ['org_abc123'],
-        true,
         'name',
         false,
       ),
@@ -129,7 +126,6 @@ describe('customers getQueryStringParamsForExport', () => {
         ['enabled'],
         ['kyfy0tlnlk3l'],
         ['org_abc123'],
-        true,
         'name',
         false,
       ),

@@ -197,10 +197,7 @@
     "export_customers_to_pdf": "Export customers to PDF",
     "export_customers_to_csv": "Export customers to CSV",
     "import_customers": "Import customers",
-    "customers_imported": "Customers imported",
-    "hierarchy_filter_title": "Filtering by company hierarchy",
-    "hierarchy_filter_description": "Showing customers of {name} and of all companies in its hierarchy. Changing the Managed by filter will remove this hierarchy filtering.",
-    "hierarchy_filter_exact": "Filter by this company only"
+    "customers_imported": "Customers imported"
   },
   "organizations": {
     "your_company": "Your company",
@@ -753,10 +750,7 @@
     "show_active_systems": "Show active systems",
     "show_inactive_systems": "Show inactive systems",
     "show_pending_systems": "Show pending systems",
-    "organization_id_system_not_registered": "Company cannot be changed until the system is registered. To change it now, delete and re-create the system.",
-    "hierarchy_filter_title": "Filtering by company hierarchy",
-    "hierarchy_filter_description": "Showing systems of {name} and of all companies in its hierarchy. Changing the Assigned company filter will remove this hierarchy filtering.",
-    "hierarchy_filter_exact": "Filter by this company only"
+    "organization_id_system_not_registered": "Company cannot be changed until the system is registered. To change it now, delete and re-create the system."
   },
   "system_detail": {
     "title": "System detail",
@@ -906,10 +900,7 @@
     "cannot_set_notes": "Cannot set application notes",
     "total_applications": "Applications",
     "organization_applications": "Applications",
-    "system_applications": "System applications",
-    "hierarchy_filter_title": "Filtering by company hierarchy",
-    "hierarchy_filter_description": "Showing applications of {name} and of all companies in its hierarchy. Changing the Assigned company filter will remove this hierarchy filtering.",
-    "hierarchy_filter_exact": "Filter by this company only"
+    "system_applications": "System applications"
   },
   "addons": {
     "title": "Add-ons",

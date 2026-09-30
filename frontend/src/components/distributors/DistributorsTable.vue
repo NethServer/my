@@ -425,7 +425,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('distributors.total_customers')">
-            <!-- links to the Customers page filtered by the whole distributor hierarchy -->
+            <!-- links to the Customers page filtered by Managed by = this distributor -->
             <router-link
               v-if="!item.deleted_at"
               :to="{
@@ -433,7 +433,6 @@ const goToDistributorDetails = (distributor: Distributor) => {
                 query: {
                   organization_id: item.logto_id,
                   organization_name: item.name,
-                  include_hierarchy: 'true',
                 },
               }"
               class="flex items-center gap-2 hover:underline"
@@ -461,9 +460,8 @@ const goToDistributorDetails = (distributor: Distributor) => {
               :to="{
                 name: 'systems',
                 query: {
-                  organization_id: item.logto_id,
-                  organization_name: item.name,
-                  include_hierarchy: 'true',
+                  parent_organization_id: item.logto_id,
+                  parent_organization_name: item.name,
                 },
               }"
               class="flex items-center gap-2 hover:underline"

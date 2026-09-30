@@ -71,7 +71,6 @@ const {
   textFilter,
   statusFilter,
   organizationFilter,
-  includeHierarchy,
   sortBy,
   sortDescending,
   areDefaultFiltersApplied,
@@ -277,18 +276,6 @@ const goToCustomerDetails = (customer: Customer) => {
       :title="$t('customers.cannot_retrieve_customers')"
       :description="state.error.message"
       class="mb-6"
-    />
-    <!-- company hierarchy filter notification -->
-    <NeInlineNotification
-      v-if="includeHierarchy && organizationFilter.length === 1"
-      kind="info"
-      :title="$t('customers.hierarchy_filter_title')"
-      :description="
-        $t('customers.hierarchy_filter_description', { name: organizationFilter[0].label })
-      "
-      :secondary-button-label="$t('customers.hierarchy_filter_exact')"
-      class="mb-6"
-      @secondary-click="includeHierarchy = false"
     />
     <!-- table toolbar -->
     <div class="mb-6 flex items-center gap-4">

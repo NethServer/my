@@ -6,7 +6,6 @@ import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 import { downloadFile, exportFileName, type Pagination } from '../common'
-import { ParentOrganizationSchema } from '@/lib/organizations/organizations'
 
 export const USERS_KEY = 'users'
 export const USERS_TOTAL_KEY = 'usersTotal'
@@ -52,7 +51,6 @@ export const UserSchema = v.object({
     logto_id: v.optional(v.string()),
     name: v.string(),
     type: v.string(),
-    parent: v.optional(ParentOrganizationSchema),
   }),
   roles: v.optional(
     v.array(
@@ -114,7 +112,6 @@ export const getQueryStringParams = (
   createdByFilter: string[],
   sortBy: string | null,
   sortDescending: boolean,
-  parentOrganizationFilter: string[] = [],
 ) => {
   const searchParams = new URLSearchParams({
     page: pageNum.toString(),
@@ -129,11 +126,6 @@ export const getQueryStringParams = (
 
   organizationFilter.forEach((orgId) => {
     searchParams.append('organization_id', orgId)
-  })
-
-  // parent company: the users whose company sits directly under one of these
-  parentOrganizationFilter.forEach((orgId) => {
-    searchParams.append('parent_organization_id', orgId)
   })
 
   roleFilter.forEach((roleId) => {
@@ -160,7 +152,6 @@ export const getUsers = (
   createdByFilter: string[],
   sortBy: string,
   sortDescending: boolean,
-  parentOrganizationFilter: string[] = [],
 ) => {
   const loginStore = useLoginStore()
   const params = getQueryStringParams(
@@ -173,7 +164,6 @@ export const getUsers = (
     createdByFilter,
     sortBy,
     sortDescending,
-    parentOrganizationFilter,
   )
 
   return axios
@@ -287,7 +277,6 @@ export const getQueryStringParamsForExport = (
   createdByFilter: string[] | undefined,
   sortBy: string | undefined,
   sortDescending: boolean | undefined,
-  parentOrganizationFilter: string[] | undefined = undefined,
 ) => {
   const searchParams = new URLSearchParams({
     format: format,
@@ -300,12 +289,6 @@ export const getQueryStringParamsForExport = (
   if (organizationFilter) {
     organizationFilter.forEach((orgId) => {
       searchParams.append('organization_id', orgId)
-    })
-  }
-
-  if (parentOrganizationFilter) {
-    parentOrganizationFilter.forEach((orgId) => {
-      searchParams.append('parent_organization_id', orgId)
     })
   }
 
@@ -347,7 +330,6 @@ export const getExport = (
   createdByFilter: string[] | undefined = undefined,
   sortBy: string | undefined = undefined,
   sortDescending: boolean | undefined = undefined,
-  parentOrganizationFilter: string[] | undefined = undefined,
 ) => {
   const loginStore = useLoginStore()
   const params = getQueryStringParamsForExport(
@@ -359,7 +341,6 @@ export const getExport = (
     createdByFilter,
     sortBy,
     sortDescending,
-    parentOrganizationFilter,
   )
 
   return axios

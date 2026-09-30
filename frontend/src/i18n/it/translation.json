@@ -197,10 +197,7 @@
     "export_customers_to_pdf": "Esporta clienti in PDF",
     "export_customers_to_csv": "Esporta clienti in CSV",
     "import_customers": "Importa clienti",
-    "customers_imported": "Clienti importati",
-    "hierarchy_filter_title": "Filtro per gerarchia aziendale",
-    "hierarchy_filter_description": "Sono mostrati i clienti di {name} e di tutte le aziende della sua gerarchia. Modificare il filtro Gestito da rimuoverà il filtro per gerarchia.",
-    "hierarchy_filter_exact": "Filtra solo per questa azienda"
+    "customers_imported": "Clienti importati"
   },
   "organizations": {
     "your_company": "La tua azienda",
@@ -671,10 +668,7 @@
     "show_active_systems": "Mostra sistemi attivi",
     "show_inactive_systems": "Mostra sistemi inattivi",
     "show_pending_systems": "Mostra sistemi in attesa",
-    "organization_id_system_not_registered": "L'azienda non può essere modificata finché il sistema non è registrato. Per modificarla ora, elimina e ricrea il sistema.",
-    "hierarchy_filter_title": "Filtro per gerarchia aziendale",
-    "hierarchy_filter_description": "Sono mostrati i sistemi di {name} e di tutte le aziende della sua gerarchia. Modificare il filtro Azienda assegnataria rimuoverà il filtro per gerarchia.",
-    "hierarchy_filter_exact": "Filtra solo per questa azienda"
+    "organization_id_system_not_registered": "L'azienda non può essere modificata finché il sistema non è registrato. Per modificarla ora, elimina e ricrea il sistema."
   },
   "system_detail": {
     "title": "Dettaglio sistema",
@@ -824,10 +818,7 @@
     "cannot_set_notes": "Impossibile impostare le note dell'applicazione",
     "total_applications": "Applicazioni",
     "organization_applications": "Applicazioni",
-    "system_applications": "Applicazioni del sistema",
-    "hierarchy_filter_title": "Filtro per gerarchia aziendale",
-    "hierarchy_filter_description": "Sono mostrate le applicazioni di {name} e di tutte le aziende della sua gerarchia. Modificare il filtro Azienda assegnataria rimuoverà il filtro per gerarchia.",
-    "hierarchy_filter_exact": "Filtra solo per questa azienda"
+    "system_applications": "Applicazioni del sistema"
   },
   "addons": {
     "title": "Add-on",

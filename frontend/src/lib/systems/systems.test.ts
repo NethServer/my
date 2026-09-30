@@ -21,7 +21,6 @@ describe('systems getQueryStringParamsForExport', () => {
         ['active', 'inactive'],
         ['org_abc123', 'org_def456'],
         ['nsec-blacklist', 'nsec-ha'],
-        true,
         'name',
         true,
       ),
@@ -35,7 +34,7 @@ describe('systems getQueryStringParamsForExport', () => {
     expect(params.getAll('status')).toEqual(['active', 'inactive'])
     expect(params.getAll('organization_id')).toEqual(['org_abc123', 'org_def456'])
     expect(params.getAll('addon')).toEqual(['nsec-blacklist', 'nsec-ha'])
-    expect(params.get('include_hierarchy')).toBe('true')
+    expect(params.has('include_hierarchy')).toBe(false)
     expect(params.get('sort_by')).toBe('name')
     expect(params.get('sort_direction')).toBe('desc')
   })
@@ -52,7 +51,6 @@ describe('systems getQueryStringParamsForExport', () => {
         undefined,
         undefined,
         ['active'],
-        undefined,
         undefined,
         undefined,
         'name',
@@ -79,7 +77,6 @@ describe('systems getQueryStringParamsForExport', () => {
         [],
         undefined,
         undefined,
-        undefined,
         'created_at',
         true,
       ),
@@ -104,33 +101,10 @@ describe('systems getQueryStringParamsForExport', () => {
         undefined,
         undefined,
         undefined,
-        undefined,
       ),
     )
 
     expect(params.get('system_key')).toBe('NETH-DD09-3DB4')
-  })
-
-  it('omits include_hierarchy unless the flag is set', () => {
-    const params = parse(
-      getQueryStringParamsForExport(
-        'csv',
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        ['org_abc123'],
-        [],
-        false,
-        undefined,
-        undefined,
-      ),
-    )
-
-    expect(params.getAll('organization_id')).toEqual(['org_abc123'])
-    expect(params.has('include_hierarchy')).toBe(false)
   })
 
   it('omits search for undefined and whitespace-only text filters', () => {
@@ -140,7 +114,6 @@ describe('systems getQueryStringParamsForExport', () => {
           'csv',
           undefined,
           textFilter,
-          undefined,
           undefined,
           undefined,
           undefined,
@@ -169,7 +142,6 @@ describe('systems getQueryStringParamsForExport', () => {
         ['active'],
         ['org_abc123'],
         ['nsec-blacklist'],
-        true,
         'name',
         false,
       ),
@@ -185,7 +157,6 @@ describe('systems getQueryStringParamsForExport', () => {
         ['active'],
         ['org_abc123'],
         ['nsec-blacklist'],
-        true,
         'name',
         false,
       ),
@@ -202,7 +173,7 @@ describe('systems getQueryStringParamsForExport', () => {
 
 describe('systems getQueryStringParams add-on filter', () => {
   const listWithAddons = (addonFilter: string[]) =>
-    parse(getQueryStringParams(1, 50, '', [], [], [], [], [], addonFilter, false, 'name', false))
+    parse(getQueryStringParams(1, 50, '', [], [], [], [], [], addonFilter, 'name', false))
 
   it('repeats the addon key once per selected add-on', () => {
     expect(listWithAddons(['nsec-blacklist', 'nsec-ha']).getAll('addon')).toEqual([
@@ -216,10 +187,10 @@ describe('systems getQueryStringParams add-on filter', () => {
   })
 })
 
-describe('systems parent company filter', () => {
+describe('systems Managed by filter', () => {
   it('sends parent_organization_id next to organization_id on the list', () => {
     const params = parse(
-      getQueryStringParams(1, 50, '', [], [], [], [], ['kfcl9gmo0iy2'], [], false, 'name', false, [
+      getQueryStringParams(1, 50, '', [], [], [], [], ['kfcl9gmo0iy2'], [], 'name', false, [
         'eeex9cffzsd7',
       ]),
     )
@@ -243,7 +214,6 @@ describe('systems parent company filter', () => {
         undefined,
         undefined,
         undefined,
-        undefined,
         ['eeex9cffzsd7', 'obhdyclbfx4t'],
       ),
     )
@@ -252,9 +222,7 @@ describe('systems parent company filter', () => {
   })
 
   it('omits parent_organization_id when nothing is selected', () => {
-    const params = parse(
-      getQueryStringParams(1, 50, '', [], [], [], [], [], [], false, 'name', false),
-    )
+    const params = parse(getQueryStringParams(1, 50, '', [], [], [], [], [], [], 'name', false))
 
     expect(params.has('parent_organization_id')).toBe(false)
   })

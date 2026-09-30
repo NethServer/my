@@ -139,7 +139,6 @@ export const getQueryStringParams = (
   statusFilter: SystemStatus[],
   organizationFilter: string[],
   addonFilter: string[],
-  includeHierarchy: boolean,
   sortBy: string | null,
   sortDescending: boolean,
   parentOrganizationFilter: string[] = [],
@@ -183,10 +182,6 @@ export const getQueryStringParams = (
   addonFilter.forEach((addon) => {
     searchParams.append('addon', addon)
   })
-
-  if (includeHierarchy) {
-    searchParams.append('include_hierarchy', 'true')
-  }
   return searchParams.toString()
 }
 
@@ -200,7 +195,6 @@ export const getQueryStringParamsForExport = (
   statusFilter: SystemStatus[] | undefined,
   organizationFilter: string[] | undefined,
   addonFilter: string[] | undefined,
-  includeHierarchy: boolean | undefined,
   sortBy: string | undefined,
   sortDescending: boolean | undefined,
   parentOrganizationFilter: string[] | undefined = undefined,
@@ -253,10 +247,6 @@ export const getQueryStringParamsForExport = (
     })
   }
 
-  if (includeHierarchy) {
-    searchParams.append('include_hierarchy', 'true')
-  }
-
   if (statusFilter) {
     statusFilter.forEach((status) => {
       searchParams.append('status', status)
@@ -283,7 +273,6 @@ export const getSystems = (
   statusFilter: SystemStatus[],
   organizationFilter: string[],
   addonFilter: string[],
-  includeHierarchy: boolean,
   sortBy: string,
   sortDescending: boolean,
   parentOrganizationFilter: string[] = [],
@@ -299,7 +288,6 @@ export const getSystems = (
     statusFilter,
     organizationFilter,
     addonFilter,
-    includeHierarchy,
     sortBy,
     sortDescending,
     parentOrganizationFilter,
@@ -432,7 +420,6 @@ export const getExport = (
   statusFilter: SystemStatus[] | undefined = undefined,
   organizationFilter: string[] | undefined = undefined,
   addonFilter: string[] | undefined = undefined,
-  includeHierarchy: boolean | undefined = undefined,
   sortBy: string | undefined = undefined,
   sortDescending: boolean | undefined = undefined,
   parentOrganizationFilter: string[] | undefined = undefined,
@@ -448,7 +435,6 @@ export const getExport = (
     statusFilter,
     organizationFilter,
     addonFilter,
-    includeHierarchy,
     sortBy,
     sortDescending,
     parentOrganizationFilter,

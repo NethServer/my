@@ -58,7 +58,6 @@ export const useSystemApplications = defineQuery(() => {
         [],
         [route.params.systemId as string],
         [],
-        false,
         'module_id',
         false,
       ),

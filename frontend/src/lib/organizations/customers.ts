@@ -102,7 +102,6 @@ export const getQueryStringParams = (
   statusFilter: CustomerStatus[],
   createdByFilter: string[],
   organizationFilter: string[],
-  includeHierarchy: boolean,
   sortBy: string | null,
   sortDescending: boolean,
 ) => {
@@ -131,15 +130,13 @@ export const getQueryStringParams = (
     searchParams.append('created_by', userId)
   })
 
-  // Parent company filter: matched exactly against the customer's owning
-  // organization, so selecting a reseller in the dropdown never pulls in the
-  // customers of its descendants. include_hierarchy widens it to the whole
-  // subtree, and only the explicit hierarchy entry points set that flag.
+  // "Managed by" filter: the customers anywhere in the subtree of the selected
+  // organizations (a distributor's own customers and those of its resellers)
   organizationFilter.forEach((organizationId) => {
     searchParams.append('organization_id', organizationId)
   })
 
-  if (includeHierarchy) {
+  if (organizationFilter.length) {
     searchParams.append('include_hierarchy', 'true')
   }
 
@@ -153,7 +150,6 @@ export const getCustomers = (
   statusFilter: CustomerStatus[],
   createdByFilter: string[],
   organizationFilter: string[],
-  includeHierarchy: boolean,
   sortBy: string,
   sortDescending: boolean,
 ) => {
@@ -165,7 +161,6 @@ export const getCustomers = (
     statusFilter,
     createdByFilter,
     organizationFilter,
-    includeHierarchy,
     sortBy,
     sortDescending,
   )
@@ -261,7 +256,6 @@ export const getQueryStringParamsForExport = (
   statusFilter: CustomerStatus[] | undefined,
   createdByFilter: string[] | undefined,
   organizationFilter: string[] | undefined,
-  includeHierarchy: boolean | undefined,
   sortBy: string | undefined,
   sortDescending: boolean | undefined,
 ) => {
@@ -285,15 +279,11 @@ export const getQueryStringParamsForExport = (
     })
   }
 
-  // Parent company filter: same exact match as the list query, widened to the
-  // whole subtree only when the hierarchy entry point set includeHierarchy.
-  if (organizationFilter) {
+  // "Managed by" filter: the same subtree as the list query
+  if (organizationFilter?.length) {
     organizationFilter.forEach((organizationId) => {
       searchParams.append('organization_id', organizationId)
     })
-  }
-
-  if (includeHierarchy) {
     searchParams.append('include_hierarchy', 'true')
   }
 
@@ -314,7 +304,6 @@ export const getExport = (
   statusFilter: CustomerStatus[] | undefined = undefined,
   createdByFilter: string[] | undefined = undefined,
   organizationFilter: string[] | undefined = undefined,
-  includeHierarchy: boolean | undefined = undefined,
   sortBy: string | undefined = undefined,
   sortDescending: boolean | undefined = undefined,
 ) => {
@@ -325,7 +314,6 @@ export const getExport = (
     statusFilter,
     createdByFilter,
     organizationFilter,
-    includeHierarchy,
     sortBy,
     sortDescending,
   )

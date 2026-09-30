@@ -16,7 +16,7 @@ import type { ParentOrganization } from '@/lib/organizations/organizations'
  *
  * The parent company is the organization the entity was attributed to at
  * creation (`custom_data.createdBy`). It comes either as `parent`, resolved by
- * the systems and users endpoints for the company a row is assigned to, or
+ * the systems endpoints for the company a row is assigned to, or
  * from the creator snapshot of a distributor, reseller or customer: the backend
  * stamps the attributed organization on it, so this is the same company the
  * parent company list filter matches on.

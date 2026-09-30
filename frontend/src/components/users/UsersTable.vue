@@ -58,7 +58,6 @@ import SuspendUserModal from './SuspendUserModal.vue'
 import ReactivateUserModal from './ReactivateUserModal.vue'
 import RestoreUserModal from './RestoreUserModal.vue'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
-import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
 import UserRoleBadge from './UserRoleBadge.vue'
 import { useUserFilters } from '@/queries/users/userFilters'
 import { normalize } from '@/lib/common'
@@ -66,7 +65,7 @@ import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import UserAvatar from './UserAvatar.vue'
 import ClickToCopy from '@/components/common/ClickToCopy.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
-import { canSeeParentOfCustomers, isUserCustomer } from '@/lib/organizations/organizations.ts'
+import { isUserCustomer } from '@/lib/organizations/organizations.ts'
 import router from '@/router/index.ts'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
@@ -84,7 +83,6 @@ const {
   textFilter,
   debouncedTextFilter,
   organizationFilter,
-  parentOrganizationFilter,
   roleFilter,
   statusFilter,
   sortBy,
@@ -135,7 +133,6 @@ const areDefaultFiltersApplied = computed(() => {
   return (
     !debouncedTextFilter.value &&
     organizationFilter.value.length === 0 &&
-    parentOrganizationFilter.value.length === 0 &&
     roleFilter.value.length === 0 &&
     statusFilter.value.length === 2 &&
     statusFilter.value.some((o) => o.id === 'enabled') &&
@@ -367,13 +364,6 @@ const goToAccount = () => {
           />
           <!-- organization filter -->
           <OrganizationDropdownFilter v-if="!isUserCustomer()" v-model="organizationFilter" />
-          <!-- parent company filter: the distributor or reseller the user's company belongs to -->
-          <OrganizationDropdownFilter
-            v-if="canSeeParentOfCustomers()"
-            v-model="parentOrganizationFilter"
-            :organization-types="['distributor', 'reseller']"
-            :label="t('organizations.parent_company')"
-          />
           <!-- role filter -->
           <NeDropdownFilterV2
             v-model="roleFilter"
@@ -463,9 +453,6 @@ const goToAccount = () => {
         <NeTableHeadCell sortable column-key="organization" @sort="onSort">{{
           $t('users.organization')
         }}</NeTableHeadCell>
-        <NeTableHeadCell v-if="canSeeParentOfCustomers()">{{
-          $t('organizations.parent_company')
-        }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('users.role') }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="status" @sort="onSort">{{
           $t('common.status')
@@ -507,18 +494,6 @@ const goToAccount = () => {
                 v-if="item.organization"
                 :organization="item.organization"
                 size="sm"
-              />
-              <span v-else>-</span>
-            </div>
-          </NeTableCell>
-          <NeTableCell
-            v-if="canSeeParentOfCustomers()"
-            :data-label="$t('organizations.parent_company')"
-          >
-            <div :class="{ 'opacity-50': item.deleted_at }">
-              <ParentCompanyLink
-                v-if="item.organization.parent"
-                :parent="item.organization.parent"
               />
               <span v-else>-</span>
             </div>

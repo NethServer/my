@@ -22,9 +22,7 @@ const { state: resellerDetail } = useResellerDetail()
 const isOwnCompany = useIsOwnCompany()
 const { state: resellerStats } = useResellerStats()
 
-// link to the Customers page filtered by this reseller as parent company.
-// No include_hierarchy: the parent company filter matches exactly, so only the
-// customers this reseller owns are listed.
+// link to the Customers page filtered by Managed by = this reseller
 const customersRoute = computed(() => {
   if (!resellerDetail.value.data) {
     return undefined
@@ -39,7 +37,8 @@ const customersRoute = computed(() => {
   }
 })
 
-// link to the Systems page filtered by the whole reseller hierarchy
+// link to the Systems page filtered by Managed by = this reseller: the
+// whole subtree, the set the counter counts
 const hierarchySystemsRoute = computed(() => {
   if (!resellerDetail.value.data) {
     return undefined
@@ -48,14 +47,14 @@ const hierarchySystemsRoute = computed(() => {
   return {
     name: 'systems',
     query: {
-      organization_id: resellerDetail.value.data.logto_id,
-      organization_name: resellerDetail.value.data.name,
-      include_hierarchy: 'true',
+      parent_organization_id: resellerDetail.value.data.logto_id,
+      parent_organization_name: resellerDetail.value.data.name,
     },
   }
 })
 
-// link to the Applications page filtered by the whole reseller hierarchy
+// link to the Applications page filtered by Managed by = this reseller: the
+// whole subtree, the set the counter counts
 const hierarchyApplicationsRoute = computed(() => {
   if (!resellerDetail.value.data) {
     return undefined
@@ -64,9 +63,8 @@ const hierarchyApplicationsRoute = computed(() => {
   return {
     name: 'applications',
     query: {
-      organization_id: resellerDetail.value.data.logto_id,
-      organization_name: resellerDetail.value.data.name,
-      include_hierarchy: 'true',
+      parent_organization_id: resellerDetail.value.data.logto_id,
+      parent_organization_name: resellerDetail.value.data.name,
     },
   }
 })
