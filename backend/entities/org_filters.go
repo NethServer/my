@@ -51,6 +51,22 @@ func createdByFilterClause(createdBy []string) string {
 	return fmt.Sprintf(" AND (custom_data->'createdByUser'->>'user_id' IN (%s) OR custom_data->'createdByUser'->>'organization_id' IN (%s))", list, list)
 }
 
+// childOrganizationsArray renders an ARRAY(subquery) of the logto IDs of the
+// organizations whose direct parent (custom_data.createdBy, the ownership key
+// RBAC walks) is one of the organizations bound to placeholder. It backs the
+// parent_organization_id list filter of systems and users: the company the
+// entity is assigned to sits directly under one of those parents.
+// One level only, like the parent company filter of the resellers and
+// customers lists; the whole subtree is organization_id + include_hierarchy.
+// ANY(ARRAY(...)) keeps the outer match on an index.
+func childOrganizationsArray(placeholder string) string {
+	return fmt.Sprintf(`ARRAY(
+		SELECT logto_id FROM distributors WHERE deleted_at IS NULL AND logto_id IS NOT NULL AND custom_data->>'createdBy' = ANY(%[1]s::text[])
+		UNION ALL SELECT logto_id FROM resellers WHERE deleted_at IS NULL AND logto_id IS NOT NULL AND custom_data->>'createdBy' = ANY(%[1]s::text[])
+		UNION ALL SELECT logto_id FROM customers WHERE deleted_at IS NULL AND logto_id IS NOT NULL AND custom_data->>'createdBy' = ANY(%[1]s::text[])
+	)`, placeholder)
+}
+
 // ownedByFilterClause builds a SQL fragment restricting resellers/customers to
 // those owned by any of the given organization logto IDs (custom_data.createdBy,
 // the ownership key RBAC visibility walks — not the creator snapshot). Backs

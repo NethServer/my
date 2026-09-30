@@ -141,6 +141,7 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 		_ = json.Unmarshal(createdByJSON, &system.CreatedBy) // Ignore JSON unmarshal errors - keep default zero value
 	}
 	fillCreatorOrgTypes(r.db, &system.CreatedBy)
+	fillParentOrganizations(r.db, []parentSlot{{system.Organization.LogtoID, &system.Organization.Parent}})
 
 	// Set heartbeat and inventory timestamps
 	if lastHeartbeat.Valid {
@@ -390,6 +391,11 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(ctx context.Context
 		whereClause += fmt.Sprintf(" AND s.organization_id IN (%s)", strings.Join(orgPlaceholders, ","))
 	}
 
+	if len(f.ParentOrganizationIDs) > 0 {
+		args = append(args, pq.Array(f.ParentOrganizationIDs))
+		whereClause += fmt.Sprintf(" AND s.organization_id = ANY(%s)", childOrganizationsArray(fmt.Sprintf("$%d", len(args))))
+	}
+
 	if statusClause, statusArgs := statusFilterClause(filterStatuses, len(args)); statusClause != "" {
 		whereClause += " AND " + statusClause
 		args = append(args, statusArgs...)
@@ -534,6 +540,12 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(ctx context.Context
 	}
 
 	fillCreatorOrgTypes(r.db, creatorRefsOf(systems, func(sys *models.System) models.CreatorOrgRef { return &sys.CreatedBy })...)
+
+	slots := make([]parentSlot, 0, len(systems))
+	for _, sys := range systems {
+		slots = append(slots, parentSlot{sys.Organization.LogtoID, &sys.Organization.Parent})
+	}
+	fillParentOrganizations(r.db, slots)
 
 	return systems, totalCount, nil
 }

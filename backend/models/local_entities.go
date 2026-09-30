@@ -384,6 +384,9 @@ type UserOrganization struct {
 	LogtoID string `json:"logto_id"`
 	Name    string `json:"name"`
 	Type    string `json:"type"`
+	// Parent is the company this organization sits directly under; filled on
+	// the users list
+	Parent *ParentOrganization `json:"parent,omitempty"`
 }
 
 // UserRole represents role info in user responses

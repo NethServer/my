@@ -1653,6 +1653,10 @@ components:
           description: Organization type in the business hierarchy
           enum: ["owner", "distributor", "reseller", "customer"]
           example: "customer"
+        parent:
+          description: The company this organization sits directly under (its custom_data.createdBy). Returned by the users list; absent when the organization has no recorded parent.
+          allOf:
+            - $ref: '#/components/schemas/ParentOrganization'
 
     OrganizationRole:
       type: object
@@ -1742,6 +1746,32 @@ components:
           enum: [owner, distributor, reseller, customer]
           description: Organization type
           example: "customer"
+        parent:
+          description: The company this organization sits directly under (its custom_data.createdBy). Returned by the list and detail endpoints; absent when the organization has no recorded parent.
+          allOf:
+            - $ref: '#/components/schemas/ParentOrganization'
+
+    ParentOrganization:
+      type: object
+      description: The company an organization sits directly under, with its current name and level
+      properties:
+        id:
+          type: string
+          description: Database UUID of the parent (empty string for the Owner organization)
+          example: "4405ffd0-0aca-44ef-bae2-c8545bce94f4"
+        logto_id:
+          type: string
+          description: Logto organization ID of the parent
+          example: "eeex9cffzsd7"
+        name:
+          type: string
+          description: Parent name (may be empty for the Owner organization)
+          example: "Clienti Diretti Nethesis"
+        type:
+          type: string
+          enum: [owner, distributor, reseller]
+          description: Parent level
+          example: "reseller"
 
     ThirdPartyApplicationIdPAccessReport:
       type: object
@@ -4468,6 +4498,19 @@ components:
       style: form
       explode: true
 
+    ParentOrganizationFilterParam:
+      name: parent_organization_id
+      in: query
+      description: Filter by parent company. Keeps the entries whose organization sits directly under one of these organization Logto IDs (its custom_data.createdBy). One level only, ANDed with organization_id, so company and parent company combine; the whole subtree of an organization is organization_id plus include_hierarchy. Supports multiple values. Results always stay within the caller's RBAC scope.
+      required: false
+      schema:
+        type: array
+        items:
+          type: string
+        example: ["org_abc123xyz"]
+      style: form
+      explode: true
+
     IncludeHierarchyParam:
       name: include_hierarchy
       in: query
@@ -4908,6 +4951,7 @@ paths:
             example: ["org_abc123"]
           style: form
           explode: true
+        - $ref: '#/components/parameters/ParentOrganizationFilterParam'
         - name: status
           in: query
           required: false
@@ -5602,6 +5646,7 @@ paths:
             example: ["org_abc123"]
           style: form
           explode: true
+        - $ref: '#/components/parameters/ParentOrganizationFilterParam'
         - name: status
           in: query
           required: false
@@ -10474,6 +10519,7 @@ paths:
         - $ref: '#/components/parameters/SystemVersionFilterParam'
         - $ref: '#/components/parameters/SystemOrganizationFilterParam'
         - $ref: '#/components/parameters/IncludeHierarchyParam'
+        - $ref: '#/components/parameters/ParentOrganizationFilterParam'
         - $ref: '#/components/parameters/SystemStatusFilterParam'
         - $ref: '#/components/parameters/SystemAddonFilterParam'
         - $ref: '#/components/parameters/IncludeAddonsParam'
@@ -11203,6 +11249,7 @@ paths:
         - $ref: '#/components/parameters/SystemVersionFilterParam'
         - $ref: '#/components/parameters/SystemOrganizationFilterParam'
         - $ref: '#/components/parameters/IncludeHierarchyParam'
+        - $ref: '#/components/parameters/ParentOrganizationFilterParam'
         - $ref: '#/components/parameters/SystemStatusFilterParam'
         - $ref: '#/components/parameters/SystemAddonFilterParam'
       responses:

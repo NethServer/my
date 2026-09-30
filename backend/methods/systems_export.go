@@ -72,6 +72,7 @@ func ExportSystems(c *gin.Context) {
 		}
 		filterOrgIDs = expanded
 	}
+	filterParentOrgIDs := c.QueryArray("parent_organization_id")
 	filterStatuses := c.QueryArray("status")
 	filterAddons := c.QueryArray("addon")
 
@@ -87,14 +88,15 @@ func ExportSystems(c *gin.Context) {
 	systems, totalCount, err := systemsService.GetSystemsByOrganizationPaginated(
 		c.Request.Context(), userID, userOrgID, userOrgRole, 1, MaxExportLimit, search, sortBy, sortDirection,
 		models.SystemListFilters{
-			Name:            filterName,
-			SystemKeys:      filterSystemKey,
-			Types:           filterTypes,
-			CreatedBy:       filterCreatedBy,
-			Versions:        filterVersions,
-			OrganizationIDs: filterOrgIDs,
-			Statuses:        filterStatuses,
-			Addons:          filterAddons,
+			Name:                  filterName,
+			SystemKeys:            filterSystemKey,
+			Types:                 filterTypes,
+			CreatedBy:             filterCreatedBy,
+			Versions:              filterVersions,
+			OrganizationIDs:       filterOrgIDs,
+			ParentOrganizationIDs: filterParentOrgIDs,
+			Statuses:              filterStatuses,
+			Addons:                filterAddons,
 		},
 	)
 
@@ -131,6 +133,9 @@ func ExportSystems(c *gin.Context) {
 
 	// Build filters map for PDF metadata
 	filters := buildFiltersMap(search, filterName, filterSystemKey, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses)
+	if len(filterParentOrgIDs) > 0 {
+		filters["parent_organization_id"] = strings.Join(filterParentOrgIDs, ", ")
+	}
 
 	// Create export service
 	exportService := export.NewSystemsExportService()

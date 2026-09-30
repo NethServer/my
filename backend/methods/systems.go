@@ -154,14 +154,15 @@ func GetSystems(c *gin.Context) {
 	search := c.Query("search")
 
 	// Parse filter parameters (supporting multiple values via checkbox, except name which is text input)
-	filterName := c.Query("name")                   // Name filter (single value, text input)
-	filterSystemKey := c.QueryArray("system_key")   // System Key filter (multiple values, exact match)
-	filterTypes := c.QueryArray("type")             // Product/Type filter (multiple values)
-	filterCreatedBy := c.QueryArray("created_by")   // Created By filter (multiple user IDs)
-	filterVersions := c.QueryArray("version")       // Version filter (multiple values)
-	filterOrgIDs := c.QueryArray("organization_id") // Organization filter (multiple IDs)
-	filterStatuses := c.QueryArray("status")        // Status filter (multiple values)
-	filterAddons := c.QueryArray("addon")           // Add-on filter (multiple catalog ids)
+	filterName := c.Query("name")                                // Name filter (single value, text input)
+	filterSystemKey := c.QueryArray("system_key")                // System Key filter (multiple values, exact match)
+	filterTypes := c.QueryArray("type")                          // Product/Type filter (multiple values)
+	filterCreatedBy := c.QueryArray("created_by")                // Created By filter (multiple user IDs)
+	filterVersions := c.QueryArray("version")                    // Version filter (multiple values)
+	filterOrgIDs := c.QueryArray("organization_id")              // Organization filter (multiple IDs)
+	filterParentOrgIDs := c.QueryArray("parent_organization_id") // Parent company filter (multiple IDs)
+	filterStatuses := c.QueryArray("status")                     // Status filter (multiple values)
+	filterAddons := c.QueryArray("addon")                        // Add-on filter (multiple catalog ids)
 
 	// include_hierarchy expands each organization_id filter to the org plus its
 	// whole subtree (resellers/customers); the systems RBAC scope still applies
@@ -180,14 +181,15 @@ func GetSystems(c *gin.Context) {
 
 	// Get systems with pagination, search, sorting and filters
 	filters := models.SystemListFilters{
-		Name:            filterName,
-		SystemKeys:      filterSystemKey,
-		Types:           filterTypes,
-		CreatedBy:       filterCreatedBy,
-		Versions:        filterVersions,
-		OrganizationIDs: filterOrgIDs,
-		Statuses:        filterStatuses,
-		Addons:          filterAddons,
+		Name:                  filterName,
+		SystemKeys:            filterSystemKey,
+		Types:                 filterTypes,
+		CreatedBy:             filterCreatedBy,
+		Versions:              filterVersions,
+		OrganizationIDs:       filterOrgIDs,
+		ParentOrganizationIDs: filterParentOrgIDs,
+		Statuses:              filterStatuses,
+		Addons:                filterAddons,
 	}
 	systems, totalCount, err := systemsService.GetSystemsByOrganizationPaginated(
 		c.Request.Context(), userID, userOrgID, userOrgRole, page, pageSize, search, sortBy, sortDirection, filters,
