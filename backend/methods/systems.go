@@ -154,15 +154,14 @@ func GetSystems(c *gin.Context) {
 	search := c.Query("search")
 
 	// Parse filter parameters (supporting multiple values via checkbox, except name which is text input)
-	filterName := c.Query("name")                                // Name filter (single value, text input)
-	filterSystemKey := c.QueryArray("system_key")                // System Key filter (multiple values, exact match)
-	filterTypes := c.QueryArray("type")                          // Product/Type filter (multiple values)
-	filterCreatedBy := c.QueryArray("created_by")                // Created By filter (multiple user IDs)
-	filterVersions := c.QueryArray("version")                    // Version filter (multiple values)
-	filterOrgIDs := c.QueryArray("organization_id")              // Organization filter (multiple IDs)
-	filterParentOrgIDs := c.QueryArray("parent_organization_id") // Parent company filter (multiple IDs)
-	filterStatuses := c.QueryArray("status")                     // Status filter (multiple values)
-	filterAddons := c.QueryArray("addon")                        // Add-on filter (multiple catalog ids)
+	filterName := c.Query("name")                   // Name filter (single value, text input)
+	filterSystemKey := c.QueryArray("system_key")   // System Key filter (multiple values, exact match)
+	filterTypes := c.QueryArray("type")             // Product/Type filter (multiple values)
+	filterCreatedBy := c.QueryArray("created_by")   // Created By filter (multiple user IDs)
+	filterVersions := c.QueryArray("version")       // Version filter (multiple values)
+	filterOrgIDs := c.QueryArray("organization_id") // Organization filter (multiple IDs)
+	filterStatuses := c.QueryArray("status")        // Status filter (multiple values)
+	filterAddons := c.QueryArray("addon")           // Add-on filter (multiple catalog ids)
 
 	// include_hierarchy expands each organization_id filter to the org plus its
 	// whole subtree (resellers/customers); the systems RBAC scope still applies
@@ -174,6 +173,11 @@ func GetSystems(c *gin.Context) {
 			return
 		}
 		filterOrgIDs = expanded
+	}
+
+	filterParentOrgIDs, ok := managedByOrganizationIDs(c)
+	if !ok {
+		return
 	}
 
 	// Create systems service

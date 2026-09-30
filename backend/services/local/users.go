@@ -505,8 +505,8 @@ func (s *LocalUserService) UpdateLatestLogin(userID string) error {
 }
 
 // ListUsers returns paginated list of users based on hierarchical RBAC
-func (s *LocalUserService) ListUsers(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, parentOrgFilter, statuses, roleFilter, createdByFilter []string) ([]*models.LocalUser, int, error) {
-	return s.userRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, organizationFilter, parentOrgFilter, statuses, roleFilter, createdByFilter)
+func (s *LocalUserService) ListUsers(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses, roleFilter, createdByFilter []string) ([]*models.LocalUser, int, error) {
+	return s.userRepo.List(userOrgRole, userOrgID, page, pageSize, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter, createdByFilter)
 }
 
 // GetTotals returns user totals (with enabled/suspended breakdown) based on hierarchical RBAC

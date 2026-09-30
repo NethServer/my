@@ -769,7 +769,7 @@ func (r *LocalUserRepository) UpdateLatestLogin(userID string) error {
 }
 
 // List returns paginated list of users based on hierarchical RBAC (matches other repository patterns)
-func (r *LocalUserRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, parentOrgFilter, statuses, roleFilter, createdByFilter []string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) List(userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses, roleFilter, createdByFilter []string) ([]*models.LocalUser, int, error) {
 	// Owner can access all users - pass nil to skip RBAC filtering in query
 	var allowedOrgIDs []string
 	if !models.IsGlobalOrgRole(userOrgRole) {
@@ -780,12 +780,12 @@ func (r *LocalUserRepository) List(userOrgRole, userOrgID string, page, pageSize
 		}
 	}
 
-	return r.ListByOrganizations(allowedOrgIDs, page, pageSize, search, sortBy, sortDirection, organizationFilter, parentOrgFilter, statuses, roleFilter, createdByFilter)
+	return r.ListByOrganizations(allowedOrgIDs, page, pageSize, search, sortBy, sortDirection, organizationFilter, statuses, roleFilter, createdByFilter)
 }
 
 // ListByOrganizations returns paginated list of users in specified organizations
 // nil allowedOrgIDs = owner (no RBAC filter), empty = no access
-func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, parentOrgFilter, statuses, roleFilter, createdByFilter []string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection string, organizationFilter, statuses, roleFilter, createdByFilter []string) ([]*models.LocalUser, int, error) {
 	// nil = owner (no RBAC filter), empty = no access
 	if allowedOrgIDs != nil && len(allowedOrgIDs) == 0 {
 		return []*models.LocalUser{}, 0, nil
@@ -815,9 +815,9 @@ func (r *LocalUserRepository) ListByOrganizations(allowedOrgIDs []string, page, 
 	offset := (page - 1) * pageSize
 
 	if search != "" {
-		return r.listUsersWithSearch(allowedOrgIDs, pageSize, offset, search, sortBy, sortDirection, parentOrgFilter, statuses, roleFilter, createdByFilter)
+		return r.listUsersWithSearch(allowedOrgIDs, pageSize, offset, search, sortBy, sortDirection, statuses, roleFilter, createdByFilter)
 	} else {
-		return r.listUsersWithoutSearch(allowedOrgIDs, pageSize, offset, sortBy, sortDirection, parentOrgFilter, statuses, roleFilter, createdByFilter)
+		return r.listUsersWithoutSearch(allowedOrgIDs, pageSize, offset, sortBy, sortDirection, statuses, roleFilter, createdByFilter)
 	}
 }
 
@@ -837,18 +837,8 @@ func buildUsersCreatedByClause(createdByFilter []string, args *[]interface{}) st
 	return " AND (" + strings.Join(conditions, " OR ") + ")"
 }
 
-// buildUsersParentOrgClause builds the parent_organization_id filter fragment:
-// the user's organization sits directly under one of the given parents.
-func buildUsersParentOrgClause(parentOrgFilter []string, args *[]interface{}) string {
-	if len(parentOrgFilter) == 0 {
-		return ""
-	}
-	*args = append(*args, pq.Array(parentOrgFilter))
-	return fmt.Sprintf(" AND u.organization_id = ANY(%s)", childOrganizationsArray(fmt.Sprintf("$%d", len(*args))))
-}
-
 // listUsersWithSearch handles user listing with search functionality
-func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, pageSize, offset int, search, sortBy, sortDirection string, parentOrgFilter, statuses, roleFilter, createdByFilter []string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, pageSize, offset int, search, sortBy, sortDirection string, statuses, roleFilter, createdByFilter []string) ([]*models.LocalUser, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY u.created_at DESC" // default sorting
 	if sortBy != "" {
@@ -921,9 +911,8 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, pageSi
 	}
 
 	createdByClause := buildUsersCreatedByClause(createdByFilter, &args)
-	parentOrgClause := buildUsersParentOrgClause(parentOrgFilter, &args)
 
-	whereClause := fmt.Sprintf("1=1%s%s%s%s%s%s%s", deletedClause, orgClause, searchClause, statusClause, roleClause, createdByClause, parentOrgClause)
+	whereClause := fmt.Sprintf("1=1%s%s%s%s%s%s", deletedClause, orgClause, searchClause, statusClause, roleClause, createdByClause)
 
 	// Single query with COUNT(*) OVER() for total count + paginated results
 	mainQuery := fmt.Sprintf(`
@@ -950,7 +939,7 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, pageSi
 }
 
 // listUsersWithoutSearch handles user listing without search functionality
-func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, pageSize, offset int, sortBy, sortDirection string, parentOrgFilter, statuses, roleFilter, createdByFilter []string) ([]*models.LocalUser, int, error) {
+func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, pageSize, offset int, sortBy, sortDirection string, statuses, roleFilter, createdByFilter []string) ([]*models.LocalUser, int, error) {
 	// Validate and build sorting clause
 	orderClause := "ORDER BY u.created_at DESC" // default sorting
 	if sortBy != "" {
@@ -1020,9 +1009,8 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, pag
 	}
 
 	createdByClause := buildUsersCreatedByClause(createdByFilter, &args)
-	parentOrgClause := buildUsersParentOrgClause(parentOrgFilter, &args)
 
-	whereClause := fmt.Sprintf("1=1%s%s%s%s%s%s", deletedClause, orgClause, statusClause, roleClause, createdByClause, parentOrgClause)
+	whereClause := fmt.Sprintf("1=1%s%s%s%s%s", deletedClause, orgClause, statusClause, roleClause, createdByClause)
 
 	// Single query with COUNT(*) OVER() for total count + paginated results
 	mainQuery := fmt.Sprintf(`
@@ -1112,14 +1100,6 @@ func (r *LocalUserRepository) executeUserQuery(_ string, _ []interface{}, mainQu
 	}
 
 	fillCreatorOrgTypes(r.db, creatorRefsOf(users, func(u *models.LocalUser) models.CreatorOrgRef { return u.CreatedBy })...)
-
-	slots := make([]parentSlot, 0, len(users))
-	for _, user := range users {
-		if user.Organization != nil {
-			slots = append(slots, parentSlot{user.Organization.LogtoID, &user.Organization.Parent})
-		}
-	}
-	fillParentOrganizations(r.db, slots)
 
 	return users, totalCount, nil
 }

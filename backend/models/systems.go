@@ -124,7 +124,7 @@ type SystemListFilters struct {
 	CreatedBy             []string // user id or organization id of the creator
 	Versions              []string // "product:version", or a bare version
 	OrganizationIDs       []string // owning organization (logto id)
-	ParentOrganizationIDs []string // direct parent of the owning organization
+	ParentOrganizationIDs []string // "Managed by": owning organization within these subtrees
 	Statuses              []string // unified status, including suspended/no_inventory
 	Addons                []string // catalog ids of add-ons the system must hold
 }

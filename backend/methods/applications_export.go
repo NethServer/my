@@ -68,6 +68,11 @@ func ExportApplications(c *gin.Context) {
 		filterOrgIDs = expanded
 	}
 
+	filterManagedByOrgIDs, ok := managedByOrganizationIDs(c)
+	if !ok {
+		return
+	}
+
 	sortBy := c.DefaultQuery("sort_by", "created_at")
 	sortDirection := c.DefaultQuery("sort_direction", "desc")
 
@@ -79,7 +84,7 @@ func ExportApplications(c *gin.Context) {
 		userOrgRole, userOrgID,
 		1, MaxApplicationsExportLimit,
 		search, sortBy, sortDirection,
-		filterTypes, filterVersions, filterSystemIDs, filterOrgIDs, filterStatuses,
+		filterTypes, filterVersions, filterSystemIDs, filterOrgIDs, filterManagedByOrgIDs, filterStatuses,
 	)
 	if err != nil {
 		logger.Error().
@@ -112,6 +117,9 @@ func ExportApplications(c *gin.Context) {
 	}
 
 	filters := buildApplicationsFiltersMap(search, filterTypes, filterVersions, filterSystemIDs, filterOrgIDs, filterStatuses)
+	if parents := c.QueryArray("parent_organization_id"); len(parents) > 0 {
+		filters["parent_organization_id"] = strings.Join(parents, ", ")
+	}
 
 	exportService := export.NewApplicationsExportService()
 

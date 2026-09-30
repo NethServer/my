@@ -393,7 +393,7 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(ctx context.Context
 
 	if len(f.ParentOrganizationIDs) > 0 {
 		args = append(args, pq.Array(f.ParentOrganizationIDs))
-		whereClause += fmt.Sprintf(" AND s.organization_id = ANY(%s)", childOrganizationsArray(fmt.Sprintf("$%d", len(args))))
+		whereClause += fmt.Sprintf(" AND s.organization_id = ANY($%d::text[])", len(args))
 	}
 
 	if statusClause, statusArgs := statusFilterClause(filterStatuses, len(args)); statusClause != "" {

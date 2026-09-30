@@ -1653,10 +1653,6 @@ components:
           description: Organization type in the business hierarchy
           enum: ["owner", "distributor", "reseller", "customer"]
           example: "customer"
-        parent:
-          description: The company this organization sits directly under (its custom_data.createdBy). Returned by the users list; absent when the organization has no recorded parent.
-          allOf:
-            - $ref: '#/components/schemas/ParentOrganization'
 
     OrganizationRole:
       type: object
@@ -4501,7 +4497,7 @@ components:
     ParentOrganizationFilterParam:
       name: parent_organization_id
       in: query
-      description: Filter by parent company. Keeps the entries whose organization sits directly under one of these organization Logto IDs (its custom_data.createdBy). One level only, ANDed with organization_id, so company and parent company combine; the whole subtree of an organization is organization_id plus include_hierarchy. Supports multiple values. Results always stay within the caller's RBAC scope.
+      description: "\"Managed by\" filter. Keeps the entries whose organization is one of these organization Logto IDs or sits anywhere in their subtree (a distributor's resellers and customers, a reseller's customers), the set the hierarchy counters of an organization count over. For applications, an unassigned application counts with the organization of its system. ANDed with organization_id, so the assigned company and Managed by combine. Supports multiple values. Results always stay within the caller's RBAC scope."
       required: false
       schema:
         type: array
@@ -4951,7 +4947,6 @@ paths:
             example: ["org_abc123"]
           style: form
           explode: true
-        - $ref: '#/components/parameters/ParentOrganizationFilterParam'
         - name: status
           in: query
           required: false
@@ -5646,7 +5641,6 @@ paths:
             example: ["org_abc123"]
           style: form
           explode: true
-        - $ref: '#/components/parameters/ParentOrganizationFilterParam'
         - name: status
           in: query
           required: false
@@ -16386,6 +16380,7 @@ paths:
         - $ref: '#/components/parameters/AppSystemFilterParam'
         - $ref: '#/components/parameters/AppOrganizationFilterParam'
         - $ref: '#/components/parameters/IncludeHierarchyParam'
+        - $ref: '#/components/parameters/ParentOrganizationFilterParam'
         - $ref: '#/components/parameters/AppStatusFilterParam'
       responses:
         '200':
@@ -16957,6 +16952,7 @@ paths:
         - $ref: '#/components/parameters/AppSystemFilterParam'
         - $ref: '#/components/parameters/AppOrganizationFilterParam'
         - $ref: '#/components/parameters/IncludeHierarchyParam'
+        - $ref: '#/components/parameters/ParentOrganizationFilterParam'
         - $ref: '#/components/parameters/AppStatusFilterParam'
       responses:
         '200':
