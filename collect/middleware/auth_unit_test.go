@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -222,5 +223,28 @@ func TestSystemCredentialsQuery_KeepsEveryRevocationFilter(t *testing.T) {
 	} {
 		assert.Containsf(t, systemCredentialsQuery, filter,
 			"credential lookup must refuse systems matching %q", filter)
+		assert.Containsf(t, systemByKeyHashQuery, filter,
+			"key hash lookup must refuse systems matching %q", filter)
+	}
+	assert.Contains(t, systemByKeyHashQuery, "s.system_key_hash = $1")
+}
+
+// Refused before any DB lookup: key hash on Basic routes, Basic or malformed hash on /auth-hash.
+func TestSystemKeyHash_RefusedWithoutLookup(t *testing.T) {
+	hash := "Bearer " + strings.Repeat("ab", 32)
+	for header, mw := range map[string]gin.HandlerFunc{
+		hash:                                 BasicAuthMiddleware(),
+		"Basic TkVUSC1LRVk6c2VjcmV0":         SystemKeyHashAuthMiddleware(),
+		hash[:len(hash)-1]:                   SystemKeyHashAuthMiddleware(),
+		"Bearer " + strings.Repeat("zz", 32): SystemKeyHashAuthMiddleware(),
+	} {
+		router := gin.New()
+		router.Use(mw)
+		router.GET("/probe", func(c *gin.Context) { c.Status(http.StatusOK) })
+		req := httptest.NewRequest(http.MethodGet, "/probe", nil)
+		req.Header.Set("Authorization", header)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusUnauthorized, w.Code, header)
 	}
 }

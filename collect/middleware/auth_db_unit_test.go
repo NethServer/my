@@ -9,13 +9,16 @@ package middleware
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/gin-gonic/gin"
@@ -23,6 +26,7 @@ import (
 
 	"github.com/nethesis/my/collect/configuration"
 	"github.com/nethesis/my/collect/database"
+	"github.com/nethesis/my/collect/helpers"
 )
 
 // swapMockDB replaces database.DB with a sqlmock and returns the mock plus a
@@ -62,7 +66,7 @@ func TestBasicAuthMiddleware_DBOutcomes(t *testing.T) {
 	// Well-formed secret: my_<public>.<secret with min length>
 	secret := "my_pub." + strings.Repeat("s", configuration.Config.SystemSecretMinLength)
 
-	credsQueryRegex := `SELECT s.id, s.system_secret_public, s.system_secret_sha256, s.registered_at\s+FROM systems s`
+	credsQueryRegex := `SELECT s.id, s.system_secret_public, s.system_secret_sha256, s.registered_at, s.system_key_hash\s+FROM systems s`
 
 	tests := []struct {
 		name           string
@@ -145,4 +149,64 @@ func TestBasicAuthMiddleware_DBOutcomes(t *testing.T) {
 		}
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
+}
+
+var credsColumns = []string{"id", "system_secret_public", "system_secret_sha256", "registered_at", "system_key_hash"}
+
+// Bearer lane: known hash 200, unknown 401 (nginx falls back to legacy), DB failure 503.
+func TestSystemKeyHashAuth_DBOutcomes(t *testing.T) {
+	hash := strings.Repeat("ab", 32)
+	for expected, result := range map[int]func(*sqlmock.ExpectedQuery){
+		http.StatusOK: func(q *sqlmock.ExpectedQuery) {
+			q.WillReturnRows(sqlmock.NewRows(credsColumns).AddRow("sys-1", "pub", "x", time.Now(), hash))
+		},
+		http.StatusUnauthorized:       func(q *sqlmock.ExpectedQuery) { q.WillReturnError(sql.ErrNoRows) },
+		http.StatusServiceUnavailable: func(q *sqlmock.ExpectedQuery) { q.WillReturnError(context.DeadlineExceeded) },
+	} {
+		mock, restore := swapMockDB(t)
+		result(mock.ExpectQuery(`s.system_key_hash = \$1`).WithArgs(hash))
+
+		router := gin.New()
+		router.Use(SystemKeyHashAuthMiddleware())
+		router.GET("/auth-hash", func(c *gin.Context) { c.Status(http.StatusOK) })
+		req := httptest.NewRequest(http.MethodGet, "/auth-hash", nil)
+		req.Header.Set("Authorization", "Bearer "+hash)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, expected, w.Code)
+		assert.NoError(t, mock.ExpectationsWereMet())
+		restore()
+	}
+}
+
+// The first uncached Basic request stores sha256("<key>:<token>").
+func TestBasicAuth_LearnsSystemKeyHash(t *testing.T) {
+	_ = os.Setenv("DATABASE_URL", "postgres://localhost:5432/testdb")
+	defer func() { _ = os.Unsetenv("DATABASE_URL") }()
+	configuration.Init()
+
+	const key = "NETH-0000-0000-0000-0000-0000-0000-0000-00B1"
+	secret := strings.Repeat("s", configuration.Config.SystemSecretMinLength)
+	token := "my_pub." + secret
+	digest, _ := helpers.HashSystemSecretSHA256(secret)
+	sum := sha256.Sum256([]byte(key + ":" + token))
+
+	mock, restore := swapMockDB(t)
+	defer restore()
+	mock.ExpectQuery(`s.system_key = \$1`).WithArgs(key).
+		WillReturnRows(sqlmock.NewRows(credsColumns).AddRow("sys-1", "pub", digest, time.Now(), nil))
+	mock.ExpectExec(`UPDATE systems SET system_key_hash`).WithArgs("sys-1", hex.EncodeToString(sum[:])).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	router := gin.New()
+	router.Use(BasicAuthMiddleware())
+	router.POST("/probe", func(c *gin.Context) { c.Status(http.StatusOK) })
+	req := httptest.NewRequest(http.MethodPost, "/probe", nil)
+	req.Header.Set("Authorization", basicAuthHeader(key, token))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }

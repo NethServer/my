@@ -186,6 +186,14 @@ func main() {
 		authGroup.GET("/product/:name", methods.AuthCheckProduct)
 	}
 
+	// Same questions, authenticated by Bearer sha256("<system_key>:<token>").
+	authHashGroup := api.Group("/auth-hash", middleware.SystemKeyHashAuthMiddleware())
+	{
+		authHashGroup.GET("", methods.AuthCheck)
+		authHashGroup.GET("/service/:id", methods.AuthCheckService)
+		authHashGroup.GET("/product/:name", methods.AuthCheckProduct)
+	}
+
 	// ===========================================
 	// EXTERNAL SERVICES PROXY
 	// ===========================================

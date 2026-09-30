@@ -406,7 +406,7 @@ Result after templating:
 
 ## Feed authorization (`/auth`)
 
-The NethSecurity enterprise feeds (distfeed, ns-signatures-proxy, blacklists) forward-auth the appliance's `system_key:system_secret` Basic credentials against `/api/auth`. The endpoints replace the legacy my `/auth` with the same wire semantics:
+The NethSecurity enterprise feeds (distfeed, ns-signatures-proxy, blacklists) forward-auth the appliance's `system_key:system_secret` Basic credentials against `/api/auth`. `/api/auth-hash` answers the same questions for `Authorization: Bearer <sha256("<system_key>:<token>")>`: collect learns the hash (`systems.system_key_hash`) at the system's first Basic request, and no other route accepts it. The endpoints replace the legacy my `/auth` with the same wire semantics:
 
 - `GET /api/auth` — `200` when the credentials belong to a registered, non-suspended system (valid subscription); `401` otherwise
 - `GET /api/auth/service/{id}` — `200` when the system holds an **active entitlement** for `{id}` (from `system_entitlements`: not revoked, not expired); `403` otherwise. The id may be the canonical catalog id (e.g. `nsec-blacklist`) or the legacy wire alias the feeds still call (e.g. `ng-blacklist`), resolved through `entitlement_catalog.legacy_alias`. The optional `?scope=<application-instance>` query (e.g. `?scope=nethvoice1`) also matches grants narrowed to that instance; a system-wide grant covers every instance

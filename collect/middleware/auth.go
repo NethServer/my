@@ -14,6 +14,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/rand/v2"
@@ -204,12 +205,40 @@ func BasicAuthMiddleware() gin.HandlerFunc {
 	}
 }
 
+// SystemKeyHashAuthMiddleware authenticates `Bearer <sha256("<system_key>:<token>")>`.
+func SystemKeyHashAuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		hash, ok := strings.CutPrefix(c.GetHeader("Authorization"), "Bearer ")
+		if _, err := hex.DecodeString(hash); !ok || len(hash) != 64 || err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, response.Unauthorized("invalid authentication format", nil))
+			return
+		}
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+		var creds systemCredentialsRow
+		err := database.DB.QueryRowContext(ctx, systemByKeyHashQuery, hash).
+			Scan(&creds.systemID, &creds.secretPublic, &creds.secretSHA256, &creds.registeredAt, &creds.keyHash)
+		switch {
+		case errors.Is(err, sql.ErrNoRows) || err == nil && !creds.registeredAt.Valid:
+			c.AbortWithStatusJSON(http.StatusUnauthorized, response.Unauthorized("invalid system credentials", nil))
+		case err != nil:
+			logger.Error().Err(err).Msg("key hash lookup failed (database unavailable)")
+			c.AbortWithStatusJSON(http.StatusServiceUnavailable, response.Error(http.StatusServiceUnavailable, "authentication temporarily unavailable", nil))
+		default:
+			c.Set("system_id", creds.systemID)
+			c.Set("authenticated_system", true)
+			c.Next()
+		}
+	}
+}
+
 // systemCredentialsRow holds the DB row for system credentials lookup
 type systemCredentialsRow struct {
 	systemID     string
 	secretPublic string
 	secretSHA256 string
 	registeredAt sql.NullTime
+	keyHash      sql.NullString
 }
 
 // systemCredentialsQuery is the single gate every appliance request passes
@@ -219,7 +248,7 @@ type systemCredentialsRow struct {
 // every system, but a system created under an already-suspended
 // organization, or one the cascade missed, must not authenticate either.
 const systemCredentialsQuery = `
-	SELECT s.id, s.system_secret_public, s.system_secret_sha256, s.registered_at
+	SELECT s.id, s.system_secret_public, s.system_secret_sha256, s.registered_at, s.system_key_hash
 	FROM systems s
 	LEFT JOIN distributors d ON (s.organization_id = d.logto_id OR s.organization_id = d.id) AND d.deleted_at IS NULL
 	LEFT JOIN resellers r ON (s.organization_id = r.logto_id OR s.organization_id = r.id) AND r.deleted_at IS NULL
@@ -230,6 +259,9 @@ const systemCredentialsQuery = `
 	  AND s.unregistered_at IS NULL
 	  AND COALESCE(d.suspended_at, r.suspended_at, c.suspended_at) IS NULL
 `
+
+// systemByKeyHashQuery is the same gate keyed by system_key_hash, so the two lanes cannot drift.
+var systemByKeyHashQuery = strings.Replace(systemCredentialsQuery, "s.system_key = $1", "s.system_key_hash = $1", 1)
 
 // validateSystemCredentials validates system credentials against database and cache.
 // Returns the internal system_id and a boolean indicating success. A non-nil
@@ -326,6 +358,7 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 		&creds.secretPublic,
 		&creds.secretSHA256,
 		&creds.registeredAt,
+		&creds.keyHash,
 	)
 
 	if errors.Is(err, sql.ErrNoRows) {
@@ -393,6 +426,15 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 		cacheCredentialsResult(c, systemKey, systemSecret, "", false)
 		setInProcessCache(systemKey, systemSecret, "", false)
 		return "", false, nil
+	}
+
+	// The token is in clear only here: learn the key hash once.
+	if !creds.keyHash.Valid {
+		sum := sha256.Sum256([]byte(systemKey + ":" + systemSecret))
+		if _, err := database.DB.ExecContext(queryCtx, `UPDATE systems SET system_key_hash = $2 WHERE id = $1 AND system_key_hash IS NULL`,
+			creds.systemID, hex.EncodeToString(sum[:])); err != nil {
+			logger.Warn().Err(err).Str("system_key", systemKey).Msg("Failed to store system key hash")
+		}
 	}
 
 	// Cache positive result in both caches
