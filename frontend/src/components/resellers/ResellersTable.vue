@@ -311,6 +311,13 @@ const goToResellerDetails = (reseller: Reseller) => {
             :placeholder="$t('resellers.filter_resellers')"
             class="max-w-48 sm:max-w-sm"
           />
+          <!-- parent company filter: the distributor the reseller belongs to -->
+          <OrganizationDropdownFilter
+            v-if="canSeeParentOfResellers()"
+            v-model="organizationFilter"
+            :organization-types="['distributor']"
+            :label="t('organizations.parent_company')"
+          />
           <!-- status filter -->
           <NeDropdownFilterV2
             v-model="statusFilter"
@@ -326,13 +333,6 @@ const goToResellerDetails = (reseller: Reseller) => {
             :custom-action-label="t('ne_dropdown_filter.reset_selection')"
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             @custom-action="resetStatusFilter"
-          />
-          <!-- parent company filter: the distributor the reseller belongs to -->
-          <OrganizationDropdownFilter
-            v-if="canSeeParentOfResellers()"
-            v-model="organizationFilter"
-            :organization-types="['distributor']"
-            :label="t('organizations.parent_company')"
           />
           <NeSortDropdown
             v-model:sort-key="sortBy"
@@ -390,11 +390,11 @@ const goToResellerDetails = (reseller: Reseller) => {
           $t('organizations.name')
         }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('organizations.vat_number') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('customers.title') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('systems.total_systems') }}</NeTableHeadCell>
         <NeTableHeadCell v-if="canSeeParentOfResellers()">{{
           $t('organizations.parent_company')
         }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('customers.title') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('systems.total_systems') }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
           $t('common.status')
         }}</NeTableHeadCell>
@@ -421,13 +421,6 @@ const goToResellerDetails = (reseller: Reseller) => {
             :class="{ 'opacity-50': item.deleted_at }"
           >
             {{ item.custom_data?.vat || '-' }}
-          </NeTableCell>
-          <NeTableCell
-            v-if="canSeeParentOfResellers()"
-            :data-label="$t('organizations.parent_company')"
-            :class="{ 'opacity-50': item.deleted_at }"
-          >
-            <ParentCompanyLink :creator="item.created_by" />
           </NeTableCell>
           <NeTableCell :data-label="$t('customers.title')">
             <!-- links to the Customers page filtered by this reseller as parent company -->
@@ -488,6 +481,13 @@ const goToResellerDetails = (reseller: Reseller) => {
               />
               {{ item.systems_count }}
             </div>
+          </NeTableCell>
+          <NeTableCell
+            v-if="canSeeParentOfResellers()"
+            :data-label="$t('organizations.parent_company')"
+            :class="{ 'opacity-50': item.deleted_at }"
+          >
+            <ParentCompanyLink :creator="item.created_by" />
           </NeTableCell>
           <NeTableCell :data-label="$t('common.status')">
             <div class="flex items-center gap-2">

@@ -303,6 +303,13 @@ const goToCustomerDetails = (customer: Customer) => {
             :placeholder="$t('customers.filter_customers')"
             class="max-w-48 sm:max-w-sm"
           />
+          <!-- parent company filter: the reseller or distributor the customer belongs to -->
+          <OrganizationDropdownFilter
+            v-if="canSeeParentOfCustomers()"
+            v-model="organizationFilter"
+            :organization-types="['distributor', 'reseller']"
+            :label="t('organizations.parent_company')"
+          />
           <!-- status filter -->
           <NeDropdownFilterV2
             v-model="statusFilter"
@@ -318,13 +325,6 @@ const goToCustomerDetails = (customer: Customer) => {
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             :custom-action-label="t('ne_dropdown_filter.reset_selection')"
             @custom-action="resetStatusFilter"
-          />
-          <!-- parent company filter: the reseller or distributor the customer belongs to -->
-          <OrganizationDropdownFilter
-            v-if="canSeeParentOfCustomers()"
-            v-model="organizationFilter"
-            :organization-types="['distributor', 'reseller']"
-            :label="t('organizations.parent_company')"
           />
           <NeSortDropdown
             v-model:sort-key="sortBy"
@@ -380,12 +380,12 @@ const goToCustomerDetails = (customer: Customer) => {
           $t('organizations.name')
         }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('organizations.vat_number') }}</NeTableHeadCell>
-        <NeTableHeadCell v-if="canSeeParentOfCustomers()">{{
-          $t('organizations.parent_company')
-        }}</NeTableHeadCell>
         <NeTableHeadCell>
           {{ $t('systems.title') }}
         </NeTableHeadCell>
+        <NeTableHeadCell v-if="canSeeParentOfCustomers()">{{
+          $t('organizations.parent_company')
+        }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
           $t('common.status')
         }}</NeTableHeadCell>
@@ -413,13 +413,6 @@ const goToCustomerDetails = (customer: Customer) => {
           >
             {{ item.custom_data?.vat || '-' }}
           </NeTableCell>
-          <NeTableCell
-            v-if="canSeeParentOfCustomers()"
-            :data-label="$t('organizations.parent_company')"
-            :class="{ 'opacity-50': item.deleted_at }"
-          >
-            <ParentCompanyLink :creator="item.created_by" />
-          </NeTableCell>
           <NeTableCell :data-label="$t('systems.title')">
             <router-link
               v-if="!item.deleted_at"
@@ -445,6 +438,13 @@ const goToCustomerDetails = (customer: Customer) => {
               />
               {{ item.systems_count }}
             </div>
+          </NeTableCell>
+          <NeTableCell
+            v-if="canSeeParentOfCustomers()"
+            :data-label="$t('organizations.parent_company')"
+            :class="{ 'opacity-50': item.deleted_at }"
+          >
+            <ParentCompanyLink :creator="item.created_by" />
           </NeTableCell>
           <NeTableCell :data-label="$t('common.status')">
             <div class="flex items-center gap-2">

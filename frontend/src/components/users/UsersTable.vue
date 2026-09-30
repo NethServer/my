@@ -366,6 +366,7 @@ const goToAccount = () => {
             class="max-w-48 sm:max-w-sm"
           />
           <!-- organization filter -->
+          <OrganizationDropdownFilter v-if="!isUserCustomer()" v-model="organizationFilter" />
           <!-- parent company filter: the distributor or reseller the user's company belongs to -->
           <OrganizationDropdownFilter
             v-if="canSeeParentOfCustomers()"
@@ -373,7 +374,6 @@ const goToAccount = () => {
             :organization-types="['distributor', 'reseller']"
             :label="t('organizations.parent_company')"
           />
-          <OrganizationDropdownFilter v-if="!isUserCustomer()" v-model="organizationFilter" />
           <!-- role filter -->
           <NeDropdownFilterV2
             v-model="roleFilter"
@@ -460,11 +460,11 @@ const goToAccount = () => {
         <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
           $t('users.name')
         }}</NeTableHeadCell>
-        <NeTableHeadCell v-if="canSeeParentOfCustomers()">{{
-          $t('organizations.parent_company')
-        }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="organization" @sort="onSort">{{
           $t('users.organization')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell v-if="canSeeParentOfCustomers()">{{
+          $t('organizations.parent_company')
         }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('users.role') }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="status" @sort="onSort">{{
@@ -501,6 +501,16 @@ const goToAccount = () => {
               </div>
             </div>
           </NeTableCell>
+          <NeTableCell :data-label="$t('users.organization')">
+            <div :class="{ 'opacity-50': item.deleted_at }">
+              <OrganizationIconAndLink
+                v-if="item.organization"
+                :organization="item.organization"
+                size="sm"
+              />
+              <span v-else>-</span>
+            </div>
+          </NeTableCell>
           <NeTableCell
             v-if="canSeeParentOfCustomers()"
             :data-label="$t('organizations.parent_company')"
@@ -509,16 +519,6 @@ const goToAccount = () => {
               <ParentCompanyLink
                 v-if="item.organization.parent"
                 :parent="item.organization.parent"
-              />
-              <span v-else>-</span>
-            </div>
-          </NeTableCell>
-          <NeTableCell :data-label="$t('users.organization')">
-            <div :class="{ 'opacity-50': item.deleted_at }">
-              <OrganizationIconAndLink
-                v-if="item.organization"
-                :organization="item.organization"
-                size="sm"
               />
               <span v-else>-</span>
             </div>

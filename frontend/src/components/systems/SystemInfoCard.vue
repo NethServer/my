@@ -262,19 +262,6 @@ function getKebabMenuItems() {
             </div>
           </template>
         </DataItem>
-        <!-- parent company: shown only where it can be someone other than the user -->
-        <DataItem v-if="canSeeParentOfCustomers()">
-          <template #label>
-            {{ $t('organizations.parent_company') }}
-          </template>
-          <template #data>
-            <ParentCompanyLink
-              v-if="systemDetail.data.organization.parent"
-              :parent="systemDetail.data.organization.parent"
-            />
-            <span v-else class="font-medium">-</span>
-          </template>
-        </DataItem>
         <!-- organization -->
         <DataItem>
           <template #label>
@@ -285,6 +272,19 @@ function getKebabMenuItems() {
               v-if="systemDetail.data.organization"
               :organization="systemDetail.data.organization"
               icon-size="xs"
+            />
+            <span v-else class="font-medium">-</span>
+          </template>
+        </DataItem>
+        <!-- parent company: shown only where it can be someone other than the user -->
+        <DataItem v-if="canSeeParentOfCustomers()">
+          <template #label>
+            {{ $t('organizations.parent_company') }}
+          </template>
+          <template #data>
+            <ParentCompanyLink
+              v-if="systemDetail.data.organization.parent"
+              :parent="systemDetail.data.organization.parent"
             />
             <span v-else class="font-medium">-</span>
           </template>
