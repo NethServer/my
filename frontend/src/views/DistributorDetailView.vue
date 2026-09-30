@@ -15,18 +15,12 @@ import LegacySystemsCard from '@/components/systems/LegacySystemsCard.vue'
 import CounterCard from '@/components/common/CounterCard.vue'
 import { useDistributorStats } from '@/queries/organizations/distributorStats'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
-import { useDistributorSystems } from '@/queries/systems/distributorSystems'
-import { useApplicationsSummaryByCompany } from '@/queries/applications/applicationsSummaryByCompany'
-import OrganizationSystemsCard from '@/components/organizations/OrganizationSystemsCard.vue'
-import OrganizationApplicationsCard from '@/components/organizations/OrganizationApplicationsCard.vue'
 import { canReadDistributors } from '@/lib/permissions'
 import { computed } from 'vue'
 
 const { state: distributorDetail } = useDistributorDetail()
 const isOwnCompany = useIsOwnCompany()
 const { state: distributorStats } = useDistributorStats()
-const { state: distributorSystems } = useDistributorSystems()
-const { state: applicationsSummary } = useApplicationsSummaryByCompany()
 
 // link to the Resellers page filtered by this distributor as parent company.
 // No include_hierarchy: the parent company filter matches exactly, so only the
@@ -134,21 +128,6 @@ const hierarchyApplicationsRoute = computed(() => {
         :icon="faGridOne"
         :loading="distributorStats.status === 'pending'"
         :to="hierarchyApplicationsRoute"
-      />
-      <!-- organization systems -->
-      <OrganizationSystemsCard
-        :systems-count="distributorStats.data?.systems_count ?? 0"
-        :systems-status="distributorSystems.status"
-        :systems-data="distributorSystems.data"
-        :stats-status="distributorStats.status"
-        :organization-name="distributorDetail.data?.name"
-      />
-      <!-- organization applications -->
-      <OrganizationApplicationsCard
-        :applications-count="applicationsSummary.data?.total ?? 0"
-        :applications-status="applicationsSummary.status"
-        :summary-data="applicationsSummary.data"
-        :organization-name="distributorDetail.data?.name"
       />
       <!-- resellers -->
       <CounterCard

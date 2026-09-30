@@ -15,18 +15,12 @@ import LegacySystemsCard from '@/components/systems/LegacySystemsCard.vue'
 import CounterCard from '@/components/common/CounterCard.vue'
 import { useResellerStats } from '@/queries/organizations/resellerStats'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
-import { useResellerSystems } from '@/queries/systems/resellerSystems'
-import { useApplicationsSummaryByCompany } from '@/queries/applications/applicationsSummaryByCompany'
-import OrganizationSystemsCard from '@/components/organizations/OrganizationSystemsCard.vue'
-import OrganizationApplicationsCard from '@/components/organizations/OrganizationApplicationsCard.vue'
 import { canReadResellers } from '@/lib/permissions'
 import { computed } from 'vue'
 
 const { state: resellerDetail } = useResellerDetail()
 const isOwnCompany = useIsOwnCompany()
 const { state: resellerStats } = useResellerStats()
-const { state: resellerSystems } = useResellerSystems()
-const { state: applicationsSummary } = useApplicationsSummaryByCompany()
 
 // link to the Customers page filtered by this reseller as parent company.
 // No include_hierarchy: the parent company filter matches exactly, so only the
@@ -134,21 +128,6 @@ const hierarchyApplicationsRoute = computed(() => {
         :icon="faGridOne"
         :loading="resellerStats.status === 'pending'"
         :to="hierarchyApplicationsRoute"
-      />
-      <!-- organization systems -->
-      <OrganizationSystemsCard
-        :systems-count="resellerStats.data?.systems_count ?? 0"
-        :systems-status="resellerSystems.status"
-        :systems-data="resellerSystems.data"
-        :stats-status="resellerStats.status"
-        :organization-name="resellerDetail.data?.name"
-      />
-      <!-- organization applications -->
-      <OrganizationApplicationsCard
-        :applications-count="applicationsSummary.data?.total ?? 0"
-        :applications-status="applicationsSummary.status"
-        :summary-data="applicationsSummary.data"
-        :organization-name="resellerDetail.data?.name"
       />
       <!-- customers -->
       <CounterCard
