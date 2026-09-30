@@ -26,7 +26,10 @@ import {
 } from '@nethesis/vue-components'
 import { computed } from 'vue'
 import { ADDONS_REPORT_ORGANIZATIONS_TABLE_ID } from '@/lib/addons/addonsReport'
-import { getOrganizationIcon } from '@/lib/organizations/organizations'
+import {
+  getOrganizationIcon,
+  getOrganizationIconColorClasses,
+} from '@/lib/organizations/organizations'
 import { PAGE_SIZE_OPTIONS, savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useAddonReportOrganizations } from '@/queries/addons/addonsReport'
 import ReportCard from './ReportCard.vue'
@@ -76,7 +79,7 @@ const loading = computed(() => organizations.value.status === 'pending')
               <div class="flex items-center gap-2">
                 <FontAwesomeIcon
                   :icon="getOrganizationIcon(row.org_type)"
-                  class="text-tertiary-neutral size-4 shrink-0"
+                  :class="['size-4 shrink-0', getOrganizationIconColorClasses(row.org_type)]"
                   aria-hidden="true"
                 />
                 <span>{{ row.organization_name }}</span>

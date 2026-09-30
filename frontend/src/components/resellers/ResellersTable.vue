@@ -438,7 +438,7 @@ const goToResellerDetails = (reseller: Reseller) => {
             >
               <FontAwesomeIcon
                 :icon="faBuilding"
-                class="text-icon-neutral size-4"
+                class="size-4 text-blue-700 dark:text-blue-400"
                 aria-hidden="true"
               />
               {{ item.customers_count }}
@@ -446,7 +446,7 @@ const goToResellerDetails = (reseller: Reseller) => {
             <div v-else class="flex items-center gap-2 opacity-50">
               <FontAwesomeIcon
                 :icon="faBuilding"
-                class="text-icon-neutral size-4"
+                class="size-4 text-blue-700 dark:text-blue-400"
                 aria-hidden="true"
               />
               {{ item.customers_count }}

@@ -3,7 +3,10 @@
   SPDX-License-Identifier: GPL-3.0-or-later
 -->
 <script lang="ts" setup>
-import { getOrganizationIcon } from '@/lib/organizations/organizations'
+import {
+  getOrganizationIcon,
+  getOrganizationIconColorClasses,
+} from '@/lib/organizations/organizations'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { computed } from 'vue'
 
@@ -30,8 +33,6 @@ const avatarSizeClasses: Record<OrganizationIconSize, string> = {
   '4xl': 'size-24',
 }
 
-const placeholderColorClasses = 'bg-gray-700 text-white dark:bg-gray-200 dark:text-gray-950'
-
 const placeholderIconSizeClasses: Record<OrganizationIconSize, string> = {
   xs: 'size-4',
   sm: 'size-4',
@@ -45,7 +46,7 @@ const placeholderIconSizeClasses: Record<OrganizationIconSize, string> = {
 
 const placeholderContainerClasses = computed(
   () =>
-    `flex items-center justify-center ${placeholderColorClasses} ${squared ? 'rounded-sm' : 'rounded-full'} ${avatarSizeClasses[size]}`,
+    `flex items-center justify-center bg-gray-200 dark:bg-gray-700 ${squared ? 'rounded-sm' : 'rounded-full'} ${avatarSizeClasses[size]}`,
 )
 </script>
 <template>
@@ -53,7 +54,7 @@ const placeholderContainerClasses = computed(
     <div :class="placeholderContainerClasses">
       <FontAwesomeIcon
         :icon="getOrganizationIcon(orgType)"
-        :class="[placeholderColorClasses, placeholderIconSizeClasses[size]]"
+        :class="[getOrganizationIconColorClasses(orgType), placeholderIconSizeClasses[size]]"
       />
     </div>
   </div>

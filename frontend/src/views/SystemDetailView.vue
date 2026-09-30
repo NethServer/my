@@ -15,7 +15,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 /*//// import { faArrowUpRightFromSquare } from '@fortawesome/free-solid-svg-icons' */
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import OrganizationLink from '@/components/organizations/OrganizationLink.vue'
-import { getOrganizationIcon } from '@/lib/organizations/organizations'
+import { getOrganizationBadgeClasses, getOrganizationIcon } from '@/lib/organizations/organizations'
 import { canReadAddons, canReadSystems } from '@/lib/permissions'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { useTabs } from '@/composables/useTabs'
@@ -94,7 +94,11 @@ const { tabs, selectedTab } = useTabs(tabsConfig)
           {{ systemDetail.data?.name }}
         </NeHeading>
         <!-- owning company -->
-        <NeBadgeV2 v-if="systemDetail.data?.organization" kind="indigo">
+        <NeBadgeV2
+          v-if="systemDetail.data?.organization"
+          kind="custom"
+          :custom-kind-classes="getOrganizationBadgeClasses(systemDetail.data.organization.type)"
+        >
           <div class="flex items-center gap-1.5">
             <FontAwesomeIcon
               :icon="getOrganizationIcon(systemDetail.data.organization.type)"

@@ -408,11 +408,19 @@ const goToDistributorDetails = (distributor: Distributor) => {
               class="flex items-center gap-2 hover:underline"
               :aria-label="$t('distributors.show_distributor_resellers', { name: item.name })"
             >
-              <FontAwesomeIcon :icon="faCity" class="text-icon-neutral size-4" aria-hidden="true" />
+              <FontAwesomeIcon
+                :icon="faCity"
+                class="size-4 text-purple-700 dark:text-purple-400"
+                aria-hidden="true"
+              />
               {{ item.resellers_count }}
             </router-link>
             <div v-else class="flex items-center gap-2 opacity-50">
-              <FontAwesomeIcon :icon="faCity" class="text-icon-neutral size-4" aria-hidden="true" />
+              <FontAwesomeIcon
+                :icon="faCity"
+                class="size-4 text-purple-700 dark:text-purple-400"
+                aria-hidden="true"
+              />
               {{ item.resellers_count }}
             </div>
           </NeTableCell>
@@ -433,7 +441,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
             >
               <FontAwesomeIcon
                 :icon="faBuilding"
-                class="text-icon-neutral size-4"
+                class="size-4 text-blue-700 dark:text-blue-400"
                 aria-hidden="true"
               />
               {{ item.customers_count }}
@@ -441,7 +449,7 @@ const goToDistributorDetails = (distributor: Distributor) => {
             <div v-else class="flex items-center gap-2 opacity-50">
               <FontAwesomeIcon
                 :icon="faBuilding"
-                class="text-icon-neutral size-4"
+                class="size-4 text-blue-700 dark:text-blue-400"
                 aria-hidden="true"
               />
               {{ item.customers_count }}

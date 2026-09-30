@@ -65,6 +65,39 @@ export function getOrganizationIcon(orgType: string) {
   }
 }
 
+// Text color of the level icon, so each level reads apart at a glance.
+export function getOrganizationIconColorClasses(orgType: string) {
+  switch (orgType.toLowerCase()) {
+    case 'owner':
+      return 'text-yellow-600 dark:text-yellow-500'
+    case 'distributor':
+      return 'text-pink-600 dark:text-pink-400'
+    case 'reseller':
+      return 'text-purple-700 dark:text-purple-400'
+    case 'customer':
+      return 'text-blue-700 dark:text-blue-400'
+    default:
+      return 'text-gray-700 dark:text-gray-200'
+  }
+}
+
+// NeBadgeV2 `custom` kind classes in the level's color, following the palette
+// steps of the badge's built-in kinds.
+export function getOrganizationBadgeClasses(orgType: string) {
+  switch (orgType.toLowerCase()) {
+    case 'owner':
+      return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-700 dark:text-yellow-100'
+    case 'distributor':
+      return 'bg-pink-100 text-pink-800 dark:bg-pink-700 dark:text-pink-100'
+    case 'reseller':
+      return 'bg-purple-100 text-purple-800 dark:bg-purple-700 dark:text-purple-100'
+    case 'customer':
+      return 'bg-blue-100 text-blue-800 dark:bg-blue-700 dark:text-blue-100'
+    default:
+      return 'bg-gray-200 text-gray-800 dark:bg-gray-600 dark:text-gray-100'
+  }
+}
+
 export const isUserCustomer = () => {
   const loginStore = useLoginStore()
   return loginStore.userInfo?.org_role?.toLowerCase() === 'customer'
