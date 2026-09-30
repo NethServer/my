@@ -26,7 +26,6 @@ export const useCustomers = defineQuery(() => {
     { id: 'enabled', label: 'enabled' },
     { id: 'suspended', label: 'suspended' },
   ])
-  const createdByFilter = ref<NeDropdownFilterV2Option[]>([])
   // parent company: the reseller or distributor the customer belongs to
   const organizationFilter = ref<NeDropdownFilterV2Option[]>([])
   // when true, the customers of every company in the hierarchy of the selected
@@ -43,7 +42,6 @@ export const useCustomers = defineQuery(() => {
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
         statusFilter: statusFilter.value.map((o) => o.id),
-        createdByFilter: createdByFilter.value.map((o) => o.id),
         organizationFilter: organizationFilter.value.map((o) => o.id),
         includeHierarchy: includeHierarchy.value,
         sortBy: sortBy.value,
@@ -57,7 +55,7 @@ export const useCustomers = defineQuery(() => {
         pageSize.value,
         debouncedTextFilter.value,
         statusFilter.value.map((o) => o.id) as CustomerStatus[],
-        createdByFilter.value.map((o) => o.id),
+        [], // created by: not filtered from the tables
         organizationFilter.value.map((o) => o.id),
         includeHierarchy.value,
         sortBy.value,
@@ -72,7 +70,6 @@ export const useCustomers = defineQuery(() => {
       statusFilter.value.some((o) => o.id === 'enabled') &&
       statusFilter.value.some((o) => o.id === 'suspended') &&
       !statusFilter.value.some((o) => o.id === 'deleted') &&
-      createdByFilter.value.length === 0 &&
       organizationFilter.value.length === 0
     )
   })
@@ -117,15 +114,6 @@ export const useCustomers = defineQuery(() => {
     },
   )
 
-  // reset to first page when createdBy filter changes
-  watch(
-    () => createdByFilter.value,
-    () => {
-      pageNum.value = 1
-    },
-    { deep: true },
-  )
-
   // the organization hierarchy mode is scoped to; lets us tell a genuine user
   // change apart from OrganizationDropdownFilter re-emitting the same selection
   // as a fresh array on mount (which must not exit hierarchy mode)
@@ -156,7 +144,6 @@ export const useCustomers = defineQuery(() => {
 
   const resetFilters = () => {
     textFilter.value = ''
-    createdByFilter.value = []
     organizationFilter.value = []
     includeHierarchy.value = false
     hierarchyOrgId.value = null
@@ -179,7 +166,6 @@ export const useCustomers = defineQuery(() => {
     textFilter,
     debouncedTextFilter,
     statusFilter,
-    createdByFilter,
     organizationFilter,
     includeHierarchy,
     sortBy,

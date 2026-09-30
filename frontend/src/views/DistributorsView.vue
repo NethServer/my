@@ -37,8 +37,7 @@ const notificationsStore = useNotificationsStore()
 // the export runs on the whole filtered list and can take a while: one at a time,
 // with the Actions button showing progress
 const isExporting = ref(false)
-const { state, debouncedTextFilter, statusFilter, createdByFilter, sortBy, sortDescending } =
-  useDistributors()
+const { state, debouncedTextFilter, statusFilter, sortBy, sortDescending } = useDistributors()
 
 const isShownCreateDistributorDrawer = ref(false)
 const isShownImportDistributorsModal = ref(false)
@@ -79,7 +78,7 @@ async function exportDistributors(format: 'pdf' | 'csv') {
       format,
       debouncedTextFilter.value,
       statusFilter.value.map((o) => o.id) as DistributorStatus[],
-      createdByFilter.value.map((o) => o.id),
+      [], // created by: not filtered from the tables
       sortBy.value,
       sortDescending.value,
     )

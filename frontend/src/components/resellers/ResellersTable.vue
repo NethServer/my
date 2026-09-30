@@ -6,7 +6,6 @@
 <script setup lang="ts">
 import { RESELLERS_TABLE_ID, type Reseller } from '@/lib/organizations/resellers'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
-import { useResellerFilters } from '@/queries/organizations/resellerFilters'
 import {
   faMagnifyingGlass,
   faCity,
@@ -43,7 +42,6 @@ import {
   type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
-import UserAvatar from '@/components/users/UserAvatar.vue'
 import CreateOrEditResellerDrawer from './CreateOrEditResellerDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteResellerModal from './DeleteResellerModal.vue'
@@ -58,7 +56,8 @@ import { canManageResellers, canDestroyResellers, canPromoteOrganizations } from
 import router from '@/router'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
-import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
+import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
+import { canSeeParentOfResellers } from '@/lib/organizations/organizations'
 
 const { isShownCreateResellerDrawer = false } = defineProps<{
   isShownCreateResellerDrawer: boolean
@@ -74,7 +73,6 @@ const {
   pageSize,
   textFilter,
   statusFilter,
-  createdByFilter,
   organizationFilter,
   sortBy,
   sortDescending,
@@ -82,7 +80,6 @@ const {
   resetFilters,
   resetStatusFilter,
 } = useResellers()
-const { state: resellerFiltersState } = useResellerFilters()
 
 const currentReseller = ref<Reseller | undefined>()
 const isShownCreateOrEditResellerDrawer = ref(false)
@@ -107,18 +104,6 @@ const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
     label: t('common.archived'),
   },
 ])
-
-const createdByFilterOptions = computed<NeDropdownFilterV2Option[]>(() => {
-  if (!resellerFiltersState.value.data || !resellerFiltersState.value.data.created_by) {
-    return []
-  } else {
-    return resellerFiltersState.value.data.created_by.map((createdBy) => ({
-      id: createdBy.user_id,
-      label: createdBy.name,
-      description: createdBy.organization_name,
-    }))
-  }
-})
 
 const resellersPage = computed(() => {
   return state.value.data?.resellers
@@ -344,23 +329,10 @@ const goToResellerDetails = (reseller: Reseller) => {
           />
           <!-- parent company filter: the distributor the reseller belongs to -->
           <OrganizationDropdownFilter
+            v-if="canSeeParentOfResellers()"
             v-model="organizationFilter"
             :organization-types="['distributor']"
             :label="t('organizations.parent_company')"
-          />
-          <!-- created by filter -->
-          <NeDropdownFilterV2
-            v-model="createdByFilter"
-            kind="checkbox"
-            :disabled="resellerFiltersState.status === 'pending'"
-            :label="t('systems.created_by')"
-            :options="createdByFilterOptions"
-            show-options-filter
-            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
-            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-            :no-options-label="t('ne_dropdown_filter.no_options')"
-            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-            :clear-search-label="t('ne_dropdown_filter.clear_search')"
           />
           <NeSortDropdown
             v-model:sort-key="sortBy"
@@ -368,7 +340,6 @@ const goToResellerDetails = (reseller: Reseller) => {
             :label="t('sort.sort')"
             :options="[
               { id: 'name', label: t('organizations.name') },
-              { id: 'creator_name', label: t('systems.created_by') },
               { id: 'suspended_at', label: t('common.status') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
@@ -419,11 +390,11 @@ const goToResellerDetails = (reseller: Reseller) => {
           $t('organizations.name')
         }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('organizations.vat_number') }}</NeTableHeadCell>
+        <NeTableHeadCell v-if="canSeeParentOfResellers()">{{
+          $t('organizations.parent_company')
+        }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('customers.title') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('systems.total_systems') }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="creator_name" @sort="onSort">{{
-          $t('systems.created_by')
-        }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
           $t('common.status')
         }}</NeTableHeadCell>
@@ -450,6 +421,13 @@ const goToResellerDetails = (reseller: Reseller) => {
             :class="{ 'opacity-50': item.deleted_at }"
           >
             {{ item.custom_data?.vat || '-' }}
+          </NeTableCell>
+          <NeTableCell
+            v-if="canSeeParentOfResellers()"
+            :data-label="$t('organizations.parent_company')"
+            :class="{ 'opacity-50': item.deleted_at }"
+          >
+            <ParentCompanyLink :creator="item.created_by" />
           </NeTableCell>
           <NeTableCell :data-label="$t('customers.title')">
             <!-- links to the Customers page filtered by this reseller as parent company -->
@@ -509,30 +487,6 @@ const goToResellerDetails = (reseller: Reseller) => {
                 aria-hidden="true"
               />
               {{ item.systems_count }}
-            </div>
-          </NeTableCell>
-          <NeTableCell :data-label="$t('systems.created_by')">
-            <div :class="{ 'opacity-50': item.deleted_at }">
-              <template v-if="item.created_by">
-                <div class="flex items-center gap-2">
-                  <UserAvatar
-                    size="sm"
-                    :is-owner="item.created_by.username === 'owner'"
-                    :name="item.created_by.name"
-                    :logto-id="item.created_by.user_id"
-                  />
-                  <div class="space-y-0.5">
-                    <div>{{ item.created_by.name || '-' }}</div>
-                    <div
-                      v-if="item.created_by.organization_name"
-                      class="text-gray-500 dark:text-gray-400"
-                    >
-                      <CreatorOrganization :creator="item.created_by" />
-                    </div>
-                  </div>
-                </div>
-              </template>
-              <template v-else>-</template>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.status')">

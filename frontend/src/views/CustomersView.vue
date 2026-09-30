@@ -44,7 +44,6 @@ const {
   state,
   debouncedTextFilter,
   statusFilter,
-  createdByFilter,
   organizationFilter,
   includeHierarchy,
   sortBy,
@@ -111,7 +110,7 @@ async function exportCustomers(format: 'pdf' | 'csv') {
       format,
       debouncedTextFilter.value,
       statusFilter.value.map((o) => o.id) as CustomerStatus[],
-      createdByFilter.value.map((o) => o.id),
+      [], // created by: not filtered from the tables
       organizationFilter.value.map((o) => o.id),
       includeHierarchy.value,
       sortBy.value,

@@ -6,6 +6,7 @@ import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 import { downloadFile, exportFileName, type Pagination } from '../common'
+import { ParentOrganizationSchema } from '@/lib/organizations/organizations'
 import Ns8Logo from '@/assets/system_logos/nethserver.svg'
 import NsecLogo from '@/assets/system_logos/nethsecurity.svg'
 
@@ -65,6 +66,7 @@ export const SystemSchema = v.object({
     logto_id: v.string(),
     name: v.string(),
     type: v.string(),
+    parent: v.optional(ParentOrganizationSchema),
   }),
   created_by: v.object({
     user_id: v.string(),
@@ -140,6 +142,7 @@ export const getQueryStringParams = (
   includeHierarchy: boolean,
   sortBy: string | null,
   sortDescending: boolean,
+  parentOrganizationFilter: string[] = [],
 ) => {
   const searchParams = new URLSearchParams({
     page: pageNum.toString(),
@@ -172,6 +175,11 @@ export const getQueryStringParams = (
     searchParams.append('organization_id', orgId)
   })
 
+  // parent company: the systems whose company sits directly under one of these
+  parentOrganizationFilter.forEach((orgId) => {
+    searchParams.append('parent_organization_id', orgId)
+  })
+
   addonFilter.forEach((addon) => {
     searchParams.append('addon', addon)
   })
@@ -195,6 +203,7 @@ export const getQueryStringParamsForExport = (
   includeHierarchy: boolean | undefined,
   sortBy: string | undefined,
   sortDescending: boolean | undefined,
+  parentOrganizationFilter: string[] | undefined = undefined,
 ) => {
   const searchParams = new URLSearchParams({
     format: format,
@@ -229,6 +238,12 @@ export const getQueryStringParamsForExport = (
   if (organizationFilter) {
     organizationFilter.forEach((orgId) => {
       searchParams.append('organization_id', orgId)
+    })
+  }
+
+  if (parentOrganizationFilter) {
+    parentOrganizationFilter.forEach((orgId) => {
+      searchParams.append('parent_organization_id', orgId)
     })
   }
 
@@ -271,6 +286,7 @@ export const getSystems = (
   includeHierarchy: boolean,
   sortBy: string,
   sortDescending: boolean,
+  parentOrganizationFilter: string[] = [],
 ) => {
   const loginStore = useLoginStore()
   const params = getQueryStringParams(
@@ -286,6 +302,7 @@ export const getSystems = (
     includeHierarchy,
     sortBy,
     sortDescending,
+    parentOrganizationFilter,
   )
 
   return axios
@@ -418,6 +435,7 @@ export const getExport = (
   includeHierarchy: boolean | undefined = undefined,
   sortBy: string | undefined = undefined,
   sortDescending: boolean | undefined = undefined,
+  parentOrganizationFilter: string[] | undefined = undefined,
 ) => {
   const loginStore = useLoginStore()
   const params = getQueryStringParamsForExport(
@@ -433,6 +451,7 @@ export const getExport = (
     includeHierarchy,
     sortBy,
     sortDescending,
+    parentOrganizationFilter,
   )
 
   return axios

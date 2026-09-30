@@ -17,12 +17,14 @@ export const useUsers = defineQuery(() => {
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
   const organizationFilter = ref<NeDropdownFilterV2Option[]>([])
+  // parent company: the distributor or reseller the user's company sits
+  // directly under (ANDed with organizationFilter)
+  const parentOrganizationFilter = ref<NeDropdownFilterV2Option[]>([])
   const roleFilter = ref<NeDropdownFilterV2Option[]>([])
   const statusFilter = ref<NeDropdownFilterV2Option[]>([
     { id: 'enabled', label: 'enabled' },
     { id: 'suspended', label: 'suspended' },
   ])
-  const createdByFilter = ref<NeDropdownFilterV2Option[]>([])
   const sortBy = ref<keyof User>('name')
   const sortDescending = ref(false)
 
@@ -34,9 +36,9 @@ export const useUsers = defineQuery(() => {
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
         organizationFilter: organizationFilter.value.map((o) => o.id),
+        parentOrganizationFilter: parentOrganizationFilter.value.map((o) => o.id),
         roleFilter: roleFilter.value.map((o) => o.id),
         statusFilter: statusFilter.value.map((o) => o.id),
-        createdByFilter: createdByFilter.value.map((o) => o.id),
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -50,9 +52,10 @@ export const useUsers = defineQuery(() => {
         organizationFilter.value.map((o) => o.id),
         roleFilter.value.map((o) => o.id),
         statusFilter.value.map((o) => o.id) as UserStatus[],
-        createdByFilter.value.map((o) => o.id),
+        [], // created by: not filtered from the tables
         sortBy.value,
         sortDescending.value,
+        parentOrganizationFilter.value.map((o) => o.id),
       ),
   })
 
@@ -60,12 +63,12 @@ export const useUsers = defineQuery(() => {
     return (
       !debouncedTextFilter.value &&
       organizationFilter.value.length === 0 &&
+      parentOrganizationFilter.value.length === 0 &&
       roleFilter.value.length === 0 &&
       statusFilter.value.length === 2 &&
       statusFilter.value.some((o) => o.id === 'enabled') &&
       statusFilter.value.some((o) => o.id === 'suspended') &&
-      !statusFilter.value.some((o) => o.id === 'deleted') &&
-      createdByFilter.value.length === 0
+      !statusFilter.value.some((o) => o.id === 'deleted')
     )
   })
 
@@ -117,6 +120,14 @@ export const useUsers = defineQuery(() => {
     },
   )
 
+  // reset to first page when parent company filter changes
+  watch(
+    () => parentOrganizationFilter.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
   // reset to first page when role filter changes
   watch(
     () => roleFilter.value,
@@ -125,20 +136,11 @@ export const useUsers = defineQuery(() => {
     },
   )
 
-  // reset to first page when createdBy filter changes
-  watch(
-    () => createdByFilter.value,
-    () => {
-      pageNum.value = 1
-    },
-    { deep: true },
-  )
-
   const resetFilters = () => {
     textFilter.value = ''
     organizationFilter.value = []
+    parentOrganizationFilter.value = []
     roleFilter.value = []
-    createdByFilter.value = []
     resetStatusFilter()
   }
 
@@ -158,9 +160,9 @@ export const useUsers = defineQuery(() => {
     textFilter,
     debouncedTextFilter,
     organizationFilter,
+    parentOrganizationFilter,
     roleFilter,
     statusFilter,
-    createdByFilter,
     sortBy,
     sortDescending,
     areDefaultFiltersApplied,

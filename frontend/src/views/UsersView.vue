@@ -34,9 +34,9 @@ const {
   state,
   debouncedTextFilter,
   organizationFilter,
+  parentOrganizationFilter,
   roleFilter,
   statusFilter,
-  createdByFilter,
   sortBy,
   sortDescending,
 } = useUsers()
@@ -82,9 +82,10 @@ async function exportUsers(format: 'pdf' | 'csv') {
       organizationFilter.value.map((o) => o.id),
       roleFilter.value.map((o) => o.id),
       statusFilter.value.map((o) => o.id) as UserStatus[],
-      createdByFilter.value.map((o) => o.id),
+      [], // created by: not filtered from the tables
       sortBy.value,
       sortDescending.value,
+      parentOrganizationFilter.value.map((o) => o.id),
     )
     const fileName = exportFileName(t('users.title'), format)
     downloadFile(exportData, fileName, format)

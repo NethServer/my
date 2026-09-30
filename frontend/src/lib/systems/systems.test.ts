@@ -215,3 +215,47 @@ describe('systems getQueryStringParams add-on filter', () => {
     expect(listWithAddons([]).has('addon')).toBe(false)
   })
 })
+
+describe('systems parent company filter', () => {
+  it('sends parent_organization_id next to organization_id on the list', () => {
+    const params = parse(
+      getQueryStringParams(1, 50, '', [], [], [], [], ['kfcl9gmo0iy2'], [], false, 'name', false, [
+        'eeex9cffzsd7',
+      ]),
+    )
+
+    expect(params.getAll('organization_id')).toEqual(['kfcl9gmo0iy2'])
+    expect(params.getAll('parent_organization_id')).toEqual(['eeex9cffzsd7'])
+    expect(params.has('include_hierarchy')).toBe(false)
+  })
+
+  it('sends the same parent company on the export', () => {
+    const params = parse(
+      getQueryStringParamsForExport(
+        'csv',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        ['eeex9cffzsd7', 'obhdyclbfx4t'],
+      ),
+    )
+
+    expect(params.getAll('parent_organization_id')).toEqual(['eeex9cffzsd7', 'obhdyclbfx4t'])
+  })
+
+  it('omits parent_organization_id when nothing is selected', () => {
+    const params = parse(
+      getQueryStringParams(1, 50, '', [], [], [], [], [], [], false, 'name', false),
+    )
+
+    expect(params.has('parent_organization_id')).toBe(false)
+  })
+})

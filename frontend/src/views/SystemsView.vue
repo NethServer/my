@@ -35,10 +35,10 @@ const {
   state,
   debouncedTextFilter,
   productFilter,
-  createdByFilter,
   versionFilter,
   statusFilter,
   organizationFilter,
+  parentOrganizationFilter,
   addonFilter,
   includeHierarchy,
   sortBy,
@@ -100,7 +100,7 @@ async function exportSystems(format: 'pdf' | 'csv') {
       undefined,
       debouncedTextFilter.value,
       productFilter.value.map((o) => o.id),
-      createdByFilter.value.map((o) => o.id),
+      [], // created by: not filtered from the tables
       versionFilter.value.map((o) => o.id),
       statusFilter.value.map((o) => o.id) as SystemStatus[],
       organizationFilter.value.map((o) => o.id),
@@ -108,6 +108,7 @@ async function exportSystems(format: 'pdf' | 'csv') {
       includeHierarchy.value,
       sortBy.value,
       sortDescending.value,
+      parentOrganizationFilter.value.map((o) => o.id),
     )
     const fileName = exportFileName(t('systems.title'), format)
     downloadFile(exportData, fileName, format)

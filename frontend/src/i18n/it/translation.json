@@ -202,7 +202,7 @@
     "import_customers": "Importa clienti",
     "customers_imported": "Clienti importati",
     "hierarchy_filter_title": "Filtro per gerarchia aziendale",
-    "hierarchy_filter_description": "Sono mostrati i clienti di {name} e di tutte le aziende della sua gerarchia. Modificare il filtro Azienda di appartenenza rimuoverà il filtro per gerarchia.",
+    "hierarchy_filter_description": "Sono mostrati i clienti di {name} e di tutte le aziende della sua gerarchia. Modificare il filtro Gestito da rimuoverà il filtro per gerarchia.",
     "hierarchy_filter_exact": "Filtra solo per questa azienda"
   },
   "organizations": {
@@ -226,7 +226,7 @@
     "custom_data_email_invalid": "Indirizzo email non valido",
     "custom_data_phone_invalid_format": "Numero di telefono non valido",
     "organization": "Azienda",
-    "parent_company": "Azienda di appartenenza",
+    "parent_company": "Gestito da",
     "choose_organization": "Scegli azienda",
     "no_organizations": "Nessuna azienda",
     "email": "Email",
@@ -599,7 +599,7 @@
     "version": "Versione",
     "created_by": "Creato da",
     "on_behalf_of": "Per conto di {organization}",
-    "organization": "Azienda",
+    "organization": "Azienda assegnataria",
     "organization_helper": "Scegli l'azienda a cui verrà assegnato questo sistema",
     "status": "Stato",
     "fqdn": "FQDN",
@@ -678,7 +678,7 @@
     "show_pending_systems": "Mostra sistemi in attesa",
     "organization_id_system_not_registered": "L'azienda non può essere modificata finché il sistema non è registrato. Per modificarla ora, elimina e ricrea il sistema.",
     "hierarchy_filter_title": "Filtro per gerarchia aziendale",
-    "hierarchy_filter_description": "Sono mostrati i sistemi di {name} e di tutte le aziende della sua gerarchia. Modificare il filtro Azienda rimuoverà il filtro per gerarchia.",
+    "hierarchy_filter_description": "Sono mostrati i sistemi di {name} e di tutte le aziende della sua gerarchia. Modificare il filtro Azienda assegnataria rimuoverà il filtro per gerarchia.",
     "hierarchy_filter_exact": "Filtra solo per questa azienda"
   },
   "system_detail": {

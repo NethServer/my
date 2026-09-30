@@ -37,6 +37,7 @@ import PromoteResellerModal from './PromoteResellerModal.vue'
 import UserAvatar from '../users/UserAvatar.vue'
 import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
+import { canSeeParentOfResellers } from '@/lib/organizations/organizations'
 
 const { t, locale } = useI18n()
 const { state: resellerDetail, asyncStatus } = useResellerDetail()
@@ -171,8 +172,8 @@ function getKebabMenuItems() {
             <EnabledStatus :enabled="rebrandingEnabled" />
           </template>
         </DataItem>
-        <!-- parent company -->
-        <DataItem>
+        <!-- parent company: shown only where it can be someone other than the user -->
+        <DataItem v-if="canSeeParentOfResellers()">
           <template #label>
             {{ $t('organizations.parent_company') }}
           </template>

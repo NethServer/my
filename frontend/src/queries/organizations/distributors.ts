@@ -26,7 +26,6 @@ export const useDistributors = defineQuery(() => {
     { id: 'enabled', label: 'enabled' },
     { id: 'suspended', label: 'suspended' },
   ])
-  const createdByFilter = ref<NeDropdownFilterV2Option[]>([])
   const sortBy = ref<keyof Distributor>('name')
   const sortDescending = ref(false)
 
@@ -38,7 +37,6 @@ export const useDistributors = defineQuery(() => {
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
         statusFilter: statusFilter.value.map((o) => o.id),
-        createdByFilter: createdByFilter.value.map((o) => o.id),
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -50,7 +48,7 @@ export const useDistributors = defineQuery(() => {
         pageSize.value,
         debouncedTextFilter.value,
         statusFilter.value.map((o) => o.id) as DistributorStatus[],
-        createdByFilter.value.map((o) => o.id),
+        [], // created by: not filtered from the tables
         sortBy.value,
         sortDescending.value,
       ),
@@ -62,8 +60,7 @@ export const useDistributors = defineQuery(() => {
       statusFilter.value.length === 2 &&
       statusFilter.value.some((o) => o.id === 'enabled') &&
       statusFilter.value.some((o) => o.id === 'suspended') &&
-      !statusFilter.value.some((o) => o.id === 'deleted') &&
-      createdByFilter.value.length === 0
+      !statusFilter.value.some((o) => o.id === 'deleted')
     )
   })
 
@@ -108,18 +105,8 @@ export const useDistributors = defineQuery(() => {
     { deep: true },
   )
 
-  // reset to first page when createdBy filter changes
-  watch(
-    () => createdByFilter.value,
-    () => {
-      pageNum.value = 1
-    },
-    { deep: true },
-  )
-
   const resetFilters = () => {
     textFilter.value = ''
-    createdByFilter.value = []
     resetStatusFilter()
   }
 
@@ -139,7 +126,6 @@ export const useDistributors = defineQuery(() => {
     textFilter,
     debouncedTextFilter,
     statusFilter,
-    createdByFilter,
     sortBy,
     sortDescending,
     areDefaultFiltersApplied,

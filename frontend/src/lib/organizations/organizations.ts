@@ -9,6 +9,18 @@ import * as v from 'valibot'
 
 export const ORGANIZATIONS_KEY = 'organizations'
 
+// The company an organization sits directly under (its custom_data.createdBy),
+// as the list endpoints return it. The Owner organization comes with an empty
+// id and, when the database does not record its name, an empty name.
+export const ParentOrganizationSchema = v.object({
+  id: v.string(),
+  logto_id: v.string(),
+  name: v.string(),
+  type: v.string(),
+})
+
+export type ParentOrganization = v.InferOutput<typeof ParentOrganizationSchema>
+
 export const OrganizationSchema = v.object({
   logto_id: v.string(),
   name: v.string(),
@@ -61,6 +73,25 @@ export const isUserCustomer = () => {
 export const isUserDistributor = () => {
   const loginStore = useLoginStore()
   return loginStore.userInfo?.org_role?.toLowerCase() === 'distributor'
+}
+
+// The parent company tells something only when a level can sit between the
+// user and the row; otherwise it is always the user's own organization, or one
+// outside their scope. So the parent of a customer is informative to the Owner
+// (Owner, a distributor or a reseller) and to a distributor (itself or one of
+// its resellers), never to a reseller (always itself); the parent of a reseller
+// only to the Owner (Owner or a distributor); the parent of a distributor to
+// nobody (always the Owner). Systems and users sit under customers too, so
+// they follow the customer rule.
+export const canSeeParentOfCustomers = () => {
+  const loginStore = useLoginStore()
+  const orgRole = loginStore.userInfo?.org_role?.toLowerCase()
+  return orgRole === 'owner' || orgRole === 'distributor'
+}
+
+export const canSeeParentOfResellers = () => {
+  const loginStore = useLoginStore()
+  return loginStore.userInfo?.org_role?.toLowerCase() === 'owner'
 }
 
 // ============================================================

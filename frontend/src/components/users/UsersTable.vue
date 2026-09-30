@@ -58,6 +58,7 @@ import SuspendUserModal from './SuspendUserModal.vue'
 import ReactivateUserModal from './ReactivateUserModal.vue'
 import RestoreUserModal from './RestoreUserModal.vue'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
+import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
 import UserRoleBadge from './UserRoleBadge.vue'
 import { useUserFilters } from '@/queries/users/userFilters'
 import { normalize } from '@/lib/common'
@@ -65,9 +66,8 @@ import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import UserAvatar from './UserAvatar.vue'
 import ClickToCopy from '@/components/common/ClickToCopy.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
-import { isUserCustomer } from '@/lib/organizations/organizations.ts'
+import { canSeeParentOfCustomers, isUserCustomer } from '@/lib/organizations/organizations.ts'
 import router from '@/router/index.ts'
-import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 
 const { isShownCreateUserDrawer = false } = defineProps<{
   isShownCreateUserDrawer: boolean
@@ -84,9 +84,9 @@ const {
   textFilter,
   debouncedTextFilter,
   organizationFilter,
+  parentOrganizationFilter,
   roleFilter,
   statusFilter,
-  createdByFilter,
   sortBy,
   sortDescending,
   resetFilters,
@@ -135,12 +135,12 @@ const areDefaultFiltersApplied = computed(() => {
   return (
     !debouncedTextFilter.value &&
     organizationFilter.value.length === 0 &&
+    parentOrganizationFilter.value.length === 0 &&
     roleFilter.value.length === 0 &&
     statusFilter.value.length === 2 &&
     statusFilter.value.some((o) => o.id === 'enabled') &&
     statusFilter.value.some((o) => o.id === 'suspended') &&
-    !statusFilter.value.some((o) => o.id === 'deleted') &&
-    createdByFilter.value.length === 0
+    !statusFilter.value.some((o) => o.id === 'deleted')
   )
 })
 
@@ -168,17 +168,6 @@ const roleFilterOptions = computed<NeDropdownFilterV2Option[]>(() => {
     id: role.id,
     label: t(`user_roles.${normalize(role.name)}`),
     description: t(`user_roles.${normalize(role.name)}_description`),
-  }))
-})
-
-const createdByFilterOptions = computed<NeDropdownFilterV2Option[]>(() => {
-  if (!userFiltersState.value.data?.created_by) {
-    return []
-  }
-  return userFiltersState.value.data.created_by.map((createdBy) => ({
-    id: createdBy.user_id,
-    label: createdBy.name,
-    description: createdBy.organization_name,
   }))
 })
 
@@ -377,6 +366,13 @@ const goToAccount = () => {
             class="max-w-48 sm:max-w-sm"
           />
           <!-- organization filter -->
+          <!-- parent company filter: the distributor or reseller the user's company belongs to -->
+          <OrganizationDropdownFilter
+            v-if="canSeeParentOfCustomers()"
+            v-model="parentOrganizationFilter"
+            :organization-types="['distributor', 'reseller']"
+            :label="t('organizations.parent_company')"
+          />
           <OrganizationDropdownFilter v-if="!isUserCustomer()" v-model="organizationFilter" />
           <!-- role filter -->
           <NeDropdownFilterV2
@@ -385,21 +381,6 @@ const goToAccount = () => {
             :label="t('users.role')"
             :options="roleFilterOptions"
             :disabled="userFiltersState.status === 'pending'"
-            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
-            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-            :no-options-label="t('ne_dropdown_filter.no_options')"
-            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-            :clear-search-label="t('ne_dropdown_filter.clear_search')"
-            :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
-          />
-          <!-- created by filter -->
-          <NeDropdownFilterV2
-            v-model="createdByFilter"
-            kind="checkbox"
-            :disabled="userFiltersState.status === 'pending'"
-            :label="t('systems.created_by')"
-            :options="createdByFilterOptions"
-            show-options-filter
             :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
             :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
             :no-options-label="t('ne_dropdown_filter.no_options')"
@@ -432,7 +413,6 @@ const goToAccount = () => {
               { id: 'name', label: t('users.name') },
               { id: 'email', label: t('users.email') },
               { id: 'organization', label: t('users.organization') },
-              { id: 'creator_name', label: t('systems.created_by') },
               { id: 'status', label: t('common.status') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
@@ -480,13 +460,13 @@ const goToAccount = () => {
         <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
           $t('users.name')
         }}</NeTableHeadCell>
+        <NeTableHeadCell v-if="canSeeParentOfCustomers()">{{
+          $t('organizations.parent_company')
+        }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="organization" @sort="onSort">{{
           $t('users.organization')
         }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('users.role') }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="creator_name" @sort="onSort">{{
-          $t('systems.created_by')
-        }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="status" @sort="onSort">{{
           $t('common.status')
         }}</NeTableHeadCell>
@@ -521,6 +501,18 @@ const goToAccount = () => {
               </div>
             </div>
           </NeTableCell>
+          <NeTableCell
+            v-if="canSeeParentOfCustomers()"
+            :data-label="$t('organizations.parent_company')"
+          >
+            <div :class="{ 'opacity-50': item.deleted_at }">
+              <ParentCompanyLink
+                v-if="item.organization.parent"
+                :parent="item.organization.parent"
+              />
+              <span v-else>-</span>
+            </div>
+          </NeTableCell>
           <NeTableCell :data-label="$t('users.organization')">
             <div :class="{ 'opacity-50': item.deleted_at }">
               <OrganizationIconAndLink
@@ -543,30 +535,6 @@ const goToAccount = () => {
                 :key="role.id"
                 :role="role.name"
               />
-            </div>
-          </NeTableCell>
-          <NeTableCell :data-label="$t('systems.created_by')">
-            <div :class="{ 'opacity-50': item.deleted_at }">
-              <template v-if="item.created_by">
-                <div class="flex items-center gap-2">
-                  <UserAvatar
-                    size="sm"
-                    :is-owner="item.created_by.username === 'owner'"
-                    :name="item.created_by.name"
-                    :logto-id="item.created_by.user_id"
-                  />
-                  <div class="space-y-0.5">
-                    <div>{{ item.created_by.name || '-' }}</div>
-                    <div
-                      v-if="item.created_by.organization_name"
-                      class="text-gray-500 dark:text-gray-400"
-                    >
-                      <CreatorOrganization :creator="item.created_by" />
-                    </div>
-                  </div>
-                </div>
-              </template>
-              <template v-else>-</template>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.status')">

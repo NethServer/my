@@ -202,7 +202,7 @@
     "import_customers": "Import customers",
     "customers_imported": "Customers imported",
     "hierarchy_filter_title": "Filtering by company hierarchy",
-    "hierarchy_filter_description": "Showing customers of {name} and of all companies in its hierarchy. Changing the Parent company filter will remove this hierarchy filtering.",
+    "hierarchy_filter_description": "Showing customers of {name} and of all companies in its hierarchy. Changing the Managed by filter will remove this hierarchy filtering.",
     "hierarchy_filter_exact": "Filter by this company only"
   },
   "organizations": {
@@ -230,7 +230,7 @@
     "custom_data_email_invalid": "Invalid email address",
     "custom_data_phone_invalid_format": "Invalid phone number",
     "organization": "Company",
-    "parent_company": "Parent company",
+    "parent_company": "Managed by",
     "no_company": "No company",
     "choose_organization": "Choose company",
     "no_organizations": "No companies",
@@ -681,7 +681,7 @@
     "version": "Version",
     "created_by": "Created by",
     "on_behalf_of": "On behalf of {organization}",
-    "organization": "Company",
+    "organization": "Assigned company",
     "organization_helper": "Choose the company this system will be assigned to",
     "status": "Status",
     "fqdn": "FQDN",
@@ -760,7 +760,7 @@
     "show_pending_systems": "Show pending systems",
     "organization_id_system_not_registered": "Company cannot be changed until the system is registered. To change it now, delete and re-create the system.",
     "hierarchy_filter_title": "Filtering by company hierarchy",
-    "hierarchy_filter_description": "Showing systems of {name} and of all companies in its hierarchy. Changing the Company filter will remove this hierarchy filtering.",
+    "hierarchy_filter_description": "Showing systems of {name} and of all companies in its hierarchy. Changing the Assigned company filter will remove this hierarchy filtering.",
     "hierarchy_filter_exact": "Filter by this company only"
   },
   "system_detail": {

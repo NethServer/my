@@ -24,7 +24,6 @@ export const useSystems = defineQuery(() => {
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
   const productFilter = ref<NeDropdownFilterV2Option[]>([])
-  const createdByFilter = ref<NeDropdownFilterV2Option[]>([])
   const versionFilter = ref<NeDropdownFilterV2Option[]>([])
   const statusFilter = ref<NeDropdownFilterV2Option[]>([
     { id: 'active', label: 'active' },
@@ -33,6 +32,9 @@ export const useSystems = defineQuery(() => {
     { id: 'suspended', label: 'suspended' },
   ])
   const organizationFilter = ref<NeDropdownFilterV2Option[]>([])
+  // parent company: the distributor or reseller the system's company sits
+  // directly under (ANDed with organizationFilter)
+  const parentOrganizationFilter = ref<NeDropdownFilterV2Option[]>([])
   const addonFilter = ref<NeDropdownFilterV2Option[]>([])
   // when true, the systems of every company in the hierarchy of the selected
   // organization are shown (organizationFilter holds that single organization)
@@ -48,10 +50,10 @@ export const useSystems = defineQuery(() => {
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
         productFilter: productFilter.value.map((o) => o.id),
-        createdByFilter: createdByFilter.value.map((o) => o.id),
         versionFilter: versionFilter.value.map((o) => o.id),
         statusFilter: statusFilter.value.map((o) => o.id),
         organizationFilter: organizationFilter.value.map((o) => o.id),
+        parentOrganizationFilter: parentOrganizationFilter.value.map((o) => o.id),
         addonFilter: addonFilter.value.map((o) => o.id),
         includeHierarchy: includeHierarchy.value,
         sortBy: sortBy.value,
@@ -65,7 +67,7 @@ export const useSystems = defineQuery(() => {
         pageSize.value,
         debouncedTextFilter.value,
         productFilter.value.map((o) => o.id),
-        createdByFilter.value.map((o) => o.id),
+        [], // created by: not filtered from the tables
         versionFilter.value.map((o) => o.id),
         statusFilter.value.map((o) => o.id) as SystemStatus[],
         organizationFilter.value.map((o) => o.id),
@@ -73,6 +75,7 @@ export const useSystems = defineQuery(() => {
         includeHierarchy.value,
         sortBy.value,
         sortDescending.value,
+        parentOrganizationFilter.value.map((o) => o.id),
       ),
   })
 
@@ -81,8 +84,8 @@ export const useSystems = defineQuery(() => {
       !debouncedTextFilter.value &&
       productFilter.value.length === 0 &&
       versionFilter.value.length === 0 &&
-      createdByFilter.value.length === 0 &&
       organizationFilter.value.length === 0 &&
+      parentOrganizationFilter.value.length === 0 &&
       addonFilter.value.length === 0 &&
       statusFilter.value.length === 4 &&
       statusFilter.value.some((o) => o.id === 'active') &&
@@ -141,17 +144,17 @@ export const useSystems = defineQuery(() => {
     },
   )
 
-  // reset to first page when created by filter changes
+  // reset to first page when version filter changes
   watch(
-    () => createdByFilter.value,
+    () => versionFilter.value,
     () => {
       pageNum.value = 1
     },
   )
 
-  // reset to first page when version filter changes
+  // reset to first page when parent company filter changes
   watch(
-    () => versionFilter.value,
+    () => parentOrganizationFilter.value,
     () => {
       pageNum.value = 1
     },
@@ -197,8 +200,8 @@ export const useSystems = defineQuery(() => {
     textFilter.value = ''
     productFilter.value = []
     versionFilter.value = []
-    createdByFilter.value = []
     organizationFilter.value = []
+    parentOrganizationFilter.value = []
     addonFilter.value = []
     includeHierarchy.value = false
     hierarchyOrgId.value = null
@@ -222,10 +225,10 @@ export const useSystems = defineQuery(() => {
     pageSize,
     textFilter,
     productFilter,
-    createdByFilter,
     versionFilter,
     statusFilter,
     organizationFilter,
+    parentOrganizationFilter,
     addonFilter,
     includeHierarchy,
     debouncedTextFilter,
