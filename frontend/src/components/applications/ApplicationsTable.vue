@@ -267,6 +267,7 @@ const goToApplicationDetails = (application: Application) => {
               v-if="!isUserCustomer()"
               v-model="organizationFilter"
               show-no-company-option
+              :label="t('applications.assigned_company')"
             />
             <!-- sort dropdown -->
             <NeSortDropdown
@@ -278,7 +279,7 @@ const goToApplicationDetails = (application: Application) => {
                 { id: 'instance_of', label: t('applications.type') },
                 { id: 'version', label: t('applications.version') },
                 { id: 'system_name', label: t('systems.system') },
-                { id: 'organization_name', label: t('organizations.organization') },
+                { id: 'organization_name', label: t('applications.assigned_company') },
               ]"
               :open-menu-aria-label="t('ne_dropdown.open_menu')"
               :sort-by-label="t('sort.sort_by')"
@@ -330,7 +331,7 @@ const goToApplicationDetails = (application: Application) => {
             $t('systems.system')
           }}</NeTableHeadCell>
           <NeTableHeadCell sortable column-key="organization_name" @sort="onSort">{{
-            $t('organizations.organization')
+            $t('applications.assigned_company')
           }}</NeTableHeadCell>
           <NeTableHeadCell>
             <!-- no header for actions -->
@@ -369,7 +370,7 @@ const goToApplicationDetails = (application: Application) => {
                 system-type="ns8"
               />
             </NeTableCell>
-            <NeTableCell :data-label="$t('organizations.organization')">
+            <NeTableCell :data-label="$t('applications.assigned_company')">
               <OrganizationIconAndLink v-if="item.organization" :organization="item.organization" />
               <span v-else>-</span>
             </NeTableCell>

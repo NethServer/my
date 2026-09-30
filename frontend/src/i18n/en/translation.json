@@ -892,6 +892,7 @@
     "application_type": "Application type",
     "rebranding": "Rebranding",
     "assign_organization": "Assign to company",
+    "assigned_company": "Assigned company",
     "reassign_organization": "Reassign to company",
     "name": "Name",
     "application": "Application",
@@ -912,7 +913,7 @@
     "organization_applications": "Company applications",
     "system_applications": "System applications",
     "hierarchy_filter_title": "Filtering by company hierarchy",
-    "hierarchy_filter_description": "Showing applications of {name} and of all companies in its hierarchy. Changing the Company filter will remove this hierarchy filtering.",
+    "hierarchy_filter_description": "Showing applications of {name} and of all companies in its hierarchy. Changing the Assigned company filter will remove this hierarchy filtering.",
     "hierarchy_filter_exact": "Filter by this company only"
   },
   "addons": {

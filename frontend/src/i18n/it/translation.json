@@ -810,6 +810,7 @@
     "application_type": "Tipo di applicazione",
     "rebranding": "Rebranding",
     "assign_organization": "Assegna ad azienda",
+    "assigned_company": "Azienda assegnataria",
     "reassign_organization": "Riassegna ad azienda",
     "name": "Nome",
     "application": "Applicazione",
@@ -830,7 +831,7 @@
     "organization_applications": "Applicazioni dell'azienda",
     "system_applications": "Applicazioni del sistema",
     "hierarchy_filter_title": "Filtro per gerarchia aziendale",
-    "hierarchy_filter_description": "Sono mostrate le applicazioni di {name} e di tutte le aziende della sua gerarchia. Modificare il filtro Azienda rimuoverà il filtro per gerarchia.",
+    "hierarchy_filter_description": "Sono mostrate le applicazioni di {name} e di tutte le aziende della sua gerarchia. Modificare il filtro Azienda assegnataria rimuoverà il filtro per gerarchia.",
     "hierarchy_filter_exact": "Filtra solo per questa azienda"
   },
   "addons": {

@@ -121,7 +121,7 @@ function getKebabMenuItems() {
         </DataItem>
         <DataItem>
           <template #label>
-            {{ $t('organizations.organization') }}
+            {{ $t('applications.assigned_company') }}
           </template>
           <template #data>
             <OrganizationIconAndLink
