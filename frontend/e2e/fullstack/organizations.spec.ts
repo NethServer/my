@@ -136,7 +136,7 @@ test('edits a distributor and keeps the change', async ({ page }) => {
 
   const city = 'Lucca'
   await editDrawer.getByLabel(new RegExp(`^${t('organizations.city')}`)).fill(city)
-  await editDrawer.getByRole('button', { name: t('distributors.save_distributor') }).click()
+  await editDrawer.getByRole('button', { name: t('common.save') }).click()
   await expect(editDrawer).toBeHidden({ timeout: 30_000 })
 
   // Reopen rather than trusting the row: this proves the value was persisted.

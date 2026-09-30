@@ -482,7 +482,7 @@ function getEmailInvalidMessage(): string {
           :loading="saving"
           @click.prevent="saveUser"
         >
-          {{ currentUser ? $t('users.save_user') : $t('users.create_user') }}
+          {{ currentUser ? $t('common.save') : $t('users.create_user') }}
         </NeButton>
       </div>
     </form>

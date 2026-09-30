@@ -152,7 +152,7 @@ test.describe('user lifecycle', () => {
     await expect(drawer.getByLabel(t('users.email'), { exact: true })).toHaveValue(email)
 
     await chooseRole(page, t('user_roles.support'))
-    await drawer.getByRole('button', { name: t('users.save_user') }).click()
+    await drawer.getByRole('button', { name: t('common.save') }).click()
     await expect(drawer).toBeHidden({ timeout: 30_000 })
 
     // Both halves matter: the badge the operator sees, and the role the backend
