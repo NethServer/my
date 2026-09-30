@@ -158,7 +158,7 @@ func TestSystemKeyHashAuth_DBOutcomes(t *testing.T) {
 	hash := strings.Repeat("ab", 32)
 	for expected, result := range map[int]func(*sqlmock.ExpectedQuery){
 		http.StatusOK: func(q *sqlmock.ExpectedQuery) {
-			q.WillReturnRows(sqlmock.NewRows(credsColumns).AddRow("sys-1", "pub", "x", time.Now(), hash))
+			q.WillReturnRows(sqlmock.NewRows(credsColumns).AddRow("sys-1", nil, nil, time.Now(), hash))
 		},
 		http.StatusUnauthorized:       func(q *sqlmock.ExpectedQuery) { q.WillReturnError(sql.ErrNoRows) },
 		http.StatusServiceUnavailable: func(q *sqlmock.ExpectedQuery) { q.WillReturnError(context.DeadlineExceeded) },

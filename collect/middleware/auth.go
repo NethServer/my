@@ -216,8 +216,9 @@ func SystemKeyHashAuthMiddleware() gin.HandlerFunc {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 		defer cancel()
 		var creds systemCredentialsRow
+		var unused sql.NullString
 		err := database.DB.QueryRowContext(ctx, systemByKeyHashQuery, hash).
-			Scan(&creds.systemID, &creds.secretPublic, &creds.secretSHA256, &creds.registeredAt, &creds.keyHash)
+			Scan(&creds.systemID, &unused, &unused, &creds.registeredAt, &creds.keyHash)
 		switch {
 		case errors.Is(err, sql.ErrNoRows) || err == nil && !creds.registeredAt.Valid:
 			c.AbortWithStatusJSON(http.StatusUnauthorized, response.Unauthorized("invalid system credentials", nil))
