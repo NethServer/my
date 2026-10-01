@@ -48,7 +48,7 @@ import type { Ns8Facts } from '@/lib/systems/ns8Facts'
 import type { NsecFacts } from '@/lib/systems/nsecFacts'
 import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
-import { canSeeParentOfCustomers } from '@/lib/organizations/organizations'
+import { canSeeParentOfCustomers, getManagedBy } from '@/lib/organizations/organizations'
 
 const { t, locale } = useI18n()
 const { state: systemDetail, asyncStatus } = useSystemDetail()
@@ -283,8 +283,8 @@ function getKebabMenuItems() {
           </template>
           <template #data>
             <ParentCompanyLink
-              v-if="systemDetail.data.organization.parent"
-              :parent="systemDetail.data.organization.parent"
+              v-if="getManagedBy(systemDetail.data.organization)"
+              :parent="getManagedBy(systemDetail.data.organization)"
             />
             <span v-else class="font-medium">-</span>
           </template>

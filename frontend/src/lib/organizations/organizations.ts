@@ -21,6 +21,29 @@ export const ParentOrganizationSchema = v.object({
 
 export type ParentOrganization = v.InferOutput<typeof ParentOrganizationSchema>
 
+// The company that manages what is assigned to an organization ("Managed by"):
+// a customer's parent, or the organization itself when it is a partner or the
+// Owner, which manage what is assigned to them directly. A row assigned to a
+// partner then reads the same company twice, which is what tells it apart from
+// a row of one of its customers.
+export const getManagedBy = (organization: {
+  id: string
+  logto_id: string
+  name: string
+  type: string
+  parent?: ParentOrganization
+}): ParentOrganization | undefined => {
+  if (organization.type === 'customer') {
+    return organization.parent
+  }
+  return {
+    id: organization.id,
+    logto_id: organization.logto_id,
+    name: organization.name,
+    type: organization.type,
+  }
+}
+
 export const OrganizationSchema = v.object({
   logto_id: v.string(),
   name: v.string(),

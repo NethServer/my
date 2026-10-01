@@ -63,7 +63,11 @@ import DestroySystemModal from './DestroySystemModal.vue'
 import SystemStatusIcon from './SystemStatusIcon.vue'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
-import { canSeeParentOfCustomers, isUserCustomer } from '@/lib/organizations/organizations.ts'
+import {
+  canSeeParentOfCustomers,
+  getManagedBy,
+  isUserCustomer,
+} from '@/lib/organizations/organizations.ts'
 import OrganizationIconAndLink from '../organizations/OrganizationIconAndLink.vue'
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
 import SystemLogoAndLink from './SystemLogoAndLink.vue'
@@ -583,8 +587,8 @@ function onCloseSecretRegeneratedModal() {
           >
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
               <ParentCompanyLink
-                v-if="item.organization.parent"
-                :parent="item.organization.parent"
+                v-if="getManagedBy(item.organization)"
+                :parent="getManagedBy(item.organization)"
               />
               <span v-else>-</span>
             </div>
