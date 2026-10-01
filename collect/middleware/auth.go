@@ -217,7 +217,7 @@ func SystemKeyHashAuthMiddleware() gin.HandlerFunc {
 		defer cancel()
 		var creds systemCredentialsRow
 		var unused sql.NullString
-		err := database.DB.QueryRowContext(ctx, systemByKeyHashQuery, hash).
+		err := database.DB.QueryRowContext(ctx, systemByKeyHashQuery, storedKeyHash(hash)).
 			Scan(&creds.systemID, &unused, &unused, &creds.registeredAt, &creds.keyHash)
 		switch {
 		case errors.Is(err, sql.ErrNoRows) || err == nil && !creds.registeredAt.Valid:
@@ -231,6 +231,12 @@ func SystemKeyHashAuthMiddleware() gin.HandlerFunc {
 			c.Next()
 		}
 	}
+}
+
+// storedKeyHash is what system_key_hash holds: a DB dump yields no usable Bearer.
+func storedKeyHash(hash string) string {
+	sum := sha256.Sum256([]byte(hash))
+	return hex.EncodeToString(sum[:])
 }
 
 // systemCredentialsRow holds the DB row for system credentials lookup
@@ -433,7 +439,7 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 	if !creds.keyHash.Valid {
 		sum := sha256.Sum256([]byte(systemKey + ":" + systemSecret))
 		if _, err := database.DB.ExecContext(queryCtx, `UPDATE systems SET system_key_hash = $2 WHERE id = $1 AND system_key_hash IS NULL`,
-			creds.systemID, hex.EncodeToString(sum[:])); err != nil {
+			creds.systemID, storedKeyHash(hex.EncodeToString(sum[:]))); err != nil {
 			logger.Warn().Err(err).Str("system_key", systemKey).Msg("Failed to store system key hash")
 		}
 	}

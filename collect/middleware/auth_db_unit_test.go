@@ -164,7 +164,7 @@ func TestSystemKeyHashAuth_DBOutcomes(t *testing.T) {
 		http.StatusServiceUnavailable: func(q *sqlmock.ExpectedQuery) { q.WillReturnError(context.DeadlineExceeded) },
 	} {
 		mock, restore := swapMockDB(t)
-		result(mock.ExpectQuery(`s.system_key_hash = \$1`).WithArgs(hash))
+		result(mock.ExpectQuery(`s.system_key_hash = \$1`).WithArgs(storedKeyHash(hash)))
 
 		router := gin.New()
 		router.Use(SystemKeyHashAuthMiddleware())
@@ -180,7 +180,7 @@ func TestSystemKeyHashAuth_DBOutcomes(t *testing.T) {
 	}
 }
 
-// The first uncached Basic request stores sha256("<key>:<token>").
+// The first uncached Basic request stores sha256 of the hex sha256("<key>:<token>").
 func TestBasicAuth_LearnsSystemKeyHash(t *testing.T) {
 	_ = os.Setenv("DATABASE_URL", "postgres://localhost:5432/testdb")
 	defer func() { _ = os.Unsetenv("DATABASE_URL") }()
@@ -191,12 +191,13 @@ func TestBasicAuth_LearnsSystemKeyHash(t *testing.T) {
 	token := "my_pub." + secret
 	digest, _ := helpers.HashSystemSecretSHA256(secret)
 	sum := sha256.Sum256([]byte(key + ":" + token))
+	stored := sha256.Sum256([]byte(hex.EncodeToString(sum[:])))
 
 	mock, restore := swapMockDB(t)
 	defer restore()
 	mock.ExpectQuery(`s.system_key = \$1`).WithArgs(key).
 		WillReturnRows(sqlmock.NewRows(credsColumns).AddRow("sys-1", "pub", digest, time.Now(), nil))
-	mock.ExpectExec(`UPDATE systems SET system_key_hash`).WithArgs("sys-1", hex.EncodeToString(sum[:])).
+	mock.ExpectExec(`UPDATE systems SET system_key_hash`).WithArgs("sys-1", hex.EncodeToString(stored[:])).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	router := gin.New()
