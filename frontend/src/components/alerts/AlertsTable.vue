@@ -399,18 +399,6 @@ function goToSystems() {
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             @update:model-value="() => (pageNum = 1)"
           />
-          <!-- System filter -->
-          <SystemDropdownFilter
-            v-model="systemKeyFilters"
-            id-field="system_key"
-            @update:model-value="() => (pageNum = 1)"
-          />
-          <!-- Organization filter -->
-          <OrganizationDropdownFilter
-            v-if="!isUserCustomer()"
-            v-model="organizationIds"
-            @update:model-value="() => (pageNum = 1)"
-          />
           <!-- Status filter -->
           <NeDropdownFilterV2
             v-model="statusFilters"
@@ -426,6 +414,18 @@ function goToSystems() {
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             :custom-action-label="t('ne_dropdown_filter.reset_selection')"
             @custom-action="resetStatusFilter"
+            @update:model-value="() => (pageNum = 1)"
+          />
+          <!-- System filter -->
+          <SystemDropdownFilter
+            v-model="systemKeyFilters"
+            id-field="system_key"
+            @update:model-value="() => (pageNum = 1)"
+          />
+          <!-- Organization filter -->
+          <OrganizationDropdownFilter
+            v-if="!isUserCustomer()"
+            v-model="organizationIds"
             @update:model-value="() => (pageNum = 1)"
           />
           <!-- Comments filter -->
@@ -463,7 +463,7 @@ function goToSystems() {
           </NeButton>
         </div>
         <!-- Data updated every X seconds -->
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 text-right">
           <NeSpinner
             color="white"
             v-if="alertsAsyncStatus === 'loading' && alertsState.status !== 'pending'"
