@@ -1262,6 +1262,7 @@
     "with_comments": "With comments",
     "without_comments": "Without comments",
     "show_comments": "Show comments",
+    "has_comments": "This alert has comments",
     "silenced_until": "Muted until",
     "notification_channels": "Notification Channels",
     "configure_channels_description": "Configure alert delivery channels and destinations.",

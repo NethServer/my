@@ -31,6 +31,7 @@ import {
   NeTableHead,
   NeTableHeadCell,
   NeTableRow,
+  NeTooltip,
   type NeDropdownFilterV2Option,
   type NeDropdownItem,
   type SortEvent,
@@ -529,15 +530,26 @@ function onMuteDrawerClose(): void {
                 {{ t('alerts.muted') }}
               </NeBadgeV2>
               <!-- opens the details drawer, whose timeline lists the comments -->
-              <button
+              <NeTooltip
                 v-if="alert.has_notes"
-                type="button"
-                class="mt-0.5 ml-auto flex shrink-0 cursor-pointer text-indigo-800 transition-colors duration-(--duration-small) hover:text-indigo-950 dark:text-indigo-300 dark:hover:text-indigo-200"
-                @click="() => showDetails(alert)"
+                trigger-event="mouseenter focus"
+                placement="top"
+                class="mt-0.5 ml-auto flex shrink-0"
               >
-                <FontAwesomeIcon :icon="faMessage" class="size-4" aria-hidden="true" />
-                <span class="sr-only">{{ t('alerts.show_comments') }}</span>
-              </button>
+                <template #trigger>
+                  <button
+                    type="button"
+                    class="flex cursor-pointer text-indigo-800 transition-colors duration-(--duration-small) hover:text-indigo-950 dark:text-indigo-300 dark:hover:text-indigo-200"
+                    @click="() => showDetails(alert)"
+                  >
+                    <FontAwesomeIcon :icon="faMessage" class="size-4" aria-hidden="true" />
+                    <span class="sr-only">{{ t('alerts.show_comments') }}</span>
+                  </button>
+                </template>
+                <template #content>
+                  {{ t('alerts.has_comments') }}
+                </template>
+              </NeTooltip>
             </div>
           </NeTableCell>
           <!-- Started at -->

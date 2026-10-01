@@ -1262,6 +1262,7 @@
     "with_comments": "Con commenti",
     "without_comments": "Senza commenti",
     "show_comments": "Mostra commenti",
+    "has_comments": "Questo allarme ha commenti",
     "silenced_until": "Silenziato fino a",
     "notification_channels": "Canali di notifica",
     "configure_channels_description": "Configura i canali e le destinazioni di consegna degli allarmi.",
