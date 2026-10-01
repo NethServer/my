@@ -1257,6 +1257,7 @@
     "take_over_confirmation": "This alert is currently assigned to {name}. Do you want to take it over?",
     "assigned_to": "Assigned to",
     "unassigned": "Unassigned",
+    "assignee_someone": "Someone",
     "comments": "Comments",
     "with_comments": "With comments",
     "without_comments": "Without comments",

@@ -134,8 +134,10 @@ export type AlertState = 'active' | 'suppressed' | 'unprocessed'
 // Sortable columns for the active-alerts lists (mirrors the backend allowlist).
 export type AlertSortBy = 'starts_at' | 'severity' | 'alertname' | 'status' | 'assigned_user_name'
 
-// Sentinel value for the assignee filter that matches unassigned alerts.
+// Sentinel values for the assignee filter: unassigned alerts, and alerts
+// assigned to anyone.
 export const UNASSIGNED_FILTER_ID = 'none'
+export const ANY_ASSIGNEE_FILTER_ID = 'any'
 
 // Options of the comments filter, mapped to the backend has_notes query param.
 export const WITH_COMMENTS_FILTER_ID = 'with'

@@ -1257,6 +1257,7 @@
     "take_over_confirmation": "Questo allarme è attualmente assegnato a {name}. Vuoi prenderlo in carico?",
     "assigned_to": "Assegnato a",
     "unassigned": "Non assegnato",
+    "assignee_someone": "Qualcuno",
     "comments": "Commenti",
     "with_comments": "Con commenti",
     "without_comments": "Senza commenti",
