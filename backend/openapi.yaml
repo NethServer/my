@@ -476,6 +476,16 @@ components:
             assigned_at:
               type: string
               format: date-time
+        has_notes:
+          type: boolean
+          description: |
+            True when the alert's timeline (GET /alerts/activity/{fingerprint})
+            holds at least one operator-written text: a standalone note, the
+            note taken with an assignment, or a silence comment typed by the
+            operator (the placeholder stored for an empty comment does not
+            count). The timeline is keyed by fingerprint, so notes left on an
+            earlier firing of the same alert count too. Stamped server-side
+            with one batch lookup per page.
 
     AlertActivityEntry:
       type: object
@@ -12006,6 +12016,30 @@ paths:
               type: string
           style: form
           explode: true
+        - name: assigned
+          in: query
+          description: |
+            `true` keeps only alerts assigned to someone, `false` only
+            unassigned ones. Any other value returns 400.
+          schema:
+            type: boolean
+        - name: silenced
+          in: query
+          description: |
+            `true` keeps only alerts muted by at least one silence (non-empty
+            `status.silencedBy`), `false` the others. Unlike
+            `status=suppressed`, inhibited-only alerts do not count as
+            silenced. Any other value returns 400.
+          schema:
+            type: boolean
+        - name: has_notes
+          in: query
+          description: |
+            `true` keeps only alerts with `has_notes: true` (at least one
+            operator-written text in their timeline), `false` the others.
+            Any other value returns 400.
+          schema:
+            type: boolean
       responses:
         '200':
           description: Paginated list of active alerts
@@ -12073,6 +12107,7 @@ paths:
                             user_org_id: "m4m3mdjdiizs"
                             user_org_name: "R1C1 Customer"
                             assigned_at: "2026-05-12T08:20:00Z"
+                          has_notes: true
                       pagination:
                         page: 1
                         page_size: 50
@@ -15377,6 +15412,30 @@ paths:
               type: string
           style: form
           explode: true
+        - name: assigned
+          in: query
+          description: |
+            `true` keeps only alerts assigned to someone, `false` only
+            unassigned ones. Any other value returns 400.
+          schema:
+            type: boolean
+        - name: silenced
+          in: query
+          description: |
+            `true` keeps only alerts muted by at least one silence (non-empty
+            `status.silencedBy`), `false` the others. Unlike
+            `status=suppressed`, inhibited-only alerts do not count as
+            silenced. Any other value returns 400.
+          schema:
+            type: boolean
+        - name: has_notes
+          in: query
+          description: |
+            `true` keeps only alerts with `has_notes: true` (at least one
+            operator-written text in their timeline), `false` the others.
+            Any other value returns 400.
+          schema:
+            type: boolean
       responses:
         '200':
           description: Active alerts retrieved successfully
@@ -15473,6 +15532,8 @@ paths:
                         has_prev: false
                         sort_by: "starts_at"
                         sort_direction: "desc"
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

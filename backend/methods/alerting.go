@@ -560,15 +560,32 @@ func GetAlerts(c *gin.Context) {
 	all, warnings := fanOutMimirAlerts(c.Request.Context(), tenants)
 	all = filterByOrgScope(all, orgIDs)
 
+	assigned, ok := parseOptionalBoolQuery(c, "assigned")
+	if !ok {
+		return
+	}
+	silenced, ok := parseOptionalBoolQuery(c, "silenced")
+	if !ok {
+		return
+	}
+	hasNotes, ok := parseOptionalBoolQuery(c, "has_notes")
+	if !ok {
+		return
+	}
+
 	// Filtering or sorting by assignee, or a free-text search (which matches
 	// the assignee's name), needs the whole (org-scoped) list decorated before
-	// pagination — still a single batch DB query. Otherwise keep the cheaper
-	// page-only decoration below.
+	// pagination — still a single batch DB query. Same for the has_notes
+	// filter. Otherwise keep the cheaper page-only decoration below.
 	assignedUserIDs := c.QueryArray("assigned_user_id")
 	search := c.Query("search")
-	needAssignmentsUpfront := len(assignedUserIDs) > 0 || sortBy == "assigned_user_name" || strings.TrimSpace(search) != ""
+	needAssignmentsUpfront := len(assignedUserIDs) > 0 || assigned != nil || sortBy == "assigned_user_name" || strings.TrimSpace(search) != ""
 	if needAssignmentsUpfront {
 		attachAlertAssignments(all)
+	}
+	needNotesUpfront := hasNotes != nil
+	if needNotesUpfront {
+		attachAlertNotes(all)
 	}
 
 	all = filterAlerts(all, alertFilter{
@@ -578,6 +595,9 @@ func GetAlerts(c *gin.Context) {
 		alertnames:      c.QueryArray("alertname"),
 		search:          search,
 		assignedUserIDs: assignedUserIDs,
+		assigned:        assigned,
+		silenced:        silenced,
+		hasNotes:        hasNotes,
 	})
 
 	// Sort with fingerprint as a stable tiebreaker so pagination doesn't
@@ -599,6 +619,9 @@ func GetAlerts(c *gin.Context) {
 	}
 	if !needAssignmentsUpfront {
 		attachAlertAssignments(pageAlerts)
+	}
+	if !needNotesUpfront {
+		attachAlertNotes(pageAlerts)
 	}
 
 	if warnings == nil {
@@ -984,6 +1007,83 @@ func assigneeOf(alert map[string]interface{}) (string, string) {
 	return uid, name
 }
 
+// attachAlertNotes decorates Mimir alerts with `has_notes`: true when the
+// alert's timeline holds at least one operator-written text (standalone note,
+// note taken with an assignment, or a silence comment other than the
+// placeholder used for empty comments). The timeline is keyed by fingerprint,
+// so earlier firings of the same alert count, as they do in the drawer.
+// Single batch query; best-effort like attachAlertAssignments: on DB failure
+// every alert renders as without notes.
+func attachAlertNotes(alerts []map[string]interface{}) {
+	if len(alerts) == 0 {
+		return
+	}
+	orgIDs := make([]string, 0, len(alerts))
+	fingerprints := make([]string, 0, len(alerts))
+	for _, alert := range alerts {
+		alert["has_notes"] = false
+		labels, _ := alert["labels"].(map[string]interface{})
+		org, _ := labels["organization_id"].(string)
+		fp, _ := alert["fingerprint"].(string)
+		if org == "" || fp == "" {
+			continue
+		}
+		orgIDs = append(orgIDs, org)
+		fingerprints = append(fingerprints, fp)
+	}
+
+	repo := entities.NewLocalAlertActivityRepository()
+	withNotes, err := repo.WithNotesByFingerprints(orgIDs, fingerprints, defaultSystemAlertSilenceComment)
+	if err != nil {
+		logger.Warn().Err(err).Msg("failed to load alert notes for list (non-fatal)")
+		return
+	}
+	for _, alert := range alerts {
+		labels, _ := alert["labels"].(map[string]interface{})
+		org, _ := labels["organization_id"].(string)
+		fp, _ := alert["fingerprint"].(string)
+		if withNotes[entities.AssignmentKey(org, fp)] {
+			alert["has_notes"] = true
+		}
+	}
+}
+
+// isSilenced reports whether at least one silence mutes the alert, from the
+// Alertmanager status.silencedBy list (empty ids ignored). Unlike
+// status.state == "suppressed" it excludes alerts that are only inhibited.
+func isSilenced(alert map[string]interface{}) bool {
+	status, _ := alert["status"].(map[string]interface{})
+	ids, _ := status["silencedBy"].([]interface{})
+	for _, id := range ids {
+		if s, _ := id.(string); s != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// parseOptionalBoolQuery reads an optional true|false query param. Returns
+// (nil, true) when absent; on any other value it writes a validation error and
+// returns (nil, false) — a filter silently ignored would widen the result.
+func parseOptionalBoolQuery(c *gin.Context, key string) (*bool, bool) {
+	raw, present := c.GetQuery(key)
+	if !present {
+		return nil, true
+	}
+	switch raw {
+	case "true":
+		v := true
+		return &v, true
+	case "false":
+		v := false
+		return &v, true
+	}
+	c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+		{Key: key, Message: "invalid_format", Value: raw},
+	}))
+	return nil, false
+}
+
 // fanOutMimirAlerts fetches active alerts from Mimir for every tenant in scope
 // concurrently, with bounded concurrency and a global timeout. Per-tenant
 // failures (timeout, 5xx, parse error) are collected as warnings; the rest of
@@ -1259,6 +1359,15 @@ type alertFilter struct {
 	// "none" matches unassigned alerts. Requires attachAlertAssignments to
 	// have decorated the list first.
 	assignedUserIDs []string
+	// assigned, when set, keeps only alerts that are (true) or are not
+	// (false) assigned to anyone. Requires attachAlertAssignments.
+	assigned *bool
+	// silenced, when set, keeps only alerts muted (true) or not (false) by at
+	// least one silence. Inhibited alerts are not silenced.
+	silenced *bool
+	// hasNotes, when set, keeps only alerts with (true) or without (false)
+	// operator-written text in their timeline. Requires attachAlertNotes.
+	hasNotes *bool
 }
 
 // filterAlerts applies optional multi-value query filters to the alerts list.
@@ -1267,7 +1376,8 @@ type alertFilter struct {
 // of unrelated alerts when the caller narrows the query.
 func filterAlerts(alerts []map[string]interface{}, f alertFilter) []map[string]interface{} {
 	search := strings.ToLower(strings.TrimSpace(f.search))
-	if len(f.statuses) == 0 && len(f.severities) == 0 && len(f.systemKeys) == 0 && len(f.alertnames) == 0 && search == "" && len(f.assignedUserIDs) == 0 {
+	if len(f.statuses) == 0 && len(f.severities) == 0 && len(f.systemKeys) == 0 && len(f.alertnames) == 0 && search == "" && len(f.assignedUserIDs) == 0 &&
+		f.assigned == nil && f.silenced == nil && f.hasNotes == nil {
 		return alerts
 	}
 
@@ -1318,6 +1428,24 @@ func filterAlerts(alerts []map[string]interface{}, f alertFilter) []map[string]i
 				want = "none"
 			}
 			if !slices.Contains(f.assignedUserIDs, want) {
+				continue
+			}
+		}
+
+		if f.assigned != nil {
+			uid, _ := assigneeOf(alert)
+			if (uid != "") != *f.assigned {
+				continue
+			}
+		}
+
+		if f.silenced != nil && isSilenced(alert) != *f.silenced {
+			continue
+		}
+
+		if f.hasNotes != nil {
+			has, _ := alert["has_notes"].(bool)
+			if has != *f.hasNotes {
 				continue
 			}
 		}
@@ -1584,6 +1712,8 @@ func silenceBelongsToSystem(silence *models.AlertmanagerSilence, systemKey strin
 //   - severity, alertname, status (multi-value, OR within, AND across)
 //   - search (free text across alert type, summary/description, service,
 //     system, company and assignee)
+//   - assigned_user_id (multi-value, "none" = unassigned)
+//   - assigned, silenced, has_notes (true | false)
 //   - page, page_size (default 50, cap 100)
 //   - sort_by (starts_at | severity | alertname | status), default starts_at
 //   - sort_direction (asc | desc), default desc
@@ -1645,9 +1775,23 @@ func GetSystemAlerts(c *gin.Context) {
 		}
 	}
 
+	assigned, ok := parseOptionalBoolQuery(c, "assigned")
+	if !ok {
+		return
+	}
+	silenced, ok := parseOptionalBoolQuery(c, "silenced")
+	if !ok {
+		return
+	}
+	hasNotes, ok := parseOptionalBoolQuery(c, "has_notes")
+	if !ok {
+		return
+	}
+
 	// One system's alerts are few: decorate the whole scoped list upfront so
-	// the assignee filter/sort below work without a second pass.
+	// the assignee/notes filters and sort below work without a second pass.
 	attachAlertAssignments(scoped)
+	attachAlertNotes(scoped)
 
 	filtered := filterAlerts(scoped, alertFilter{
 		statuses:        c.QueryArray("status"),
@@ -1655,6 +1799,9 @@ func GetSystemAlerts(c *gin.Context) {
 		alertnames:      c.QueryArray("alertname"),
 		search:          c.Query("search"),
 		assignedUserIDs: c.QueryArray("assigned_user_id"),
+		assigned:        assigned,
+		silenced:        silenced,
+		hasNotes:        hasNotes,
 		// systemKeys intentionally omitted: the URL path is the source of truth.
 	})
 
