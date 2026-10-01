@@ -178,6 +178,7 @@ export interface AlertAssignment {
   user_name: string
   user_org_id: string
   user_org_name: string
+  user_org_type?: string
   assigned_at: string
 }
 
