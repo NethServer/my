@@ -17,8 +17,6 @@ import {
   faRotateLeft,
   faBomb,
   faServer,
-  faCity,
-  faBuilding,
   faEye,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -54,6 +52,7 @@ import { useDistributors } from '@/queries/organizations/distributors'
 import { canDestroyDistributors, canManageDistributors } from '@/lib/permissions'
 import router from '@/router'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
+import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
 
 const { isShownCreateDistributorDrawer = false } = defineProps<{
   isShownCreateDistributorDrawer: boolean
@@ -408,19 +407,11 @@ const goToDistributorDetails = (distributor: Distributor) => {
               class="flex items-center gap-2 hover:underline"
               :aria-label="$t('distributors.show_distributor_resellers', { name: item.name })"
             >
-              <FontAwesomeIcon
-                :icon="faCity"
-                class="size-4 text-purple-700 dark:text-purple-400"
-                aria-hidden="true"
-              />
+              <OrganizationIcon org-type="reseller" variant="plain" size="sm" />
               {{ item.resellers_count }}
             </router-link>
             <div v-else class="flex items-center gap-2 opacity-50">
-              <FontAwesomeIcon
-                :icon="faCity"
-                class="size-4 text-purple-700 dark:text-purple-400"
-                aria-hidden="true"
-              />
+              <OrganizationIcon org-type="reseller" variant="plain" size="sm" />
               {{ item.resellers_count }}
             </div>
           </NeTableCell>
@@ -438,19 +429,11 @@ const goToDistributorDetails = (distributor: Distributor) => {
               class="flex items-center gap-2 hover:underline"
               :aria-label="$t('distributors.show_distributor_customers', { name: item.name })"
             >
-              <FontAwesomeIcon
-                :icon="faBuilding"
-                class="size-4 text-blue-700 dark:text-blue-400"
-                aria-hidden="true"
-              />
+              <OrganizationIcon org-type="customer" variant="plain" size="sm" />
               {{ item.customers_count }}
             </router-link>
             <div v-else class="flex items-center gap-2 opacity-50">
-              <FontAwesomeIcon
-                :icon="faBuilding"
-                class="size-4 text-blue-700 dark:text-blue-400"
-                aria-hidden="true"
-              />
+              <OrganizationIcon org-type="customer" variant="plain" size="sm" />
               {{ item.customers_count }}
             </div>
           </NeTableCell>

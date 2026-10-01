@@ -11,11 +11,12 @@ import {
   NeSkeleton,
   NeTabs,
 } from '@nethesis/vue-components'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+/*//// import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome' */
 /*//// import { faArrowUpRightFromSquare } from '@fortawesome/free-solid-svg-icons' */
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import OrganizationLink from '@/components/organizations/OrganizationLink.vue'
-import { getOrganizationBadgeClasses, getOrganizationIcon } from '@/lib/organizations/organizations'
+import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
+import { getOrganizationBadgeClasses } from '@/lib/organizations/organizations'
 import { canReadAddons, canReadSystems } from '@/lib/permissions'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { useTabs } from '@/composables/useTabs'
@@ -100,10 +101,11 @@ const { tabs, selectedTab } = useTabs(tabsConfig)
           :custom-kind-classes="getOrganizationBadgeClasses(systemDetail.data.organization.type)"
         >
           <div class="flex items-center gap-1.5">
-            <FontAwesomeIcon
-              :icon="getOrganizationIcon(systemDetail.data.organization.type)"
-              class="size-4"
-              aria-hidden="true"
+            <OrganizationIcon
+              :org-type="systemDetail.data.organization.type"
+              variant="plain"
+              size="sm"
+              :colored="false"
             />
             <OrganizationLink :organization="systemDetail.data.organization" />
           </div>

@@ -18,7 +18,6 @@ import {
   faBomb,
   faCircleUp,
   faServer,
-  faBuilding,
   faEye,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -55,6 +54,7 @@ import { useResellers } from '@/queries/organizations/resellers'
 import { canManageResellers, canDestroyResellers, canPromoteOrganizations } from '@/lib/permissions'
 import router from '@/router'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
+import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
 import { canSeeParentOfResellers } from '@/lib/organizations/organizations'
@@ -436,19 +436,11 @@ const goToResellerDetails = (reseller: Reseller) => {
               class="flex items-center gap-2 hover:underline"
               :aria-label="$t('resellers.show_reseller_customers', { name: item.name })"
             >
-              <FontAwesomeIcon
-                :icon="faBuilding"
-                class="size-4 text-blue-700 dark:text-blue-400"
-                aria-hidden="true"
-              />
+              <OrganizationIcon org-type="customer" variant="plain" size="sm" />
               {{ item.customers_count }}
             </router-link>
             <div v-else class="flex items-center gap-2 opacity-50">
-              <FontAwesomeIcon
-                :icon="faBuilding"
-                class="size-4 text-blue-700 dark:text-blue-400"
-                aria-hidden="true"
-              />
+              <OrganizationIcon org-type="customer" variant="plain" size="sm" />
               {{ item.customers_count }}
             </div>
           </NeTableCell>
