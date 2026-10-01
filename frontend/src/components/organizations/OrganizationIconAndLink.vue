@@ -8,15 +8,23 @@ import { NeTooltip } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
 import OrganizationLink from '@/components/organizations/OrganizationLink.vue'
-import { type OrganizationIconSize } from '@/components/organizations/OrganizationIcon.vue'
+import {
+  type OrganizationIconSize,
+  type OrganizationIconVariant,
+} from '@/components/organizations/OrganizationIcon.vue'
 
-const { organization, iconSize = 'sm' } = defineProps<{
+const {
+  organization,
+  iconSize = 'sm',
+  iconVariant = 'avatar',
+} = defineProps<{
   organization: {
     logto_id?: string
     name: string
     type: string
   }
   iconSize?: OrganizationIconSize
+  iconVariant?: OrganizationIconVariant
 }>()
 
 const { t } = useI18n()
@@ -31,7 +39,7 @@ const { t } = useI18n()
       class="mr-2 inline-block align-middle"
     >
       <template #trigger>
-        <OrganizationIcon :org-type="organization.type" :size="iconSize" />
+        <OrganizationIcon :org-type="organization.type" :size="iconSize" :variant="iconVariant" />
       </template>
       <template #content>
         {{ t(`organizations.${organization.type.toLowerCase()}`) }}

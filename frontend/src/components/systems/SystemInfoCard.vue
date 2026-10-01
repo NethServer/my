@@ -272,6 +272,7 @@ function getKebabMenuItems() {
               v-if="systemDetail.data.organization"
               :organization="systemDetail.data.organization"
               icon-size="xs"
+              icon-variant="plain"
             />
             <span v-else class="font-medium">-</span>
           </template>
@@ -286,6 +287,7 @@ function getKebabMenuItems() {
               v-if="getManagedBy(systemDetail.data.organization)"
               :parent="getManagedBy(systemDetail.data.organization)"
               icon-size="xs"
+              icon-variant="plain"
             />
             <span v-else class="font-medium">-</span>
           </template>

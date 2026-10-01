@@ -7,7 +7,10 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
-import { type OrganizationIconSize } from '@/components/organizations/OrganizationIcon.vue'
+import {
+  type OrganizationIconSize,
+  type OrganizationIconVariant,
+} from '@/components/organizations/OrganizationIcon.vue'
 import type { ParentOrganization } from '@/lib/organizations/organizations'
 
 /**
@@ -29,6 +32,7 @@ const {
   creator = undefined,
   parent = undefined,
   iconSize = 'sm',
+  iconVariant = 'avatar',
 } = defineProps<{
   creator?: {
     organization_id: string
@@ -37,6 +41,7 @@ const {
   }
   parent?: ParentOrganization
   iconSize?: OrganizationIconSize
+  iconVariant?: OrganizationIconVariant
 }>()
 
 const { t } = useI18n()
@@ -64,6 +69,11 @@ const organization = computed(() => {
 </script>
 
 <template>
-  <OrganizationIconAndLink v-if="organization" :organization="organization" :icon-size="iconSize" />
+  <OrganizationIconAndLink
+    v-if="organization"
+    :organization="organization"
+    :icon-size="iconSize"
+    :icon-variant="iconVariant"
+  />
   <template v-else>-</template>
 </template>

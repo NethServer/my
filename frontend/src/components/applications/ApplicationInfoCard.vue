@@ -128,6 +128,7 @@ function getKebabMenuItems() {
               v-if="applicationDetail.data.organization"
               :organization="applicationDetail.data.organization"
               icon-size="xs"
+              icon-variant="plain"
             />
             <span v-else class="font-medium">-</span>
           </template>
