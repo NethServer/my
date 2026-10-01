@@ -560,10 +560,6 @@ func GetAlerts(c *gin.Context) {
 	all, warnings := fanOutMimirAlerts(c.Request.Context(), tenants)
 	all = filterByOrgScope(all, orgIDs)
 
-	assigned, ok := parseOptionalBoolQuery(c, "assigned")
-	if !ok {
-		return
-	}
 	silenced, ok := parseOptionalBoolQuery(c, "silenced")
 	if !ok {
 		return
@@ -579,7 +575,7 @@ func GetAlerts(c *gin.Context) {
 	// filter. Otherwise keep the cheaper page-only decoration below.
 	assignedUserIDs := c.QueryArray("assigned_user_id")
 	search := c.Query("search")
-	needAssignmentsUpfront := len(assignedUserIDs) > 0 || assigned != nil || sortBy == "assigned_user_name" || strings.TrimSpace(search) != ""
+	needAssignmentsUpfront := len(assignedUserIDs) > 0 || sortBy == "assigned_user_name" || strings.TrimSpace(search) != ""
 	if needAssignmentsUpfront {
 		attachAlertAssignments(all)
 	}
@@ -595,7 +591,6 @@ func GetAlerts(c *gin.Context) {
 		alertnames:      c.QueryArray("alertname"),
 		search:          search,
 		assignedUserIDs: assignedUserIDs,
-		assigned:        assigned,
 		silenced:        silenced,
 		hasNotes:        hasNotes,
 	})
@@ -1355,13 +1350,10 @@ type alertFilter struct {
 	// system name/key/fqdn, the company name and the assignee's name; the
 	// last one needs the list decorated by attachAlertAssignments first.
 	search string
-	// assignedUserIDs matches on the assignee's user_id; the literal value
-	// "none" matches unassigned alerts. Requires attachAlertAssignments to
-	// have decorated the list first.
+	// assignedUserIDs matches on the assignee's user_id; the literal values
+	// "none" and "any" match unassigned alerts and alerts assigned to anyone.
+	// Requires attachAlertAssignments to have decorated the list first.
 	assignedUserIDs []string
-	// assigned, when set, keeps only alerts that are (true) or are not
-	// (false) assigned to anyone. Requires attachAlertAssignments.
-	assigned *bool
 	// silenced, when set, keeps only alerts muted (true) or not (false) by at
 	// least one silence. Inhibited alerts are not silenced.
 	silenced *bool
@@ -1377,7 +1369,7 @@ type alertFilter struct {
 func filterAlerts(alerts []map[string]interface{}, f alertFilter) []map[string]interface{} {
 	search := strings.ToLower(strings.TrimSpace(f.search))
 	if len(f.statuses) == 0 && len(f.severities) == 0 && len(f.systemKeys) == 0 && len(f.alertnames) == 0 && search == "" && len(f.assignedUserIDs) == 0 &&
-		f.assigned == nil && f.silenced == nil && f.hasNotes == nil {
+		f.silenced == nil && f.hasNotes == nil {
 		return alerts
 	}
 
@@ -1423,18 +1415,11 @@ func filterAlerts(alerts []map[string]interface{}, f alertFilter) []map[string]i
 
 		if len(f.assignedUserIDs) > 0 {
 			uid, _ := assigneeOf(alert)
-			want := uid
-			if uid == "" {
-				want = "none"
+			matches := slices.Contains(f.assignedUserIDs, "none")
+			if uid != "" {
+				matches = slices.Contains(f.assignedUserIDs, "any") || slices.Contains(f.assignedUserIDs, uid)
 			}
-			if !slices.Contains(f.assignedUserIDs, want) {
-				continue
-			}
-		}
-
-		if f.assigned != nil {
-			uid, _ := assigneeOf(alert)
-			if (uid != "") != *f.assigned {
+			if !matches {
 				continue
 			}
 		}
@@ -1727,8 +1712,8 @@ func silenceBelongsToSystem(silence *models.AlertmanagerSilence, systemKey strin
 //   - severity, alertname, status (multi-value, OR within, AND across)
 //   - search (free text across alert type, summary/description, service,
 //     system, company and assignee)
-//   - assigned_user_id (multi-value, "none" = unassigned)
-//   - assigned, silenced, has_notes (true | false)
+//   - assigned_user_id (multi-value, "none" = unassigned, "any" = assigned)
+//   - silenced, has_notes (true | false)
 //   - page, page_size (default 50, cap 100)
 //   - sort_by (starts_at | severity | alertname | status), default starts_at
 //   - sort_direction (asc | desc), default desc
@@ -1790,10 +1775,6 @@ func GetSystemAlerts(c *gin.Context) {
 		}
 	}
 
-	assigned, ok := parseOptionalBoolQuery(c, "assigned")
-	if !ok {
-		return
-	}
 	silenced, ok := parseOptionalBoolQuery(c, "silenced")
 	if !ok {
 		return
@@ -1814,7 +1795,6 @@ func GetSystemAlerts(c *gin.Context) {
 		alertnames:      c.QueryArray("alertname"),
 		search:          c.Query("search"),
 		assignedUserIDs: c.QueryArray("assigned_user_id"),
-		assigned:        assigned,
 		silenced:        silenced,
 		hasNotes:        hasNotes,
 		// systemKeys intentionally omitted: the URL path is the source of truth.

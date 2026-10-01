@@ -645,7 +645,7 @@ func TestFilterAlerts_Search(t *testing.T) {
 	}
 }
 
-func TestFilterAlerts_AssignedSilencedHasNotes(t *testing.T) {
+func TestFilterAlerts_AssigneeSilencedHasNotes(t *testing.T) {
 	alerts := []map[string]interface{}{
 		{
 			"fingerprint": "fp-assigned-noted",
@@ -673,8 +673,11 @@ func TestFilterAlerts_AssignedSilencedHasNotes(t *testing.T) {
 		params   alertFilter
 		expected []string
 	}{
-		{name: "assigned", params: alertFilter{assigned: &yes}, expected: []string{"fp-assigned-noted"}},
-		{name: "unassigned", params: alertFilter{assigned: &no}, expected: []string{"fp-silenced", "fp-inhibited"}},
+		{name: "assigned to anyone", params: alertFilter{assignedUserIDs: []string{"any"}}, expected: []string{"fp-assigned-noted"}},
+		{name: "unassigned", params: alertFilter{assignedUserIDs: []string{"none"}}, expected: []string{"fp-silenced", "fp-inhibited"}},
+		{name: "any or none is everything", params: alertFilter{assignedUserIDs: []string{"any", "none"}}, expected: []string{"fp-assigned-noted", "fp-silenced", "fp-inhibited"}},
+		{name: "mine or up for grabs", params: alertFilter{assignedUserIDs: []string{"u1", "none"}}, expected: []string{"fp-assigned-noted", "fp-silenced", "fp-inhibited"}},
+		{name: "someone else", params: alertFilter{assignedUserIDs: []string{"u2"}}, expected: []string{}},
 		{name: "silenced", params: alertFilter{silenced: &yes}, expected: []string{"fp-silenced"}},
 		{name: "not silenced includes inhibited", params: alertFilter{silenced: &no}, expected: []string{"fp-assigned-noted", "fp-inhibited"}},
 		{name: "with notes", params: alertFilter{hasNotes: &yes}, expected: []string{"fp-assigned-noted"}},

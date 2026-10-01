@@ -12007,7 +12007,8 @@ paths:
           description: |
             Filter alerts by current assignee (logto_id of the user, as
             returned in `assigned_to.user_id`). Supports multiple values. The
-            literal value `none` matches unassigned alerts, so
+            literal value `none` matches unassigned alerts and `any` alerts
+            assigned to anyone, so
             `assigned_user_id=<my-id>&assigned_user_id=none` means "mine or up
             for grabs".
           schema:
@@ -12016,13 +12017,6 @@ paths:
               type: string
           style: form
           explode: true
-        - name: assigned
-          in: query
-          description: |
-            `true` keeps only alerts assigned to someone, `false` only
-            unassigned ones. Any other value returns 400.
-          schema:
-            type: boolean
         - name: silenced
           in: query
           description: |
@@ -15425,20 +15419,14 @@ paths:
           in: query
           description: |
             Filter by current assignee (`assigned_to.user_id`); the literal
-            value `none` matches unassigned alerts. Supports multiple values.
+            values `none` and `any` match unassigned alerts and alerts
+            assigned to anyone. Supports multiple values.
           schema:
             type: array
             items:
               type: string
           style: form
           explode: true
-        - name: assigned
-          in: query
-          description: |
-            `true` keeps only alerts assigned to someone, `false` only
-            unassigned ones. Any other value returns 400.
-          schema:
-            type: boolean
         - name: silenced
           in: query
           description: |
