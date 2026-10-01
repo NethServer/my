@@ -983,6 +983,7 @@ func attachAlertAssignments(alerts []map[string]interface{}) {
 				"user_name":     a.AssignedUserName,
 				"user_org_id":   a.AssignedUserOrgID,
 				"user_org_name": a.AssignedUserOrgName,
+				"user_org_type": a.AssignedUserOrgType,
 				"assigned_at":   a.AssignedAt,
 			}
 		}

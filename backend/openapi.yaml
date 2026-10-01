@@ -473,6 +473,10 @@ components:
             user_org_name:
               type: string
               description: Name of the assignee's own organization
+            user_org_type:
+              type: string
+              enum: [owner, distributor, reseller, customer]
+              description: Type of the assignee's own organization, resolved when the alert is read
             assigned_at:
               type: string
               format: date-time
@@ -12100,6 +12104,7 @@ paths:
                             user_name: "R1C1 Admin"
                             user_org_id: "m4m3mdjdiizs"
                             user_org_name: "R1C1 Customer"
+                            user_org_type: "customer"
                             assigned_at: "2026-05-12T08:20:00Z"
                           has_notes: true
                       pagination:

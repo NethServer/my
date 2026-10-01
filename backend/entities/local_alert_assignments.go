@@ -20,6 +20,8 @@ import (
 // resolves, so presence means "someone is working on this right now".
 // AssignedUserOrg* describe the assignee's own organization (from the JWT),
 // which with cross-hierarchy takeover may differ from the alert's org.
+// AssignedUserOrgType is resolved on read by GetByFingerprints, so it follows
+// a promotion of that organization.
 type AlertAssignment struct {
 	OrganizationID      string    `json:"organization_id"`
 	Fingerprint         string    `json:"fingerprint"`
@@ -27,6 +29,7 @@ type AlertAssignment struct {
 	AssignedUserName    string    `json:"assigned_user_name"`
 	AssignedUserOrgID   string    `json:"assigned_user_org_id"`
 	AssignedUserOrgName string    `json:"assigned_user_org_name"`
+	AssignedUserOrgType string    `json:"assigned_user_org_type"`
 	AssignedAt          time.Time `json:"assigned_at"`
 }
 
@@ -89,7 +92,14 @@ func (r *LocalAlertAssignmentRepository) GetByFingerprints(orgIDs, fingerprints 
 	rows, err := r.db.Query(
 		`SELECT a.organization_id, a.fingerprint, a.assigned_user_id,
 		        COALESCE(a.assigned_user_name,''), COALESCE(a.assigned_user_org_id,''), COALESCE(a.assigned_user_org_name,''),
-		        a.assigned_at
+		        a.assigned_at,
+		        CASE
+		            WHEN COALESCE(a.assigned_user_org_id,'') = '' THEN ''
+		            WHEN EXISTS (SELECT 1 FROM distributors WHERE logto_id = a.assigned_user_org_id AND deleted_at IS NULL) THEN 'distributor'
+		            WHEN EXISTS (SELECT 1 FROM resellers WHERE logto_id = a.assigned_user_org_id AND deleted_at IS NULL) THEN 'reseller'
+		            WHEN EXISTS (SELECT 1 FROM customers WHERE logto_id = a.assigned_user_org_id AND deleted_at IS NULL) THEN 'customer'
+		            ELSE 'owner'
+		        END
 		 FROM alert_assignments a
 		 JOIN unnest($1::text[], $2::text[]) AS t(organization_id, fingerprint)
 		   ON a.organization_id = t.organization_id AND a.fingerprint = t.fingerprint`,
@@ -102,7 +112,7 @@ func (r *LocalAlertAssignmentRepository) GetByFingerprints(orgIDs, fingerprints 
 
 	for rows.Next() {
 		var a AlertAssignment
-		if err := rows.Scan(&a.OrganizationID, &a.Fingerprint, &a.AssignedUserID, &a.AssignedUserName, &a.AssignedUserOrgID, &a.AssignedUserOrgName, &a.AssignedAt); err != nil {
+		if err := rows.Scan(&a.OrganizationID, &a.Fingerprint, &a.AssignedUserID, &a.AssignedUserName, &a.AssignedUserOrgID, &a.AssignedUserOrgName, &a.AssignedAt, &a.AssignedUserOrgType); err != nil {
 			return nil, fmt.Errorf("scan alert_assignment: %w", err)
 		}
 		out[AssignmentKey(a.OrganizationID, a.Fingerprint)] = a
