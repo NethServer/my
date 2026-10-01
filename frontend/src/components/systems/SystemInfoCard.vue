@@ -285,6 +285,7 @@ function getKebabMenuItems() {
             <ParentCompanyLink
               v-if="getManagedBy(systemDetail.data.organization)"
               :parent="getManagedBy(systemDetail.data.organization)"
+              icon-size="xs"
             />
             <span v-else class="font-medium">-</span>
           </template>

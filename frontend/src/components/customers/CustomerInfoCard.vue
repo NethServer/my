@@ -163,7 +163,7 @@ function getKebabMenuItems() {
             {{ $t('organizations.parent_company') }}
           </template>
           <template #data>
-            <ParentCompanyLink :creator="customerDetail.data.created_by" />
+            <ParentCompanyLink :creator="customerDetail.data.created_by" icon-size="xs" />
           </template>
         </DataItem>
         <!-- created by -->
