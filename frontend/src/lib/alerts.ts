@@ -6,7 +6,11 @@ import { API_URL } from './config'
 import { useLoginStore } from '@/stores/login'
 import { OPTIONS_PAGE_SIZE, type Pagination } from './common'
 import { localizeIsoTimestamps } from './dateTime'
-import type { NeBadgeV2Kind, FilterOption } from '@nethesis/vue-components'
+import type {
+  NeBadgeV2Kind,
+  FilterOption,
+  NeDropdownFilterV2Option,
+} from '@nethesis/vue-components'
 import * as v from 'valibot'
 
 export const ALERTS_CONFIG_KEY = 'alertsConfig'
@@ -133,6 +137,23 @@ export type AlertSortBy = 'starts_at' | 'severity' | 'alertname' | 'status' | 'a
 // Sentinel value for the assignee filter that matches unassigned alerts.
 export const UNASSIGNED_FILTER_ID = 'none'
 
+// Options of the comments filter, mapped to the backend has_notes query param.
+export const WITH_COMMENTS_FILTER_ID = 'with'
+export const WITHOUT_COMMENTS_FILTER_ID = 'without'
+
+// has_notes for the selected comments options: undefined when none or both are
+// selected, since then the filter matches every alert.
+export const getHasNotesFilter = (filters: NeDropdownFilterV2Option[]): boolean | undefined => {
+  const ids = filters.map((o) => o.id)
+  const withComments = ids.includes(WITH_COMMENTS_FILTER_ID)
+  const withoutComments = ids.includes(WITHOUT_COMMENTS_FILTER_ID)
+
+  if (withComments === withoutComments) {
+    return undefined
+  }
+  return withComments
+}
+
 export interface AlertAnnotations {
   summary_en?: string
   summary_it?: string
@@ -167,6 +188,8 @@ export interface ActiveAlert {
   endsAt: string
   generatorURL?: string
   assigned_to?: AlertAssignment | null
+  // true when the alert timeline carries at least one comment
+  has_notes?: boolean
 }
 
 export type Alert = ActiveAlert
@@ -361,6 +384,7 @@ export const getAlerts = (
   systemKeyFilters?: string | string[],
   alertnameFilters?: string | string[],
   assignedUserIds?: string | string[],
+  hasNotes?: boolean,
   include: 'descendants' = 'descendants',
 ) => {
   const loginStore = useLoginStore()
@@ -413,6 +437,11 @@ export const getAlerts = (
   if (assignedUserIds) {
     const ids = Array.isArray(assignedUserIds) ? assignedUserIds : [assignedUserIds]
     ids.forEach((id) => params.append('assigned_user_id', id))
+  }
+
+  // Add comments filter
+  if (hasNotes !== undefined) {
+    params.append('has_notes', String(hasNotes))
   }
 
   return axios
@@ -592,6 +621,7 @@ export const getSystemActiveAlerts = (
   severityFilters?: string | string[],
   alertnameFilters?: string | string[],
   assignedUserIds?: string | string[],
+  hasNotes?: boolean,
 ) => {
   const loginStore = useLoginStore()
   const params = new URLSearchParams()
@@ -616,6 +646,9 @@ export const getSystemActiveAlerts = (
   if (assignedUserIds) {
     const ids = Array.isArray(assignedUserIds) ? assignedUserIds : [assignedUserIds]
     ids.forEach((id) => params.append('assigned_user_id', id))
+  }
+  if (hasNotes !== undefined) {
+    params.append('has_notes', String(hasNotes))
   }
 
   return axios

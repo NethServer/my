@@ -12,6 +12,7 @@ import {
   faComment,
   faEye,
   faMagnifyingGlass,
+  faMessage,
   faServer,
   faUserCheck,
 } from '@fortawesome/free-solid-svg-icons'
@@ -74,6 +75,7 @@ import capitalize from 'lodash/capitalize'
 import SystemDropdownFilter from '@/components/systems/SystemDropdownFilter.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 import AssigneeDropdownFilter from '@/components/alerts/AssigneeDropdownFilter.vue'
+import CommentsDropdownFilter from '@/components/alerts/CommentsDropdownFilter.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { isUserCustomer } from '@/lib/organizations/organizations'
 import SystemLogoAndLink from '../systems/SystemLogoAndLink.vue'
@@ -98,6 +100,7 @@ const {
   alertnameFilters,
   systemKeyFilters,
   assigneeFilters,
+  commentsFilters,
   organizationIds,
   areDefaultFiltersApplied,
   clearFilters,
@@ -425,6 +428,11 @@ function goToSystems() {
             @custom-action="resetStatusFilter"
             @update:model-value="() => (pageNum = 1)"
           />
+          <!-- Comments filter -->
+          <CommentsDropdownFilter
+            v-model="commentsFilters"
+            @update:model-value="() => (pageNum = 1)"
+          />
           <!-- Assignee filter: the options come from GET /users, so hide it for
           roles without read:users (they'd get a 403 that kicks them out of the page) -->
           <AssigneeDropdownFilter
@@ -565,6 +573,16 @@ function goToSystems() {
                 <FontAwesomeIcon :icon="faBellSlash" class="size-4" />
                 {{ t('alerts.muted') }}
               </NeBadgeV2>
+              <!-- opens the details drawer, whose timeline lists the comments -->
+              <button
+                v-if="alert.has_notes"
+                type="button"
+                class="mt-0.5 ml-auto flex shrink-0 cursor-pointer text-indigo-800 transition-colors duration-(--duration-small) hover:text-indigo-950 dark:text-indigo-300 dark:hover:text-indigo-200"
+                @click="() => showDetailsDrawer(alert)"
+              >
+                <FontAwesomeIcon :icon="faMessage" class="size-4" aria-hidden="true" />
+                <span class="sr-only">{{ t('alerts.show_comments') }}</span>
+              </button>
             </div>
           </NeTableCell>
           <!-- System -->

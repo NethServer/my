@@ -3,6 +3,7 @@
 
 import {
   getAlerts,
+  getHasNotesFilter,
   ALERTS_ALERTS_KEY,
   ALERTS_TABLE_ID,
   type AlertSortBy,
@@ -36,6 +37,7 @@ export const useAlerts = defineQuery(() => {
   const systemKeyFilters = ref<NeDropdownFilterV2Option[]>([])
   const alertnameFilters = ref<NeDropdownFilterV2Option[]>([])
   const assigneeFilters = ref<NeDropdownFilterV2Option[]>([])
+  const commentsFilters = ref<NeDropdownFilterV2Option[]>([])
   const shouldAutoRefetch = () => document.visibilityState === 'visible'
 
   const { state, asyncStatus, ...rest } = useQuery({
@@ -51,6 +53,7 @@ export const useAlerts = defineQuery(() => {
       systemKeyFilters.value.map((o) => o.id).join(','),
       alertnameFilters.value.map((o) => o.id).join(','),
       assigneeFilters.value.map((o) => o.id).join(','),
+      commentsFilters.value.map((o) => o.id).join(','),
     ],
     enabled: () => !!loginStore.jwtToken,
     query: () =>
@@ -69,6 +72,7 @@ export const useAlerts = defineQuery(() => {
         assigneeFilters.value.length > 0
           ? assigneeFilters.value.map((o) => String(o.id))
           : undefined,
+        getHasNotesFilter(commentsFilters.value),
       ),
     staleTime: ALERTS_REFETCH_INTERVAL_SECONDS * 1000,
     autoRefetch: shouldAutoRefetch,
@@ -80,6 +84,7 @@ export const useAlerts = defineQuery(() => {
     systemKeyFilters.value = []
     alertnameFilters.value = []
     assigneeFilters.value = []
+    commentsFilters.value = []
     resetStatusFilter()
     pageNum.value = 1
   }
@@ -95,7 +100,8 @@ export const useAlerts = defineQuery(() => {
       !severityFilters.value.length &&
       !systemKeyFilters.value.length &&
       !alertnameFilters.value.length &&
-      !assigneeFilters.value.length
+      !assigneeFilters.value.length &&
+      !commentsFilters.value.length
     )
   }
 
@@ -149,6 +155,7 @@ export const useAlerts = defineQuery(() => {
     systemKeyFilters,
     alertnameFilters,
     assigneeFilters,
+    commentsFilters,
     clearFilters,
     resetStatusFilter,
     areDefaultFiltersApplied,
