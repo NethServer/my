@@ -725,3 +725,25 @@ func TestParseOptionalBoolQuery(t *testing.T) {
 }
 
 func boolPtr(v bool) *bool { return &v }
+
+// belongsToOrg is the isolation gate of the cross-system silence endpoints:
+// alerts and silences of sibling customers share one reseller tenant, so the
+// organization_id label/matcher must match the requested org.
+func TestBelongsToOrg(t *testing.T) {
+	tests := []struct {
+		name                    string
+		ownerOrg, orgID, tenant string
+		want                    bool
+	}{
+		{name: "customer owns it", ownerOrg: "cust-A", orgID: "cust-A", tenant: "res-R", want: true},
+		{name: "sibling customer in the same tenant", ownerOrg: "cust-B", orgID: "cust-A", tenant: "res-R", want: false},
+		{name: "reseller asking for its customer's item", ownerOrg: "cust-A", orgID: "res-R", tenant: "res-R", want: false},
+		{name: "unattributed item, tenant itself", ownerOrg: "", orgID: "res-R", tenant: "res-R", want: true},
+		{name: "unattributed item, customer of the tenant", ownerOrg: "", orgID: "cust-A", tenant: "res-R", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, belongsToOrg(tt.ownerOrg, tt.orgID, tt.tenant))
+		})
+	}
+}
