@@ -6,9 +6,12 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package cron
 
 import (
+	"context"
+	"database/sql/driver"
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	collectalerting "github.com/nethesis/my/collect/alerting"
 	"github.com/nethesis/my/collect/models"
 	"github.com/stretchr/testify/assert"
@@ -124,4 +127,38 @@ func TestLinkFailedMonitorSyncOrganization_NoOpWhenNoInactiveSystems(t *testing.
 	err = monitor.syncOrganization("org-1", map[string]linkFailedSystem{})
 	require.NoError(t, err)
 	assert.False(t, called)
+}
+
+// cutoffArg matches a time.Time query argument within a second of want.
+type cutoffArg struct{ want time.Time }
+
+func (c cutoffArg) Match(v driver.Value) bool {
+	got, ok := v.(time.Time)
+	if !ok {
+		return false
+	}
+	d := got.Sub(c.want)
+	return d > -time.Second && d < time.Second
+}
+
+func TestLinkFailedMonitorLoadInactiveSystems_FiltersOnHeartbeatCutoff(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	monitor := &LinkFailedMonitor{db: db, timeoutMinutes: 20}
+
+	// A system that heartbeat_monitor flips back to active in the same tick
+	// still reads as inactive here: the heartbeat cutoff is what keeps it out.
+	mock.ExpectQuery(`AND h\.last_heartbeat <= \$1`).
+		WithArgs(cutoffArg{want: time.Now().Add(-20 * time.Minute)}).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "organization_id", "system_key", "name", "type", "fqdn", "ipv4",
+			"org_name", "org_vat", "org_type", "reseller_org_id", "last_heartbeat",
+		}))
+
+	systems, err := monitor.loadInactiveSystems(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, systems)
+	require.NoError(t, mock.ExpectationsWereMet())
 }

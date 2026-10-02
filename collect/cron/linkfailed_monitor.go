@@ -89,6 +89,8 @@ func (m *LinkFailedMonitor) sync(ctx context.Context) {
 }
 
 func (m *LinkFailedMonitor) loadInactiveSystems(ctx context.Context) (map[string]map[string]linkFailedSystem, error) {
+	cutoff := time.Now().Add(-time.Duration(m.timeoutMinutes) * time.Minute)
+
 	rows, err := m.db.QueryContext(ctx, `
 		SELECT s.id::text,
 		       s.organization_id,
@@ -126,7 +128,13 @@ func (m *LinkFailedMonitor) loadInactiveSystems(ctx context.Context) (map[string
 		  AND s.unregistered_at IS NULL
 		  AND s.organization_id IS NOT NULL
 		  AND s.organization_id <> ''
-	`)
+		  -- status alone is not enough: heartbeat_monitor ticks at the same
+		  -- instant as this job, so a system that just came back can still
+		  -- read as inactive here with a fresh heartbeat. Posting it would
+		  -- open an alert nobody resolves (it expires after the TTL), which
+		  -- is two spurious notifications per recovery.
+		  AND h.last_heartbeat <= $1
+	`, cutoff)
 	if err != nil {
 		return nil, fmt.Errorf("query inactive systems: %w", err)
 	}
