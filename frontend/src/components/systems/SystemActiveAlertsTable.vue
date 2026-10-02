@@ -512,11 +512,18 @@ function onMuteDrawerClose(): void {
           <NeTableCell :data-label="$t('alerts.alertname')">
             <div class="flex items-center gap-2">
               <div>
-                <span
-                  class="cursor-pointer font-medium hover:underline"
-                  @click="() => showDetails(alert)"
-                  >{{ alert.labels?.alertname || '-' }}</span
-                >
+                <div class="flex flex-wrap items-center gap-2">
+                  <span
+                    class="cursor-pointer font-medium hover:underline"
+                    @click="() => showDetails(alert)"
+                    >{{ alert.labels?.alertname || '-' }}</span
+                  >
+                  <ProcessingAlertBadge v-if="isProcessing(alert)" size="xs" />
+                  <NeBadgeV2 v-else-if="isAlertSilenced(alert)" kind="gray" size="xs">
+                    <FontAwesomeIcon :icon="faBellSlash" class="size-4" aria-hidden="true" />
+                    {{ t('alerts.muted') }}
+                  </NeBadgeV2>
+                </div>
                 <p
                   v-if="getAlertSummary(alert, locale)"
                   class="mt-0.5 max-w-xs text-sm wrap-anywhere text-gray-500 dark:text-gray-400"
@@ -524,11 +531,6 @@ function onMuteDrawerClose(): void {
                   {{ getAlertSummary(alert, locale) }}
                 </p>
               </div>
-              <ProcessingAlertBadge v-if="isProcessing(alert)" />
-              <NeBadgeV2 v-else-if="isAlertSilenced(alert)" kind="gray">
-                <FontAwesomeIcon :icon="faBellSlash" class="size-4" aria-hidden="true" />
-                {{ t('alerts.muted') }}
-              </NeBadgeV2>
               <!-- opens the details drawer, whose timeline lists the comments -->
               <NeTooltip
                 v-if="alert.has_notes"

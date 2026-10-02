@@ -9,13 +9,20 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { NeBadgeV2, NeTooltip } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
 
+withDefaults(
+  defineProps<{
+    size?: 'xs' | 'sm'
+  }>(),
+  { size: 'sm' },
+)
+
 const { t } = useI18n()
 </script>
 
 <template>
   <NeTooltip trigger-event="mouseenter focus">
     <template #trigger>
-      <NeBadgeV2 kind="gray">
+      <NeBadgeV2 kind="gray" :size="size">
         <FontAwesomeIcon :icon="faClock" class="size-4" />
         {{ t('alerts.processing') }}
       </NeBadgeV2>
