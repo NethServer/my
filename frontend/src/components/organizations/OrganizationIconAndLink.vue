@@ -31,7 +31,7 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <div class="inline">
+  <div class="inline wrap-anywhere">
     <NeTooltip
       v-if="organization.type"
       placement="top"

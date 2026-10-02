@@ -33,11 +33,11 @@ const { size = 'sm' } = defineProps<{
     <RouterLink
       v-if="systemId"
       :to="{ name: 'system_detail', params: { systemId } }"
-      class="cursor-pointer font-medium hover:underline"
+      class="cursor-pointer font-medium wrap-anywhere hover:underline"
     >
       {{ systemName || '-' }}
     </RouterLink>
-    <span v-else class="text-tertiary-neutral">
+    <span v-else class="text-tertiary-neutral wrap-anywhere">
       {{ systemName || '-' }}
     </span>
   </div>

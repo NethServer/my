@@ -351,10 +351,7 @@ const goToApplicationDetails = (application: Application) => {
                 </span>
               </div>
             </NeTableCell>
-            <NeTableCell
-              :data-label="$t('applications.version')"
-              class="break-all 2xl:break-normal"
-            >
+            <NeTableCell :data-label="$t('applications.version')" class="wrap-anywhere">
               <div>
                 {{ item.version || '-' }}
               </div>

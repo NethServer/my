@@ -485,7 +485,7 @@ const goToAccount = () => {
                   v-if="item.email"
                   :text="item.email"
                   tooltip-placement="right"
-                  class="text-tertiary-neutral break-all 2xl:break-normal"
+                  class="text-tertiary-neutral wrap-anywhere"
                 />
               </div>
               <NeBadgeV2 v-if="!item.latest_login_at" kind="gray" class="shrink-0">

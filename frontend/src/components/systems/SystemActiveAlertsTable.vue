@@ -519,7 +519,7 @@ function onMuteDrawerClose(): void {
                 >
                 <p
                   v-if="getAlertSummary(alert, locale)"
-                  class="mt-0.5 text-sm break-all text-gray-500 dark:text-gray-400"
+                  class="mt-0.5 text-sm wrap-anywhere text-gray-500 dark:text-gray-400"
                 >
                   {{ getAlertSummary(alert, locale) }}
                 </p>

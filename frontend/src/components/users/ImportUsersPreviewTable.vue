@@ -60,13 +60,13 @@ function rowField(row: ImportRow, field: string): string {
       </NeTableHead>
       <NeTableBody>
         <NeTableRow v-for="row in previewRows" :key="row.row_number">
-          <NeTableCell :data-label="$t('users.email')" class="break-all">
+          <NeTableCell :data-label="$t('users.email')" class="wrap-anywhere">
             {{ rowField(row, 'email') }}
           </NeTableCell>
           <NeTableCell :data-label="$t('users.name')">
             {{ rowField(row, 'name') }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('users.phone_number')" class="break-all">
+          <NeTableCell :data-label="$t('users.phone_number')" class="wrap-anywhere">
             {{ rowField(row, 'phone') }}
           </NeTableCell>
           <NeTableCell :data-label="$t('users.organization')">

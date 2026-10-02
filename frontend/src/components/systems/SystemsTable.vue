@@ -558,7 +558,7 @@ function onCloseSecretRegeneratedModal() {
       </NeTableHead>
       <NeTableBody>
         <NeTableRow v-for="item in systemsPage" :key="item.id">
-          <NeTableCell :data-label="$t('systems.name')" class="break-all">
+          <NeTableCell :data-label="$t('systems.name')">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
               <SystemLogoAndLink
                 :system-id="item.status === 'deleted' ? '' : item.id"
@@ -567,12 +567,12 @@ function onCloseSecretRegeneratedModal() {
               />
             </div>
           </NeTableCell>
-          <NeTableCell :data-label="$t('systems.version')" class="break-all 2xl:break-normal">
+          <NeTableCell :data-label="$t('systems.version')" class="wrap-anywhere">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
               {{ item.version || '-' }}
             </div>
           </NeTableCell>
-          <NeTableCell :data-label="$t('systems.fqdn_ip_address')" class="break-all">
+          <NeTableCell :data-label="$t('systems.fqdn_ip_address')" class="wrap-anywhere">
             <div
               class="flex flex-col items-start space-y-0.5"
               :class="{ 'opacity-50': item.status === 'deleted' }"

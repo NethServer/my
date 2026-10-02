@@ -564,7 +564,7 @@ function goToSystems() {
                 >
                 <p
                   v-if="getAlertSummary(alert, locale)"
-                  class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5 break-all"
+                  class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5 wrap-anywhere"
                 >
                   {{ getAlertSummary(alert, locale) }}
                 </p>
