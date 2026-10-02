@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import { withDangerItemsLast } from '@/lib/common'
 import {
   RESELLERS_TABLE_ID,
   type Reseller,
@@ -273,7 +274,7 @@ function getKebabMenuItems(reseller: Reseller) {
       disabled: asyncStatus.value === 'loading',
     })
   }
-  return items
+  return withDangerItemsLast(items)
 }
 
 const onSort = (payload: SortEvent) => {

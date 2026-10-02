@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import { withDangerItemsLast } from '@/lib/common'
 import {
   NeBadgeV2,
   NeCard,
@@ -170,7 +171,7 @@ function getKebabMenuItems() {
     ]
   }
 
-  return items
+  return withDangerItemsLast(items)
 }
 </script>
 

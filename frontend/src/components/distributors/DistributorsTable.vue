@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import { withDangerItemsLast } from '@/lib/common'
 import { DISTRIBUTORS_TABLE_ID, type Distributor } from '@/lib/organizations/distributors'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import {
@@ -245,7 +246,7 @@ function getKebabMenuItems(distributor: Distributor) {
       disabled: asyncStatus.value === 'loading',
     })
   }
-  return items
+  return withDangerItemsLast(items)
 }
 
 const onSort = (payload: SortEvent) => {

@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import { withDangerItemsLast } from '@/lib/common'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import {
   faMagnifyingGlass,
@@ -350,7 +351,7 @@ function getKebabMenuItems(system: System) {
     })
   }
 
-  return items
+  return withDangerItemsLast(items)
 }
 
 const onSort = (payload: SortEvent) => {

@@ -60,7 +60,7 @@ import RestoreUserModal from './RestoreUserModal.vue'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import UserRoleBadge from './UserRoleBadge.vue'
 import { useUserFilters } from '@/queries/users/userFilters'
-import { normalize } from '@/lib/common'
+import { normalize, withDangerItemsLast } from '@/lib/common'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import UserAvatar from './UserAvatar.vue'
 import ClickToCopy from '@/components/common/ClickToCopy.vue'
@@ -321,7 +321,7 @@ function getKebabMenuItems(user: User) {
       },
     ]
   }
-  return items
+  return withDangerItemsLast(items)
 }
 
 const onSort = (payload: SortEvent) => {
