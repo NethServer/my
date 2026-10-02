@@ -35,12 +35,13 @@ const assigneeOrganization = computed(() =>
       :logto-id="assignee.user_id"
       :is-owner="false"
       size="xs"
+      class="shrink-0"
     />
     <div class="min-w-0">
-      <p class="text-secondary-neutral truncate text-sm">
+      <p class="text-secondary-neutral text-sm">
         {{ assignee.user_name }}
       </p>
-      <p v-if="assigneeOrganization" class="text-tertiary-neutral truncate text-sm">
+      <p v-if="assigneeOrganization" class="text-tertiary-neutral text-sm">
         <CreatorOrganizationLink :organization="assigneeOrganization" />
       </p>
     </div>
