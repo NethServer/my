@@ -29,7 +29,7 @@ http {
     # locally before QA. This config is static (no envsubst), so the Logto
     # sources cover the tenants a local build may point to. No HSTS here:
     # local setups may run plain HTTP.
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://id.nethesis.it https://qa.id.nethesis.it https://*.logto.app; font-src 'self' data:; connect-src 'self' https://id.nethesis.it https://qa.id.nethesis.it https://*.logto.app; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self' https://id.nethesis.it https://qa.id.nethesis.it https://*.logto.app" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://widget.kapa.ai https://www.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://id.nethesis.it https://qa.id.nethesis.it https://*.logto.app https://www.google.com https://*.gstatic.com; font-src 'self' data:; connect-src 'self' https://id.nethesis.it https://qa.id.nethesis.it https://*.logto.app https://proxy.kapa.ai https://metrics.kapa.ai https://www.google.com; frame-src 'self' https://www.google.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self' https://id.nethesis.it https://qa.id.nethesis.it https://*.logto.app" always;
 
     server {
         listen 8080;

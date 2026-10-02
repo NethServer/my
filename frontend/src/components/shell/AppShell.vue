@@ -17,8 +17,11 @@ import { faXmark } from '@fortawesome/free-solid-svg-icons'
 import TopBar from './TopBar.vue'
 import NotificationDrawer from './NotificationDrawer.vue'
 import LoggedUserCard from './LoggedUserCard.vue'
+import { useKapaWidget } from '@/composables/useKapaWidget'
 
 const themeStore = useThemeStore()
+
+useKapaWidget()
 
 const sidebarOpen = ref(false)
 

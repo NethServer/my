@@ -56,8 +56,17 @@ echo "CSP Logto endpoint: $LOGTO_ENDPOINT"
 export THIRD_PARTY_CONNECT_SRC="${THIRD_PARTY_CONNECT_SRC:-https://nethshop.nethesis.it}"
 echo "CSP third-party connect-src: $THIRD_PARTY_CONNECT_SRC"
 
+# Third-party widgets loaded into the page (script-src / frame-src / img-src), e.g. the
+# Kapa AI assistant in production. Empty by default: the policy stays 'self'.
+export THIRD_PARTY_SCRIPT_SRC="${THIRD_PARTY_SCRIPT_SRC:-}"
+export THIRD_PARTY_FRAME_SRC="${THIRD_PARTY_FRAME_SRC:-}"
+export THIRD_PARTY_IMG_SRC="${THIRD_PARTY_IMG_SRC:-}"
+echo "CSP third-party script-src: ${THIRD_PARTY_SCRIPT_SRC:-none}"
+echo "CSP third-party frame-src: ${THIRD_PARTY_FRAME_SRC:-none}"
+echo "CSP third-party img-src: ${THIRD_PARTY_IMG_SRC:-none}"
+
 echo '==> Substituting nginx config...'
-envsubst '$PORT $BACKEND_SERVICE_NAME $COLLECT_SERVICE_NAME $FRONTEND_SERVICE_NAME $RESOLVER $LOGTO_ENDPOINT $THIRD_PARTY_CONNECT_SRC' < /etc/nginx/nginx.conf > /tmp/nginx.conf
+envsubst '$PORT $BACKEND_SERVICE_NAME $COLLECT_SERVICE_NAME $FRONTEND_SERVICE_NAME $RESOLVER $LOGTO_ENDPOINT $THIRD_PARTY_CONNECT_SRC $THIRD_PARTY_SCRIPT_SRC $THIRD_PARTY_FRAME_SRC $THIRD_PARTY_IMG_SRC' < /etc/nginx/nginx.conf > /tmp/nginx.conf
 
 echo '==> Generated upstream URLs:'
 grep -E 'set.*upstream' /tmp/nginx.conf || true

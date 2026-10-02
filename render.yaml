@@ -376,9 +376,20 @@ services:
       - key: LOGTO_ENDPOINT
         value: https://id.nethesis.it
 
-      # Third-party app origins allowed in the CSP connect-src (info_url widgets)
+      # Third-party app origins allowed in the CSP connect-src (info_url
+      # widgets) plus the Kapa AI widget API (proxy, metrics)
+      # and the reCAPTCHA Enterprise calls it makes from the page
       - key: THIRD_PARTY_CONNECT_SRC
-        value: https://nethshop.nethesis.it https://my.nethspot.com https://formazione.nethesis.it
+        value: https://nethshop.nethesis.it https://my.nethspot.com https://formazione.nethesis.it https://proxy.kapa.ai https://metrics.kapa.ai https://www.google.com
+
+      # Kapa AI widget bundle, its reCAPTCHA and the source favicons it loads
+      # from Google (s2/favicons redirects to *.gstatic.com)
+      - key: THIRD_PARTY_SCRIPT_SRC
+        value: https://widget.kapa.ai https://www.google.com https://www.gstatic.com
+      - key: THIRD_PARTY_FRAME_SRC
+        value: https://www.google.com
+      - key: THIRD_PARTY_IMG_SRC
+        value: https://www.google.com https://*.gstatic.com
 
 
 # =============================================================================
