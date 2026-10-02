@@ -19,7 +19,6 @@ import {
   faRotateLeft,
   faBomb,
   faArrowRight,
-  faRightToBracket,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -475,11 +474,14 @@ const goToAccount = () => {
                 :has-avatar="item.has_avatar"
               />
               <div class="flex flex-col">
-                <div class="flex items-center gap-2">
+                <div class="flex flex-wrap items-center gap-2">
                   {{ item.name }}
                   <span v-if="isCurrentUser(item)" class="text-tertiary-neutral"
                     >({{ $t('users.me') }})</span
                   >
+                  <NeBadgeV2 v-if="!item.latest_login_at" kind="gray" size="xs">
+                    {{ $t('users.no_login') }}
+                  </NeBadgeV2>
                 </div>
                 <ClickToCopy
                   v-if="item.email"
@@ -488,10 +490,6 @@ const goToAccount = () => {
                   class="text-tertiary-neutral wrap-anywhere"
                 />
               </div>
-              <NeBadgeV2 v-if="!item.latest_login_at" kind="gray" class="shrink-0">
-                <FontAwesomeIcon :icon="faRightToBracket" class="size-4" aria-hidden="true" />
-                {{ $t('users.no_login') }}
-              </NeBadgeV2>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('users.organization')">
