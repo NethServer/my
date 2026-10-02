@@ -19,6 +19,7 @@ import {
   faRotateLeft,
   faBomb,
   faArrowRight,
+  faRightToBracket,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -40,6 +41,7 @@ import {
   type NeDropdownItem,
   NeDropdownFilterV2,
   type NeDropdownFilterV2Option,
+  NeBadgeV2,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import CreateOrEditUserDrawer from './CreateOrEditUserDrawer.vue'
@@ -486,6 +488,10 @@ const goToAccount = () => {
                   class="text-tertiary-neutral break-all 2xl:break-normal"
                 />
               </div>
+              <NeBadgeV2 v-if="!item.latest_login_at" kind="gray" class="shrink-0">
+                <FontAwesomeIcon :icon="faRightToBracket" class="size-4" aria-hidden="true" />
+                {{ $t('users.no_login') }}
+              </NeBadgeV2>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('users.organization')">

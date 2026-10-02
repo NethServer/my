@@ -351,7 +351,8 @@
     "export_users_to_pdf": "Esporta utenti in PDF",
     "export_users_to_csv": "Esporta utenti in CSV",
     "user_role_ids_at_least_one_role_is_required": "È richiesto almeno un ruolo",
-    "me": "io"
+    "me": "io",
+    "no_login": "Nessun accesso"
   },
   "third_party_apps": {
     "description_nethshop_nethesis_it": "Sfoglia e ordina prodotti e servizi Nethesis.",
