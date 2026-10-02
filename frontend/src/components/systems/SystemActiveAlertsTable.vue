@@ -510,7 +510,7 @@ function onMuteDrawerClose(): void {
           </NeTableCell>
           <!-- Alert name + summary + muted badge -->
           <NeTableCell :data-label="$t('alerts.alertname')">
-            <div class="flex items-center gap-2">
+            <div class="flex items-start gap-2">
               <div>
                 <div class="flex flex-wrap items-center gap-2">
                   <span
