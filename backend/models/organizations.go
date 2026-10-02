@@ -24,3 +24,13 @@ type PaginatedOrganizationsResponse struct {
 	Organizations []OrganizationSummary `json:"organizations" structs:"organizations"`
 	Pagination    PaginationInfo        `json:"pagination" structs:"pagination"`
 }
+
+// ParentOrganization is the company an organization sits directly under
+// (its custom_data.createdBy), with the parent's current name and level. ID is
+// empty for the Owner organization, which has no row in the partner tables.
+type ParentOrganization struct {
+	ID      string `json:"id"`
+	LogtoID string `json:"logto_id"`
+	Name    string `json:"name"`
+	Type    string `json:"type"` // "owner", "distributor", "reseller"
+}

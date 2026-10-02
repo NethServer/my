@@ -47,10 +47,9 @@ const {
   versionFilter,
   systemFilter,
   organizationFilter,
-  includeHierarchy,
+  parentOrganizationFilter,
   sortBy,
   sortDescending,
-  applyHierarchyFilter,
   clearFilters,
 } = useApplications()
 
@@ -59,9 +58,13 @@ const justHiddenUnassignedAppsNotification = ref(false)
 const showUnassignedAppsNotification = computed(() => {
   const username = loginStore.userInfo?.email
 
-  // the count behind the notification ignores the hierarchy filter, so it
+  // the count behind the notification ignores the Managed by filter, so it
   // would contradict the table while that filter is on
-  if (!username || justHiddenUnassignedAppsNotification.value || includeHierarchy.value) {
+  if (
+    !username ||
+    justHiddenUnassignedAppsNotification.value ||
+    parentOrganizationFilter.value.length
+  ) {
     return false
   }
 
@@ -85,21 +88,29 @@ if (route.query.unassigned === 'true') {
   router.replace({ query: {} })
 }
 
+// the filters render the label carried by the selection: the links pass the
+// organization name, as it may not be among the options the dropdown loaded
 const {
   organization_id: orgId,
   organization_name: orgName,
-  include_hierarchy: includeHierarchyParam,
+  parent_organization_id: parentOrgId,
+  parent_organization_name: parentOrgName,
 } = route.query
 
 if (typeof orgId === 'string' && orgId && typeof orgName === 'string' && orgName) {
-  if (includeHierarchyParam === 'true') {
-    applyHierarchyFilter({ id: orgId, label: orgName })
-  } else {
-    clearFilters()
-    // the filter renders the label carried by the selection: pass the organization
-    // name, as it may not be among the options the dropdown has loaded
-    organizationFilter.value = [{ id: orgId, label: orgName }]
-  }
+  clearFilters()
+  organizationFilter.value = [{ id: orgId, label: orgName }]
+  router.replace({ query: {} })
+}
+
+if (
+  typeof parentOrgId === 'string' &&
+  parentOrgId &&
+  typeof parentOrgName === 'string' &&
+  parentOrgName
+) {
+  clearFilters()
+  parentOrganizationFilter.value = [{ id: parentOrgId, label: parentOrgName }]
   router.replace({ query: {} })
 }
 
@@ -137,9 +148,9 @@ async function exportApplications(format: 'pdf' | 'csv') {
       versionFilter.value.map((o) => o.id),
       systemFilter.value.map((o) => o.id),
       organizationFilter.value.map((o) => o.id),
-      includeHierarchy.value,
       sortBy.value,
       sortDescending.value,
+      parentOrganizationFilter.value.map((o) => o.id),
     )
     const fileName = exportFileName(t('applications.title'), format)
     downloadFile(exportData, fileName, format)

@@ -14,7 +14,12 @@ import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import type { NeDropdownFilterV2Option } from '@nethesis/vue-components'
-import { getSystemActiveAlerts, SYSTEM_ALERTS_KEY, SYSTEM_ALERTS_TABLE_ID } from '@/lib/alerts'
+import {
+  getHasNotesFilter,
+  getSystemActiveAlerts,
+  SYSTEM_ALERTS_KEY,
+  SYSTEM_ALERTS_TABLE_ID,
+} from '@/lib/alerts'
 
 export const useSystemAlerts = defineQuery(() => {
   const loginStore = useLoginStore()
@@ -35,6 +40,7 @@ export const useSystemAlerts = defineQuery(() => {
     statusFilters.value.length === 1 && statusFilters.value[0].id === 'active'
   const statusFilters = ref<NeDropdownFilterV2Option[]>(defaultStatusFilters())
   const assigneeFilters = ref<NeDropdownFilterV2Option[]>([])
+  const commentsFilters = ref<NeDropdownFilterV2Option[]>([])
   const shouldAutoRefetch = () => document.visibilityState === 'visible'
 
   const { state, asyncStatus, ...rest } = useQuery({
@@ -49,6 +55,7 @@ export const useSystemAlerts = defineQuery(() => {
       alertnameFilters.value.map((o) => o.id).join(','),
       statusFilters.value.map((o) => o.id).join(','),
       assigneeFilters.value.map((o) => o.id).join(','),
+      commentsFilters.value.map((o) => o.id).join(','),
     ],
     enabled: () => !!loginStore.jwtToken && !!route.params.systemId,
     query: () =>
@@ -66,6 +73,7 @@ export const useSystemAlerts = defineQuery(() => {
         assigneeFilters.value.length > 0
           ? assigneeFilters.value.map((o) => String(o.id))
           : undefined,
+        getHasNotesFilter(commentsFilters.value),
       ),
     staleTime: ALERTS_REFETCH_INTERVAL_SECONDS * 1000,
     autoRefetch: shouldAutoRefetch,
@@ -75,12 +83,14 @@ export const useSystemAlerts = defineQuery(() => {
     !severityFilters.value.length &&
     !alertnameFilters.value.length &&
     isDefaultStatusFilter() &&
-    !assigneeFilters.value.length
+    !assigneeFilters.value.length &&
+    !commentsFilters.value.length
 
   const clearFilters = () => {
     severityFilters.value = []
     alertnameFilters.value = []
     assigneeFilters.value = []
+    commentsFilters.value = []
     clearStatusFilter()
     pageNum.value = 1
   }
@@ -128,6 +138,7 @@ export const useSystemAlerts = defineQuery(() => {
     alertnameFilters,
     statusFilters,
     assigneeFilters,
+    commentsFilters,
     areDefaultFiltersApplied,
     clearFilters,
     clearStatusFilter,

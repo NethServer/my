@@ -590,11 +590,7 @@ async function saveDistributor() {
           :loading="saving"
           @click.prevent="saveDistributor"
         >
-          {{
-            currentDistributor
-              ? $t('distributors.save_distributor')
-              : $t('distributors.create_distributor')
-          }}
+          {{ currentDistributor ? $t('common.save') : $t('distributors.create_distributor') }}
         </NeButton>
       </div>
     </form>

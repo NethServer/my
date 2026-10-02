@@ -9,6 +9,41 @@ import * as v from 'valibot'
 
 export const ORGANIZATIONS_KEY = 'organizations'
 
+// The company an organization sits directly under (its custom_data.createdBy),
+// as the list endpoints return it. The Owner organization comes with an empty
+// id and, when the database does not record its name, an empty name.
+export const ParentOrganizationSchema = v.object({
+  id: v.string(),
+  logto_id: v.string(),
+  name: v.string(),
+  type: v.string(),
+})
+
+export type ParentOrganization = v.InferOutput<typeof ParentOrganizationSchema>
+
+// The company that manages what is assigned to an organization ("Managed by"):
+// a customer's parent, or the organization itself when it is a partner or the
+// Owner, which manage what is assigned to them directly. A row assigned to a
+// partner then reads the same company twice, which is what tells it apart from
+// a row of one of its customers.
+export const getManagedBy = (organization: {
+  id: string
+  logto_id: string
+  name: string
+  type: string
+  parent?: ParentOrganization
+}): ParentOrganization | undefined => {
+  if (organization.type === 'customer') {
+    return organization.parent
+  }
+  return {
+    id: organization.id,
+    logto_id: organization.logto_id,
+    name: organization.name,
+    type: organization.type,
+  }
+}
+
 export const OrganizationSchema = v.object({
   logto_id: v.string(),
   name: v.string(),
@@ -53,6 +88,39 @@ export function getOrganizationIcon(orgType: string) {
   }
 }
 
+// Text color of the level icon, so each level reads apart at a glance.
+export function getOrganizationIconColorClasses(orgType: string) {
+  switch (orgType.toLowerCase()) {
+    case 'owner':
+      return 'text-yellow-600 dark:text-yellow-500'
+    case 'distributor':
+      return 'text-pink-600 dark:text-pink-400'
+    case 'reseller':
+      return 'text-purple-700 dark:text-purple-400'
+    case 'customer':
+      return 'text-blue-700 dark:text-blue-400'
+    default:
+      return 'text-gray-700 dark:text-gray-200'
+  }
+}
+
+// NeBadgeV2 `custom` kind classes in the level's color, following the palette
+// steps of the badge's built-in kinds.
+export function getOrganizationBadgeClasses(orgType: string) {
+  switch (orgType.toLowerCase()) {
+    case 'owner':
+      return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-700 dark:text-yellow-100'
+    case 'distributor':
+      return 'bg-pink-100 text-pink-800 dark:bg-pink-700 dark:text-pink-100'
+    case 'reseller':
+      return 'bg-purple-100 text-purple-800 dark:bg-purple-700 dark:text-purple-100'
+    case 'customer':
+      return 'bg-blue-100 text-blue-800 dark:bg-blue-700 dark:text-blue-100'
+    default:
+      return 'bg-gray-200 text-gray-800 dark:bg-gray-600 dark:text-gray-100'
+  }
+}
+
 export const isUserCustomer = () => {
   const loginStore = useLoginStore()
   return loginStore.userInfo?.org_role?.toLowerCase() === 'customer'
@@ -61,6 +129,25 @@ export const isUserCustomer = () => {
 export const isUserDistributor = () => {
   const loginStore = useLoginStore()
   return loginStore.userInfo?.org_role?.toLowerCase() === 'distributor'
+}
+
+// The parent company tells something only when a level can sit between the
+// user and the row; otherwise it is always the user's own organization, or one
+// outside their scope. So the parent of a customer is informative to the Owner
+// (Owner, a distributor or a reseller) and to a distributor (itself or one of
+// its resellers), never to a reseller (always itself); the parent of a reseller
+// only to the Owner (Owner or a distributor); the parent of a distributor to
+// nobody (always the Owner). Systems and applications sit under customers
+// too, so they follow the customer rule.
+export const canSeeParentOfCustomers = () => {
+  const loginStore = useLoginStore()
+  const orgRole = loginStore.userInfo?.org_role?.toLowerCase()
+  return orgRole === 'owner' || orgRole === 'distributor'
+}
+
+export const canSeeParentOfResellers = () => {
+  const loginStore = useLoginStore()
+  return loginStore.userInfo?.org_role?.toLowerCase() === 'owner'
 }
 
 // ============================================================

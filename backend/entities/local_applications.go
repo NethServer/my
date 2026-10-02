@@ -190,7 +190,7 @@ func (r *LocalApplicationRepository) List(
 	allowedSystemIDs []string,
 	page, pageSize int,
 	search, sortBy, sortDirection string,
-	filterTypes, filterVersions, filterSystemIDs, filterOrgIDs, filterStatuses []string,
+	filterTypes, filterVersions, filterSystemIDs, filterOrgIDs, filterManagedByOrgIDs, filterStatuses []string,
 	userFacingOnly bool,
 ) ([]*models.Application, int, error) {
 	// nil = owner (no RBAC filter), empty = no access
@@ -295,6 +295,14 @@ func (r *LocalApplicationRepository) List(
 		if len(orgConditions) > 0 {
 			whereClause += fmt.Sprintf(" AND (%s)", strings.Join(orgConditions, " OR "))
 		}
+	}
+
+	// "Managed by": the application's company sits in one of the given
+	// subtrees (expanded by the handler), an unassigned application counting
+	// with the company of its system, the same rule as the hierarchy counters.
+	if len(filterManagedByOrgIDs) > 0 {
+		whereClause += fmt.Sprintf(" AND (a.organization_id = ANY($%d::text[]) OR ((a.organization_id IS NULL OR a.organization_id = '') AND a.system_id = ANY(ARRAY(SELECT sh.id FROM systems sh WHERE sh.deleted_at IS NULL AND sh.organization_id = ANY($%d::text[])))))", len(args)+1, len(args)+1)
+		args = append(args, pq.Array(filterManagedByOrgIDs))
 	}
 
 	// Filter by statuses

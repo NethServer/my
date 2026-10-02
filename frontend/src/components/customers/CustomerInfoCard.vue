@@ -35,6 +35,7 @@ import ReactivateCustomerModal from './ReactivateCustomerModal.vue'
 import UserAvatar from '../users/UserAvatar.vue'
 import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
+import { canSeeParentOfCustomers } from '@/lib/organizations/organizations'
 
 const { t, locale } = useI18n()
 const { state: customerDetail, asyncStatus } = useCustomerDetail()
@@ -156,13 +157,17 @@ function getKebabMenuItems() {
             <EnabledStatus :enabled="rebrandingEnabled" />
           </template>
         </DataItem>
-        <!-- parent company -->
-        <DataItem>
+        <!-- parent company: shown only where it can be someone other than the user -->
+        <DataItem v-if="canSeeParentOfCustomers()">
           <template #label>
             {{ $t('organizations.parent_company') }}
           </template>
           <template #data>
-            <ParentCompanyLink :creator="customerDetail.data.created_by" />
+            <ParentCompanyLink
+              :creator="customerDetail.data.created_by"
+              icon-size="xs"
+              icon-variant="plain"
+            />
           </template>
         </DataItem>
         <!-- created by -->

@@ -36,7 +36,7 @@ func (s *LocalApplicationsService) GetApplications(
 	userOrgRole, userOrgID string,
 	page, pageSize int,
 	search, sortBy, sortDirection string,
-	filterTypes, filterVersions, filterSystemIDs, filterOrgIDs, filterStatuses []string,
+	filterTypes, filterVersions, filterSystemIDs, filterOrgIDs, filterManagedByOrgIDs, filterStatuses []string,
 ) ([]*models.Application, int, error) {
 	// Owner can access all systems - pass nil to skip RBAC filtering in query
 	var allowedSystemIDs []string
@@ -54,7 +54,7 @@ func (s *LocalApplicationsService) GetApplications(
 		allowedSystemIDs,
 		page, pageSize,
 		search, sortBy, sortDirection,
-		filterTypes, filterVersions, filterSystemIDs, filterOrgIDs, filterStatuses,
+		filterTypes, filterVersions, filterSystemIDs, filterOrgIDs, filterManagedByOrgIDs, filterStatuses,
 		true, // userFacingOnly
 	)
 }

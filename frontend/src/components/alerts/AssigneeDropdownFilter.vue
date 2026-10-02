@@ -8,7 +8,7 @@ import { NeDropdownFilterV2, type NeDropdownFilterV2Option } from '@nethesis/vue
 import { useI18n } from 'vue-i18n'
 import { computed } from 'vue'
 import { useAssigneeFilter } from '@/composables/useAssigneeFilter'
-import { UNASSIGNED_FILTER_ID } from '@/lib/alerts'
+import { ANY_ASSIGNEE_FILTER_ID, UNASSIGNED_FILTER_ID } from '@/lib/alerts'
 import { OPTIONS_PAGE_SIZE } from '@/lib/common'
 import { useLoginStore } from '@/stores/login'
 
@@ -27,6 +27,7 @@ const computedLabel = label ?? t('alerts.assigned_to')
 const { options, loading, onSearch, currentSearch } = useAssigneeFilter()
 
 const unassignedLabel = computed(() => t('alerts.unassigned'))
+const someoneLabel = computed(() => t('alerts.assignee_someone'))
 
 // The current user's assignee id (Logto id when present, else the local id).
 const meId = computed(() => loginStore.userInfo?.logto_id ?? loginStore.userInfo?.id ?? '')
@@ -34,7 +35,8 @@ const meLabel = computed(() => t('alerts.assignee_me', { name: loginStore.userDi
 
 // Synthetic options at the top, matching the search like the fetched ones:
 //   1. "Unassigned" (backend sentinel "none")
-//   2. "<my name> (me)"
+//   2. "Someone" (backend sentinel "any": assigned to anyone)
+//   3. "<my name> (me)"
 // The current user is removed from the fetched list to avoid a duplicate.
 const finalOptions = computed<NeDropdownFilterV2Option[]>(() => {
   const search = currentSearch.value.toLowerCase()
@@ -42,6 +44,9 @@ const finalOptions = computed<NeDropdownFilterV2Option[]>(() => {
 
   if (!search || unassignedLabel.value.toLowerCase().includes(search)) {
     result.push({ id: UNASSIGNED_FILTER_ID, label: unassignedLabel.value })
+  }
+  if (!search || someoneLabel.value.toLowerCase().includes(search)) {
+    result.push({ id: ANY_ASSIGNEE_FILTER_ID, label: someoneLabel.value })
   }
   if (meId.value && (!search || meLabel.value.toLowerCase().includes(search))) {
     result.push({ id: meId.value, label: meLabel.value })

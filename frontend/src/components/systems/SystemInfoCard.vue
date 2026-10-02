@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import { withDangerItemsLast } from '@/lib/common'
 import {
   NeBadgeV2,
   NeCard,
@@ -47,6 +48,8 @@ import { useLatestInventory } from '@/queries/systems/latestInventory'
 import type { Ns8Facts } from '@/lib/systems/ns8Facts'
 import type { NsecFacts } from '@/lib/systems/nsecFacts'
 import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
+import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
+import { canSeeParentOfCustomers, getManagedBy } from '@/lib/organizations/organizations'
 
 const { t, locale } = useI18n()
 const { state: systemDetail, asyncStatus } = useSystemDetail()
@@ -168,7 +171,7 @@ function getKebabMenuItems() {
     ]
   }
 
-  return items
+  return withDangerItemsLast(items)
 }
 </script>
 
@@ -270,6 +273,22 @@ function getKebabMenuItems() {
               v-if="systemDetail.data.organization"
               :organization="systemDetail.data.organization"
               icon-size="xs"
+              icon-variant="plain"
+            />
+            <span v-else class="font-medium">-</span>
+          </template>
+        </DataItem>
+        <!-- parent company: shown only where it can be someone other than the user -->
+        <DataItem v-if="canSeeParentOfCustomers()">
+          <template #label>
+            {{ $t('organizations.parent_company') }}
+          </template>
+          <template #data>
+            <ParentCompanyLink
+              v-if="getManagedBy(systemDetail.data.organization)"
+              :parent="getManagedBy(systemDetail.data.organization)"
+              icon-size="xs"
+              icon-variant="plain"
             />
             <span v-else class="font-medium">-</span>
           </template>

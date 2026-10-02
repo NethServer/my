@@ -4,9 +4,9 @@
 -->
 
 <script setup lang="ts">
+import { withDangerItemsLast } from '@/lib/common'
 import { DISTRIBUTORS_TABLE_ID, type Distributor } from '@/lib/organizations/distributors'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
-import { useDistributorFilters } from '@/queries/organizations/distributorFilters'
 import {
   faMagnifyingGlass,
   faGlobe,
@@ -18,8 +18,6 @@ import {
   faRotateLeft,
   faBomb,
   faServer,
-  faCity,
-  faBuilding,
   faEye,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -43,7 +41,6 @@ import {
   type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
-import UserAvatar from '@/components/users/UserAvatar.vue'
 import CreateOrEditDistributorDrawer from './CreateOrEditDistributorDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteDistributorModal from './DeleteDistributorModal.vue'
@@ -56,7 +53,7 @@ import { useDistributors } from '@/queries/organizations/distributors'
 import { canDestroyDistributors, canManageDistributors } from '@/lib/permissions'
 import router from '@/router'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
-import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
+import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
 
 const { isShownCreateDistributorDrawer = false } = defineProps<{
   isShownCreateDistributorDrawer: boolean
@@ -72,14 +69,12 @@ const {
   pageSize,
   textFilter,
   statusFilter,
-  createdByFilter,
   sortBy,
   sortDescending,
   areDefaultFiltersApplied,
   resetFilters,
   resetStatusFilter,
 } = useDistributors()
-const { state: distributorFiltersState } = useDistributorFilters()
 
 const currentDistributor = ref<Distributor | undefined>()
 const isShownCreateOrEditDistributorDrawer = ref(false)
@@ -103,18 +98,6 @@ const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
     label: t('common.archived'),
   },
 ])
-
-const createdByFilterOptions = computed<NeDropdownFilterV2Option[]>(() => {
-  if (!distributorFiltersState.value.data || !distributorFiltersState.value.data.created_by) {
-    return []
-  } else {
-    return distributorFiltersState.value.data.created_by.map((createdBy) => ({
-      id: createdBy.user_id,
-      label: createdBy.name,
-      description: createdBy.organization_name,
-    }))
-  }
-})
 
 const distributorsPage = computed(() => {
   return state.value.data?.distributors
@@ -263,7 +246,7 @@ function getKebabMenuItems(distributor: Distributor) {
       disabled: asyncStatus.value === 'loading',
     })
   }
-  return items
+  return withDangerItemsLast(items)
 }
 
 const onSort = (payload: SortEvent) => {
@@ -321,27 +304,12 @@ const goToDistributorDetails = (distributor: Distributor) => {
             :custom-action-label="t('ne_dropdown_filter.reset_selection')"
             @custom-action="resetStatusFilter"
           />
-          <!-- created by filter -->
-          <NeDropdownFilterV2
-            v-model="createdByFilter"
-            kind="checkbox"
-            :disabled="distributorFiltersState.status === 'pending'"
-            :label="t('systems.created_by')"
-            :options="createdByFilterOptions"
-            show-options-filter
-            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
-            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-            :no-options-label="t('ne_dropdown_filter.no_options')"
-            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-            :clear-search-label="t('ne_dropdown_filter.clear_search')"
-          />
           <NeSortDropdown
             v-model:sort-key="sortBy"
             v-model:sort-descending="sortDescending"
             :label="t('sort.sort')"
             :options="[
               { id: 'name', label: t('organizations.name') },
-              { id: 'creator_name', label: t('systems.created_by') },
               { id: 'suspended_at', label: t('common.status') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
@@ -399,9 +367,6 @@ const goToDistributorDetails = (distributor: Distributor) => {
         <NeTableHeadCell>
           {{ $t('systems.total_systems') }}
         </NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="creator_name" @sort="onSort">{{
-          $t('systems.created_by')
-        }}</NeTableHeadCell>
         <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
           $t('common.status')
         }}</NeTableHeadCell>
@@ -443,16 +408,16 @@ const goToDistributorDetails = (distributor: Distributor) => {
               class="flex items-center gap-2 hover:underline"
               :aria-label="$t('distributors.show_distributor_resellers', { name: item.name })"
             >
-              <FontAwesomeIcon :icon="faCity" class="text-icon-neutral size-4" aria-hidden="true" />
+              <OrganizationIcon org-type="reseller" variant="plain" size="sm" />
               {{ item.resellers_count }}
             </router-link>
             <div v-else class="flex items-center gap-2 opacity-50">
-              <FontAwesomeIcon :icon="faCity" class="text-icon-neutral size-4" aria-hidden="true" />
+              <OrganizationIcon org-type="reseller" variant="plain" size="sm" />
               {{ item.resellers_count }}
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('distributors.total_customers')">
-            <!-- links to the Customers page filtered by the whole distributor hierarchy -->
+            <!-- links to the Customers page filtered by Managed by = this distributor -->
             <router-link
               v-if="!item.deleted_at"
               :to="{
@@ -460,25 +425,16 @@ const goToDistributorDetails = (distributor: Distributor) => {
                 query: {
                   organization_id: item.logto_id,
                   organization_name: item.name,
-                  include_hierarchy: 'true',
                 },
               }"
               class="flex items-center gap-2 hover:underline"
               :aria-label="$t('distributors.show_distributor_customers', { name: item.name })"
             >
-              <FontAwesomeIcon
-                :icon="faBuilding"
-                class="text-icon-neutral size-4"
-                aria-hidden="true"
-              />
+              <OrganizationIcon org-type="customer" variant="plain" size="sm" />
               {{ item.customers_count }}
             </router-link>
             <div v-else class="flex items-center gap-2 opacity-50">
-              <FontAwesomeIcon
-                :icon="faBuilding"
-                class="text-icon-neutral size-4"
-                aria-hidden="true"
-              />
+              <OrganizationIcon org-type="customer" variant="plain" size="sm" />
               {{ item.customers_count }}
             </div>
           </NeTableCell>
@@ -488,9 +444,8 @@ const goToDistributorDetails = (distributor: Distributor) => {
               :to="{
                 name: 'systems',
                 query: {
-                  organization_id: item.logto_id,
-                  organization_name: item.name,
-                  include_hierarchy: 'true',
+                  parent_organization_id: item.logto_id,
+                  parent_organization_name: item.name,
                 },
               }"
               class="flex items-center gap-2 hover:underline"
@@ -510,30 +465,6 @@ const goToDistributorDetails = (distributor: Distributor) => {
                 aria-hidden="true"
               />
               {{ item.systems_count }}
-            </div>
-          </NeTableCell>
-          <NeTableCell :data-label="$t('systems.created_by')">
-            <div :class="{ 'opacity-50': item.deleted_at }">
-              <template v-if="item.created_by">
-                <div class="flex items-center gap-2">
-                  <UserAvatar
-                    size="sm"
-                    :is-owner="item.created_by.username === 'owner'"
-                    :name="item.created_by.name"
-                    :logto-id="item.created_by.user_id"
-                  />
-                  <div class="space-y-0.5">
-                    <div>{{ item.created_by.name || '-' }}</div>
-                    <div
-                      v-if="item.created_by.organization_name"
-                      class="text-gray-500 dark:text-gray-400"
-                    >
-                      <CreatorOrganization :creator="item.created_by" />
-                    </div>
-                  </div>
-                </div>
-              </template>
-              <template v-else>-</template>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.status')">

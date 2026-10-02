@@ -442,7 +442,7 @@ function copySecretAndCloseDrawer() {
           :loading="saving"
           @click.prevent="saveSystem"
         >
-          {{ currentSystem ? t('systems.save_system') : t('systems.create_system') }}
+          {{ currentSystem ? t('common.save') : t('systems.create_system') }}
         </NeButton>
         <NeButton
           v-else-if="step === 'secret'"

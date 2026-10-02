@@ -9,6 +9,7 @@ import {
   getQueryStringParams,
   normalize,
   tokenizeText,
+  withDangerItemsLast,
 } from './index'
 import { expect, it, describe } from 'vitest'
 import { AxiosError, AxiosHeaders, type AxiosResponse } from 'axios'
@@ -242,5 +243,34 @@ describe('getExportLimitError', () => {
     expect(
       getExportLimitError(axiosError(500, { data: { total_count: 1, max_limit: 2 } })),
     ).toBeUndefined()
+  })
+})
+
+describe('withDangerItemsLast', () => {
+  const edit = { id: 'edit' }
+  const suspend = { id: 'suspend' }
+  const archive = { id: 'archive', danger: true }
+  const destroy = { id: 'destroy', danger: true }
+
+  it('puts the danger items last, behind a divider', () => {
+    expect(withDangerItemsLast([edit, archive, suspend, destroy])).toEqual([
+      edit,
+      suspend,
+      { id: 'divider' },
+      archive,
+      destroy,
+    ])
+  })
+
+  it('adds no divider when only danger items are present', () => {
+    expect(withDangerItemsLast([archive, destroy])).toEqual([archive, destroy])
+  })
+
+  it('adds no divider when no danger item is present', () => {
+    expect(withDangerItemsLast([edit, suspend])).toEqual([edit, suspend])
+  })
+
+  it('returns an empty menu unchanged', () => {
+    expect(withDangerItemsLast([])).toEqual([])
   })
 })

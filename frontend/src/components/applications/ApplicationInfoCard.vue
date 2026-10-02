@@ -121,13 +121,14 @@ function getKebabMenuItems() {
         </DataItem>
         <DataItem>
           <template #label>
-            {{ $t('organizations.organization') }}
+            {{ $t('applications.assigned_company') }}
           </template>
           <template #data>
             <OrganizationIconAndLink
               v-if="applicationDetail.data.organization"
               :organization="applicationDetail.data.organization"
               icon-size="xs"
+              icon-variant="plain"
             />
             <span v-else class="font-medium">-</span>
           </template>

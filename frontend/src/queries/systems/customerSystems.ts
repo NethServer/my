@@ -25,7 +25,6 @@ export const useCustomerSystems = defineQuery(() => {
         [],
         route.params.companyId ? [route.params.companyId as string] : [],
         [],
-        false,
         'created_at',
         true,
       ),

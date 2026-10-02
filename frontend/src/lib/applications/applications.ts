@@ -83,9 +83,9 @@ export const getQueryStringParams = (
   versionFilter: string[],
   systemFilter: string[],
   organizationFilter: string[],
-  includeHierarchy: boolean,
   sortBy: string | null,
   sortDescending: boolean,
+  parentOrganizationFilter: string[] = [],
 ) => {
   const searchParams = new URLSearchParams({
     page: pageNum.toString(),
@@ -100,7 +100,7 @@ export const getQueryStringParams = (
     versionFilter,
     systemFilter,
     organizationFilter,
-    includeHierarchy,
+    parentOrganizationFilter,
   )
   return searchParams.toString()
 }
@@ -114,9 +114,9 @@ export const getQueryStringParamsForExport = (
   versionFilter: string[],
   systemFilter: string[],
   organizationFilter: string[],
-  includeHierarchy: boolean,
   sortBy: string,
   sortDescending: boolean,
+  parentOrganizationFilter: string[] = [],
 ) => {
   const searchParams = new URLSearchParams({
     format,
@@ -130,7 +130,7 @@ export const getQueryStringParamsForExport = (
     versionFilter,
     systemFilter,
     organizationFilter,
-    includeHierarchy,
+    parentOrganizationFilter,
   )
   return searchParams.toString()
 }
@@ -142,7 +142,7 @@ const appendFilterParams = (
   versionFilter: string[],
   systemFilter: string[],
   organizationFilter: string[],
-  includeHierarchy: boolean,
+  parentOrganizationFilter: string[],
 ) => {
   if (textFilter?.trim()) {
     searchParams.append('search', textFilter)
@@ -164,9 +164,11 @@ const appendFilterParams = (
     searchParams.append('organization_id', orgId)
   })
 
-  if (includeHierarchy) {
-    searchParams.append('include_hierarchy', 'true')
-  }
+  // "Managed by": the applications whose company (or, unassigned, their
+  // system's company) sits anywhere in the subtree of these organizations
+  parentOrganizationFilter.forEach((orgId) => {
+    searchParams.append('parent_organization_id', orgId)
+  })
 }
 
 export const getDisplayName = (app: Application) => {
@@ -201,9 +203,9 @@ export const getApplications = (
   versionFilter: string[],
   systemFilter: string[],
   organizationFilter: string[],
-  includeHierarchy: boolean,
   sortBy: string,
   sortDescending: boolean,
+  parentOrganizationFilter: string[] = [],
 ) => {
   const loginStore = useLoginStore()
   const params = getQueryStringParams(
@@ -214,9 +216,9 @@ export const getApplications = (
     versionFilter,
     systemFilter,
     organizationFilter,
-    includeHierarchy,
     sortBy,
     sortDescending,
+    parentOrganizationFilter,
   )
 
   return axios
@@ -233,9 +235,9 @@ export const getExport = (
   versionFilter: string[],
   systemFilter: string[],
   organizationFilter: string[],
-  includeHierarchy: boolean,
   sortBy: string,
   sortDescending: boolean,
+  parentOrganizationFilter: string[] = [],
 ) => {
   const loginStore = useLoginStore()
   const params = getQueryStringParamsForExport(
@@ -245,9 +247,9 @@ export const getExport = (
     versionFilter,
     systemFilter,
     organizationFilter,
-    includeHierarchy,
     sortBy,
     sortDescending,
+    parentOrganizationFilter,
   )
 
   return axios

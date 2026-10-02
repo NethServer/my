@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import { withDangerItemsLast } from '@/lib/common'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import {
   faMagnifyingGlass,
@@ -47,12 +48,17 @@ import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { canManageSystems, canDestroySystems } from '@/lib/permissions'
 import { useSystems } from '@/queries/systems/systems'
-import { exportSystem, getProductName, SYSTEMS_TABLE_ID, type System } from '@/lib/systems/systems'
+import {
+  exportSystem,
+  getProductName,
+  SYSTEMS_TABLE_ID,
+  type System,
+  type SystemSortBy,
+} from '@/lib/systems/systems'
 import router from '@/router'
 import CreateOrEditSystemDrawer from './CreateOrEditSystemDrawer.vue'
 import DeleteSystemModal from './DeleteSystemModal.vue'
 import { useSystemFilters } from '@/queries/systems/systemFilters'
-import UserAvatar from '../users/UserAvatar.vue'
 import { buildVersionFilterOptions } from '@/lib/systems/systemFilters'
 import RegenerateSecretModal from './RegenerateSecretModal.vue'
 import SecretRegeneratedModal from './SecretRegeneratedModal.vue'
@@ -64,10 +70,14 @@ import DestroySystemModal from './DestroySystemModal.vue'
 import SystemStatusIcon from './SystemStatusIcon.vue'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
-import { isUserCustomer } from '@/lib/organizations/organizations.ts'
+import {
+  canSeeParentOfCustomers,
+  getManagedBy,
+  isUserCustomer,
+} from '@/lib/organizations/organizations.ts'
 import OrganizationIconAndLink from '../organizations/OrganizationIconAndLink.vue'
+import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
 import SystemLogoAndLink from './SystemLogoAndLink.vue'
-import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -83,12 +93,11 @@ const {
   pageSize,
   textFilter,
   productFilter,
-  createdByFilter,
   versionFilter,
   statusFilter,
   organizationFilter,
+  parentOrganizationFilter,
   addonFilter,
-  includeHierarchy,
   sortBy,
   sortDescending,
   areDefaultFiltersApplied,
@@ -162,18 +171,6 @@ const versionFilterOptions = computed(() => {
       selectedProductIds.includes(el.product),
     )
     return buildVersionFilterOptions(productVersions)
-  }
-})
-
-const createdByFilterOptions = computed<NeDropdownFilterV2Option[]>(() => {
-  if (!systemFiltersState.value.data || !systemFiltersState.value.data.created_by) {
-    return []
-  } else {
-    return systemFiltersState.value.data.created_by.map((createdBy) => ({
-      id: createdBy.user_id,
-      label: createdBy.name,
-      description: createdBy.organization_name,
-    }))
   }
 })
 
@@ -354,11 +351,11 @@ function getKebabMenuItems(system: System) {
     })
   }
 
-  return items
+  return withDangerItemsLast(items)
 }
 
 const onSort = (payload: SortEvent) => {
-  sortBy.value = payload.key as keyof System
+  sortBy.value = payload.key as SystemSortBy
   sortDescending.value = payload.descending
 }
 
@@ -390,18 +387,6 @@ function onCloseSecretRegeneratedModal() {
       :title="$t('systems.cannot_retrieve_systems')"
       :description="state.error.message"
       class="mb-6"
-    />
-    <!-- company hierarchy filter notification -->
-    <NeInlineNotification
-      v-if="includeHierarchy && organizationFilter.length === 1"
-      kind="info"
-      :title="$t('systems.hierarchy_filter_title')"
-      :description="
-        $t('systems.hierarchy_filter_description', { name: organizationFilter[0].label })
-      "
-      :secondary-button-label="$t('systems.hierarchy_filter_exact')"
-      class="mb-6"
-      @secondary-click="includeHierarchy = false"
     />
     <!-- table toolbar -->
     <div class="mb-6 flex items-center gap-4">
@@ -443,21 +428,18 @@ function onCloseSecretRegeneratedModal() {
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
           />
-          <NeDropdownFilterV2
-            v-model="createdByFilter"
-            kind="checkbox"
-            :disabled="systemFiltersState.status === 'pending'"
-            :label="t('systems.created_by')"
-            :options="createdByFilterOptions"
-            show-options-filter
-            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
-            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-            :no-options-label="t('ne_dropdown_filter.no_options')"
-            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-            :clear-search-label="t('ne_dropdown_filter.clear_search')"
-            :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
+          <OrganizationDropdownFilter
+            v-if="!isUserCustomer()"
+            v-model="organizationFilter"
+            :label="t('systems.organization')"
           />
-          <OrganizationDropdownFilter v-if="!isUserCustomer()" v-model="organizationFilter" />
+          <!-- parent company filter: the distributor or reseller the system's company belongs to -->
+          <OrganizationDropdownFilter
+            v-if="canSeeParentOfCustomers()"
+            v-model="parentOrganizationFilter"
+            :organization-types="['distributor', 'reseller']"
+            :label="t('organizations.parent_company')"
+          />
           <!-- add-on filter -->
           <NeDropdownFilterV2
             v-model="addonFilter"
@@ -498,7 +480,9 @@ function onCloseSecretRegeneratedModal() {
               { id: 'version', label: t('systems.version') },
               { id: 'fqdn', label: t('systems.fqdn') },
               { id: 'organization_name', label: t('systems.organization') },
-              { id: 'creator_name', label: t('systems.created_by') },
+              ...(canSeeParentOfCustomers()
+                ? [{ id: 'managed_by', label: t('organizations.parent_company') }]
+                : []),
               { id: 'status', label: t('systems.status') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
@@ -558,9 +542,13 @@ function onCloseSecretRegeneratedModal() {
         <NeTableHeadCell sortable column-key="organization_name" @sort="onSort">{{
           $t('systems.organization')
         }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="creator_name" @sort="onSort">{{
-          $t('systems.created_by')
-        }}</NeTableHeadCell>
+        <NeTableHeadCell
+          v-if="canSeeParentOfCustomers()"
+          sortable
+          column-key="managed_by"
+          @sort="onSort"
+          >{{ $t('organizations.parent_company') }}</NeTableHeadCell
+        >
         <NeTableHeadCell sortable column-key="status" @sort="onSort">{{
           $t('systems.status')
         }}</NeTableHeadCell>
@@ -570,7 +558,7 @@ function onCloseSecretRegeneratedModal() {
       </NeTableHead>
       <NeTableBody>
         <NeTableRow v-for="item in systemsPage" :key="item.id">
-          <NeTableCell :data-label="$t('systems.name')" class="break-all">
+          <NeTableCell :data-label="$t('systems.name')">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
               <SystemLogoAndLink
                 :system-id="item.status === 'deleted' ? '' : item.id"
@@ -579,12 +567,12 @@ function onCloseSecretRegeneratedModal() {
               />
             </div>
           </NeTableCell>
-          <NeTableCell :data-label="$t('systems.version')" class="break-all 2xl:break-normal">
+          <NeTableCell :data-label="$t('systems.version')" class="wrap-anywhere">
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
               {{ item.version || '-' }}
             </div>
           </NeTableCell>
-          <NeTableCell :data-label="$t('systems.fqdn_ip_address')" class="break-all">
+          <NeTableCell :data-label="$t('systems.fqdn_ip_address')" class="wrap-anywhere">
             <div
               class="flex flex-col items-start space-y-0.5"
               :class="{ 'opacity-50': item.status === 'deleted' }"
@@ -607,28 +595,16 @@ function onCloseSecretRegeneratedModal() {
               <span v-else>-</span>
             </div>
           </NeTableCell>
-          <NeTableCell :data-label="$t('systems.created_by')">
+          <NeTableCell
+            v-if="canSeeParentOfCustomers()"
+            :data-label="$t('organizations.parent_company')"
+          >
             <div :class="{ 'opacity-50': item.status === 'deleted' }">
-              <template v-if="item.created_by">
-                <div class="flex items-center gap-2">
-                  <UserAvatar
-                    size="sm"
-                    :is-owner="item.created_by.username === 'owner'"
-                    :name="item.created_by.name"
-                    :logto-id="item.created_by.user_id"
-                  />
-                  <div class="space-y-0.5">
-                    <div>{{ item.created_by.name || '-' }}</div>
-                    <div
-                      v-if="item.created_by.organization_name"
-                      class="text-gray-500 dark:text-gray-400"
-                    >
-                      <CreatorOrganization :creator="item.created_by" />
-                    </div>
-                  </div>
-                </div>
-              </template>
-              <template v-else>-</template>
+              <ParentCompanyLink
+                v-if="getManagedBy(item.organization)"
+                :parent="getManagedBy(item.organization)"
+              />
+              <span v-else>-</span>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.status')">

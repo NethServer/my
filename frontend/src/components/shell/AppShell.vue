@@ -128,7 +128,11 @@ const logoFile = computed(() => {
             </li>
           </ul>
         </nav>
-        <LoggedUserCard class="absolute bottom-6 w-64 self-center" />
+        <!-- the card floats over the bottom of the sidebar, so it shows only when the
+        viewport is tall enough to fit it under the full owner menu (~620px) -->
+        <LoggedUserCard
+          class="absolute bottom-6 hidden w-64 self-center [@media(min-height:50rem)]:block"
+        />
       </div>
     </div>
 

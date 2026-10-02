@@ -22,7 +22,6 @@ export const useUsers = defineQuery(() => {
     { id: 'enabled', label: 'enabled' },
     { id: 'suspended', label: 'suspended' },
   ])
-  const createdByFilter = ref<NeDropdownFilterV2Option[]>([])
   const sortBy = ref<keyof User>('name')
   const sortDescending = ref(false)
 
@@ -36,7 +35,6 @@ export const useUsers = defineQuery(() => {
         organizationFilter: organizationFilter.value.map((o) => o.id),
         roleFilter: roleFilter.value.map((o) => o.id),
         statusFilter: statusFilter.value.map((o) => o.id),
-        createdByFilter: createdByFilter.value.map((o) => o.id),
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -50,7 +48,7 @@ export const useUsers = defineQuery(() => {
         organizationFilter.value.map((o) => o.id),
         roleFilter.value.map((o) => o.id),
         statusFilter.value.map((o) => o.id) as UserStatus[],
-        createdByFilter.value.map((o) => o.id),
+        [], // created by: not filtered from the tables
         sortBy.value,
         sortDescending.value,
       ),
@@ -64,8 +62,7 @@ export const useUsers = defineQuery(() => {
       statusFilter.value.length === 2 &&
       statusFilter.value.some((o) => o.id === 'enabled') &&
       statusFilter.value.some((o) => o.id === 'suspended') &&
-      !statusFilter.value.some((o) => o.id === 'deleted') &&
-      createdByFilter.value.length === 0
+      !statusFilter.value.some((o) => o.id === 'deleted')
     )
   })
 
@@ -125,20 +122,10 @@ export const useUsers = defineQuery(() => {
     },
   )
 
-  // reset to first page when createdBy filter changes
-  watch(
-    () => createdByFilter.value,
-    () => {
-      pageNum.value = 1
-    },
-    { deep: true },
-  )
-
   const resetFilters = () => {
     textFilter.value = ''
     organizationFilter.value = []
     roleFilter.value = []
-    createdByFilter.value = []
     resetStatusFilter()
   }
 
@@ -160,7 +147,6 @@ export const useUsers = defineQuery(() => {
     organizationFilter,
     roleFilter,
     statusFilter,
-    createdByFilter,
     sortBy,
     sortDescending,
     areDefaultFiltersApplied,
