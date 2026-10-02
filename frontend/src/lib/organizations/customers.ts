@@ -85,6 +85,8 @@ export const CustomerSchema = v.object({
 export type CreateCustomer = v.InferOutput<typeof CreateCustomerSchema>
 export type EditCustomer = v.InferOutput<typeof EditCustomerSchema>
 export type Customer = v.InferOutput<typeof CustomerSchema>
+// managed_by: the company in the creator snapshot, the one "Managed by" shows
+export type CustomerSortBy = keyof Customer | 'managed_by'
 
 interface CustomersResponse {
   code: number

@@ -277,26 +277,7 @@ func (r *LocalResellerRepository) List(ctx context.Context, userOrgRole, userOrg
 
 // listForOwner handles reseller listing for owner role
 func (r *LocalResellerRepository) listForOwner(ctx context.Context, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalReseller, int, error) {
-	// Validate and build sorting clause
-	orderClause := "ORDER BY created_at DESC" // default sorting
-	if sortBy != "" {
-		validSortFields := map[string]string{
-			"name":         "LOWER(name)",
-			"description":  "LOWER(description)",
-			"created_at":   "created_at",
-			"updated_at":   "updated_at",
-			"suspended_at": "suspended_at",
-			"creator_name": "LOWER(custom_data->'createdByUser'->>'name')",
-		}
-
-		if dbField, valid := validSortFields[sortBy]; valid {
-			direction := "ASC"
-			if strings.ToUpper(sortDirection) == "DESC" {
-				direction = "DESC"
-			}
-			orderClause = fmt.Sprintf("ORDER BY %s %s", dbField, direction)
-		}
-	}
+	orderClause := partnerOrderClause(sortBy, sortDirection)
 
 	// Build status filter clauses
 	hasDeletedFilter := false
@@ -368,26 +349,7 @@ func (r *LocalResellerRepository) listForOwner(ctx context.Context, page, pageSi
 
 // listForDistributor handles reseller listing for distributor role
 func (r *LocalResellerRepository) listForDistributor(ctx context.Context, userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalReseller, int, error) {
-	// Validate and build sorting clause
-	orderClause := "ORDER BY created_at DESC" // default sorting
-	if sortBy != "" {
-		validSortFields := map[string]string{
-			"name":         "LOWER(name)",
-			"description":  "LOWER(description)",
-			"created_at":   "created_at",
-			"updated_at":   "updated_at",
-			"suspended_at": "suspended_at",
-			"creator_name": "LOWER(custom_data->'createdByUser'->>'name')",
-		}
-
-		if dbField, valid := validSortFields[sortBy]; valid {
-			direction := "ASC"
-			if strings.ToUpper(sortDirection) == "DESC" {
-				direction = "DESC"
-			}
-			orderClause = fmt.Sprintf("ORDER BY %s %s", dbField, direction)
-		}
-	}
+	orderClause := partnerOrderClause(sortBy, sortDirection)
 
 	// Build status filter clauses
 	hasDeletedFilter := false

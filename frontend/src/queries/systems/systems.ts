@@ -7,7 +7,7 @@ import {
   getSystems,
   SYSTEMS_KEY,
   SYSTEMS_TABLE_ID,
-  type System,
+  type SystemSortBy,
   type SystemStatus,
 } from '@/lib/systems/systems'
 import { useLoginStore } from '@/stores/login'
@@ -36,7 +36,7 @@ export const useSystems = defineQuery(() => {
   // these organizations (ANDed with organizationFilter)
   const parentOrganizationFilter = ref<NeDropdownFilterV2Option[]>([])
   const addonFilter = ref<NeDropdownFilterV2Option[]>([])
-  const sortBy = ref<keyof System>('name')
+  const sortBy = ref<SystemSortBy>('name')
   const sortDescending = ref(false)
 
   const { state, asyncStatus, ...rest } = useQuery({

@@ -90,6 +90,9 @@ export const SystemSchema = v.object({
 export type CreateSystem = v.InferOutput<typeof CreateSystemSchema>
 export type EditSystem = v.InferOutput<typeof EditSystemSchema>
 export type System = v.InferOutput<typeof SystemSchema>
+// organization_name: the assigned company; managed_by: the company getManagedBy
+// returns for it
+export type SystemSortBy = keyof System | 'organization_name' | 'managed_by'
 export type SystemStatus = v.InferOutput<typeof SystemStatusSchema>
 
 interface SystemsResponse {

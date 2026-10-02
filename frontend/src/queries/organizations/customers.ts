@@ -6,7 +6,7 @@ import {
   CUSTOMERS_KEY,
   CUSTOMERS_TABLE_ID,
   getCustomers,
-  type Customer,
+  type CustomerSortBy,
   type CustomerStatus,
 } from '@/lib/organizations/customers'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
@@ -28,7 +28,7 @@ export const useCustomers = defineQuery(() => {
   ])
   // "Managed by": the customers anywhere in the subtree of these organizations
   const organizationFilter = ref<NeDropdownFilterV2Option[]>([])
-  const sortBy = ref<keyof Customer>('name')
+  const sortBy = ref<CustomerSortBy>('name')
   const sortDescending = ref(false)
 
   const { state, asyncStatus, ...rest } = useQuery({

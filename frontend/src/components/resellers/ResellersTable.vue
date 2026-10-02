@@ -4,7 +4,11 @@
 -->
 
 <script setup lang="ts">
-import { RESELLERS_TABLE_ID, type Reseller } from '@/lib/organizations/resellers'
+import {
+  RESELLERS_TABLE_ID,
+  type Reseller,
+  type ResellerSortBy,
+} from '@/lib/organizations/resellers'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import {
   faMagnifyingGlass,
@@ -273,7 +277,7 @@ function getKebabMenuItems(reseller: Reseller) {
 }
 
 const onSort = (payload: SortEvent) => {
-  sortBy.value = payload.key as keyof Reseller
+  sortBy.value = payload.key as ResellerSortBy
   sortDescending.value = payload.descending
 }
 
@@ -340,6 +344,9 @@ const goToResellerDetails = (reseller: Reseller) => {
             :label="t('sort.sort')"
             :options="[
               { id: 'name', label: t('organizations.name') },
+              ...(canSeeParentOfResellers()
+                ? [{ id: 'managed_by', label: t('organizations.parent_company') }]
+                : []),
               { id: 'suspended_at', label: t('common.status') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
@@ -392,9 +399,13 @@ const goToResellerDetails = (reseller: Reseller) => {
         <NeTableHeadCell>{{ $t('organizations.vat_number') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('customers.title') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('systems.total_systems') }}</NeTableHeadCell>
-        <NeTableHeadCell v-if="canSeeParentOfResellers()">{{
-          $t('organizations.parent_company')
-        }}</NeTableHeadCell>
+        <NeTableHeadCell
+          v-if="canSeeParentOfResellers()"
+          sortable
+          column-key="managed_by"
+          @sort="onSort"
+          >{{ $t('organizations.parent_company') }}</NeTableHeadCell
+        >
         <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
           $t('common.status')
         }}</NeTableHeadCell>

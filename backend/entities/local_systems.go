@@ -254,6 +254,20 @@ func addonFilterClause(filterAddons []string, argOffset int) (string, []interfac
 	return clause, []interface{}{pq.Array(filterAddons)}
 }
 
+// systemManagedBySortExpression orders systems by the company that manages
+// them, as the "Managed by" column shows it: the parent of a customer, the
+// organization itself otherwise. The parent is resolved like
+// parentOrganizationsQuery: its live name, or for the Owner organization the
+// customer's creator snapshot when it names the parent itself, else "Owner".
+// A system whose organization is gone lists as the Owner's, as its
+// organization_name does.
+const systemManagedBySortExpression = `LOWER(CASE WHEN uo.org_type = 'customer' THEN (
+			SELECT COALESCE(p.name, CASE WHEN c.custom_data->'createdByUser'->>'organization_id' = c.custom_data->>'createdBy' THEN NULLIF(c.custom_data->'createdByUser'->>'organization_name', '') END, 'Owner')
+			FROM customers c
+			LEFT JOIN unified_organizations p ON p.logto_id = c.custom_data->>'createdBy'
+			WHERE c.logto_id = s.organization_id AND c.deleted_at IS NULL
+		) ELSE COALESCE(uo.name, 'Owner') END)`
+
 // ListByCreatedByOrganizations returns paginated list of systems owned by the given organizations with filters
 func (r *LocalSystemRepository) ListByCreatedByOrganizations(ctx context.Context, allowedOrgIDs []string, page, pageSize int, search, sortBy, sortDirection string, f models.SystemListFilters) ([]*models.System, int, error) {
 	filterName := f.Name
@@ -420,6 +434,7 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(ctx context.Context
 			"updated_at":        "s.updated_at",
 			"creator_name":      "LOWER(s.created_by ->> 'name')",
 			"organization_name": "LOWER(uo.name)",
+			"managed_by":        systemManagedBySortExpression,
 		}
 
 		if column, exists := columnMap[sortBy]; exists {
@@ -428,6 +443,11 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(ctx context.Context
 				direction = "DESC"
 			}
 			orderBy = fmt.Sprintf("%s %s", column, direction)
+			// many systems share one manager: fall back to their name, so
+			// OFFSET paging does not repeat or skip a row across a tie
+			if sortBy == "managed_by" {
+				orderBy += ", LOWER(s.name), s.id"
+			}
 		}
 	}
 

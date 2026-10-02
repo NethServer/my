@@ -6,7 +6,7 @@ import {
   getResellers,
   RESELLERS_KEY,
   RESELLERS_TABLE_ID,
-  type Reseller,
+  type ResellerSortBy,
   type ResellerStatus,
 } from '@/lib/organizations/resellers'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
@@ -28,7 +28,7 @@ export const useResellers = defineQuery(() => {
   ])
   // parent company: the distributor the reseller belongs to
   const organizationFilter = ref<NeDropdownFilterV2Option[]>([])
-  const sortBy = ref<keyof Reseller>('name')
+  const sortBy = ref<ResellerSortBy>('name')
   const sortDescending = ref(false)
 
   const { state, asyncStatus, ...rest } = useQuery({

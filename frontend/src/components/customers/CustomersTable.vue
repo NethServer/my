@@ -4,7 +4,11 @@
 -->
 
 <script setup lang="ts">
-import { CUSTOMERS_TABLE_ID, type Customer } from '@/lib/organizations/customers'
+import {
+  CUSTOMERS_TABLE_ID,
+  type Customer,
+  type CustomerSortBy,
+} from '@/lib/organizations/customers'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import {
   faMagnifyingGlass,
@@ -252,7 +256,7 @@ function getKebabMenuItems(customer: Customer) {
 }
 
 const onSort = (payload: SortEvent) => {
-  sortBy.value = payload.key as keyof Customer
+  sortBy.value = payload.key as CustomerSortBy
   sortDescending.value = payload.descending
 }
 
@@ -319,6 +323,9 @@ const goToCustomerDetails = (customer: Customer) => {
             :label="t('sort.sort')"
             :options="[
               { id: 'name', label: t('organizations.name') },
+              ...(canSeeParentOfCustomers()
+                ? [{ id: 'managed_by', label: t('organizations.parent_company') }]
+                : []),
               { id: 'suspended_at', label: t('common.status') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
@@ -370,9 +377,13 @@ const goToCustomerDetails = (customer: Customer) => {
         <NeTableHeadCell>
           {{ $t('systems.title') }}
         </NeTableHeadCell>
-        <NeTableHeadCell v-if="canSeeParentOfCustomers()">{{
-          $t('organizations.parent_company')
-        }}</NeTableHeadCell>
+        <NeTableHeadCell
+          v-if="canSeeParentOfCustomers()"
+          sortable
+          column-key="managed_by"
+          @sort="onSort"
+          >{{ $t('organizations.parent_company') }}</NeTableHeadCell
+        >
         <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
           $t('common.status')
         }}</NeTableHeadCell>

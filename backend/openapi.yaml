@@ -4298,7 +4298,7 @@ components:
       required: false
       schema:
         type: string
-        enum: ["name", "description", "created_at", "updated_at", "suspended_at", "creator_name"]
+        enum: ["name", "description", "created_at", "updated_at", "suspended_at", "creator_name", "managed_by"]
         example: "name"
 
     CustomerSortByParam:
@@ -4308,7 +4308,7 @@ components:
       required: false
       schema:
         type: string
-        enum: ["name", "description", "created_at", "updated_at", "suspended_at", "creator_name"]
+        enum: ["name", "description", "created_at", "updated_at", "suspended_at", "creator_name", "managed_by"]
         example: "name"
 
     RebrandingSortByParam:
@@ -4369,7 +4369,7 @@ components:
       required: false
       schema:
         type: string
-        enum: ["name", "type", "status", "fqdn", "version", "system_key", "created_at", "updated_at", "creator_name", "organization_name"]
+        enum: ["name", "type", "status", "fqdn", "version", "system_key", "created_at", "updated_at", "creator_name", "organization_name", "managed_by"]
         example: "name"
 
     TrendPeriodParam:

@@ -47,7 +47,13 @@ import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { canManageSystems, canDestroySystems } from '@/lib/permissions'
 import { useSystems } from '@/queries/systems/systems'
-import { exportSystem, getProductName, SYSTEMS_TABLE_ID, type System } from '@/lib/systems/systems'
+import {
+  exportSystem,
+  getProductName,
+  SYSTEMS_TABLE_ID,
+  type System,
+  type SystemSortBy,
+} from '@/lib/systems/systems'
 import router from '@/router'
 import CreateOrEditSystemDrawer from './CreateOrEditSystemDrawer.vue'
 import DeleteSystemModal from './DeleteSystemModal.vue'
@@ -348,7 +354,7 @@ function getKebabMenuItems(system: System) {
 }
 
 const onSort = (payload: SortEvent) => {
-  sortBy.value = payload.key as keyof System
+  sortBy.value = payload.key as SystemSortBy
   sortDescending.value = payload.descending
 }
 
@@ -473,6 +479,9 @@ function onCloseSecretRegeneratedModal() {
               { id: 'version', label: t('systems.version') },
               { id: 'fqdn', label: t('systems.fqdn') },
               { id: 'organization_name', label: t('systems.organization') },
+              ...(canSeeParentOfCustomers()
+                ? [{ id: 'managed_by', label: t('organizations.parent_company') }]
+                : []),
               { id: 'status', label: t('systems.status') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
@@ -532,9 +541,13 @@ function onCloseSecretRegeneratedModal() {
         <NeTableHeadCell sortable column-key="organization_name" @sort="onSort">{{
           $t('systems.organization')
         }}</NeTableHeadCell>
-        <NeTableHeadCell v-if="canSeeParentOfCustomers()">{{
-          $t('organizations.parent_company')
-        }}</NeTableHeadCell>
+        <NeTableHeadCell
+          v-if="canSeeParentOfCustomers()"
+          sortable
+          column-key="managed_by"
+          @sort="onSort"
+          >{{ $t('organizations.parent_company') }}</NeTableHeadCell
+        >
         <NeTableHeadCell sortable column-key="status" @sort="onSort">{{
           $t('systems.status')
         }}</NeTableHeadCell>
