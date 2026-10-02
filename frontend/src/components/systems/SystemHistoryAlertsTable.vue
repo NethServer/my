@@ -279,7 +279,7 @@ function showDetails(alert: Alert): void {
             >
             <p
               v-if="record.summary"
-              class="mt-0.5 text-sm wrap-anywhere text-gray-500 dark:text-gray-400"
+              class="mt-0.5 max-w-xs text-sm wrap-anywhere text-gray-500 dark:text-gray-400"
             >
               {{ record.summary }}
             </p>
