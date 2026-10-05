@@ -1,5 +1,5 @@
 {{- define "firing_en.subject" -}}
-[FIRING{{ if gt (len .Alerts.Firing) 1 }} x{{ len .Alerts.Firing }}{{ end }}][{{ if .CommonLabels.alertname }}{{ .CommonLabels.alertname }}{{ else }}Alert{{ end }}]{{ if .CommonLabels.system_key }} - {{ .CommonLabels.system_key }}{{ end }}
+[FIRING{{ if gt (len .Alerts.Firing) 1 }} x{{ len .Alerts.Firing }}{{ end }}][{{ if .CommonLabels.alertname }}{{ .CommonLabels.alertname }}{{ else }}Alert{{ end }}]{{ if .CommonLabels.organization_name }} - {{ .CommonLabels.organization_name }}{{ end }}{{ if .CommonLabels.system_name }} - {{ .CommonLabels.system_name }}{{ else if .CommonLabels.system_key }} - {{ .CommonLabels.system_key }}{{ end }}
 {{- end }}
 
 {{ define "firing_en.html" }}<!DOCTYPE html>

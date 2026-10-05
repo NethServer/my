@@ -1,5 +1,5 @@
 {{- define "resolved_en.subject" -}}
-[RESOLVED{{ if gt (len .Alerts.Resolved) 1 }} x{{ len .Alerts.Resolved }}{{ end }}][{{ if .CommonLabels.alertname }}{{ .CommonLabels.alertname }}{{ else }}Alert{{ end }}]{{ if .CommonLabels.system_key }} - {{ .CommonLabels.system_key }}{{ end }}
+[RESOLVED{{ if gt (len .Alerts.Resolved) 1 }} x{{ len .Alerts.Resolved }}{{ end }}][{{ if .CommonLabels.alertname }}{{ .CommonLabels.alertname }}{{ else }}Alert{{ end }}]{{ if .CommonLabels.organization_name }} - {{ .CommonLabels.organization_name }}{{ end }}{{ if .CommonLabels.system_name }} - {{ .CommonLabels.system_name }}{{ else if .CommonLabels.system_key }} - {{ .CommonLabels.system_key }}{{ end }}
 {{- end }}
 
 {{ define "resolved_en.html" }}<!DOCTYPE html>

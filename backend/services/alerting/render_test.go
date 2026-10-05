@@ -163,6 +163,39 @@ func TestTemplates_RenderWithoutError(t *testing.T) {
 	}
 }
 
+// TestTemplates_SubjectNamesOrganizationAndSystem pins the email subject:
+// organization and system name instead of the opaque system key, which only
+// shows up when the system has no name.
+func TestTemplates_SubjectNamesOrganizationAndSystem(t *testing.T) {
+	files, err := BuildTemplateFiles("https://my.nethesis.it", "Europe/Rome")
+	if err != nil {
+		t.Fatalf("BuildTemplateFiles: %v", err)
+	}
+	ts := time.Date(2026, 7, 3, 11, 40, 13, 0, time.UTC)
+
+	for _, tc := range []struct {
+		lang, status, want string
+	}{
+		{"it", "firing", "[IN ALLARME][SystemDown] - Rossi Informatica Srl - srv-milano-01"},
+		{"it", "resolved", "[RISOLTO][SystemDown] - Rossi Informatica Srl - srv-milano-01"},
+		{"en", "firing", "[FIRING][SystemDown] - Rossi Informatica Srl - srv-milano-01"},
+		{"en", "resolved", "[RESOLVED][SystemDown] - Rossi Informatica Srl - srv-milano-01"},
+	} {
+		data := sampleData(tc.status, sampleAlert(ts, ts.Add(30*time.Minute)))
+		if got := renderBundle(t, files, "alert_"+tc.lang+".subject", false, data); got != tc.want {
+			t.Errorf("%s %s: got %q, want %q", tc.lang, tc.status, got, tc.want)
+		}
+	}
+
+	unnamed := sampleAlert(ts, ts.Add(30*time.Minute))
+	delete(unnamed.Labels, "system_name")
+	data := sampleData("firing", unnamed)
+	want := "[IN ALLARME][SystemDown] - Rossi Informatica Srl - a1b2c3d4"
+	if got := renderBundle(t, files, "alert_it.subject", false, data); got != want {
+		t.Errorf("unnamed system: got %q, want %q", got, want)
+	}
+}
+
 // TestTemplates_TimestampsUseConfiguredTimezone pins the rendered timestamp
 // format, including the DST-dependent zone abbreviation. The offset and the
 // abbreviation both come from tzdata, so this also fails if the timezone is
