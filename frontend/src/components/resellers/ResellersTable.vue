@@ -345,6 +345,8 @@ const goToResellerDetails = (reseller: Reseller) => {
             :label="t('sort.sort')"
             :options="[
               { id: 'name', label: t('organizations.name') },
+              { id: 'customers_count', label: t('customers.title') },
+              { id: 'systems_count', label: t('systems.total_systems') },
               ...(canSeeParentOfResellers()
                 ? [{ id: 'managed_by', label: t('organizations.parent_company') }]
                 : []),
@@ -398,8 +400,12 @@ const goToResellerDetails = (reseller: Reseller) => {
           $t('organizations.name')
         }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('organizations.vat_number') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('customers.title') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('systems.total_systems') }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="customers_count" @sort="onSort">{{
+          $t('customers.title')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="systems_count" @sort="onSort">{{
+          $t('systems.total_systems')
+        }}</NeTableHeadCell>
         <NeTableHeadCell
           v-if="canSeeParentOfResellers()"
           sortable

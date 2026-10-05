@@ -324,6 +324,7 @@ const goToCustomerDetails = (customer: Customer) => {
             :label="t('sort.sort')"
             :options="[
               { id: 'name', label: t('organizations.name') },
+              { id: 'systems_count', label: t('systems.title') },
               ...(canSeeParentOfCustomers()
                 ? [{ id: 'managed_by', label: t('organizations.parent_company') }]
                 : []),
@@ -375,7 +376,7 @@ const goToCustomerDetails = (customer: Customer) => {
           $t('organizations.name')
         }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('organizations.vat_number') }}</NeTableHeadCell>
-        <NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="systems_count" @sort="onSort">
           {{ $t('systems.title') }}
         </NeTableHeadCell>
         <NeTableHeadCell

@@ -245,12 +245,20 @@ var partnerSortFields = map[string]string{
 }
 
 // partnerOrderClause builds the ORDER BY of a reseller or customer list,
-// newest first when sortBy is empty or unknown. managed_by groups many rows
-// under one company, so they fall back to their name: with OFFSET paging an
-// unordered tie could repeat or skip a row across pages. The columns are bare
-// so the clause fits both the aliased and the plain queries.
-func partnerOrderClause(sortBy, sortDirection string) string {
+// newest first when sortBy is empty or unknown. counters maps the list's own
+// counter sort_by values to the subquery that computes them, so the sort works
+// whether or not the counter columns are selected. managed_by and the counters
+// group many rows under one value, so they fall back to the name: with OFFSET
+// paging an unordered tie could repeat or skip a row across pages. The columns
+// are bare so the clause fits both the aliased and the plain queries; only the
+// counter subqueries need the list alias.
+func partnerOrderClause(sortBy, sortDirection string, counters map[string]string) string {
 	column, valid := partnerSortFields[sortBy]
+	tieBreak := sortBy == "managed_by"
+	if !valid {
+		column, valid = counters[sortBy]
+		tieBreak = true
+	}
 	if !valid {
 		return "ORDER BY created_at DESC"
 	}
@@ -258,7 +266,7 @@ func partnerOrderClause(sortBy, sortDirection string) string {
 	if strings.ToUpper(sortDirection) == "DESC" {
 		direction = "DESC"
 	}
-	if sortBy == "managed_by" {
+	if tieBreak {
 		return fmt.Sprintf("ORDER BY %s %s, LOWER(name), id", column, direction)
 	}
 	return fmt.Sprintf("ORDER BY %s %s", column, direction)

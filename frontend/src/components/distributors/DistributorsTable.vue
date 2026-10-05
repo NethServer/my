@@ -310,6 +310,9 @@ const goToDistributorDetails = (distributor: Distributor) => {
             :label="t('sort.sort')"
             :options="[
               { id: 'name', label: t('organizations.name') },
+              { id: 'resellers_count', label: t('resellers.title') },
+              { id: 'customers_count', label: t('distributors.total_customers') },
+              { id: 'systems_count', label: t('systems.total_systems') },
               { id: 'suspended_at', label: t('common.status') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
@@ -358,13 +361,13 @@ const goToDistributorDetails = (distributor: Distributor) => {
           $t('organizations.name')
         }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('organizations.vat_number') }}</NeTableHeadCell>
-        <NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="resellers_count" @sort="onSort">
           {{ $t('resellers.title') }}
         </NeTableHeadCell>
-        <NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="customers_count" @sort="onSort">
           {{ $t('distributors.total_customers') }}
         </NeTableHeadCell>
-        <NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="systems_count" @sort="onSort">
           {{ $t('systems.total_systems') }}
         </NeTableHeadCell>
         <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{

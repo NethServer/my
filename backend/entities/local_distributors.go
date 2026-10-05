@@ -240,6 +240,69 @@ func (r *LocalDistributorRepository) Reactivate(id string) error {
 	return nil
 }
 
+// distributorSortFields maps the sort_by values of the distributor list to
+// their column.
+var distributorSortFields = map[string]string{
+	"name":         "LOWER(name)",
+	"description":  "LOWER(description)",
+	"created_at":   "created_at",
+	"updated_at":   "updated_at",
+	"suspended_at": "suspended_at",
+	"creator_name": "LOWER(custom_data->'createdByUser'->>'name')",
+}
+
+// distributorCustomers maps every customer to the distributor it counts
+// towards: its creator, or the creator of the reseller that created it. A
+// customer of a deleted reseller, or of the owner, resolves to no distributor.
+const distributorCustomers = `SELECT c.logto_id AS org_id, COALESCE(r.custom_data->>'createdBy', c.custom_data->>'createdBy') AS distributor_id
+	FROM customers c
+	LEFT JOIN resellers r ON r.logto_id = c.custom_data->>'createdBy' AND r.deleted_at IS NULL
+	WHERE c.deleted_at IS NULL AND c.logto_id IS NOT NULL`
+
+// distributorSubtree maps every organization of a distributor's subtree to the
+// distributor: itself, its resellers, and their customers. It is the subtree
+// populateDistributorCounts folds in Go.
+const distributorSubtree = `SELECT logto_id AS org_id, logto_id AS distributor_id FROM distributors WHERE logto_id IS NOT NULL
+	UNION ALL
+	SELECT logto_id, custom_data->>'createdBy' FROM resellers WHERE deleted_at IS NULL AND logto_id IS NOT NULL
+	UNION ALL
+	` + distributorCustomers
+
+// distributorCountSortFields maps the counter sort_by values of the
+// distributor list to a query yielding (distributor_id, n), the counter of
+// every distributor at once. populateDistributorCounts computes the counters
+// only for the page, after LIMIT, so sorting on one needs it in SQL; grouped
+// over the whole table rather than correlated per row, because a distributor's
+// subtree spans almost the whole database.
+var distributorCountSortFields = map[string]string{
+	"resellers_count": `SELECT custom_data->>'createdBy' AS distributor_id, COUNT(*) AS n
+		FROM resellers WHERE deleted_at IS NULL AND logto_id IS NOT NULL GROUP BY 1`,
+	"customers_count": `SELECT distributor_id, COUNT(*) AS n FROM (` + distributorCustomers + `) o GROUP BY 1`,
+	"systems_count": `SELECT o.distributor_id, COUNT(*) AS n
+		FROM systems s JOIN (` + distributorSubtree + `) o ON o.org_id = s.organization_id
+		WHERE s.deleted_at IS NULL GROUP BY 1`,
+}
+
+// distributorOrderClause builds the ORDER BY of the distributor list, newest
+// first when sortBy is empty or unknown, and the join it needs, empty unless
+// sorting on a counter. A distributor without any counted row has no row in
+// the join, hence the COALESCE. Counters group many distributors under one
+// value, so they fall back to the name to keep OFFSET paging stable.
+func distributorOrderClause(sortBy, sortDirection string) (join, order string) {
+	direction := "ASC"
+	if strings.ToUpper(sortDirection) == "DESC" {
+		direction = "DESC"
+	}
+	if column, valid := distributorSortFields[sortBy]; valid {
+		return "", fmt.Sprintf("ORDER BY %s %s", column, direction)
+	}
+	if counter, valid := distributorCountSortFields[sortBy]; valid {
+		join = fmt.Sprintf("\n\t\t\tLEFT JOIN (%s) sort_counter ON sort_counter.distributor_id = d.logto_id", counter)
+		return join, fmt.Sprintf("ORDER BY COALESCE(sort_counter.n, 0) %s, LOWER(name), id", direction)
+	}
+	return "", "ORDER BY created_at DESC"
+}
+
 // List returns paginated list of distributors visible to the user
 func (r *LocalDistributorRepository) List(ctx context.Context, userOrgRole, userOrgID string, page, pageSize int, search, sortBy, sortDirection string, statuses, createdBy []string, counts models.CountsMode) ([]*models.LocalDistributor, int, error) {
 	// Only Owner can see distributors
@@ -249,26 +312,7 @@ func (r *LocalDistributorRepository) List(ctx context.Context, userOrgRole, user
 
 	offset := (page - 1) * pageSize
 
-	// Validate and build sorting clause
-	orderClause := "ORDER BY created_at DESC" // default sorting
-	if sortBy != "" {
-		validSortFields := map[string]string{
-			"name":         "LOWER(name)",
-			"description":  "LOWER(description)",
-			"created_at":   "created_at",
-			"updated_at":   "updated_at",
-			"suspended_at": "suspended_at",
-			"creator_name": "LOWER(custom_data->'createdByUser'->>'name')",
-		}
-
-		if dbField, valid := validSortFields[sortBy]; valid {
-			direction := "ASC"
-			if strings.ToUpper(sortDirection) == "DESC" {
-				direction = "DESC"
-			}
-			orderClause = fmt.Sprintf("ORDER BY %s %s", dbField, direction)
-		}
-	}
+	sortJoin, orderClause := distributorOrderClause(sortBy, sortDirection)
 
 	// Build status filter clauses
 	hasDeletedFilter := false
@@ -312,11 +356,11 @@ func (r *LocalDistributorRepository) List(ctx context.Context, userOrgRole, user
 		query = fmt.Sprintf(`
 			SELECT d.id, d.logto_id, d.name, d.description, d.custom_data, d.third_party_apps, d.created_at, d.updated_at,
 			       d.logto_synced_at, d.logto_sync_error, d.deleted_at, d.suspended_at
-			FROM distributors d
+			FROM distributors d%s
 			WHERE 1=1%s%s AND (LOWER(d.name) LIKE LOWER('%%' || $1 || '%%') OR LOWER(d.description) LIKE LOWER('%%' || $1 || '%%') OR EXISTS (SELECT 1 FROM jsonb_each_text(d.custom_data) AS kv(key, value) WHERE kv.key NOT IN ('createdBy', 'createdByUser') AND LOWER(kv.value) LIKE LOWER('%%' || $1 || '%%')))
 			%s
 			LIMIT $2 OFFSET $3
-		`, deletedClause, statusClause, orderClause)
+		`, sortJoin, deletedClause, statusClause, orderClause)
 		queryArgs = []interface{}{search, pageSize, offset}
 	} else {
 		// Without search
@@ -326,11 +370,11 @@ func (r *LocalDistributorRepository) List(ctx context.Context, userOrgRole, user
 		query = fmt.Sprintf(`
 			SELECT d.id, d.logto_id, d.name, d.description, d.custom_data, d.third_party_apps, d.created_at, d.updated_at,
 			       d.logto_synced_at, d.logto_sync_error, d.deleted_at, d.suspended_at
-			FROM distributors d
+			FROM distributors d%s
 			WHERE 1=1%s%s
 			%s
 			LIMIT $1 OFFSET $2
-		`, deletedClause, statusClause, orderClause)
+		`, sortJoin, deletedClause, statusClause, orderClause)
 		queryArgs = []interface{}{pageSize, offset}
 	}
 
