@@ -154,6 +154,7 @@ function openNotificationsDrawer() {
                 rel="noreferrer"
                 :class="[topBarButtonClasses, 'items-center gap-3']"
               >
+                <span class="sr-only">{{ $t('shell.help') }}</span>
                 <FontAwesomeIcon
                   :icon="faCircleQuestion"
                   class="h-6 w-6 shrink-0"
