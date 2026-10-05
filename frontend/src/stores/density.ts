@@ -7,13 +7,11 @@ import { useLoginStore } from './login'
 import { getPreference, savePreference } from '@nethesis/vue-components'
 import { useStorage } from '@vueuse/core'
 
-export const DENSITIES = ['standard', 'compact', 'dense'] as const
-
-export type Density = (typeof DENSITIES)[number]
+type Density = 'standard' | 'compact'
 
 export const useDensityStore = defineStore('density', () => {
   const loginStore = useLoginStore()
-  const density = ref<Density>('standard')
+  const isCompact = ref(false)
 
   watch(
     () => loginStore.userInfo?.email,
@@ -26,7 +24,7 @@ export const useDensityStore = defineStore('density', () => {
   )
 
   function setDensity(newDensity: Density) {
-    density.value = newDensity
+    isCompact.value = newDensity === 'compact'
 
     // save preference
     const username = loginStore.userInfo?.email
@@ -35,18 +33,20 @@ export const useDensityStore = defineStore('density', () => {
       savePreference('density', newDensity, username)
     }
 
-    // standard density has no class: the css rules for the other densities override --spacing
-    for (const d of DENSITIES) {
-      document.documentElement.classList.toggle(d, d !== 'standard' && d === newDensity)
-    }
+    // standard density has no class: the css rule for compact density overrides --spacing
+    document.documentElement.classList.toggle('compact', isCompact.value)
+  }
+
+  function toggleDensity() {
+    setDensity(isCompact.value ? 'standard' : 'compact')
   }
 
   function loadDensity() {
     const lastUser = useStorage('lastUser', '')
     const username = loginStore.userInfo?.email || lastUser.value
     const saved = username ? getPreference('density', username) : null
-    setDensity(DENSITIES.includes(saved) ? saved : 'standard')
+    setDensity(saved === 'compact' ? 'compact' : 'standard')
   }
 
-  return { density, setDensity, loadDensity }
+  return { isCompact, setDensity, toggleDensity, loadDensity }
 })
