@@ -7,18 +7,22 @@
 import { NeDropdown, NeSkeleton, NeTooltip } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import { useThemeStore } from '@/stores/theme'
+import { DENSITIES, useDensityStore } from '@/stores/density'
 import { useLoginStore } from '@/stores/login'
 import {
   faBars,
   faBell,
+  faCheck,
   faChevronDown,
   faCircleQuestion,
   faCircleUser,
   faMoon,
   faArrowRightFromBracket,
   faSun,
+  faTableList,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import { useI18n } from 'vue-i18n'
 import { useNotificationsStore } from '@/stores/notifications'
 import router from '@/router'
@@ -32,6 +36,7 @@ const emit = defineEmits(['openSidebar'])
 
 const { t } = useI18n()
 const themeStore = useThemeStore()
+const densityStore = useDensityStore()
 const loginStore = useLoginStore()
 const notificationsStore = useNotificationsStore()
 const { state: impersonationConsentState } = useImpersonationConsent()
@@ -39,6 +44,21 @@ const { state: impersonationConsentState } = useImpersonationConsent()
 const topBarButtonClasses =
   'flex rounded-full p-2.5 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-50 transition-colors duration-(--duration-small)'
 const shakeNotificationsIcon = ref(false)
+
+// same size as faCheck but with no path, to keep the labels of the unselected densities aligned
+const blankIcon: IconDefinition = {
+  ...faCheck,
+  icon: [faCheck.icon[0], faCheck.icon[1], [], '', ''],
+}
+
+const densityMenuOptions = computed(() =>
+  DENSITIES.map((density) => ({
+    id: density,
+    label: t(`shell.density_${density}`),
+    icon: densityStore.density === density ? faCheck : blankIcon,
+    action: () => densityStore.setDensity(density),
+  })),
+)
 
 const accountMenuOptions = computed(() => {
   const ownOrganizationRoute = loginStore.ownOrganizationRoute
@@ -168,6 +188,34 @@ function openNotificationsDrawer() {
                   ? $t('shell.switch_to_dark_theme')
                   : $t('shell.switch_to_light_theme')
               }}
+            </template>
+          </NeTooltip>
+
+          <!-- density -->
+          <NeTooltip trigger-event="mouseenter focus" placement="bottom" class="flex">
+            <template #trigger>
+              <NeDropdown
+                :items="densityMenuOptions"
+                :align-to-right="true"
+                :open-menu-aria-label="$t('shell.choose_density')"
+                menu-classes="z-150!"
+                class="relative"
+              >
+                <template #button>
+                  <!-- a span, not a button: the dropdown already wraps this slot in its menu button,
+                  which also renders the accessible label -->
+                  <span :class="topBarButtonClasses">
+                    <FontAwesomeIcon
+                      :icon="faTableList"
+                      class="h-6 w-6 shrink-0"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </template>
+              </NeDropdown>
+            </template>
+            <template #content>
+              {{ $t('shell.density') }}
             </template>
           </NeTooltip>
 

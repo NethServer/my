@@ -79,6 +79,19 @@
     @apply h-full;
   }
 
+  /*
+    Compact and dense densities, chosen by the user from the top bar (e.g. for small screens with
+    OS scaling). Spacing utilities all derive from --spacing, so this tightens the whole UI while
+    font sizes stay the same
+  */
+  html.compact {
+    --spacing: 0.2rem;
+  }
+
+  html.dense {
+    --spacing: 0.18rem;
+  }
+
   body {
     @apply text-primary-neutral bg-elevation-1 h-full text-sm;
   }
