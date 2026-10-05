@@ -70,12 +70,7 @@ func ReceiveHeartbeat(c *gin.Context) {
 		return
 	}
 
-	// Minimal response for efficiency
-	resp := models.HeartbeatResponse{
-		SystemKey:     authSystemKey.(string),
-		Acknowledged:  true,
-		LastHeartbeat: now,
-	}
-
-	c.JSON(http.StatusOK, response.OK("heartbeat acknowledged", resp))
+	// No body: clients only check the status, and at fleet scale every byte
+	// of the reply is billed egress.
+	c.Status(http.StatusNoContent)
 }

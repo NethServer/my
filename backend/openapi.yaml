@@ -17488,35 +17488,8 @@ paths:
               required:
                 - system_key
       responses:
-        '200':
-          description: Heartbeat acknowledged
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "heartbeat acknowledged"
-                  data:
-                    type: object
-                    properties:
-                      system_key:
-                        type: string
-                        description: System KEY
-                        example: "NETH-4cf3053f-d0d5-4b10-b752-ff8f7b63c2f7"
-                      acknowledged:
-                        type: boolean
-                        description: Whether heartbeat was acknowledged
-                        example: true
-                      last_heartbeat:
-                        type: string
-                        format: date-time
-                        description: Timestamp of this heartbeat
-                        example: "2025-07-21T10:25:00Z"
+        '204':
+          description: Heartbeat recorded. No response body; clients should treat any 2xx as success.
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':

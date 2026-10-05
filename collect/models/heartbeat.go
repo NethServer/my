@@ -21,10 +21,3 @@ type SystemHeartbeat struct {
 type HeartbeatRequest struct {
 	SystemKey string `json:"system_key" binding:"required"`
 }
-
-// HeartbeatResponse represents the response payload for heartbeat endpoint
-type HeartbeatResponse struct {
-	SystemKey     string    `json:"system_key"`
-	Acknowledged  bool      `json:"acknowledged"`
-	LastHeartbeat time.Time `json:"last_heartbeat"`
-}

@@ -88,18 +88,11 @@ Content-Type: application/json
 
 ### Response
 
-**Success (HTTP 200):**
-```json
-{
-  "code": 200,
-  "message": "heartbeat acknowledged",
-  "data": {
-    "system_key": "NOC-80F8-89A4-40B0-4AE9-A670-7C5F-99B3-F3EA",
-    "acknowledged": true,
-    "last_heartbeat": "2025-11-07T10:37:27.360343+01:00"
-  }
-}
-```
+**Success (HTTP 204 No Content):** no response body.
+
+Check the status code only: any `2xx` means the heartbeat was recorded.
+Earlier versions answered `200` with a JSON body, so do not test for a
+specific `200` and do not parse the body.
 
 ### Frequency
 
