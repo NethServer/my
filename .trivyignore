@@ -44,5 +44,15 @@ CVE-2025-71330  # image-size: crafted ICNS buffer, docs build-time only
 GHSA-5p2g-fcmc-qvqq
 GHSA-w3rx-r6r6-pgpr
 
+# braces: DoS (stack exhaustion) on deeply nested brace patterns. Every
+# published version (<= 3.0.3, the latest) is affected and upstream has no fix.
+# Reached only through build/lint tooling with repo-authored patterns: in
+# frontend via eslint -> fast-glob -> micromatch (devDependency), in docs via
+# chokidar (dev server watcher) and micromatch (build-time globbing). Never
+# sees untrusted input and is absent from the built app and the static site.
+# Added 2026-10-06.
+CVE-2026-93687  # braces: nested-pattern stack exhaustion, tooling only
+GHSA-vfj7-8cjw-p6xm
+
 # Note: Review this file regularly and update as needed
 # Always verify that ignored CVEs are truly not applicable to your use case
