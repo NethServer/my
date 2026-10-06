@@ -53,6 +53,9 @@ function loadScript(language: string) {
     'data-color-scheme-selector': '.dark',
     'data-search-mode-enabled': 'true',
     'data-modal-z-index': '10000000',
+    // no floating launcher, it covers the row actions of the tables: the
+    // chat is opened from the help menu of the top bar (openKapaWidget)
+    'data-button-hide': 'true',
     // rendered by the composable, so it can be unmounted at logout
     'data-render-on-load': 'false',
   }
@@ -65,6 +68,12 @@ function loadScript(language: string) {
     script.setAttribute(name, value)
   }
   document.body.appendChild(script)
+}
+
+export const isKapaWidgetEnabled = () => !!KAPA_WEBSITE_ID
+
+export function openKapaWidget() {
+  window.Kapa?.('open')
 }
 
 export function useKapaWidget() {

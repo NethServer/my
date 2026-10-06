@@ -20,6 +20,7 @@ import {
   faMoon,
   faArrowRightFromBracket,
   faSun,
+  faWandMagicSparkles,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useI18n } from 'vue-i18n'
@@ -30,6 +31,7 @@ import UserAvatar from '../users/UserAvatar.vue'
 import ImpersonationBadge from './ImpersonationBadge.vue'
 import ImpersonationConsentBadge from './ImpersonationConsentBadge.vue'
 import { getOrganizationIcon } from '@/lib/organizations/organizations'
+import { isKapaWidgetEnabled, openKapaWidget } from '@/composables/useKapaWidget'
 
 const emit = defineEmits(['openSidebar'])
 
@@ -129,6 +131,28 @@ function openNotificationsDrawer() {
 
         <!-- icon controls -->
         <div class="-mr-2.5 flex items-center gap-x-1">
+          <!-- AI assistant (Kapa), only where the widget is enabled -->
+          <NeTooltip
+            v-if="isKapaWidgetEnabled()"
+            trigger-event="mouseenter focus"
+            placement="bottom"
+            class="flex"
+          >
+            <template #trigger>
+              <button type="button" :class="topBarButtonClasses" @click="openKapaWidget">
+                <span class="sr-only">{{ $t('shell.ask_ai') }}</span>
+                <FontAwesomeIcon
+                  :icon="faWandMagicSparkles"
+                  class="h-6 w-6 shrink-0"
+                  aria-hidden="true"
+                />
+              </button>
+            </template>
+            <template #content>
+              {{ $t('shell.ask_ai') }}
+            </template>
+          </NeTooltip>
+
           <!-- help -->
           <NeTooltip trigger-event="mouseenter focus" placement="bottom" class="flex">
             <template #trigger>
