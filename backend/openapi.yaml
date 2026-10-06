@@ -16443,6 +16443,9 @@ paths:
         3. **Status filter**: `?status=unassigned`
         4. **With pagination and sorting**: `?page=1&page_size=50&sort_by=instance_of&sort_direction=asc`
         5. **Combined filters**: `?type=mail&status=assigned&organization_id=org_abc123`
+        6. **Free-text search**: `?search=cti.acme.example.it` matches the application name, its type,
+           the system name and the FQDNs the application is published on (`inventory_data.fqdns`);
+           `%` and `_` in the term are matched literally
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'

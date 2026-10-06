@@ -40,6 +40,20 @@ const applicationOnLiveSystem = "EXISTS (SELECT 1 FROM systems s2 WHERE s2.id = 
 // user-facing applications the applications list shows.
 const certifiedApplication = "a.deleted_at IS NULL AND a.is_user_facing = TRUE AND (a.inventory_data->>'certification_level')::int IN (4, 5)"
 
+// applicationSearchCondition is the free-text search over "applications a"
+// joined with "systems s": module id, display name, type, system name and the
+// module FQDNs. Every ILIKE reads the same positional parameter, which the
+// caller binds to "%<escapeLikePattern(term)>%". The unnested FQDN gets an
+// explicit column alias: a bare alias named like a column of the joined
+// systems table (fqdn) resolves to that column instead and never matches.
+func applicationSearchCondition(param int) string {
+	p := fmt.Sprintf("$%d ESCAPE '\\'", param)
+	return fmt.Sprintf(
+		"a.module_id ILIKE %[1]s OR a.display_name ILIKE %[1]s OR a.instance_of ILIKE %[1]s OR s.name ILIKE %[1]s"+
+			" OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(a.inventory_data->'fqdns') = 'array' THEN a.inventory_data->'fqdns' END) AS module_fqdn(value) WHERE module_fqdn.value ILIKE %[1]s)",
+		p)
+}
+
 // assignedApplicationsCount builds the SQL expression counting the certified
 // applications assigned to the organizations selected by orgSet (any
 // expression valid inside IN (...): a column, a placeholder or a subquery).
@@ -218,12 +232,13 @@ func (r *LocalApplicationRepository) List(
 	// Certification level filter: only show applications with certification level 4 or 5
 	whereClause += " AND (a.inventory_data->>'certification_level')::int IN (4, 5)"
 
-	// Search condition
+	// Search condition: module id, display name, type, system name and the
+	// FQDNs the module publishes (inventory_data.fqdns, from the NS8
+	// inventory). The term is matched literally, so "%" and "_" in the input
+	// do not act as wildcards.
 	if search != "" {
-		searchPattern := "%" + search + "%"
-		whereClause += fmt.Sprintf(" AND (a.module_id ILIKE $%d OR a.display_name ILIKE $%d OR a.instance_of ILIKE $%d OR s.name ILIKE $%d)",
-			len(args)+1, len(args)+2, len(args)+3, len(args)+4)
-		args = append(args, searchPattern, searchPattern, searchPattern, searchPattern)
+		whereClause += fmt.Sprintf(" AND (%s)", applicationSearchCondition(len(args)+1))
+		args = append(args, "%"+escapeLikePattern(search)+"%")
 	}
 
 	// Filter by types (instance_of)

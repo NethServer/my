@@ -45,6 +45,15 @@ export const ApplicationSchema = v.object({
 
 export type Application = v.InferOutput<typeof ApplicationSchema>
 
+// FQDNs the module publishes, as reported by the NS8 inventory
+// (inventory_data.fqdns). Empty when the module has no HTTP route.
+export function getFqdns(application: Pick<Application, 'inventory_data'>): string[] {
+  const fqdns = application.inventory_data?.fqdns
+  return Array.isArray(fqdns)
+    ? fqdns.filter((fqdn): fqdn is string => typeof fqdn === 'string' && fqdn !== '')
+    : []
+}
+
 interface ApplicationsResponse {
   code: number
   message: string

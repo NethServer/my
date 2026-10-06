@@ -37,7 +37,8 @@ import { canSeeParentOfCustomers, isUserCustomer } from '@/lib/organizations/org
 import { APPLICATIONS_TABLE_ID } from '@/lib/applications/applications'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import { useApplications } from '@/queries/applications/applications'
-import { getDisplayName, type Application } from '@/lib/applications/applications'
+import { getDisplayName, getFqdns, type Application } from '@/lib/applications/applications'
+import ClickToCopy from '@/components/common/ClickToCopy.vue'
 import ApplicationLogo from './ApplicationLogo.vue'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import AssignOrganizationDrawer from './AssignOrganizationDrawer.vue'
@@ -310,7 +311,7 @@ const goToApplicationDetails = (application: Application) => {
         :aria-label="$t('applications.title')"
         card-breakpoint="2xl"
         :loading="state.status === 'pending'"
-        :skeleton-columns="5"
+        :skeleton-columns="6"
         :skeleton-rows="7"
       >
         <NeTableHead>
@@ -323,6 +324,7 @@ const goToApplicationDetails = (application: Application) => {
           <NeTableHeadCell sortable column-key="version" @sort="onSort">{{
             $t('applications.version')
           }}</NeTableHeadCell>
+          <NeTableHeadCell>{{ $t('applications.fqdn') }}</NeTableHeadCell>
           <NeTableHeadCell sortable column-key="system_name" @sort="onSort">{{
             $t('systems.system')
           }}</NeTableHeadCell>
@@ -354,6 +356,17 @@ const goToApplicationDetails = (application: Application) => {
             <NeTableCell :data-label="$t('applications.version')" class="wrap-anywhere">
               <div>
                 {{ item.version || '-' }}
+              </div>
+            </NeTableCell>
+            <NeTableCell :data-label="$t('applications.fqdn')" class="wrap-anywhere">
+              <div class="flex flex-col items-start space-y-0.5">
+                <ClickToCopy
+                  v-for="fqdn in getFqdns(item)"
+                  :key="fqdn"
+                  :text="fqdn"
+                  tooltip-placement="top"
+                />
+                <div v-if="!getFqdns(item).length">-</div>
               </div>
             </NeTableCell>
             <NeTableCell :data-label="$t('systems.system')">

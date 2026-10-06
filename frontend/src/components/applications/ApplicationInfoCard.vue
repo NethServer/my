@@ -19,7 +19,8 @@ import DataItem from '@/components/common/DataItem.vue'
 import NotesModal from '@/components/common/NotesModal.vue'
 import EnabledStatus from '@/components/common/EnabledStatus.vue'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
-import { getDisplayName } from '@/lib/applications/applications'
+import { getDisplayName, getFqdns } from '@/lib/applications/applications'
+import ClickToCopy from '@/components/common/ClickToCopy.vue'
 import ApplicationLogo from '@/components/applications/ApplicationLogo.vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -37,6 +38,10 @@ const isShownSetNotesDrawer = ref(false)
 const currentApplication = computed(() => applicationDetail.value.data)
 
 const rebrandingEnabled = computed(() => applicationDetail.value.data?.rebranding_enabled === true)
+
+const fqdns = computed(() =>
+  applicationDetail.value.data ? getFqdns(applicationDetail.value.data) : [],
+)
 
 function showAssignOrgDrawer() {
   isShownAssignOrgDrawer.value = true
@@ -116,6 +121,17 @@ function getKebabMenuItems() {
                   {{ t('application_detail.update_available') }}
                 </div>
               </NeBadgeV2>
+            </div>
+          </template>
+        </DataItem>
+        <DataItem>
+          <template #label>
+            {{ $t('applications.fqdn') }}
+          </template>
+          <template #data>
+            <div class="flex flex-col items-start space-y-0.5 wrap-anywhere">
+              <ClickToCopy v-for="fqdn in fqdns" :key="fqdn" :text="fqdn" tooltip-placement="top" />
+              <div v-if="!fqdns.length">-</div>
             </div>
           </template>
         </DataItem>

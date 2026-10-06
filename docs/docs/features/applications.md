@@ -18,6 +18,7 @@ Navigate to **Applications** to see the list of all applications visible to you.
 
 - Application type (e.g., NethVoice, NethSecurity, WebTop)
 - Version
+- FQDN: the public hostnames the application is published on, as reported by the inventory (empty when the application has no HTTP route)
 - Associated system
 - Organization
 
@@ -25,6 +26,7 @@ Navigate to **Applications** to see the list of all applications visible to you.
 
 Use the available filters to narrow down the application list:
 
+- **Search**: free text matched against the application name, its type, the system name and the application FQDNs, so you can find an instance by the hostname its users connect to
 - **Type**: Filter by application type (NethVoice, NethSecurity, WebTop, etc.)
 - **Version**: Filter by specific version
 - **System**: Filter by the system the application belongs to
@@ -36,6 +38,7 @@ Click on an application to view its detailed information:
 
 - **Type**: The kind of application (e.g., NethVoice, NethSecurity)
 - **Version**: The installed version
+- **FQDN**: The hostnames the application is published on, click one to copy it
 - **Associated System**: The system where the application is running
 - **Organization**: The organization the application belongs to
 

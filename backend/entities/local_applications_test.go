@@ -101,3 +101,38 @@ func TestListOwnerScopeRequiresLiveSystem(t *testing.T) {
 	assert.Equal(t, 0, total)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestListSearchMatchesModuleFQDNsLiterally(t *testing.T) {
+	repo, mock, cleanup := setupAppRepoMock(t)
+	defer cleanup()
+
+	// One escaped parameter feeds every ILIKE, including the one over the
+	// module FQDNs in inventory_data: "_" is a literal underscore, not a
+	// single-character wildcard.
+	mock.ExpectQuery(`OR s\.name ILIKE \$1 ESCAPE '\\' OR EXISTS \(SELECT 1 FROM jsonb_array_elements_text\(CASE WHEN jsonb_typeof\(a\.inventory_data->'fqdns'\) = 'array' THEN a\.inventory_data->'fqdns' END\) AS module_fqdn\(value\) WHERE module_fqdn\.value ILIKE \$1 ESCAPE '\\'\)\)`).
+		WithArgs(`%cti\_acme.example.it%`, 20, 0).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	apps, total, err := repo.List(context.Background(), nil, 1, 20, "cti_acme.example.it", "", "", nil, nil, nil, nil, nil, nil, true)
+	require.NoError(t, err)
+	assert.Empty(t, apps)
+	assert.Equal(t, 0, total)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestListSearchFollowsRBACSystemFilterPlaceholder(t *testing.T) {
+	repo, mock, cleanup := setupAppRepoMock(t)
+	defer cleanup()
+
+	// Non-owner: the allowed system ids take $1, so every search ILIKE
+	// (FQDN subquery included) must read $2.
+	mock.ExpectQuery(`a\.system_id = ANY\(\$1::text\[\]\).*a\.module_id ILIKE \$2 ESCAPE '\\'.*WHERE module_fqdn\.value ILIKE \$2 ESCAPE '\\'\)\)`).
+		WithArgs(sqlmock.AnyArg(), "%cti.acme%", 20, 0).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	apps, total, err := repo.List(context.Background(), []string{"sys-1"}, 1, 20, "cti.acme", "", "", nil, nil, nil, nil, nil, nil, true)
+	require.NoError(t, err)
+	assert.Empty(t, apps)
+	assert.Equal(t, 0, total)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
