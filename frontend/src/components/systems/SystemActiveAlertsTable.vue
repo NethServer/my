@@ -11,6 +11,7 @@ import {
   faComment,
   faEye,
   faMagnifyingGlass,
+  faMessage,
   faUserCheck,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -30,6 +31,7 @@ import {
   NeTableHead,
   NeTableHeadCell,
   NeTableRow,
+  NeTooltip,
   type NeDropdownFilterV2Option,
   type NeDropdownItem,
   type SortEvent,
@@ -69,6 +71,7 @@ import AddAlertNoteDrawer from '@/components/alerts/AddAlertNoteDrawer.vue'
 import TakeOverAlertModal from '@/components/alerts/TakeOverAlertModal.vue'
 import AlertAssignee from '@/components/alerts/AlertAssignee.vue'
 import AssigneeDropdownFilter from '@/components/alerts/AssigneeDropdownFilter.vue'
+import CommentsDropdownFilter from '@/components/alerts/CommentsDropdownFilter.vue'
 import ProcessingAlertBadge from '@/components/alerts/ProcessingAlertBadge.vue'
 import { useRoute } from 'vue-router'
 import { useLoginStore } from '@/stores/login'
@@ -92,6 +95,7 @@ const {
   alertnameFilters: alertsAlertNameFilters,
   statusFilters: alertsStatusFilters,
   assigneeFilters: alertsAssigneeFilters,
+  commentsFilters: alertsCommentsFilters,
   areDefaultFiltersApplied: alertsAreDefaultFiltersApplied,
   clearFilters: alertsClearFilters,
   clearStatusFilter: alertsResetStatusFilter,
@@ -402,6 +406,11 @@ function onMuteDrawerClose(): void {
           @custom-action="alertsResetStatusFilter"
           @update:model-value="() => (alertsPageNum = 1)"
         />
+        <!-- Comments filter -->
+        <CommentsDropdownFilter
+          v-model="alertsCommentsFilters"
+          @update:model-value="() => (alertsPageNum = 1)"
+        />
         <!-- Assignee filter -->
         <AssigneeDropdownFilter
           v-model="alertsAssigneeFilters"
@@ -503,23 +512,46 @@ function onMuteDrawerClose(): void {
           <NeTableCell :data-label="$t('alerts.alertname')">
             <div class="flex items-start gap-2">
               <div>
-                <span
-                  class="cursor-pointer font-medium hover:underline"
-                  @click="() => showDetails(alert)"
-                  >{{ alert.labels?.alertname || '-' }}</span
-                >
+                <div class="flex flex-wrap items-center gap-2">
+                  <span
+                    class="cursor-pointer font-medium hover:underline"
+                    @click="() => showDetails(alert)"
+                    >{{ alert.labels?.alertname || '-' }}</span
+                  >
+                  <ProcessingAlertBadge v-if="isProcessing(alert)" size="xs" />
+                  <NeBadgeV2 v-else-if="isAlertSilenced(alert)" kind="gray" size="xs">
+                    <FontAwesomeIcon :icon="faBellSlash" class="size-4" aria-hidden="true" />
+                    {{ t('alerts.muted') }}
+                  </NeBadgeV2>
+                </div>
                 <p
                   v-if="getAlertSummary(alert, locale)"
-                  class="mt-0.5 text-sm break-all text-gray-500 dark:text-gray-400"
+                  class="mt-0.5 max-w-xs text-sm wrap-anywhere text-gray-500 dark:text-gray-400"
                 >
                   {{ getAlertSummary(alert, locale) }}
                 </p>
               </div>
-              <ProcessingAlertBadge v-if="isProcessing(alert)" />
-              <NeBadgeV2 v-else-if="isAlertSilenced(alert)" kind="gray">
-                <FontAwesomeIcon :icon="faBellSlash" class="size-4" aria-hidden="true" />
-                {{ t('alerts.muted') }}
-              </NeBadgeV2>
+              <!-- opens the details drawer, whose timeline lists the comments -->
+              <NeTooltip
+                v-if="alert.has_notes"
+                trigger-event="mouseenter focus"
+                placement="top"
+                class="mt-0.5 ml-auto flex shrink-0"
+              >
+                <template #trigger>
+                  <button
+                    type="button"
+                    class="flex cursor-pointer text-indigo-800 transition-colors duration-(--duration-small) hover:text-indigo-950 dark:text-indigo-300 dark:hover:text-indigo-200"
+                    @click="() => showDetails(alert)"
+                  >
+                    <FontAwesomeIcon :icon="faMessage" class="size-4" aria-hidden="true" />
+                    <span class="sr-only">{{ t('alerts.show_comments') }}</span>
+                  </button>
+                </template>
+                <template #content>
+                  {{ t('alerts.has_comments') }}
+                </template>
+              </NeTooltip>
             </div>
           </NeTableCell>
           <!-- Started at -->

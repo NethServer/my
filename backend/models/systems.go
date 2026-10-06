@@ -13,6 +13,8 @@ type Organization struct {
 	LogtoID string `json:"logto_id" structs:"logto_id"` // Logto organization ID
 	Name    string `json:"name" structs:"name"`
 	Type    string `json:"type" structs:"type"` // owner, distributor, reseller, customer
+	// Parent is the company this organization sits directly under
+	Parent *ParentOrganization `json:"parent,omitempty" structs:"-"`
 }
 
 // SystemCreator represents the user who created the system. The user identity
@@ -116,14 +118,15 @@ type System struct {
 // separately and can never be widened from here. Multiple values of the same
 // filter match any of them (OR), different filters are ANDed.
 type SystemListFilters struct {
-	Name            string   // substring match on the system name
-	SystemKeys      []string // exact system keys
-	Types           []string // product: nsec, ns8, …
-	CreatedBy       []string // user id or organization id of the creator
-	Versions        []string // "product:version", or a bare version
-	OrganizationIDs []string // owning organization (logto id)
-	Statuses        []string // unified status, including suspended/no_inventory
-	Addons          []string // catalog ids of add-ons the system must hold
+	Name                  string   // substring match on the system name
+	SystemKeys            []string // exact system keys
+	Types                 []string // product: nsec, ns8, …
+	CreatedBy             []string // user id or organization id of the creator
+	Versions              []string // "product:version", or a bare version
+	OrganizationIDs       []string // owning organization (logto id)
+	ParentOrganizationIDs []string // "Managed by": owning organization within these subtrees
+	Statuses              []string // unified status, including suspended/no_inventory
+	Addons                []string // catalog ids of add-ons the system must hold
 }
 
 // IsSuspended returns true if the system is suspended

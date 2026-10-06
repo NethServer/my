@@ -33,7 +33,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage, PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import { canManageApplications } from '@/lib/permissions'
-import { isUserCustomer } from '@/lib/organizations/organizations'
+import { canSeeParentOfCustomers, isUserCustomer } from '@/lib/organizations/organizations'
 import { APPLICATIONS_TABLE_ID } from '@/lib/applications/applications'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import { useApplications } from '@/queries/applications/applications'
@@ -62,7 +62,7 @@ const {
   versionFilter,
   systemFilter,
   organizationFilter,
-  includeHierarchy,
+  parentOrganizationFilter,
   sortBy,
   sortDescending,
   clearFilters,
@@ -117,7 +117,8 @@ const isFiltered = computed(() => {
     !!typeFilter.value.length ||
     !!versionFilter.value.length ||
     !!systemFilter.value.length ||
-    !!organizationFilter.value.length
+    !!organizationFilter.value.length ||
+    !!parentOrganizationFilter.value.length
   )
 })
 
@@ -200,18 +201,6 @@ const goToApplicationDetails = (application: Application) => {
       :description="state.error.message"
       class="mb-6"
     />
-    <!-- company hierarchy filter notification -->
-    <NeInlineNotification
-      v-if="includeHierarchy && organizationFilter.length === 1"
-      kind="info"
-      :title="$t('applications.hierarchy_filter_title')"
-      :description="
-        $t('applications.hierarchy_filter_description', { name: organizationFilter[0].label })
-      "
-      :secondary-button-label="$t('applications.hierarchy_filter_exact')"
-      class="mb-6"
-      @secondary-click="includeHierarchy = false"
-    />
     <!-- empty state -->
     <NeEmptyState
       v-if="isNoDataEmptyStateShown"
@@ -267,6 +256,14 @@ const goToApplicationDetails = (application: Application) => {
               v-if="!isUserCustomer()"
               v-model="organizationFilter"
               show-no-company-option
+              :label="t('applications.assigned_company')"
+            />
+            <!-- Managed by filter: the subtree the application's company sits in -->
+            <OrganizationDropdownFilter
+              v-if="canSeeParentOfCustomers()"
+              v-model="parentOrganizationFilter"
+              :organization-types="['distributor', 'reseller']"
+              :label="t('organizations.parent_company')"
             />
             <!-- sort dropdown -->
             <NeSortDropdown
@@ -278,7 +275,7 @@ const goToApplicationDetails = (application: Application) => {
                 { id: 'instance_of', label: t('applications.type') },
                 { id: 'version', label: t('applications.version') },
                 { id: 'system_name', label: t('systems.system') },
-                { id: 'organization_name', label: t('organizations.organization') },
+                { id: 'organization_name', label: t('applications.assigned_company') },
               ]"
               :open-menu-aria-label="t('ne_dropdown.open_menu')"
               :sort-by-label="t('sort.sort_by')"
@@ -330,7 +327,7 @@ const goToApplicationDetails = (application: Application) => {
             $t('systems.system')
           }}</NeTableHeadCell>
           <NeTableHeadCell sortable column-key="organization_name" @sort="onSort">{{
-            $t('organizations.organization')
+            $t('applications.assigned_company')
           }}</NeTableHeadCell>
           <NeTableHeadCell>
             <!-- no header for actions -->
@@ -354,10 +351,7 @@ const goToApplicationDetails = (application: Application) => {
                 </span>
               </div>
             </NeTableCell>
-            <NeTableCell
-              :data-label="$t('applications.version')"
-              class="break-all 2xl:break-normal"
-            >
+            <NeTableCell :data-label="$t('applications.version')" class="wrap-anywhere">
               <div>
                 {{ item.version || '-' }}
               </div>
@@ -369,7 +363,7 @@ const goToApplicationDetails = (application: Application) => {
                 system-type="ns8"
               />
             </NeTableCell>
-            <NeTableCell :data-label="$t('organizations.organization')">
+            <NeTableCell :data-label="$t('applications.assigned_company')">
               <OrganizationIconAndLink v-if="item.organization" :organization="item.organization" />
               <span v-else>-</span>
             </NeTableCell>

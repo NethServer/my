@@ -560,15 +560,28 @@ func GetAlerts(c *gin.Context) {
 	all, warnings := fanOutMimirAlerts(c.Request.Context(), tenants)
 	all = filterByOrgScope(all, orgIDs)
 
+	silenced, ok := parseOptionalBoolQuery(c, "silenced")
+	if !ok {
+		return
+	}
+	hasNotes, ok := parseOptionalBoolQuery(c, "has_notes")
+	if !ok {
+		return
+	}
+
 	// Filtering or sorting by assignee, or a free-text search (which matches
 	// the assignee's name), needs the whole (org-scoped) list decorated before
-	// pagination — still a single batch DB query. Otherwise keep the cheaper
-	// page-only decoration below.
+	// pagination — still a single batch DB query. Same for the has_notes
+	// filter. Otherwise keep the cheaper page-only decoration below.
 	assignedUserIDs := c.QueryArray("assigned_user_id")
 	search := c.Query("search")
 	needAssignmentsUpfront := len(assignedUserIDs) > 0 || sortBy == "assigned_user_name" || strings.TrimSpace(search) != ""
 	if needAssignmentsUpfront {
 		attachAlertAssignments(all)
+	}
+	needNotesUpfront := hasNotes != nil
+	if needNotesUpfront {
+		attachAlertNotes(all)
 	}
 
 	all = filterAlerts(all, alertFilter{
@@ -578,6 +591,8 @@ func GetAlerts(c *gin.Context) {
 		alertnames:      c.QueryArray("alertname"),
 		search:          search,
 		assignedUserIDs: assignedUserIDs,
+		silenced:        silenced,
+		hasNotes:        hasNotes,
 	})
 
 	// Sort with fingerprint as a stable tiebreaker so pagination doesn't
@@ -599,6 +614,9 @@ func GetAlerts(c *gin.Context) {
 	}
 	if !needAssignmentsUpfront {
 		attachAlertAssignments(pageAlerts)
+	}
+	if !needNotesUpfront {
+		attachAlertNotes(pageAlerts)
 	}
 
 	if warnings == nil {
@@ -965,6 +983,7 @@ func attachAlertAssignments(alerts []map[string]interface{}) {
 				"user_name":     a.AssignedUserName,
 				"user_org_id":   a.AssignedUserOrgID,
 				"user_org_name": a.AssignedUserOrgName,
+				"user_org_type": a.AssignedUserOrgType,
 				"assigned_at":   a.AssignedAt,
 			}
 		}
@@ -982,6 +1001,83 @@ func assigneeOf(alert map[string]interface{}) (string, string) {
 	uid, _ := a["user_id"].(string)
 	name, _ := a["user_name"].(string)
 	return uid, name
+}
+
+// attachAlertNotes decorates Mimir alerts with `has_notes`: true when the
+// alert's timeline holds at least one operator-written text (standalone note,
+// note taken with an assignment, or a silence comment other than the
+// placeholder used for empty comments). The timeline is keyed by fingerprint,
+// so earlier firings of the same alert count, as they do in the drawer.
+// Single batch query; best-effort like attachAlertAssignments: on DB failure
+// every alert renders as without notes.
+func attachAlertNotes(alerts []map[string]interface{}) {
+	if len(alerts) == 0 {
+		return
+	}
+	orgIDs := make([]string, 0, len(alerts))
+	fingerprints := make([]string, 0, len(alerts))
+	for _, alert := range alerts {
+		alert["has_notes"] = false
+		labels, _ := alert["labels"].(map[string]interface{})
+		org, _ := labels["organization_id"].(string)
+		fp, _ := alert["fingerprint"].(string)
+		if org == "" || fp == "" {
+			continue
+		}
+		orgIDs = append(orgIDs, org)
+		fingerprints = append(fingerprints, fp)
+	}
+
+	repo := entities.NewLocalAlertActivityRepository()
+	withNotes, err := repo.WithNotesByFingerprints(orgIDs, fingerprints, defaultSystemAlertSilenceComment)
+	if err != nil {
+		logger.Warn().Err(err).Msg("failed to load alert notes for list (non-fatal)")
+		return
+	}
+	for _, alert := range alerts {
+		labels, _ := alert["labels"].(map[string]interface{})
+		org, _ := labels["organization_id"].(string)
+		fp, _ := alert["fingerprint"].(string)
+		if withNotes[entities.AssignmentKey(org, fp)] {
+			alert["has_notes"] = true
+		}
+	}
+}
+
+// isSilenced reports whether at least one silence mutes the alert, from the
+// Alertmanager status.silencedBy list (empty ids ignored). Unlike
+// status.state == "suppressed" it excludes alerts that are only inhibited.
+func isSilenced(alert map[string]interface{}) bool {
+	status, _ := alert["status"].(map[string]interface{})
+	ids, _ := status["silencedBy"].([]interface{})
+	for _, id := range ids {
+		if s, _ := id.(string); s != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// parseOptionalBoolQuery reads an optional true|false query param. Returns
+// (nil, true) when absent; on any other value it writes a validation error and
+// returns (nil, false) — a filter silently ignored would widen the result.
+func parseOptionalBoolQuery(c *gin.Context, key string) (*bool, bool) {
+	raw, present := c.GetQuery(key)
+	if !present {
+		return nil, true
+	}
+	switch raw {
+	case "true":
+		v := true
+		return &v, true
+	case "false":
+		v := false
+		return &v, true
+	}
+	c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+		{Key: key, Message: "invalid_format", Value: raw},
+	}))
+	return nil, false
 }
 
 // fanOutMimirAlerts fetches active alerts from Mimir for every tenant in scope
@@ -1255,10 +1351,16 @@ type alertFilter struct {
 	// system name/key/fqdn, the company name and the assignee's name; the
 	// last one needs the list decorated by attachAlertAssignments first.
 	search string
-	// assignedUserIDs matches on the assignee's user_id; the literal value
-	// "none" matches unassigned alerts. Requires attachAlertAssignments to
-	// have decorated the list first.
+	// assignedUserIDs matches on the assignee's user_id; the literal values
+	// "none" and "any" match unassigned alerts and alerts assigned to anyone.
+	// Requires attachAlertAssignments to have decorated the list first.
 	assignedUserIDs []string
+	// silenced, when set, keeps only alerts muted (true) or not (false) by at
+	// least one silence. Inhibited alerts are not silenced.
+	silenced *bool
+	// hasNotes, when set, keeps only alerts with (true) or without (false)
+	// operator-written text in their timeline. Requires attachAlertNotes.
+	hasNotes *bool
 }
 
 // filterAlerts applies optional multi-value query filters to the alerts list.
@@ -1267,7 +1369,8 @@ type alertFilter struct {
 // of unrelated alerts when the caller narrows the query.
 func filterAlerts(alerts []map[string]interface{}, f alertFilter) []map[string]interface{} {
 	search := strings.ToLower(strings.TrimSpace(f.search))
-	if len(f.statuses) == 0 && len(f.severities) == 0 && len(f.systemKeys) == 0 && len(f.alertnames) == 0 && search == "" && len(f.assignedUserIDs) == 0 {
+	if len(f.statuses) == 0 && len(f.severities) == 0 && len(f.systemKeys) == 0 && len(f.alertnames) == 0 && search == "" && len(f.assignedUserIDs) == 0 &&
+		f.silenced == nil && f.hasNotes == nil {
 		return alerts
 	}
 
@@ -1313,11 +1416,22 @@ func filterAlerts(alerts []map[string]interface{}, f alertFilter) []map[string]i
 
 		if len(f.assignedUserIDs) > 0 {
 			uid, _ := assigneeOf(alert)
-			want := uid
-			if uid == "" {
-				want = "none"
+			matches := slices.Contains(f.assignedUserIDs, "none")
+			if uid != "" {
+				matches = slices.Contains(f.assignedUserIDs, "any") || slices.Contains(f.assignedUserIDs, uid)
 			}
-			if !slices.Contains(f.assignedUserIDs, want) {
+			if !matches {
+				continue
+			}
+		}
+
+		if f.silenced != nil && isSilenced(alert) != *f.silenced {
+			continue
+		}
+
+		if f.hasNotes != nil {
+			has, _ := alert["has_notes"].(bool)
+			if has != *f.hasNotes {
 				continue
 			}
 		}
@@ -1370,15 +1484,30 @@ func systemActivityOrgID(system *models.System) string {
 }
 
 func getSystemAlertOrgID(system *models.System) string {
-	orgID := systemActivityOrgID(system)
-	// The Mimir tenant is the managing reseller, not the customer org: systems
-	// of many customers share one reseller tenant. Fall back to the owning org
-	// on resolution failure so a transient DB error never breaks the alert path.
+	return alertTenantForOrg(systemActivityOrgID(system))
+}
+
+// alertTenantForOrg maps an organization to its Mimir tenant: the managing
+// reseller, not the customer org, since systems of many customers share one
+// reseller tenant. Falls back to the org itself on resolution failure so a
+// transient DB error never breaks the alert path.
+func alertTenantForOrg(orgID string) string {
 	tenant, err := alerting.TenantForOrg(orgID)
 	if err != nil || tenant == "" {
 		return orgID
 	}
 	return tenant
+}
+
+// belongsToOrg reports whether an alert or silence attributed to ownerOrg
+// (its organization_id label/matcher) belongs to orgID. In the shared reseller
+// tenant this is the isolation boundary between sibling customers. An empty
+// owner is attributed to the tenant itself, as GET /alerts/silences does.
+func belongsToOrg(ownerOrg, orgID, tenant string) bool {
+	if ownerOrg == "" {
+		return orgID == tenant
+	}
+	return ownerOrg == orgID
 }
 
 // distinctTenants maps each authorized customer/org id to its Mimir tenant
@@ -1584,6 +1713,8 @@ func silenceBelongsToSystem(silence *models.AlertmanagerSilence, systemKey strin
 //   - severity, alertname, status (multi-value, OR within, AND across)
 //   - search (free text across alert type, summary/description, service,
 //     system, company and assignee)
+//   - assigned_user_id (multi-value, "none" = unassigned, "any" = assigned)
+//   - silenced, has_notes (true | false)
 //   - page, page_size (default 50, cap 100)
 //   - sort_by (starts_at | severity | alertname | status), default starts_at
 //   - sort_direction (asc | desc), default desc
@@ -1645,9 +1776,19 @@ func GetSystemAlerts(c *gin.Context) {
 		}
 	}
 
+	silenced, ok := parseOptionalBoolQuery(c, "silenced")
+	if !ok {
+		return
+	}
+	hasNotes, ok := parseOptionalBoolQuery(c, "has_notes")
+	if !ok {
+		return
+	}
+
 	// One system's alerts are few: decorate the whole scoped list upfront so
-	// the assignee filter/sort below work without a second pass.
+	// the assignee/notes filters and sort below work without a second pass.
 	attachAlertAssignments(scoped)
+	attachAlertNotes(scoped)
 
 	filtered := filterAlerts(scoped, alertFilter{
 		statuses:        c.QueryArray("status"),
@@ -1655,6 +1796,8 @@ func GetSystemAlerts(c *gin.Context) {
 		alertnames:      c.QueryArray("alertname"),
 		search:          c.Query("search"),
 		assignedUserIDs: c.QueryArray("assigned_user_id"),
+		silenced:        silenced,
+		hasNotes:        hasNotes,
 		// systemKeys intentionally omitted: the URL path is the source of truth.
 	})
 
@@ -2073,16 +2216,41 @@ func orgIDFromSilence(s *models.AlertmanagerSilence) string {
 	return ""
 }
 
+// getOrgAlertSilence fetches a silence for the single-silence endpoints
+// (GET/PUT/DELETE /api/alerts/silences/:silence_id). orgID is the silence's
+// owning organization, as GET /alerts/silences returns it: the silence is read
+// from that org's Mimir tenant and must carry orgID in its organization_id
+// matcher, otherwise it is reported as not found (a sibling customer's silence
+// in the shared reseller tenant). Returns the tenant for the follow-up write.
+// On failure the response is already written and the caller must just return.
+func getOrgAlertSilence(c *gin.Context, orgID, silenceID string) (*models.AlertmanagerSilence, string, bool) {
+	tenant := alertTenantForOrg(orgID)
+	silence, err := alerting.GetSilence(tenant, silenceID)
+	if errors.Is(err, alerting.ErrSilenceNotFound) || (err == nil && !belongsToOrg(orgIDFromSilence(silence), orgID, tenant)) {
+		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
+		return nil, "", false
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch silence from mimir: "+err.Error(), nil))
+		return nil, "", false
+	}
+	return silence, tenant, true
+}
+
 // resolveAlertSilenceContext looks up an active alert by fingerprint inside
 // a single tenant's Mimir and returns the alert plus the `system_key` label
 // the cross-system silence handler needs to attach as a matcher. Used by
 // POST /api/alerts/silences; not used by the per-system silence handlers
 // (those already know the system_key from the URL path).
 //
+// orgID is the alert's owning organization; the lookup runs in its tenant and
+// only matches alerts whose organization_id label is orgID, so a sibling
+// customer's alert in the same reseller tenant is never addressable.
+//
 // Returns (alert, systemKey, true) on success. On any failure the response
 // is already written and the caller must just return.
-func resolveAlertSilenceContext(c *gin.Context, orgID, fingerprint string) (*models.ActiveAlert, string, bool) {
-	body, err := alerting.GetAlerts(orgID)
+func resolveAlertSilenceContext(c *gin.Context, orgID, tenant, fingerprint string) (*models.ActiveAlert, string, bool) {
+	body, err := alerting.GetAlerts(tenant)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch alerts from mimir: "+err.Error(), nil))
 		return nil, "", false
@@ -2093,7 +2261,7 @@ func resolveAlertSilenceContext(c *gin.Context, orgID, fingerprint string) (*mod
 		return nil, "", false
 	}
 	for i := range alerts {
-		if alerts[i].Fingerprint != fingerprint {
+		if alerts[i].Fingerprint != fingerprint || !belongsToOrg(alerts[i].Labels["organization_id"], orgID, tenant) {
 			continue
 		}
 		systemKey := alerts[i].Labels["system_key"]
@@ -2109,8 +2277,9 @@ func resolveAlertSilenceContext(c *gin.Context, orgID, fingerprint string) (*mod
 
 // CreateAlertSilence handles POST /api/alerts/silences
 // Cross-system mute: body is { fingerprint, end_at, comment, duration_minutes? }.
-// The tenant comes from ?organization_id= (mandatory for non-Owner) and the
-// system_key matcher is resolved from the alert's labels in Mimir. The actual
+// ?organization_id= (mandatory for non-Owner) is the alert's owning
+// organization; the Mimir tenant is derived from it and the system_key
+// matcher is resolved from the alert's labels. The actual
 // silence creation reuses the same buildSystemAlertSilenceRequest +
 // alerting.CreateSilence path used by the per-system endpoint, so the silence
 // object stored in Mimir is byte-identical regardless of which route created it.
@@ -2143,7 +2312,8 @@ func CreateAlertSilence(c *gin.Context) {
 		return
 	}
 
-	alert, systemKey, ok := resolveAlertSilenceContext(c, orgID, req.Fingerprint)
+	tenant := alertTenantForOrg(orgID)
+	alert, systemKey, ok := resolveAlertSilenceContext(c, orgID, tenant, req.Fingerprint)
 	if !ok {
 		return
 	}
@@ -2168,7 +2338,7 @@ func CreateAlertSilence(c *gin.Context) {
 		endsAt,
 	)
 
-	silenceResp, err := alerting.CreateSilence(orgID, silenceReq)
+	silenceResp, err := alerting.CreateSilence(tenant, silenceReq)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to create silence in mimir: "+err.Error(), nil))
 		return
@@ -2312,8 +2482,8 @@ func GetAlertSilences(c *gin.Context) {
 }
 
 // GetAlertSilence handles GET /api/alerts/silences/:silence_id
-// Single-silence read across the caller's scope. The tenant is resolved from
-// ?organization_id= (mandatory for non-Owner). Refuses to return silences
+// Single-silence read across the caller's scope. ?organization_id= (mandatory
+// for non-Owner) is the silence's owning organization; see getOrgAlertSilence. Refuses to return silences
 // that aren't system-scoped (no `system_key` matcher) — those don't belong to
 // our domain and a generic 404 keeps the surface tight.
 func GetAlertSilence(c *gin.Context) {
@@ -2334,13 +2504,8 @@ func GetAlertSilence(c *gin.Context) {
 		return
 	}
 
-	silence, err := alerting.GetSilence(orgID, silenceID)
-	if errors.Is(err, alerting.ErrSilenceNotFound) {
-		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
-		return
-	}
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch silence from mimir: "+err.Error(), nil))
+	silence, _, ok := getOrgAlertSilence(c, orgID, silenceID)
+	if !ok {
 		return
 	}
 	systemKey := systemKeyFromSilence(silence)
@@ -2396,13 +2561,8 @@ func UpdateAlertSilence(c *gin.Context) {
 		return
 	}
 
-	existing, err := alerting.GetSilence(orgID, silenceID)
-	if errors.Is(err, alerting.ErrSilenceNotFound) {
-		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
-		return
-	}
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch silence from mimir: "+err.Error(), nil))
+	existing, tenant, ok := getOrgAlertSilence(c, orgID, silenceID)
+	if !ok {
 		return
 	}
 	if systemKeyFromSilence(existing) == "" {
@@ -2419,7 +2579,7 @@ func UpdateAlertSilence(c *gin.Context) {
 		CreatedBy: existing.CreatedBy,
 	}
 
-	silenceResp, err := alerting.CreateSilence(orgID, updateReq)
+	silenceResp, err := alerting.CreateSilence(tenant, updateReq)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to update silence in mimir: "+err.Error(), nil))
 		return
@@ -2460,13 +2620,8 @@ func DeleteAlertSilence(c *gin.Context) {
 		return
 	}
 
-	silence, err := alerting.GetSilence(orgID, silenceID)
-	if errors.Is(err, alerting.ErrSilenceNotFound) {
-		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
-		return
-	}
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to fetch silence from mimir: "+err.Error(), nil))
+	silence, tenant, ok := getOrgAlertSilence(c, orgID, silenceID)
+	if !ok {
 		return
 	}
 	if systemKeyFromSilence(silence) == "" {
@@ -2474,7 +2629,7 @@ func DeleteAlertSilence(c *gin.Context) {
 		return
 	}
 
-	if err := alerting.DeleteSilence(orgID, silenceID); errors.Is(err, alerting.ErrSilenceNotFound) {
+	if err := alerting.DeleteSilence(tenant, silenceID); errors.Is(err, alerting.ErrSilenceNotFound) {
 		c.JSON(http.StatusNotFound, response.NotFound("silence not found", nil))
 		return
 	} else if err != nil {

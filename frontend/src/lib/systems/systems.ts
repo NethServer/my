@@ -6,6 +6,7 @@ import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 import { downloadFile, exportFileName, type Pagination } from '../common'
+import { ParentOrganizationSchema } from '@/lib/organizations/organizations'
 import Ns8Logo from '@/assets/system_logos/nethserver.svg'
 import NsecLogo from '@/assets/system_logos/nethsecurity.svg'
 
@@ -65,6 +66,7 @@ export const SystemSchema = v.object({
     logto_id: v.string(),
     name: v.string(),
     type: v.string(),
+    parent: v.optional(ParentOrganizationSchema),
   }),
   created_by: v.object({
     user_id: v.string(),
@@ -88,6 +90,9 @@ export const SystemSchema = v.object({
 export type CreateSystem = v.InferOutput<typeof CreateSystemSchema>
 export type EditSystem = v.InferOutput<typeof EditSystemSchema>
 export type System = v.InferOutput<typeof SystemSchema>
+// organization_name: the assigned company; managed_by: the company getManagedBy
+// returns for it
+export type SystemSortBy = keyof System | 'organization_name' | 'managed_by'
 export type SystemStatus = v.InferOutput<typeof SystemStatusSchema>
 
 interface SystemsResponse {
@@ -137,9 +142,9 @@ export const getQueryStringParams = (
   statusFilter: SystemStatus[],
   organizationFilter: string[],
   addonFilter: string[],
-  includeHierarchy: boolean,
   sortBy: string | null,
   sortDescending: boolean,
+  parentOrganizationFilter: string[] = [],
 ) => {
   const searchParams = new URLSearchParams({
     page: pageNum.toString(),
@@ -172,13 +177,14 @@ export const getQueryStringParams = (
     searchParams.append('organization_id', orgId)
   })
 
+  // parent company: the systems whose company sits directly under one of these
+  parentOrganizationFilter.forEach((orgId) => {
+    searchParams.append('parent_organization_id', orgId)
+  })
+
   addonFilter.forEach((addon) => {
     searchParams.append('addon', addon)
   })
-
-  if (includeHierarchy) {
-    searchParams.append('include_hierarchy', 'true')
-  }
   return searchParams.toString()
 }
 
@@ -192,9 +198,9 @@ export const getQueryStringParamsForExport = (
   statusFilter: SystemStatus[] | undefined,
   organizationFilter: string[] | undefined,
   addonFilter: string[] | undefined,
-  includeHierarchy: boolean | undefined,
   sortBy: string | undefined,
   sortDescending: boolean | undefined,
+  parentOrganizationFilter: string[] | undefined = undefined,
 ) => {
   const searchParams = new URLSearchParams({
     format: format,
@@ -232,14 +238,16 @@ export const getQueryStringParamsForExport = (
     })
   }
 
+  if (parentOrganizationFilter) {
+    parentOrganizationFilter.forEach((orgId) => {
+      searchParams.append('parent_organization_id', orgId)
+    })
+  }
+
   if (addonFilter) {
     addonFilter.forEach((addon) => {
       searchParams.append('addon', addon)
     })
-  }
-
-  if (includeHierarchy) {
-    searchParams.append('include_hierarchy', 'true')
   }
 
   if (statusFilter) {
@@ -268,9 +276,9 @@ export const getSystems = (
   statusFilter: SystemStatus[],
   organizationFilter: string[],
   addonFilter: string[],
-  includeHierarchy: boolean,
   sortBy: string,
   sortDescending: boolean,
+  parentOrganizationFilter: string[] = [],
 ) => {
   const loginStore = useLoginStore()
   const params = getQueryStringParams(
@@ -283,9 +291,9 @@ export const getSystems = (
     statusFilter,
     organizationFilter,
     addonFilter,
-    includeHierarchy,
     sortBy,
     sortDescending,
+    parentOrganizationFilter,
   )
 
   return axios
@@ -415,9 +423,9 @@ export const getExport = (
   statusFilter: SystemStatus[] | undefined = undefined,
   organizationFilter: string[] | undefined = undefined,
   addonFilter: string[] | undefined = undefined,
-  includeHierarchy: boolean | undefined = undefined,
   sortBy: string | undefined = undefined,
   sortDescending: boolean | undefined = undefined,
+  parentOrganizationFilter: string[] | undefined = undefined,
 ) => {
   const loginStore = useLoginStore()
   const params = getQueryStringParamsForExport(
@@ -430,9 +438,9 @@ export const getExport = (
     statusFilter,
     organizationFilter,
     addonFilter,
-    includeHierarchy,
     sortBy,
     sortDescending,
+    parentOrganizationFilter,
   )
 
   return axios

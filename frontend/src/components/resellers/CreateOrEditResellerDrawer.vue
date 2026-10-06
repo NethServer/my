@@ -536,7 +536,7 @@ async function saveReseller() {
           :loading="saving"
           @click.prevent="saveReseller"
         >
-          {{ currentReseller ? $t('resellers.save_reseller') : $t('resellers.create_reseller') }}
+          {{ currentReseller ? $t('common.save') : $t('resellers.create_reseller') }}
         </NeButton>
       </div>
     </form>

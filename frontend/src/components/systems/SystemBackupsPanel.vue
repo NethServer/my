@@ -161,6 +161,7 @@ function getKebabMenuItems(backup: BackupMetadata): NeDropdownItem[] {
       disabled: downloadingId.value === backup.id,
       action: () => download(backup),
     },
+    { id: 'divider' },
     {
       id: 'delete',
       label: t('backups.delete'),

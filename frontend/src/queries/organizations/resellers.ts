@@ -6,7 +6,7 @@ import {
   getResellers,
   RESELLERS_KEY,
   RESELLERS_TABLE_ID,
-  type Reseller,
+  type ResellerSortBy,
   type ResellerStatus,
 } from '@/lib/organizations/resellers'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
@@ -26,10 +26,9 @@ export const useResellers = defineQuery(() => {
     { id: 'enabled', label: 'enabled' },
     { id: 'suspended', label: 'suspended' },
   ])
-  const createdByFilter = ref<NeDropdownFilterV2Option[]>([])
   // parent company: the distributor the reseller belongs to
   const organizationFilter = ref<NeDropdownFilterV2Option[]>([])
-  const sortBy = ref<keyof Reseller>('name')
+  const sortBy = ref<ResellerSortBy>('name')
   const sortDescending = ref(false)
 
   const { state, asyncStatus, ...rest } = useQuery({
@@ -40,7 +39,6 @@ export const useResellers = defineQuery(() => {
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
         statusFilter: statusFilter.value.map((o) => o.id),
-        createdByFilter: createdByFilter.value.map((o) => o.id),
         organizationFilter: organizationFilter.value.map((o) => o.id),
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
@@ -53,7 +51,7 @@ export const useResellers = defineQuery(() => {
         pageSize.value,
         debouncedTextFilter.value,
         statusFilter.value.map((o) => o.id) as ResellerStatus[],
-        createdByFilter.value.map((o) => o.id),
+        [], // created by: not filtered from the tables
         organizationFilter.value.map((o) => o.id),
         sortBy.value,
         sortDescending.value,
@@ -67,7 +65,6 @@ export const useResellers = defineQuery(() => {
       statusFilter.value.some((o) => o.id === 'enabled') &&
       statusFilter.value.some((o) => o.id === 'suspended') &&
       !statusFilter.value.some((o) => o.id === 'deleted') &&
-      createdByFilter.value.length === 0 &&
       organizationFilter.value.length === 0
     )
   })
@@ -113,15 +110,6 @@ export const useResellers = defineQuery(() => {
     { deep: true },
   )
 
-  // reset to first page when createdBy filter changes
-  watch(
-    () => createdByFilter.value,
-    () => {
-      pageNum.value = 1
-    },
-    { deep: true },
-  )
-
   // reset to first page when parent company filter changes
   watch(
     () => organizationFilter.value,
@@ -141,7 +129,6 @@ export const useResellers = defineQuery(() => {
 
   const resetFilters = () => {
     textFilter.value = ''
-    createdByFilter.value = []
     organizationFilter.value = []
     resetStatusFilter()
   }
@@ -162,7 +149,6 @@ export const useResellers = defineQuery(() => {
     textFilter,
     debouncedTextFilter,
     statusFilter,
-    createdByFilter,
     organizationFilter,
     sortBy,
     sortDescending,

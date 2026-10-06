@@ -7,7 +7,7 @@ import {
   getSystems,
   SYSTEMS_KEY,
   SYSTEMS_TABLE_ID,
-  type System,
+  type SystemSortBy,
   type SystemStatus,
 } from '@/lib/systems/systems'
 import { useLoginStore } from '@/stores/login'
@@ -24,7 +24,6 @@ export const useSystems = defineQuery(() => {
   const textFilter = ref('')
   const debouncedTextFilter = ref('')
   const productFilter = ref<NeDropdownFilterV2Option[]>([])
-  const createdByFilter = ref<NeDropdownFilterV2Option[]>([])
   const versionFilter = ref<NeDropdownFilterV2Option[]>([])
   const statusFilter = ref<NeDropdownFilterV2Option[]>([
     { id: 'active', label: 'active' },
@@ -33,11 +32,11 @@ export const useSystems = defineQuery(() => {
     { id: 'suspended', label: 'suspended' },
   ])
   const organizationFilter = ref<NeDropdownFilterV2Option[]>([])
+  // "Managed by": the systems whose company sits anywhere in the subtree of
+  // these organizations (ANDed with organizationFilter)
+  const parentOrganizationFilter = ref<NeDropdownFilterV2Option[]>([])
   const addonFilter = ref<NeDropdownFilterV2Option[]>([])
-  // when true, the systems of every company in the hierarchy of the selected
-  // organization are shown (organizationFilter holds that single organization)
-  const includeHierarchy = ref(false)
-  const sortBy = ref<keyof System>('name')
+  const sortBy = ref<SystemSortBy>('name')
   const sortDescending = ref(false)
 
   const { state, asyncStatus, ...rest } = useQuery({
@@ -48,12 +47,11 @@ export const useSystems = defineQuery(() => {
         pageSize: pageSize.value,
         textFilter: debouncedTextFilter.value,
         productFilter: productFilter.value.map((o) => o.id),
-        createdByFilter: createdByFilter.value.map((o) => o.id),
         versionFilter: versionFilter.value.map((o) => o.id),
         statusFilter: statusFilter.value.map((o) => o.id),
         organizationFilter: organizationFilter.value.map((o) => o.id),
+        parentOrganizationFilter: parentOrganizationFilter.value.map((o) => o.id),
         addonFilter: addonFilter.value.map((o) => o.id),
-        includeHierarchy: includeHierarchy.value,
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -65,14 +63,14 @@ export const useSystems = defineQuery(() => {
         pageSize.value,
         debouncedTextFilter.value,
         productFilter.value.map((o) => o.id),
-        createdByFilter.value.map((o) => o.id),
+        [], // created by: not filtered from the tables
         versionFilter.value.map((o) => o.id),
         statusFilter.value.map((o) => o.id) as SystemStatus[],
         organizationFilter.value.map((o) => o.id),
         addonFilter.value.map((o) => o.id),
-        includeHierarchy.value,
         sortBy.value,
         sortDescending.value,
+        parentOrganizationFilter.value.map((o) => o.id),
       ),
   })
 
@@ -81,8 +79,8 @@ export const useSystems = defineQuery(() => {
       !debouncedTextFilter.value &&
       productFilter.value.length === 0 &&
       versionFilter.value.length === 0 &&
-      createdByFilter.value.length === 0 &&
       organizationFilter.value.length === 0 &&
+      parentOrganizationFilter.value.length === 0 &&
       addonFilter.value.length === 0 &&
       statusFilter.value.length === 4 &&
       statusFilter.value.some((o) => o.id === 'active') &&
@@ -141,17 +139,17 @@ export const useSystems = defineQuery(() => {
     },
   )
 
-  // reset to first page when created by filter changes
+  // reset to first page when version filter changes
   watch(
-    () => createdByFilter.value,
+    () => versionFilter.value,
     () => {
       pageNum.value = 1
     },
   )
 
-  // reset to first page when version filter changes
+  // reset to first page when parent company filter changes
   watch(
-    () => versionFilter.value,
+    () => parentOrganizationFilter.value,
     () => {
       pageNum.value = 1
     },
@@ -165,43 +163,22 @@ export const useSystems = defineQuery(() => {
     },
   )
 
-  // the organization hierarchy mode is scoped to; lets us tell a genuine user
-  // change apart from OrganizationDropdownFilter re-emitting the same selection
-  // as a fresh array on mount (which must not exit hierarchy mode)
-  const hierarchyOrgId = ref<string | null>(null)
-
   // watch the selected org ids by value (not the array reference): reset to the
-  // first page when the selection changes, and exit hierarchy mode whenever the
-  // selection moves away from the single organization it was applied to
+  // first page when the assigned company selection changes
   watch(
     () => organizationFilter.value.map((o) => o.id).join(','),
-    (ids) => {
+    () => {
       pageNum.value = 1
-
-      if (includeHierarchy.value && ids !== (hierarchyOrgId.value ?? '')) {
-        includeHierarchy.value = false
-        hierarchyOrgId.value = null
-      }
     },
   )
-
-  // filter systems by the given organization and every company in its hierarchy
-  const applyHierarchyFilter = (organization: NeDropdownFilterV2Option) => {
-    resetFilters()
-    organizationFilter.value = [organization]
-    includeHierarchy.value = true
-    hierarchyOrgId.value = organization.id
-  }
 
   const resetFilters = () => {
     textFilter.value = ''
     productFilter.value = []
     versionFilter.value = []
-    createdByFilter.value = []
     organizationFilter.value = []
+    parentOrganizationFilter.value = []
     addonFilter.value = []
-    includeHierarchy.value = false
-    hierarchyOrgId.value = null
     resetStatusFilter()
   }
 
@@ -222,17 +199,15 @@ export const useSystems = defineQuery(() => {
     pageSize,
     textFilter,
     productFilter,
-    createdByFilter,
     versionFilter,
     statusFilter,
     organizationFilter,
+    parentOrganizationFilter,
     addonFilter,
-    includeHierarchy,
     debouncedTextFilter,
     sortBy,
     sortDescending,
     areDefaultFiltersApplied,
-    applyHierarchyFilter,
     resetFilters,
     resetStatusFilter,
   }

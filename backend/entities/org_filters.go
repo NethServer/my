@@ -230,3 +230,44 @@ func (r *LocalCustomerRepository) ListCreators(userOrgRole, userOrgID string) ([
 		return []models.OrgCreator{}, nil
 	}
 }
+
+// partnerSortFields maps the sort_by values of the reseller and customer lists
+// to their column. managed_by is the company in the creator snapshot, the one
+// the "Managed by" column shows.
+var partnerSortFields = map[string]string{
+	"name":         "LOWER(name)",
+	"description":  "LOWER(description)",
+	"created_at":   "created_at",
+	"updated_at":   "updated_at",
+	"suspended_at": "suspended_at",
+	"creator_name": "LOWER(custom_data->'createdByUser'->>'name')",
+	"managed_by":   "LOWER(custom_data->'createdByUser'->>'organization_name')",
+}
+
+// partnerOrderClause builds the ORDER BY of a reseller or customer list,
+// newest first when sortBy is empty or unknown. counters maps the list's own
+// counter sort_by values to the subquery that computes them, so the sort works
+// whether or not the counter columns are selected. managed_by and the counters
+// group many rows under one value, so they fall back to the name: with OFFSET
+// paging an unordered tie could repeat or skip a row across pages. The columns
+// are bare so the clause fits both the aliased and the plain queries; only the
+// counter subqueries need the list alias.
+func partnerOrderClause(sortBy, sortDirection string, counters map[string]string) string {
+	column, valid := partnerSortFields[sortBy]
+	tieBreak := sortBy == "managed_by"
+	if !valid {
+		column, valid = counters[sortBy]
+		tieBreak = true
+	}
+	if !valid {
+		return "ORDER BY created_at DESC"
+	}
+	direction := "ASC"
+	if strings.ToUpper(sortDirection) == "DESC" {
+		direction = "DESC"
+	}
+	if tieBreak {
+		return fmt.Sprintf("ORDER BY %s %s, LOWER(name), id", column, direction)
+	}
+	return fmt.Sprintf("ORDER BY %s %s", column, direction)
+}

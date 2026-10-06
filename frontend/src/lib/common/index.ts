@@ -1,4 +1,5 @@
 import { isAxiosError } from 'axios'
+import type { NeDropdownItem } from '@nethesis/vue-components'
 
 export const MIN_SEARCH_LENGTH = 2
 
@@ -167,4 +168,16 @@ export const downloadFile = (fileData: Blob | string, filename: string, type: 'p
 
   // Clean up the URL object
   URL.revokeObjectURL(link.href)
+}
+
+// Kebab menu items with the danger ones last, behind a divider when other items
+// precede them. NeDropdown renders an item whose id contains "divider" as a
+// separator line.
+export const withDangerItemsLast = (items: NeDropdownItem[]): NeDropdownItem[] => {
+  const safeItems = items.filter((item) => !item.danger)
+  const dangerItems = items.filter((item) => item.danger)
+  if (safeItems.length === 0 || dangerItems.length === 0) {
+    return [...safeItems, ...dangerItems]
+  }
+  return [...safeItems, { id: 'divider' }, ...dangerItems]
 }

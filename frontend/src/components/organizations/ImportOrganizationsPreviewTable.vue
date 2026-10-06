@@ -56,7 +56,7 @@ function rowField(row: ImportRow, field: string): string {
           <NeTableCell :data-label="$t('organizations.name')">
             {{ rowField(row, 'company_name') }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('organizations.vat_number')" class="break-all">
+          <NeTableCell :data-label="$t('organizations.vat_number')" class="wrap-anywhere">
             {{ rowField(row, 'vat_number') }}
           </NeTableCell>
           <NeTableCell :data-label="$t('organizations.description')">
@@ -71,10 +71,10 @@ function rowField(row: ImportRow, field: string): string {
           <NeTableCell :data-label="$t('organizations.main_contact')">
             {{ rowField(row, 'main_contact') }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('organizations.email')" class="break-all">
+          <NeTableCell :data-label="$t('organizations.email')" class="wrap-anywhere">
             {{ rowField(row, 'email') }}
           </NeTableCell>
-          <NeTableCell :data-label="$t('organizations.phone_number')" class="break-all">
+          <NeTableCell :data-label="$t('organizations.phone_number')" class="wrap-anywhere">
             {{ rowField(row, 'phone') }}
           </NeTableCell>
         </NeTableRow>

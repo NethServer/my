@@ -6,9 +6,12 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package methods
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/nethesis/my/backend/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -638,6 +641,112 @@ func TestFilterAlerts_Search(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Len(t, filterAlerts(alerts, tt.params), tt.expected)
+		})
+	}
+}
+
+func TestFilterAlerts_AssigneeSilencedHasNotes(t *testing.T) {
+	alerts := []map[string]interface{}{
+		{
+			"fingerprint": "fp-assigned-noted",
+			"assigned_to": map[string]interface{}{"user_id": "u1", "user_name": "Mario Rossi"},
+			"has_notes":   true,
+			"status":      map[string]interface{}{"state": "active", "silencedBy": []interface{}{}},
+		},
+		{
+			"fingerprint": "fp-silenced",
+			"assigned_to": nil,
+			"has_notes":   false,
+			"status":      map[string]interface{}{"state": "suppressed", "silencedBy": []interface{}{"s-1"}},
+		},
+		{
+			// Inhibited only: suppressed but not silenced.
+			"fingerprint": "fp-inhibited",
+			"has_notes":   false,
+			"status":      map[string]interface{}{"state": "suppressed", "silencedBy": []interface{}{""}, "inhibitedBy": []interface{}{"x"}},
+		},
+	}
+	yes, no := true, false
+
+	tests := []struct {
+		name     string
+		params   alertFilter
+		expected []string
+	}{
+		{name: "assigned to anyone", params: alertFilter{assignedUserIDs: []string{"any"}}, expected: []string{"fp-assigned-noted"}},
+		{name: "unassigned", params: alertFilter{assignedUserIDs: []string{"none"}}, expected: []string{"fp-silenced", "fp-inhibited"}},
+		{name: "any or none is everything", params: alertFilter{assignedUserIDs: []string{"any", "none"}}, expected: []string{"fp-assigned-noted", "fp-silenced", "fp-inhibited"}},
+		{name: "mine or up for grabs", params: alertFilter{assignedUserIDs: []string{"u1", "none"}}, expected: []string{"fp-assigned-noted", "fp-silenced", "fp-inhibited"}},
+		{name: "someone else", params: alertFilter{assignedUserIDs: []string{"u2"}}, expected: []string{}},
+		{name: "silenced", params: alertFilter{silenced: &yes}, expected: []string{"fp-silenced"}},
+		{name: "not silenced includes inhibited", params: alertFilter{silenced: &no}, expected: []string{"fp-assigned-noted", "fp-inhibited"}},
+		{name: "with notes", params: alertFilter{hasNotes: &yes}, expected: []string{"fp-assigned-noted"}},
+		{name: "without notes", params: alertFilter{hasNotes: &no}, expected: []string{"fp-silenced", "fp-inhibited"}},
+		{name: "combined", params: alertFilter{hasNotes: &no, silenced: &yes}, expected: []string{"fp-silenced"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := filterAlerts(alerts, tt.params)
+			fps := make([]string, 0, len(got))
+			for _, a := range got {
+				fps = append(fps, a["fingerprint"].(string))
+			}
+			assert.Equal(t, tt.expected, fps)
+		})
+	}
+}
+
+func TestParseOptionalBoolQuery(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tests := []struct {
+		query    string
+		want     *bool
+		ok       bool
+		wantCode int
+	}{
+		{query: "", want: nil, ok: true},
+		{query: "has_notes=true", want: boolPtr(true), ok: true},
+		{query: "has_notes=false", want: boolPtr(false), ok: true},
+		{query: "has_notes=1", want: nil, ok: false, wantCode: http.StatusBadRequest},
+		{query: "has_notes=", want: nil, ok: false, wantCode: http.StatusBadRequest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.query, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodGet, "/api/alerts?"+tt.query, nil)
+
+			got, ok := parseOptionalBoolQuery(c, "has_notes")
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.want, got)
+			if !ok {
+				assert.Equal(t, tt.wantCode, w.Code)
+			}
+		})
+	}
+}
+
+func boolPtr(v bool) *bool { return &v }
+
+// belongsToOrg is the isolation gate of the cross-system silence endpoints:
+// alerts and silences of sibling customers share one reseller tenant, so the
+// organization_id label/matcher must match the requested org.
+func TestBelongsToOrg(t *testing.T) {
+	tests := []struct {
+		name                    string
+		ownerOrg, orgID, tenant string
+		want                    bool
+	}{
+		{name: "customer owns it", ownerOrg: "cust-A", orgID: "cust-A", tenant: "res-R", want: true},
+		{name: "sibling customer in the same tenant", ownerOrg: "cust-B", orgID: "cust-A", tenant: "res-R", want: false},
+		{name: "reseller asking for its customer's item", ownerOrg: "cust-A", orgID: "res-R", tenant: "res-R", want: false},
+		{name: "unattributed item, tenant itself", ownerOrg: "", orgID: "res-R", tenant: "res-R", want: true},
+		{name: "unattributed item, customer of the tenant", ownerOrg: "", orgID: "cust-A", tenant: "res-R", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, belongsToOrg(tt.ownerOrg, tt.orgID, tt.tenant))
 		})
 	}
 }

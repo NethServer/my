@@ -473,9 +473,23 @@ components:
             user_org_name:
               type: string
               description: Name of the assignee's own organization
+            user_org_type:
+              type: string
+              enum: [owner, distributor, reseller, customer]
+              description: Type of the assignee's own organization, resolved when the alert is read
             assigned_at:
               type: string
               format: date-time
+        has_notes:
+          type: boolean
+          description: |
+            True when the alert's timeline (GET /alerts/activity/{fingerprint})
+            holds at least one operator-written text: a standalone note, the
+            note taken with an assignment, or a silence comment typed by the
+            operator (the placeholder stored for an empty comment does not
+            count). The timeline is keyed by fingerprint, so notes left on an
+            earlier firing of the same alert count too. Stamped server-side
+            with one batch lookup per page.
 
     AlertActivityEntry:
       type: object
@@ -1742,6 +1756,32 @@ components:
           enum: [owner, distributor, reseller, customer]
           description: Organization type
           example: "customer"
+        parent:
+          description: The company this organization sits directly under (its custom_data.createdBy). Returned by the list and detail endpoints; absent when the organization has no recorded parent.
+          allOf:
+            - $ref: '#/components/schemas/ParentOrganization'
+
+    ParentOrganization:
+      type: object
+      description: The company an organization sits directly under, with its current name and level
+      properties:
+        id:
+          type: string
+          description: Database UUID of the parent (empty string for the Owner organization)
+          example: "4405ffd0-0aca-44ef-bae2-c8545bce94f4"
+        logto_id:
+          type: string
+          description: Logto organization ID of the parent
+          example: "eeex9cffzsd7"
+        name:
+          type: string
+          description: Parent name (may be empty for the Owner organization)
+          example: "Clienti Diretti Nethesis"
+        type:
+          type: string
+          enum: [owner, distributor, reseller]
+          description: Parent level
+          example: "reseller"
 
     ThirdPartyApplicationIdPAccessReport:
       type: object
@@ -4248,7 +4288,7 @@ components:
       required: false
       schema:
         type: string
-        enum: ["name", "description", "created_at", "updated_at", "suspended_at", "creator_name"]
+        enum: ["name", "description", "created_at", "updated_at", "suspended_at", "creator_name", "resellers_count", "customers_count", "systems_count"]
         example: "name"
 
     ResellerSortByParam:
@@ -4258,7 +4298,7 @@ components:
       required: false
       schema:
         type: string
-        enum: ["name", "description", "created_at", "updated_at", "suspended_at", "creator_name"]
+        enum: ["name", "description", "created_at", "updated_at", "suspended_at", "creator_name", "managed_by", "customers_count", "systems_count"]
         example: "name"
 
     CustomerSortByParam:
@@ -4268,7 +4308,7 @@ components:
       required: false
       schema:
         type: string
-        enum: ["name", "description", "created_at", "updated_at", "suspended_at", "creator_name"]
+        enum: ["name", "description", "created_at", "updated_at", "suspended_at", "creator_name", "managed_by", "systems_count"]
         example: "name"
 
     RebrandingSortByParam:
@@ -4329,7 +4369,7 @@ components:
       required: false
       schema:
         type: string
-        enum: ["name", "type", "status", "fqdn", "version", "system_key", "created_at", "updated_at", "creator_name", "organization_name"]
+        enum: ["name", "type", "status", "fqdn", "version", "system_key", "created_at", "updated_at", "creator_name", "organization_name", "managed_by"]
         example: "name"
 
     TrendPeriodParam:
@@ -4465,6 +4505,19 @@ components:
         type: array
         items:
           type: string
+      style: form
+      explode: true
+
+    ParentOrganizationFilterParam:
+      name: parent_organization_id
+      in: query
+      description: "\"Managed by\" filter. Keeps the entries whose organization is one of these organization Logto IDs or sits anywhere in their subtree (a distributor's resellers and customers, a reseller's customers), the set the hierarchy counters of an organization count over. For applications, an unassigned application counts with the organization of its system. ANDed with organization_id, so the assigned company and Managed by combine. Supports multiple values. Results always stay within the caller's RBAC scope."
+      required: false
+      schema:
+        type: array
+        items:
+          type: string
+        example: ["org_abc123xyz"]
       style: form
       explode: true
 
@@ -10474,6 +10527,7 @@ paths:
         - $ref: '#/components/parameters/SystemVersionFilterParam'
         - $ref: '#/components/parameters/SystemOrganizationFilterParam'
         - $ref: '#/components/parameters/IncludeHierarchyParam'
+        - $ref: '#/components/parameters/ParentOrganizationFilterParam'
         - $ref: '#/components/parameters/SystemStatusFilterParam'
         - $ref: '#/components/parameters/SystemAddonFilterParam'
         - $ref: '#/components/parameters/IncludeAddonsParam'
@@ -11203,6 +11257,7 @@ paths:
         - $ref: '#/components/parameters/SystemVersionFilterParam'
         - $ref: '#/components/parameters/SystemOrganizationFilterParam'
         - $ref: '#/components/parameters/IncludeHierarchyParam'
+        - $ref: '#/components/parameters/ParentOrganizationFilterParam'
         - $ref: '#/components/parameters/SystemStatusFilterParam'
         - $ref: '#/components/parameters/SystemAddonFilterParam'
       responses:
@@ -11956,7 +12011,8 @@ paths:
           description: |
             Filter alerts by current assignee (logto_id of the user, as
             returned in `assigned_to.user_id`). Supports multiple values. The
-            literal value `none` matches unassigned alerts, so
+            literal value `none` matches unassigned alerts and `any` alerts
+            assigned to anyone, so
             `assigned_user_id=<my-id>&assigned_user_id=none` means "mine or up
             for grabs".
           schema:
@@ -11965,6 +12021,23 @@ paths:
               type: string
           style: form
           explode: true
+        - name: silenced
+          in: query
+          description: |
+            `true` keeps only alerts muted by at least one silence (non-empty
+            `status.silencedBy`), `false` the others. Unlike
+            `status=suppressed`, inhibited-only alerts do not count as
+            silenced. Any other value returns 400.
+          schema:
+            type: boolean
+        - name: has_notes
+          in: query
+          description: |
+            `true` keeps only alerts with `has_notes: true` (at least one
+            operator-written text in their timeline), `false` the others.
+            Any other value returns 400.
+          schema:
+            type: boolean
       responses:
         '200':
           description: Paginated list of active alerts
@@ -12031,7 +12104,9 @@ paths:
                             user_name: "R1C1 Admin"
                             user_org_id: "m4m3mdjdiizs"
                             user_org_name: "R1C1 Customer"
+                            user_org_type: "customer"
                             assigned_at: "2026-05-12T08:20:00Z"
+                          has_notes: true
                       pagination:
                         page: 1
                         page_size: 50
@@ -14722,7 +14797,7 @@ paths:
       description: |
         Cross-system parallel of `GET /systems/{id}/alerts/silences`. Returns
         every active or pending Alertmanager silence in the caller's scope,
-        enriched with `organization_id` (the tenant that owns the silence) and
+        enriched with `organization_id` (the organization that owns the silence) and
         `system_key` (extracted from the silence matchers). Expired silences
         and silences without a `system_key` matcher are excluded — only
         silences our UI ever creates are addressable.
@@ -14790,7 +14865,10 @@ paths:
                               properties:
                                 organization_id:
                                   type: string
-                                  description: Tenant that owns the silence (Mimir stores silences per-tenant).
+                                  description: |
+                                    Organization that owns the silence (its `organization_id`
+                                    matcher). Pass it as `?organization_id=` to the
+                                    single-silence endpoints.
                                   example: "m4m3mdjdiizs"
                                 system_key:
                                   type: string
@@ -14866,9 +14944,11 @@ paths:
           in: query
           required: true
           description: |
-            Tenant that owns the alert. Mandatory for every role except
-            Customer (where it is ignored — they're always pinned to their
-            own organization). Owners can address any tenant in the system.
+            Organization that owns the alert (its `organization_id` label).
+            The Mimir tenant (the managing reseller) is derived server-side,
+            and an alert of another organization sharing that tenant is
+            reported as 404. Mandatory for every role except Customer (where
+            it is ignored — they're always pinned to their own organization).
           schema:
             type: string
             example: "m4m3mdjdiizs"
@@ -14975,7 +15055,7 @@ paths:
       summary: "/alerts/silences/{silence_id} - Get a single silence"
       description: |
         Cross-system parallel of `GET /systems/{id}/alerts/silences/{silence_id}`.
-        Looks up a silence inside a single tenant (`?organization_id=`) and
+        Looks up a silence of a single organization (`?organization_id=`) and
         returns it enriched with `organization_id` and `system_key`. Silences
         without a `system_key` matcher are reported as 404 — they don't belong
         to our domain.
@@ -14995,7 +15075,10 @@ paths:
           in: query
           required: true
           description: |
-            Tenant that owns the silence. Mandatory for every role except
+            Organization that owns the silence: the `organization_id`
+            returned by `GET /alerts/silences`. The Mimir tenant is derived
+            server-side, and a silence of another organization sharing that
+            tenant is reported as 404. Mandatory for every role except
             Customer (where it is ignored).
           schema:
             type: string
@@ -15033,8 +15116,8 @@ paths:
                   summary: Silence found and active
                   description: |
                     Same `AlertmanagerSilence` shape as the per-system
-                    endpoint, plus `organization_id` (the tenant that owns the
-                    silence) and `system_key` (extracted from the matchers).
+                    endpoint, plus `organization_id` (the organization that owns
+                    the silence) and `system_key` (extracted from the matchers).
                   value:
                     code: 200
                     message: "silence retrieved successfully"
@@ -15091,6 +15174,12 @@ paths:
         - name: organization_id
           in: query
           required: true
+          description: |
+            Organization that owns the silence: the `organization_id`
+            returned by `GET /alerts/silences`. The Mimir tenant is derived
+            server-side, and a silence of another organization sharing that
+            tenant is reported as 404. Mandatory for every role except
+            Customer (where it is ignored).
           schema:
             type: string
             example: "m4m3mdjdiizs"
@@ -15186,6 +15275,12 @@ paths:
         - name: organization_id
           in: query
           required: true
+          description: |
+            Organization that owns the silence: the `organization_id`
+            returned by `GET /alerts/silences`. The Mimir tenant is derived
+            server-side, and a silence of another organization sharing that
+            tenant is reported as 404. Mandatory for every role except
+            Customer (where it is ignored).
           schema:
             type: string
             example: "m4m3mdjdiizs"
@@ -15329,13 +15424,31 @@ paths:
           in: query
           description: |
             Filter by current assignee (`assigned_to.user_id`); the literal
-            value `none` matches unassigned alerts. Supports multiple values.
+            values `none` and `any` match unassigned alerts and alerts
+            assigned to anyone. Supports multiple values.
           schema:
             type: array
             items:
               type: string
           style: form
           explode: true
+        - name: silenced
+          in: query
+          description: |
+            `true` keeps only alerts muted by at least one silence (non-empty
+            `status.silencedBy`), `false` the others. Unlike
+            `status=suppressed`, inhibited-only alerts do not count as
+            silenced. Any other value returns 400.
+          schema:
+            type: boolean
+        - name: has_notes
+          in: query
+          description: |
+            `true` keeps only alerts with `has_notes: true` (at least one
+            operator-written text in their timeline), `false` the others.
+            Any other value returns 400.
+          schema:
+            type: boolean
       responses:
         '200':
           description: Active alerts retrieved successfully
@@ -15432,6 +15545,8 @@ paths:
                         has_prev: false
                         sort_by: "starts_at"
                         sort_direction: "desc"
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -16339,6 +16454,7 @@ paths:
         - $ref: '#/components/parameters/AppSystemFilterParam'
         - $ref: '#/components/parameters/AppOrganizationFilterParam'
         - $ref: '#/components/parameters/IncludeHierarchyParam'
+        - $ref: '#/components/parameters/ParentOrganizationFilterParam'
         - $ref: '#/components/parameters/AppStatusFilterParam'
       responses:
         '200':
@@ -16910,6 +17026,7 @@ paths:
         - $ref: '#/components/parameters/AppSystemFilterParam'
         - $ref: '#/components/parameters/AppOrganizationFilterParam'
         - $ref: '#/components/parameters/IncludeHierarchyParam'
+        - $ref: '#/components/parameters/ParentOrganizationFilterParam'
         - $ref: '#/components/parameters/AppStatusFilterParam'
       responses:
         '200':

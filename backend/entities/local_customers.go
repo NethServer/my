@@ -230,6 +230,16 @@ func (r *LocalCustomerRepository) Reactivate(id string) error {
 	return nil
 }
 
+// customerSystemsCount is the customer counter that is also a sort key, shared
+// by the select list and the ORDER BY.
+const customerSystemsCount = "(SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL)"
+
+// customerCountSortFields maps the counter sort_by values of the customer list
+// to their subquery, for partnerOrderClause.
+var customerCountSortFields = map[string]string{
+	"systems_count": customerSystemsCount,
+}
+
 // customerCountColumns builds the trailing inline counter columns of the
 // customer list query for the requested mode, empty when no counter is wanted.
 // Keeping them in one place is what keeps the eight query variants (owner,
@@ -241,7 +251,7 @@ func customerCountColumns(counts models.CountsMode) string {
 	}
 
 	cols := `,
-			       (SELECT COUNT(*) FROM systems s WHERE s.organization_id = c.logto_id AND s.deleted_at IS NULL) as systems_count`
+			       ` + customerSystemsCount + ` as systems_count`
 
 	// applications_count only on explicit request. A customer is a single
 	// organization, so unlike the reseller list this stays an index probe -
@@ -274,26 +284,7 @@ func (r *LocalCustomerRepository) List(ctx context.Context, userOrgRole, userOrg
 
 // listForOwner handles customer listing for owner role
 func (r *LocalCustomerRepository) listForOwner(ctx context.Context, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalCustomer, int, error) {
-	// Validate and build sorting clause
-	orderClause := "ORDER BY created_at DESC" // default sorting
-	if sortBy != "" {
-		validSortFields := map[string]string{
-			"name":         "LOWER(name)",
-			"description":  "LOWER(description)",
-			"created_at":   "created_at",
-			"updated_at":   "updated_at",
-			"suspended_at": "suspended_at",
-			"creator_name": "LOWER(custom_data->'createdByUser'->>'name')",
-		}
-
-		if dbField, valid := validSortFields[sortBy]; valid {
-			direction := "ASC"
-			if strings.ToUpper(sortDirection) == "DESC" {
-				direction = "DESC"
-			}
-			orderClause = fmt.Sprintf("ORDER BY %s %s", dbField, direction)
-		}
-	}
+	orderClause := partnerOrderClause(sortBy, sortDirection, customerCountSortFields)
 
 	// Build status filter clauses
 	hasDeletedFilter := false
@@ -365,26 +356,7 @@ func (r *LocalCustomerRepository) listForOwner(ctx context.Context, page, pageSi
 
 // listForDistributor handles customer listing for distributor role
 func (r *LocalCustomerRepository) listForDistributor(ctx context.Context, userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalCustomer, int, error) {
-	// Validate and build sorting clause
-	orderClause := "ORDER BY created_at DESC" // default sorting
-	if sortBy != "" {
-		validSortFields := map[string]string{
-			"name":         "LOWER(name)",
-			"description":  "LOWER(description)",
-			"created_at":   "created_at",
-			"updated_at":   "updated_at",
-			"suspended_at": "suspended_at",
-			"creator_name": "LOWER(custom_data->'createdByUser'->>'name')",
-		}
-
-		if dbField, valid := validSortFields[sortBy]; valid {
-			direction := "ASC"
-			if strings.ToUpper(sortDirection) == "DESC" {
-				direction = "DESC"
-			}
-			orderClause = fmt.Sprintf("ORDER BY %s %s", dbField, direction)
-		}
-	}
+	orderClause := partnerOrderClause(sortBy, sortDirection, customerCountSortFields)
 
 	// Build status filter clauses
 	hasDeletedFilter := false
@@ -484,26 +456,7 @@ func (r *LocalCustomerRepository) listForDistributor(ctx context.Context, userOr
 
 // listForReseller handles customer listing for reseller role
 func (r *LocalCustomerRepository) listForReseller(ctx context.Context, userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalCustomer, int, error) {
-	// Validate and build sorting clause
-	orderClause := "ORDER BY created_at DESC" // default sorting
-	if sortBy != "" {
-		validSortFields := map[string]string{
-			"name":         "LOWER(name)",
-			"description":  "LOWER(description)",
-			"created_at":   "created_at",
-			"updated_at":   "updated_at",
-			"suspended_at": "suspended_at",
-			"creator_name": "LOWER(custom_data->'createdByUser'->>'name')",
-		}
-
-		if dbField, valid := validSortFields[sortBy]; valid {
-			direction := "ASC"
-			if strings.ToUpper(sortDirection) == "DESC" {
-				direction = "DESC"
-			}
-			orderClause = fmt.Sprintf("ORDER BY %s %s", dbField, direction)
-		}
-	}
+	orderClause := partnerOrderClause(sortBy, sortDirection, customerCountSortFields)
 
 	// Build status filter clauses
 	hasDeletedFilter := false
@@ -579,26 +532,7 @@ func (r *LocalCustomerRepository) listForCustomer(ctx context.Context, userOrgID
 		return []*models.LocalCustomer{}, 0, nil
 	}
 
-	// Validate and build sorting clause
-	orderClause := "ORDER BY created_at DESC" // default sorting
-	if sortBy != "" {
-		validSortFields := map[string]string{
-			"name":         "LOWER(name)",
-			"description":  "LOWER(description)",
-			"created_at":   "created_at",
-			"updated_at":   "updated_at",
-			"suspended_at": "suspended_at",
-			"creator_name": "LOWER(custom_data->'createdByUser'->>'name')",
-		}
-
-		if dbField, valid := validSortFields[sortBy]; valid {
-			direction := "ASC"
-			if strings.ToUpper(sortDirection) == "DESC" {
-				direction = "DESC"
-			}
-			orderClause = fmt.Sprintf("ORDER BY %s %s", dbField, direction)
-		}
-	}
+	orderClause := partnerOrderClause(sortBy, sortDirection, customerCountSortFields)
 
 	// Build status filter clauses
 	hasDeletedFilter := false

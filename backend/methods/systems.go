@@ -175,19 +175,25 @@ func GetSystems(c *gin.Context) {
 		filterOrgIDs = expanded
 	}
 
+	filterParentOrgIDs, ok := managedByOrganizationIDs(c)
+	if !ok {
+		return
+	}
+
 	// Create systems service
 	systemsService := local.NewSystemsService()
 
 	// Get systems with pagination, search, sorting and filters
 	filters := models.SystemListFilters{
-		Name:            filterName,
-		SystemKeys:      filterSystemKey,
-		Types:           filterTypes,
-		CreatedBy:       filterCreatedBy,
-		Versions:        filterVersions,
-		OrganizationIDs: filterOrgIDs,
-		Statuses:        filterStatuses,
-		Addons:          filterAddons,
+		Name:                  filterName,
+		SystemKeys:            filterSystemKey,
+		Types:                 filterTypes,
+		CreatedBy:             filterCreatedBy,
+		Versions:              filterVersions,
+		OrganizationIDs:       filterOrgIDs,
+		ParentOrganizationIDs: filterParentOrgIDs,
+		Statuses:              filterStatuses,
+		Addons:                filterAddons,
 	}
 	systems, totalCount, err := systemsService.GetSystemsByOrganizationPaginated(
 		c.Request.Context(), userID, userOrgID, userOrgRole, page, pageSize, search, sortBy, sortDirection, filters,

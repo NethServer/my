@@ -44,6 +44,7 @@ export const UserSchema = v.object({
   // Whether a profile picture is stored, so the avatar request can be skipped
   has_avatar: v.boolean(),
   logto_synced_at: v.optional(v.string()),
+  latest_login_at: v.optional(v.string()),
   suspended_at: v.optional(v.string()),
   deleted_at: v.optional(v.string()),
   organization: v.object({

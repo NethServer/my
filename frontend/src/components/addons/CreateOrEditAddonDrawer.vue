@@ -430,7 +430,7 @@ async function saveAddon() {
           :loading="saving"
           @click.prevent="saveAddon"
         >
-          {{ currentAddon ? $t('addons.save_addon') : $t('addons.create_addon') }}
+          {{ currentAddon ? $t('common.save') : $t('addons.create_addon') }}
         </NeButton>
       </div>
     </form>

@@ -234,6 +234,20 @@ func (r *LocalResellerRepository) Reactivate(id string) error {
 // reseller row: the reseller itself plus the customers it created.
 const resellerOrgSet = "SELECT r.logto_id UNION ALL SELECT logto_id FROM customers WHERE custom_data->>'createdBy' = r.logto_id AND deleted_at IS NULL"
 
+// The reseller counters that are also sort keys, shared by the select list and
+// the ORDER BY.
+const (
+	resellerSystemsCount   = "(SELECT COUNT(*) FROM systems s WHERE s.deleted_at IS NULL AND s.organization_id IN (" + resellerOrgSet + "))"
+	resellerCustomersCount = "(SELECT COUNT(*) FROM customers c WHERE c.custom_data->>'createdBy' = r.logto_id AND c.deleted_at IS NULL)"
+)
+
+// resellerCountSortFields maps the counter sort_by values of the reseller list
+// to their subquery, for partnerOrderClause.
+var resellerCountSortFields = map[string]string{
+	"systems_count":   resellerSystemsCount,
+	"customers_count": resellerCustomersCount,
+}
+
 // resellerCountColumns builds the trailing inline counter columns of the
 // reseller list query for the requested mode, empty when no counter is wanted.
 // Keeping them in one place is what keeps the four query variants (owner and
@@ -244,9 +258,9 @@ func resellerCountColumns(counts models.CountsMode) string {
 	}
 
 	cols := `,
-			       (SELECT COUNT(*) FROM systems s WHERE s.deleted_at IS NULL AND s.organization_id IN (` + resellerOrgSet + `)) as systems_count,
+			       ` + resellerSystemsCount + ` as systems_count,
 			       ` + legacySystemsCount("SELECT r.logto_id") + ` as legacy_systems_count,
-			       (SELECT COUNT(*) FROM customers c WHERE c.custom_data->>'createdBy' = r.logto_id AND c.deleted_at IS NULL) as customers_count`
+			       ` + resellerCustomersCount + ` as customers_count`
 
 	// applications_count only on explicit request: resellerOrgSet is a
 	// correlated subquery, so the planner cannot push it into
@@ -277,26 +291,7 @@ func (r *LocalResellerRepository) List(ctx context.Context, userOrgRole, userOrg
 
 // listForOwner handles reseller listing for owner role
 func (r *LocalResellerRepository) listForOwner(ctx context.Context, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalReseller, int, error) {
-	// Validate and build sorting clause
-	orderClause := "ORDER BY created_at DESC" // default sorting
-	if sortBy != "" {
-		validSortFields := map[string]string{
-			"name":         "LOWER(name)",
-			"description":  "LOWER(description)",
-			"created_at":   "created_at",
-			"updated_at":   "updated_at",
-			"suspended_at": "suspended_at",
-			"creator_name": "LOWER(custom_data->'createdByUser'->>'name')",
-		}
-
-		if dbField, valid := validSortFields[sortBy]; valid {
-			direction := "ASC"
-			if strings.ToUpper(sortDirection) == "DESC" {
-				direction = "DESC"
-			}
-			orderClause = fmt.Sprintf("ORDER BY %s %s", dbField, direction)
-		}
-	}
+	orderClause := partnerOrderClause(sortBy, sortDirection, resellerCountSortFields)
 
 	// Build status filter clauses
 	hasDeletedFilter := false
@@ -368,26 +363,7 @@ func (r *LocalResellerRepository) listForOwner(ctx context.Context, page, pageSi
 
 // listForDistributor handles reseller listing for distributor role
 func (r *LocalResellerRepository) listForDistributor(ctx context.Context, userOrgID string, page, pageSize, offset int, search, sortBy, sortDirection string, statuses, createdBy, ownedBy []string, counts models.CountsMode) ([]*models.LocalReseller, int, error) {
-	// Validate and build sorting clause
-	orderClause := "ORDER BY created_at DESC" // default sorting
-	if sortBy != "" {
-		validSortFields := map[string]string{
-			"name":         "LOWER(name)",
-			"description":  "LOWER(description)",
-			"created_at":   "created_at",
-			"updated_at":   "updated_at",
-			"suspended_at": "suspended_at",
-			"creator_name": "LOWER(custom_data->'createdByUser'->>'name')",
-		}
-
-		if dbField, valid := validSortFields[sortBy]; valid {
-			direction := "ASC"
-			if strings.ToUpper(sortDirection) == "DESC" {
-				direction = "DESC"
-			}
-			orderClause = fmt.Sprintf("ORDER BY %s %s", dbField, direction)
-		}
-	}
+	orderClause := partnerOrderClause(sortBy, sortDirection, resellerCountSortFields)
 
 	// Build status filter clauses
 	hasDeletedFilter := false

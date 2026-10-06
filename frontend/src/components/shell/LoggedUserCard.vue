@@ -7,8 +7,7 @@
 import { NeCard, NeSkeleton, NeTooltip } from '@nethesis/vue-components'
 import { useLoginStore } from '@/stores/login'
 import UserAvatar from '../users/UserAvatar.vue'
-import { getOrganizationIcon } from '@/lib/organizations/organizations'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
 import UserRoleBadge from '../users/UserRoleBadge.vue'
 
 const loginStore = useLoginStore()
@@ -38,10 +37,12 @@ const loginStore = useLoginStore()
           </template>
         </NeTooltip>
         <template v-else>{{ loginStore.userInfo.organization_name }}</template>
-        <FontAwesomeIcon
-          :icon="getOrganizationIcon(loginStore.userInfo?.org_role)"
-          class="size-4 shrink-0"
-          aria-hidden="true"
+        <OrganizationIcon
+          :org-type="loginStore.userInfo?.org_role"
+          variant="plain"
+          size="sm"
+          :colored="false"
+          class="shrink-0"
         />
       </div>
       <div class="flex items-center gap-2">

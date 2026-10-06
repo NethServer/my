@@ -536,7 +536,7 @@ async function saveCustomer() {
           :loading="saving"
           @click.prevent="saveCustomer"
         >
-          {{ currentCustomer ? $t('customers.save_customer') : $t('customers.create_customer') }}
+          {{ currentCustomer ? $t('common.save') : $t('customers.create_customer') }}
         </NeButton>
       </div>
     </form>

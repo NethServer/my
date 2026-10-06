@@ -4,9 +4,13 @@
 -->
 
 <script setup lang="ts">
-import { RESELLERS_TABLE_ID, type Reseller } from '@/lib/organizations/resellers'
+import { withDangerItemsLast } from '@/lib/common'
+import {
+  RESELLERS_TABLE_ID,
+  type Reseller,
+  type ResellerSortBy,
+} from '@/lib/organizations/resellers'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
-import { useResellerFilters } from '@/queries/organizations/resellerFilters'
 import {
   faMagnifyingGlass,
   faCity,
@@ -19,7 +23,6 @@ import {
   faBomb,
   faCircleUp,
   faServer,
-  faBuilding,
   faEye,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -43,7 +46,6 @@ import {
   type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
-import UserAvatar from '@/components/users/UserAvatar.vue'
 import CreateOrEditResellerDrawer from './CreateOrEditResellerDrawer.vue'
 import { useI18n } from 'vue-i18n'
 import DeleteResellerModal from './DeleteResellerModal.vue'
@@ -57,8 +59,10 @@ import { useResellers } from '@/queries/organizations/resellers'
 import { canManageResellers, canDestroyResellers, canPromoteOrganizations } from '@/lib/permissions'
 import router from '@/router'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
+import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
-import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
+import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
+import { canSeeParentOfResellers } from '@/lib/organizations/organizations'
 
 const { isShownCreateResellerDrawer = false } = defineProps<{
   isShownCreateResellerDrawer: boolean
@@ -74,7 +78,6 @@ const {
   pageSize,
   textFilter,
   statusFilter,
-  createdByFilter,
   organizationFilter,
   sortBy,
   sortDescending,
@@ -82,7 +85,6 @@ const {
   resetFilters,
   resetStatusFilter,
 } = useResellers()
-const { state: resellerFiltersState } = useResellerFilters()
 
 const currentReseller = ref<Reseller | undefined>()
 const isShownCreateOrEditResellerDrawer = ref(false)
@@ -107,18 +109,6 @@ const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
     label: t('common.archived'),
   },
 ])
-
-const createdByFilterOptions = computed<NeDropdownFilterV2Option[]>(() => {
-  if (!resellerFiltersState.value.data || !resellerFiltersState.value.data.created_by) {
-    return []
-  } else {
-    return resellerFiltersState.value.data.created_by.map((createdBy) => ({
-      id: createdBy.user_id,
-      label: createdBy.name,
-      description: createdBy.organization_name,
-    }))
-  }
-})
 
 const resellersPage = computed(() => {
   return state.value.data?.resellers
@@ -284,11 +274,11 @@ function getKebabMenuItems(reseller: Reseller) {
       disabled: asyncStatus.value === 'loading',
     })
   }
-  return items
+  return withDangerItemsLast(items)
 }
 
 const onSort = (payload: SortEvent) => {
-  sortBy.value = payload.key as keyof Reseller
+  sortBy.value = payload.key as ResellerSortBy
   sortDescending.value = payload.descending
 }
 
@@ -326,6 +316,13 @@ const goToResellerDetails = (reseller: Reseller) => {
             :placeholder="$t('resellers.filter_resellers')"
             class="max-w-48 sm:max-w-sm"
           />
+          <!-- parent company filter: the distributor the reseller belongs to -->
+          <OrganizationDropdownFilter
+            v-if="canSeeParentOfResellers()"
+            v-model="organizationFilter"
+            :organization-types="['distributor']"
+            :label="t('organizations.parent_company')"
+          />
           <!-- status filter -->
           <NeDropdownFilterV2
             v-model="statusFilter"
@@ -342,33 +339,17 @@ const goToResellerDetails = (reseller: Reseller) => {
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             @custom-action="resetStatusFilter"
           />
-          <!-- parent company filter: the distributor the reseller belongs to -->
-          <OrganizationDropdownFilter
-            v-model="organizationFilter"
-            :organization-types="['distributor']"
-            :label="t('organizations.parent_company')"
-          />
-          <!-- created by filter -->
-          <NeDropdownFilterV2
-            v-model="createdByFilter"
-            kind="checkbox"
-            :disabled="resellerFiltersState.status === 'pending'"
-            :label="t('systems.created_by')"
-            :options="createdByFilterOptions"
-            show-options-filter
-            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
-            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-            :no-options-label="t('ne_dropdown_filter.no_options')"
-            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-            :clear-search-label="t('ne_dropdown_filter.clear_search')"
-          />
           <NeSortDropdown
             v-model:sort-key="sortBy"
             v-model:sort-descending="sortDescending"
             :label="t('sort.sort')"
             :options="[
               { id: 'name', label: t('organizations.name') },
-              { id: 'creator_name', label: t('systems.created_by') },
+              { id: 'customers_count', label: t('customers.title') },
+              { id: 'systems_count', label: t('systems.total_systems') },
+              ...(canSeeParentOfResellers()
+                ? [{ id: 'managed_by', label: t('organizations.parent_company') }]
+                : []),
               { id: 'suspended_at', label: t('common.status') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
@@ -419,11 +400,19 @@ const goToResellerDetails = (reseller: Reseller) => {
           $t('organizations.name')
         }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('organizations.vat_number') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('customers.title') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('systems.total_systems') }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="creator_name" @sort="onSort">{{
-          $t('systems.created_by')
+        <NeTableHeadCell sortable column-key="customers_count" @sort="onSort">{{
+          $t('customers.title')
         }}</NeTableHeadCell>
+        <NeTableHeadCell sortable column-key="systems_count" @sort="onSort">{{
+          $t('systems.total_systems')
+        }}</NeTableHeadCell>
+        <NeTableHeadCell
+          v-if="canSeeParentOfResellers()"
+          sortable
+          column-key="managed_by"
+          @sort="onSort"
+          >{{ $t('organizations.parent_company') }}</NeTableHeadCell
+        >
         <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
           $t('common.status')
         }}</NeTableHeadCell>
@@ -465,19 +454,11 @@ const goToResellerDetails = (reseller: Reseller) => {
               class="flex items-center gap-2 hover:underline"
               :aria-label="$t('resellers.show_reseller_customers', { name: item.name })"
             >
-              <FontAwesomeIcon
-                :icon="faBuilding"
-                class="text-icon-neutral size-4"
-                aria-hidden="true"
-              />
+              <OrganizationIcon org-type="customer" variant="plain" size="sm" />
               {{ item.customers_count }}
             </router-link>
             <div v-else class="flex items-center gap-2 opacity-50">
-              <FontAwesomeIcon
-                :icon="faBuilding"
-                class="text-icon-neutral size-4"
-                aria-hidden="true"
-              />
+              <OrganizationIcon org-type="customer" variant="plain" size="sm" />
               {{ item.customers_count }}
             </div>
           </NeTableCell>
@@ -487,9 +468,8 @@ const goToResellerDetails = (reseller: Reseller) => {
               :to="{
                 name: 'systems',
                 query: {
-                  organization_id: item.logto_id,
-                  organization_name: item.name,
-                  include_hierarchy: 'true',
+                  parent_organization_id: item.logto_id,
+                  parent_organization_name: item.name,
                 },
               }"
               class="flex items-center gap-2 hover:underline"
@@ -511,29 +491,12 @@ const goToResellerDetails = (reseller: Reseller) => {
               {{ item.systems_count }}
             </div>
           </NeTableCell>
-          <NeTableCell :data-label="$t('systems.created_by')">
-            <div :class="{ 'opacity-50': item.deleted_at }">
-              <template v-if="item.created_by">
-                <div class="flex items-center gap-2">
-                  <UserAvatar
-                    size="sm"
-                    :is-owner="item.created_by.username === 'owner'"
-                    :name="item.created_by.name"
-                    :logto-id="item.created_by.user_id"
-                  />
-                  <div class="space-y-0.5">
-                    <div>{{ item.created_by.name || '-' }}</div>
-                    <div
-                      v-if="item.created_by.organization_name"
-                      class="text-gray-500 dark:text-gray-400"
-                    >
-                      <CreatorOrganization :creator="item.created_by" />
-                    </div>
-                  </div>
-                </div>
-              </template>
-              <template v-else>-</template>
-            </div>
+          <NeTableCell
+            v-if="canSeeParentOfResellers()"
+            :data-label="$t('organizations.parent_company')"
+            :class="{ 'opacity-50': item.deleted_at }"
+          >
+            <ParentCompanyLink :creator="item.created_by" />
           </NeTableCell>
           <NeTableCell :data-label="$t('common.status')">
             <div class="flex items-center gap-2">

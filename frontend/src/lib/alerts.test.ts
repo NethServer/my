@@ -6,7 +6,10 @@ import {
   getAlertDescription,
   getAlertSilenceIds,
   getAlertSummary,
+  getHasNotesFilter,
   isAlertSilenced,
+  WITH_COMMENTS_FILTER_ID,
+  WITHOUT_COMMENTS_FILTER_ID,
   type Alert,
 } from './alerts'
 import { formatDateTimeNoSeconds } from '@nethesis/vue-components'
@@ -137,5 +140,26 @@ describe('isAlertSilenced', () => {
 
   it('returns false when the alert has no silence ids', () => {
     expect(isAlertSilenced(baseAlert)).toBe(false)
+  })
+})
+
+describe('getHasNotesFilter', () => {
+  const withComments = { id: WITH_COMMENTS_FILTER_ID, label: 'Alerts with comments' }
+  const withoutComments = { id: WITHOUT_COMMENTS_FILTER_ID, label: 'Alerts without comments' }
+
+  it('returns undefined when no option is selected', () => {
+    expect(getHasNotesFilter([])).toBeUndefined()
+  })
+
+  it('returns true when only alerts with comments are selected', () => {
+    expect(getHasNotesFilter([withComments])).toBe(true)
+  })
+
+  it('returns false when only alerts without comments are selected', () => {
+    expect(getHasNotesFilter([withoutComments])).toBe(false)
+  })
+
+  it('returns undefined when both options are selected', () => {
+    expect(getHasNotesFilter([withComments, withoutComments])).toBeUndefined()
   })
 })

@@ -37,7 +37,6 @@ export function useSystemFilter(idField: 'system_key' | 'id' = 'system_key') {
         [],
         [],
         [],
-        false,
         'name',
         false,
       ),

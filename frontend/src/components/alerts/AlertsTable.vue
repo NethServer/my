@@ -12,6 +12,7 @@ import {
   faComment,
   faEye,
   faMagnifyingGlass,
+  faMessage,
   faServer,
   faUserCheck,
 } from '@fortawesome/free-solid-svg-icons'
@@ -32,6 +33,7 @@ import {
   NeTableHead,
   NeTableHeadCell,
   NeTableRow,
+  NeTooltip,
   type NeDropdownFilterV2Option,
   type NeDropdownItem,
   type SortEvent,
@@ -74,6 +76,7 @@ import capitalize from 'lodash/capitalize'
 import SystemDropdownFilter from '@/components/systems/SystemDropdownFilter.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 import AssigneeDropdownFilter from '@/components/alerts/AssigneeDropdownFilter.vue'
+import CommentsDropdownFilter from '@/components/alerts/CommentsDropdownFilter.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { isUserCustomer } from '@/lib/organizations/organizations'
 import SystemLogoAndLink from '../systems/SystemLogoAndLink.vue'
@@ -98,6 +101,7 @@ const {
   alertnameFilters,
   systemKeyFilters,
   assigneeFilters,
+  commentsFilters,
   organizationIds,
   areDefaultFiltersApplied,
   clearFilters,
@@ -396,18 +400,6 @@ function goToSystems() {
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             @update:model-value="() => (pageNum = 1)"
           />
-          <!-- System filter -->
-          <SystemDropdownFilter
-            v-model="systemKeyFilters"
-            id-field="system_key"
-            @update:model-value="() => (pageNum = 1)"
-          />
-          <!-- Organization filter -->
-          <OrganizationDropdownFilter
-            v-if="!isUserCustomer()"
-            v-model="organizationIds"
-            @update:model-value="() => (pageNum = 1)"
-          />
           <!-- Status filter -->
           <NeDropdownFilterV2
             v-model="statusFilters"
@@ -423,6 +415,23 @@ function goToSystems() {
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             :custom-action-label="t('ne_dropdown_filter.reset_selection')"
             @custom-action="resetStatusFilter"
+            @update:model-value="() => (pageNum = 1)"
+          />
+          <!-- System filter -->
+          <SystemDropdownFilter
+            v-model="systemKeyFilters"
+            id-field="system_key"
+            @update:model-value="() => (pageNum = 1)"
+          />
+          <!-- Organization filter -->
+          <OrganizationDropdownFilter
+            v-if="!isUserCustomer()"
+            v-model="organizationIds"
+            @update:model-value="() => (pageNum = 1)"
+          />
+          <!-- Comments filter -->
+          <CommentsDropdownFilter
+            v-model="commentsFilters"
             @update:model-value="() => (pageNum = 1)"
           />
           <!-- Assignee filter: the options come from GET /users, so hide it for
@@ -455,7 +464,7 @@ function goToSystems() {
           </NeButton>
         </div>
         <!-- Data updated every X seconds -->
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 text-right">
           <NeSpinner
             color="white"
             v-if="alertsAsyncStatus === 'loading' && alertsState.status !== 'pending'"
@@ -548,23 +557,46 @@ function goToSystems() {
           <NeTableCell :data-label="$t('alerts.alertname')">
             <div class="flex items-start gap-2">
               <div>
-                <span
-                  class="cursor-pointer font-medium hover:underline"
-                  @click="() => showDetailsDrawer(alert)"
-                  >{{ alert.labels?.alertname || '-' }}</span
-                >
+                <div class="flex flex-wrap items-center gap-2">
+                  <span
+                    class="cursor-pointer font-medium hover:underline"
+                    @click="() => showDetailsDrawer(alert)"
+                    >{{ alert.labels?.alertname || '-' }}</span
+                  >
+                  <ProcessingAlertBadge v-if="isProcessing(alert)" size="xs" />
+                  <NeBadgeV2 v-else-if="isAlertSilenced(alert)" kind="gray" size="xs">
+                    <FontAwesomeIcon :icon="faBellSlash" class="size-4" />
+                    {{ t('alerts.muted') }}
+                  </NeBadgeV2>
+                </div>
                 <p
                   v-if="getAlertSummary(alert, locale)"
-                  class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5 break-all"
+                  class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5 max-w-xs wrap-anywhere"
                 >
                   {{ getAlertSummary(alert, locale) }}
                 </p>
               </div>
-              <ProcessingAlertBadge v-if="isProcessing(alert)" />
-              <NeBadgeV2 v-else-if="isAlertSilenced(alert)" kind="gray">
-                <FontAwesomeIcon :icon="faBellSlash" class="size-4" />
-                {{ t('alerts.muted') }}
-              </NeBadgeV2>
+              <!-- opens the details drawer, whose timeline lists the comments -->
+              <NeTooltip
+                v-if="alert.has_notes"
+                trigger-event="mouseenter focus"
+                placement="top"
+                class="mt-0.5 ml-auto flex shrink-0"
+              >
+                <template #trigger>
+                  <button
+                    type="button"
+                    class="flex cursor-pointer text-indigo-800 transition-colors duration-(--duration-small) hover:text-indigo-950 dark:text-indigo-300 dark:hover:text-indigo-200"
+                    @click="() => showDetailsDrawer(alert)"
+                  >
+                    <FontAwesomeIcon :icon="faMessage" class="size-4" aria-hidden="true" />
+                    <span class="sr-only">{{ t('alerts.show_comments') }}</span>
+                  </button>
+                </template>
+                <template #content>
+                  {{ t('alerts.has_comments') }}
+                </template>
+              </NeTooltip>
             </div>
           </NeTableCell>
           <!-- System -->

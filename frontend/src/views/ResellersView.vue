@@ -44,7 +44,6 @@ const {
   state,
   debouncedTextFilter,
   statusFilter,
-  createdByFilter,
   organizationFilter,
   sortBy,
   sortDescending,
@@ -101,7 +100,7 @@ async function exportResellers(format: 'pdf' | 'csv') {
       format,
       debouncedTextFilter.value,
       statusFilter.value.map((o) => o.id) as ResellerStatus[],
-      createdByFilter.value.map((o) => o.id),
+      [], // created by: not filtered from the tables
       organizationFilter.value.map((o) => o.id),
       sortBy.value,
       sortDescending.value,

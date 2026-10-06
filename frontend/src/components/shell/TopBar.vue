@@ -7,6 +7,7 @@
 import { NeDropdown, NeSkeleton, NeTooltip } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import { useThemeStore } from '@/stores/theme'
+import { useDensityStore } from '@/stores/density'
 import { useLoginStore } from '@/stores/login'
 import {
   faBars,
@@ -14,6 +15,8 @@ import {
   faChevronDown,
   faCircleQuestion,
   faCircleUser,
+  faCompress,
+  faExpand,
   faMoon,
   faArrowRightFromBracket,
   faSun,
@@ -32,6 +35,7 @@ const emit = defineEmits(['openSidebar'])
 
 const { t } = useI18n()
 const themeStore = useThemeStore()
+const densityStore = useDensityStore()
 const loginStore = useLoginStore()
 const notificationsStore = useNotificationsStore()
 const { state: impersonationConsentState } = useImpersonationConsent()
@@ -134,6 +138,7 @@ function openNotificationsDrawer() {
                 rel="noreferrer"
                 :class="[topBarButtonClasses, 'items-center gap-3']"
               >
+                <span class="sr-only">{{ $t('shell.help') }}</span>
                 <FontAwesomeIcon
                   :icon="faCircleQuestion"
                   class="h-6 w-6 shrink-0"
@@ -167,6 +172,35 @@ function openNotificationsDrawer() {
                 themeStore.isLight
                   ? $t('shell.switch_to_dark_theme')
                   : $t('shell.switch_to_light_theme')
+              }}
+            </template>
+          </NeTooltip>
+
+          <!-- toggle density -->
+          <NeTooltip trigger-event="mouseenter focus" placement="bottom" class="flex">
+            <template #trigger>
+              <button
+                type="button"
+                :class="topBarButtonClasses"
+                @click="densityStore.toggleDensity"
+              >
+                <span class="sr-only">{{
+                  densityStore.isCompact
+                    ? $t('shell.switch_to_standard_density')
+                    : $t('shell.switch_to_compact_density')
+                }}</span>
+                <FontAwesomeIcon
+                  :icon="densityStore.isCompact ? faExpand : faCompress"
+                  class="h-6 w-6 shrink-0"
+                  aria-hidden="true"
+                />
+              </button>
+            </template>
+            <template #content>
+              {{
+                densityStore.isCompact
+                  ? $t('shell.switch_to_standard_density')
+                  : $t('shell.switch_to_compact_density')
               }}
             </template>
           </NeTooltip>

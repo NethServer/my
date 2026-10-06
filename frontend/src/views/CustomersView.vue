@@ -44,31 +44,20 @@ const {
   state,
   debouncedTextFilter,
   statusFilter,
-  createdByFilter,
   organizationFilter,
-  includeHierarchy,
   sortBy,
   sortDescending,
-  applyHierarchyFilter,
   resetFilters,
 } = useCustomers()
 
-// apply the parent company filter requested via query params, then clean the URL
-const {
-  organization_id: orgId,
-  organization_name: orgName,
-  include_hierarchy: includeHierarchyParam,
-} = route.query
+// apply the Managed by filter requested via query params, then clean the URL
+const { organization_id: orgId, organization_name: orgName } = route.query
 
 if (typeof orgId === 'string' && orgId && typeof orgName === 'string' && orgName) {
-  if (includeHierarchyParam === 'true') {
-    applyHierarchyFilter({ id: orgId, label: orgName })
-  } else {
-    resetFilters()
-    // the filter renders the label carried by the selection: pass the organization
-    // name, as it may not be among the options the dropdown has loaded
-    organizationFilter.value = [{ id: orgId, label: orgName }]
-  }
+  resetFilters()
+  // the filter renders the label carried by the selection: pass the organization
+  // name, as it may not be among the options the dropdown has loaded
+  organizationFilter.value = [{ id: orgId, label: orgName }]
   router.replace({ query: {} })
 }
 
@@ -111,9 +100,8 @@ async function exportCustomers(format: 'pdf' | 'csv') {
       format,
       debouncedTextFilter.value,
       statusFilter.value.map((o) => o.id) as CustomerStatus[],
-      createdByFilter.value.map((o) => o.id),
+      [], // created by: not filtered from the tables
       organizationFilter.value.map((o) => o.id),
-      includeHierarchy.value,
       sortBy.value,
       sortDescending.value,
     )

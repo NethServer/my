@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/lib/pq"
+
 	"github.com/nethesis/my/backend/database"
 )
 
@@ -119,6 +121,49 @@ func (r *LocalAlertActivityRepository) ListByFingerprint(orgID, fingerprint stri
 		out = append(out, e)
 	}
 	return out, nil
+}
+
+// WithNotesByFingerprints returns which of the given (orgID, fingerprint)
+// pairs carry at least one operator-written text in their timeline, in one
+// round-trip, keyed by AssignmentKey. A text is a standalone note
+// (note_added), the note taken with an assignment (details.note) or a silence
+// comment (details.comment) other than defaultSilenceComment, the placeholder
+// stored when the operator left the comment empty. Pairs missing from the
+// map have none. Both slices must be the same length (pairwise).
+func (r *LocalAlertActivityRepository) WithNotesByFingerprints(orgIDs, fingerprints []string, defaultSilenceComment string) (map[string]bool, error) {
+	out := make(map[string]bool, len(fingerprints))
+	if len(fingerprints) == 0 {
+		return out, nil
+	}
+	rows, err := r.db.Query(
+		`SELECT t.organization_id, t.fingerprint
+		 FROM (SELECT DISTINCT organization_id, fingerprint
+		       FROM unnest($1::text[], $2::text[]) AS u(organization_id, fingerprint)) t
+		 WHERE EXISTS (
+		   SELECT 1 FROM alert_activity a
+		   WHERE a.organization_id = t.organization_id
+		     AND a.fingerprint     = t.fingerprint
+		     AND (a.action = $3
+		          OR (a.action = $4 AND btrim(COALESCE(a.details->>'note', '')) <> '')
+		          OR (a.action IN ($5, $6) AND btrim(COALESCE(a.details->>'comment', '')) NOT IN ('', $7)))
+		 )`,
+		pq.Array(orgIDs), pq.Array(fingerprints),
+		AlertActivityNoteAdded, AlertActivityAssigned,
+		AlertActivitySilenced, AlertActivitySilenceUpdated, defaultSilenceComment,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query alert_activity notes: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var org, fp string
+		if err := rows.Scan(&org, &fp); err != nil {
+			return nil, fmt.Errorf("scan alert_activity notes: %w", err)
+		}
+		out[AssignmentKey(org, fp)] = true
+	}
+	return out, rows.Err()
 }
 
 // FindFingerprintBySilenceID returns the fingerprint of the alert that the

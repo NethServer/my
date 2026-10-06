@@ -5,6 +5,7 @@
 
 <script setup lang="ts">
 import { useThemeStore } from './stores/theme'
+import { useDensityStore } from './stores/density'
 import { computed, onMounted } from 'vue'
 import AppShell from '@/components/shell/AppShell.vue'
 import { useRoute } from 'vue-router'
@@ -16,6 +17,7 @@ import { PiniaColadaDevtools } from '@pinia/colada-devtools'
 import { configureAxios } from './lib/axios'
 
 const themeStore = useThemeStore()
+const densityStore = useDensityStore()
 const route = useRoute()
 const { t } = useI18n()
 
@@ -44,6 +46,7 @@ useTitle(pageTitle)
 onMounted(() => {
   console.log('%c' + welcomeMsg, 'background: #0069a8; color: white;')
   themeStore.loadTheme()
+  densityStore.loadDensity()
   configureAxios()
 })
 </script>

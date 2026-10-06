@@ -85,6 +85,8 @@ export const ResellerSchema = v.object({
 export type CreateReseller = v.InferOutput<typeof CreateResellerSchema>
 export type EditReseller = v.InferOutput<typeof EditResellerSchema>
 export type Reseller = v.InferOutput<typeof ResellerSchema>
+// managed_by: the company in the creator snapshot, the one "Managed by" shows
+export type ResellerSortBy = keyof Reseller | 'managed_by'
 
 interface ResellersResponse {
   code: number

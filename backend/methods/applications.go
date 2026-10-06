@@ -59,6 +59,11 @@ func GetApplications(c *gin.Context) {
 		filterOrgIDs = expanded
 	}
 
+	filterManagedByOrgIDs, ok := managedByOrganizationIDs(c)
+	if !ok {
+		return
+	}
+
 	// Create applications service
 	appsService := local.NewApplicationsService()
 
@@ -68,7 +73,7 @@ func GetApplications(c *gin.Context) {
 		userOrgRole, userOrgID,
 		page, pageSize,
 		search, sortBy, sortDirection,
-		filterTypes, filterVersions, filterSystemIDs, filterOrgIDs, filterStatuses,
+		filterTypes, filterVersions, filterSystemIDs, filterOrgIDs, filterManagedByOrgIDs, filterStatuses,
 	)
 	if err != nil {
 		logger.Error().

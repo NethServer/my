@@ -400,7 +400,7 @@ const onSort = (payload: SortEvent) => {
                   {{ $t('addons.unused') }}
                 </NeBadgeV2>
               </div>
-              <div v-if="row.addon.description" class="text-tertiary-neutral truncate">
+              <div v-if="row.addon.description" class="text-tertiary-neutral">
                 {{ row.addon.description }}
               </div>
             </NeTableCell>

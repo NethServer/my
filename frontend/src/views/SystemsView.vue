@@ -35,33 +35,41 @@ const {
   state,
   debouncedTextFilter,
   productFilter,
-  createdByFilter,
   versionFilter,
   statusFilter,
   organizationFilter,
+  parentOrganizationFilter,
   addonFilter,
-  includeHierarchy,
   sortBy,
   sortDescending,
-  applyHierarchyFilter,
   resetFilters,
 } = useSystems()
 
-// apply the filters requested via query params, then clean the URL
+// apply the filters requested via query params, then clean the URL. The
+// filters render the label carried by the selection: the links pass the
+// organization name, as it may not be among the options the dropdown loaded.
 const {
   organization_id: orgId,
   organization_name: orgName,
-  include_hierarchy: includeHierarchyParam,
+  parent_organization_id: parentOrgId,
+  parent_organization_name: parentOrgName,
   status,
 } = route.query
 
 if (typeof orgId === 'string' && orgId && typeof orgName === 'string' && orgName) {
-  if (includeHierarchyParam === 'true') {
-    applyHierarchyFilter({ id: orgId, label: orgName })
-  } else {
-    resetFilters()
-    organizationFilter.value = [{ id: orgId, label: orgName }]
-  }
+  resetFilters()
+  organizationFilter.value = [{ id: orgId, label: orgName }]
+  router.replace({ query: {} })
+}
+
+if (
+  typeof parentOrgId === 'string' &&
+  parentOrgId &&
+  typeof parentOrgName === 'string' &&
+  parentOrgName
+) {
+  resetFilters()
+  parentOrganizationFilter.value = [{ id: parentOrgId, label: parentOrgName }]
   router.replace({ query: {} })
 }
 
@@ -100,14 +108,14 @@ async function exportSystems(format: 'pdf' | 'csv') {
       undefined,
       debouncedTextFilter.value,
       productFilter.value.map((o) => o.id),
-      createdByFilter.value.map((o) => o.id),
+      [], // created by: not filtered from the tables
       versionFilter.value.map((o) => o.id),
       statusFilter.value.map((o) => o.id) as SystemStatus[],
       organizationFilter.value.map((o) => o.id),
       addonFilter.value.map((o) => o.id),
-      includeHierarchy.value,
       sortBy.value,
       sortDescending.value,
+      parentOrganizationFilter.value.map((o) => o.id),
     )
     const fileName = exportFileName(t('systems.title'), format)
     downloadFile(exportData, fileName, format)
