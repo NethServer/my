@@ -137,6 +137,16 @@ function removeEndpoint(index: number) {
   else if (expandedIndex.value !== null && expandedIndex.value > index) expandedIndex.value--
 }
 
+// The recipient name is a label (max 100 chars on the backend), never the URL:
+// webhook URLs carry secrets in their path/query and often exceed 100 chars.
+function recipientName(url: string): string {
+  try {
+    return new URL(url).hostname.slice(0, 100)
+  } catch {
+    return ''
+  }
+}
+
 // ── Mutation ──────────────────────────────────────────────────────────────────
 
 const {
@@ -153,7 +163,7 @@ const {
       },
       email_recipients: props.config?.email_recipients ?? [],
       webhook_recipients: endpoints.value.map((r) => ({
-        name: r.url,
+        name: recipientName(r.url),
         url: r.url,
         severities: r.severities?.length ? r.severities : undefined,
       })),
@@ -180,7 +190,7 @@ function validate(): boolean {
   validationIssues.value = {}
   const payload = {
     webhook_recipients: endpoints.value.map((r) => ({
-      name: r.url,
+      name: recipientName(r.url),
       url: r.url,
       severities: r.severities?.length ? r.severities : undefined,
     })),

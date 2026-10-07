@@ -7,6 +7,7 @@ package alerting
 
 import (
 	"net/url"
+	"strings"
 
 	"github.com/nethesis/my/backend/models"
 )
@@ -22,6 +23,8 @@ const RedactedSecretPlaceholder = "[REDACTED]"
 // Specifically:
 //   - telegram_recipients[].bot_token → "[REDACTED]"
 //   - webhook_recipients[].url        → scheme://host/[REDACTED] (path/query stripped)
+//   - webhook_recipients[].name       → same masking when it holds a URL (older
+//     frontends sent the full URL as the name)
 //
 // Email addresses are NOT scrubbed: they're already user-typed PII the
 // admin is authorised to see, and they double as the dedup key.
@@ -31,7 +34,7 @@ func RedactLayerForAudit(layer models.AlertingConfigLayer) models.AlertingConfig
 		out.WebhookRecipients = make([]models.WebhookRecipient, len(layer.WebhookRecipients))
 		for i, w := range layer.WebhookRecipients {
 			out.WebhookRecipients[i] = models.WebhookRecipient{
-				Name:       w.Name,
+				Name:       maskWebhookName(w.Name),
 				URL:        maskWebhookURL(w.URL),
 				Severities: w.Severities,
 			}
@@ -61,6 +64,15 @@ func RedactEffectiveConfigReport(r EffectiveConfigReport) EffectiveConfigReport 
 	out.Effective = RedactLayerForAudit(r.Effective)
 	out.YAML = RedactSensitiveConfig(r.YAML)
 	return out
+}
+
+// maskWebhookName masks a recipient name that is itself a URL, leaving
+// plain labels untouched.
+func maskWebhookName(name string) string {
+	if strings.Contains(name, "://") {
+		return maskWebhookURL(name)
+	}
+	return name
 }
 
 // maskWebhookURL keeps scheme + host + port (so the audit log records where

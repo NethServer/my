@@ -53,3 +53,22 @@ func TestRedactEffectiveConfigReport(t *testing.T) {
 		t.Errorf("source report mutated: %q", report.Effective.TelegramRecipients[0].BotToken)
 	}
 }
+
+func TestRedactLayerForAuditMasksURLName(t *testing.T) {
+	secret := "https://hooks.slack.com/services/T00/B00/XXXSECRET"
+	layer := models.AlertingConfigLayer{
+		WebhookRecipients: []models.WebhookRecipient{
+			{Name: secret, URL: secret},
+			{Name: "teams", URL: secret},
+		},
+	}
+
+	out := RedactLayerForAudit(layer)
+
+	if got := out.WebhookRecipients[0].Name; got != "https://hooks.slack.com/"+RedactedSecretPlaceholder {
+		t.Errorf("url-shaped name not masked: %q", got)
+	}
+	if got := out.WebhookRecipients[1].Name; got != "teams" {
+		t.Errorf("plain name altered: %q", got)
+	}
+}
