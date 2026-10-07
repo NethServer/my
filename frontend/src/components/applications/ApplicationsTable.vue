@@ -6,6 +6,7 @@
 <script setup lang="ts">
 import {
   faBuilding,
+  faCheck,
   faMagnifyingGlass,
   faEye,
   faPenToSquare,
@@ -24,6 +25,7 @@ import {
   NeInlineNotification,
   NeTextInput,
   NeDropdown,
+  NeTooltip,
   type SortEvent,
   type NeDropdownItem,
   NeDropdownFilterV2,
@@ -37,7 +39,15 @@ import { canSeeParentOfCustomers, isUserCustomer } from '@/lib/organizations/org
 import { APPLICATIONS_TABLE_ID } from '@/lib/applications/applications'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import { useApplications } from '@/queries/applications/applications'
-import { getDisplayName, getFqdns, type Application } from '@/lib/applications/applications'
+import {
+  APPLICATIONS_KEY,
+  assignOrganization,
+  getDisplayName,
+  getFqdns,
+  type Application,
+} from '@/lib/applications/applications'
+import { useMutation, useQueryCache } from '@pinia/colada'
+import { useNotificationsStore } from '@/stores/notifications'
 import ClickToCopy from '@/components/common/ClickToCopy.vue'
 import ApplicationLogo from './ApplicationLogo.vue'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
@@ -74,6 +84,47 @@ const { state: applicationFiltersState } = useApplicationFilters()
 const currentApplication = ref<Application | undefined>()
 const isShownAssignOrgDrawer = ref(false)
 const isShownSetNotesDrawer = ref(false)
+const queryCache = useQueryCache()
+const notificationsStore = useNotificationsStore()
+const assigningApplicationId = ref<string>()
+
+// One-click confirmation of the company suggested for an unassigned
+// application: same call as the drawer, no search involved
+const { mutate: assignSuggestedMutate } = useMutation({
+  mutation: (application: Application) => {
+    if (!application.suggested_organization) {
+      throw new Error('No suggested organization')
+    }
+    return assignOrganization(application.suggested_organization.logto_id, application.id)
+  },
+  onSuccess: (data, application) => {
+    notificationsStore.createNotification({
+      kind: 'success',
+      title: t('applications.organization_assigned'),
+      description: t('applications.organization_assigned_description', {
+        application: getDisplayName(application),
+        organization: application.suggested_organization?.name,
+      }),
+    })
+  },
+  onError: (error) => {
+    console.error('Error assigning suggested organization:', error)
+    notificationsStore.createNotification({
+      kind: 'error',
+      title: t('applications.cannot_assign_organization'),
+      description: error instanceof Error ? error.message : String(error),
+    })
+  },
+  onSettled: () => {
+    assigningApplicationId.value = undefined
+    queryCache.invalidateQueries({ key: [APPLICATIONS_KEY] })
+  },
+})
+
+function assignSuggested(application: Application) {
+  assigningApplicationId.value = application.id
+  assignSuggestedMutate(application)
+}
 
 const applicationsPage = computed(() => {
   return state.value.data?.applications || []
@@ -378,6 +429,46 @@ const goToApplicationDetails = (application: Application) => {
             </NeTableCell>
             <NeTableCell :data-label="$t('applications.assigned_company')">
               <OrganizationIconAndLink v-if="item.organization" :organization="item.organization" />
+              <!-- suggested company: shown in grey, one click to confirm -->
+              <div
+                v-else-if="item.suggested_organization && canManageApplications()"
+                class="flex items-center justify-between gap-2"
+              >
+                <NeTooltip trigger-event="mouseenter focus" placement="top" class="min-w-0">
+                  <template #trigger>
+                    <div class="text-tertiary-neutral dark:text-tertiary-neutral flex flex-col">
+                      <span class="wrap-anywhere">{{ item.suggested_organization.name }}</span>
+                      <span class="text-xs">
+                        {{ $t(`organizations.${item.suggested_organization.type}`) }}
+                      </span>
+                    </div>
+                  </template>
+                  <template #content>
+                    {{
+                      item.suggested_organization.source === 'hosting_system'
+                        ? $t('applications.suggested_from_system_tooltip', {
+                            system: item.suggested_organization.matched,
+                          })
+                        : $t('applications.suggested_organization_tooltip', {
+                            matched: item.suggested_organization.matched,
+                          })
+                    }}
+                  </template>
+                </NeTooltip>
+                <NeButton
+                  kind="tertiary"
+                  size="sm"
+                  class="shrink-0"
+                  :loading="assigningApplicationId === item.id"
+                  :disabled="!!assigningApplicationId"
+                  @click="assignSuggested(item)"
+                >
+                  <template #prefix>
+                    <FontAwesomeIcon :icon="faCheck" class="h-4 w-4" aria-hidden="true" />
+                  </template>
+                  {{ $t('applications.assign') }}
+                </NeButton>
+              </div>
               <span v-else>-</span>
             </NeTableCell>
             <NeTableCell :data-label="$t('common.actions')">

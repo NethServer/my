@@ -19,6 +19,16 @@ const applicationLogos = import.meta.glob('../../assets/application_logos/*.svg'
   import: 'default',
 }) as Record<string, string>
 
+// Customer an unassigned application is probably meant for, inferred by the
+// backend from its hostnames, label or user domain (include_suggestions=true)
+export const SuggestedOrganizationSchema = v.object({
+  logto_id: v.string(),
+  name: v.string(),
+  type: v.string(),
+  source: v.string(),
+  matched: v.string(),
+})
+
 export const ApplicationSchema = v.object({
   id: v.string(),
   module_id: v.string(),
@@ -39,6 +49,7 @@ export const ApplicationSchema = v.object({
     name: v.string(),
   }),
   organization: v.optional(OrganizationSchema),
+  suggested_organization: v.optional(SuggestedOrganizationSchema),
   created_at: v.string(),
   last_inventory_at: v.string(),
 })
@@ -97,6 +108,8 @@ export const getQueryStringParams = (
   parentOrganizationFilter: string[] = [],
 ) => {
   const searchParams = new URLSearchParams({
+    // the list shows who an unassigned application is probably meant for
+    include_suggestions: 'true',
     page: pageNum.toString(),
     page_size: pageSize.toString(),
     sort_by: sortBy || '',

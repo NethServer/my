@@ -6,7 +6,7 @@
 <script setup lang="ts">
 import { NeCombobox } from '@nethesis/vue-components'
 import { useI18n } from 'vue-i18n'
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useOrganizationFilter } from '@/composables/useOrganizationFilter'
 
 const props = withDefaults(
@@ -93,6 +93,13 @@ const computedPlaceholder = computed(() =>
 )
 
 const comboboxRef = ref()
+
+// NeCombobox does not expose the autocomplete attribute of its input, and the
+// browser's form history makes no sense on a company search: switch it off on
+// the rendered input. Drop once vue-components sets it itself.
+onMounted(() => {
+  comboboxRef.value?.$el?.querySelector?.('input')?.setAttribute('autocomplete', 'off')
+})
 
 defineExpose({
   focus: () => comboboxRef.value?.focus?.(),

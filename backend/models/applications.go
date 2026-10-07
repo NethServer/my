@@ -44,6 +44,19 @@ type Application struct {
 	// Rebranding info (populated by handler)
 	RebrandingEnabled bool    `json:"rebranding_enabled"`
 	RebrandingOrgID   *string `json:"rebranding_org_id,omitempty"`
+
+	// Customer the unassigned application is probably meant for (populated on
+	// request by the list handler, see SuggestOrganizations)
+	SuggestedOrganization *SuggestedOrganization `json:"suggested_organization,omitempty"`
+}
+
+// SuggestedOrganization is the customer an unassigned application is named
+// after, inferred from its hostnames, label or user domain; the user confirms
+// the assignment, nothing is assigned automatically.
+type SuggestedOrganization struct {
+	OrganizationSummary
+	Source  string `json:"source"`  // fqdn, display_name or user_domain
+	Matched string `json:"matched"` // the hostname, label or domain the suggestion comes from
 }
 
 // SystemSummary represents a minimal system info for application responses
@@ -110,6 +123,8 @@ type ApplicationListItem struct {
 	// Rebranding info (populated by handler)
 	RebrandingEnabled bool    `json:"rebranding_enabled"`
 	RebrandingOrgID   *string `json:"rebranding_org_id,omitempty"`
+
+	SuggestedOrganization *SuggestedOrganization `json:"suggested_organization,omitempty"`
 }
 
 // AssignApplicationRequest represents the request to assign an organization to an application
@@ -223,5 +238,7 @@ func (a *Application) ToListItem() *ApplicationListItem {
 		LastInventoryAt:   a.LastInventoryAt,
 		RebrandingEnabled: a.RebrandingEnabled,
 		RebrandingOrgID:   a.RebrandingOrgID,
+
+		SuggestedOrganization: a.SuggestedOrganization,
 	}
 }

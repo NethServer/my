@@ -3411,6 +3411,20 @@ components:
           $ref: '#/components/schemas/ApplicationSystemSummary'
         organization:
           $ref: '#/components/schemas/OrganizationSummary'
+        suggested_organization:
+          description: Only with include_suggestions=true, on unassigned applications. The customer the application is probably meant for, to confirm with an assignment.
+          allOf:
+            - $ref: '#/components/schemas/OrganizationSummary'
+            - type: object
+              properties:
+                source:
+                  type: string
+                  enum: [fqdn, display_name, user_domain, hosting_system]
+                  description: Which application name signal matched the customer, or hosting_system when the suggestion is the customer owning the system
+                matched:
+                  type: string
+                  description: The hostname, label or domain the suggestion comes from, or the system name for hosting_system
+                  example: "cti.rei-srl.it"
         created_at:
           type: string
           format: date-time
@@ -16450,6 +16464,13 @@ paths:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
         - $ref: '#/components/parameters/SearchParam'
+        - name: include_suggestions
+          in: query
+          required: false
+          description: When true, each unassigned application also carries `suggested_organization`, the customer of the hosting partner it is named after (hostnames, label or LDAP user domain) when exactly one stands out, otherwise the customer the hosting system belongs to. Nothing is assigned, the user confirms it.
+          schema:
+            type: boolean
+            default: false
         - $ref: '#/components/parameters/AppSortByParam'
         - $ref: '#/components/parameters/SortDirectionParam'
         - $ref: '#/components/parameters/AppTypeFilterParam'

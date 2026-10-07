@@ -20,7 +20,7 @@ Navigate to **Applications** to see the list of all applications visible to you.
 - Version
 - FQDN: the public hostnames the application is published on, as reported by the inventory (empty when the application has no HTTP route)
 - Associated system
-- Organization
+- Organization. For an unassigned application, the list may show in grey the customer it is probably meant for, inferred from its hostnames, instance label or LDAP user domain among the customers of the hosting partner, or simply the customer the system belongs to; hover the name to see why. Click **Assign** next to it to confirm with one click, or ignore it: nothing is assigned automatically
 
 ### Filtering
 
