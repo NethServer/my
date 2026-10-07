@@ -107,8 +107,11 @@ const SURFACES: Surface[] = [
     always: { what: 'the page heading', locate: heading('systems.title') },
     controls: [
       {
+        // TODO: back to 'manage:systems' when canCreateSystems drops its
+        // owner-level gate. Until the updated images are out, partners
+        // create systems on the legacy my.
         what: 'the create-system button',
-        requires: 'manage:systems',
+        requires: OWNER_LEVEL,
         locate: button('systems.create_system'),
       },
     ],

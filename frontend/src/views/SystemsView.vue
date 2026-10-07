@@ -13,7 +13,7 @@ import {
   faFilePdf,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { canManageSystems } from '@/lib/permissions'
+import { canCreateSystems } from '@/lib/permissions'
 import SystemsTable from '@/components/systems/SystemsTable.vue'
 import { useSystems } from '@/queries/systems/systems'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -165,7 +165,7 @@ async function exportSystems(format: 'pdf' | 'csv') {
         </NeDropdown>
         <!-- create system -->
         <NeButton
-          v-if="canManageSystems()"
+          v-if="canCreateSystems()"
           kind="primary"
           size="lg"
           class="shrink-0"
