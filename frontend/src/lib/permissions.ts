@@ -97,6 +97,11 @@ export const canManageSystems = () => {
   return loginStore.permissions.includes(MANAGE_SYSTEMS)
 }
 
+// TODO: drop the owner-level gate once the NS8 and NethSecurity images that
+// register against the new my are released. Until then partners create
+// systems on the legacy my, and only the Owner organization creates them here.
+export const canCreateSystems = () => hasOwnerLevelAuthority() && canManageSystems()
+
 export const canReadApplications = () => {
   const loginStore = useLoginStore()
   return loginStore.permissions.includes(READ_APPLICATIONS)
