@@ -137,6 +137,9 @@ jobs:
   # DOCKER BUILD & PUSH (all components) - matrix strategy
   # ===========================================================================
   build:
+    # Keep the name to the component only: pr-update-template.yml matches
+    # "build (<component>)" to update the PR badges
+    name: build (${{ matrix.component }})
     runs-on: ubuntu-latest
     needs: [go-tests, frontend-tests]
     permissions:
