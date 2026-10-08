@@ -138,6 +138,10 @@ Use filters to find specific users:
 - **Search by name or email**: Type in the search box
 - **Search by organization**: Select one or more organizations
 - **Search by role**: Admin, Backoffice, Support, Reader, Staff
+- **Filter by status**: Enabled, Suspended, Archived, No login. "No login" selects
+  the accounts that never signed in since the invitation, the same ones flagged
+  with the badge next to the name; it adds to the other statuses rather than
+  narrowing them
 - **Sort by**: Name, email, organization
 
 ### User Details
@@ -369,6 +373,10 @@ Generate reports:
 2. Choose filters (organization, role, status)
 3. Click **Actions** > **Export**
 4. Export as CSV or PDF
+
+The export carries the active filters, so a list filtered on "No login" exports
+only those accounts. In both formats the last-login column reads `never` for an
+account that never signed in.
 
 ## Best Practices
 

@@ -11,7 +11,7 @@ export const USERS_KEY = 'users'
 export const USERS_TOTAL_KEY = 'usersTotal'
 export const USERS_TABLE_ID = 'usersTable'
 
-export type UserStatus = 'enabled' | 'suspended' | 'deleted'
+export type UserStatus = 'enabled' | 'suspended' | 'deleted' | 'no_login'
 
 export const PhoneNumberSchema = v.pipe(
   v.string(),

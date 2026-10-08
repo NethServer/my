@@ -120,6 +120,10 @@ const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
     id: 'deleted',
     label: t('common.archived'),
   },
+  {
+    id: 'no_login',
+    label: t('users.no_login'),
+  },
 ])
 
 const usersPage = computed(() => {

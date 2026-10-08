@@ -4979,16 +4979,23 @@ paths:
           in: query
           required: false
           description: |
-            Filter by user status. Supports multiple values.
+            Filter by user status. Supports multiple values, OR'd together.
 
             - enabled: not suspended and not deleted
             - suspended: suspended but not deleted
             - deleted: soft-deleted
+            - no_login: virtual status matching accounts that never signed in
+              (latest_login_at IS NULL)
+
+            "no_login" is additive rather than exclusive: such an account is also
+            enabled or suspended, so it matches both filters. Selecting it alone
+            yields exactly the users flagged with the "no login" badge in the UI.
+            Deleted accounts stay hidden unless "deleted" is selected.
           schema:
             type: array
             items:
               type: string
-              enum: [enabled, suspended, deleted]
+              enum: [enabled, suspended, deleted, no_login]
             example: ["enabled"]
           style: form
           explode: true
@@ -5673,16 +5680,23 @@ paths:
           in: query
           required: false
           description: |
-            Filter by user status. Supports multiple values.
+            Filter by user status. Supports multiple values, OR'd together.
 
             - enabled: not suspended and not deleted
             - suspended: suspended but not deleted
             - deleted: soft-deleted
+            - no_login: virtual status matching accounts that never signed in
+              (latest_login_at IS NULL)
+
+            "no_login" is additive rather than exclusive: such an account is also
+            enabled or suspended, so it matches both filters. Selecting it alone
+            yields exactly the users flagged with the "no login" badge in the UI.
+            Deleted accounts stay hidden unless "deleted" is selected.
           schema:
             type: array
             items:
               type: string
-              enum: [enabled, suspended, deleted]
+              enum: [enabled, suspended, deleted, no_login]
             example: ["enabled"]
           style: form
           explode: true

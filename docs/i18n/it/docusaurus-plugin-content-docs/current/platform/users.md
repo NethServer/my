@@ -138,6 +138,10 @@ Usa i filtri per trovare utenti specifici:
 - **Ricerca per nome o email**: digita nella casella di ricerca
 - **Ricerca per organizzazione**: seleziona una o più organizzazioni
 - **Ricerca per ruolo**: Admin, Backoffice, Support, Reader, Staff
+- **Filtro per stato**: Abilitato, Sospeso, Archiviato, Nessun accesso. "Nessun
+  accesso" seleziona gli account che non hanno mai effettuato l'accesso
+  dall'invito, gli stessi segnalati dal badge accanto al nome; si somma agli
+  altri stati invece di restringerli
 - **Ordinamento**: nome, email, organizzazione
 
 ### Dettagli Utente
@@ -369,6 +373,10 @@ Per generare un report:
 2. Scegli i filtri (organizzazione, ruolo, stato)
 3. Clicca su **Azioni** > **Esporta**
 4. Esporta in CSV o PDF
+
+L'export rispetta i filtri attivi, quindi un elenco filtrato su "Nessun accesso"
+esporta solo quegli account. In entrambi i formati la colonna dell'ultimo
+accesso riporta `never` per gli account che non hanno mai effettuato l'accesso.
 
 ## Best Practice
 

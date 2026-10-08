@@ -837,6 +837,42 @@ func buildUsersCreatedByClause(createdByFilter []string, args *[]interface{}) st
 	return " AND (" + strings.Join(conditions, " OR ") + ")"
 }
 
+// usersStatusClauses renders the `status` query filter as two WHERE fragments:
+// the soft-delete guard and the OR'd status match. Both are empty-safe and
+// already carry their leading " AND ".
+//
+// enabled, suspended and deleted are exclusive. "no_login" is a virtual,
+// additive status for accounts that never signed in (latest_login_at IS NULL):
+// such an account is also enabled or suspended, so it deliberately overlaps
+// with those. Its predicate mirrors the "no login" badge in the users table,
+// so selecting it alone yields exactly the flagged rows. Deleted accounts stay
+// hidden unless "deleted" is selected, whatever the other values.
+func usersStatusClauses(statuses []string) (deletedClause, statusClause string) {
+	hasDeletedFilter := false
+	var statusConditions []string
+	for _, s := range statuses {
+		switch strings.ToLower(s) {
+		case "enabled":
+			statusConditions = append(statusConditions, "(u.deleted_at IS NULL AND u.suspended_at IS NULL)")
+		case "suspended":
+			statusConditions = append(statusConditions, "(u.deleted_at IS NULL AND u.suspended_at IS NOT NULL)")
+		case "deleted":
+			hasDeletedFilter = true
+			statusConditions = append(statusConditions, "(u.deleted_at IS NOT NULL)")
+		case "no_login":
+			statusConditions = append(statusConditions, "(u.latest_login_at IS NULL)")
+		}
+	}
+
+	if !hasDeletedFilter {
+		deletedClause = " AND u.deleted_at IS NULL"
+	}
+	if len(statusConditions) > 0 {
+		statusClause = " AND (" + strings.Join(statusConditions, " OR ") + ")"
+	}
+	return deletedClause, statusClause
+}
+
 // listUsersWithSearch handles user listing with search functionality
 func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, pageSize, offset int, search, sortBy, sortDirection string, statuses, roleFilter, createdByFilter []string) ([]*models.LocalUser, int, error) {
 	// Validate and build sorting clause
@@ -863,30 +899,7 @@ func (r *LocalUserRepository) listUsersWithSearch(allowedOrgIDs []string, pageSi
 		}
 	}
 
-	// Build status filter clauses
-	hasDeletedFilter := false
-	var statusConditions []string
-	for _, s := range statuses {
-		switch strings.ToLower(s) {
-		case "enabled":
-			statusConditions = append(statusConditions, "(u.deleted_at IS NULL AND u.suspended_at IS NULL)")
-		case "suspended":
-			statusConditions = append(statusConditions, "(u.deleted_at IS NULL AND u.suspended_at IS NOT NULL)")
-		case "deleted":
-			hasDeletedFilter = true
-			statusConditions = append(statusConditions, "(u.deleted_at IS NOT NULL)")
-		}
-	}
-
-	deletedClause := " AND u.deleted_at IS NULL"
-	if hasDeletedFilter {
-		deletedClause = ""
-	}
-
-	statusClause := ""
-	if len(statusConditions) > 0 {
-		statusClause = " AND (" + strings.Join(statusConditions, " OR ") + ")"
-	}
+	deletedClause, statusClause := usersStatusClauses(statuses)
 
 	// Build WHERE clause and args: nil allowedOrgIDs = owner (no org filter)
 	var args []interface{}
@@ -964,30 +977,7 @@ func (r *LocalUserRepository) listUsersWithoutSearch(allowedOrgIDs []string, pag
 		}
 	}
 
-	// Build status filter clauses
-	hasDeletedFilter := false
-	var statusConditions []string
-	for _, s := range statuses {
-		switch strings.ToLower(s) {
-		case "enabled":
-			statusConditions = append(statusConditions, "(u.deleted_at IS NULL AND u.suspended_at IS NULL)")
-		case "suspended":
-			statusConditions = append(statusConditions, "(u.deleted_at IS NULL AND u.suspended_at IS NOT NULL)")
-		case "deleted":
-			hasDeletedFilter = true
-			statusConditions = append(statusConditions, "(u.deleted_at IS NOT NULL)")
-		}
-	}
-
-	deletedClause := " AND u.deleted_at IS NULL"
-	if hasDeletedFilter {
-		deletedClause = ""
-	}
-
-	statusClause := ""
-	if len(statusConditions) > 0 {
-		statusClause = " AND (" + strings.Join(statusConditions, " OR ") + ")"
-	}
+	deletedClause, statusClause := usersStatusClauses(statuses)
 
 	// Build WHERE clause and args: nil allowedOrgIDs = owner (no org filter)
 	var args []interface{}

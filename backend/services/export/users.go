@@ -18,6 +18,10 @@ import (
 	"github.com/nethesis/my/backend/models"
 )
 
+// neverLoggedIn marks, in the last-login column, an account that never signed
+// in: the counterpart of the "no login" badge in the users table.
+const neverLoggedIn = "never"
+
 // UsersExportService handles users export operations
 type UsersExportService struct{}
 
@@ -77,7 +81,7 @@ func (s *UsersExportService) ExportToCSV(users []*models.LocalUser) ([]byte, err
 
 		// Format dates
 		createdAt := user.CreatedAt.Format("2006-01-02 15:04:05 MST")
-		latestLoginAt := ""
+		latestLoginAt := neverLoggedIn
 		if user.LatestLoginAt != nil {
 			latestLoginAt = user.LatestLoginAt.Format("2006-01-02 15:04:05 MST")
 		}
@@ -133,6 +137,11 @@ func (s *UsersExportService) ExportToPDF(users []*models.LocalUser, filters map[
 			status = "Suspended"
 		}
 
+		lastLogin := titleCase(neverLoggedIn)
+		if user.LatestLoginAt != nil {
+			lastLogin = formatDate(*user.LatestLoginAt)
+		}
+
 		rows = append(rows, []string{
 			user.Name,
 			user.Email,
@@ -140,7 +149,7 @@ func (s *UsersExportService) ExportToPDF(users []*models.LocalUser, filters map[
 			strings.Join(roleNames, ", "),
 			status,
 			formatDate(user.CreatedAt),
-			formatOptionalDate(user.LatestLoginAt),
+			lastLogin,
 		})
 	}
 
