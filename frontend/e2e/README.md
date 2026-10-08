@@ -113,7 +113,7 @@ The smoke suite needs an origin that serves both the application and `/backend/a
 deployed environment or the compose stack behind the proxy. A bare Vite dev server serves neither,
 and the health check says so.
 
-Note QA is suspended outside Mon–Fri 08:00–22:00 Europe/Rome by `qa-night-schedule.yml`.
+Note QA is suspended outside Mon–Fri 08:00–22:00 Europe/Rome by the `qa-office-hours` cron job on Render.
 
 ## In CI
 

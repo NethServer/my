@@ -118,8 +118,11 @@ the backend actually answers. Render redeploys a service only when the push chan
 only on those whose directory the push touched, and on the rest merely waits out any deploy still in
 flight. A push that touches none of them runs the suite against the builds QA already serves. The health endpoint cannot identify the build: Render builds QA from
 source and nothing passes `COMMIT`, so it reports `"unknown"` permanently. A failed Render deploy
-fails the job; an environment that never comes up only warns and skips, since `qa-night-schedule.yml`
-suspends QA outside Mon–Fri 08:00–22:00 Europe/Rome.
+fails the job; an environment that never comes up only warns and skips, since the `qa-office-hours`
+cron job on Render suspends QA outside Mon–Fri 08:00–22:00 Europe/Rome.
+
+A suspended service is not waited for, since Render skips its autodeploy and the wait could only
+time out. That covers `my-mimir-qa`, kept suspended to save money: the suite does not need it.
 
 See `frontend/e2e/README.md` for the suite itself.
 
