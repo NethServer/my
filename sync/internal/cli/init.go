@@ -42,7 +42,7 @@ var initCmd = &cobra.Command{
   🔧 Create backend and frontend applications in Logto
   👤 Create an owner account with secure credentials
   🔐 Synchronize basic RBAC configuration
-  🔒 Configure Multi-Factor Authentication (MFA) with TOTP as mandatory
+  🔒 Configure mandatory MFA: passkey or authenticator app, backup codes, trusted browsers for 30 days
   📄 Output environment variables and setup instructions
 
 ⚠️  REQUIREMENTS:
@@ -204,7 +204,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to sync basic configuration: %w", err)
 	}
 
-	// Step 7: Configure MFA with OTP
+	// Step 7: Configure MFA (passkey / authenticator app + backup codes + trusted browsers)
 	if err := initcmd.ConfigureMFA(logtoClient); err != nil {
 		return fmt.Errorf("failed to configure MFA: %w", err)
 	}

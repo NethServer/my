@@ -82,15 +82,34 @@ func RandomInt(max int) (int, error) {
 	return int(n.Int64()), nil
 }
 
-// ConfigureMFA configures Multi-Factor Authentication with TOTP (Authenticator app OTP)
-func ConfigureMFA(logtoClient *client.LogtoClient) error {
-	logger.Info("Configuring MFA with TOTP (Authenticator app OTP)...")
+// DefaultMFA is the multi-factor policy seeded by `sync init`: every sign-in
+// needs a second factor, chosen between a passkey (WebAuthn) and an
+// authenticator app (Totp), with ten one-time backup codes as the recovery
+// option. SMS and e-mail codes stay off. A browser the user trusts after a
+// successful verification skips the second factor for 30 days.
+func DefaultMFA() client.SignInExperienceConfig {
+	return client.SignInExperienceConfig{
+		MFA: &client.SignInExperienceMFA{
+			Policy:  "Mandatory",
+			Factors: []string{"Totp", "WebAuthn", "BackupCode"},
+		},
+		TrustedDevice: &client.SignInExperienceTrustedDevice{
+			Enabled:      true,
+			DurationDays: 30,
+		},
+	}
+}
 
-	// Configure MFA with mandatory policy and TOTP factor
-	if err := logtoClient.UpdateSignInExperienceMFA("Mandatory", []string{"Totp"}); err != nil {
-		return err
+// ConfigureMFA applies DefaultMFA to the tenant sign-in experience
+func ConfigureMFA(logtoClient *client.LogtoClient) error {
+	mfa := DefaultMFA()
+	logger.Info("Configuring MFA: policy %s, factors %v, trusted browsers for %d days...",
+		mfa.MFA.Policy, mfa.MFA.Factors, mfa.TrustedDevice.DurationDays)
+
+	if err := logtoClient.UpdateSignInExperience(mfa); err != nil {
+		return fmt.Errorf("failed to update MFA configuration: %w", err)
 	}
 
-	logger.Info("MFA configured successfully - all users will be required to use TOTP")
+	logger.Info("MFA configured successfully - every sign-in requires a passkey or an authenticator app")
 	return nil
 }

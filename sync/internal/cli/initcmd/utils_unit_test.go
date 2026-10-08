@@ -133,3 +133,23 @@ func TestRandomInt(t *testing.T) {
 		}
 	})
 }
+
+func TestDefaultMFA(t *testing.T) {
+	mfa := DefaultMFA()
+
+	require.NotNil(t, mfa.MFA)
+	assert.Equal(t, "Mandatory", mfa.MFA.Policy, "every sign-in must ask for a second factor")
+	assert.ElementsMatch(t, []string{"Totp", "WebAuthn", "BackupCode"}, mfa.MFA.Factors,
+		"passkey and authenticator app are the factors, backup codes the recovery; SMS and e-mail stay off")
+
+	require.NotNil(t, mfa.TrustedDevice)
+	assert.True(t, mfa.TrustedDevice.Enabled, "the user can trust the browser")
+	assert.Equal(t, 30, mfa.TrustedDevice.DurationDays)
+
+	// Only the MFA fields travel in the PATCH: init already pushed the rest
+	assert.Nil(t, mfa.Color)
+	assert.Nil(t, mfa.Branding)
+	assert.Nil(t, mfa.SignIn)
+	assert.Nil(t, mfa.SignUp)
+	assert.Empty(t, mfa.CustomCSS)
+}

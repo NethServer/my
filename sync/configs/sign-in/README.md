@@ -65,6 +65,14 @@ sign_in_experience:
 
   # Social sign-in configuration (empty by default)
   social_sign_in: {}
+
+  # Multi-factor authentication (omit to leave the Logto console untouched)
+  mfa:
+    policy: "Mandatory"                          # a second factor at every sign-in
+    factors: ["Totp", "WebAuthn", "BackupCode"]  # authenticator app, passkey, backup codes
+    trusted_device:
+      enabled: true                              # "trust this browser" after a verification
+      duration_days: 30
 ```
 
 ### 2. Apply Configuration
@@ -116,6 +124,7 @@ When using these assets, the following sign-in experience configuration is appli
 - **Sign-in Method**: Email + Password (password primary)
 - **Sign-up**: Disabled
 - **Social Sign-in**: Disabled
+- **MFA**: Mandatory at every sign-in, passkey or authenticator app with backup codes; a trusted browser skips the second factor for 30 days
 
 ## Customization
 
@@ -171,9 +180,19 @@ The sign-in experience configuration uses the Logto Management API:
     "verify": false,
     "secondaryIdentifiers": []
   },
-  "socialSignIn": {}
+  "socialSignIn": {},
+  "mfa": {
+    "policy": "Mandatory",
+    "factors": ["Totp", "WebAuthn", "BackupCode"]
+  },
+  "trustedDevice": {
+    "enabled": true,
+    "durationDays": 30
+  }
 }
 ```
+
+`mfa` and `trustedDevice` are two sibling fields of the Logto sign-in experience; the `mfa` block of `config.yml` fills both.
 
 ## File Detection Logic
 

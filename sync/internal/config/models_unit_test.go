@@ -10,6 +10,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -704,4 +705,105 @@ func containsSubstring(str, substr string) bool {
 		}
 	}
 	return false
+}
+
+func TestValidateSignInMFA(t *testing.T) {
+	tests := []struct {
+		name     string
+		mfa      *SignInMFA
+		errorMsg string
+	}{
+		{
+			name: "the init default is valid",
+			mfa: &SignInMFA{
+				Policy:        "Mandatory",
+				Factors:       []string{"Totp", "WebAuthn", "BackupCode"},
+				TrustedDevice: &SignInTrustedDevice{Enabled: true, DurationDays: 30},
+			},
+		},
+		{
+			name: "NoPrompt without factors turns MFA off",
+			mfa:  &SignInMFA{Policy: "NoPrompt"},
+		},
+		{
+			name: "disabled trusted device needs no duration",
+			mfa: &SignInMFA{
+				Policy:        "Mandatory",
+				Factors:       []string{"Totp"},
+				TrustedDevice: &SignInTrustedDevice{Enabled: false},
+			},
+		},
+		{
+			name:     "unknown policy",
+			mfa:      &SignInMFA{Policy: "Always", Factors: []string{"Totp"}},
+			errorMsg: `mfa.policy "Always" is not a Logto MFA policy`,
+		},
+		{
+			name:     "empty policy",
+			mfa:      &SignInMFA{Factors: []string{"Totp"}},
+			errorMsg: `mfa.policy "" is not a Logto MFA policy`,
+		},
+		{
+			name:     "unknown factor",
+			mfa:      &SignInMFA{Policy: "Mandatory", Factors: []string{"Passkey"}},
+			errorMsg: `mfa.factors: "Passkey" is not a Logto MFA factor`,
+		},
+		{
+			name:     "duplicate factor",
+			mfa:      &SignInMFA{Policy: "Mandatory", Factors: []string{"Totp", "Totp"}},
+			errorMsg: "mfa.factors: duplicate factor Totp",
+		},
+		{
+			name:     "backup codes alone",
+			mfa:      &SignInMFA{Policy: "UserControlled", Factors: []string{"BackupCode"}},
+			errorMsg: "mfa.factors: BackupCode cannot be the only factor",
+		},
+		{
+			name:     "mandatory policy without a verifier",
+			mfa:      &SignInMFA{Policy: "Mandatory"},
+			errorMsg: "mfa.policy Mandatory requires at least one factor the user can verify with",
+		},
+		{
+			name: "enabled trusted device without duration",
+			mfa: &SignInMFA{
+				Policy:        "Mandatory",
+				Factors:       []string{"WebAuthn"},
+				TrustedDevice: &SignInTrustedDevice{Enabled: true},
+			},
+			errorMsg: "mfa.trusted_device.duration_days must be a positive number of days when enabled",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				Metadata:         Metadata{Name: "Test Config", Version: "1.0.0"},
+				SignInExperience: &SignInExperience{MFA: tt.mfa},
+			}
+
+			err := cfg.Validate()
+			if tt.errorMsg == "" {
+				if err != nil {
+					t.Fatalf("expected no error, got %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("expected error %q, got nil", tt.errorMsg)
+			}
+			if !strings.Contains(err.Error(), tt.errorMsg) {
+				t.Errorf("expected error containing %q, got %q", tt.errorMsg, err.Error())
+			}
+		})
+	}
+
+	t.Run("sign-in experience without mfa block is not validated", func(t *testing.T) {
+		cfg := &Config{
+			Metadata:         Metadata{Name: "Test Config", Version: "1.0.0"},
+			SignInExperience: &SignInExperience{Language: &SignInLanguage{FallbackLanguage: "en"}},
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+	})
 }

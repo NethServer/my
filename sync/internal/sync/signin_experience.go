@@ -182,6 +182,27 @@ func (e *Engine) buildSignInExperienceConfig(sie *config.SignInExperience, baseP
 		signInConfig.SocialSignIn = sie.SocialSignIn
 	}
 
+	// Handle MFA: the policy and the trusted-device setting are two sibling
+	// fields of the Logto sign-in experience, but one setting for us
+	if sie.MFA != nil {
+		factors := sie.MFA.Factors
+		if factors == nil {
+			// Logto wants a list, not null
+			factors = []string{}
+		}
+		signInConfig.MFA = &client.SignInExperienceMFA{
+			Policy:  sie.MFA.Policy,
+			Factors: factors,
+		}
+
+		if sie.MFA.TrustedDevice != nil {
+			signInConfig.TrustedDevice = &client.SignInExperienceTrustedDevice{
+				Enabled:      sie.MFA.TrustedDevice.Enabled,
+				DurationDays: sie.MFA.TrustedDevice.DurationDays,
+			}
+		}
+	}
+
 	return signInConfig, nil
 }
 

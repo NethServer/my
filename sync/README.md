@@ -147,7 +147,7 @@ Run `./build/sync <command> --help` for the full flag reference.
 
 ### init
 
-Complete Logto initialization (custom domain, M2M app, frontend SPA, owner user, RBAC, MFA). The bootstrap `owner` account is seeded here with the Owner user role, which is never assignable via the API afterwards:
+Complete Logto initialization (custom domain, M2M app, frontend SPA, owner user, RBAC, MFA). MFA is seeded as mandatory at every sign-in, with passkey or authenticator app as the factor, backup codes for recovery and 30-day trusted browsers; `sync sync` keeps it aligned through the `sign_in_experience.mfa` block. The bootstrap `owner` account is seeded here with the Owner user role, which is never assignable via the API afterwards:
 
 ```bash
 ./build/sync init \

@@ -99,10 +99,12 @@ La modifica dell'email può richiedere una nuova autenticazione.
 
 ### Autenticazione Multi-Fattore (MFA)
 
-My delega l'autenticazione a Logto, quindi l'MFA si configura lì, a livello di tenant, non dentro My. Quando è abilitata, dopo la password viene richiesto un secondo fattore.
+My delega l'autenticazione a Logto, quindi l'MFA si configura lì, a livello di tenant, non dentro My. Il secondo fattore è obbligatorio: al primo accesso scegli un metodo, e a ogni accesso successivo viene richiesto dopo la password.
 
-- Contatta il tuo amministratore per farla abilitare
-- I metodi supportati dipendono da cosa è abilitato sul tenant Logto (app authenticator, ed eventuali altri se configurati)
+- **Passkey** -- la biometria o il blocco schermo del tuo dispositivo, oppure una chiave di sicurezza USB
+- **App authenticator** -- un codice monouso da Google Authenticator o un'app simile
+- **Codici di backup** -- dieci codici monouso generati una volta configurato un metodo, per quando quello abituale non è a portata di mano
+- Dopo una verifica riuscita puoi segnare il browser come fidato: non chiederà più il secondo fattore per 30 giorni
 
 ## Risoluzione Problemi
 

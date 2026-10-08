@@ -99,10 +99,12 @@ Changing your email may require re-authentication.
 
 ### Multi-Factor Authentication (MFA)
 
-My delegates authentication to Logto, so MFA is configured there, at tenant level, not inside My. When enabled, a second factor is requested after the password.
+My delegates authentication to Logto, so MFA is configured there, at tenant level, not inside My. The second factor is mandatory: at the first sign-in you pick a method, and every later sign-in asks for it after the password.
 
-- Contact your administrator to have it enabled
-- The supported methods depend on what is enabled on the Logto tenant (authenticator apps, and others if configured)
+- **Passkey** -- your device's biometrics or screen lock, or a USB security key
+- **Authenticator app** -- a one-time code from Google Authenticator or a similar app
+- **Backup codes** -- ten one-time codes generated once a method is set up, for when the usual one is not at hand
+- After a successful verification you can mark the browser as trusted: it will not ask for the second factor again for 30 days
 
 ## Troubleshooting
 

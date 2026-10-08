@@ -396,6 +396,14 @@ sign_in_experience:
   # Social sign-in configuration (empty by default)
   social_sign_in: {}
 
+  # Multi-factor authentication (omit to leave the Logto console untouched)
+  mfa:
+    policy: "Mandatory"
+    factors: ["Totp", "WebAuthn", "BackupCode"]
+    trusted_device:
+      enabled: true
+      duration_days: 30
+
 # Connectors configuration (optional)
 connectors:
   # SMTP email connector for password reset and verification emails

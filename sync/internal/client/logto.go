@@ -558,10 +558,19 @@ func (c *LogtoClient) DeleteThirdPartyApplication(appID string) error {
 	return c.handleResponse(resp, http.StatusNoContent, nil)
 }
 
-// SignInExperienceMFA represents MFA configuration for sign-in experience
+// SignInExperienceMFA represents the tenant-wide multi-factor policy: which
+// second factors a user may enroll (Totp, WebAuthn, BackupCode,
+// EmailVerificationCode, PhoneVerificationCode) and when Logto asks for one
 type SignInExperienceMFA struct {
 	Policy  string   `json:"policy"`
 	Factors []string `json:"factors"`
+}
+
+// SignInExperienceTrustedDevice lets a browser skip the second factor for
+// DurationDays after a successful MFA verification
+type SignInExperienceTrustedDevice struct {
+	Enabled      bool `json:"enabled"`
+	DurationDays int  `json:"durationDays,omitempty"`
 }
 
 // SignInExperienceColor represents color configuration
@@ -608,32 +617,15 @@ type SignInExperienceSignUp struct {
 
 // SignInExperienceConfig represents the complete sign-in experience configuration
 type SignInExperienceConfig struct {
-	Color        *SignInExperienceColor        `json:"color,omitempty"`
-	Branding     *SignInExperienceBranding     `json:"branding,omitempty"`
-	CustomCSS    string                        `json:"customCss,omitempty"`
-	LanguageInfo *SignInExperienceLanguageInfo `json:"languageInfo,omitempty"`
-	SignIn       *SignInExperienceSignIn       `json:"signIn,omitempty"`
-	SignUp       *SignInExperienceSignUp       `json:"signUp,omitempty"`
-	SocialSignIn map[string]interface{}        `json:"socialSignIn,omitempty"`
-}
-
-// UpdateSignInExperienceMFA configures MFA settings using the sign-in experience API
-func (c *LogtoClient) UpdateSignInExperienceMFA(policy string, factors []string) error {
-	mfaConfig := map[string]interface{}{
-		"mfa": SignInExperienceMFA{
-			Policy:  policy,
-			Factors: factors,
-		},
-	}
-
-	logger.Debug("Configuring MFA with policy: %s, factors: %v", policy, factors)
-
-	resp, err := c.makeRequest("PATCH", "/api/sign-in-exp", mfaConfig)
-	if err != nil {
-		return fmt.Errorf("failed to update MFA configuration: %w", err)
-	}
-
-	return c.handleResponse(resp, http.StatusOK, nil)
+	Color         *SignInExperienceColor         `json:"color,omitempty"`
+	Branding      *SignInExperienceBranding      `json:"branding,omitempty"`
+	CustomCSS     string                         `json:"customCss,omitempty"`
+	LanguageInfo  *SignInExperienceLanguageInfo  `json:"languageInfo,omitempty"`
+	SignIn        *SignInExperienceSignIn        `json:"signIn,omitempty"`
+	SignUp        *SignInExperienceSignUp        `json:"signUp,omitempty"`
+	SocialSignIn  map[string]interface{}         `json:"socialSignIn,omitempty"`
+	MFA           *SignInExperienceMFA           `json:"mfa,omitempty"`
+	TrustedDevice *SignInExperienceTrustedDevice `json:"trustedDevice,omitempty"`
 }
 
 // UpdateSignInExperience updates the complete sign-in experience configuration

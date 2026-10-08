@@ -217,6 +217,49 @@ func (c *Config) Validate() error {
 		appNames[app.Name] = true
 	}
 
+	// Validate the MFA policy before Logto refuses it with a bare 400
+	if c.SignInExperience != nil && c.SignInExperience.MFA != nil {
+		if err := c.validateSignInMFA(c.SignInExperience.MFA); err != nil {
+			return fmt.Errorf("sign-in experience validation failed: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (c *Config) validateSignInMFA(mfa *SignInMFA) error {
+	if !validMFAPolicies[mfa.Policy] {
+		return fmt.Errorf("mfa.policy %q is not a Logto MFA policy", mfa.Policy)
+	}
+
+	seen := make(map[string]bool)
+	verifiers := 0
+	for _, factor := range mfa.Factors {
+		if !validMFAFactors[factor] {
+			return fmt.Errorf("mfa.factors: %q is not a Logto MFA factor", factor)
+		}
+		if seen[factor] {
+			return fmt.Errorf("mfa.factors: duplicate factor %s", factor)
+		}
+		seen[factor] = true
+		if factor != "BackupCode" {
+			verifiers++
+		}
+	}
+
+	// Backup codes only recover a factor the user has already set up
+	if seen["BackupCode"] && verifiers == 0 {
+		return fmt.Errorf("mfa.factors: BackupCode cannot be the only factor")
+	}
+
+	if mandatoryMFAPolicies[mfa.Policy] && verifiers == 0 {
+		return fmt.Errorf("mfa.policy %s requires at least one factor the user can verify with", mfa.Policy)
+	}
+
+	if td := mfa.TrustedDevice; td != nil && td.Enabled && td.DurationDays <= 0 {
+		return fmt.Errorf("mfa.trusted_device.duration_days must be a positive number of days when enabled")
+	}
+
 	return nil
 }
 
@@ -493,7 +536,55 @@ type SignInExperience struct {
 	SignIn        *SignInMethod          `yaml:"sign_in,omitempty" json:"sign_in,omitempty"`
 	SignUp        *SignUpMethod          `yaml:"sign_up,omitempty" json:"sign_up,omitempty"`
 	SocialSignIn  map[string]interface{} `yaml:"social_sign_in,omitempty" json:"social_sign_in,omitempty"`
+	MFA           *SignInMFA             `yaml:"mfa,omitempty" json:"mfa,omitempty"`
 }
+
+// SignInMFA represents the tenant-wide multi-factor policy. Omit the block to
+// leave whatever the Logto console holds untouched.
+type SignInMFA struct {
+	// Policy is one of Logto's MFA policies: Mandatory (every sign-in needs a
+	// second factor), UserControlled, PromptOnlyAtSignIn,
+	// PromptAtSignInAndSignUp, NoPrompt, PromptAtSignInAndSignUpMandatory,
+	// PromptOnlyAtSignInMandatory
+	Policy string `yaml:"policy,omitempty" json:"policy,omitempty"`
+	// Factors the user can enroll: Totp (authenticator app), WebAuthn
+	// (passkey), BackupCode (one-time codes, never alone),
+	// EmailVerificationCode, PhoneVerificationCode
+	Factors       []string             `yaml:"factors,omitempty" json:"factors,omitempty"`
+	TrustedDevice *SignInTrustedDevice `yaml:"trusted_device,omitempty" json:"trusted_device,omitempty"`
+}
+
+// SignInTrustedDevice lets a browser skip the second factor for DurationDays
+// after a successful MFA verification
+type SignInTrustedDevice struct {
+	Enabled      bool `yaml:"enabled" json:"enabled"`
+	DurationDays int  `yaml:"duration_days,omitempty" json:"duration_days,omitempty"`
+}
+
+// Logto's MFA policies and factors, as accepted by PATCH /api/sign-in-exp
+var (
+	validMFAPolicies = map[string]bool{
+		"UserControlled":                   true,
+		"Mandatory":                        true,
+		"PromptOnlyAtSignIn":               true,
+		"PromptAtSignInAndSignUp":          true,
+		"NoPrompt":                         true,
+		"PromptAtSignInAndSignUpMandatory": true,
+		"PromptOnlyAtSignInMandatory":      true,
+	}
+	mandatoryMFAPolicies = map[string]bool{
+		"Mandatory":                        true,
+		"PromptAtSignInAndSignUpMandatory": true,
+		"PromptOnlyAtSignInMandatory":      true,
+	}
+	validMFAFactors = map[string]bool{
+		"Totp":                  true,
+		"WebAuthn":              true,
+		"BackupCode":            true,
+		"EmailVerificationCode": true,
+		"PhoneVerificationCode": true,
+	}
+)
 
 // SignInColors represents color configuration for sign-in experience
 type SignInColors struct {
