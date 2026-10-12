@@ -61,8 +61,9 @@ func TestLinkFailedMonitorSyncOrganization_PostsAlertForInactiveSystem(t *testin
 	assert.Equal(t, "No heartbeat received from system", alert.Annotations["summary_en"])
 	assert.Equal(t, "The system has not communicated with My Nethesis for over 10 minutes. Check the system connection.", alert.Annotations["description_en"])
 	assert.Equal(t, "Il sistema non comunica con My Nethesis da oltre 10 minuti. Verificare la connessione del sistema.", alert.Annotations["description_it"])
-	assert.Equal(t, formatLastHeartbeatEN(lastHeartbeat), alert.Annotations["last_heartbeat_en"])
-	assert.Equal(t, formatLastHeartbeatIT(lastHeartbeat), alert.Annotations["last_heartbeat_it"])
+	assert.Equal(t, "Apr 16, 2026, 12:00 PM UTC", alert.Annotations["last_heartbeat_en"])
+	assert.Equal(t, "16 apr 2026, 12:00 UTC", alert.Annotations["last_heartbeat_it"])
+	assert.Equal(t, "2026-04-16 12:00 UTC", alert.Annotations["last_heartbeat_utc"])
 	assert.Equal(t, lastHeartbeat.Add(10*time.Minute), alert.StartsAt)
 	assert.WithinDuration(t, time.Now().UTC().Add(linkFailedAlertTTL), alert.EndsAt, time.Minute)
 }
@@ -166,11 +167,15 @@ func TestLinkFailedMonitorLoadInactiveSystems_FiltersOnHeartbeatCutoff(t *testin
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestFormatLastHeartbeat_AlwaysUTC(t *testing.T) {
+func TestFormatLastHeartbeat_AlertingTimezone(t *testing.T) {
 	rome, err := time.LoadLocation("Europe/Rome")
 	require.NoError(t, err)
-	beat := time.Date(2026, 10, 10, 4, 10, 51, 0, rome) // 02:10:51 UTC
+	beat := time.Date(2026, 10, 10, 2, 10, 51, 0, time.UTC)
 
-	assert.Equal(t, "10 ott 2026, 02:10 UTC", formatLastHeartbeatIT(beat))
-	assert.Equal(t, "Oct 10, 2026, 02:10 AM UTC", formatLastHeartbeatEN(beat))
+	assert.Equal(t, "10 ott 2026, 04:10 CEST", formatLastHeartbeatIT(beat, rome))
+	assert.Equal(t, "Oct 10, 2026, 04:10 AM CEST", formatLastHeartbeatEN(beat, rome))
+	assert.Equal(t, "2026-10-10 02:10 UTC", formatLastHeartbeatUTC(beat.In(rome)))
+
+	winter := time.Date(2026, 12, 1, 9, 5, 0, 0, time.UTC)
+	assert.Equal(t, "01 dic 2026, 10:05 CET", formatLastHeartbeatIT(winter, rome))
 }

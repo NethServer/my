@@ -24,10 +24,9 @@ DETTAGLI:        {{ .Annotations.description_en }}
 {{ else if .Annotations.description -}}
 DETTAGLI:        {{ .Annotations.description }}
 {{ end -}}
-ATTIVO DAL:      {{ template "ts_it" .StartsAt }}
-                 {{ template "ts_utc" .StartsAt }}
+ATTIVO DAL:      {{ template "ts_it" .StartsAt }} {{ template "ts_utc" .StartsAt }}
 {{ if .Annotations.last_heartbeat_it -}}
-ULTIMO CONTATTO: {{ .Annotations.last_heartbeat_it }}
+ULTIMO CONTATTO: {{ .Annotations.last_heartbeat_it }}{{ if .Annotations.last_heartbeat_utc }} {{ .Annotations.last_heartbeat_utc }}{{ end }}
 {{ end -}}
 
 ───────────────────────────────────────────────────────────────

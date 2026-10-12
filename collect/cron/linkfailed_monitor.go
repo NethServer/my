@@ -37,6 +37,7 @@ type linkFailedSystem struct {
 type LinkFailedMonitor struct {
 	db             *sql.DB
 	timeoutMinutes int
+	location       *time.Location
 	syncInterval   time.Duration
 	postAlerts     postAlertsFunc
 }
@@ -46,6 +47,7 @@ func NewLinkFailedMonitor() *LinkFailedMonitor {
 	return &LinkFailedMonitor{
 		db:             database.DB,
 		timeoutMinutes: configuration.Config.HeartbeatTimeoutMinutes,
+		location:       configuration.Config.AlertingTimezone,
 		syncInterval:   linkFailedSyncInterval,
 		postAlerts:     collectalerting.PostAlerts,
 	}
@@ -248,8 +250,9 @@ func (m *LinkFailedMonitor) buildFiringAlert(system linkFailedSystem) (models.Al
 		"description_it": fmt.Sprintf("Il sistema non comunica con My Nethesis da oltre %d minuti. Verificare la connessione del sistema.", m.timeoutMinutes),
 	}
 	if !system.LastHeartbeat.IsZero() {
-		annotations["last_heartbeat_en"] = formatLastHeartbeatEN(system.LastHeartbeat)
-		annotations["last_heartbeat_it"] = formatLastHeartbeatIT(system.LastHeartbeat)
+		annotations["last_heartbeat_en"] = formatLastHeartbeatEN(system.LastHeartbeat, m.location)
+		annotations["last_heartbeat_it"] = formatLastHeartbeatIT(system.LastHeartbeat, m.location)
+		annotations["last_heartbeat_utc"] = formatLastHeartbeatUTC(system.LastHeartbeat)
 	}
 
 	enrichedAlerts, err := collectalerting.EnrichAlerts([]models.AlertmanagerPostAlert{
@@ -279,16 +282,26 @@ func nullStringValue(value sql.NullString) string {
 }
 
 // The notification templates run inside Mimir, which cannot parse a string
-// into a time, so the last heartbeat is pre-formatted here. Always UTC: the
-// recipient's timezone is unknown. Layouts mirror ts_it/ts_en in the backend
-// _datetime.tmpl, which also spells out the Italian months.
+// into a time, so the last heartbeat is pre-formatted here. Zone and layouts
+// mirror ts_it/ts_en/ts_utc in the backend _datetime.tmpl.
 var italianMonths = [...]string{"gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"}
 
-func formatLastHeartbeatEN(t time.Time) string {
-	return t.UTC().Format("Jan 02, 2006, 03:04 PM MST")
+func formatLastHeartbeatEN(t time.Time, loc *time.Location) string {
+	return inZone(t, loc).Format("Jan 02, 2006, 03:04 PM MST")
 }
 
-func formatLastHeartbeatIT(t time.Time) string {
-	t = t.UTC()
+func formatLastHeartbeatIT(t time.Time, loc *time.Location) string {
+	t = inZone(t, loc)
 	return fmt.Sprintf("%02d %s %d, %s", t.Day(), italianMonths[t.Month()-1], t.Year(), t.Format("15:04 MST"))
+}
+
+func formatLastHeartbeatUTC(t time.Time) string {
+	return t.UTC().Format("2006-01-02 15:04 MST")
+}
+
+func inZone(t time.Time, loc *time.Location) time.Time {
+	if loc == nil {
+		return t.UTC()
+	}
+	return t.In(loc)
 }

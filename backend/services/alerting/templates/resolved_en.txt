@@ -22,10 +22,8 @@ DETAILS:      {{ .Annotations.description_en }}
 {{ else if .Annotations.description -}}
 DETAILS:      {{ .Annotations.description }}
 {{ end -}}
-STARTED:      {{ template "ts_en" .StartsAt }}
-              {{ template "ts_utc" .StartsAt }}
-RESOLVED:     {{ template "ts_en" .EndsAt }}
-              {{ template "ts_utc" .EndsAt }}
+STARTED:      {{ template "ts_en" .StartsAt }} {{ template "ts_utc" .StartsAt }}
+RESOLVED:     {{ template "ts_en" .EndsAt }} {{ template "ts_utc" .EndsAt }}
 
 ───────────────────────────────────────────────────────────────
   SYSTEM

@@ -22,10 +22,9 @@ DETAILS:      {{ .Annotations.description_en }}
 {{ else if .Annotations.description -}}
 DETAILS:      {{ .Annotations.description }}
 {{ end -}}
-FIRING SINCE: {{ template "ts_en" .StartsAt }}
-              {{ template "ts_utc" .StartsAt }}
+FIRING SINCE: {{ template "ts_en" .StartsAt }} {{ template "ts_utc" .StartsAt }}
 {{ if .Annotations.last_heartbeat_en -}}
-LAST CONTACT: {{ .Annotations.last_heartbeat_en }}
+LAST CONTACT: {{ .Annotations.last_heartbeat_en }}{{ if .Annotations.last_heartbeat_utc }} {{ .Annotations.last_heartbeat_utc }}{{ end }}
 {{ end -}}
 
 ───────────────────────────────────────────────────────────────

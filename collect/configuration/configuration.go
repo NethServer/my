@@ -97,6 +97,9 @@ type Configuration struct {
 	HeartbeatTimeoutMinutes       int `json:"heartbeat_timeout_minutes"`
 	HeartbeatCheckIntervalSeconds int `json:"heartbeat_check_interval_seconds"`
 
+	// Alerting timezone, same as the backend ALERTING_TIMEZONE
+	AlertingTimezone *time.Location `json:"-"`
+
 	// Mimir configuration
 	MimirURL string `json:"mimir_url"`
 
@@ -230,6 +233,16 @@ func Init() {
 	// a late/missed beat; genuinely-down systems still alert within 20min.
 	Config.HeartbeatTimeoutMinutes = parseIntWithDefault("HEARTBEAT_TIMEOUT_MINUTES", 20)
 	Config.HeartbeatCheckIntervalSeconds = parseIntWithDefault("HEARTBEAT_CHECK_INTERVAL_SECONDS", 300)
+
+	alertingTimezone := getStringWithDefault("ALERTING_TIMEZONE", "Europe/Rome")
+	loc, err := time.LoadLocation(alertingTimezone)
+	if err != nil {
+		logger.Fatal().
+			Str("timezone", alertingTimezone).
+			Err(err).
+			Msg("ALERTING_TIMEZONE is not a valid IANA timezone")
+	}
+	Config.AlertingTimezone = loc
 
 	// Mimir configuration
 	if mimirURL := os.Getenv("MIMIR_URL"); mimirURL != "" {

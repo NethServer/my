@@ -186,6 +186,11 @@
                               <tr>
                                 <td style="font-size: 13px; color: #374151; font-family: 'Poppins', Arial, sans-serif; font-weight: 600;">{{ .Annotations.last_heartbeat_it }}</td>
                               </tr>
+                              {{ if .Annotations.last_heartbeat_utc }}
+                              <tr>
+                                <td style="font-size: 11px; color: #6b7280; font-family: 'Poppins', Arial, sans-serif; padding-top: 3px;">{{ .Annotations.last_heartbeat_utc }}</td>
+                              </tr>
+                              {{ end }}
                             </table>
                           </td>
                         </tr>

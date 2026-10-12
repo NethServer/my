@@ -208,8 +208,8 @@ func TestTemplates_LastContactRow(t *testing.T) {
 	for _, tc := range []struct {
 		lang, label, value string
 	}{
-		{"it", "ULTIMO CONTATTO", "10 ott 2026, 02:10 UTC"},
-		{"en", "LAST CONTACT", "Oct 10, 2026, 02:10 AM UTC"},
+		{"it", "ULTIMO CONTATTO", "10 ott 2026, 04:10 CEST"},
+		{"en", "LAST CONTACT", "Oct 10, 2026, 04:10 AM CEST"},
 	} {
 		for _, format := range []struct {
 			ext     string
@@ -219,9 +219,16 @@ func TestTemplates_LastContactRow(t *testing.T) {
 
 			with := sampleAlert(ts, ts.Add(30*time.Minute))
 			with.Annotations["last_heartbeat_"+tc.lang] = tc.value
+			with.Annotations["last_heartbeat_utc"] = "2026-10-10 02:10 UTC"
 			out := renderBundle(t, files, name, format.htmlSet, sampleData("firing", with))
 			if !strings.Contains(out, tc.label) || !strings.Contains(out, tc.value) {
 				t.Errorf("%s: last contact row missing", name)
+			}
+			if !strings.Contains(out, "2026-10-10 02:10 UTC") {
+				t.Errorf("%s: last contact UTC line missing", name)
+			}
+			if !format.htmlSet && !strings.Contains(out, tc.value+" 2026-10-10 02:10 UTC\n") {
+				t.Errorf("%s: last contact UTC time not on the same line", name)
 			}
 
 			without := renderBundle(t, files, name, format.htmlSet, sampleData("firing", sampleAlert(ts, ts.Add(30*time.Minute))))
@@ -339,10 +346,9 @@ func TestTemplates_UTCLineNotInTelegram(t *testing.T) {
 	}
 }
 
-// TestPlainTextUTCLine_AlignedToValueColumn keeps the secondary UTC line under
-// the value it belongs to rather than under the label — the indentation is the
-// only thing marking it as secondary in a body with no styling.
-func TestPlainTextUTCLine_AlignedToValueColumn(t *testing.T) {
+// TestPlainTextUTC_SameLineAsLocalTime keeps the UTC time on the line of the
+// local time it belongs to, after it, so each timestamp reads as one row.
+func TestPlainTextUTC_SameLineAsLocalTime(t *testing.T) {
 	files, err := BuildTemplateFiles("https://my.nethesis.it", "Europe/Rome")
 	if err != nil {
 		t.Fatalf("BuildTemplateFiles: %v", err)
@@ -351,24 +357,21 @@ func TestPlainTextUTCLine_AlignedToValueColumn(t *testing.T) {
 		time.Date(2026, 7, 3, 11, 40, 13, 0, time.UTC),
 		time.Date(2026, 7, 3, 12, 12, 41, 0, time.UTC),
 	))
-	widths := map[string]int{"it": 17, "en": 14}
 
 	for _, lang := range ValidTemplateLangs {
 		out := renderBundle(t, files, "alert_"+lang+".txt", false, data)
 		found := 0
 		for _, line := range strings.Split(out, "\n") {
-			if !strings.Contains(line, "UTC") || strings.TrimSpace(line) == "" {
+			if !strings.HasSuffix(line, " UTC") {
 				continue
 			}
-			trimmed := strings.TrimLeft(line, " ")
-			indent := utf8.RuneCountInString(line) - utf8.RuneCountInString(trimmed)
-			if indent != widths[lang] {
-				t.Errorf("alert_%s.txt: UTC line %q indented %d, want %d", lang, trimmed, indent, widths[lang])
+			if strings.HasPrefix(line, " ") || !strings.Contains(line, " CEST 2026-07-03 ") {
+				t.Errorf("alert_%s.txt: UTC time not on the local time line: %q", lang, line)
 			}
 			found++
 		}
 		if found != 2 {
-			t.Errorf("alert_%s.txt: found %d UTC lines in a resolved body, want 2", lang, found)
+			t.Errorf("alert_%s.txt: found %d UTC times in a resolved body, want 2", lang, found)
 		}
 	}
 }
