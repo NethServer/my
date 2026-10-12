@@ -142,8 +142,7 @@ export const getExportLimitError = (error: unknown): { total: number; max: numbe
     return undefined
   }
   const payload = error.response.data as
-    | { data?: { total_count?: unknown; max_limit?: unknown } }
-    | undefined
+    { data?: { total_count?: unknown; max_limit?: unknown } } | undefined
   const total = payload?.data?.total_count
   const max = payload?.data?.max_limit
   if (typeof total !== 'number' || typeof max !== 'number') {

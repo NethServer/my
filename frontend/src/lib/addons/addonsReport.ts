@@ -126,9 +126,10 @@ const paginationParams = (page: number, pageSize: number, search: string) =>
 // the report pages and searches server-side rather than arriving whole.
 export const getAddonReportOrganizations = (page: number, pageSize: number, search: string) =>
   axios
-    .get<
-      Envelope<Paginated<AddonReportByOrganization>>
-    >(`${API_URL}/${REPORT_ORGANIZATIONS_PATH}?${paginationParams(page, pageSize, search)}`, authHeaders())
+    .get<Envelope<Paginated<AddonReportByOrganization>>>(
+      `${API_URL}/${REPORT_ORGANIZATIONS_PATH}?${paginationParams(page, pageSize, search)}`,
+      authHeaders(),
+    )
     .then((res) => ({
       organizations: (res.data.data.organizations ?? []) as AddonReportByOrganization[],
       total: res.data.data.total as number,
@@ -136,9 +137,10 @@ export const getAddonReportOrganizations = (page: number, pageSize: number, sear
 
 export const getAddonReportTiers = (page: number, pageSize: number, search: string) =>
   axios
-    .get<
-      Envelope<Paginated<AddonReportByTier>>
-    >(`${API_URL}/${REPORT_TIERS_PATH}?${paginationParams(page, pageSize, search)}`, authHeaders())
+    .get<Envelope<Paginated<AddonReportByTier>>>(
+      `${API_URL}/${REPORT_TIERS_PATH}?${paginationParams(page, pageSize, search)}`,
+      authHeaders(),
+    )
     .then((res) => ({
       tiers: (res.data.data.tiers ?? []) as AddonReportByTier[],
       total: res.data.data.total as number,

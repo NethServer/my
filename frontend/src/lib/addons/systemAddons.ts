@@ -95,9 +95,10 @@ const authHeaders = () => {
 
 export const getSystemAddons = (systemId: string) =>
   axios
-    .get<
-      Envelope<{ entitlements: AddonGrant[] }>
-    >(`${API_URL}/${systemAddonsPath(systemId)}`, authHeaders())
+    .get<Envelope<{ entitlements: AddonGrant[] }>>(
+      `${API_URL}/${systemAddonsPath(systemId)}`,
+      authHeaders(),
+    )
     .then((res) => res.data.data.entitlements)
 
 // What the caller's organization is allowed to have, after the availability
@@ -112,18 +113,21 @@ export const getAvailableAddons = () =>
 // enforced again by the backend. No expiry means perpetual.
 export const grantSystemAddon = (systemId: string, addonId: string, scope: string) =>
   axios
-    .post<
-      Envelope<AddonGrant>
-    >(`${API_URL}/${systemAddonsPath(systemId)}`, { entitlement: addonId, scope: scope || undefined }, authHeaders())
+    .post<Envelope<AddonGrant>>(
+      `${API_URL}/${systemAddonsPath(systemId)}`,
+      { entitlement: addonId, scope: scope || undefined },
+      authHeaders(),
+    )
     .then((res) => res.data.data)
 
 // Soft revoke: the row stays and records who revoked it, so a later purchase
 // can pick it back up.
 export const revokeSystemAddon = (systemId: string, addonId: string, scope: string) =>
   axios
-    .delete<
-      Envelope<AddonGrant>
-    >(`${API_URL}/${systemAddonsPath(systemId)}/${addonId}?scope=${encodeURIComponent(scope)}`, authHeaders())
+    .delete<Envelope<AddonGrant>>(
+      `${API_URL}/${systemAddonsPath(systemId)}/${addonId}?scope=${encodeURIComponent(scope)}`,
+      authHeaders(),
+    )
     .then((res) => res.data.data)
 
 // Clears revoked_at/revoked_source. Note this does not touch valid_until, so
@@ -131,9 +135,11 @@ export const revokeSystemAddon = (systemId: string, addonId: string, scope: stri
 // UI only offers it for status 'revoked'.
 export const restoreSystemAddon = (systemId: string, addonId: string, scope: string) =>
   axios
-    .put<
-      Envelope<AddonGrant>
-    >(`${API_URL}/${systemAddonsPath(systemId)}/${addonId}?scope=${encodeURIComponent(scope)}`, { revoked: false }, authHeaders())
+    .put<Envelope<AddonGrant>>(
+      `${API_URL}/${systemAddonsPath(systemId)}/${addonId}?scope=${encodeURIComponent(scope)}`,
+      { revoked: false },
+      authHeaders(),
+    )
     .then((res) => res.data.data)
 
 // ----- rows -----

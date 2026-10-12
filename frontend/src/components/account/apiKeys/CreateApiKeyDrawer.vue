@@ -73,8 +73,7 @@ const formError = computed(() => {
 const formErrorParams = computed(() => {
   const body = (createError.value as AxiosError | null)?.response?.data as BackendError | null
   const err = body?.data?.errors?.find((e) => !KNOWN_FIELDS.includes(e.key)) as
-    | { value?: string }
-    | undefined
+    { value?: string } | undefined
   return err?.value ? { max: err.value } : {}
 })
 

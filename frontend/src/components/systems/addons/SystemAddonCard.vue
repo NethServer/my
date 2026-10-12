@@ -69,11 +69,10 @@ const statusLines = computed(() =>
 // Buying gets a button at the foot of the card, the administrative actions a
 // kebab in its corner. Buying opens the shop from the item itself; the
 // administrative actions travel up to the grid, which owns the modal.
-const actions = computed(
-  (): AddonRowActions =>
-    row
-      ? getAddonActions(row, (action) => emit('action', row, action))
-      : { buy: undefined, menu: [] },
+const actions = computed((): AddonRowActions =>
+  row
+    ? getAddonActions(row, (action) => emit('action', row, action))
+    : { buy: undefined, menu: [] },
 )
 </script>
 
