@@ -90,7 +90,8 @@ func GetApplications(c *gin.Context) {
 	}
 
 	// Batch resolve rebranding info (eliminates N+1 queries)
-	// Best effort: a failure here only costs the suggestions, not the list
+	// Best effort: the assign drawer pre-selects the suggested company and a
+	// failure here only costs the suggestions, not the list
 	if c.Query("include_suggestions") == "true" {
 		if err := appsService.SuggestOrganizations(c.Request.Context(), apps, userOrgRole, userOrgID); err != nil {
 			logger.Warn().Err(err).Str("user_id", userID).Msg("Failed to compute organization suggestions")
@@ -148,6 +149,13 @@ func GetApplication(c *gin.Context) {
 	app, err := appsService.GetApplication(appID, userOrgRole, userOrgID)
 	if helpers.HandleAccessError(c, err, "application", appID) {
 		return
+	}
+
+	// Best effort: the assign drawer pre-selects the suggested company
+	if c.Query("include_suggestions") == "true" {
+		if err := appsService.SuggestOrganizations(c.Request.Context(), []*models.Application{app}, userOrgRole, userOrgID); err != nil {
+			logger.Warn().Err(err).Str("application_id", appID).Msg("Failed to compute organization suggestion")
+		}
 	}
 
 	// Resolve rebranding info

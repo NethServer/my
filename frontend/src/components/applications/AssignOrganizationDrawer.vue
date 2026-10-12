@@ -6,7 +6,7 @@
 <script setup lang="ts">
 import { NeButton, NeSideDrawer, NeTextInput, NeInlineNotification } from '@nethesis/vue-components'
 import OrganizationCombobox from '@/components/organizations/OrganizationCombobox.vue'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
@@ -32,6 +32,26 @@ const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
 
 const organizationId = ref('')
+
+// Company the backend infers for an unassigned application (from its
+// hostnames, label, user domain or the system's owner): pre-selected, the
+// user still has to save
+const suggestion = computed(() =>
+  currentApplication?.organization ? undefined : currentApplication?.suggested_organization,
+)
+const suggestionDescription = computed(() => {
+  if (!suggestion.value) {
+    return ''
+  }
+  const keyBySource: Record<string, string> = {
+    display_name: 'applications.suggested_company_from_display_name',
+    fqdn: 'applications.suggested_company_from_fqdn',
+    user_domain: 'applications.suggested_company_from_user_domain',
+    hosting_system: 'applications.suggested_company_from_system',
+  }
+  const key = keyBySource[suggestion.value.source] ?? 'applications.suggested_company_from_fqdn'
+  return t(key, { matched: suggestion.value.matched, organization: suggestion.value.name })
+})
 
 const {
   mutate: assignOrganizationMutate,
@@ -73,7 +93,8 @@ const validationIssues = ref<Record<string, string[]>>({})
 
 function onShow() {
   clearErrors()
-  organizationId.value = currentApplication?.organization?.logto_id || ''
+  organizationId.value =
+    currentApplication?.organization?.logto_id || suggestion.value?.logto_id || ''
 }
 
 function closeDrawer() {
@@ -92,11 +113,17 @@ async function saveApplication() {
     return
   }
 
+  // name/type only feed the success notification: known for the current
+  // company and for the suggested one, blank otherwise
+  const known =
+    organizationId.value === suggestion.value?.logto_id
+      ? suggestion.value
+      : currentApplication.organization
   const organization: Organization = {
     logto_id: organizationId.value,
-    name: currentApplication.organization?.name || '',
-    description: currentApplication.organization?.description || '',
-    type: currentApplication.organization?.type || '',
+    name: known?.name || '',
+    description: '',
+    type: known?.type || '',
   }
 
   const application: Application = {
@@ -123,11 +150,18 @@ async function saveApplication() {
           :label="$t('applications.application')"
           readonly
         />
+        <!-- suggested company, pre-selected below -->
+        <NeInlineNotification
+          v-if="suggestion"
+          kind="info"
+          :title="$t('applications.suggested_company')"
+          :description="suggestionDescription"
+        />
         <!-- organization -->
         <OrganizationCombobox
           ref="organizationIdRef"
           v-model="organizationId"
-          :selected-organization="currentApplication?.organization"
+          :selected-organization="currentApplication?.organization ?? suggestion"
           :label="$t('organizations.organization')"
           :placeholder="$t('organizations.choose_organization')"
           :invalid-message="

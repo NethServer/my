@@ -20,7 +20,7 @@ Navigate to **Applications** to see the list of all applications visible to you.
 - Version
 - FQDN: the public hostnames the application is published on, as reported by the inventory (empty when the application has no HTTP route)
 - Associated system
-- Organization. For an unassigned application, the list may show in grey the customer it is probably meant for, inferred from its hostnames, instance label or LDAP user domain among the customers of the hosting partner, or simply the customer the system belongs to; hover the name to see why. Click **Assign** next to it to confirm with one click, or ignore it: nothing is assigned automatically
+- Organization
 
 ### Filtering
 
@@ -54,8 +54,8 @@ An application is assigned to **one** organization at a time, not to several. As
 
 1. Navigate to the application details page
 2. Use the **Assign** action
-3. Select the target organization
-4. Confirm the assignment
+3. Select the target organization. For an unassigned application the drawer may already propose one, with a note explaining why: the customer of the hosting partner the application is named after (hostnames, instance label or LDAP user domain), or simply the customer the system belongs to. Check it, change it if needed
+4. Confirm the assignment: nothing is assigned until you save
 
 The organizations on offer are filtered by your position in the hierarchy: you can only assign applications to organizations you manage.
 

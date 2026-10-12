@@ -18,6 +18,8 @@ export const getApplicationDetail = (applicationId: string) => {
   return axios
     .get<ApplicationDetailResponse>(`${API_URL}/applications/${applicationId}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+      // the assign drawer pre-selects the suggested company
+      params: { include_suggestions: 'true' },
     })
     .then((res) => res.data.data)
 }
