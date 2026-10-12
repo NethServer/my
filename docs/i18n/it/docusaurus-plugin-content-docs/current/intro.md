@@ -104,4 +104,4 @@ Documentazione tecnica per sviluppatori e integratori:
 
 ## Informazioni Versione
 
-Versione corrente: **0.9.2** (Pre-produzione)
+Versione corrente: **0.9.3** (Pre-produzione)
