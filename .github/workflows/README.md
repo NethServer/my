@@ -77,16 +77,23 @@ second parent is not that head, so the status never lands on a commit other than
 Pull requests from forks get neither the secrets nor a token that can write a status: push the
 branch to this repository and label that pull request instead.
 
-Runs are **serialized globally and never cancelled** — a run cancelled after provisioning would
-abandon real organizations and users in the tenant. A `concurrency` group cannot do this: GitHub
-keeps at most one run pending per group and cancels the previously pending one, so a burst of
-Renovate pull requests and the pushes their automerge makes would leave the runs in between
-cancelled and their status pending for good. Instead a `queue` job polls the Actions API every two
-minutes and lets the suite start only once every run of the workflow whose current attempt started
-earlier has finished, so a re-run joins the back of the queue. The wait costs runner time only,
-which is free in a public repository; a run still waiting after four hours reports the status as
-`error` ("browser suite never started"). The weekly cron is a drift canary for breakage with no commit behind it, such as a tenant
-setting changed by hand.
+Runs are **serialized globally and never cancelled past the queue** — a run cancelled after
+provisioning would abandon real organizations and users in the tenant. A workflow-level
+`concurrency` group cannot do this: GitHub keeps at most one run pending per group and cancels the
+previously pending one, so a burst of Renovate pull requests and the pushes their automerge makes
+would leave the runs in between cancelled and their status pending for good. Instead a `queue` job
+polls the Actions API every two minutes and lets the suite start only once every run of the
+workflow whose current attempt started earlier has finished, so a re-run joins the back of the
+queue. The wait costs runner time only, which is free in a public repository; a run still waiting
+after four hours reports the status as `error` ("browser suite never started").
+
+A run still waiting in the queue has touched nothing, so a **newer run on the same branch or pull
+request supersedes it**: the `queue` job carries its own `concurrency` group, per ref, with
+`cancel-in-progress`, and the group is released as soon as the job ends, so a run already
+provisioning is never cancelled. On main the newer commit contains the older one, and a pull
+request's status is read on its head only, so a burst of merges costs one suite rather than one
+per merge. The weekly cron is a drift canary for breakage with no commit behind it, such as a
+tenant setting changed by hand.
 
 ### `e2e-gate.yml`
 **Trigger**: Pull request opened, pushed to or reopened

@@ -42,24 +42,32 @@ on:
     # and the start of each hour is when it is busiest.
     - cron: '23 4 * * 1'
 
-# One global queue, and never cancel: the `queue` job below lets a run through
-# only once every run of this workflow started before it has finished.
+# One global queue, and never cancel a run past the queue: the `queue` job
+# below lets a run through only once every run of this workflow started before
+# it has finished.
 #
 # Global because every run provisions the same fixture keys, with the same
 # persona emails, in the same CI tenant: `prefix` comes from authz/fixture.yml
 # and has no per-run override, so two runs at once would fight over the same
 # Logto users. A per-ref queue would let two pull requests collide.
 #
-# Never cancel because a run stopped after `authz provision` loses the registry
-# recording what it created — that lives on the runner — leaving orgs no
-# teardown can find, which the next provisioning trips over as a name
-# collision. Waiting lets every run reach its teardown.
+# Never cancel past the queue because a run stopped after `authz provision`
+# loses the registry recording what it created — that lives on the runner —
+# leaving orgs no teardown can find, which the next provisioning trips over as
+# a name collision. Waiting lets every run reach its teardown.
 #
-# A job rather than a `concurrency` group: GitHub keeps at most one run pending
-# per group and cancels the previously pending one, so a burst — Renovate opens
-# its pull requests together, and each automerge pushes to main — would leave
-# the runs in between cancelled and their status pending for good. The job
-# waits on a runner instead, which costs nothing in a public repository.
+# A job rather than a workflow-level `concurrency` group: GitHub keeps at most
+# one run pending per group and cancels the previously pending one, so a burst
+# — Renovate opens its pull requests together, and each automerge pushes to
+# main — would leave the runs in between cancelled and their status pending
+# for good. The job waits on a runner instead, which costs nothing in a public
+# repository.
+#
+# A run still waiting in the queue has touched nothing, so a newer run on the
+# same branch or pull request supersedes it: the `queue` job's own concurrency
+# group, per ref, cancels the older one. On main the newer commit contains the
+# older, and a pull request's status is read on its head only, so nothing is
+# lost; a burst of merges then costs one suite, not one per merge.
 
 env:
   GH_TOKEN: ${{ github.token }}
@@ -75,6 +83,12 @@ jobs:
     name: Wait for earlier runs
     runs-on: ubuntu-latest
     timeout-minutes: 250
+    # Per branch or pull request, and on this job only: a newer run on the same
+    # ref cancels one still waiting here, never one already provisioning. A
+    # scheduled or dispatched run shares main's group with the pushes to it.
+    concurrency:
+      group: ${{ github.workflow }}-queue-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
     # Any other label on a pull request is not a request for a run. A Renovate
     # pull request needs no label, its commits start the run; `run-e2e` on one
     # still asks for another.
