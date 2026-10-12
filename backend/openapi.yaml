@@ -17054,7 +17054,7 @@ paths:
         systems the caller can see.
 
         **Export Fields:**
-        - Name, Module ID, Type, Type ID, Version, Status
+        - Name, Module ID, Type, Type ID, Version, FQDN (the hostnames the application is published on, comma separated), Status
         - Node, URL, Notes, Has Errors
         - System
         - Organization, Organization Type

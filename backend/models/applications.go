@@ -177,6 +177,27 @@ func (a *Application) GetEffectiveDisplayName() string {
 	return a.ModuleID
 }
 
+// FQDNs returns the hostnames the application is published on, as reported
+// by the NS8 inventory (inventory_data.fqdns); empty when it has none.
+func (a *Application) FQDNs() []string {
+	if len(a.InventoryData) == 0 {
+		return nil
+	}
+	var data struct {
+		FQDNs []string `json:"fqdns"`
+	}
+	if err := json.Unmarshal(a.InventoryData, &data); err != nil {
+		return nil
+	}
+	out := make([]string, 0, len(data.FQDNs))
+	for _, f := range data.FQDNs {
+		if f != "" {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
 // HasServiceErrors checks if the application has service errors from services_data
 func (a *Application) HasServiceErrors() bool {
 	if a.ServicesData == nil {

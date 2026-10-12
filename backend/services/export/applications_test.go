@@ -42,6 +42,7 @@ func sampleApplications() []*models.Application {
 		Status:          "assigned",
 		URL:             strPtr("https://mail.example.com"),
 		Notes:           strPtr("=cmd, with comma"),
+		InventoryData:   json.RawMessage(`{"fqdns":["mail.example.com","autoconfig.example.com"]}`),
 		ServicesData:    json.RawMessage(`{"services":[],"has_errors":true,"error_count":1}`),
 		CreatedAt:       created,
 		FirstSeenAt:     created,
@@ -73,21 +74,21 @@ func TestApplicationsExportToCSV(t *testing.T) {
 	require.Len(t, rows, 3)
 
 	assert.Equal(t, []string{
-		"Name", "Module ID", "Type", "Type ID", "Version", "Status", "Node", "URL", "Notes",
+		"Name", "Module ID", "Type", "Type ID", "Version", "FQDN", "Status", "Node", "URL", "Notes",
 		"Has Errors", "System", "Organization", "Organization Type",
 		"First Seen At", "Last Inventory At", "Created At",
 	}, rows[0])
 
 	assert.Equal(t, []string{
-		"Company mail", "mail1", "Mail", "mail", "1.2.3", "assigned", "node-1",
-		"https://mail.example.com", "'=cmd, with comma", "true", "ns8-hq", "ACME", "customer",
+		"Company mail", "mail1", "Mail", "mail", "1.2.3", "mail.example.com, autoconfig.example.com",
+		"assigned", "node-1", "https://mail.example.com", "'=cmd, with comma", "true", "ns8-hq", "ACME", "customer",
 		"2026-09-01 10:00:00 UTC", "2026-09-29 08:30:00 UTC", "2026-09-01 10:00:00 UTC",
 	}, rows[1])
 
 	// display name falls back to the module id, type to its id, and every
 	// optional field stays empty rather than rendering "<nil>"
 	assert.Equal(t, []string{
-		"webtop2", "webtop2", "webtop", "webtop", "", "unassigned", "", "", "", "false",
+		"webtop2", "webtop2", "webtop", "webtop", "", "", "unassigned", "", "", "", "false",
 		"ns8-branch", "", "", "2026-09-01 10:00:00 UTC", "", "2026-09-01 10:00:00 UTC",
 	}, rows[2])
 }

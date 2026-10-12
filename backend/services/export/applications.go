@@ -14,6 +14,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/nethesis/my/backend/models"
@@ -40,6 +41,7 @@ func (s *ApplicationsExportService) ExportToCSV(apps []*models.Application) ([]b
 		"Type",
 		"Type ID",
 		"Version",
+		"FQDN",
 		"Status",
 		"Node",
 		"URL",
@@ -65,6 +67,7 @@ func (s *ApplicationsExportService) ExportToCSV(apps []*models.Application) ([]b
 			applicationTypeName(app),
 			app.InstanceOf,
 			safeString(app.Version),
+			strings.Join(app.FQDNs(), ", "),
 			app.Status,
 			applicationNode(app),
 			safeString(app.URL),
@@ -100,12 +103,11 @@ func (s *ApplicationsExportService) ExportToPDF(apps []*models.Application, filt
 			app.GetEffectiveDisplayName(),
 			applicationTypeName(app),
 			safeString(app.Version),
+			strings.Join(app.FQDNs(), ", "),
 			titleCase(app.Status),
-			applicationNode(app),
 			applicationSystemName(app),
 			orgName,
 			formatOptionalDate(app.LastInventoryAt),
-			formatDate(app.CreatedAt),
 		})
 	}
 
@@ -113,16 +115,17 @@ func (s *ApplicationsExportService) ExportToPDF(apps []*models.Application, filt
 		Title:      "Applications",
 		Filters:    filters,
 		ExportedBy: exportedBy,
+		// 12-unit grid: FQDN took the place of Node and Created, the two
+		// least useful columns on paper (the CSV keeps every field)
 		Columns: []pdfColumn{
 			{Title: "Name", Width: 2},
 			{Title: "Type", Width: 1},
 			{Title: "Version", Width: 1},
+			{Title: "FQDN", Width: 2},
 			{Title: "Status", Width: 1, Status: true},
-			{Title: "Node", Width: 1},
 			{Title: "System", Width: 2},
 			{Title: "Organization", Width: 2},
 			{Title: "Last inventory", Width: 1},
-			{Title: "Created", Width: 1},
 		},
 		Rows:  rows,
 		Empty: "No applications found with the applied filters.",
