@@ -196,6 +196,42 @@ func TestTemplates_SubjectNamesOrganizationAndSystem(t *testing.T) {
 	}
 }
 
+// TestTemplates_LastContactRow covers the LinkFailed last-heartbeat row: shown
+// in every firing email when collect sets the annotation, absent otherwise.
+func TestTemplates_LastContactRow(t *testing.T) {
+	files, err := BuildTemplateFiles("https://my.nethesis.it", "Europe/Rome")
+	if err != nil {
+		t.Fatalf("BuildTemplateFiles: %v", err)
+	}
+	ts := time.Date(2026, 10, 10, 2, 30, 51, 0, time.UTC)
+
+	for _, tc := range []struct {
+		lang, label, value string
+	}{
+		{"it", "ULTIMO CONTATTO", "10 ott 2026, 02:10 UTC"},
+		{"en", "LAST CONTACT", "Oct 10, 2026, 02:10 AM UTC"},
+	} {
+		for _, format := range []struct {
+			ext     string
+			htmlSet bool
+		}{{"html", true}, {"txt", false}} {
+			name := "alert_" + tc.lang + "." + format.ext
+
+			with := sampleAlert(ts, ts.Add(30*time.Minute))
+			with.Annotations["last_heartbeat_"+tc.lang] = tc.value
+			out := renderBundle(t, files, name, format.htmlSet, sampleData("firing", with))
+			if !strings.Contains(out, tc.label) || !strings.Contains(out, tc.value) {
+				t.Errorf("%s: last contact row missing", name)
+			}
+
+			without := renderBundle(t, files, name, format.htmlSet, sampleData("firing", sampleAlert(ts, ts.Add(30*time.Minute))))
+			if strings.Contains(without, tc.label) {
+				t.Errorf("%s: last contact row rendered without the annotation", name)
+			}
+		}
+	}
+}
+
 // TestTemplates_TimestampsUseConfiguredTimezone pins the rendered timestamp
 // format, including the DST-dependent zone abbreviation. The offset and the
 // abbreviation both come from tzdata, so this also fails if the timezone is
@@ -315,7 +351,7 @@ func TestPlainTextUTCLine_AlignedToValueColumn(t *testing.T) {
 		time.Date(2026, 7, 3, 11, 40, 13, 0, time.UTC),
 		time.Date(2026, 7, 3, 12, 12, 41, 0, time.UTC),
 	))
-	widths := map[string]int{"it": 16, "en": 14}
+	widths := map[string]int{"it": 17, "en": 14}
 
 	for _, lang := range ValidTemplateLangs {
 		out := renderBundle(t, files, "alert_"+lang+".txt", false, data)
@@ -400,9 +436,9 @@ func TestPlainTextLabels_Aligned(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildTemplateFiles: %v", err)
 	}
-	// Widths fit the longest label each language can emit: ORGANIZZAZIONE: and
-	// ORGANIZATION:, both from the fallback branch.
-	widths := map[string]int{"it": 16, "en": 14}
+	// Widths fit the longest label each language can emit: ULTIMO CONTATTO:
+	// (LinkFailed only) and ORGANIZATION: (org fallback branch).
+	widths := map[string]int{"it": 17, "en": 14}
 	label := regexp.MustCompile(`(?m)(?:^|\}\})([A-ZÀ-Ù][A-ZÀ-Ù'. ]*?:)( +)`)
 
 	for _, name := range []string{"firing_it.txt", "resolved_it.txt", "firing_en.txt", "resolved_en.txt"} {

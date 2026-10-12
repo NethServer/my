@@ -241,6 +241,17 @@ func (m *LinkFailedMonitor) buildFiringAlert(system linkFailedSystem) (models.Al
 		startsAt = now
 	}
 
+	annotations := map[string]string{
+		"summary_en":     "No heartbeat received from system",
+		"summary_it":     "Nessun heartbeat ricevuto dal sistema",
+		"description_en": fmt.Sprintf("The system has not communicated with My Nethesis for over %d minutes. Check the system connection.", m.timeoutMinutes),
+		"description_it": fmt.Sprintf("Il sistema non comunica con My Nethesis da oltre %d minuti. Verificare la connessione del sistema.", m.timeoutMinutes),
+	}
+	if !system.LastHeartbeat.IsZero() {
+		annotations["last_heartbeat_en"] = formatLastHeartbeatEN(system.LastHeartbeat)
+		annotations["last_heartbeat_it"] = formatLastHeartbeatIT(system.LastHeartbeat)
+	}
+
 	enrichedAlerts, err := collectalerting.EnrichAlerts([]models.AlertmanagerPostAlert{
 		{
 			Labels: map[string]string{
@@ -248,14 +259,9 @@ func (m *LinkFailedMonitor) buildFiringAlert(system linkFailedSystem) (models.Al
 				"severity":                     "critical",
 				collectalerting.ManagedByLabel: collectalerting.ManagedByCollect,
 			},
-			Annotations: map[string]string{
-				"summary_en":     "No heartbeat received from system",
-				"summary_it":     "Nessun heartbeat ricevuto dal sistema",
-				"description_en": fmt.Sprintf("The system has not communicated with My Nethesis for over %d minutes. Check the system connection.", m.timeoutMinutes),
-				"description_it": fmt.Sprintf("Il sistema non comunica con My Nethesis da oltre %d minuti. Verificare la connessione del sistema.", m.timeoutMinutes),
-			},
-			StartsAt: startsAt,
-			EndsAt:   time.Now().UTC().Add(linkFailedAlertTTL),
+			Annotations: annotations,
+			StartsAt:    startsAt,
+			EndsAt:      time.Now().UTC().Add(linkFailedAlertTTL),
 		},
 	}, system.Context)
 	if err != nil {
@@ -270,4 +276,19 @@ func nullStringValue(value sql.NullString) string {
 		return ""
 	}
 	return value.String
+}
+
+// The notification templates run inside Mimir, which cannot parse a string
+// into a time, so the last heartbeat is pre-formatted here. Always UTC: the
+// recipient's timezone is unknown. Layouts mirror ts_it/ts_en in the backend
+// _datetime.tmpl, which also spells out the Italian months.
+var italianMonths = [...]string{"gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"}
+
+func formatLastHeartbeatEN(t time.Time) string {
+	return t.UTC().Format("Jan 02, 2006, 03:04 PM MST")
+}
+
+func formatLastHeartbeatIT(t time.Time) string {
+	t = t.UTC()
+	return fmt.Sprintf("%02d %s %d, %s", t.Day(), italianMonths[t.Month()-1], t.Year(), t.Format("15:04 MST"))
 }

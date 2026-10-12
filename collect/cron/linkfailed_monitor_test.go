@@ -61,6 +61,8 @@ func TestLinkFailedMonitorSyncOrganization_PostsAlertForInactiveSystem(t *testin
 	assert.Equal(t, "No heartbeat received from system", alert.Annotations["summary_en"])
 	assert.Equal(t, "The system has not communicated with My Nethesis for over 10 minutes. Check the system connection.", alert.Annotations["description_en"])
 	assert.Equal(t, "Il sistema non comunica con My Nethesis da oltre 10 minuti. Verificare la connessione del sistema.", alert.Annotations["description_it"])
+	assert.Equal(t, formatLastHeartbeatEN(lastHeartbeat), alert.Annotations["last_heartbeat_en"])
+	assert.Equal(t, formatLastHeartbeatIT(lastHeartbeat), alert.Annotations["last_heartbeat_it"])
 	assert.Equal(t, lastHeartbeat.Add(10*time.Minute), alert.StartsAt)
 	assert.WithinDuration(t, time.Now().UTC().Add(linkFailedAlertTTL), alert.EndsAt, time.Minute)
 }
@@ -162,4 +164,13 @@ func TestLinkFailedMonitorLoadInactiveSystems_FiltersOnHeartbeatCutoff(t *testin
 	require.NoError(t, err)
 	assert.Empty(t, systems)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestFormatLastHeartbeat_AlwaysUTC(t *testing.T) {
+	rome, err := time.LoadLocation("Europe/Rome")
+	require.NoError(t, err)
+	beat := time.Date(2026, 10, 10, 4, 10, 51, 0, rome) // 02:10:51 UTC
+
+	assert.Equal(t, "10 ott 2026, 02:10 UTC", formatLastHeartbeatIT(beat))
+	assert.Equal(t, "Oct 10, 2026, 02:10 AM UTC", formatLastHeartbeatEN(beat))
 }
