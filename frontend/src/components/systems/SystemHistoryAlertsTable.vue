@@ -31,6 +31,7 @@ import capitalize from 'lodash/capitalize'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
+  getAlertSummary,
   getSeverityBadgeKind,
   type Alert,
   type AlertHistoryRecord,
@@ -45,6 +46,10 @@ import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import AlertDetailsDrawer from '@/components/alerts/AlertDetailsDrawer.vue'
 
 const { t, locale } = useI18n()
+
+// The summary column is stored in English; prefer the annotation in the UI language.
+const historySummary = (record: AlertHistoryRecord) =>
+  getAlertSummary(record, locale.value) || record.summary || ''
 
 // ── Alert history query ───────────────────────────────────────────────────────
 
@@ -278,10 +283,10 @@ function showDetails(alert: Alert): void {
               >{{ record.alertname || '-' }}</span
             >
             <p
-              v-if="record.summary"
+              v-if="historySummary(record)"
               class="mt-0.5 max-w-xs text-sm wrap-anywhere text-gray-500 dark:text-gray-400"
             >
-              {{ record.summary }}
+              {{ historySummary(record) }}
             </p>
           </NeTableCell>
           <!-- Started at -->
