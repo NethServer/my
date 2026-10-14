@@ -257,7 +257,7 @@ I template sono disponibili in **inglese** e **italiano**. La lingua viene scelt
 
 ## Notifiche Telegram
 
-Quando le notifiche Telegram sono abilitate, gli allarmi vengono inviati come messaggi formattati a un bot Telegram. I messaggi usano la formattazione HTML e includono nome allarme, severità, system key e riepilogo localizzato.
+Quando le notifiche Telegram sono abilitate, gli allarmi vengono inviati come messaggi formattati a un bot Telegram. Ogni messaggio porta gli stessi campi delle email, impaginati per lo schermo del telefono: un'intestazione con stato e severità (ogni messaggio ha una sola severità, perché il routing è per severità), poi per ogni allarme nome, servizio, riepilogo e dettagli, l'orario di inizio o di inizio/risoluzione nel fuso dell'alerting, l'ultimo contatto quando noto, l'organizzazione con P.IVA, il nome del sistema, la sua chiave in monospazio e FQDN o IP, e il link al sistema su My Nethesis. I testi liberi sono protetti dall'escape HTML. I messaggi sono in inglese.
 
 :::note
 I messaggi Telegram sono limitati a 4096 caratteri. Per descrizioni di allarme molto lunghe, il messaggio potrebbe essere troncato. Per allarmi con metadati estesi, considera di usare email o webhook.

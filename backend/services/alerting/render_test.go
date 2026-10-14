@@ -23,13 +23,17 @@ import (
 // instead of silently dropping mail.
 
 // amFuncs mirrors the subset of alertmanager's DefaultFuncs the templates use.
-// Keep in sync with the vendored fork (grafana/prometheus-alertmanager): note
-// it exposes only date/tz, NOT since/now/humanizeDuration.
+// Keep in sync with the alertmanager vendored by the Mimir in
+// services/mimir/Containerfile (upstream since Mimir 3.2); every function
+// here exists in both the upstream map and the Grafana fork.
 func amFuncs() map[string]any {
 	return map[string]any{
 		"toUpper": strings.ToUpper,
 		"toLower": strings.ToLower,
-		"date":    func(format string, t time.Time) string { return t.Format(format) },
+		"reReplaceAll": func(pattern, repl, text string) string {
+			return regexp.MustCompile(pattern).ReplaceAllString(text, repl)
+		},
+		"date": func(format string, t time.Time) string { return t.Format(format) },
 		"tz": func(name string, t time.Time) (time.Time, error) {
 			loc, err := time.LoadLocation(name)
 			if err != nil {
@@ -322,7 +326,9 @@ func TestBuildTemplateFiles_TimezoneIsSubstituted(t *testing.T) {
 // muted grey in the HTML, indented to the value column in the plain text. The
 // Telegram message does not: it is a chat notification where a second line per
 // timestamp costs more than the correlation with server logs is worth there.
-func TestTemplates_UTCLineNotInTelegram(t *testing.T) {
+// Telegram is read on a phone: the zone abbreviation already makes the local
+// time unambiguous, and the UTC twin would wrap every timestamp line.
+func TestTemplates_UTCLineInEmailsOnly(t *testing.T) {
 	files, err := BuildTemplateFiles("https://my.nethesis.it", "Europe/Rome")
 	if err != nil {
 		t.Fatalf("BuildTemplateFiles: %v", err)
@@ -392,16 +398,18 @@ func TestLabels_SameWordingAcrossChannels(t *testing.T) {
 		lang     string
 		text     string // aligned column label, colon included
 		html     string // styled label cell
-		telegram string // inline label, colon included
+		telegram string // bold inline label, same wording as the email ones
 	}{
-		{"firing", "it", "ATTIVO DAL:", ">ATTIVO DAL<", "Attivo dal:"},
-		{"resolved", "it", "INIZIO:", ">INIZIO<", "Inizio:"},
-		{"resolved", "it", "RISOLTO:", ">RISOLTO<", "Risolto:"},
-		{"firing", "en", "FIRING SINCE:", ">FIRING SINCE<", "Firing since:"},
-		{"resolved", "en", "STARTED:", ">STARTED<", "Started:"},
-		{"resolved", "en", "RESOLVED:", ">RESOLVED<", "Resolved:"},
-		{"firing", "it", "DETTAGLI:", ">DETTAGLI<", "Dettagli:"},
-		{"firing", "en", "DETAILS:", ">DETAILS<", "Details:"},
+		{"firing", "it", "ATTIVO DAL:", ">ATTIVO DAL<", "<b>Attivo dal:</b>"},
+		{"resolved", "it", "INIZIO:", ">INIZIO<", "<b>Inizio:</b>"},
+		{"resolved", "it", "RISOLTO:", ">RISOLTO<", "<b>Risolto:</b>"},
+		{"firing", "en", "FIRING SINCE:", ">FIRING SINCE<", "<b>Firing since:</b>"},
+		{"resolved", "en", "STARTED:", ">STARTED<", "<b>Started:</b>"},
+		{"resolved", "en", "RESOLVED:", ">RESOLVED<", "<b>Resolved:</b>"},
+		{"firing", "it", "DETTAGLI:", ">DETTAGLI<", "<b>Dettagli:</b>"},
+		{"firing", "en", "DETAILS:", ">DETAILS<", "<b>Details:</b>"},
+		{"firing", "it", "ULTIMO CONTATTO:", ">ULTIMO CONTATTO<", "<b>Ultimo contatto:</b>"},
+		{"firing", "en", "LAST CONTACT:", ">LAST CONTACT<", "<b>Last contact:</b>"},
 		// One label per organization_type, including the fallback branch. The
 		// three narrow ones used to be abbreviated in the plain text column
 		// only, which is exactly the divergence this pins down.

@@ -1,0 +1,12 @@
+{{/*
+Shared helper for the Telegram messages, which Alertmanager sends with
+parse_mode=HTML: any free text that lands in the body (alert name, summary,
+organization or system name, FQDN) must have &, < and > escaped or the
+Telegram API rejects the whole message and the notification is lost.
+Labels and annotations are produced by the appliances, so they are user
+input from the template's point of view.
+
+reReplaceAll(pattern, repl, text) is part of Alertmanager's default function
+map; in a pipeline the piped value becomes the trailing text argument.
+*/}}
+{{ define "tg_esc" }}{{ . | reReplaceAll "&" "&amp;" | reReplaceAll "<" "&lt;" | reReplaceAll ">" "&gt;" }}{{ end }}

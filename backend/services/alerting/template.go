@@ -203,6 +203,7 @@ templates:
   - 'firing_it.txt'
   - 'resolved_it.txt'
   - '_datetime.tmpl'
+  - '_telegram.tmpl'
   - '_dispatcher.tmpl'
   - 'telegram_en.tmpl'
   - 'telegram_it.tmpl'

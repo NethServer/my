@@ -257,7 +257,7 @@ Templates are available in **English** and **Italian**. The language is picked *
 
 ## Telegram notifications
 
-When Telegram notifications are enabled, alerts are sent as formatted messages to a Telegram bot. Messages use HTML formatting and include the alert name, severity, system key, and a localized summary.
+When Telegram notifications are enabled, alerts are sent as formatted messages to a Telegram bot. Each message carries the same fields as the email, laid out for a phone screen: a header with the status and severity (every message is single-severity, since routing is per severity), then per alert the name, service, summary and details, the firing-since or started/resolved time in the alerting timezone, the last contact when known, the organization with VAT, the system name, its key in monospace and its FQDN or IP, and a link to the system in My Nethesis. Free text is HTML-escaped. Messages are rendered in English.
 
 :::note
 Telegram messages are limited to 4096 characters. For very long alert descriptions, the message may be truncated. Consider using email or webhook for alerts with extensive metadata.

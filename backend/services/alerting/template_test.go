@@ -192,7 +192,7 @@ func TestBuildTemplateFiles_AllLanguagesPresent(t *testing.T) {
 		"firing_en.html", "resolved_en.html", "firing_en.txt", "resolved_en.txt",
 		"firing_it.html", "resolved_it.html", "firing_it.txt", "resolved_it.txt",
 		"telegram_en.tmpl", "telegram_it.tmpl",
-		"_dispatcher.tmpl",
+		"_datetime.tmpl", "_telegram.tmpl", "_dispatcher.tmpl",
 	}
 	for _, name := range want {
 		if _, ok := files[name]; !ok {

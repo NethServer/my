@@ -44,6 +44,8 @@ var ValidTemplateLangs = []string{"en", "it"}
 //	resolved_en.html / resolved_en.txt / resolved_en.subject
 //	telegram_en.tmpl
 //	(same for it)
+//	_datetime.tmpl    — ts_it / ts_en / ts_utc timestamp helpers
+//	_telegram.tmpl    — tg_esc, HTML escaping for the Telegram body
 //	_dispatcher.tmpl  — defines alert_en.{html,txt,subject} and alert_it.{html,txt,subject}
 func BuildTemplateFiles(appURL, timezone string) (map[string]string, error) {
 	files := map[string]string{}
@@ -71,6 +73,12 @@ func BuildTemplateFiles(appURL, timezone string) (map[string]string, error) {
 		return nil, fmt.Errorf("loading alert template _datetime.tmpl: %w", err)
 	}
 	files["_datetime.tmpl"] = strings.ReplaceAll(string(datetime), "${ALERT_TZ}", timezone)
+
+	telegram, err := templateFS.ReadFile("templates/_telegram.tmpl")
+	if err != nil {
+		return nil, fmt.Errorf("loading alert template _telegram.tmpl: %w", err)
+	}
+	files["_telegram.tmpl"] = string(telegram)
 
 	files["_dispatcher.tmpl"] = buildDispatcher()
 	return files, nil
