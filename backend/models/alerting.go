@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/mail"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -78,10 +79,15 @@ type WebhookRecipient struct {
 // only the caller's own layer, but the storage layer still treats it as
 // sensitive: encrypted-at-rest by the database, redacted from any future
 // admin-only inspection path).
+//
+// MessageThreadID targets one topic of a forum-enabled supergroup. Zero
+// means "no topic": the bot posts in the General topic (or in the plain
+// chat when topics are off). Telegram topic ids are positive message ids.
 type TelegramRecipient struct {
-	BotToken   string   `json:"bot_token" binding:"required,max=256"`
-	ChatID     int64    `json:"chat_id" binding:"required"`
-	Severities []string `json:"severities" binding:"max=3,dive,oneof=critical warning info"`
+	BotToken        string   `json:"bot_token" binding:"required,max=256"`
+	ChatID          int64    `json:"chat_id" binding:"required"`
+	MessageThreadID int64    `json:"message_thread_id,omitempty" binding:"omitempty,min=1"`
+	Severities      []string `json:"severities" binding:"max=3,dive,oneof=critical warning info"`
 }
 
 // AlertingConfigLayer is the per-organization layer persisted in
@@ -169,6 +175,9 @@ func (c *AlertingConfigLayer) Validate() error {
 	for i, r := range c.TelegramRecipients {
 		if strings.TrimSpace(r.BotToken) == "" {
 			return newTelegramFieldErr(i, "bot_token", "required", "")
+		}
+		if r.MessageThreadID < 0 {
+			return newTelegramFieldErr(i, "message_thread_id", "invalid_value", strconv.FormatInt(r.MessageThreadID, 10))
 		}
 		if bad, code, ok := validateSeverities(r.Severities); !ok {
 			return newTelegramFieldErr(i, "severities", code, bad)

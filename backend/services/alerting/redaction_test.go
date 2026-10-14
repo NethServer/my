@@ -18,7 +18,7 @@ func TestRedactEffectiveConfigReport(t *testing.T) {
 			{Name: "slack", URL: "https://hooks.slack.com/services/T00/B00/XXXSECRET"},
 		},
 		TelegramRecipients: []models.TelegramRecipient{
-			{BotToken: "123456:super-secret-token", ChatID: 42},
+			{BotToken: "123456:super-secret-token", ChatID: 42, MessageThreadID: 7},
 		},
 	}
 	report := EffectiveConfigReport{
@@ -40,6 +40,9 @@ func TestRedactEffectiveConfigReport(t *testing.T) {
 	}
 	if got := out.Effective.TelegramRecipients[0].BotToken; got != RedactedSecretPlaceholder {
 		t.Errorf("effective telegram token not redacted: %q", got)
+	}
+	if got := out.Effective.TelegramRecipients[0].MessageThreadID; got != 7 {
+		t.Errorf("topic id is not a secret and must be preserved, got %d", got)
 	}
 	if strings.Contains(out.YAML, "hunter2") || strings.Contains(out.YAML, "super-secret-token") || strings.Contains(out.YAML, "XXXSECRET") {
 		t.Errorf("yaml leaked secrets: %q", out.YAML)

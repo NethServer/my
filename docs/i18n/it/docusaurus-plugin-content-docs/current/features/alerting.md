@@ -165,6 +165,7 @@ Ogni canale è tri-stato:
 |-------|------|-------------|
 | `bot_token` | string | Token ottenuto da `@BotFather` |
 | `chat_id` | integer | Id numerico della chat (positivo per utenti, negativo per gruppi/canali) |
+| `message_thread_id` | integer | Opzionale. Topic di un supergruppo con i topic abilitati in cui pubblicare; l'id del topic è il numero in fondo al link del topic (`t.me/c/<chat>/<topic_id>`). Se omesso, il bot scrive nel topic General |
 | `severities` | string[] | Stessa semantica delle email |
 
 ### Scope per severità
@@ -181,7 +182,7 @@ Mimir Alertmanager espande un receiver per severità, con un nome per tenant (`<
 Quando il server renderizza la configurazione effettiva per un tenant, percorre la catena da Owner fino al tenant e unisce i layer con queste regole:
 
 - **Toggle dei canali** — OR logico: se un qualunque layer della catena abilita un canale, il canale è on per il tenant.
-- **Destinatari** — union con dedup stabile. Chiavi di dedup: `address` per email, `url` per webhook, `(bot_token, chat_id)` per Telegram. In caso di collisione di `language` o `format`, vince la prima occorrenza (più vicina all'Owner).
+- **Destinatari** — union con dedup stabile. Chiavi di dedup: `address` per email, `url` per webhook, `(bot_token, chat_id, message_thread_id)` per Telegram. In caso di collisione di `language` o `format`, vince la prima occorrenza (più vicina all'Owner).
 - **`severities` per destinatario** — union; se una qualunque copia che contribuisce ha `severities=[]` (tutte), la copia mergiata si allarga a `[]` (lo scope più largo vince sempre).
 
 ### Esempio: layer di livello customer che aggiunge notifiche
@@ -291,6 +292,16 @@ Il `chat_id` è l'identificatore numerico della destinazione (un utente privato,
 2. Invia un messaggio nel gruppo in modo che Alertmanager abbia qualcosa da leggere
 3. Chiama `getUpdates` come sopra — il `chat_id` per gruppi e canali è un numero **negativo** (es. `-1001234567890`). Eventualmente, potresti trovare il `chat_id` anche nell'URL della conversazione con il bot, nel formato `https://web.telegram.org/z/#-<CHAT_ID>` (nota il segno negativo per gruppi/canali)
 
+**Per un topic di un gruppo con gli Argomenti attivi:**
+
+Gli allarmi possono essere pubblicati in un topic specifico invece che in quello General. Attivare gli Argomenti trasforma il gruppo in un supergruppo, quindi il suo `chat_id` cambia: rileggilo dopo averli attivati (inizia con `-100`).
+
+1. Crea il topic e assicurati che il bot sia **amministratore** del gruppo
+2. Dentro il topic, invia un messaggio che menziona il bot (es. `@MyAlertsBot ciao`)
+3. Chiama `getUpdates` come sopra — il messaggio contiene `"message_thread_id"`, cioè l'**ID del topic**, accanto a `"chat"`
+
+In alternativa copia il link del topic da Telegram: ha la forma `https://t.me/c/<ID>/<TOPIC_ID>`, dove il `chat_id` è `-100<ID>` e l'ultimo numero è l'ID del topic.
+
 ### Passaggio 3 — Aggiungi il destinatario Telegram al tuo layer
 
 Aggiungi una voce a `telegram_recipients`; abilitare il canale con `enabled.telegram = true` è necessario solo a livello Owner (il canale si propaga additivamente verso il basso).
@@ -299,9 +310,12 @@ Aggiungi una voce a `telegram_recipients`; abilitare il canale con `enabled.tele
 |-------|------|-------------|
 | `bot_token` | string | Il token fornito da BotFather |
 | `chat_id` | integer | L'ID numerico della chat Telegram (positivo per utenti, negativo per gruppi/canali) |
+| `message_thread_id` | integer | Opzionale. L'ID del topic ricavato al passaggio 2, per gruppi con gli Argomenti attivi. Se omesso, il bot scrive nel topic General |
 | `severities` | string[] | Sottoinsieme di `["critical","warning","info"]`. Array vuoto = tutte le severità |
 
-Esempio (layer Owner che abilita Telegram per tutto l'albero):
+Nell'interfaccia, l'ID del topic va nel campo opzionale **ID topic** del canale Telegram.
+
+Esempio (layer Owner che abilita Telegram per tutto l'albero, con gli allarmi critici pubblicati anche in un topic dedicato):
 
 ```json
 {
@@ -309,7 +323,8 @@ Esempio (layer Owner che abilita Telegram per tutto l'albero):
   "email_recipients": [],
   "webhook_recipients": [],
   "telegram_recipients": [
-    { "bot_token": "123456789:ABCDEFabcdef...", "chat_id": -1001234567890, "severities": [] }
+    { "bot_token": "123456789:ABCDEFabcdef...", "chat_id": -1001234567890, "severities": [] },
+    { "bot_token": "123456789:ABCDEFabcdef...", "chat_id": -1001234567890, "message_thread_id": 42, "severities": ["critical"] }
   ]
 }
 ```

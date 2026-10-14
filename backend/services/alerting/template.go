@@ -72,9 +72,11 @@ type webhookEntry struct {
 // telegramEntry is a single Telegram destination as it appears inside a
 // receiver's telegram_configs. Telegram messages currently always render
 // in English; extend with a per-recipient Language field when needed.
+// MessageThreadID > 0 pins the message to one topic of a forum supergroup.
 type telegramEntry struct {
-	BotToken string
-	ChatID   int64
+	BotToken        string
+	ChatID          int64
+	MessageThreadID int64
 }
 
 // receiverEntry represents a named Alertmanager receiver.
@@ -180,6 +182,9 @@ receivers:
 {{- range .Telegrams }}
       - bot_token: '{{ yamlEscape .BotToken }}'
         chat_id: {{ .ChatID }}
+{{- if gt .MessageThreadID 0 }}
+        message_thread_id: {{ .MessageThreadID }}
+{{- end }}
         send_resolved: true
         parse_mode: 'HTML'
         message: '{{ "{{" }} template "telegram_en.message" . {{ "}}" }}'
@@ -285,8 +290,9 @@ func buildReceiver(
 				continue
 			}
 			r.Telegrams = append(r.Telegrams, telegramEntry{
-				BotToken: rcp.BotToken,
-				ChatID:   rcp.ChatID,
+				BotToken:        rcp.BotToken,
+				ChatID:          rcp.ChatID,
+				MessageThreadID: rcp.MessageThreadID,
 			})
 		}
 	}

@@ -148,6 +148,22 @@ func TestRenderConfig_TelegramReferencesEnTemplate(t *testing.T) {
 	if !strings.Contains(out, "{{ template \"telegram_en.message\"") {
 		t.Errorf("telegram message dispatcher should be english-only, got:\n%s", out)
 	}
+	if strings.Contains(out, "message_thread_id") {
+		t.Errorf("no topic configured must not emit message_thread_id, got:\n%s", out)
+	}
+}
+
+func TestRenderConfig_TelegramTopic(t *testing.T) {
+	cfg := &models.AlertingConfigLayer{
+		Enabled: models.ChannelToggles{Telegram: ptrTrue()},
+		TelegramRecipients: []models.TelegramRecipient{
+			{BotToken: "tok", ChatID: -100, MessageThreadID: 42, Severities: []string{}},
+		},
+	}
+	out := renderForTest(t, cfg)
+	if !strings.Contains(out, "chat_id: -100\n        message_thread_id: 42\n") {
+		t.Errorf("topic must render as message_thread_id next to chat_id, got:\n%s", out)
+	}
 }
 
 func TestRenderConfig_HistoryWebhook(t *testing.T) {

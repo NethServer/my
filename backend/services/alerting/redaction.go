@@ -44,9 +44,10 @@ func RedactLayerForAudit(layer models.AlertingConfigLayer) models.AlertingConfig
 		out.TelegramRecipients = make([]models.TelegramRecipient, len(layer.TelegramRecipients))
 		for i, t := range layer.TelegramRecipients {
 			out.TelegramRecipients[i] = models.TelegramRecipient{
-				BotToken:   RedactedSecretPlaceholder,
-				ChatID:     t.ChatID,
-				Severities: t.Severities,
+				BotToken:        RedactedSecretPlaceholder,
+				ChatID:          t.ChatID,
+				MessageThreadID: t.MessageThreadID,
+				Severities:      t.Severities,
 			}
 		}
 	}

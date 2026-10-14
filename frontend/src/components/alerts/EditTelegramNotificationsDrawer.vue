@@ -51,13 +51,18 @@ const notificationsStore = useNotificationsStore()
 
 // ── Form state ────────────────────────────────────────────────────────────────
 
-type TelegramFormEntry = TelegramRecipient & { _expanded: boolean; _chatIdInput: string }
+type TelegramFormEntry = TelegramRecipient & {
+  _expanded: boolean
+  _chatIdInput: string
+  _topicIdInput: string
+}
 
 const telegramEnabled = ref(false)
 const channels = ref<TelegramFormEntry[]>([])
 const expandedIndex = ref<number | null>(null)
 const expandedChatIdRef = useTemplateRef<Focusable[]>('expandedChatIdRef')
 const expandedBotTokenRef = useTemplateRef<Focusable[]>('expandedBotTokenRef')
+const expandedTopicIdRef = useTemplateRef<Focusable[]>('expandedTopicIdRef')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const SEVERITIES = ['critical', 'warning', 'info'] as const
@@ -78,6 +83,7 @@ function initForm() {
     severities: r.severities ? [...r.severities] : [],
     _expanded: false,
     _chatIdInput: String(r.chat_id),
+    _topicIdInput: r.message_thread_id ? String(r.message_thread_id) : '',
   }))
 }
 
@@ -129,6 +135,7 @@ function addChannel(shouldFocus = true) {
     severities: [...SEVERITIES],
     _expanded: true,
     _chatIdInput: '',
+    _topicIdInput: '',
   })
   expandedIndex.value = channels.value.length - 1
   if (shouldFocus) {
@@ -148,6 +155,24 @@ function onChatIdInput(ch: TelegramFormEntry, value: string) {
   ch.chat_id = isNaN(parsed) ? 0 : parsed
 }
 
+// An empty topic means "post in the General topic"; anything typed is kept
+// as-is (NaN included) so validation can point at the field instead of
+// silently dropping the value.
+function onTopicIdInput(ch: TelegramFormEntry, value: string) {
+  ch._topicIdInput = value
+  const trimmed = value.trim()
+  ch.message_thread_id = trimmed === '' ? undefined : Number(trimmed)
+}
+
+function toRecipient(ch: TelegramFormEntry): TelegramRecipient {
+  return {
+    chat_id: ch.chat_id,
+    bot_token: ch.bot_token,
+    message_thread_id: ch.message_thread_id,
+    severities: ch.severities?.length ? ch.severities : undefined,
+  }
+}
+
 // ── Mutation ──────────────────────────────────────────────────────────────────
 
 const {
@@ -164,11 +189,7 @@ const {
       },
       email_recipients: props.config?.email_recipients ?? [],
       webhook_recipients: props.config?.webhook_recipients ?? [],
-      telegram_recipients: channels.value.map((ch) => ({
-        chat_id: ch.chat_id,
-        bot_token: ch.bot_token,
-        severities: ch.severities?.length ? ch.severities : undefined,
-      })),
+      telegram_recipients: channels.value.map(toRecipient),
     }
     return postAlertsConfig(payload)
   },
@@ -190,11 +211,7 @@ const {
 function validate(): boolean {
   validationIssues.value = {}
   const payload = {
-    telegram_recipients: channels.value.map((ch) => ({
-      chat_id: ch.chat_id,
-      bot_token: ch.bot_token,
-      severities: ch.severities?.length ? ch.severities : undefined,
-    })),
+    telegram_recipients: channels.value.map(toRecipient),
   }
   const result = v.safeParse(TelegramNotificationsPayloadSchema, payload)
   if (result.success) return true
@@ -209,6 +226,8 @@ function validate(): boolean {
       nextTick(() => {
         if (fieldSuffix === 'bot_token') {
           expandedBotTokenRef.value?.[0]?.focus()
+        } else if (fieldSuffix === 'message_thread_id') {
+          expandedTopicIdRef.value?.[0]?.focus()
         } else {
           expandedChatIdRef.value?.[0]?.focus()
         }
@@ -259,6 +278,9 @@ function closeDrawer() {
               <p class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
                 {{ ch._chatIdInput }}
               </p>
+              <p v-if="ch._topicIdInput" class="text-secondary-neutral mt-1 truncate text-sm">
+                {{ t('alerts.telegram_topic_summary', { id: ch._topicIdInput }) }}
+              </p>
               <div v-if="expandedIndex !== index" class="mt-4 flex flex-wrap gap-1">
                 <NeBadgeV2
                   v-for="sev in SEVERITIES"
@@ -305,6 +327,22 @@ function closeDrawer() {
                       ? $t(validationIssues[`telegram_recipients.${index}.bot_token`][0])
                       : ''
                   "
+                />
+
+                <NeTextInput
+                  ref="expandedTopicIdRef"
+                  :model-value="ch._topicIdInput"
+                  :label="t('alerts.telegram_topic_input')"
+                  :optional="true"
+                  :optional-label="t('common.optional')"
+                  :helper-text="t('alerts.telegram_topic_helper')"
+                  :placeholder="$t('common.eg_value', { value: '42' })"
+                  :invalid-message="
+                    validationIssues[`telegram_recipients.${index}.message_thread_id`]?.[0]
+                      ? $t(validationIssues[`telegram_recipients.${index}.message_thread_id`][0])
+                      : ''
+                  "
+                  @update:model-value="(v: string) => onTopicIdInput(ch, v)"
                 />
               </div>
 

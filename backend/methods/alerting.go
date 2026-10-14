@@ -2940,6 +2940,8 @@ func alertingFieldToJSON(field string) string {
 		return "bot_token"
 	case "ChatID":
 		return "chat_id"
+	case "MessageThreadID":
+		return "message_thread_id"
 	case "Enabled":
 		return "enabled"
 	case "Email":

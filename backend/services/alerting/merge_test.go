@@ -96,6 +96,23 @@ func TestMergeLayers_TelegramDedupByBotAndChat(t *testing.T) {
 	}
 }
 
+func TestMergeLayers_TelegramTopicsAreDistinctRecipients(t *testing.T) {
+	out := MergeLayers([]models.AlertingConfigLayer{
+		{TelegramRecipients: []models.TelegramRecipient{{BotToken: "tok1", ChatID: -100}}},
+		{TelegramRecipients: []models.TelegramRecipient{{BotToken: "tok1", ChatID: -100, MessageThreadID: 7}}},
+		{TelegramRecipients: []models.TelegramRecipient{{BotToken: "tok1", ChatID: -100, MessageThreadID: 7, Severities: []string{"critical"}}}},
+	})
+	if len(out.TelegramRecipients) != 2 {
+		t.Fatalf("expected general chat + one topic, got %d", len(out.TelegramRecipients))
+	}
+	if out.TelegramRecipients[1].MessageThreadID != 7 {
+		t.Errorf("topic id must survive the merge, got %d", out.TelegramRecipients[1].MessageThreadID)
+	}
+	if len(out.TelegramRecipients[1].Severities) != 0 {
+		t.Errorf("same topic listed twice must widen to all severities, got %v", out.TelegramRecipients[1].Severities)
+	}
+}
+
 func TestNormalizeLayerForRole_StripsFalseForNonOwner(t *testing.T) {
 	layer := models.AlertingConfigLayer{
 		Enabled: models.ChannelToggles{Email: ptrFalse(), Webhook: ptrTrue()},

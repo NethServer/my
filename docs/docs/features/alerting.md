@@ -165,6 +165,7 @@ Each channel is tri-state:
 |-------|------|-------------|
 | `bot_token` | string | Token obtained from `@BotFather` |
 | `chat_id` | integer | Numeric chat id (positive for users, negative for groups/channels) |
+| `message_thread_id` | integer | Optional. Topic of a forum-enabled supergroup to post into; the topic id is the number at the end of the topic link (`t.me/c/<chat>/<topic_id>`). Omit it to post in the General topic |
 | `severities` | string[] | Same semantics as email |
 
 ### Severity scoping
@@ -181,7 +182,7 @@ Mimir Alertmanager fans out one receiver per severity, named per tenant (`<org_i
 When the server renders the effective configuration for a tenant, it walks the chain from Owner down to that tenant and unions the layers using these rules:
 
 - **Channel toggles** — logical OR: if any layer in the chain enables a channel, the channel is on for the tenant.
-- **Recipients** — union with stable dedup. Dedup keys are `address` for email, `url` for webhook, `(bot_token, chat_id)` for Telegram. The first occurrence (closer to Owner) wins for `language` and `format` collisions.
+- **Recipients** — union with stable dedup. Dedup keys are `address` for email, `url` for webhook, `(bot_token, chat_id, message_thread_id)` for Telegram. The first occurrence (closer to Owner) wins for `language` and `format` collisions.
 - **Per-recipient severities** — union; if any contributing copy has `severities=[]` (all), the merged copy widens back to `[]` (the broader scope always wins).
 
 ### Example: customer-level layer that adds notifications
@@ -291,6 +292,16 @@ The `chat_id` is the numeric identifier of the destination (a private user, a gr
 2. Send a message in the group so Alertmanager has something to read
 3. Call `getUpdates` as above — the `chat_id` for groups and channels is a **negative** number (e.g. `-1001234567890`). Eventually, you could find the `chat_id` also in the URL of the conversation with the bot, in the format `https://web.telegram.org/z/#-<CHAT_ID>` (note the negative sign for groups/channels)
 
+**For a topic of a group with Topics enabled:**
+
+Alerts can be posted into one topic instead of the General one. Enabling Topics turns the group into a supergroup, so its `chat_id` changes: read it again after enabling them (it starts with `-100`).
+
+1. Create the topic and make sure the bot is an **administrator** of the group
+2. Inside the topic, send a message that mentions the bot (e.g. `@MyAlertsBot hello`)
+3. Call `getUpdates` as above — the message carries `"message_thread_id"`, the **topic ID**, next to `"chat"`
+
+Alternatively, copy the topic link from Telegram: it looks like `https://t.me/c/<ID>/<TOPIC_ID>`, where the `chat_id` is `-100<ID>` and the last number is the topic ID.
+
 ### Step 3 — Add the Telegram recipient to your layer
 
 Add an entry to `telegram_recipients`; turning the channel on with `enabled.telegram = true` is required only at the Owner level (the channel propagates additively downstream).
@@ -299,9 +310,12 @@ Add an entry to `telegram_recipients`; turning the channel on with `enabled.tele
 |-------|------|-------------|
 | `bot_token` | string | The token provided by BotFather |
 | `chat_id` | integer | The numeric Telegram chat ID (positive for users, negative for groups/channels) |
+| `message_thread_id` | integer | Optional. The topic ID from Step 2, for groups with Topics enabled. Omit it to post in the General topic |
 | `severities` | string[] | Subset of `["critical","warning","info"]`. Empty array = all severities |
 
-Example (Owner layer enabling Telegram for the whole tree):
+In the UI, the topic ID goes into the optional **Topic ID** field of the Telegram channel.
+
+Example (Owner layer enabling Telegram for the whole tree, with the critical alerts also posted into a dedicated topic):
 
 ```json
 {
@@ -309,7 +323,8 @@ Example (Owner layer enabling Telegram for the whole tree):
   "email_recipients": [],
   "webhook_recipients": [],
   "telegram_recipients": [
-    { "bot_token": "123456789:ABCDEFabcdef...", "chat_id": -1001234567890, "severities": [] }
+    { "bot_token": "123456789:ABCDEFabcdef...", "chat_id": -1001234567890, "severities": [] },
+    { "bot_token": "123456789:ABCDEFabcdef...", "chat_id": -1001234567890, "message_thread_id": 42, "severities": ["critical"] }
   ]
 }
 ```

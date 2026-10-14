@@ -55,6 +55,7 @@ export interface WebhookRecipient {
 export interface TelegramRecipient {
   bot_token: string
   chat_id: number
+  message_thread_id?: number
   severities?: string[]
 }
 
@@ -113,6 +114,13 @@ export const TelegramRecipientPayloadSchema = v.object({
   chat_id: v.pipe(
     v.number('alerts.telegram_chat_id_required'),
     v.check((n) => n !== 0, 'alerts.telegram_chat_id_invalid'),
+  ),
+  message_thread_id: v.optional(
+    v.pipe(
+      v.number('alerts.telegram_topic_id_invalid'),
+      v.integer('alerts.telegram_topic_id_invalid'),
+      v.minValue(1, 'alerts.telegram_topic_id_invalid'),
+    ),
   ),
   severities: v.optional(v.array(SeveritySchema)),
 })

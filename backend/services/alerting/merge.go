@@ -25,7 +25,7 @@ import (
 //     is enabled. A nil or false in a deeper layer never disables what an
 //     ancestor enabled.
 //   - recipient lists: union with stable dedup. Dedup keys are
-//     email→address, webhook→URL, telegram→(bot_token, chat_id).
+//     email→address, webhook→URL, telegram→(bot_token, chat_id, message_thread_id).
 //   - severities[] per recipient: union; if any contributing copy has
 //     severities=[] ("all severities"), the merged copy widens back to [].
 //   - language/format on a deduped email recipient: first-occurrence wins
@@ -104,9 +104,10 @@ func MergeLayers(layers []models.AlertingConfigLayer) models.AlertingConfigLayer
 			}
 			telegramIdx[key] = len(out.TelegramRecipients)
 			out.TelegramRecipients = append(out.TelegramRecipients, models.TelegramRecipient{
-				BotToken:   r.BotToken,
-				ChatID:     r.ChatID,
-				Severities: normalizeSeverities(r.Severities),
+				BotToken:        r.BotToken,
+				ChatID:          r.ChatID,
+				MessageThreadID: r.MessageThreadID,
+				Severities:      normalizeSeverities(r.Severities),
 			})
 		}
 	}
@@ -189,7 +190,7 @@ func canonicalSeverityOrder(set map[string]struct{}) []string {
 }
 
 func telegramKey(r models.TelegramRecipient) string {
-	return r.BotToken + "|" + strconv.FormatInt(r.ChatID, 10)
+	return r.BotToken + "|" + strconv.FormatInt(r.ChatID, 10) + "|" + strconv.FormatInt(r.MessageThreadID, 10)
 }
 
 func boolPtr(b bool) *bool { return &b }

@@ -570,6 +570,20 @@ func TestAlertingFieldErrorPaths(t *testing.T) {
 		assert.Equal(t, "asdf", fe.Value)
 	})
 
+	t.Run("telegram negative topic id", func(t *testing.T) {
+		layer := models.AlertingConfigLayer{
+			TelegramRecipients: []models.TelegramRecipient{
+				{BotToken: "tok", ChatID: -100, MessageThreadID: -1},
+			},
+		}
+		err := layer.Validate()
+		require.Error(t, err)
+		fe := asAlertingFieldError(err)
+		require.NotNil(t, fe)
+		assert.Equal(t, "telegram_recipients.0.message_thread_id", fe.Key)
+		assert.Equal(t, "invalid_value", fe.Code)
+	})
+
 	t.Run("namespace to JSON path with array index", func(t *testing.T) {
 		assert.Equal(t,
 			"email_recipients.0.address",
@@ -582,6 +596,10 @@ func TestAlertingFieldErrorPaths(t *testing.T) {
 		assert.Equal(t,
 			"telegram_recipients.0.bot_token",
 			alertingJSONPath("AlertingConfigLayer.TelegramRecipients[0].BotToken"),
+		)
+		assert.Equal(t,
+			"telegram_recipients.2.message_thread_id",
+			alertingJSONPath("AlertingConfigLayer.TelegramRecipients[2].MessageThreadID"),
 		)
 	})
 }
