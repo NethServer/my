@@ -544,6 +544,8 @@
       "sessions": "Sessioni",
       "sessions_description": "Elenco delle sessioni durante le quali sei stato impersonato da un utente con i ruoli dello staff Nethesis (Staff, Owner).",
       "cannot_retrieve_impersonation_sessions": "Impossibile recuperare le sessioni di impersonificazione",
+      "sessions_not_available": "Sessioni non disponibili",
+      "sessions_not_available_impersonating_description": "Le sessioni di impersonificazione non sono disponibili mentre impersoni un altro utente.",
       "session_start": "Inizio",
       "session_end": "Fine",
       "duration": "Durata",

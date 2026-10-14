@@ -30,7 +30,10 @@ export const useImpersonationSessionAudit = defineQuery(() => {
         pageSize: pageSize.value,
       },
     ],
-    enabled: () => !!loginStore.jwtToken && !!sessionAuditStore.session?.session_id,
+    enabled: () =>
+      !!loginStore.jwtToken &&
+      !loginStore.isImpersonating &&
+      !!sessionAuditStore.session?.session_id,
     query: () =>
       getSessionAudit(sessionAuditStore.session?.session_id || '', pageNum.value, pageSize.value),
   })

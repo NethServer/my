@@ -20,7 +20,7 @@ export const useImpersonationSessions = defineQuery(() => {
         pageSize: pageSize.value,
       },
     ],
-    enabled: () => !!loginStore.jwtToken,
+    enabled: () => !!loginStore.jwtToken && !loginStore.isImpersonating,
     query: () => getSessions(pageNum.value, pageSize.value),
   })
 

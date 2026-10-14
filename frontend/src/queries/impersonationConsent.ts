@@ -11,7 +11,7 @@ export const useImpersonationConsent = defineQuery(() => {
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [IMPERSONATION_CONSENT_KEY],
-    enabled: () => !!loginStore.jwtToken,
+    enabled: () => !!loginStore.jwtToken && !loginStore.isImpersonating,
     query: () => getConsent(),
   })
 
