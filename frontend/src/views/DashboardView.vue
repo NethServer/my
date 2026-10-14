@@ -34,13 +34,20 @@ import {
 import { useLoginStore } from '@/stores/login'
 import { faArrowUpRightFromSquare } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { NeButton, NeCard, NeHeading, NeRoundedIcon, NeSkeleton } from '@nethesis/vue-components'
+import {
+  NeButton,
+  NeCard,
+  NeHeading,
+  NeInlineNotification,
+  NeRoundedIcon,
+  NeSkeleton,
+} from '@nethesis/vue-components'
 import { useQuery } from '@pinia/colada'
 
 const loginStore = useLoginStore()
 const { state: thirdPartyApps } = useQuery({
   key: [THIRD_PARTY_APPS_KEY],
-  enabled: () => !!loginStore.jwtToken,
+  enabled: () => !!loginStore.jwtToken && !loginStore.isImpersonating,
   query: getThirdPartyApps,
 })
 </script>
@@ -70,7 +77,14 @@ const { state: thirdPartyApps } = useQuery({
         <UsersCounterCard v-if="canReadUsers()" />
       </div>
     </template>
-    <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
+    <NeInlineNotification
+      v-if="loginStore.isImpersonating"
+      kind="info"
+      :title="$t('dashboard.portals_not_available')"
+      :description="$t('dashboard.portals_not_available_impersonating_description')"
+      class="mt-6"
+    />
+    <div v-else class="mt-6 grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
       <!-- loading third party apps -->
       <template v-if="thirdPartyApps.status === 'pending'">
         <NeCard v-for="i in 4" :key="i">

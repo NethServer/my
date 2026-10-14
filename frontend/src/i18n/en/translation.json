@@ -104,7 +104,9 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "hello_user": "Hi {user}"
+    "hello_user": "Hi {user}",
+    "portals_not_available": "Portals not available",
+    "portals_not_available_impersonating_description": "Portals are not available while impersonating another user: they would open with your own account."
   },
   "distributors": {
     "title": "Distributors",
