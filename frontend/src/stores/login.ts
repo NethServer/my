@@ -477,6 +477,27 @@ export const useLoginStore = defineStore('login', () => {
   // caller started, instead of racing it with a stale Authorization header
   const pendingRefresh = (): Promise<boolean> => refreshPromise ?? Promise.resolve(true)
 
+  // The ID token identifies the user to third-party apps and expires: ask the
+  // SDK for the current one, refreshing the Logto tokens first when stale.
+  let idTokenRefresh: Promise<string> | null = null
+  const refreshIdToken = (): Promise<string> => {
+    if (idTokenRefresh) {
+      return idTokenRefresh
+    }
+    idTokenRefresh = (async () => {
+      try {
+        await getAccessToken(LOGTO_API_RESOURCE)
+        idToken.value = (await getIdToken()) || idToken.value
+      } catch (error) {
+        console.warn('Cannot refresh ID token:', error)
+      } finally {
+        idTokenRefresh = null
+      }
+      return idToken.value
+    })()
+    return idTokenRefresh
+  }
+
   // resolves to true when a usable token pair is in place afterwards
   const doRefreshToken = (): Promise<boolean> => {
     // don't refresh if we are impersonating
@@ -588,6 +609,7 @@ export const useLoginStore = defineStore('login', () => {
     shouldRefreshToken,
     doRefreshToken,
     pendingRefresh,
+    refreshIdToken,
     impersonateUser,
     exitImpersonation,
     login,

@@ -90,17 +90,17 @@ export type ThirdPartyAppInfo = {
 // that says "no account of mine" that way would end a perfectly good my
 // session. This bare instance carries no interceptor, so an app's failure can
 // only cost its own widget. It also skips the access-token refresh, which this
-// call does not use — it sends the ID token, and a stale one just hides the
-// widget.
+// call does not use — it sends the ID token.
 const thirdPartyClient = axios.create()
 
 // Fetch an app's info_url with the user's Logto ID token (same tenant as the
 // app), reusing the OAuth identity instead of a bespoke credential.
-export const getThirdPartyAppInfo = (app: ThirdPartyApp) => {
+export const getThirdPartyAppInfo = async (app: ThirdPartyApp) => {
   const loginStore = useLoginStore()
+  const idToken = await loginStore.refreshIdToken()
   return thirdPartyClient
     .get<ThirdPartyAppInfo>(app.info_url as string, {
-      headers: { Authorization: `Bearer ${loginStore.idToken}` },
+      headers: { Authorization: `Bearer ${idToken}` },
     })
     .then((res) => res.data)
 }
