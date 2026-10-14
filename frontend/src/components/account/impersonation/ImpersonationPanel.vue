@@ -94,90 +94,98 @@ async function disableConsent() {
           )
         "
       />
-      <NeSkeleton
-        v-if="state.status === 'pending' || asyncStatus === 'loading'"
-        :lines="3"
-        class="max-w-2xl"
-      />
-      <!-- get consent error notification -->
-      <NeInlineNotification
-        v-else-if="state.status === 'error'"
-        kind="error"
-        :title="$t('account.impersonation.cannot_retrieve_impersonation_consent')"
-        :description="state.error.message"
-      />
-      <template v-else>
-        <!-- delete consent error notification -->
-        <NeInlineNotification
-          v-if="deleteConsentError?.message"
-          kind="error"
-          :title="t('account.impersonation.cannot_disable_impersonation_consent')"
-          :description="deleteConsentError.message"
+      <template v-if="!loginStore.isImpersonating">
+        <NeSkeleton
+          v-if="state.status === 'pending' || asyncStatus === 'loading'"
+          :lines="3"
+          class="max-w-2xl"
         />
-        <template v-if="state.data.consent">
-          <!-- consent is enabled -->
-          <div class="flex flex-col items-start gap-6">
-            <div class="flex items-center gap-2">
-              <FontAwesomeIcon
-                :icon="faCircleCheck"
-                class="text-icon-enabled size-4"
-                aria-hidden="true"
-              />
-              <span>
-                {{
-                  t('account.impersonation.impersonation_consent_is_enabled_until_time', {
-                    time: consentExpirationDate,
-                  })
-                }}
-              </span>
-            </div>
-            <!-- revoke consent button -->
-            <NeButton
-              kind="tertiary"
-              size="lg"
-              :disabled="
-                deleteConsentLoading || loginStore.isOwnerAccount || loginStore.isImpersonating
-              "
-              :loading="deleteConsentLoading"
-              @click.prevent="disableConsent"
-              class="-ml-2.5"
-            >
-              {{ $t('account.impersonation.revoke_impersonation_consent') }}
-            </NeButton>
-          </div>
-        </template>
+        <!-- get consent error notification -->
+        <NeInlineNotification
+          v-else-if="state.status === 'error'"
+          kind="error"
+          :title="$t('account.impersonation.cannot_retrieve_impersonation_consent')"
+          :description="state.error.message"
+        />
         <template v-else>
-          <!-- consent is disabled -->
-          <div class="flex flex-col items-start gap-6">
-            <div class="flex items-center gap-2">
-              <FontAwesomeIcon
-                :icon="faCircleInfo"
-                class="size-4 text-indigo-500 dark:text-indigo-300"
-                aria-hidden="true"
-              />
-              <span>
-                {{ t('account.impersonation.impersonation_consent_is_disabled') }}
-              </span>
+          <!-- delete consent error notification -->
+          <NeInlineNotification
+            v-if="deleteConsentError?.message"
+            kind="error"
+            :title="t('account.impersonation.cannot_disable_impersonation_consent')"
+            :description="deleteConsentError.message"
+          />
+          <template v-if="state.data.consent">
+            <!-- consent is enabled -->
+            <div class="flex flex-col items-start gap-6">
+              <div class="flex items-center gap-2">
+                <FontAwesomeIcon
+                  :icon="faCircleCheck"
+                  class="text-icon-enabled size-4"
+                  aria-hidden="true"
+                />
+                <span>
+                  {{
+                    t('account.impersonation.impersonation_consent_is_enabled_until_time', {
+                      time: consentExpirationDate,
+                    })
+                  }}
+                </span>
+              </div>
+              <!-- revoke consent button -->
+              <NeButton
+                kind="tertiary"
+                size="lg"
+                :disabled="
+                  deleteConsentLoading || loginStore.isOwnerAccount || loginStore.isImpersonating
+                "
+                :loading="deleteConsentLoading"
+                @click.prevent="disableConsent"
+                class="-ml-2.5"
+              >
+                {{ $t('account.impersonation.revoke_impersonation_consent') }}
+              </NeButton>
             </div>
-            <!-- enable consent button -->
-            <NeButton
-              kind="secondary"
-              size="lg"
-              :disabled="
-                deleteConsentLoading || loginStore.isOwnerAccount || loginStore.isImpersonating
-              "
-              @click.prevent="isShownEnableConsentModal = true"
-            >
-              {{ $t('account.impersonation.consent_to_impersonation') }}
-            </NeButton>
-          </div>
+          </template>
+          <template v-else>
+            <!-- consent is disabled -->
+            <div class="flex flex-col items-start gap-6">
+              <div class="flex items-center gap-2">
+                <FontAwesomeIcon
+                  :icon="faCircleInfo"
+                  class="size-4 text-indigo-500 dark:text-indigo-300"
+                  aria-hidden="true"
+                />
+                <span>
+                  {{ t('account.impersonation.impersonation_consent_is_disabled') }}
+                </span>
+              </div>
+              <!-- enable consent button -->
+              <NeButton
+                kind="secondary"
+                size="lg"
+                :disabled="
+                  deleteConsentLoading || loginStore.isOwnerAccount || loginStore.isImpersonating
+                "
+                @click.prevent="isShownEnableConsentModal = true"
+              >
+                {{ $t('account.impersonation.consent_to_impersonation') }}
+              </NeButton>
+            </div>
+          </template>
         </template>
       </template>
     </div>
     <NeHeading tag="h4" class="mt-10 mb-5">
       {{ $t('account.impersonation.sessions') }}
     </NeHeading>
-    <SessionsTable />
+    <NeInlineNotification
+      v-if="loginStore.isImpersonating"
+      kind="info"
+      :title="$t('account.impersonation.sessions_not_available')"
+      :description="$t('account.impersonation.sessions_not_available_impersonating_description')"
+    />
+    <SessionsTable v-else />
     <EnableImpersonationConsentModal
       :visible="isShownEnableConsentModal"
       @close="isShownEnableConsentModal = false"

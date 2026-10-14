@@ -626,6 +626,8 @@
       "sessions": "Sessions",
       "sessions_description": "Overview of all sessions during which you were impersonated by a user with the Nethesis staff roles (Staff, Owner).",
       "cannot_retrieve_impersonation_sessions": "Cannot retrieve impersonation sessions",
+      "sessions_not_available": "Sessions not available",
+      "sessions_not_available_impersonating_description": "Impersonation sessions are not available while impersonating another user.",
       "session_start": "Start",
       "session_end": "End",
       "duration": "Duration",

@@ -127,7 +127,9 @@ export const configureAxios = () => {
         console.warn('[interceptor]', 'Unrecoverable 401, re-authenticating')
         loginStore.forceReauth()
       } else if (error.response?.status == 403) {
-        router.push({ name: 'forbidden' })
+        if (error.response?.data?.data?.reason !== 'impersonation_active') {
+          router.push({ name: 'forbidden' })
+        }
       } else if (!isValidationErrorCode(error.response?.data?.code)) {
         // show error notification if it's not a validation error
         notificationsStore.createNotificationFromAxiosError(error)
