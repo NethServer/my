@@ -4,8 +4,9 @@
 -->
 
 <script setup lang="ts">
-import { faServer } from '@fortawesome/free-solid-svg-icons'
-import { NeLink } from '@nethesis/vue-components'
+import { faArrowUpRightFromSquare, faServer } from '@fortawesome/free-solid-svg-icons'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { NeButton, NeLink } from '@nethesis/vue-components'
 import CounterCard from '../common/CounterCard.vue'
 import { LEGACY_SYSTEMS_URL } from '@/lib/systems/systems'
 
@@ -18,6 +19,10 @@ const { counter, loading = false } = defineProps<{
   counter: number
   loading?: boolean
 }>()
+
+const openLegacyMy = () => {
+  window.open(LEGACY_SYSTEMS_URL, '_blank', 'noopener')
+}
 </script>
 
 <template>
@@ -41,5 +46,13 @@ const { counter, loading = false } = defineProps<{
         </template>
       </i18n-t>
     </template>
+    <div class="flex justify-end">
+      <NeButton kind="secondary" @click="openLegacyMy">
+        <template #prefix>
+          <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
+        </template>
+        {{ $t('systems.open_legacy_my') }}
+      </NeButton>
+    </div>
   </CounterCard>
 </template>

@@ -751,6 +751,7 @@
     "total_systems": "Systems",
     "total_legacy_systems": "Legacy systems",
     "total_legacy_systems_tooltip": "NethServer 7 and older systems associated with this company and its descendants. You can access information about these systems at {url}.",
+    "open_legacy_my": "Open legacy My Nethesis",
     "organization_systems": "Systems",
     "count_active": "{count} active",
     "count_inactive": "{count} inactive",

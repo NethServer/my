@@ -669,6 +669,7 @@
     "total_systems": "Sistemi",
     "total_legacy_systems": "Sistemi legacy",
     "total_legacy_systems_tooltip": "Sistemi NethServer 7 e precedenti associati a questa azienda e alle sue consociate. Puoi accedere alle informazioni su questi sistemi all'indirizzo {url}.",
+    "open_legacy_my": "Apri My Nethesis legacy",
     "organization_systems": "Sistemi",
     "count_active": "{count} attivo | {count} attivi",
     "count_inactive": "{count} inattivo | {count} inattivi",
