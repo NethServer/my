@@ -45,7 +45,7 @@ const installationNode = computed(() => {
   return '-'
 })
 
-// FQDN, addresses, version and role are the installation node's own, from the
+// FQDN, addresses and role are the installation node's own, from the
 // latest inventory: on a cluster they differ from the leader's the system shows
 const installationNodeFacts = computed(() => {
   const nodeId = applicationDetail.value.data?.node_id
@@ -83,7 +83,6 @@ const installationNodeFacts = computed(() => {
               <NeBadgeV2
                 v-if="installationNodeFacts"
                 :kind="ns8NodeRoleBadgeKind(installationNodeFacts)"
-                size="xs"
               >
                 {{ ns8NodeRole(installationNodeFacts, t) }}
               </NeBadgeV2>
@@ -121,15 +120,6 @@ const installationNodeFacts = computed(() => {
             >
               -
             </span>
-          </template>
-        </DataItem>
-        <!-- version -->
-        <DataItem>
-          <template #label>
-            {{ $t('systems.version') }}
-          </template>
-          <template #data>
-            {{ installationNodeFacts?.version || '-' }}
           </template>
         </DataItem>
         <!-- system the node belongs to -->
