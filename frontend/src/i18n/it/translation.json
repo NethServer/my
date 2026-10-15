@@ -764,7 +764,6 @@
     "alert_history_title": "Cronologia allarmi",
     "alert_history_description": "Visualizza gli allarmi risolti per questo sistema.",
     "date_range_from_to": "Da {from} a {to}",
-    "viewing_data_for": "Mostra dati per",
     "general": "Generale",
     "cpu_and_bios": "CPU e BIOS",
     "memory": "Memoria",

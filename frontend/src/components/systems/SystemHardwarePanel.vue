@@ -4,13 +4,7 @@
 -->
 
 <script setup lang="ts">
-import {
-  NeEmptyState,
-  NeInlineNotification,
-  NeListbox,
-  NeSkeleton,
-  type NeListboxOption,
-} from '@nethesis/vue-components'
+import { NeEmptyState, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
 import { faServer } from '@fortawesome/free-solid-svg-icons'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -44,10 +38,6 @@ const nodes = computed<ClusterNode[]>(() => {
   }
   return sortedNs8Nodes(latestInventory.value.data?.data?.facts as Ns8Facts | undefined)
 })
-
-const nodeOptions = computed((): NeListboxOption[] =>
-  nodes.value.map((node) => ({ id: node.id, label: ns8NodeName(node, t) })),
-)
 
 const selectedNodeId = ref('')
 
@@ -94,19 +84,44 @@ const hasMountpoints = computed(() => Object.keys(hardware.value?.mountpoints ||
       v-else-if="latestInventory.status === 'pending' || systemDetail.status === 'pending'"
       :lines="10"
     />
-    <div v-else-if="hardware">
-      <!-- ns8 node selector -->
-      <NeListbox
-        v-if="nodeOptions.length"
-        v-model="selectedNodeId"
-        :label="$t('system_detail.viewing_data_for')"
-        :options="nodeOptions"
-        :no-options-label="$t('ne_combobox.no_options_label')"
-        :optional-label="$t('common.optional')"
-        options-panel-style="max-w-64 w-full"
-        class="mb-6 max-w-64"
-      />
-      <div class="3xl:grid-cols-4 grid grid-cols-1 gap-x-6 gap-y-6 xl:grid-cols-2">
+    <div v-else-if="hardware" class="flex flex-col gap-6 lg:flex-row">
+      <!-- ns8 node menu: hover and selection mirror the side menu -->
+      <nav
+        v-if="nodes.length"
+        :aria-label="$t('system_detail.cluster_nodes')"
+        class="lg:w-56 lg:shrink-0"
+      >
+        <p class="text-tertiary-neutral px-3 pb-2 text-sm leading-4 font-normal uppercase">
+          {{ $t('system_detail.cluster_nodes') }}
+        </p>
+        <ul role="list" class="mt-0.5 space-y-1">
+          <li v-for="node in nodes" :key="node.id">
+            <button
+              type="button"
+              :aria-current="node.id === selectedNodeId ? 'true' : undefined"
+              :class="[
+                node.id === selectedNodeId
+                  ? 'border-primary-700 dark:border-primary-500 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50'
+                  : 'text-tertiary-neutral dark:text-tertiary-neutral border-transparent hover:text-gray-900 dark:hover:text-gray-50',
+                'flex w-full cursor-pointer items-center rounded-md border-l-4 px-3 py-2 text-left text-sm leading-6 font-semibold wrap-anywhere transition-colors duration-(--duration-small) hover:bg-gray-100 dark:hover:bg-gray-800',
+              ]"
+              @click="selectedNodeId = node.id"
+            >
+              {{ ns8NodeName(node, t) }}
+            </button>
+          </li>
+        </ul>
+      </nav>
+      <!--
+        The node menu takes about one breakpoint of width, so with it the
+        columns step up one breakpoint later to keep the cards as wide
+      -->
+      <div
+        :class="[
+          'grid min-w-0 flex-1 grid-cols-1 gap-x-6 gap-y-6',
+          nodes.length ? '4xl:grid-cols-4 2xl:grid-cols-2' : '3xl:grid-cols-4 xl:grid-cols-2',
+        ]"
+      >
         <HardwareGeneralCard :hardware="hardware" />
         <HardwareCpuBiosCard :hardware="hardware" />
         <HardwareMemoryCard :hardware="hardware" />
@@ -114,7 +129,7 @@ const hasMountpoints = computed(() => Object.keys(hardware.value?.mountpoints ||
         <SystemNetworkCard
           v-if="systemType === 'ns8'"
           :node-id="selectedNodeId"
-          class="3xl:col-span-4 md:col-span-2"
+          class="4xl:col-span-4 2xl:col-span-2"
         />
       </div>
     </div>
