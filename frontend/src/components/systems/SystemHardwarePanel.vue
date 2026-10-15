@@ -4,7 +4,13 @@
 -->
 
 <script setup lang="ts">
-import { NeEmptyState, NeInlineNotification, NeSkeleton } from '@nethesis/vue-components'
+import {
+  NeEmptyState,
+  NeInlineNotification,
+  NeListbox,
+  NeSkeleton,
+  type NeListboxOption,
+} from '@nethesis/vue-components'
 import { faServer } from '@fortawesome/free-solid-svg-icons'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -38,6 +44,13 @@ const nodes = computed<ClusterNode[]>(() => {
   }
   return sortedNs8Nodes(latestInventory.value.data?.data?.facts as Ns8Facts | undefined)
 })
+
+// A single-node cluster has nothing to choose between
+const showNodeMenu = computed(() => nodes.value.length > 1)
+
+const nodeOptions = computed((): NeListboxOption[] =>
+  nodes.value.map((node) => ({ id: node.id, label: ns8NodeName(node, t) })),
+)
 
 const selectedNodeId = ref('')
 
@@ -84,12 +97,23 @@ const hasMountpoints = computed(() => Object.keys(hardware.value?.mountpoints ||
       v-else-if="latestInventory.status === 'pending' || systemDetail.status === 'pending'"
       :lines="10"
     />
-    <div v-else-if="hardware" class="flex flex-col gap-6 lg:flex-row">
+    <div v-else-if="hardware" class="flex flex-col gap-6 lg:flex-row lg:items-start">
+      <!-- ns8 node selector: a long node list would push the cards off a small screen -->
+      <NeListbox
+        v-if="showNodeMenu"
+        v-model="selectedNodeId"
+        :label="$t('system_detail.viewing_data_for')"
+        :options="nodeOptions"
+        :no-options-label="$t('ne_combobox.no_options_label')"
+        :optional-label="$t('common.optional')"
+        options-panel-style="max-w-64 w-full"
+        class="max-w-64 lg:hidden"
+      />
       <!-- ns8 node menu: hover and selection mirror the side menu -->
       <nav
-        v-if="nodes.length"
+        v-if="showNodeMenu"
         :aria-label="$t('system_detail.cluster_nodes')"
-        class="lg:w-56 lg:shrink-0"
+        class="hidden lg:block lg:w-56 lg:shrink-0"
       >
         <p class="text-tertiary-neutral px-3 pb-2 text-sm leading-4 font-normal uppercase">
           {{ $t('system_detail.cluster_nodes') }}
@@ -119,7 +143,7 @@ const hasMountpoints = computed(() => Object.keys(hardware.value?.mountpoints ||
       <div
         :class="[
           'grid min-w-0 flex-1 grid-cols-1 gap-x-6 gap-y-6',
-          nodes.length ? '4xl:grid-cols-4 2xl:grid-cols-2' : '3xl:grid-cols-4 xl:grid-cols-2',
+          showNodeMenu ? '4xl:grid-cols-4 2xl:grid-cols-2' : '3xl:grid-cols-4 xl:grid-cols-2',
         ]"
       >
         <HardwareGeneralCard :hardware="hardware" />
@@ -129,7 +153,7 @@ const hasMountpoints = computed(() => Object.keys(hardware.value?.mountpoints ||
         <SystemNetworkCard
           v-if="systemType === 'ns8'"
           :node-id="selectedNodeId"
-          class="4xl:col-span-4 2xl:col-span-2"
+          :class="showNodeMenu ? '4xl:col-span-4 2xl:col-span-2' : '3xl:col-span-4 xl:col-span-2'"
         />
       </div>
     </div>

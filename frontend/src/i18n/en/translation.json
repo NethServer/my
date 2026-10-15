@@ -846,6 +846,7 @@
     "alert_history_title": "Alert history",
     "alert_history_description": "View resolved alerts for this system.",
     "date_range_from_to": "From {from} to {to}",
+    "viewing_data_for": "Show data for",
     "general": "General",
     "cpu_and_bios": "CPU and BIOS",
     "memory": "Memory",
