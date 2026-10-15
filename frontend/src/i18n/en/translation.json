@@ -873,6 +873,7 @@
     "title": "Application detail",
     "cannot_retrieve_application_detail": "Cannot retrieve application detail",
     "installation_node": "Installation node",
+    "node": "Node",
     "update_available": "Update available"
   },
   "applications": {

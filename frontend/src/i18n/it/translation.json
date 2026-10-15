@@ -791,6 +791,7 @@
     "title": "Dettaglio applicazione",
     "cannot_retrieve_application_detail": "Impossibile recuperare il dettaglio dell'applicazione",
     "installation_node": "Nodo di installazione",
+    "node": "Nodo",
     "update_available": "Aggiornam. disponibile"
   },
   "applications": {
