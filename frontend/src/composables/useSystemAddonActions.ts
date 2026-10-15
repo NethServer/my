@@ -59,7 +59,7 @@ export const useSystemAddonActions = () => {
   }
 
   const openShop = (row: SystemAddonRow) => {
-    window.open(getBuyUrl(systemDetail.value.data?.system_key ?? '', row), '_blank')
+    window.open(getBuyUrl(systemDetail.value.data?.system_key ?? '', row), '_blank', 'noopener')
   }
 
   const getKebabMenuItems = (
