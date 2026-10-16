@@ -285,7 +285,7 @@ const goToApplicationDetails = (application: Application) => {
               :descending-label="t('sort.descending')"
             />
             <NeButton kind="tertiary" @click="clearFilters">
-              {{ t('common.clear_filters') }}
+              {{ t('common.reset_filters') }}
             </NeButton>
           </div>
           <!-- update indicator -->
@@ -301,7 +301,7 @@ const goToApplicationDetails = (application: Application) => {
         class="bg-white dark:bg-gray-950"
       >
         <NeButton kind="tertiary" @click="clearFilters">
-          {{ $t('common.clear_filters') }}
+          {{ $t('common.reset_filters') }}
         </NeButton>
       </NeEmptyState>
       <NeTable

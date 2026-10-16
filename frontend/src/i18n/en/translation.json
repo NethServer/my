@@ -27,8 +27,6 @@
     "copied": "Copied!",
     "status": "Status",
     "any": "Any",
-    "clear_filter": "Clear filter",
-    "clear_filters": "Clear filters",
     "reset_filters": "Reset filters",
     "try_changing_search_filters": "Try changing your search filters",
     "go_to_page": "Go to {page}",
@@ -1145,7 +1143,6 @@
     "num_selected": "{num} selected"
   },
   "ne_dropdown_filter": {
-    "clear_filter": "Clear filter",
     "open_filter": "Open filter",
     "no_options": "No options",
     "more_options_hidden": "Keep typing to show more options",

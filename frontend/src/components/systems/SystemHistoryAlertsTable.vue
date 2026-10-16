@@ -200,9 +200,9 @@ function showDetails(alert: Alert): void {
           :ascending-label="t('sort.ascending')"
           :descending-label="t('sort.descending')"
         />
-        <!-- Clear filters -->
+        <!-- Reset filters -->
         <NeButton kind="tertiary" @click="historyClearFilters">
-          {{ t('common.clear_filters') }}
+          {{ t('common.reset_filters') }}
         </NeButton>
       </div>
       <!-- Data updated every X seconds -->
@@ -235,7 +235,7 @@ function showDetails(alert: Alert): void {
       class="bg-white dark:bg-gray-950"
     >
       <NeButton kind="tertiary" @click="historyClearFilters">
-        {{ $t('common.clear_filters') }}
+        {{ $t('common.reset_filters') }}
       </NeButton>
     </NeEmptyState>
 

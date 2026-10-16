@@ -26,8 +26,6 @@
     "copied": "Copiato!",
     "status": "Stato",
     "any": "Qualsiasi",
-    "clear_filter": "Azzera filtro",
-    "clear_filters": "Azzera filtri",
     "reset_filters": "Reimposta filtri",
     "try_changing_search_filters": "Prova a modificare i filtri di ricerca",
     "go_to_page": "Vai a {page}",
@@ -1063,7 +1061,6 @@
     "num_selected": "{num} selezionati"
   },
   "ne_dropdown_filter": {
-    "clear_filter": "Azzera filtro",
     "open_filter": "Apri filtro",
     "no_options": "Nessuna opzione",
     "more_options_hidden": "Continua a digitare per visualizzare altre opzioni",
