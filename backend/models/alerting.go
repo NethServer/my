@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/mail"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -57,10 +58,11 @@ type ChannelToggles struct {
 // in the merged config can pin one language, another a different one
 // (we render one email_configs per recipient with template overrides).
 type EmailRecipient struct {
-	Address    string   `json:"address" binding:"required,email,max=320"`
-	Severities []string `json:"severities" binding:"max=3,dive,oneof=critical warning info"`
-	Language   string   `json:"language,omitempty" binding:"omitempty,oneof=en it"`
-	Format     string   `json:"format,omitempty" binding:"omitempty,oneof=html plain"`
+	Address    string          `json:"address" binding:"required,email,max=320"`
+	Severities []string        `json:"severities" binding:"max=3,dive,oneof=critical warning info"`
+	Language   string          `json:"language,omitempty" binding:"omitempty,oneof=en it"`
+	Format     string          `json:"format,omitempty" binding:"omitempty,oneof=html plain"`
+	Scope      *RecipientScope `json:"scope,omitempty"`
 }
 
 // WebhookRecipient is a generic outbound HTTP receiver with optional
@@ -68,9 +70,10 @@ type EmailRecipient struct {
 // receiver name in Alertmanager YAML). URL is validated against a
 // denylist of private/loopback/metadata destinations at the handler.
 type WebhookRecipient struct {
-	Name       string   `json:"name" binding:"required,max=100"`
-	URL        string   `json:"url" binding:"required,url,max=2048"`
-	Severities []string `json:"severities" binding:"max=3,dive,oneof=critical warning info"`
+	Name       string          `json:"name" binding:"required,max=100"`
+	URL        string          `json:"url" binding:"required,url,max=2048"`
+	Severities []string        `json:"severities" binding:"max=3,dive,oneof=critical warning info"`
+	Scope      *RecipientScope `json:"scope,omitempty"`
 }
 
 // TelegramRecipient is a Telegram bot destination with optional severity
@@ -84,10 +87,59 @@ type WebhookRecipient struct {
 // means "no topic": the bot posts in the General topic (or in the plain
 // chat when topics are off). Telegram topic ids are positive message ids.
 type TelegramRecipient struct {
-	BotToken        string   `json:"bot_token" binding:"required,max=256"`
-	ChatID          int64    `json:"chat_id" binding:"required"`
-	MessageThreadID int64    `json:"message_thread_id,omitempty" binding:"omitempty,min=1"`
-	Severities      []string `json:"severities" binding:"max=3,dive,oneof=critical warning info"`
+	BotToken        string          `json:"bot_token" binding:"required,max=256"`
+	ChatID          int64           `json:"chat_id" binding:"required"`
+	MessageThreadID int64           `json:"message_thread_id,omitempty" binding:"omitempty,min=1"`
+	Severities      []string        `json:"severities" binding:"max=3,dive,oneof=critical warning info"`
+	Scope           *RecipientScope `json:"scope,omitempty"`
+}
+
+// RecipientScope narrows a recipient to the alerts of some organizations
+// (and their sub-trees) and/or some systems; an alert matches when it falls
+// in either list. nil or both lists empty means every system the layer
+// reaches, as before.
+type RecipientScope struct {
+	OrganizationIDs []string `json:"organization_ids,omitempty" binding:"max=100"`
+	SystemIDs       []string `json:"system_ids,omitempty" binding:"max=500"`
+}
+
+// IsEmpty reports whether the scope narrows nothing.
+func (s *RecipientScope) IsEmpty() bool {
+	return s == nil || (len(s.OrganizationIDs) == 0 && len(s.SystemIDs) == 0)
+}
+
+// ScopeIDs returns every organization and system id referenced by the
+// layer's recipient scopes, deduped.
+func (c *AlertingConfigLayer) ScopeIDs() (orgIDs, systemIDs []string) {
+	seenOrg := map[string]struct{}{}
+	seenSys := map[string]struct{}{}
+	add := func(s *RecipientScope) {
+		if s.IsEmpty() {
+			return
+		}
+		for _, id := range s.OrganizationIDs {
+			if _, ok := seenOrg[id]; !ok {
+				seenOrg[id] = struct{}{}
+				orgIDs = append(orgIDs, id)
+			}
+		}
+		for _, id := range s.SystemIDs {
+			if _, ok := seenSys[id]; !ok {
+				seenSys[id] = struct{}{}
+				systemIDs = append(systemIDs, id)
+			}
+		}
+	}
+	for _, r := range c.EmailRecipients {
+		add(r.Scope)
+	}
+	for _, r := range c.WebhookRecipients {
+		add(r.Scope)
+	}
+	for _, r := range c.TelegramRecipients {
+		add(r.Scope)
+	}
+	return orgIDs, systemIDs
 }
 
 // AlertingConfigLayer is the per-organization layer persisted in
@@ -163,6 +215,9 @@ func (c *AlertingConfigLayer) Validate() error {
 				return newEmailFieldErr(i, "format", "invalid_value", r.Format)
 			}
 		}
+		if bad, ok := validateScope(r.Scope); !ok {
+			return newEmailFieldErr(i, "scope", "invalid_value", bad)
+		}
 	}
 	for i, r := range c.WebhookRecipients {
 		if code, ok := validateStaticWebhookURL(r.URL); !ok {
@@ -170,6 +225,9 @@ func (c *AlertingConfigLayer) Validate() error {
 		}
 		if bad, code, ok := validateSeverities(r.Severities); !ok {
 			return newWebhookFieldErr(i, "severities", code, bad)
+		}
+		if bad, ok := validateScope(r.Scope); !ok {
+			return newWebhookFieldErr(i, "scope", "invalid_value", bad)
 		}
 	}
 	for i, r := range c.TelegramRecipients {
@@ -182,8 +240,39 @@ func (c *AlertingConfigLayer) Validate() error {
 		if bad, code, ok := validateSeverities(r.Severities); !ok {
 			return newTelegramFieldErr(i, "severities", code, bad)
 		}
+		if bad, ok := validateScope(r.Scope); !ok {
+			return newTelegramFieldErr(i, "scope", "invalid_value", bad)
+		}
 	}
 	return nil
+}
+
+// scopeIDPattern bounds scope ids to the charset of logto ids and system
+// ids: they are rendered into Alertmanager matchers verbatim.
+var scopeIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,255}$`)
+
+// validateScope returns (badValue, ok) for a recipient scope.
+func validateScope(s *RecipientScope) (string, bool) {
+	if s == nil {
+		return "", true
+	}
+	if len(s.OrganizationIDs) > 100 {
+		return "organization_ids", false
+	}
+	if len(s.SystemIDs) > 500 {
+		return "system_ids", false
+	}
+	for _, id := range s.OrganizationIDs {
+		if !scopeIDPattern.MatchString(id) {
+			return id, false
+		}
+	}
+	for _, id := range s.SystemIDs {
+		if !scopeIDPattern.MatchString(id) {
+			return id, false
+		}
+	}
+	return "", true
 }
 
 // validateSeverities returns (badValue, code, ok). On success ok is true and

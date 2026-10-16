@@ -6,6 +6,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package alerting
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 
@@ -25,7 +26,9 @@ import (
 //     is enabled. A nil or false in a deeper layer never disables what an
 //     ancestor enabled.
 //   - recipient lists: union with stable dedup. Dedup keys are
-//     email→address, webhook→URL, telegram→(bot_token, chat_id, message_thread_id).
+//     email→address, webhook→URL, telegram→(bot_token, chat_id, message_thread_id),
+//     plus the system scope: a copy narrowed to some systems never merges
+//     into an unscoped one (that would widen it to every system).
 //   - severities[] per recipient: union; if any contributing copy has
 //     severities=[] ("all severities"), the merged copy widens back to [].
 //   - language/format on a deduped email recipient: first-occurrence wins
@@ -68,16 +71,18 @@ func MergeLayers(layers []models.AlertingConfigLayer) models.AlertingConfigLayer
 			if addr == "" {
 				continue
 			}
-			if i, seen := emailIdx[addr]; seen {
+			key := addr + scopeKey(r.Scope)
+			if i, seen := emailIdx[key]; seen {
 				out.EmailRecipients[i].Severities = unionSeverities(out.EmailRecipients[i].Severities, r.Severities)
 				continue
 			}
-			emailIdx[addr] = len(out.EmailRecipients)
+			emailIdx[key] = len(out.EmailRecipients)
 			out.EmailRecipients = append(out.EmailRecipients, models.EmailRecipient{
 				Address:    addr,
 				Severities: normalizeSeverities(r.Severities),
 				Language:   r.Language,
 				Format:     r.Format,
+				Scope:      normalizeScope(r.Scope),
 			})
 		}
 		for _, r := range layer.WebhookRecipients {
@@ -85,19 +90,21 @@ func MergeLayers(layers []models.AlertingConfigLayer) models.AlertingConfigLayer
 			if url == "" {
 				continue
 			}
-			if i, seen := webhookIdx[url]; seen {
+			key := url + scopeKey(r.Scope)
+			if i, seen := webhookIdx[key]; seen {
 				out.WebhookRecipients[i].Severities = unionSeverities(out.WebhookRecipients[i].Severities, r.Severities)
 				continue
 			}
-			webhookIdx[url] = len(out.WebhookRecipients)
+			webhookIdx[key] = len(out.WebhookRecipients)
 			out.WebhookRecipients = append(out.WebhookRecipients, models.WebhookRecipient{
 				Name:       r.Name,
 				URL:        url,
 				Severities: normalizeSeverities(r.Severities),
+				Scope:      normalizeScope(r.Scope),
 			})
 		}
 		for _, r := range layer.TelegramRecipients {
-			key := telegramKey(r)
+			key := telegramKey(r) + scopeKey(r.Scope)
 			if i, seen := telegramIdx[key]; seen {
 				out.TelegramRecipients[i].Severities = unionSeverities(out.TelegramRecipients[i].Severities, r.Severities)
 				continue
@@ -108,6 +115,7 @@ func MergeLayers(layers []models.AlertingConfigLayer) models.AlertingConfigLayer
 				ChatID:          r.ChatID,
 				MessageThreadID: r.MessageThreadID,
 				Severities:      normalizeSeverities(r.Severities),
+				Scope:           normalizeScope(r.Scope),
 			})
 		}
 	}
@@ -186,6 +194,45 @@ func canonicalSeverityOrder(set map[string]struct{}) []string {
 			out = append(out, sev)
 		}
 	}
+	return out
+}
+
+// scopeKey is the dedup suffix for a recipient's scope: "" when unscoped,
+// otherwise the sorted organization and system ids.
+func scopeKey(s *models.RecipientScope) string {
+	n := normalizeScope(s)
+	if n == nil {
+		return ""
+	}
+	return "|org:" + strings.Join(n.OrganizationIDs, ",") + "|sys:" + strings.Join(n.SystemIDs, ",")
+}
+
+// normalizeScope returns a sorted, deduped copy of s, or nil when it narrows
+// nothing.
+func normalizeScope(s *models.RecipientScope) *models.RecipientScope {
+	if s.IsEmpty() {
+		return nil
+	}
+	return &models.RecipientScope{
+		OrganizationIDs: sortedUnique(s.OrganizationIDs),
+		SystemIDs:       sortedUnique(s.SystemIDs),
+	}
+}
+
+func sortedUnique(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(in))
+	for _, v := range in {
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		out = append(out, v)
+	}
+	sort.Strings(out)
 	return out
 }
 
