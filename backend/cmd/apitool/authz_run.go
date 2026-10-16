@@ -81,6 +81,18 @@ func authzRun(dir string, reg *Registry, flags map[string]string) error {
 			return err
 		}
 	}
+	// Last: it creates, moves and destroys objects, and must not change the
+	// state the read-only layers above assert on.
+	if want("lifecycle") {
+		fmt.Println("\n── lifecycle layer ───────────────────────────────────────")
+		mimirURL := flags["mimir-url"]
+		if mimirURL == "" {
+			mimirURL = "http://localhost:9009"
+		}
+		if err := a.runLifecycleLayer(mimirURL); err != nil {
+			return err
+		}
+	}
 
 	return a.report(flags["report"])
 }
