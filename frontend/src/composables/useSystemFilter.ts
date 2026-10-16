@@ -55,11 +55,13 @@ export function useSystemFilter(idField: 'system_key' | 'id' = 'system_key') {
     )
   })
 
+  const systems = computed<System[]>(() => state.value.data?.systems ?? [])
+
   const loading = computed(() => asyncStatus.value === 'loading')
 
   function onSearch(query: string) {
     searchInput.value = query
   }
 
-  return { options, loading, onSearch }
+  return { options, systems, loading, onSearch }
 }

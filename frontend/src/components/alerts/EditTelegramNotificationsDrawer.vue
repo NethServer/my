@@ -24,11 +24,14 @@ import {
   TelegramNotificationsPayloadSchema,
   getSeverityBadgeKind,
   postAlertsConfig,
+  toScopePayload,
   type AlertingConfigLayer,
   type TelegramRecipient,
 } from '@/lib/alerts'
+import RecipientScopeSelector from '@/components/alerts/RecipientScopeSelector.vue'
 import { useNotificationsStore } from '@/stores/notifications'
 import capitalize from 'lodash/capitalize'
+import { useScopeSummary } from '@/composables/useScopeSummary'
 
 const props = withDefaults(
   defineProps<{
@@ -48,11 +51,13 @@ const emit = defineEmits(['close'])
 const { t } = useI18n()
 const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
+const scopeSummary = useScopeSummary()
 
 // ── Form state ────────────────────────────────────────────────────────────────
 
 type TelegramFormEntry = TelegramRecipient & {
   _expanded: boolean
+  _scopeSpecific: boolean
   _chatIdInput: string
   _topicIdInput: string
 }
@@ -81,7 +86,9 @@ function initForm() {
   channels.value = (props.config.telegram_recipients ?? []).map((r) => ({
     ...r,
     severities: r.severities ? [...r.severities] : [],
+    scope: r.scope ? { ...r.scope } : undefined,
     _expanded: false,
+    _scopeSpecific: !!toScopePayload(r.scope),
     _chatIdInput: String(r.chat_id),
     _topicIdInput: r.message_thread_id ? String(r.message_thread_id) : '',
   }))
@@ -134,6 +141,7 @@ function addChannel(shouldFocus = true) {
     bot_token: '',
     severities: [...SEVERITIES],
     _expanded: true,
+    _scopeSpecific: false,
     _chatIdInput: '',
     _topicIdInput: '',
   })
@@ -170,6 +178,7 @@ function toRecipient(ch: TelegramFormEntry): TelegramRecipient {
     bot_token: ch.bot_token,
     message_thread_id: ch.message_thread_id,
     severities: ch.severities?.length ? ch.severities : undefined,
+    scope: ch._scopeSpecific ? toScopePayload(ch.scope) : undefined,
   }
 }
 
@@ -214,11 +223,17 @@ function validate(): boolean {
     telegram_recipients: channels.value.map(toRecipient),
   }
   const result = v.safeParse(TelegramNotificationsPayloadSchema, payload)
-  if (result.success) return true
-  const issues = v.flatten(result.issues)
-  if (issues.nested) {
-    validationIssues.value = issues.nested as Record<string, string[]>
-    const firstKey = Object.keys(issues.nested)[0]
+  const issues: Record<string, string[]> = result.success
+    ? {}
+    : ((v.flatten(result.issues).nested ?? {}) as Record<string, string[]>)
+  channels.value.forEach((r, i) => {
+    if (r._scopeSpecific && !toScopePayload(r.scope)) {
+      issues[`telegram_recipients.${i}.scope`] = ['alerts.scope_required']
+    }
+  })
+  if (Object.keys(issues).length) {
+    validationIssues.value = issues
+    const firstKey = Object.keys(issues)[0]
     const match = firstKey.match(/^telegram_recipients\.(\d+)\./)
     if (match) {
       expandedIndex.value = parseInt(match[1])
@@ -233,8 +248,9 @@ function validate(): boolean {
         }
       })
     }
+    return false
   }
-  return false
+  return true
 }
 
 function onSave() {
@@ -291,6 +307,12 @@ function closeDrawer() {
                   {{ capitalize(sev) }}
                 </NeBadgeV2>
               </div>
+              <p
+                v-if="expandedIndex !== index && ch._scopeSpecific"
+                class="mt-2 text-xs text-gray-600 dark:text-gray-300"
+              >
+                {{ scopeSummary(ch.scope) }}
+              </p>
             </div>
             <FontAwesomeIcon
               :icon="faChevronDown"
@@ -373,6 +395,19 @@ function closeDrawer() {
                   </button>
                 </div>
               </div>
+
+              <!-- Organizations / systems scope -->
+              <RecipientScopeSelector
+                v-model:specific="ch._scopeSpecific"
+                v-model:scope="ch.scope"
+                :scope-names="props.config?.scope_names"
+                :id-prefix="`telegram-${index}`"
+                :invalid-message="
+                  validationIssues[`telegram_recipients.${index}.scope`]?.[0]
+                    ? $t(validationIssues[`telegram_recipients.${index}.scope`][0])
+                    : ''
+                "
+              />
 
               <!-- Remove button -->
               <NeButton kind="tertiary" class="-ml-2.5" @click="removeChannel(index)">
