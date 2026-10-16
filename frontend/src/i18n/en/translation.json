@@ -27,8 +27,6 @@
     "copied": "Copied!",
     "status": "Status",
     "any": "Any",
-    "clear_filter": "Clear filter",
-    "clear_filters": "Clear filters",
     "reset_filters": "Reset filters",
     "try_changing_search_filters": "Try changing your search filters",
     "go_to_page": "Go to {page}",
@@ -75,8 +73,8 @@
     "ask_ai": "Ask AI",
     "switch_to_dark_theme": "Switch to dark theme",
     "switch_to_light_theme": "Switch to light theme",
-    "switch_to_compact_density": "Switch to compact density",
-    "switch_to_standard_density": "Switch to standard density",
+    "switch_to_compact_view": "Switch to compact view",
+    "switch_to_standard_view": "Switch to standard view",
     "sign_out": "Sign out",
     "close_side_drawer": "Close side drawer",
     "end_impersonation": "End impersonation and return to your account"
@@ -751,6 +749,7 @@
     "total_systems": "Systems",
     "total_legacy_systems": "Legacy systems",
     "total_legacy_systems_tooltip": "NethServer 7 and older systems associated with this company and its descendants. You can access information about these systems at {url}.",
+    "open_legacy_my": "Open legacy My Nethesis",
     "organization_systems": "Systems",
     "count_active": "{count} active",
     "count_inactive": "{count} inactive",
@@ -795,9 +794,6 @@
     "n_backups_stored": "{n} backup stored | {n} backups stored",
     "show_system_backups": "Show backups for {name}",
     "total_changes": "Total changes",
-    "critical_changes": "Critical",
-    "high_changes": "High",
-    "medium_changes": "Medium",
     "subscription": "Subscription",
     "active_since": "Active since",
     "system_key": "System key",
@@ -872,6 +868,7 @@
     "title": "Application detail",
     "cannot_retrieve_application_detail": "Cannot retrieve application detail",
     "installation_node": "Installation node",
+    "node": "Node",
     "update_available": "Update available"
   },
   "applications": {
@@ -1143,7 +1140,6 @@
     "num_selected": "{num} selected"
   },
   "ne_dropdown_filter": {
-    "clear_filter": "Clear filter",
     "open_filter": "Open filter",
     "no_options": "No options",
     "more_options_hidden": "Keep typing to show more options",

@@ -1,6 +1,7 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
+import type { NeBadgeV2Kind } from '@nethesis/vue-components'
 import type { ComposerTranslation } from 'vue-i18n'
 
 import type { Bios, Distro, Memory, Mountpoint, Processors } from './inventory'
@@ -56,6 +57,15 @@ export const ns8NodeName = (node: ClusterNode, t: ComposerTranslation): string =
   }
   return t('system_detail.node_name', { id: node.id })
 }
+
+export const ns8NodeRole = (
+  node: Pick<Ns8NodeFacts, 'cluster_leader'>,
+  t: ComposerTranslation,
+): string =>
+  node.cluster_leader ? t('system_detail.node_role_leader') : t('system_detail.node_role_worker')
+
+export const ns8NodeRoleBadgeKind = (node: Pick<Ns8NodeFacts, 'cluster_leader'>): NeBadgeV2Kind =>
+  node.cluster_leader ? 'green' : 'indigo'
 
 export const nsecHardwareInfo = (facts: NsecFacts, uuid: string): HardwareInfo => ({
   productName: facts.product?.name || '',

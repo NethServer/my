@@ -43,6 +43,10 @@ const notificationsStore = useNotificationsStore()
 const loginStore = useLoginStore()
 const route = useRoute()
 
+const isFirstAccess = computed(() => {
+  return route.query['changePassword'] === 'true'
+})
+
 const {
   mutate: changePasswordMutate,
   isLoading: changePasswordLoading,
@@ -53,11 +57,9 @@ const {
     return postChangePassword(changePasswordData)
   },
   onSuccess() {
-    if (route.query['changePassword'] === 'true') {
-      // remove query parameter if it was set to trigger the drawer
-      const newQuery = { ...route.query }
-      delete newQuery['changePassword']
-      router.replace({ query: newQuery })
+    if (isFirstAccess.value) {
+      // the welcome email lands here only to set the password, so the job on this page is done
+      router.replace('/dashboard')
     }
 
     // show success notification after the drawer closes
@@ -143,10 +145,6 @@ const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> =
   newPassword: newPasswordRef,
   confirmPassword: confirmPasswordRef,
 }
-
-const isFirstAccess = computed(() => {
-  return route.query['changePassword'] === 'true'
-})
 
 watch(
   () => isShown,

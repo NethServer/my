@@ -12,14 +12,19 @@ import {
   NeInlineNotification,
   NeSkeleton,
 } from '@nethesis/vue-components'
-import type { NeBadgeV2Kind } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faMicrochip } from '@fortawesome/free-solid-svg-icons'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import type { Ns8Facts } from '@/lib/systems/ns8Facts'
-import { type ClusterNode, ns8NodeName, sortedNs8Nodes } from '@/lib/systems/hardware'
+import {
+  type ClusterNode,
+  ns8NodeName,
+  ns8NodeRole,
+  ns8NodeRoleBadgeKind,
+  sortedNs8Nodes,
+} from '@/lib/systems/hardware'
 
 const { t } = useI18n()
 const { state: latestInventory } = useLatestInventory()
@@ -27,16 +32,6 @@ const { state: latestInventory } = useLatestInventory()
 const nodes = computed<ClusterNode[]>(() =>
   sortedNs8Nodes(latestInventory.value.data?.data?.facts as Ns8Facts | undefined),
 )
-
-const getNodeRole = (node: ClusterNode) => {
-  return node.cluster_leader
-    ? t('system_detail.node_role_leader')
-    : t('system_detail.node_role_worker')
-}
-
-const getNodeBadgeKind = (node: ClusterNode): NeBadgeV2Kind => {
-  return node.cluster_leader ? 'green' : 'indigo'
-}
 
 const getNodeBackgroundStyle = (node: ClusterNode) => {
   return node.cluster_leader ? 'bg-green-100 dark:bg-green-700' : 'bg-indigo-100 dark:bg-indigo-700'
@@ -88,8 +83,8 @@ const getNodeForegroundStyle = (node: ClusterNode) => {
           {{ node.fqdn || '-' }}
         </div>
         <!-- role -->
-        <NeBadgeV2 :kind="getNodeBadgeKind(node)" size="xs" class="mt-2">
-          {{ getNodeRole(node) }}
+        <NeBadgeV2 :kind="ns8NodeRoleBadgeKind(node)" size="xs" class="mt-2">
+          {{ ns8NodeRole(node, t) }}
         </NeBadgeV2>
       </div>
     </div>

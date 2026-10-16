@@ -439,7 +439,7 @@ const goToAccount = () => {
       :icon="faMagnifyingGlass"
       class="bg-white dark:bg-gray-950"
     >
-      <NeButton kind="tertiary" @click="resetFilters"> {{ $t('common.clear_filters') }}</NeButton>
+      <NeButton kind="tertiary" @click="resetFilters"> {{ $t('common.reset_filters') }}</NeButton>
     </NeEmptyState>
     <NeTable
       v-if="noEmptyStateShown"
