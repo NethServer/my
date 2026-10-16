@@ -557,6 +557,10 @@ routes:
   - method: DELETE
     path: /api/alerts/config
     intent: manage:alerts
+    skip: |
+      Takes no id: an authorized probe really deletes the caller's own layer,
+      the Owner organization's included. Exercised in scenarios.yml on fixture
+      organizations only.
   - method: GET
     path: /api/alerts/config/effective
     intent: config:alerts
