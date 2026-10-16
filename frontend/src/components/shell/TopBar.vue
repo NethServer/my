@@ -68,20 +68,20 @@ const accountMenuOptions = computed(() => {
         ]
       : []),
     {
+      id: 'switchDensity',
+      label: densityStore.isCompact
+        ? t('shell.switch_to_standard_view')
+        : t('shell.switch_to_compact_view'),
+      icon: densityStore.isCompact ? faTableCellsLarge : faTableCells,
+      action: () => densityStore.toggleDensity(),
+    },
+    {
       id: 'switchTheme',
       label: themeStore.isLight
         ? t('shell.switch_to_dark_theme')
         : t('shell.switch_to_light_theme'),
       icon: themeStore.isLight ? faMoon : faSun,
       action: () => themeStore.toggleTheme(),
-    },
-    {
-      id: 'switchDensity',
-      label: densityStore.isCompact
-        ? t('shell.switch_to_standard_density')
-        : t('shell.switch_to_compact_density'),
-      icon: densityStore.isCompact ? faTableCellsLarge : faTableCells,
-      action: () => densityStore.toggleDensity(),
     },
     { id: 'divider' },
     {

@@ -73,8 +73,8 @@
     "ask_ai": "Ask AI",
     "switch_to_dark_theme": "Switch to dark theme",
     "switch_to_light_theme": "Switch to light theme",
-    "switch_to_compact_density": "Switch to compact density",
-    "switch_to_standard_density": "Switch to standard density",
+    "switch_to_compact_view": "Switch to compact view",
+    "switch_to_standard_view": "Switch to standard view",
     "sign_out": "Sign out",
     "close_side_drawer": "Close side drawer",
     "end_impersonation": "End impersonation and return to your account"
