@@ -8,6 +8,7 @@ package alerting
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/lib/pq"
@@ -180,7 +181,7 @@ func TenantsForOrgs(orgIDs []string) ([]string, error) {
 	return tenants, nil
 }
 
-// computeEffectiveLayer walks the tenant's ancestor chain and merges every layer Owner→tenant (orgs with no row contribute nothing); used by RenderAndPushEffective for the Mimir push.
+// computeEffectiveLayer walks the tenant's ancestor chain, scopes every layer to the tenant and merges them Owner→tenant (orgs with no row contribute nothing); used by RenderAndPushEffective for the Mimir push.
 func computeEffectiveLayer(tenantOrgID string) (models.AlertingConfigLayer, error) {
 	chain, err := ResolveAncestorChain(tenantOrgID)
 	if err != nil {
@@ -201,7 +202,7 @@ func computeEffectiveLayer(tenantOrgID string) (models.AlertingConfigLayer, erro
 		ordered = append(ordered, rec.Config)
 	}
 
-	return MergeLayers(ordered), nil
+	return effectiveLayerFromChain(chain, ordered)
 }
 
 // customerOrgsForTenant returns the org ids whose systems live in tenantOrgID's
@@ -270,6 +271,8 @@ func renderTenantConfig(tenantOrgID string) (string, map[string]string, error) {
 // carries a nested route per customer of that tenant. Used by the propagation
 // path: when any layer in a chain is saved, this runs once per affected tenant.
 func RenderAndPushEffective(ctx context.Context, tenantOrgID string) error {
+	unlock := lockTenant(tenantOrgID)
+	defer unlock()
 	yamlConfig, templateFiles, err := renderTenantConfig(tenantOrgID)
 	if err != nil {
 		return err
@@ -279,6 +282,18 @@ func RenderAndPushEffective(ctx context.Context, tenantOrgID string) error {
 	}
 	logger.Debug().Str("tenant", tenantOrgID).Msg("effective alerting config pushed to mimir")
 	return nil
+}
+
+// tenantLocks serialises render+push per Mimir tenant. Pushes are fired from
+// several places (layer saves, org and system lifecycle hooks) and a render
+// that read the database earlier must never land after a newer one.
+var tenantLocks sync.Map
+
+func lockTenant(tenant string) func() {
+	m, _ := tenantLocks.LoadOrStore(tenant, &sync.Mutex{})
+	mu := m.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
 }
 
 // EffectiveLayerContribution is one org's stored layer in a tenant's chain; HasLayer false = no row (no contribution), Layer is unredacted until RedactEffectiveConfigReport.
@@ -335,7 +350,10 @@ func BuildEffectiveConfigReport(tenantOrgID string) (EffectiveConfigReport, erro
 		contributions = append(contributions, contribution)
 	}
 
-	effective := MergeLayers(ordered)
+	effective, err := effectiveLayerFromChain(chain, ordered)
+	if err != nil {
+		return EffectiveConfigReport{}, fmt.Errorf("resolve recipient scopes for %s: %w", tenantOrgID, err)
+	}
 
 	cfg := configuration.Config
 	yamlConfig, err := RenderConfig(

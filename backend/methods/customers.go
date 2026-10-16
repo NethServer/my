@@ -517,6 +517,9 @@ func RestoreCustomer(c *gin.Context) {
 	logger.LogBusinessOperation(c, "customers", "restore", "customer", customerID, true, nil)
 
 	cache.GetRBACCache().InvalidateAll()
+	if customer.LogtoID != nil {
+		refreshAlertingAfterRestore("customer", *customer.LogtoID)
+	}
 	c.JSON(http.StatusOK, response.OK("customer restored successfully", map[string]interface{}{
 		"restored_systems_count": restoredSystemsCount,
 		"restored_users_count":   restoredUsersCount,

@@ -521,6 +521,9 @@ func RestoreReseller(c *gin.Context) {
 	logger.LogBusinessOperation(c, "resellers", "restore", "reseller", resellerID, true, nil)
 
 	cache.GetRBACCache().InvalidateAll()
+	if reseller.LogtoID != nil {
+		refreshAlertingAfterRestore("reseller", *reseller.LogtoID)
+	}
 	c.JSON(http.StatusOK, response.OK("reseller restored successfully", map[string]interface{}{
 		"restored_systems_count": restoredSystemsCount,
 		"restored_users_count":   restoredUsersCount,

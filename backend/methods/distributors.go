@@ -388,6 +388,9 @@ func RestoreDistributor(c *gin.Context) {
 	logger.LogBusinessOperation(c, "distributors", "restore", "distributor", distributorID, true, nil)
 
 	cache.GetRBACCache().InvalidateAll()
+	if distributor, err := service.GetDistributor(distributorID); err == nil && distributor.LogtoID != nil {
+		refreshAlertingAfterRestore("distributor", *distributor.LogtoID)
+	}
 	c.JSON(http.StatusOK, response.OK("distributor restored successfully", map[string]interface{}{
 		"restored_systems_count": restoredSystemsCount,
 		"restored_users_count":   restoredUsersCount,

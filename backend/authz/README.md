@@ -11,13 +11,14 @@ cd backend
 make apitool
 ./apitool authz provision     # create the fixture (idempotent)
 ./apitool authz personas      # verify tokens carry what config.yml promises
-./apitool authz run           # all four layers → authz-report.json, exit 1 on failure
+./apitool authz run           # all five layers → authz-report.json, exit 1 on failure
 ./apitool authz coverage      # every route has a declared intent?
 ./apitool authz teardown --yes
 ```
 
-Useful flags: `--layer=gate|scope|apps|special`, `--filter=<substring>`,
-`--personas=d1r1-admin,owner`, `--verbose`, `--idp-probe`, `--report=<path>`.
+Useful flags: `--layer=gate|scope|apps|special|lifecycle`, `--filter=<substring>`,
+`--personas=d1r1-admin,owner`, `--verbose`, `--idp-probe`, `--report=<path>`,
+`--mimir-url=<url>` (lifecycle routing checks, default `http://localhost:9009`).
 
 It refuses to run against anything but a local backend. It creates organizations
 and users and fires destructive verbs, so pointing it at QA or production would
@@ -39,7 +40,7 @@ Where the real model departs from the declared one, the departure is written dow
 in `model.yml` with the code that causes it and what should change. Reviewed
 exception, not silent adjustment.
 
-## The four layers
+## The five layers
 
 | Layer | Question | Checks |
 |---|---|---|
@@ -47,13 +48,17 @@ exception, not silent adjustment.
 | `scope` | May it reach THIS OBJECT through it? | hand-written cross-organization scenarios |
 | `apps` | Which third-party apps is it offered? | 4 apps × 21 personas, portal vs `access_control` |
 | `special` | Rules enforced by middleware or credential type | self-modification, API key masks, impersonation |
+| `lifecycle` | Does access follow an object through state changes? | create, move, delete/restore, promotion, plus the alert routing in Mimir |
 
 ### gate — non-destructive by construction
 
 Path parameters are filled with an id that matches nothing and write verbs get a
 body that cannot validate, so an authorized call lands on 404/400 *after* the
 gate ran. Nothing real is ever touched, which is what makes the matrix safe to
-re-run on every change. How a response is read:
+re-run on every change. A route with no id and no body to invalidate would act
+for real, so it is `skip`ped and asserted as a scenario on fixture organizations
+instead: `DELETE /api/alerts/config` once wiped the Owner organization's alert
+layer this way. How a response is read:
 
 | Response | Meaning |
 |---|---|
@@ -93,6 +98,25 @@ layer would prove nothing.
 and runs even on a 200. Matching is by token boundary, not substring: the fixture
 names nest on purpose (`authz-d1r1` is a prefix of `authz-d1r1c1`), and plain
 substring matching reports a customer's own name as its parent leaking.
+
+### lifecycle — access that follows an object
+
+The other layers probe objects at rest. This one changes them and checks what
+follows: a system created at every level, moved by every persona that may and
+may not, deleted, restored; a throwaway reseller with its own Admin, customer
+and system, whose customer is deleted and restored and which is then promoted
+to distributor. Each step asserts who may make the change, that a refused one
+left the object where it was, and who can still see it afterwards.
+
+Alert routing moves too. A recipient scoped to a system or an organization
+must follow it into the Mimir tenant that now holds it and never stay in, or
+enter, a foreign one, so routing checks read the alertmanager config back from
+Mimir: a recipient still routed where it should not be is FAIL-OPEN, one that
+lost its route is FAIL-CLOSED. With Mimir unreachable they are SKIP.
+
+It runs last and creates real objects, all prefixed `authz-lc-` and destroyed
+at the end. Fixture organizations are only read and fixture systems never
+moved: deleting a fixture customer would revoke its users' tokens mid-run.
 
 ## What CI checks
 

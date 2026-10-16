@@ -37,6 +37,7 @@ func RedactLayerForAudit(layer models.AlertingConfigLayer) models.AlertingConfig
 				Name:       maskWebhookName(w.Name),
 				URL:        maskWebhookURL(w.URL),
 				Severities: w.Severities,
+				Scope:      w.Scope,
 			}
 		}
 	}
@@ -48,6 +49,7 @@ func RedactLayerForAudit(layer models.AlertingConfigLayer) models.AlertingConfig
 				ChatID:          t.ChatID,
 				MessageThreadID: t.MessageThreadID,
 				Severities:      t.Severities,
+				Scope:           t.Scope,
 			}
 		}
 	}

@@ -39,17 +39,26 @@ export interface ChannelToggles {
   telegram?: boolean | null
 }
 
+// Narrows a recipient to the alerts of some organizations (with their
+// sub-trees) and/or some systems. Omitted means every system.
+export interface RecipientScope {
+  organization_ids?: string[]
+  system_ids?: string[]
+}
+
 export interface EmailRecipient {
   address: string
   severities?: string[]
   language?: 'en' | 'it'
   format?: 'html' | 'plain'
+  scope?: RecipientScope
 }
 
 export interface WebhookRecipient {
   name: string
   url: string
   severities?: string[]
+  scope?: RecipientScope
 }
 
 export interface TelegramRecipient {
@@ -57,6 +66,14 @@ export interface TelegramRecipient {
   chat_id: number
   message_thread_id?: number
   severities?: string[]
+  scope?: RecipientScope
+}
+
+// Display names of the ids referenced by recipient scopes, returned by
+// GET /alerts/config only.
+export interface AlertScopeNames {
+  organizations: Record<string, { name: string; type: string }>
+  systems: Record<string, { name: string; organization_name: string }>
 }
 
 export interface AlertingConfigLayer {
@@ -64,6 +81,20 @@ export interface AlertingConfigLayer {
   email_recipients: EmailRecipient[]
   webhook_recipients: WebhookRecipient[]
   telegram_recipients: TelegramRecipient[]
+  scope_names?: AlertScopeNames
+}
+
+// Payload form of a scope: undefined when it narrows nothing.
+export const toScopePayload = (scope?: RecipientScope): RecipientScope | undefined => {
+  const organizationIds = scope?.organization_ids ?? []
+  const systemIds = scope?.system_ids ?? []
+  if (!organizationIds.length && !systemIds.length) {
+    return undefined
+  }
+  return {
+    organization_ids: organizationIds.length ? organizationIds : undefined,
+    system_ids: systemIds.length ? systemIds : undefined,
+  }
 }
 
 export interface AlertsResponse {
@@ -82,6 +113,13 @@ export type AlertStatusEnum = 'active' | 'suppressed'
 
 const SeveritySchema = v.picklist(['critical', 'warning', 'info'])
 
+const RecipientScopeSchema = v.object({
+  organization_ids: v.optional(
+    v.pipe(v.array(v.string()), v.maxLength(100, 'alerts.scope_too_many')),
+  ),
+  system_ids: v.optional(v.pipe(v.array(v.string()), v.maxLength(500, 'alerts.scope_too_many'))),
+})
+
 export const EmailRecipientPayloadSchema = v.object({
   address: v.pipe(
     v.string(),
@@ -92,6 +130,7 @@ export const EmailRecipientPayloadSchema = v.object({
   severities: v.optional(v.array(SeveritySchema)),
   language: v.optional(v.picklist(['en', 'it'])),
   format: v.optional(v.picklist(['html', 'plain'])),
+  scope: v.optional(RecipientScopeSchema),
 })
 
 export const WebhookRecipientPayloadSchema = v.object({
@@ -103,6 +142,7 @@ export const WebhookRecipientPayloadSchema = v.object({
   ),
   name: v.optional(v.string()),
   severities: v.optional(v.array(SeveritySchema)),
+  scope: v.optional(RecipientScopeSchema),
 })
 
 export const TelegramRecipientPayloadSchema = v.object({
@@ -123,6 +163,7 @@ export const TelegramRecipientPayloadSchema = v.object({
     ),
   ),
   severities: v.optional(v.array(SeveritySchema)),
+  scope: v.optional(RecipientScopeSchema),
 })
 
 export const EmailNotificationsPayloadSchema = v.object({

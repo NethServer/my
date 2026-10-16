@@ -8,6 +8,7 @@ package alerting
 import (
 	"bytes"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"text/template"
@@ -39,7 +40,17 @@ type routeEntry struct {
 // tenant never collide.
 type customerRoute struct {
 	OrgID          string
+	ScopedRoutes   []scopedRoute
 	SeverityRoutes []routeEntry
+}
+
+// scopedRoute sends one severity of some systems to the recipients scoped to
+// those systems. It runs before the severity routes with continue=true, so
+// the unscoped recipients still get the alert.
+type scopedRoute struct {
+	Severity     string
+	SystemRegex  string
+	ReceiverName string
 }
 
 // CustomerConfig pairs a customer org id with its effective (merged) alerting
@@ -129,6 +140,13 @@ route:
         - organization_id="{{ yamlEscape .OrgID }}"
       receiver: 'blackhole'
       routes:
+{{- range .ScopedRoutes }}
+        - matchers:
+            - severity="{{ yamlEscape .Severity }}"
+            - system_id=~"{{ yamlEscape .SystemRegex }}"
+          receiver: '{{ yamlEscape .ReceiverName }}'
+          continue: true
+{{- end }}
 {{- range .SeverityRoutes }}
         - matchers:
             - {{ .MatcherKey }}="{{ yamlEscape .MatcherValue }}"
@@ -267,7 +285,7 @@ func buildReceiver(
 
 	if emailOn {
 		for _, rcp := range cfg.EmailRecipients {
-			if !matchesSeverity(rcp.Severities, severity) {
+			if !rcp.Scope.IsEmpty() || !matchesSeverity(rcp.Severities, severity) {
 				continue
 			}
 			r.Emails = append(r.Emails, emailEntry{
@@ -279,7 +297,7 @@ func buildReceiver(
 	}
 	if webhookOn {
 		for _, rcp := range cfg.WebhookRecipients {
-			if !matchesSeverity(rcp.Severities, severity) {
+			if !rcp.Scope.IsEmpty() || !matchesSeverity(rcp.Severities, severity) {
 				continue
 			}
 			r.Webhooks = append(r.Webhooks, webhookEntry{URL: rcp.URL})
@@ -287,7 +305,7 @@ func buildReceiver(
 	}
 	if telegramOn {
 		for _, rcp := range cfg.TelegramRecipients {
-			if !matchesSeverity(rcp.Severities, severity) {
+			if !rcp.Scope.IsEmpty() || !matchesSeverity(rcp.Severities, severity) {
 				continue
 			}
 			r.Telegrams = append(r.Telegrams, telegramEntry{
@@ -346,6 +364,15 @@ func RenderConfig(
 		hasReal := false
 		for _, severity := range []string{"critical", "warning", "info"} {
 			recv := buildReceiver(cust.OrgID+"-severity-"+severity+"-receiver", severity, cust.Layer)
+			routes, scopedRecvs := buildScopedRoutes(cust.OrgID, severity, cust.Layer, recv)
+			for _, sr := range scopedRecvs {
+				hasReal = true
+				if len(sr.Emails) > 0 {
+					data.HasEmailReceivers = true
+				}
+				data.Receivers = append(data.Receivers, sr)
+			}
+			cr.ScopedRoutes = append(cr.ScopedRoutes, routes...)
 			recvName := "blackhole"
 			if len(recv.Emails) > 0 || len(recv.Webhooks) > 0 || len(recv.Telegrams) > 0 {
 				recvName = recv.Name
@@ -381,4 +408,146 @@ func RenderConfig(
 		return "", fmt.Errorf("rendering alertmanager template: %w", err)
 	}
 	return buf.String(), nil
+}
+
+// destination is one channel entry of a scoped recipient, keyed for dedup
+// against the unscoped receiver and across scoped copies.
+type destination struct {
+	key      string
+	email    *emailEntry
+	webhook  *webhookEntry
+	telegram *telegramEntry
+}
+
+func receiverKeys(r receiverEntry) map[string]struct{} {
+	keys := map[string]struct{}{}
+	for _, e := range r.Emails {
+		keys["email|"+e.To] = struct{}{}
+	}
+	for _, w := range r.Webhooks {
+		keys["webhook|"+w.URL] = struct{}{}
+	}
+	for _, t := range r.Telegrams {
+		keys["telegram|"+t.BotToken+"|"+strconv.FormatInt(t.ChatID, 10)+"|"+strconv.FormatInt(t.MessageThreadID, 10)] = struct{}{}
+	}
+	return keys
+}
+
+// buildScopedRoutes renders the system-scoped recipients of one severity.
+// Each system gets the scoped destinations that are not already on the
+// unscoped receiver; systems sharing the same destinations share one route
+// matched on system_id=~"a|b".
+func buildScopedRoutes(orgID, severity string, cfg *models.AlertingConfigLayer, unscoped receiverEntry) ([]scopedRoute, []receiverEntry) {
+	emailOn := cfg.Enabled.Email != nil && *cfg.Enabled.Email
+	webhookOn := cfg.Enabled.Webhook != nil && *cfg.Enabled.Webhook
+	telegramOn := cfg.Enabled.Telegram != nil && *cfg.Enabled.Telegram
+	already := receiverKeys(unscoped)
+
+	dests := map[string]destination{}
+	perSystem := map[string]map[string]struct{}{}
+	add := func(d destination, scope *models.RecipientScope) {
+		if _, dup := already[d.key]; dup {
+			return
+		}
+		if _, ok := dests[d.key]; !ok {
+			dests[d.key] = d
+		}
+		for _, sys := range scope.SystemIDs {
+			if perSystem[sys] == nil {
+				perSystem[sys] = map[string]struct{}{}
+			}
+			perSystem[sys][d.key] = struct{}{}
+		}
+	}
+	if emailOn {
+		for _, rcp := range cfg.EmailRecipients {
+			if rcp.Scope.IsEmpty() || !matchesSeverity(rcp.Severities, severity) {
+				continue
+			}
+			add(destination{key: "email|" + rcp.Address, email: &emailEntry{
+				To:       rcp.Address,
+				Language: resolveLanguage(rcp.Language),
+				UseHTML:  resolveUseHTML(rcp.Format),
+			}}, rcp.Scope)
+		}
+	}
+	if webhookOn {
+		for _, rcp := range cfg.WebhookRecipients {
+			if rcp.Scope.IsEmpty() || !matchesSeverity(rcp.Severities, severity) {
+				continue
+			}
+			add(destination{key: "webhook|" + rcp.URL, webhook: &webhookEntry{URL: rcp.URL}}, rcp.Scope)
+		}
+	}
+	if telegramOn {
+		for _, rcp := range cfg.TelegramRecipients {
+			if rcp.Scope.IsEmpty() || !matchesSeverity(rcp.Severities, severity) {
+				continue
+			}
+			add(destination{
+				key: "telegram|" + rcp.BotToken + "|" + strconv.FormatInt(rcp.ChatID, 10) + "|" + strconv.FormatInt(rcp.MessageThreadID, 10),
+				telegram: &telegramEntry{
+					BotToken:        rcp.BotToken,
+					ChatID:          rcp.ChatID,
+					MessageThreadID: rcp.MessageThreadID,
+				},
+			}, rcp.Scope)
+		}
+	}
+	if len(perSystem) == 0 {
+		return nil, nil
+	}
+
+	// Group systems by their destination set, in a stable order.
+	type group struct {
+		keys    []string
+		systems []string
+	}
+	groups := map[string]*group{}
+	order := []string{}
+	systems := make([]string, 0, len(perSystem))
+	for sys := range perSystem {
+		systems = append(systems, sys)
+	}
+	sort.Strings(systems)
+	for _, sys := range systems {
+		keys := make([]string, 0, len(perSystem[sys]))
+		for k := range perSystem[sys] {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		sig := strings.Join(keys, "\n")
+		g, ok := groups[sig]
+		if !ok {
+			g = &group{keys: keys}
+			groups[sig] = g
+			order = append(order, sig)
+		}
+		g.systems = append(g.systems, sys)
+	}
+
+	routes := make([]scopedRoute, 0, len(order))
+	receivers := make([]receiverEntry, 0, len(order))
+	for i, sig := range order {
+		g := groups[sig]
+		r := receiverEntry{Name: fmt.Sprintf("%s-severity-%s-scoped-%d-receiver", orgID, severity, i+1)}
+		for _, k := range g.keys {
+			d := dests[k]
+			switch {
+			case d.email != nil:
+				r.Emails = append(r.Emails, *d.email)
+			case d.webhook != nil:
+				r.Webhooks = append(r.Webhooks, *d.webhook)
+			case d.telegram != nil:
+				r.Telegrams = append(r.Telegrams, *d.telegram)
+			}
+		}
+		receivers = append(receivers, r)
+		routes = append(routes, scopedRoute{
+			Severity:     severity,
+			SystemRegex:  strings.Join(g.systems, "|"),
+			ReceiverName: r.Name,
+		})
+	}
+	return routes, receivers
 }

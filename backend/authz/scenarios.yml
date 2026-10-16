@@ -582,6 +582,119 @@ scenarios:
     path: /api/alerts/silences/{bogus}?organization_id={org:d1r1c2}
     expect: denied
 
+  # A recipient scope names organizations and systems whose alerts a recipient
+  # gets. Naming one outside the caller's hierarchy would be a subscription to
+  # somebody else's alerts, so the save must fail on the scope itself.
+  - name: reseller cannot scope a recipient to the sibling reseller's customer
+    as: d1r1-admin
+    method: POST
+    path: /api/alerts/config
+    body: '{"enabled":{"email":true},"email_recipients":[{"address":"edoardo.spadoni+authz-scope@nethesis.it","scope":{"organization_ids":["{org:d1r2c1}"]}}],"webhook_recipients":[],"telegram_recipients":[]}'
+    expect_status: [400]
+    must_contain: ["out_of_scope"]
+
+  - name: reseller cannot scope a recipient to its own distributor
+    as: d1r1-admin
+    method: POST
+    path: /api/alerts/config
+    body: '{"enabled":{"email":true},"email_recipients":[{"address":"edoardo.spadoni+authz-scope@nethesis.it","scope":{"organization_ids":["{org:d1}"]}}],"webhook_recipients":[],"telegram_recipients":[]}'
+    expect_status: [400]
+    must_contain: ["out_of_scope"]
+
+  - name: reseller cannot scope a recipient to a system of the other branch
+    as: d1r1-admin
+    method: POST
+    path: /api/alerts/config
+    body: '{"enabled":{"telegram":true},"telegram_recipients":[{"bot_token":"1:authz","chat_id":1,"scope":{"system_ids":["{system:s-d2r1c1}"]}}],"email_recipients":[],"webhook_recipients":[]}'
+    expect_status: [400]
+    must_contain: ["out_of_scope"]
+
+  - name: customer cannot scope a recipient to the sibling customer's system
+    as: d1r1c1-admin
+    method: POST
+    path: /api/alerts/config
+    body: '{"enabled":{"email":true},"email_recipients":[{"address":"edoardo.spadoni+authz-scope@nethesis.it","scope":{"system_ids":["{system:s-d1r1c2}"]}}],"webhook_recipients":[],"telegram_recipients":[]}'
+    expect_status: [400]
+    must_contain: ["out_of_scope"]
+
+  - name: customer cannot scope a recipient to its own reseller
+    as: d1r1c1-admin
+    method: POST
+    path: /api/alerts/config
+    body: '{"enabled":{"email":true},"email_recipients":[{"address":"edoardo.spadoni+authz-scope@nethesis.it","scope":{"organization_ids":["{org:d1r1}"]}}],"webhook_recipients":[],"telegram_recipients":[]}'
+    expect_status: [400]
+    must_contain: ["out_of_scope"]
+
+  - name: distributor cannot scope a recipient to a peer distributor
+    as: d1-admin
+    method: POST
+    path: /api/alerts/config
+    body: '{"enabled":{"webhook":true},"webhook_recipients":[{"name":"authz","url":"https://example.com/authz","scope":{"organization_ids":["{org:d2}"]}}],"email_recipients":[],"telegram_recipients":[]}'
+    expect_status: [400]
+    must_contain: ["out_of_scope"]
+
+  - name: an unknown system id cannot be scoped
+    as: d1-admin
+    method: POST
+    path: /api/alerts/config
+    body: '{"enabled":{"email":true},"email_recipients":[{"address":"edoardo.spadoni+authz-scope@nethesis.it","scope":{"system_ids":["{bogus}"]}}],"webhook_recipients":[],"telegram_recipients":[]}'
+    expect_status: [400]
+    must_contain: ["out_of_scope"]
+
+  - name: distributor can scope a recipient to systems and customers two levels down
+    as: d1-admin
+    method: POST
+    path: /api/alerts/config
+    body: '{"enabled":{"email":true},"email_recipients":[{"address":"edoardo.spadoni+authz-scope@nethesis.it","scope":{"organization_ids":["{org:d1r1c1}"],"system_ids":["{system:s-d1r2c1}"]}}],"webhook_recipients":[],"telegram_recipients":[]}'
+    expect: allowed
+
+  - name: the scope names come back to the distributor that saved them
+    as: d1-admin
+    method: GET
+    path: /api/alerts/config
+    must_contain: ["{org_name:d1r1c1}", "{system_name:s-d1r2c1}"]
+
+  - name: customer can scope a recipient to its own system
+    as: d1r1c1-admin
+    method: POST
+    path: /api/alerts/config
+    body: '{"enabled":{"email":true},"email_recipients":[{"address":"edoardo.spadoni+authz-scope@nethesis.it","scope":{"system_ids":["{system:s-d1r1c1}"]}}],"webhook_recipients":[],"telegram_recipients":[]}'
+    expect: allowed
+
+  # DELETE /api/alerts/config is skipped by the gate matrix (it would wipe the
+  # Owner organization's layer): its gate is asserted here, on fixture orgs.
+  - name: reader cannot delete its organization's alert layer
+    as: d1r1c1-reader
+    method: DELETE
+    path: /api/alerts/config
+    expect: denied
+
+  - name: backoffice cannot delete its organization's alert layer
+    as: d1r1-backoffice
+    method: DELETE
+    path: /api/alerts/config
+    expect: denied
+
+  - name: customer admin can delete its own organization's alert layer
+    as: d1r1c1-admin
+    method: DELETE
+    path: /api/alerts/config
+    expect: allowed
+
+  - name: reset the distributor layer touched by the scope scenarios
+    as: d1-admin
+    method: POST
+    path: /api/alerts/config
+    body: '{"enabled":{},"email_recipients":[],"webhook_recipients":[],"telegram_recipients":[]}'
+    expect: allowed
+
+  - name: reset the customer layer touched by the scope scenarios
+    as: d1r1c1-admin
+    method: POST
+    path: /api/alerts/config
+    body: '{"enabled":{},"email_recipients":[],"webhook_recipients":[],"telegram_recipients":[]}'
+    expect: allowed
+
   # ===========================================================================
   # Rebranding: every level may read its own status, nobody else's.
   # ===========================================================================

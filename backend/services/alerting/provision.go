@@ -38,15 +38,6 @@ func ProvisionDefaultConfig(orgID string) error {
 		return fmt.Errorf("resolve tenant at provision: %w", err)
 	}
 
-	// Render the full nested tenant config (reseller + all its customers). Fail
-	// closed: a misconfigured hierarchy (cycle, missing parent row, transient
-	// DB error) must NOT silently provision a less-protected config than the
-	// Owner intended. The org creation flow can retry.
-	yamlConfig, templateFiles, err := renderTenantConfig(tenant)
-	if err != nil {
-		return fmt.Errorf("render default alerting config at provision: %w", err)
-	}
-
 	// Retry with backoff to tolerate transient Mimir errors (startup delays,
 	// brief network hiccups). Total max wait: ~9 seconds across 4 attempts.
 	var lastErr error
@@ -63,7 +54,21 @@ func ProvisionDefaultConfig(orgID string) error {
 			time.Sleep(delay)
 		}
 
-		if err := PushConfig(tenant, yamlConfig, templateFiles); err != nil {
+		// Render the full nested tenant config (reseller + all its customers)
+		// under the tenant lock, afresh on every attempt, so a retry never
+		// pushes a snapshot older than a concurrent push. Fail closed: a
+		// misconfigured hierarchy (cycle, missing parent row, transient DB
+		// error) must NOT silently provision a less-protected config than the
+		// Owner intended. The org creation flow can retry.
+		unlock := lockTenant(tenant)
+		yamlConfig, templateFiles, err := renderTenantConfig(tenant)
+		if err != nil {
+			unlock()
+			return fmt.Errorf("render default alerting config at provision: %w", err)
+		}
+		err = PushConfig(tenant, yamlConfig, templateFiles)
+		unlock()
+		if err != nil {
 			lastErr = err
 			continue
 		}

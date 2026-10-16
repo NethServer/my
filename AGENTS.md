@@ -371,10 +371,10 @@ Conventions: org endpoints take the **logto_id** (from `apitool list` or API res
 
 ### 7.4 Authorization regression suite (`backend/authz/`)
 
-**Mandatory before any commit that touches the auth/authz core — routes, middleware, a handler's access check, the RBAC helpers, `sync/configs/config.yml`, or the hierarchy logic (§1.2).** It fires all 170 endpoints as every (org role × user role) persona against a real provisioned hierarchy, plus hand-written cross-organization scenarios, third-party app visibility and the credential-type rules (API key masks, impersonation, self-modification). ~3200 checks, non-destructive, local-only.
+**Mandatory before any commit that touches the auth/authz core — routes, middleware, a handler's access check, the RBAC helpers, `sync/configs/config.yml`, or the hierarchy logic (§1.2).** It fires all 170 endpoints as every (org role × user role) persona against a real provisioned hierarchy, plus hand-written cross-organization scenarios, third-party app visibility, the credential-type rules (API key masks, impersonation, self-modification) and a lifecycle layer that moves, deletes, restores and promotes throwaway objects while checking access and alert routing in Mimir. ~3500 checks, fixture left untouched, local-only.
 
 ```bash
-cd backend && make test-authz          # coverage + persona drift + all four layers
+cd backend && make test-authz          # coverage + persona drift + all five layers
 ./apitool authz provision              # one-time: create the fixture (idempotent)
 ./apitool authz run --layer=scope --verbose --filter=reseller
 ```

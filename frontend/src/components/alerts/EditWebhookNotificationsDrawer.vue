@@ -24,11 +24,14 @@ import {
   WebhookNotificationsPayloadSchema,
   getSeverityBadgeKind,
   postAlertsConfig,
+  toScopePayload,
   type AlertingConfigLayer,
   type WebhookRecipient,
 } from '@/lib/alerts'
+import RecipientScopeSelector from '@/components/alerts/RecipientScopeSelector.vue'
 import { useNotificationsStore } from '@/stores/notifications'
 import capitalize from 'lodash/capitalize'
+import { useScopeSummary } from '@/composables/useScopeSummary'
 
 const props = withDefaults(
   defineProps<{
@@ -48,11 +51,12 @@ const emit = defineEmits(['close'])
 const { t } = useI18n()
 const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
+const scopeSummary = useScopeSummary()
 
 // ── Form state ────────────────────────────────────────────────────────────────
 
 const webhookEnabled = ref(false)
-const endpoints = ref<(WebhookRecipient & { _expanded: boolean })[]>([])
+const endpoints = ref<(WebhookRecipient & { _expanded: boolean; _scopeSpecific: boolean })[]>([])
 const expandedIndex = ref<number | null>(null)
 const expandedUrlRef = useTemplateRef<Focusable[]>('expandedUrlRef')
 const validationIssues = ref<Record<string, string[]>>({})
@@ -73,7 +77,9 @@ function initForm() {
   endpoints.value = (props.config.webhook_recipients ?? []).map((r) => ({
     ...r,
     severities: r.severities ? [...r.severities] : [],
+    scope: r.scope ? { ...r.scope } : undefined,
     _expanded: false,
+    _scopeSpecific: !!toScopePayload(r.scope),
   }))
 }
 
@@ -102,7 +108,7 @@ function toggleExpand(index: number) {
 
 // ── Severity toggle ───────────────────────────────────────────────────────────
 
-function toggleSeverity(endpoint: WebhookRecipient & { _expanded: boolean }, severity: string) {
+function toggleSeverity(endpoint: WebhookRecipient, severity: string) {
   if (!endpoint.severities) endpoint.severities = []
   const idx = endpoint.severities.indexOf(severity)
   if (idx === -1) {
@@ -112,7 +118,7 @@ function toggleSeverity(endpoint: WebhookRecipient & { _expanded: boolean }, sev
   }
 }
 
-function hasSeverity(endpoint: WebhookRecipient & { _expanded: boolean }, severity: string) {
+function hasSeverity(endpoint: WebhookRecipient, severity: string) {
   return endpoint.severities?.includes(severity) ?? false
 }
 
@@ -124,6 +130,7 @@ function addEndpoint(shouldFocus = true) {
     url: '',
     severities: [...SEVERITIES],
     _expanded: true,
+    _scopeSpecific: false,
   })
   expandedIndex.value = endpoints.value.length - 1
   if (shouldFocus) {
@@ -166,6 +173,7 @@ const {
         name: recipientName(r.url),
         url: r.url,
         severities: r.severities?.length ? r.severities : undefined,
+        scope: r._scopeSpecific ? toScopePayload(r.scope) : undefined,
       })),
       telegram_recipients: props.config?.telegram_recipients ?? [],
     }
@@ -193,19 +201,25 @@ function validate(): boolean {
       name: recipientName(r.url),
       url: r.url,
       severities: r.severities?.length ? r.severities : undefined,
+      scope: r._scopeSpecific ? toScopePayload(r.scope) : undefined,
     })),
   }
   const result = v.safeParse(WebhookNotificationsPayloadSchema, payload)
-  if (result.success) return true
-  const issues = v.flatten(result.issues)
-  if (issues.nested) {
-    validationIssues.value = issues.nested as Record<string, string[]>
-    const firstKey = Object.keys(issues.nested)[0]
-    const match = firstKey.match(/^webhook_recipients\.(\d+)\./)
-    if (match) {
-      expandedIndex.value = parseInt(match[1])
-      nextTick(() => expandedUrlRef.value?.[0]?.focus())
+  const issues: Record<string, string[]> = result.success
+    ? {}
+    : ((v.flatten(result.issues).nested ?? {}) as Record<string, string[]>)
+  endpoints.value.forEach((r, i) => {
+    if (r._scopeSpecific && !toScopePayload(r.scope)) {
+      issues[`webhook_recipients.${i}.scope`] = ['alerts.scope_required']
     }
+  })
+  if (!Object.keys(issues).length) return true
+  validationIssues.value = issues
+  const firstKey = Object.keys(issues)[0]
+  const match = firstKey.match(/^webhook_recipients\.(\d+)\./)
+  if (match) {
+    expandedIndex.value = parseInt(match[1])
+    nextTick(() => expandedUrlRef.value?.[0]?.focus())
   }
   return false
 }
@@ -261,6 +275,12 @@ function closeDrawer() {
                   {{ capitalize(sev) }}
                 </NeBadgeV2>
               </div>
+              <p
+                v-if="expandedIndex !== index && ep._scopeSpecific"
+                class="mt-2 text-xs text-gray-600 dark:text-gray-300"
+              >
+                {{ scopeSummary(ep.scope) }}
+              </p>
             </div>
             <FontAwesomeIcon
               :icon="faChevronDown"
@@ -314,6 +334,19 @@ function closeDrawer() {
                   </button>
                 </div>
               </div>
+
+              <!-- Organizations / systems scope -->
+              <RecipientScopeSelector
+                v-model:specific="ep._scopeSpecific"
+                v-model:scope="ep.scope"
+                :scope-names="props.config?.scope_names"
+                :id-prefix="`webhook-${index}`"
+                :invalid-message="
+                  validationIssues[`webhook_recipients.${index}.scope`]?.[0]
+                    ? $t(validationIssues[`webhook_recipients.${index}.scope`][0])
+                    : ''
+                "
+              />
 
               <!-- Remove button -->
               <NeButton kind="tertiary" class="-ml-2.5" @click="removeEndpoint(index)">

@@ -26,11 +26,14 @@ import {
   EmailNotificationsPayloadSchema,
   getSeverityBadgeKind,
   postAlertsConfig,
+  toScopePayload,
   type AlertingConfigLayer,
   type EmailRecipient,
 } from '@/lib/alerts'
+import RecipientScopeSelector from '@/components/alerts/RecipientScopeSelector.vue'
 import { useNotificationsStore } from '@/stores/notifications'
 import capitalize from 'lodash/capitalize'
+import { useScopeSummary } from '@/composables/useScopeSummary'
 
 const props = withDefaults(
   defineProps<{
@@ -50,11 +53,12 @@ const emit = defineEmits(['close'])
 const { t } = useI18n()
 const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
+const scopeSummary = useScopeSummary()
 
 // ── Form state ────────────────────────────────────────────────────────────────
 
 const emailEnabled = ref(false)
-const recipients = ref<(EmailRecipient & { _expanded: boolean })[]>([])
+const recipients = ref<(EmailRecipient & { _expanded: boolean; _scopeSpecific: boolean })[]>([])
 const expandedIndex = ref<number | null>(null)
 const expandedAddressRef = useTemplateRef<Focusable[]>('expandedAddressRef')
 const validationIssues = ref<Record<string, string[]>>({})
@@ -80,7 +84,9 @@ function initForm() {
   recipients.value = (props.config.email_recipients ?? []).map((r) => ({
     ...r,
     severities: r.severities ? [...r.severities] : [],
+    scope: r.scope ? { ...r.scope } : undefined,
     _expanded: false,
+    _scopeSpecific: !!toScopePayload(r.scope),
   }))
 }
 
@@ -109,7 +115,7 @@ function toggleExpand(index: number) {
 
 // ── Severity toggle ───────────────────────────────────────────────────────────
 
-function toggleSeverity(recipient: EmailRecipient & { _expanded: boolean }, severity: string) {
+function toggleSeverity(recipient: EmailRecipient, severity: string) {
   if (!recipient.severities) recipient.severities = []
   const idx = recipient.severities.indexOf(severity)
   if (idx === -1) {
@@ -119,7 +125,7 @@ function toggleSeverity(recipient: EmailRecipient & { _expanded: boolean }, seve
   }
 }
 
-function hasSeverity(recipient: EmailRecipient & { _expanded: boolean }, severity: string) {
+function hasSeverity(recipient: EmailRecipient, severity: string) {
   return recipient.severities?.includes(severity) ?? false
 }
 
@@ -132,6 +138,7 @@ function addRecipient(shouldFocus = true) {
     language: 'en',
     format: 'html',
     _expanded: true,
+    _scopeSpecific: false,
   })
   expandedIndex.value = recipients.value.length - 1
   if (shouldFocus) {
@@ -164,6 +171,7 @@ const {
         severities: r.severities?.length ? r.severities : undefined,
         language: r.language,
         format: r.format,
+        scope: r._scopeSpecific ? toScopePayload(r.scope) : undefined,
       })),
       webhook_recipients: props.config?.webhook_recipients ?? [],
       telegram_recipients: props.config?.telegram_recipients ?? [],
@@ -193,19 +201,25 @@ function validate(): boolean {
       severities: r.severities?.length ? r.severities : undefined,
       language: r.language,
       format: r.format,
+      scope: r._scopeSpecific ? toScopePayload(r.scope) : undefined,
     })),
   }
   const result = v.safeParse(EmailNotificationsPayloadSchema, payload)
-  if (result.success) return true
-  const issues = v.flatten(result.issues)
-  if (issues.nested) {
-    validationIssues.value = issues.nested as Record<string, string[]>
-    const firstKey = Object.keys(issues.nested)[0]
-    const match = firstKey.match(/^email_recipients\.(\.?\d+)\./)
-    if (match) {
-      expandedIndex.value = parseInt(match[1])
-      nextTick(() => expandedAddressRef.value?.[0]?.focus())
+  const issues: Record<string, string[]> = result.success
+    ? {}
+    : ((v.flatten(result.issues).nested ?? {}) as Record<string, string[]>)
+  recipients.value.forEach((r, i) => {
+    if (r._scopeSpecific && !toScopePayload(r.scope)) {
+      issues[`email_recipients.${i}.scope`] = ['alerts.scope_required']
     }
+  })
+  if (!Object.keys(issues).length) return true
+  validationIssues.value = issues
+  const firstKey = Object.keys(issues)[0]
+  const match = firstKey.match(/^email_recipients\.(\.?\d+)\./)
+  if (match) {
+    expandedIndex.value = parseInt(match[1])
+    nextTick(() => expandedAddressRef.value?.[0]?.focus())
   }
   return false
 }
@@ -261,6 +275,12 @@ function closeDrawer() {
                   {{ capitalize(sev) }}
                 </NeBadgeV2>
               </div>
+              <p
+                v-if="expandedIndex !== index && recipient._scopeSpecific"
+                class="mt-2 text-xs text-gray-600 dark:text-gray-300"
+              >
+                {{ scopeSummary(recipient.scope) }}
+              </p>
             </div>
             <FontAwesomeIcon
               :icon="faChevronDown"
@@ -312,6 +332,19 @@ function closeDrawer() {
                   </button>
                 </div>
               </div>
+
+              <!-- Organizations / systems scope -->
+              <RecipientScopeSelector
+                v-model:specific="recipient._scopeSpecific"
+                v-model:scope="recipient.scope"
+                :scope-names="props.config?.scope_names"
+                :id-prefix="`email-${index}`"
+                :invalid-message="
+                  validationIssues[`email_recipients.${index}.scope`]?.[0]
+                    ? $t(validationIssues[`email_recipients.${index}.scope`][0])
+                    : ''
+                "
+              />
 
               <!-- Email language -->
               <NeRadioSelection
