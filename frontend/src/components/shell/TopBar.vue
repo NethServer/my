@@ -18,7 +18,6 @@ import {
   faMoon,
   faArrowRightFromBracket,
   faSun,
-  faWandMagicSparkles,
   faTableCells,
   faTableCellsLarge,
 } from '@fortawesome/free-solid-svg-icons'
@@ -32,6 +31,7 @@ import ImpersonationBadge from './ImpersonationBadge.vue'
 import ImpersonationConsentBadge from './ImpersonationConsentBadge.vue'
 import { getOrganizationIcon } from '@/lib/organizations/organizations'
 import { isKapaWidgetEnabled, openKapaWidget } from '@/composables/useKapaWidget'
+import AiSparkIcon from '@/components/common/AiSparkIcon.vue'
 
 const emit = defineEmits(['openSidebar'])
 
@@ -156,13 +156,9 @@ function openNotificationsDrawer() {
             class="flex"
           >
             <template #trigger>
-              <button type="button" :class="topBarButtonClasses" @click="openKapaWidget">
+              <button type="button" :class="['group', topBarButtonClasses]" @click="openKapaWidget">
                 <span class="sr-only">{{ $t('shell.ask_ai') }}</span>
-                <FontAwesomeIcon
-                  :icon="faWandMagicSparkles"
-                  class="h-6 w-6 shrink-0"
-                  aria-hidden="true"
-                />
+                <AiSparkIcon class="h-6 w-6 shrink-0" />
               </button>
             </template>
             <template #content>
