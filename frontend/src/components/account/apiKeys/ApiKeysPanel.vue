@@ -264,7 +264,7 @@ function confirmDelete() {
             :descending-label="$t('sort.descending')"
           />
           <NeButton kind="tertiary" @click="textFilter = ''">
-            {{ $t('common.clear_filters') }}
+            {{ $t('common.reset_filters') }}
           </NeButton>
         </div>
         <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
@@ -287,7 +287,7 @@ function confirmDelete() {
         class="bg-white dark:bg-gray-950"
       >
         <NeButton kind="tertiary" @click="textFilter = ''">
-          {{ $t('common.clear_filters') }}
+          {{ $t('common.reset_filters') }}
         </NeButton>
       </NeEmptyState>
       <!-- keys table -->

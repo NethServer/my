@@ -25,11 +25,11 @@ const { state: systemDetail } = useSystemDetail()
     <SystemAddonsCard v-if="systemDetail.data?.type === 'nsec'" />
     <SystemNetworkCard
       v-if="systemDetail.data?.type === 'nsec'"
-      class="3xl:col-span-4 md:col-span-2"
+      class="3xl:col-span-4 xl:col-span-2"
     />
     <ClusterNodesCard
       v-if="systemDetail.data?.type === 'ns8'"
-      class="3xl:col-span-4 md:col-span-2"
+      class="3xl:col-span-4 xl:col-span-2"
     />
   </div>
 </template>

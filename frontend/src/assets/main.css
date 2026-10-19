@@ -65,6 +65,23 @@
   }
 }
 
+/* inline, so the utility carries the value itself and each element resolves its own delay: a
+   variable in a theme value would resolve once, on :root. The delay is a variable at all because
+   the animation shorthand resets animation-delay */
+@theme inline {
+  --animate-twinkle: twinkle 0.6s ease-in-out var(--twinkle-delay, 0s) 2;
+
+  @keyframes twinkle {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.3);
+    }
+  }
+}
+
 @layer base {
   /*
     Use cursor-pointer for buttons (behavior changed from Tailwind CSS v3)

@@ -15,12 +15,11 @@ import {
   faChevronDown,
   faCircleQuestion,
   faCircleUser,
-  faCompress,
-  faExpand,
   faMoon,
   faArrowRightFromBracket,
   faSun,
-  faWandMagicSparkles,
+  faTableCells,
+  faTableCellsLarge,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useI18n } from 'vue-i18n'
@@ -32,6 +31,7 @@ import ImpersonationBadge from './ImpersonationBadge.vue'
 import ImpersonationConsentBadge from './ImpersonationConsentBadge.vue'
 import { getOrganizationIcon } from '@/lib/organizations/organizations'
 import { isKapaWidgetEnabled, openKapaWidget } from '@/composables/useKapaWidget'
+import AiSparkIcon from '@/components/common/AiSparkIcon.vue'
 
 const emit = defineEmits(['openSidebar'])
 
@@ -67,6 +67,23 @@ const accountMenuOptions = computed(() => {
           },
         ]
       : []),
+    {
+      id: 'switchDensity',
+      label: densityStore.isCompact
+        ? t('shell.switch_to_standard_view')
+        : t('shell.switch_to_compact_view'),
+      icon: densityStore.isCompact ? faTableCellsLarge : faTableCells,
+      action: () => densityStore.toggleDensity(),
+    },
+    {
+      id: 'switchTheme',
+      label: themeStore.isLight
+        ? t('shell.switch_to_dark_theme')
+        : t('shell.switch_to_light_theme'),
+      icon: themeStore.isLight ? faMoon : faSun,
+      action: () => themeStore.toggleTheme(),
+    },
+    { id: 'divider' },
     {
       id: 'logout',
       label: t('shell.sign_out'),
@@ -139,13 +156,9 @@ function openNotificationsDrawer() {
             class="flex"
           >
             <template #trigger>
-              <button type="button" :class="topBarButtonClasses" @click="openKapaWidget">
+              <button type="button" :class="['group', topBarButtonClasses]" @click="openKapaWidget">
                 <span class="sr-only">{{ $t('shell.ask_ai') }}</span>
-                <FontAwesomeIcon
-                  :icon="faWandMagicSparkles"
-                  class="h-6 w-6 shrink-0"
-                  aria-hidden="true"
-                />
+                <AiSparkIcon class="h-6 w-6 shrink-0" />
               </button>
             </template>
             <template #content>
@@ -172,60 +185,6 @@ function openNotificationsDrawer() {
             </template>
             <template #content>
               {{ $t('shell.help') }}
-            </template>
-          </NeTooltip>
-
-          <!-- toggle theme -->
-          <NeTooltip trigger-event="mouseenter focus" placement="bottom" class="flex">
-            <template #trigger>
-              <button type="button" :class="topBarButtonClasses" @click="themeStore.toggleTheme">
-                <span class="sr-only">{{
-                  themeStore.isLight
-                    ? $t('shell.switch_to_dark_theme')
-                    : $t('shell.switch_to_light_theme')
-                }}</span>
-                <FontAwesomeIcon
-                  :icon="themeStore.isLight ? faMoon : faSun"
-                  class="h-6 w-6 shrink-0"
-                  aria-hidden="true"
-                />
-              </button>
-            </template>
-            <template #content>
-              {{
-                themeStore.isLight
-                  ? $t('shell.switch_to_dark_theme')
-                  : $t('shell.switch_to_light_theme')
-              }}
-            </template>
-          </NeTooltip>
-
-          <!-- toggle density -->
-          <NeTooltip trigger-event="mouseenter focus" placement="bottom" class="flex">
-            <template #trigger>
-              <button
-                type="button"
-                :class="topBarButtonClasses"
-                @click="densityStore.toggleDensity"
-              >
-                <span class="sr-only">{{
-                  densityStore.isCompact
-                    ? $t('shell.switch_to_standard_density')
-                    : $t('shell.switch_to_compact_density')
-                }}</span>
-                <FontAwesomeIcon
-                  :icon="densityStore.isCompact ? faExpand : faCompress"
-                  class="h-6 w-6 shrink-0"
-                  aria-hidden="true"
-                />
-              </button>
-            </template>
-            <template #content>
-              {{
-                densityStore.isCompact
-                  ? $t('shell.switch_to_standard_density')
-                  : $t('shell.switch_to_compact_density')
-              }}
             </template>
           </NeTooltip>
 
