@@ -417,6 +417,18 @@ func (iw *InventoryWorker) triggerDiffProcessingAsync(ctx context.Context, recor
 		Msg("Async diff processing completed")
 }
 
+// boolField returns m[key] when it is a boolean, nil otherwise (missing map or
+// key, or a value of another type).
+func boolField(m map[string]interface{}, key string) *bool {
+	if m == nil {
+		return nil
+	}
+	if v, ok := m[key].(bool); ok {
+		return &v
+	}
+	return nil
+}
+
 // updateSystemFieldsFromInventory extracts relevant fields from inventory and updates the systems table.
 // Supports both NS8 (nethserver) and NSEC (nethsecurity) inventory structures.
 // Accepts pre-parsed inventory data to avoid redundant JSON unmarshaling.
@@ -426,6 +438,10 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 
 	// Extract system fields based on installation type
 	var name, fqdn, version, systemType, ipv4, ipv6 *string
+	// updateAvailable is written whenever the inventory has facts, NULL when
+	// they carry no flag, so a flag from an older inventory never lingers.
+	var updateAvailable *bool
+	updateKnown := false
 
 	switch installation {
 	case "nethserver": // NS8
@@ -465,6 +481,9 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 				}
 			}
 
+			updateKnown = true
+			updateAvailable = boolField(leaderNode, "update_available")
+
 			// Extract data from leader node
 			if leaderNode != nil {
 				if nodeFQDN, ok := leaderNode["fqdn"].(string); ok && nodeFQDN != "" {
@@ -490,6 +509,9 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 		if !ok {
 			return nil
 		}
+
+		updateKnown = true
+		updateAvailable = boolField(facts, "image_updates_available")
 
 		// Extract from distro
 		if distro, ok := facts["distro"].(map[string]interface{}); ok {
@@ -590,6 +612,12 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 		setClauses = append(setClauses, fmt.Sprintf("type = $%d", argPos))
 		changeConds = append(changeConds, fmt.Sprintf("systems.type IS DISTINCT FROM $%d::varchar", argPos))
 		args = append(args, *systemType)
+		argPos++
+	}
+	if updateKnown {
+		setClauses = append(setClauses, fmt.Sprintf("update_available = $%d", argPos))
+		changeConds = append(changeConds, fmt.Sprintf("systems.update_available IS DISTINCT FROM $%d::boolean", argPos))
+		args = append(args, updateAvailable)
 		argPos++
 	}
 	if ipv4 != nil && net.ParseIP(*ipv4) != nil {

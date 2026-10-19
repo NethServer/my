@@ -2241,6 +2241,14 @@ components:
           type: string
           description: System version
           example: "2.1.4"
+        update_available:
+          type: boolean
+          nullable: true
+          description: |
+            Whether an update is available, from the latest inventory: the NS8
+            leader node's update_available, NethSecurity's image_updates_available.
+            Null until an inventory reports it.
+          example: true
         system_key:
           type: string
           description: Auto-generated unique commercial system key. Hidden (empty string) until system is registered.

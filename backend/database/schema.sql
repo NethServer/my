@@ -285,6 +285,7 @@ CREATE TABLE IF NOT EXISTS systems (
 
     -- Inventory
     last_inventory_at TIMESTAMP WITH TIME ZONE, -- Last inventory received timestamp (NULL = never received)
+    update_available BOOLEAN,                -- Update available per the latest inventory (NULL = unknown)
 
     -- Soft delete
     deleted_at TIMESTAMP WITH TIME ZONE,    -- NULL = active, non-NULL = soft deleted
@@ -310,6 +311,7 @@ COMMENT ON COLUMN systems.system_key IS 'Unique system key for identification (u
 COMMENT ON COLUMN systems.system_secret_public IS 'Public part of token (my_<public>.<secret>) for fast DB lookup';
 COMMENT ON COLUMN systems.system_secret_sha256 IS 'SHA256 hash of secret part (hex_salt:hex_hash)';
 COMMENT ON COLUMN systems.system_key_hash IS 'sha256(system_key:token), learned by collect; Bearer credential for /auth-hash only';
+COMMENT ON COLUMN systems.update_available IS 'Update available per the latest inventory: NS8 leader node update_available, NSEC image_updates_available. NULL = unknown';
 COMMENT ON COLUMN systems.registered_at IS 'Timestamp when system first sent inventory. NULL = not yet registered';
 COMMENT ON COLUMN systems.unregistered_at IS 'Timestamp when the system announced its unregistration. NULL = credentials still valid; non-NULL = credentials refused, row kept until deleted';
 COMMENT ON COLUMN systems.created_by IS 'JSON object: {user_id, username, name, email, organization_id, organization_name, on_behalf_of} who created the system; display/audit only, not used for RBAC';
