@@ -1,8 +1,9 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import axios from 'axios'
+import axios, { type AxiosError } from 'axios'
 import { API_URL } from './config'
+import { isValidationError, type BackendError } from './validation'
 import { useLoginStore } from '@/stores/login'
 import { OPTIONS_PAGE_SIZE, type Pagination } from './common'
 import { localizeIsoTimestamps } from './dateTime'
@@ -95,6 +96,56 @@ export const toScopePayload = (scope?: RecipientScope): RecipientScope | undefin
     organization_ids: organizationIds.length ? organizationIds : undefined,
     system_ids: systemIds.length ? systemIds : undefined,
   }
+}
+
+// Message for a "specific" scope left empty: a customer narrows by system only
+// (see RecipientScopeSelector). isUserCustomer is not reused because importing
+// the organizations module from here closes an import cycle.
+export const getScopeRequiredMessage = (): string =>
+  useLoginStore().userInfo?.org_role?.toLowerCase() === 'customer'
+    ? 'alerts.scope_required_systems'
+    : 'alerts.scope_required'
+
+// i18n keys for the codes the backend returns on a recipient field
+// (`<channel>_recipients.<i>.<field>[.<sub-field>]`). Only the fields with an
+// inline message in the drawers are listed; `default` covers the codes that
+// have no dedicated message.
+const RECIPIENT_FIELD_ERRORS: Record<string, Record<string, string>> = {
+  address: {
+    required: 'alerts.email_address_required',
+    default: 'alerts.email_address_invalid_format',
+  },
+  url: {
+    required: 'alerts.webhook_url_required',
+    host_not_allowed: 'alerts.webhook_url_host_not_allowed',
+    credentials_not_allowed: 'alerts.webhook_url_credentials_not_allowed',
+    default: 'alerts.webhook_url_invalid',
+  },
+  bot_token: { default: 'alerts.telegram_bot_token_required' },
+  chat_id: { default: 'alerts.telegram_chat_id_invalid' },
+  message_thread_id: { default: 'alerts.telegram_topic_id_invalid' },
+  scope: { max: 'alerts.scope_too_many', default: 'alerts.scope_not_allowed' },
+}
+
+const RECIPIENT_FIELD_KEY = /^((?:email|webhook|telegram)_recipients\.\d+\.([a-z_]+))(?:\.|$)/
+
+// Field issues, keyed like the drawers' client-side validation, from a failed
+// POST /alerts/config. Errors on fields without an inline message are left
+// out: the caller shows those through the save error notification.
+export const getRecipientValidationIssues = (error: Error | null): Record<string, string[]> => {
+  if (!isValidationError(error)) {
+    return {}
+  }
+  const backendError = (error as AxiosError<BackendError>).response?.data
+  const issues: Record<string, string[]> = {}
+  for (const { key, message } of backendError?.data?.errors ?? []) {
+    const match = key.match(RECIPIENT_FIELD_KEY)
+    const messages = match ? RECIPIENT_FIELD_ERRORS[match[2]] : undefined
+    if (match && messages) {
+      issues[match[1]] = [messages[message] ?? messages.default]
+    }
+  }
+  return issues
 }
 
 export interface AlertsResponse {

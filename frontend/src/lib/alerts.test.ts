@@ -1,17 +1,25 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { AxiosError, AxiosHeaders } from 'axios'
 import {
   getAlertDescription,
   getAlertSilenceIds,
   getAlertSummary,
   getHasNotesFilter,
+  getRecipientValidationIssues,
+  getScopeRequiredMessage,
   isAlertSilenced,
+  toScopePayload,
   WITH_COMMENTS_FILTER_ID,
   WITHOUT_COMMENTS_FILTER_ID,
   type Alert,
 } from './alerts'
+
+// The real store needs the Logto plugin; only the signed-in user's role matters.
+const loginStore = vi.hoisted(() => ({ userInfo: undefined as { org_role: string } | undefined }))
+vi.mock('@/stores/login', () => ({ useLoginStore: () => loginStore }))
 import { formatDateTimeNoSeconds } from '@nethesis/vue-components'
 
 const baseAlert: Alert = {
@@ -161,5 +169,116 @@ describe('getHasNotesFilter', () => {
 
   it('returns undefined when both options are selected', () => {
     expect(getHasNotesFilter([withComments, withoutComments])).toBeUndefined()
+  })
+})
+
+describe('toScopePayload', () => {
+  it('returns undefined when there is no scope', () => {
+    expect(toScopePayload(undefined)).toBeUndefined()
+  })
+
+  it('returns undefined when both lists are empty', () => {
+    expect(toScopePayload({ organization_ids: [], system_ids: [] })).toBeUndefined()
+  })
+
+  it('drops the empty side of the scope', () => {
+    expect(toScopePayload({ organization_ids: ['org-1'], system_ids: [] })).toEqual({
+      organization_ids: ['org-1'],
+      system_ids: undefined,
+    })
+    expect(toScopePayload({ system_ids: ['sys-1'] })).toEqual({
+      organization_ids: undefined,
+      system_ids: ['sys-1'],
+    })
+  })
+
+  it('keeps both lists when both are set', () => {
+    expect(toScopePayload({ organization_ids: ['org-1'], system_ids: ['sys-1', 'sys-2'] })).toEqual(
+      { organization_ids: ['org-1'], system_ids: ['sys-1', 'sys-2'] },
+    )
+  })
+})
+
+describe('getRecipientValidationIssues', () => {
+  const validationError = (errors: { key: string; message: string }[], status = 400) =>
+    new AxiosError('Request failed', 'ERR_BAD_REQUEST', undefined, undefined, {
+      status,
+      statusText: '',
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+      data: {
+        code: status,
+        message: 'validation failed',
+        data: { type: 'validation_error', errors },
+      },
+    })
+
+  it('returns nothing for a missing or non-validation error', () => {
+    expect(getRecipientValidationIssues(null)).toEqual({})
+    expect(getRecipientValidationIssues(new Error('network'))).toEqual({})
+    expect(
+      getRecipientValidationIssues(
+        validationError([{ key: 'email_recipients.0.address', message: 'required' }], 500),
+      ),
+    ).toEqual({})
+  })
+
+  it('maps known codes to their field message', () => {
+    expect(
+      getRecipientValidationIssues(
+        validationError([
+          { key: 'email_recipients.0.address', message: 'required' },
+          { key: 'webhook_recipients.1.url', message: 'host_not_allowed' },
+          { key: 'telegram_recipients.2.scope', message: 'out_of_scope' },
+        ]),
+      ),
+    ).toEqual({
+      'email_recipients.0.address': ['alerts.email_address_required'],
+      'webhook_recipients.1.url': ['alerts.webhook_url_host_not_allowed'],
+      'telegram_recipients.2.scope': ['alerts.scope_not_allowed'],
+    })
+  })
+
+  it("falls back to the field's generic message for other codes", () => {
+    expect(
+      getRecipientValidationIssues(
+        validationError([{ key: 'webhook_recipients.0.url', message: 'invalid_scheme' }]),
+      ),
+    ).toEqual({ 'webhook_recipients.0.url': ['alerts.webhook_url_invalid'] })
+  })
+
+  it('pins a sub-field error to its recipient field', () => {
+    expect(
+      getRecipientValidationIssues(
+        validationError([{ key: 'email_recipients.3.scope.system_ids', message: 'max' }]),
+      ),
+    ).toEqual({ 'email_recipients.3.scope': ['alerts.scope_too_many'] })
+  })
+
+  it('leaves out fields without an inline message', () => {
+    expect(
+      getRecipientValidationIssues(
+        validationError([
+          { key: 'email_recipients.0.severities', message: 'invalid_value' },
+          { key: 'enabled.email', message: 'invalid_value' },
+        ]),
+      ),
+    ).toEqual({})
+  })
+})
+
+describe('getScopeRequiredMessage', () => {
+  const signInAs = (orgRole: string) => {
+    loginStore.userInfo = { org_role: orgRole }
+  }
+
+  it('asks a customer for a system', () => {
+    signInAs('Customer')
+    expect(getScopeRequiredMessage()).toBe('alerts.scope_required_systems')
+  })
+
+  it('asks the other roles for a company or a system', () => {
+    signInAs('Reseller')
+    expect(getScopeRequiredMessage()).toBe('alerts.scope_required')
   })
 })

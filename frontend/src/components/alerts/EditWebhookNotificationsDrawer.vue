@@ -22,6 +22,8 @@ import type { Focusable } from '@/lib/common'
 import {
   ALERTS_CONFIG_KEY,
   WebhookNotificationsPayloadSchema,
+  getRecipientValidationIssues,
+  getScopeRequiredMessage,
   getSeverityBadgeKind,
   postAlertsConfig,
   toScopePayload,
@@ -32,6 +34,7 @@ import RecipientScopeSelector from '@/components/alerts/RecipientScopeSelector.v
 import { useNotificationsStore } from '@/stores/notifications'
 import capitalize from 'lodash/capitalize'
 import { useScopeSummary } from '@/composables/useScopeSummary'
+import { getBackendErrorMessage } from '@/lib/validation'
 
 const props = withDefaults(
   defineProps<{
@@ -189,6 +192,9 @@ const {
     }, 500)
     emit('close')
   },
+  onError(error) {
+    showIssues(getRecipientValidationIssues(error))
+  },
   onSettled: () => {
     queryCache.invalidateQueries({ key: [ALERTS_CONFIG_KEY] })
   },
@@ -210,18 +216,24 @@ function validate(): boolean {
     : ((v.flatten(result.issues).nested ?? {}) as Record<string, string[]>)
   endpoints.value.forEach((r, i) => {
     if (r._scopeSpecific && !toScopePayload(r.scope)) {
-      issues[`webhook_recipients.${i}.scope`] = ['alerts.scope_required']
+      issues[`webhook_recipients.${i}.scope`] = [getScopeRequiredMessage()]
     }
   })
-  if (!Object.keys(issues).length) return true
-  validationIssues.value = issues
+  return !showIssues(issues)
+}
+
+// Shows the issues and opens the first endpoint that has one. Returns whether
+// there was anything to show.
+function showIssues(issues: Record<string, string[]>): boolean {
   const firstKey = Object.keys(issues)[0]
+  if (!firstKey) return false
+  validationIssues.value = issues
   const match = firstKey.match(/^webhook_recipients\.(\d+)\./)
   if (match) {
     expandedIndex.value = parseInt(match[1])
     nextTick(() => expandedUrlRef.value?.[0]?.focus())
   }
-  return false
+  return true
 }
 
 function onSave() {
@@ -369,10 +381,10 @@ function closeDrawer() {
 
     <!-- Error -->
     <NeInlineNotification
-      v-if="saveError"
+      v-if="saveError && !Object.keys(validationIssues).length"
       kind="error"
       :title="t('alerts.cannot_save_webhook_notifications')"
-      :description="(saveError as Error)?.message"
+      :description="getBackendErrorMessage(saveError)"
       class="mt-6"
     />
 

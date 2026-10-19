@@ -11,6 +11,7 @@ import { useI18n } from 'vue-i18n'
 import { useOrganizationFilter } from '@/composables/useOrganizationFilter'
 import { useSystemFilter } from '@/composables/useSystemFilter'
 import type { AlertScopeNames, RecipientScope } from '@/lib/alerts'
+import { isUserCustomer } from '@/lib/organizations/organizations'
 
 const props = defineProps<{
   scopeNames?: AlertScopeNames
@@ -23,9 +24,16 @@ const scope = defineModel<RecipientScope | undefined>('scope', { required: true 
 
 const { t } = useI18n()
 
+// A customer manages no other company and picking its own one means every
+// system, so it narrows by system only.
+const canPickOrganizations = !isUserCustomer()
+
 const modeOptions = computed<RadioOption[]>(() => [
   { id: `${props.idPrefix}-all`, label: t('alerts.scope_all_systems') },
-  { id: `${props.idPrefix}-specific`, label: t('alerts.scope_specific') },
+  {
+    id: `${props.idPrefix}-specific`,
+    label: t(canPickOrganizations ? 'alerts.scope_specific' : 'alerts.scope_specific_systems'),
+  },
 ])
 
 const mode = computed({
@@ -39,7 +47,7 @@ const {
   organizations,
   loading: organizationsLoading,
   onSearch: onOrganizationSearch,
-} = useOrganizationFilter(specific)
+} = useOrganizationFilter(() => specific.value && canPickOrganizations)
 const { systems, loading: systemsLoading, onSearch: onSystemSearch } = useSystemFilter('id')
 
 // Labels of the selected ids: seeded from the names the API resolved for the
@@ -108,10 +116,11 @@ const selectedSystems = computed<NeMultiselectComboboxOption[]>({
     <NeRadioSelection v-model="mode" :options="modeOptions" :label="t('alerts.scope')" />
     <template v-if="specific">
       <NeMultiselectCombobox
+        v-if="canPickOrganizations"
         v-model="selectedOrganizations"
         :options="organizationOptions"
         :label="t('alerts.scope_organizations')"
-        :placeholder="t('organizations.choose_organization')"
+        :placeholder="t('organizations.choose_organizations')"
         :helper-text="t('alerts.scope_organizations_helper')"
         :loading-options="organizationsLoading"
         :no-results-label="t('ne_combobox.no_results')"
@@ -126,7 +135,7 @@ const selectedSystems = computed<NeMultiselectComboboxOption[]>({
         v-model="selectedSystems"
         :options="systemOptions"
         :label="t('alerts.scope_systems')"
-        :placeholder="t('alerts.scope_choose_systems')"
+        :placeholder="t('systems.choose_systems')"
         :invalid-message="props.invalidMessage"
         :loading-options="systemsLoading"
         :no-results-label="t('ne_combobox.no_results')"
