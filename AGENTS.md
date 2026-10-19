@@ -26,7 +26,7 @@ After any code change, run the component's pre-commit before committing:
 cd backend && make pre-commit      # fmt + lint + test + validate-docs (redocly)
 cd collect && make pre-commit      # fmt + lint + test
 cd sync && make pre-commit         # fmt + lint + test
-cd frontend && npm run pre-commit  # format + lint + type-check + test + build
+cd frontend && npm run pre-commit  # format + lint + type-check + test (no build, see §3.4)
 cd docs && make pre-commit         # type-check + build (broken links) + audit
 ```
 
@@ -174,7 +174,7 @@ cmd/sync/main.go
 
 ### 3.4 Frontend (`frontend/`)
 
-Vue 3 + TypeScript, Vite, Tailwind, Pinia. Alerting UI present (`src/views/AlertingView.vue`, `src/queries/alerting/`, `src/lib/alerting.ts`). Pre-commit includes build step to catch TS errors and Vite misconfigs.
+Vue 3 + TypeScript, Vite, Tailwind, Pinia. Alerting UI present (`src/views/AlertingView.vue`, `src/queries/alerting/`, `src/lib/alerting.ts`). Pre-commit type-checks with vue-tsc but does not build: run `npm run build` after touching Vite config or Tailwind tokens.
 
 ### 3.5 Mimir (`services/mimir/`)
 
