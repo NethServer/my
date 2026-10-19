@@ -582,7 +582,7 @@ function onCloseSecretRegeneratedModal() {
                 <template #trigger>
                   <FontAwesomeIcon
                     :icon="faArrowsRotate"
-                    class="text-warning size-4"
+                    class="size-4 text-amber-700 dark:text-amber-500"
                     aria-hidden="true"
                   />
                   <span class="sr-only">{{ $t('systems.update_available') }}</span>
