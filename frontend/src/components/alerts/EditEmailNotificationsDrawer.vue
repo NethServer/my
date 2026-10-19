@@ -368,7 +368,8 @@ function closeDrawer() {
               <!-- HTML format toggle -->
               <NeToggle
                 :model-value="recipient.format !== 'plain'"
-                :label="t('alerts.html_formatted_emails')"
+                :top-label="t('alerts.html_formatted_emails')"
+                :label="recipient.format !== 'plain' ? t('common.enabled') : t('common.disabled')"
                 @update:model-value="(v: boolean) => (recipient.format = v ? 'html' : 'plain')"
               />
 
