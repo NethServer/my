@@ -230,6 +230,7 @@
   --color-secondary-neutral: var(--secondary-neutral);
   --color-tertiary-neutral: var(--tertiary-neutral);
   --color-danger: var(--danger);
+  --color-warning: var(--warning);
   --color-placeholder: var(--placeholder);
   --color-border-secondary: var(--border-secondary);
   --color-icon-enabled: var(--icon-enabled);

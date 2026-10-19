@@ -20,6 +20,7 @@ import {
   faCirclePlay,
   faBomb,
   faTriangleExclamation,
+  faArrowsRotate,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -568,8 +569,28 @@ function onCloseSecretRegeneratedModal() {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.version')" class="wrap-anywhere">
-            <div :class="{ 'opacity-50': item.status === 'deleted' }">
+            <div
+              class="flex items-center gap-2"
+              :class="{ 'opacity-50': item.status === 'deleted' }"
+            >
               {{ item.version || '-' }}
+              <NeTooltip
+                v-if="item.update_available"
+                trigger-event="mouseenter focus"
+                placement="top"
+              >
+                <template #trigger>
+                  <FontAwesomeIcon
+                    :icon="faArrowsRotate"
+                    class="text-warning size-4"
+                    aria-hidden="true"
+                  />
+                  <span class="sr-only">{{ $t('systems.update_available') }}</span>
+                </template>
+                <template #content>
+                  {{ $t('systems.update_available') }}
+                </template>
+              </NeTooltip>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.fqdn_ip_address')" class="wrap-anywhere">

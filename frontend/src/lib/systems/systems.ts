@@ -46,6 +46,8 @@ export const SystemSchema = v.object({
   ipv4_address: v.string(),
   ipv6_address: v.string(),
   version: v.string(),
+  // From the latest inventory; null until an inventory reports it
+  update_available: v.nullable(v.boolean()),
   created_at: v.string(),
   updated_at: v.string(),
   registered_at: v.optional(v.string()),
