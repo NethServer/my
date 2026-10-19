@@ -56,14 +56,19 @@ const installationNodeFacts = computed(() => {
   }
   return facts?.nodes?.[String(nodeId)]
 })
+
+// Without a system the inventory query stays disabled and would otherwise sit
+// at 'pending' forever, e.g. when the application detail fails to load
+const isLoading = computed(
+  () =>
+    applicationDetail.value.status === 'pending' ||
+    (!!systemId.value && latestInventory.value.status === 'pending'),
+)
 </script>
 
 <template>
   <NeCard>
-    <NeSkeleton
-      v-if="applicationDetail.status === 'pending' || latestInventory.status === 'pending'"
-      :lines="8"
-    />
+    <NeSkeleton v-if="isLoading" :lines="8" />
     <div v-else-if="applicationDetail.data">
       <div class="mb-4 flex items-center gap-2">
         <FontAwesomeIcon :icon="faMicrochip" class="size-5" aria-hidden="true" />
