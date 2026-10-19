@@ -85,7 +85,7 @@ La pagina **Sistemi** mostra tutti i sistemi visibili con:
 
 - Nome del sistema
 - Tipo (NethServer o NethSecurity)
-- Versione
+- Versione, con un'icona di aggiornamento quando è disponibile un aggiornamento
 - Organizzazione
 - Stato
 - Ultimo heartbeat
@@ -119,7 +119,7 @@ Cliccando su un sistema si accede alle informazioni complete:
   - Nome del sistema
   - Tipo (rilevato automaticamente)
   - Stato
-  - Versione
+  - Versione, con il badge **Aggiornam. disponibile** quando l'ultimo inventario ne segnala uno (NS8: il nodo leader; NethSecurity: aggiornamenti dell'immagine in attesa). Lo stesso flag è il campo `update_available` di `GET /api/systems` e `GET /api/systems/:id`, `null` finché nessun inventario lo riporta
   - Data di registrazione
 
 - **Informazioni di rete**:

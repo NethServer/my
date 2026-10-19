@@ -90,7 +90,7 @@ Navigate to **Systems** to see:
 
 - System name
 - Type (ns8, nsec, etc.)
-- Version
+- Version, with an update icon when an update is available
 - FQDN and IP addresses
 - Organization
 - Created by
@@ -125,7 +125,7 @@ Click on a system to view comprehensive information:
   - System name
   - System type (auto-detected)
   - Status
-  - Version
+  - Version, with an **Update available** badge when the latest inventory reports one (NS8: the leader node; NethSecurity: pending image updates). The same flag is the `update_available` field of `GET /api/systems` and `GET /api/systems/:id`, `null` until an inventory reports it
   - Registration timestamp
 
 - **Network Information**:
