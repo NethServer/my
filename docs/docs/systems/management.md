@@ -51,14 +51,14 @@ The 20-minute window comes from `HEARTBEAT_TIMEOUT_MINUTES`, and a cron re-evalu
 2. Click **Create system**
 3. Fill in the form:
    - **Name**: Descriptive name for the system (e.g., "Production Server Milan")
-   - **Organization**: Select the customer organization
+   - **Assigned company**: Select the organization the system belongs to. Customers do not see this field: their systems are always assigned to their own organization
    - **Notes** (optional): Additional information
 4. Click **Create system**
 
 **Example:**
 ```
 Name: Production Web Server Milano
-Organization: Pizza Express Milano (Customer)
+Assigned company: Pizza Express Milano (Customer)
 Notes: Main production server for Milan locations
 ```
 

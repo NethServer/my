@@ -186,7 +186,9 @@ Mimir Alertmanager fans out one receiver per severity, named per tenant (`<org_i
 By default a recipient receives the alerts of every system your layer reaches: your own organization and everything below it. In the recipient's settings, **Alerts from** narrows that down:
 
 - **All systems** — the default, no scope.
-- **Only specific organizations or systems** — pick one or more organizations and/or systems. An organization includes its whole sub-tree: choosing a reseller covers the reseller's own systems and those of all its customers.
+- **Only specific companies or systems** — pick one or more organizations in **Companies** and/or systems in **Systems**. An organization includes its whole sub-tree: choosing a reseller covers the reseller's own systems and those of all its customers.
+
+Customers manage no other organization, so they see **Only specific systems** and choose systems only.
 
 An alert reaches the recipient when its system is one of the chosen systems **or** belongs to one of the chosen organizations. The scope combines with the severities: a recipient scoped to one customer with `["critical"]` gets only that customer's critical alerts.
 

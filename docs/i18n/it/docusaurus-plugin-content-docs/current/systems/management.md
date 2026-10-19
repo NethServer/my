@@ -46,14 +46,14 @@ La finestra di 20 minuti arriva da `HEARTBEAT_TIMEOUT_MINUTES`, e un cron rivalu
 2. Clicca su **Crea sistema**
 3. Compila il modulo:
    - **Nome**: nome descrittivo del sistema (es. "Server di produzione Milano")
-   - **Organizzazione**: seleziona l'organizzazione cliente
+   - **Azienda assegnataria**: seleziona l'organizzazione a cui appartiene il sistema. I clienti non vedono questo campo: i loro sistemi sono sempre assegnati alla loro organizzazione
    - **Note** (facoltative): informazioni aggiuntive
 4. Clicca su **Crea sistema**
 
 **Esempio:**
 ```
 Nome: Server Web Produzione Milano
-Organizzazione: Pizza Express Milano (Cliente)
+Azienda assegnataria: Pizza Express Milano (Cliente)
 Note: Server di produzione principale per le sedi di Milano
 ```
 
