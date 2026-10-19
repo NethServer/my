@@ -4,7 +4,13 @@
 -->
 
 <script setup lang="ts">
-import { NeBadgeV2, NeCard, NeHeading, NeSkeleton } from '@nethesis/vue-components'
+import {
+  NeBadgeV2,
+  NeCard,
+  NeHeading,
+  NeInlineNotification,
+  NeSkeleton,
+} from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faMicrochip } from '@fortawesome/free-solid-svg-icons'
 import { useQuery } from '@pinia/colada'
@@ -76,6 +82,14 @@ const isLoading = computed(
           {{ $t('application_detail.installation_node').toUpperCase() }}
         </NeHeading>
       </div>
+      <!-- get latest inventory error notification -->
+      <NeInlineNotification
+        v-if="latestInventory.status === 'error'"
+        kind="error"
+        :title="$t('system_detail.cannot_retrieve_latest_inventory')"
+        :description="latestInventory.error.message"
+        class="mb-4"
+      />
       <div class="divide-y divide-gray-200 dark:divide-gray-700">
         <!-- node -->
         <DataItem>
