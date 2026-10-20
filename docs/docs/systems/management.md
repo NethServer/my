@@ -51,14 +51,14 @@ The 20-minute window comes from `HEARTBEAT_TIMEOUT_MINUTES`, and a cron re-evalu
 2. Click **Create system**
 3. Fill in the form:
    - **Name**: Descriptive name for the system (e.g., "Production Server Milan")
-   - **Organization**: Select the customer organization
+   - **Assigned company**: Select the organization the system belongs to. Customers do not see this field: their systems are always assigned to their own organization
    - **Notes** (optional): Additional information
 4. Click **Create system**
 
 **Example:**
 ```
 Name: Production Web Server Milano
-Organization: Pizza Express Milano (Customer)
+Assigned company: Pizza Express Milano (Customer)
 Notes: Main production server for Milan locations
 ```
 
@@ -90,7 +90,7 @@ Navigate to **Systems** to see:
 
 - System name
 - Type (ns8, nsec, etc.)
-- Version
+- Version, with an update icon when an update is available
 - FQDN and IP addresses
 - Organization
 - Created by
@@ -125,7 +125,7 @@ Click on a system to view comprehensive information:
   - System name
   - System type (auto-detected)
   - Status
-  - Version
+  - Version, with an **Update available** badge when the latest inventory reports one (NS8: the leader node; NethSecurity: pending image updates). The same flag is the `update_available` field of `GET /api/systems` and `GET /api/systems/:id`, `null` until an inventory reports it
   - Registration timestamp
 
 - **Network Information**:

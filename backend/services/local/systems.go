@@ -566,6 +566,11 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 				Str("to_org_id", system.Organization.LogtoID).
 				Msg("failed to record cross-org transfer audit row")
 		}
+
+		// Recipient scopes naming this system are rendered into the tenant
+		// that holds it: refresh both the donor and the receiving tenant.
+		alerting.ProvisionDefaultConfigAsync(previousOrgID, "system", systemID)
+		alerting.ProvisionDefaultConfigAsync(system.Organization.LogtoID, "system", systemID)
 	}
 
 	logger.Info().
@@ -612,6 +617,8 @@ func (s *LocalSystemsService) DeleteSystem(systemID, userID, userOrgID, userOrgR
 	cache.GetRBACCache().InvalidateAll()
 	// Their applications leave the cached totals too (reads filter on live systems)
 	cache.GetAppsCache().InvalidateAll()
+	// Drop the system from any recipient scope route of its tenant
+	alerting.ProvisionDefaultConfigAsync(system.Organization.LogtoID, "system", systemID)
 
 	logger.Info().
 		Str("system_id", systemID).
@@ -731,6 +738,8 @@ func (s *LocalSystemsService) RestoreSystem(systemID, userID, userOrgID, userOrg
 	// The restored system must re-enter the cached allowed-system lists
 	cache.GetRBACCache().InvalidateAll()
 	cache.GetAppsCache().InvalidateAll()
+	// Recipient scopes naming the system must route its alerts again
+	alerting.ProvisionDefaultConfigAsync(system.Organization.LogtoID, "system", systemID)
 
 	logger.Info().
 		Str("system_id", systemID).

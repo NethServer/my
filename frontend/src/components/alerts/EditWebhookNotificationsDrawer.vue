@@ -7,12 +7,14 @@
 import {
   NeBadgeV2,
   NeButton,
+  NeCheckboxCards,
   NeInlineNotification,
   NeSideDrawer,
   NeTextInput,
   NeToggle,
 } from '@nethesis/vue-components'
-import { faTrash, faPlus, faChevronDown, faCircleCheck } from '@fortawesome/free-solid-svg-icons'
+import type { NeCheckboxCardsOption } from '@nethesis/vue-components'
+import { faTrash, faPlus, faChevronDown } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useMutation, useQueryCache } from '@pinia/colada'
@@ -22,13 +24,19 @@ import type { Focusable } from '@/lib/common'
 import {
   ALERTS_CONFIG_KEY,
   WebhookNotificationsPayloadSchema,
+  getRecipientValidationIssues,
+  getScopeRequiredMessage,
   getSeverityBadgeKind,
   postAlertsConfig,
+  toScopePayload,
   type AlertingConfigLayer,
   type WebhookRecipient,
 } from '@/lib/alerts'
+import RecipientScopeSelector from '@/components/alerts/RecipientScopeSelector.vue'
 import { useNotificationsStore } from '@/stores/notifications'
 import capitalize from 'lodash/capitalize'
+import { useScopeSummary } from '@/composables/useScopeSummary'
+import { getBackendErrorMessage } from '@/lib/validation'
 
 const props = withDefaults(
   defineProps<{
@@ -48,16 +56,22 @@ const emit = defineEmits(['close'])
 const { t } = useI18n()
 const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
+const scopeSummary = useScopeSummary()
 
 // ── Form state ────────────────────────────────────────────────────────────────
 
 const webhookEnabled = ref(false)
-const endpoints = ref<(WebhookRecipient & { _expanded: boolean })[]>([])
+const endpoints = ref<(WebhookRecipient & { _expanded: boolean; _scopeSpecific: boolean })[]>([])
 const expandedIndex = ref<number | null>(null)
 const expandedUrlRef = useTemplateRef<Focusable[]>('expandedUrlRef')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const SEVERITIES = ['critical', 'warning', 'info'] as const
+
+const severityOptions: NeCheckboxCardsOption[] = SEVERITIES.map((severity) => ({
+  id: severity,
+  label: capitalize(severity),
+}))
 
 function initForm() {
   expandedIndex.value = null
@@ -72,8 +86,11 @@ function initForm() {
   webhookEnabled.value = props.config.enabled?.webhook ?? false
   endpoints.value = (props.config.webhook_recipients ?? []).map((r) => ({
     ...r,
-    severities: r.severities ? [...r.severities] : [],
+    // an empty list is the API's "all severities"
+    severities: r.severities?.length ? [...r.severities] : [...SEVERITIES],
+    scope: r.scope ? { ...r.scope } : undefined,
     _expanded: false,
+    _scopeSpecific: !!toScopePayload(r.scope),
   }))
 }
 
@@ -100,19 +117,9 @@ function toggleExpand(index: number) {
   expandedIndex.value = expandedIndex.value === index ? null : index
 }
 
-// ── Severity toggle ───────────────────────────────────────────────────────────
+// ── Severity ──────────────────────────────────────────────────────────────────
 
-function toggleSeverity(endpoint: WebhookRecipient & { _expanded: boolean }, severity: string) {
-  if (!endpoint.severities) endpoint.severities = []
-  const idx = endpoint.severities.indexOf(severity)
-  if (idx === -1) {
-    endpoint.severities.push(severity)
-  } else {
-    endpoint.severities.splice(idx, 1)
-  }
-}
-
-function hasSeverity(endpoint: WebhookRecipient & { _expanded: boolean }, severity: string) {
+function hasSeverity(endpoint: WebhookRecipient, severity: string) {
   return endpoint.severities?.includes(severity) ?? false
 }
 
@@ -124,6 +131,7 @@ function addEndpoint(shouldFocus = true) {
     url: '',
     severities: [...SEVERITIES],
     _expanded: true,
+    _scopeSpecific: false,
   })
   expandedIndex.value = endpoints.value.length - 1
   if (shouldFocus) {
@@ -166,6 +174,7 @@ const {
         name: recipientName(r.url),
         url: r.url,
         severities: r.severities?.length ? r.severities : undefined,
+        scope: r._scopeSpecific ? toScopePayload(r.scope) : undefined,
       })),
       telegram_recipients: props.config?.telegram_recipients ?? [],
     }
@@ -181,6 +190,9 @@ const {
     }, 500)
     emit('close')
   },
+  onError(error) {
+    showIssues(getRecipientValidationIssues(error))
+  },
   onSettled: () => {
     queryCache.invalidateQueries({ key: [ALERTS_CONFIG_KEY] })
   },
@@ -193,21 +205,36 @@ function validate(): boolean {
       name: recipientName(r.url),
       url: r.url,
       severities: r.severities?.length ? r.severities : undefined,
+      scope: r._scopeSpecific ? toScopePayload(r.scope) : undefined,
     })),
   }
   const result = v.safeParse(WebhookNotificationsPayloadSchema, payload)
-  if (result.success) return true
-  const issues = v.flatten(result.issues)
-  if (issues.nested) {
-    validationIssues.value = issues.nested as Record<string, string[]>
-    const firstKey = Object.keys(issues.nested)[0]
-    const match = firstKey.match(/^webhook_recipients\.(\d+)\./)
-    if (match) {
-      expandedIndex.value = parseInt(match[1])
-      nextTick(() => expandedUrlRef.value?.[0]?.focus())
+  const issues: Record<string, string[]> = result.success
+    ? {}
+    : ((v.flatten(result.issues).nested ?? {}) as Record<string, string[]>)
+  endpoints.value.forEach((r, i) => {
+    if (r._scopeSpecific && !toScopePayload(r.scope)) {
+      issues[`webhook_recipients.${i}.scope`] = [getScopeRequiredMessage()]
     }
+    if (!r.severities?.length) {
+      issues[`webhook_recipients.${i}.severities`] = ['alerts.severities_required']
+    }
+  })
+  return !showIssues(issues)
+}
+
+// Shows the issues and opens the first endpoint that has one. Returns whether
+// there was anything to show.
+function showIssues(issues: Record<string, string[]>): boolean {
+  const firstKey = Object.keys(issues)[0]
+  if (!firstKey) return false
+  validationIssues.value = issues
+  const match = firstKey.match(/^webhook_recipients\.(\d+)\./)
+  if (match) {
+    expandedIndex.value = parseInt(match[1])
+    nextTick(() => expandedUrlRef.value?.[0]?.focus())
   }
-  return false
+  return true
 }
 
 function onSave() {
@@ -261,6 +288,12 @@ function closeDrawer() {
                   {{ capitalize(sev) }}
                 </NeBadgeV2>
               </div>
+              <p
+                v-if="expandedIndex !== index && ep._scopeSpecific"
+                class="mt-2 text-xs text-gray-600 dark:text-gray-300"
+              >
+                {{ scopeSummary(ep.scope) }}
+              </p>
             </div>
             <FontAwesomeIcon
               :icon="faChevronDown"
@@ -288,32 +321,29 @@ function closeDrawer() {
               />
 
               <!-- Severity multi-select -->
-              <div class="space-y-2">
-                <p class="font-medium text-gray-700 dark:text-gray-200">
-                  {{ t('alerts.severity') }}
-                </p>
-                <div class="flex gap-2">
-                  <button
-                    v-for="sev in SEVERITIES"
-                    :key="sev"
-                    :class="[
-                      'bg-elevation-1 flex items-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors',
-                      hasSeverity(ep, sev)
-                        ? 'border-primary-700 bg-primary-50 text-primary-800 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-300'
-                        : 'text-secondary-neutral border-gray-300 hover:border-gray-400 dark:border-gray-600 dark:hover:border-gray-500',
-                    ]"
-                    type="button"
-                    @click="toggleSeverity(ep, sev)"
-                  >
-                    <FontAwesomeIcon
-                      v-if="hasSeverity(ep, sev)"
-                      :icon="faCircleCheck"
-                      class="text-primary-700 dark:text-primary-400 size-3.5"
-                    />
-                    {{ capitalize(sev) }}
-                  </button>
-                </div>
-              </div>
+              <NeCheckboxCards
+                v-model="ep.severities"
+                :options="severityOptions"
+                :label="t('alerts.severity')"
+                :invalid-message="
+                  validationIssues[`webhook_recipients.${index}.severities`]?.[0]
+                    ? $t(validationIssues[`webhook_recipients.${index}.severities`][0])
+                    : ''
+                "
+                grid-style="grid-cols-1 lg:grid-cols-3 gap-3"
+              />
+
+              <!-- Organizations / systems scope -->
+              <RecipientScopeSelector
+                v-model:specific="ep._scopeSpecific"
+                v-model:scope="ep.scope"
+                :scope-names="props.config?.scope_names"
+                :invalid-message="
+                  validationIssues[`webhook_recipients.${index}.scope`]?.[0]
+                    ? $t(validationIssues[`webhook_recipients.${index}.scope`][0])
+                    : ''
+                "
+              />
 
               <!-- Remove button -->
               <NeButton kind="tertiary" class="-ml-2.5" @click="removeEndpoint(index)">
@@ -336,10 +366,10 @@ function closeDrawer() {
 
     <!-- Error -->
     <NeInlineNotification
-      v-if="saveError"
+      v-if="saveError && !Object.keys(validationIssues).length"
       kind="error"
       :title="t('alerts.cannot_save_webhook_notifications')"
-      :description="(saveError as Error)?.message"
+      :description="getBackendErrorMessage(saveError)"
       class="mt-6"
     />
 

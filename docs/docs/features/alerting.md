@@ -19,6 +19,7 @@ From the Alerting page you can:
 - View active alerts and narrow them by severity, alert type, system, company, mute status or assignee
 - Configure email, webhook, and Telegram notifications for your own organization
 - Tag each recipient with the severities it should receive (`critical`, `warning`, `info`, or all of them)
+- Limit a recipient to the alerts of specific organizations or systems
 - Choose per-recipient language and body format for email notifications
 - Review alert history for each system
 
@@ -150,6 +151,7 @@ Each channel is tri-state:
 | `severities` | string[] | Subset of `["critical","warning","info"]`. Empty array means "all severities" |
 | `language` | string | `en` or `it`. Controls subject + body language of the rendered template |
 | `format` | string | `html` (default, multipart with HTML primary + text fallback) or `plain` (text-only body) |
+| `scope` | object | Optional. Limits the recipient to some organizations and/or systems, see [Recipient scope](#recipient-scope). Omitted means every system |
 
 #### Webhook recipients (`webhook_recipients`)
 
@@ -158,6 +160,7 @@ Each channel is tri-state:
 | `name` | string | Descriptive label for the webhook target (shown in the UI) |
 | `url` | string | HTTPS/HTTP endpoint. Validated server-side: loopback, RFC1918, RFC6598 CGNAT, link-local, multicast, and cloud-metadata destinations are rejected |
 | `severities` | string[] | Same semantics as email |
+| `scope` | object | Same semantics as email |
 
 #### Telegram recipients (`telegram_recipients`)
 
@@ -167,6 +170,7 @@ Each channel is tri-state:
 | `chat_id` | integer | Numeric chat id (positive for users, negative for groups/channels) |
 | `message_thread_id` | integer | Optional. Topic of a forum-enabled supergroup to post into; the topic id is the number at the end of the topic link (`t.me/c/<chat>/<topic_id>`). Omit it to post in the General topic |
 | `severities` | string[] | Same semantics as email |
+| `scope` | object | Same semantics as email |
 
 ### Severity scoping
 
@@ -177,6 +181,38 @@ The `severities` array on each recipient controls which severities it receives:
 
 Mimir Alertmanager fans out one receiver per severity, named per tenant (`<org_id>-severity-critical-receiver`, `-warning-`, `-info-`); a recipient with `severities=[]` lands on all three.
 
+### Recipient scope
+
+By default a recipient receives the alerts of every system your layer reaches: your own organization and everything below it. In the recipient's settings, **Alerts from** narrows that down:
+
+- **All systems** — the default, no scope.
+- **Only specific companies or systems** — pick one or more organizations in **Companies** and/or systems in **Systems**. An organization includes its whole sub-tree: choosing a reseller covers the reseller's own systems and those of all its customers.
+
+Customers manage no other organization, so they see **Only specific systems** and choose systems only.
+
+An alert reaches the recipient when its system is one of the chosen systems **or** belongs to one of the chosen organizations. The scope combines with the severities: a recipient scoped to one customer with `["critical"]` gets only that customer's critical alerts.
+
+```json
+"scope": {
+  "organization_ids": ["<customer logto id>"],
+  "system_ids": ["<system id>", "<system id>"]
+}
+```
+
+Both lists are optional, but a scope must name at least one organization or system (at most 100 organizations and 500 systems). An empty or missing scope means every system.
+
+Typical use: a distributor or the Owner follows one customer of a large reseller, or a handful of critical systems, on a dedicated address, without receiving everything else.
+
+**What you can choose.** Only organizations and systems inside your own hierarchy. Saving a scope that names anything else fails with `out_of_scope` on that recipient's `scope` field.
+
+**When things move.** The scope stores ids, and routing follows the systems wherever they are:
+
+- A system moved to another organization **inside** your hierarchy keeps reaching the recipient.
+- A system moved **outside** your hierarchy, or deleted, stops reaching it. The id stays in the scope, shown as *no longer available*; saving the layer again keeps it, and you can remove it whenever you like. If the system comes back under you (moved back or restored), its alerts reach the recipient again.
+- The same applies to organizations, including a reseller promoted to distributor: once it is no longer below you, a scope on it stops matching.
+
+The same address can appear both with and without a scope (or with different scopes): an alert that matches several copies is still delivered once.
+
 ### Merge across the hierarchy
 
 When the server renders the effective configuration for a tenant, it walks the chain from Owner down to that tenant and unions the layers using these rules:
@@ -184,6 +220,7 @@ When the server renders the effective configuration for a tenant, it walks the c
 - **Channel toggles** — logical OR: if any layer in the chain enables a channel, the channel is on for the tenant.
 - **Recipients** — union with stable dedup. Dedup keys are `address` for email, `url` for webhook, `(bot_token, chat_id, message_thread_id)` for Telegram. The first occurrence (closer to Owner) wins for `language` and `format` collisions.
 - **Per-recipient severities** — union; if any contributing copy has `severities=[]` (all), the merged copy widens back to `[]` (the broader scope always wins).
+- **Recipient scopes** — a scoped copy of a recipient is never merged into an unscoped one (that would widen it to every system); copies with the same scope merge as above.
 
 ### Example: customer-level layer that adds notifications
 

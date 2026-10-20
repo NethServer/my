@@ -8,12 +8,14 @@ import {
   NeButton,
   NeCombobox,
   NeInlineNotification,
+  NeRadioSelection,
   NeSideDrawer,
   NeTextArea,
   NeTextInput,
   NeToggle,
   focusElement,
   type NeComboboxOption,
+  type RadioOption,
 } from '@nethesis/vue-components'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import type { AxiosError } from 'axios'
@@ -22,6 +24,7 @@ import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   ADDON_APPLICATION_IDS,
+  ADDON_PRODUCTS,
   ADDONS_KEY,
   CreateAddonFormSchema,
   EditAddonFormSchema,
@@ -39,9 +42,9 @@ import {
   type EditAddon,
 } from '@/lib/addons/addons'
 import { getApplicationLogo } from '@/lib/applications/applications'
+import { getProductLogo, getProductName } from '@/lib/systems/systems'
 import { getBackendErrorMessage, getValidationIssues } from '@/lib/validation'
 import { useNotificationsStore } from '@/stores/notifications'
-import ProductTypeSelector from './ProductTypeSelector.vue'
 
 const { isShown = false, currentAddon = undefined } = defineProps<{
   isShown: boolean
@@ -115,6 +118,12 @@ const {
 })
 
 const product = ref<AddonProduct | ''>('')
+
+const productOptions: RadioOption[] = ADDON_PRODUCTS.map((product) => ({
+  id: product,
+  label: getProductName(product),
+  image: getProductLogo(product),
+}))
 const application = ref('')
 const applicationRef = useTemplateRef<HTMLInputElement>('applicationRef')
 const technicalName = ref('')
@@ -312,8 +321,11 @@ async function saveAddon() {
     <form @submit.prevent>
       <div class="space-y-6">
         <!-- product type -->
-        <ProductTypeSelector
+        <NeRadioSelection
           v-model="product"
+          :options="productOptions"
+          card
+          grid-style="grid-cols-1 gap-4 lg:grid-cols-2"
           :label="$t('addons.product_type')"
           :disabled="saving || isEditing"
           :invalid-message="validationIssues.product?.[0] ? $t(validationIssues.product[0]) : ''"

@@ -1,8 +1,9 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import axios from 'axios'
+import axios, { type AxiosError } from 'axios'
 import { API_URL } from './config'
+import { isValidationError, type BackendError } from './validation'
 import { useLoginStore } from '@/stores/login'
 import { OPTIONS_PAGE_SIZE, type Pagination } from './common'
 import { localizeIsoTimestamps } from './dateTime'
@@ -39,17 +40,26 @@ export interface ChannelToggles {
   telegram?: boolean | null
 }
 
+// Narrows a recipient to the alerts of some organizations (with their
+// sub-trees) and/or some systems. Omitted means every system.
+export interface RecipientScope {
+  organization_ids?: string[]
+  system_ids?: string[]
+}
+
 export interface EmailRecipient {
   address: string
   severities?: string[]
   language?: 'en' | 'it'
   format?: 'html' | 'plain'
+  scope?: RecipientScope
 }
 
 export interface WebhookRecipient {
   name: string
   url: string
   severities?: string[]
+  scope?: RecipientScope
 }
 
 export interface TelegramRecipient {
@@ -57,6 +67,14 @@ export interface TelegramRecipient {
   chat_id: number
   message_thread_id?: number
   severities?: string[]
+  scope?: RecipientScope
+}
+
+// Display names of the ids referenced by recipient scopes, returned by
+// GET /alerts/config only.
+export interface AlertScopeNames {
+  organizations: Record<string, { name: string; type: string }>
+  systems: Record<string, { name: string; organization_name: string }>
 }
 
 export interface AlertingConfigLayer {
@@ -64,6 +82,70 @@ export interface AlertingConfigLayer {
   email_recipients: EmailRecipient[]
   webhook_recipients: WebhookRecipient[]
   telegram_recipients: TelegramRecipient[]
+  scope_names?: AlertScopeNames
+}
+
+// Payload form of a scope: undefined when it narrows nothing.
+export const toScopePayload = (scope?: RecipientScope): RecipientScope | undefined => {
+  const organizationIds = scope?.organization_ids ?? []
+  const systemIds = scope?.system_ids ?? []
+  if (!organizationIds.length && !systemIds.length) {
+    return undefined
+  }
+  return {
+    organization_ids: organizationIds.length ? organizationIds : undefined,
+    system_ids: systemIds.length ? systemIds : undefined,
+  }
+}
+
+// Message for a "specific" scope left empty: a customer narrows by system only
+// (see RecipientScopeSelector). isUserCustomer is not reused because importing
+// the organizations module from here closes an import cycle.
+export const getScopeRequiredMessage = (): string =>
+  useLoginStore().userInfo?.org_role?.toLowerCase() === 'customer'
+    ? 'alerts.scope_required_systems'
+    : 'alerts.scope_required'
+
+// i18n keys for the codes the backend returns on a recipient field
+// (`<channel>_recipients.<i>.<field>[.<sub-field>]`). Only the fields with an
+// inline message in the drawers are listed; `default` covers the codes that
+// have no dedicated message.
+const RECIPIENT_FIELD_ERRORS: Record<string, Record<string, string>> = {
+  address: {
+    required: 'alerts.email_address_required',
+    default: 'alerts.email_address_invalid_format',
+  },
+  url: {
+    required: 'alerts.webhook_url_required',
+    host_not_allowed: 'alerts.webhook_url_host_not_allowed',
+    credentials_not_allowed: 'alerts.webhook_url_credentials_not_allowed',
+    default: 'alerts.webhook_url_invalid',
+  },
+  bot_token: { default: 'alerts.telegram_bot_token_required' },
+  chat_id: { default: 'alerts.telegram_chat_id_invalid' },
+  message_thread_id: { default: 'alerts.telegram_topic_id_invalid' },
+  scope: { max: 'alerts.scope_too_many', default: 'alerts.scope_not_allowed' },
+}
+
+const RECIPIENT_FIELD_KEY = /^((?:email|webhook|telegram)_recipients\.\d+\.([a-z_]+))(?:\.|$)/
+
+// Field issues, keyed like the drawers' client-side validation, from a failed
+// POST /alerts/config. Errors on fields without an inline message are left
+// out: the caller shows those through the save error notification.
+export const getRecipientValidationIssues = (error: Error | null): Record<string, string[]> => {
+  if (!isValidationError(error)) {
+    return {}
+  }
+  const backendError = (error as AxiosError<BackendError>).response?.data
+  const issues: Record<string, string[]> = {}
+  for (const { key, message } of backendError?.data?.errors ?? []) {
+    const match = key.match(RECIPIENT_FIELD_KEY)
+    const messages = match ? RECIPIENT_FIELD_ERRORS[match[2]] : undefined
+    if (match && messages) {
+      issues[match[1]] = [messages[message] ?? messages.default]
+    }
+  }
+  return issues
 }
 
 export interface AlertsResponse {
@@ -82,6 +164,13 @@ export type AlertStatusEnum = 'active' | 'suppressed'
 
 const SeveritySchema = v.picklist(['critical', 'warning', 'info'])
 
+const RecipientScopeSchema = v.object({
+  organization_ids: v.optional(
+    v.pipe(v.array(v.string()), v.maxLength(100, 'alerts.scope_too_many')),
+  ),
+  system_ids: v.optional(v.pipe(v.array(v.string()), v.maxLength(500, 'alerts.scope_too_many'))),
+})
+
 export const EmailRecipientPayloadSchema = v.object({
   address: v.pipe(
     v.string(),
@@ -92,6 +181,7 @@ export const EmailRecipientPayloadSchema = v.object({
   severities: v.optional(v.array(SeveritySchema)),
   language: v.optional(v.picklist(['en', 'it'])),
   format: v.optional(v.picklist(['html', 'plain'])),
+  scope: v.optional(RecipientScopeSchema),
 })
 
 export const WebhookRecipientPayloadSchema = v.object({
@@ -103,6 +193,7 @@ export const WebhookRecipientPayloadSchema = v.object({
   ),
   name: v.optional(v.string()),
   severities: v.optional(v.array(SeveritySchema)),
+  scope: v.optional(RecipientScopeSchema),
 })
 
 export const TelegramRecipientPayloadSchema = v.object({
@@ -123,6 +214,7 @@ export const TelegramRecipientPayloadSchema = v.object({
     ),
   ),
   severities: v.optional(v.array(SeveritySchema)),
+  scope: v.optional(RecipientScopeSchema),
 })
 
 export const EmailNotificationsPayloadSchema = v.object({

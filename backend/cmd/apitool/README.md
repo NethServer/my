@@ -73,7 +73,7 @@ apitool refresh-roles                               # backfill user_roles in the
 
 apitool authz provision                             # authorization suite: create the fixture
 apitool authz personas                              # tokens vs config.yml (drift check)
-apitool authz run [--layer=gate|scope|apps|special] [--filter=] [--personas=]
+apitool authz run [--layer=gate|scope|apps|special|lifecycle] [--filter=] [--personas=]
 apitool authz coverage                              # every route has a declared intent?
 apitool authz teardown --yes
 ```

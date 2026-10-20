@@ -19,6 +19,7 @@ Dalla pagina Alerting puoi:
 - Visualizzare gli allarmi attivi e restringerli per gravità, tipo di allarme, sistema, azienda, stato di silenziamento o assegnatario
 - Configurare notifiche email, webhook e Telegram per la tua organizzazione
 - Marcare ogni destinatario con le severità da ricevere (`critical`, `warning`, `info`, oppure tutte)
+- Limitare un destinatario agli allarmi di organizzazioni o sistemi specifici
 - Scegliere lingua e formato del corpo email per ogni destinatario
 - Consultare lo storico degli allarmi di ciascun sistema
 
@@ -150,6 +151,7 @@ Ogni canale è tri-stato:
 | `severities` | string[] | Sottoinsieme di `["critical","warning","info"]`. Array vuoto = "tutte le severità" |
 | `language` | string | `en` o `it`. Determina lingua del subject e del body del template renderizzato |
 | `format` | string | `html` (default, multipart HTML primario + text fallback) o `plain` (body solo testo) |
+| `scope` | object | Opzionale. Limita il destinatario ad alcune organizzazioni e/o sistemi, vedi [Destinatari limitati a organizzazioni e sistemi](#destinatari-limitati-a-organizzazioni-e-sistemi). Se omesso, tutti i sistemi |
 
 #### Destinatari webhook (`webhook_recipients`)
 
@@ -158,6 +160,7 @@ Ogni canale è tri-stato:
 | `name` | string | Etichetta descrittiva del target (mostrata nella UI) |
 | `url` | string | Endpoint HTTPS/HTTP. Validato lato server: loopback, RFC1918, RFC6598 CGNAT, link-local, multicast e metadata cloud sono rifiutati |
 | `severities` | string[] | Stessa semantica delle email |
+| `scope` | object | Stessa semantica delle email |
 
 #### Destinatari Telegram (`telegram_recipients`)
 
@@ -167,6 +170,7 @@ Ogni canale è tri-stato:
 | `chat_id` | integer | Id numerico della chat (positivo per utenti, negativo per gruppi/canali) |
 | `message_thread_id` | integer | Opzionale. Topic di un supergruppo con i topic abilitati in cui pubblicare; l'id del topic è il numero in fondo al link del topic (`t.me/c/<chat>/<topic_id>`). Se omesso, il bot scrive nel topic General |
 | `severities` | string[] | Stessa semantica delle email |
+| `scope` | object | Stessa semantica delle email |
 
 ### Scope per severità
 
@@ -177,6 +181,38 @@ L'array `severities` di ciascun destinatario controlla quali severità riceve:
 
 Mimir Alertmanager espande un receiver per severità, con un nome per tenant (`<org_id>-severity-critical-receiver`, `-warning-`, `-info-`); un destinatario con `severities=[]` finisce in tutti e tre.
 
+### Destinatari limitati a organizzazioni e sistemi
+
+Di default un destinatario riceve gli allarmi di tutti i sistemi raggiunti dal tuo layer: la tua organizzazione e tutto ciò che sta sotto. Nelle impostazioni del destinatario, **Allarmi di** restringe questo insieme:
+
+- **Tutti i sistemi** — il default, nessuno scope.
+- **Solo aziende o sistemi specifici** — scegli una o più organizzazioni in **Aziende** e/o sistemi in **Sistemi**. Un'organizzazione include tutto il suo sotto-albero: scegliendo un rivenditore si coprono i suoi sistemi e quelli di tutti i suoi clienti.
+
+I clienti non gestiscono altre organizzazioni, quindi vedono **Solo sistemi specifici** e scelgono solo sistemi.
+
+Un allarme arriva al destinatario se il suo sistema è tra quelli scelti **oppure** appartiene a una delle organizzazioni scelte. Lo scope si combina con le severità: un destinatario limitato a un cliente con `["critical"]` riceve solo gli allarmi critici di quel cliente.
+
+```json
+"scope": {
+  "organization_ids": ["<logto id del cliente>"],
+  "system_ids": ["<id sistema>", "<id sistema>"]
+}
+```
+
+Entrambe le liste sono opzionali, ma uno scope deve indicare almeno un'organizzazione o un sistema (al massimo 100 organizzazioni e 500 sistemi). Uno scope vuoto o assente significa tutti i sistemi.
+
+Uso tipico: un distributore o l'Owner segue su un indirizzo dedicato un singolo cliente di un rivenditore grande, o pochi sistemi critici, senza ricevere tutto il resto.
+
+**Cosa puoi scegliere.** Solo organizzazioni e sistemi della tua gerarchia. Salvare uno scope che indica altro fallisce con `out_of_scope` sul campo `scope` di quel destinatario.
+
+**Quando le cose si spostano.** Lo scope memorizza degli id, e l'instradamento segue i sistemi ovunque si trovino:
+
+- Un sistema spostato in un'altra organizzazione **dentro** la tua gerarchia continua ad arrivare al destinatario.
+- Un sistema spostato **fuori** dalla tua gerarchia, o cancellato, smette di arrivare. L'id resta nello scope e compare come *non più disponibile*; salvando di nuovo il layer viene mantenuto, e puoi rimuoverlo quando vuoi. Se il sistema torna sotto di te (spostato indietro o ripristinato), i suoi allarmi tornano ad arrivare.
+- Lo stesso vale per le organizzazioni, compreso un rivenditore promosso a distributore: quando non è più sotto di te, lo scope su di lui smette di valere.
+
+Lo stesso indirizzo può comparire sia con sia senza scope (o con scope diversi): un allarme che corrisponde a più copie viene comunque consegnato una volta sola.
+
 ### Merge nella gerarchia
 
 Quando il server renderizza la configurazione effettiva per un tenant, percorre la catena da Owner fino al tenant e unisce i layer con queste regole:
@@ -184,6 +220,7 @@ Quando il server renderizza la configurazione effettiva per un tenant, percorre 
 - **Toggle dei canali** — OR logico: se un qualunque layer della catena abilita un canale, il canale è on per il tenant.
 - **Destinatari** — union con dedup stabile. Chiavi di dedup: `address` per email, `url` per webhook, `(bot_token, chat_id, message_thread_id)` per Telegram. In caso di collisione di `language` o `format`, vince la prima occorrenza (più vicina all'Owner).
 - **`severities` per destinatario** — union; se una qualunque copia che contribuisce ha `severities=[]` (tutte), la copia mergiata si allarga a `[]` (lo scope più largo vince sempre).
+- **`scope` per destinatario** — una copia limitata non viene mai unita a una senza scope (la allargherebbe a tutti i sistemi); copie con lo stesso scope si uniscono come sopra.
 
 ### Esempio: layer di livello customer che aggiunge notifiche
 

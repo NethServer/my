@@ -21,7 +21,7 @@ import { exportSystem, getProductName } from '@/lib/systems/systems'
 import SystemLogo from './SystemLogo.vue'
 import DataItem from '../common/DataItem.vue'
 import ClickToCopy from '../common/ClickToCopy.vue'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import NotesModal from '../common/NotesModal.vue'
 import { canManageSystems, canDestroySystems } from '@/lib/permissions'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -44,41 +44,12 @@ import ReactivateSystemModal from './ReactivateSystemModal.vue'
 import DestroySystemModal from './DestroySystemModal.vue'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import UserAvatar from '../users/UserAvatar.vue'
-import { useLatestInventory } from '@/queries/systems/latestInventory'
-import type { Ns8Facts } from '@/lib/systems/ns8Facts'
-import type { NsecFacts } from '@/lib/systems/nsecFacts'
 import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
 import { canSeeParentOfCustomers, getManagedBy } from '@/lib/organizations/organizations'
 
 const { t, locale } = useI18n()
 const { state: systemDetail, asyncStatus } = useSystemDetail()
-const { state: latestInventory } = useLatestInventory()
-
-const systemType = computed(() => systemDetail.value.data?.type)
-
-const leaderNode = computed(() => {
-  if (systemType.value !== 'ns8') {
-    return null
-  }
-
-  const facts = latestInventory.value.data?.data?.facts as Ns8Facts | undefined
-  const nodes = facts?.nodes
-
-  if (!nodes) {
-    return null
-  }
-  return Object.values(nodes).find((node) => node.cluster_leader === true)
-})
-
-const newVersionAvailable = computed(() => {
-  if (systemType.value === 'ns8') {
-    return leaderNode.value?.update_available ?? false
-  } else {
-    const facts = latestInventory.value.data?.data?.facts as NsecFacts | undefined
-    return facts?.image_updates_available ?? false
-  }
-})
 
 const isNotesModalShown = ref(false)
 const isShownCreateOrEditSystemDrawer = ref(false)
@@ -254,7 +225,7 @@ function getKebabMenuItems() {
           <template #data>
             <div class="flex items-center gap-2">
               {{ systemDetail.data.version || '-' }}
-              <NeBadgeV2 v-if="newVersionAvailable" kind="amber" size="xs">
+              <NeBadgeV2 v-if="systemDetail.data.update_available" kind="amber" size="xs">
                 <div class="flex items-center gap-1">
                   <FontAwesomeIcon :icon="faArrowsRotate" class="size-4" aria-hidden="true" />
                   {{ $t('systems.update_available') }}

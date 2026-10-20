@@ -26,7 +26,7 @@ After any code change, run the component's pre-commit before committing:
 cd backend && make pre-commit      # fmt + lint + test + validate-docs (redocly)
 cd collect && make pre-commit      # fmt + lint + test
 cd sync && make pre-commit         # fmt + lint + test
-cd frontend && npm run pre-commit  # format + lint + type-check + test + build
+cd frontend && npm run pre-commit  # format + lint + type-check + test (no build, see §3.4)
 cd docs && make pre-commit         # type-check + build (broken links) + audit
 ```
 
@@ -174,7 +174,7 @@ cmd/sync/main.go
 
 ### 3.4 Frontend (`frontend/`)
 
-Vue 3 + TypeScript, Vite, Tailwind, Pinia. Alerting UI present (`src/views/AlertingView.vue`, `src/queries/alerting/`, `src/lib/alerting.ts`). Pre-commit includes build step to catch TS errors and Vite misconfigs.
+Vue 3 + TypeScript, Vite, Tailwind, Pinia. Alerting UI present (`src/views/AlertingView.vue`, `src/queries/alerting/`, `src/lib/alerting.ts`). Pre-commit type-checks with vue-tsc but does not build: run `npm run build` after touching Vite config or Tailwind tokens.
 
 ### 3.5 Mimir (`services/mimir/`)
 
@@ -371,10 +371,10 @@ Conventions: org endpoints take the **logto_id** (from `apitool list` or API res
 
 ### 7.4 Authorization regression suite (`backend/authz/`)
 
-**Mandatory before any commit that touches the auth/authz core — routes, middleware, a handler's access check, the RBAC helpers, `sync/configs/config.yml`, or the hierarchy logic (§1.2).** It fires all 170 endpoints as every (org role × user role) persona against a real provisioned hierarchy, plus hand-written cross-organization scenarios, third-party app visibility and the credential-type rules (API key masks, impersonation, self-modification). ~3200 checks, non-destructive, local-only.
+**Mandatory before any commit that touches the auth/authz core — routes, middleware, a handler's access check, the RBAC helpers, `sync/configs/config.yml`, or the hierarchy logic (§1.2).** It fires all 170 endpoints as every (org role × user role) persona against a real provisioned hierarchy, plus hand-written cross-organization scenarios, third-party app visibility, the credential-type rules (API key masks, impersonation, self-modification) and a lifecycle layer that moves, deletes, restores and promotes throwaway objects while checking access and alert routing in Mimir. ~3500 checks, fixture left untouched, local-only.
 
 ```bash
-cd backend && make test-authz          # coverage + persona drift + all four layers
+cd backend && make test-authz          # coverage + persona drift + all five layers
 ./apitool authz provision              # one-time: create the fixture (idempotent)
 ./apitool authz run --layer=scope --verbose --filter=reseller
 ```

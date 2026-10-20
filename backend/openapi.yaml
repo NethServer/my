@@ -212,6 +212,8 @@ components:
             Body format preference. `html` (default) emits multipart with
             an html primary body and text alternative; `plain` emits only
             a text body.
+        scope:
+          $ref: '#/components/schemas/RecipientScope'
     WebhookRecipient:
       type: object
       required:
@@ -238,6 +240,8 @@ components:
           items:
             type: string
             enum: [critical, warning, info]
+        scope:
+          $ref: '#/components/schemas/RecipientScope'
     TelegramRecipient:
       type: object
       required:
@@ -266,6 +270,29 @@ components:
           items:
             type: string
             enum: [critical, warning, info]
+        scope:
+          $ref: '#/components/schemas/RecipientScope'
+    RecipientScope:
+      type: object
+      description: |
+        Narrows a recipient to the alerts of some organizations (each with its
+        whole sub-tree) and/or some systems; an alert matches when it falls in
+        either list. Omitted or both lists empty means every system the layer
+        reaches. Every id must belong to the caller's hierarchy, otherwise the
+        save fails with `out_of_scope` on `<channel>_recipients.<i>.scope`.
+      properties:
+        organization_ids:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+            pattern: '^[A-Za-z0-9_-]{1,255}$'
+        system_ids:
+          type: array
+          maxItems: 500
+          items:
+            type: string
+            pattern: '^[A-Za-z0-9_-]{1,255}$'
     AlertmanagerSilenceStatus:
       type: object
       properties:
@@ -2214,6 +2241,14 @@ components:
           type: string
           description: System version
           example: "2.1.4"
+        update_available:
+          type: boolean
+          nullable: true
+          description: |
+            Whether an update is available, from the latest inventory: the NS8
+            leader node's update_available, NethSecurity's image_updates_available.
+            Null until an inventory reports it.
+          example: true
         system_key:
           type: string
           description: Auto-generated unique commercial system key. Hidden (empty string) until system is registered.
@@ -14693,6 +14728,29 @@ paths:
                       - $ref: '#/components/schemas/AlertingConfigLayer'
                       - type: object
                         properties:
+                          scope_names:
+                            type: object
+                            description: Display names of the organizations and systems referenced by recipient scopes; ids no longer resolvable are absent.
+                            properties:
+                              organizations:
+                                type: object
+                                additionalProperties:
+                                  type: object
+                                  properties:
+                                    name:
+                                      type: string
+                                    type:
+                                      type: string
+                                      enum: [distributor, reseller, customer]
+                              systems:
+                                type: object
+                                additionalProperties:
+                                  type: object
+                                  properties:
+                                    name:
+                                      type: string
+                                    organization_name:
+                                      type: string
                           updated_by_name:
                             type: string
                             nullable: true

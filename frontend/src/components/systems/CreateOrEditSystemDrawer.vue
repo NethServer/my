@@ -41,7 +41,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faCheck, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
 import { SYSTEM_FILTERS_KEY } from '@/lib/systems/systemFilters'
 import { useLoginStore } from '@/stores/login'
-import { isUserDistributor } from '@/lib/organizations/organizations'
+import { isUserCustomer, isUserDistributor } from '@/lib/organizations/organizations'
 
 const { isShown = false, currentSystem = undefined } = defineProps<{
   isShown: boolean
@@ -183,9 +183,10 @@ function onShow() {
     organizationId.value = currentSystem.organization.logto_id || ''
     createdByOrganizationId.value = ''
   } else {
-    // creating system, reset form to defaults
+    // creating system, reset form to defaults; a customer can only assign its
+    // own company, so it gets no choice
     name.value = ''
-    organizationId.value = ''
+    organizationId.value = isUserCustomer() ? loginStore.userInfo?.organization_id || '' : ''
     notes.value = ''
     createdByOrganizationId.value = ''
   }
@@ -332,6 +333,7 @@ function copySecretAndCloseDrawer() {
           />
           <!-- organization -->
           <OrganizationCombobox
+            v-if="!isUserCustomer()"
             ref="organizationIdRef"
             v-model="organizationId"
             :is-shown="isShown"

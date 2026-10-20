@@ -46,14 +46,14 @@ La finestra di 20 minuti arriva da `HEARTBEAT_TIMEOUT_MINUTES`, e un cron rivalu
 2. Clicca su **Crea sistema**
 3. Compila il modulo:
    - **Nome**: nome descrittivo del sistema (es. "Server di produzione Milano")
-   - **Organizzazione**: seleziona l'organizzazione cliente
+   - **Azienda assegnataria**: seleziona l'organizzazione a cui appartiene il sistema. I clienti non vedono questo campo: i loro sistemi sono sempre assegnati alla loro organizzazione
    - **Note** (facoltative): informazioni aggiuntive
 4. Clicca su **Crea sistema**
 
 **Esempio:**
 ```
 Nome: Server Web Produzione Milano
-Organizzazione: Pizza Express Milano (Cliente)
+Azienda assegnataria: Pizza Express Milano (Cliente)
 Note: Server di produzione principale per le sedi di Milano
 ```
 
@@ -85,7 +85,7 @@ La pagina **Sistemi** mostra tutti i sistemi visibili con:
 
 - Nome del sistema
 - Tipo (NethServer o NethSecurity)
-- Versione
+- Versione, con un'icona di aggiornamento quando è disponibile un aggiornamento
 - Organizzazione
 - Stato
 - Ultimo heartbeat
@@ -119,7 +119,7 @@ Cliccando su un sistema si accede alle informazioni complete:
   - Nome del sistema
   - Tipo (rilevato automaticamente)
   - Stato
-  - Versione
+  - Versione, con il badge **Aggiornam. disponibile** quando l'ultimo inventario ne segnala uno (NS8: il nodo leader; NethSecurity: aggiornamenti dell'immagine in attesa). Lo stesso flag è il campo `update_available` di `GET /api/systems` e `GET /api/systems/:id`, `null` finché nessun inventario lo riporta
   - Data di registrazione
 
 - **Informazioni di rete**:

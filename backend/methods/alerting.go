@@ -23,7 +23,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"github.com/lib/pq"
 
+	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/entities"
 	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/logger"
@@ -294,6 +296,25 @@ func ConfigureAlerts(c *gin.Context) {
 		return
 	}
 
+	// Recipient scopes may only name organizations and systems the caller
+	// can see; otherwise a scope would be a way to read foreign alerts.
+	var storedLayer *models.AlertingConfigLayer
+	if rec, err := entities.NewLocalAlertConfigLayersRepository().Get(user.OrganizationID); err == nil {
+		storedLayer = &rec.Config
+	} else if !errors.Is(err, entities.ErrAlertConfigLayerNotFound) {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to load alert config: "+err.Error(), nil))
+		return
+	}
+	if fieldErr, err := validateRecipientScopes(req, storedLayer, user); err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to validate recipient scopes: "+err.Error(), nil))
+		return
+	} else if fieldErr != nil {
+		c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+			{Key: fieldErr.Key, Message: fieldErr.Code, Value: fieldErr.Value},
+		}))
+		return
+	}
+
 	// Enforce additive-only contract: descendants cannot encode "disable
 	// channel" by writing explicit false. Owner is exempt (top of the chain
 	// can globally turn a channel off, though OR with descendants may bring
@@ -372,6 +393,93 @@ func ConfigureAlerts(c *gin.Context) {
 		"propagated_to":    len(tenants) - len(warnings),
 		"affected_tenants": len(tenants),
 	}))
+}
+
+// validateRecipientScopes checks that every organization and system named in
+// a recipient scope sits in the caller's hierarchy. Ids already in the stored
+// layer pass even when no longer visible (a system moved away or deleted):
+// the renderer ignores them, and rejecting them would block every save until
+// the user removes them. It returns the first offending field, or an error
+// when the hierarchy cannot be resolved.
+func validateRecipientScopes(layer models.AlertingConfigLayer, stored *models.AlertingConfigLayer, user *models.User) (*models.AlertingFieldError, error) {
+	orgIDs, systemIDs := layer.ScopeIDs()
+	if len(orgIDs) == 0 && len(systemIDs) == 0 {
+		return nil, nil
+	}
+	known := map[string]struct{}{}
+	if stored != nil {
+		storedOrgs, storedSystems := stored.ScopeIDs()
+		for _, id := range append(storedOrgs, storedSystems...) {
+			known[id] = struct{}{}
+		}
+	}
+	hierarchy, err := local.NewUserService().GetHierarchicalOrganizationIDs(user.OrgRole, user.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	allowedOrgs := make(map[string]struct{}, len(hierarchy))
+	for _, id := range hierarchy {
+		allowedOrgs[id] = struct{}{}
+	}
+	allowedSystems := map[string]struct{}{}
+	if len(systemIDs) > 0 {
+		rows, err := database.DB.Query(
+			`SELECT id, organization_id FROM systems WHERE id = ANY($1) AND deleted_at IS NULL`,
+			pq.Array(systemIDs),
+		)
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var id, orgID string
+			if err := rows.Scan(&id, &orgID); err != nil {
+				return nil, err
+			}
+			if _, ok := allowedOrgs[orgID]; ok {
+				allowedSystems[id] = struct{}{}
+			}
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+	}
+	firstBad := func(scope *models.RecipientScope) string {
+		if scope == nil {
+			return ""
+		}
+		for _, id := range scope.OrganizationIDs {
+			_, allowed := allowedOrgs[id]
+			_, stale := known[id]
+			if !allowed && !stale {
+				return id
+			}
+		}
+		for _, id := range scope.SystemIDs {
+			_, allowed := allowedSystems[id]
+			_, stale := known[id]
+			if !allowed && !stale {
+				return id
+			}
+		}
+		return ""
+	}
+	for i, r := range layer.EmailRecipients {
+		if bad := firstBad(r.Scope); bad != "" {
+			return &models.AlertingFieldError{Key: fmt.Sprintf("email_recipients.%d.scope", i), Code: "out_of_scope", Value: bad}, nil
+		}
+	}
+	for i, r := range layer.WebhookRecipients {
+		if bad := firstBad(r.Scope); bad != "" {
+			return &models.AlertingFieldError{Key: fmt.Sprintf("webhook_recipients.%d.scope", i), Code: "out_of_scope", Value: bad}, nil
+		}
+	}
+	for i, r := range layer.TelegramRecipients {
+		if bad := firstBad(r.Scope); bad != "" {
+			return &models.AlertingFieldError{Key: fmt.Sprintf("telegram_recipients.%d.scope", i), Code: "out_of_scope", Value: bad}, nil
+		}
+	}
+	return nil, nil
 }
 
 // propagateAlertingConfigToTenants re-renders and re-pushes the effective
@@ -1173,10 +1281,17 @@ func GetAlertingConfig(c *gin.Context) {
 			"email_recipients":    []models.EmailRecipient{},
 			"webhook_recipients":  []models.WebhookRecipient{},
 			"telegram_recipients": []models.TelegramRecipient{},
+			"scope_names":         alertScopeNames{Organizations: map[string]alertScopeOrg{}, Systems: map[string]alertScopeSystem{}},
 			"updated_by_name":     nil,
 			"updated_at":          nil,
 		}))
 		return
+	}
+
+	scopeNames, err := lookupScopeNames(rec.Config, user)
+	if err != nil {
+		logger.Warn().Err(err).Str("org_id", user.OrganizationID).Msg("failed to resolve recipient scope names")
+		scopeNames = alertScopeNames{Organizations: map[string]alertScopeOrg{}, Systems: map[string]alertScopeSystem{}}
 	}
 
 	c.JSON(http.StatusOK, response.OK("alerting layer retrieved successfully", gin.H{
@@ -1184,9 +1299,104 @@ func GetAlertingConfig(c *gin.Context) {
 		"email_recipients":    rec.Config.EmailRecipients,
 		"webhook_recipients":  rec.Config.WebhookRecipients,
 		"telegram_recipients": rec.Config.TelegramRecipients,
+		"scope_names":         scopeNames,
 		"updated_by_name":     rec.UpdatedByName,
 		"updated_at":          rec.UpdatedAt,
 	}))
+}
+
+type alertScopeOrg struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
+type alertScopeSystem struct {
+	Name             string `json:"name"`
+	OrganizationName string `json:"organization_name"`
+}
+
+// alertScopeNames maps the ids referenced by recipient scopes to display
+// names; ids the caller can no longer see (deleted, or moved out of its
+// hierarchy) are absent.
+type alertScopeNames struct {
+	Organizations map[string]alertScopeOrg    `json:"organizations"`
+	Systems       map[string]alertScopeSystem `json:"systems"`
+}
+
+func intersect(ids, allowed []string) []string {
+	set := make(map[string]struct{}, len(allowed))
+	for _, id := range allowed {
+		set[id] = struct{}{}
+	}
+	out := []string{}
+	for _, id := range ids {
+		if _, ok := set[id]; ok {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+func lookupScopeNames(layer models.AlertingConfigLayer, user *models.User) (alertScopeNames, error) {
+	out := alertScopeNames{Organizations: map[string]alertScopeOrg{}, Systems: map[string]alertScopeSystem{}}
+	orgIDs, systemIDs := layer.ScopeIDs()
+	if len(orgIDs) == 0 && len(systemIDs) == 0 {
+		return out, nil
+	}
+	hierarchy, err := local.NewUserService().GetHierarchicalOrganizationIDs(user.OrgRole, user.OrganizationID)
+	if err != nil {
+		return out, err
+	}
+	if len(orgIDs) > 0 {
+		rows, err := database.DB.Query(
+			`SELECT logto_id, name, 'distributor' FROM distributors WHERE logto_id = ANY($1) AND deleted_at IS NULL
+			 UNION ALL
+			 SELECT logto_id, name, 'reseller' FROM resellers WHERE logto_id = ANY($1) AND deleted_at IS NULL
+			 UNION ALL
+			 SELECT logto_id, name, 'customer' FROM customers WHERE logto_id = ANY($1) AND deleted_at IS NULL`,
+			pq.Array(intersect(orgIDs, hierarchy)),
+		)
+		if err != nil {
+			return out, err
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var id, name, typ string
+			if err := rows.Scan(&id, &name, &typ); err != nil {
+				return out, err
+			}
+			out.Organizations[id] = alertScopeOrg{Name: name, Type: typ}
+		}
+		if err := rows.Err(); err != nil {
+			return out, err
+		}
+	}
+	if len(systemIDs) > 0 {
+		rows, err := database.DB.Query(
+			`SELECT s.id, s.name, COALESCE(d.name, r.name, c.name, '')
+			 FROM systems s
+			 LEFT JOIN distributors d ON d.logto_id = s.organization_id AND d.deleted_at IS NULL
+			 LEFT JOIN resellers r ON r.logto_id = s.organization_id AND r.deleted_at IS NULL
+			 LEFT JOIN customers c ON c.logto_id = s.organization_id AND c.deleted_at IS NULL
+			 WHERE s.id = ANY($1) AND s.deleted_at IS NULL AND s.organization_id = ANY($2)`,
+			pq.Array(systemIDs), pq.Array(hierarchy),
+		)
+		if err != nil {
+			return out, err
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var id, name, orgName string
+			if err := rows.Scan(&id, &name, &orgName); err != nil {
+				return out, err
+			}
+			out.Systems[id] = alertScopeSystem{Name: name, OrganizationName: orgName}
+		}
+		if err := rows.Err(); err != nil {
+			return out, err
+		}
+	}
+	return out, nil
 }
 
 // GetEffectiveAlertingConfig handles GET /api/alerts/config/effective: privileged per-layer + merged config + Mimir YAML for any tenant (organization_id required; nonexistent id → empty config), secrets redacted.
@@ -1508,6 +1718,22 @@ func belongsToOrg(ownerOrg, orgID, tenant string) bool {
 		return orgID == tenant
 	}
 	return ownerOrg == orgID
+}
+
+// refreshAlertingAfterRestore re-pushes, in the background, the Mimir config
+// of every tenant under a restored org: its routes (and the recipient scopes
+// naming its systems) were dropped while it was deleted.
+func refreshAlertingAfterRestore(orgType, orgID string) {
+	go func() {
+		orgIDs, err := local.NewUserService().GetHierarchicalOrganizationIDs(orgType, orgID)
+		if err != nil {
+			logger.Warn().Err(err).Str("org_id", orgID).Msg("alerting refresh after restore: hierarchy enumeration failed")
+			return
+		}
+		if warnings := propagateAlertingConfigToTenants(context.Background(), distinctTenants(orgIDs)); len(warnings) > 0 {
+			logger.Warn().Strs("warnings", warnings).Str("org_id", orgID).Msg("alerting refresh after restore: some tenants were not pushed")
+		}
+	}()
 }
 
 // distinctTenants maps each authorized customer/org id to its Mimir tenant

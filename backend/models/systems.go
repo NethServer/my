@@ -79,6 +79,7 @@ type System struct {
 	IPv4Address      string            `json:"ipv4_address" structs:"ipv4_address"`
 	IPv6Address      string            `json:"ipv6_address" structs:"ipv6_address"`
 	Version          string            `json:"version" structs:"version"`
+	UpdateAvailable  *bool             `json:"update_available" structs:"update_available"` // From the latest inventory; nil = not reported
 	CustomData       map[string]string `json:"custom_data" structs:"custom_data"`
 	Organization     Organization      `json:"organization" structs:"organization"` // Organization details with type
 	SystemKey        string            `json:"system_key" structs:"system_key"`
