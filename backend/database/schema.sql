@@ -275,6 +275,8 @@ CREATE TABLE IF NOT EXISTS systems (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     registered_at TIMESTAMP WITH TIME ZONE, -- When system completed registration (NULL = not registered)
+    reregistration_count INTEGER NOT NULL DEFAULT 0, -- Repeated registrations with the valid secret
+    last_reregistered_at TIMESTAMP WITH TIME ZONE,   -- Latest repeated registration (NULL = never)
 
     -- Unregistration (terminal: the system key is spent)
     unregistered_at TIMESTAMP WITH TIME ZONE, -- NULL = credentials valid, non-NULL = credentials refused
@@ -313,6 +315,8 @@ COMMENT ON COLUMN systems.system_secret_sha256 IS 'SHA256 hash of secret part (h
 COMMENT ON COLUMN systems.system_key_hash IS 'sha256(system_key:token), learned by collect; Bearer credential for /auth-hash only';
 COMMENT ON COLUMN systems.update_available IS 'Update available per the latest inventory: NS8 leader node update_available, NSEC image_updates_available. NULL = unknown';
 COMMENT ON COLUMN systems.registered_at IS 'Timestamp when system first sent inventory. NULL = not yet registered';
+COMMENT ON COLUMN systems.reregistration_count IS 'Times the system registered again with its valid secret after the first registration (e.g. reinstall + restore)';
+COMMENT ON COLUMN systems.last_reregistered_at IS 'Timestamp of the latest repeated registration. NULL = never re-registered';
 COMMENT ON COLUMN systems.unregistered_at IS 'Timestamp when the system announced its unregistration. NULL = credentials still valid; non-NULL = credentials refused, row kept until deleted';
 COMMENT ON COLUMN systems.created_by IS 'JSON object: {user_id, username, name, email, organization_id, organization_name, on_behalf_of} who created the system; display/audit only, not used for RBAC';
 COMMENT ON COLUMN systems.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted';

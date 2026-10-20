@@ -69,6 +69,7 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, s.unregistered_at, s.suspended_at, s.suspended_by_org_id, h.last_heartbeat, s.last_inventory_at, s.update_available,
 		       h.created_at as first_heartbeat,
 		       (SELECT MIN(ir.created_at) FROM inventory_records ir WHERE ir.system_id = s.id) as first_inventory,
+		       s.reregistration_count, s.last_reregistered_at,
 		       COALESCE(uo.name, 'Owner') as organization_name,
 		       COALESCE(uo.org_type, 'owner') as organization_type,
 		       COALESCE(uo.db_id, '') as organization_db_id
@@ -82,7 +83,8 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 	var createdByJSON []byte
 	var fqdn, ipv4Address, ipv6Address, version sql.NullString
 	var registeredAt, unregisteredAt, suspendedAt, lastHeartbeat, lastInventory sql.NullTime
-	var firstHeartbeat, firstInventory sql.NullTime
+	var firstHeartbeat, firstInventory, lastReregisteredAt sql.NullTime
+	var reregistrationCount int
 	var suspendedByOrgID sql.NullString
 	var organizationName, organizationType, organizationDBID sql.NullString
 
@@ -91,6 +93,7 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 		&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.LogtoID,
 		&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &unregisteredAt, &suspendedAt, &suspendedByOrgID, &lastHeartbeat, &lastInventory, &system.UpdateAvailable,
 		&firstHeartbeat, &firstInventory,
+		&reregistrationCount, &lastReregisteredAt,
 		&organizationName, &organizationType, &organizationDBID,
 	)
 
@@ -155,6 +158,10 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 	}
 	if firstInventory.Valid {
 		system.FirstInventory = &firstInventory.Time
+	}
+	system.ReregistrationCount = &reregistrationCount
+	if lastReregisteredAt.Valid {
+		system.LastReregisteredAt = &lastReregisteredAt.Time
 	}
 
 	return system, nil

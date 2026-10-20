@@ -44,7 +44,7 @@ System registration is the process by which an external system (NethServer, Neth
 │              │     ✓ Public part exists
 │              │     ✓ Secret part verified (SHA256)
 │              │     ✓ Not deleted
-│              │     ✓ Not already registered
+│              │     ✓ Not unregistered
 └──────────────┘
       │
       │  5. Return system_key
@@ -190,7 +190,7 @@ The platform performs several security checks:
 
 3. **Security Checks**:
    - System is not deleted
-   - System is not already registered
+   - System has not been unregistered
    - Public part matches stored value
 
 4. **Cryptographic Verification**:
@@ -300,25 +300,23 @@ MY_SYSTEM_SECRET=my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d
 - Contact administrator to restore system
 - Create a new system if needed
 
-### Already Registered
+### Unregistered
 
 **HTTP 409 Conflict:**
 ```json
 {
   "code": 409,
-  "message": "system is already registered",
+  "message": "system has been unregistered",
   "data": null
 }
 ```
 
 **Causes:**
-- System has already completed registration
-- `registered_at` field is not null
+- The appliance gave up its credentials (`unregistered_at` is set)
 
 **Solution:**
-- System is already registered, proceed to authentication
-- Use existing `system_key` and `system_secret` for authentication
-- No action needed unless re-registration is required
+- Unregistration is terminal: create a new system and register the machine with
+  its new secret
 
 ## After Registration
 
@@ -344,17 +342,22 @@ After successful registration, the system should:
 
 ## Re-registration
 
-### A System Key Is One-Shot
+### Registering Again With the Same Secret
 
-Registration cannot be repeated or undone. Once `registered_at` is set:
+A registered system can register again with its **valid** secret, for example after
+the machine was reinstalled from scratch and has to reach its backups on My before
+restoring one:
 
-- `POST /backend/api/systems/register` answers **409** for that system, forever
-- **Regenerate Secret** answers **409** too -- the secret is now the live
-  credential the appliance authenticates with on collect
+- `POST /backend/api/systems/register` answers **200** with the same `system_key`
+  and the original `registered_at`
+- The secret does not change, so a restored backup carrying the same credentials
+  keeps working
+- Every repeated registration is counted: the system detail shows
+  `reregistration_count` and `last_reregistered_at`
+- **Regenerate Secret** still answers **409** on a registered system -- the secret
+  is the live credential the appliance authenticates with on collect
 
-A machine that needs a subscription again is given a **new system**, with its own
-`system_secret`. The old row stays as the record of a spent key until an
-administrator deletes it.
+A wrong secret is refused with 401, and an unregistered system with 409.
 
 ### What Does Not Affect Registration
 
@@ -505,7 +508,7 @@ fi
 
 **Question:** What happens if I register the same system multiple times?
 
-**Answer:** Second and subsequent registration attempts will fail with HTTP 409 (already registered). This is by design to prevent accidental re-registration.
+**Answer:** Each attempt with the valid secret succeeds and returns the same `system_key`. Attempts after the first are counted in `reregistration_count` and `last_reregistered_at`, visible in the system detail.
 
 ### Unregistering a System
 

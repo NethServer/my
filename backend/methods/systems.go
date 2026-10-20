@@ -614,6 +614,9 @@ func RegisterSystem(c *gin.Context) {
 		case strings.Contains(errMsg, "system is already registered"):
 			c.JSON(http.StatusConflict, response.Conflict("system is already registered", nil))
 			return
+		case strings.Contains(errMsg, "system has been unregistered"):
+			c.JSON(http.StatusConflict, response.Conflict("system has been unregistered", nil))
+			return
 		default:
 			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to register system", map[string]interface{}{
 				"error": errMsg,

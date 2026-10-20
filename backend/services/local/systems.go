@@ -898,16 +898,16 @@ func (s *LocalSystemsService) RegisterSystem(systemSecret string) (*models.Regis
 
 	// Fast lookup using system_secret_public
 	query := `
-		SELECT id, system_key, system_secret_sha256, deleted_at, registered_at
+		SELECT id, system_key, system_secret_sha256, deleted_at, registered_at, unregistered_at
 		FROM systems
 		WHERE system_secret_public = $1
 	`
 
 	var systemID, systemKey string
 	var hashedSecretSHA256 sql.NullString
-	var deletedAt, registeredAt sql.NullTime
+	var deletedAt, registeredAt, unregisteredAt sql.NullTime
 
-	err := database.DB.QueryRow(query, publicPart).Scan(&systemID, &systemKey, &hashedSecretSHA256, &deletedAt, &registeredAt)
+	err := database.DB.QueryRow(query, publicPart).Scan(&systemID, &systemKey, &hashedSecretSHA256, &deletedAt, &registeredAt, &unregisteredAt)
 	if err == sql.ErrNoRows {
 		logger.Warn().Str("public_part", publicPart).Msg("System not found with provided public part")
 		return nil, fmt.Errorf("invalid system secret")
@@ -920,12 +920,6 @@ func (s *LocalSystemsService) RegisterSystem(systemSecret string) (*models.Regis
 	if deletedAt.Valid {
 		logger.Warn().Str("system_id", systemID).Msg("Attempted to register deleted system")
 		return nil, fmt.Errorf("system has been deleted")
-	}
-
-	// Check if system is already registered
-	if registeredAt.Valid {
-		logger.Warn().Str("system_id", systemID).Msg("Attempted to register already registered system")
-		return nil, fmt.Errorf("system is already registered")
 	}
 
 	// Verify the secret part using SHA256
@@ -941,8 +935,38 @@ func (s *LocalSystemsService) RegisterSystem(systemSecret string) (*models.Regis
 		return nil, fmt.Errorf("invalid system secret")
 	}
 
-	// Update registered_at timestamp
+	// Unregistration is terminal: collect refuses these credentials
+	if unregisteredAt.Valid {
+		logger.Warn().Str("system_id", systemID).Msg("Attempted to register an unregistered system")
+		return nil, fmt.Errorf("system has been unregistered")
+	}
+
 	now := time.Now()
+
+	// A reinstalled machine registers again with its secret to reach its
+	// backups: hand back the same key and count it
+	if registeredAt.Valid {
+		_, err = database.DB.Exec(`
+			UPDATE systems
+			SET reregistration_count = reregistration_count + 1, last_reregistered_at = $1
+			WHERE id = $2
+		`, now, systemID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to record re-registration: %w", err)
+		}
+
+		logger.Warn().
+			Str("system_id", systemID).
+			Str("system_key", systemKey).
+			Msg("System re-registered with its existing secret")
+
+		return &models.RegisterSystemResponse{
+			SystemKey:    systemKey,
+			RegisteredAt: registeredAt.Time,
+		}, nil
+	}
+
+	// Update registered_at timestamp
 	updateQuery := `
 		UPDATE systems
 		SET registered_at = $1
