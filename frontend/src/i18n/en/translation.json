@@ -1312,6 +1312,7 @@
     "scope_no_systems": "No systems",
     "scope_required": "Choose at least one company or system",
     "scope_required_systems": "Choose at least one system",
+    "severities_required": "Choose at least one severity",
     "scope_too_many": "Too many items selected",
     "scope_not_allowed": "Some of the selected companies or systems are not available",
     "scope_unknown_organization": "Company no longer available",

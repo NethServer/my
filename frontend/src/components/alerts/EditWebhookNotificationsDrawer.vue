@@ -86,7 +86,8 @@ function initForm() {
   webhookEnabled.value = props.config.enabled?.webhook ?? false
   endpoints.value = (props.config.webhook_recipients ?? []).map((r) => ({
     ...r,
-    severities: r.severities ? [...r.severities] : [],
+    // an empty list is the API's "all severities"
+    severities: r.severities?.length ? [...r.severities] : [...SEVERITIES],
     scope: r.scope ? { ...r.scope } : undefined,
     _expanded: false,
     _scopeSpecific: !!toScopePayload(r.scope),
@@ -215,6 +216,9 @@ function validate(): boolean {
     if (r._scopeSpecific && !toScopePayload(r.scope)) {
       issues[`webhook_recipients.${i}.scope`] = [getScopeRequiredMessage()]
     }
+    if (!r.severities?.length) {
+      issues[`webhook_recipients.${i}.severities`] = ['alerts.severities_required']
+    }
   })
   return !showIssues(issues)
 }
@@ -321,6 +325,11 @@ function closeDrawer() {
                 v-model="ep.severities"
                 :options="severityOptions"
                 :label="t('alerts.severity')"
+                :invalid-message="
+                  validationIssues[`webhook_recipients.${index}.severities`]?.[0]
+                    ? $t(validationIssues[`webhook_recipients.${index}.severities`][0])
+                    : ''
+                "
                 grid-style="grid-cols-1 lg:grid-cols-3 gap-3"
               />
 

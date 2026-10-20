@@ -92,7 +92,8 @@ function initForm() {
   emailEnabled.value = props.config.enabled?.email ?? false
   recipients.value = (props.config.email_recipients ?? []).map((r) => ({
     ...r,
-    severities: r.severities ? [...r.severities] : [],
+    // an empty list is the API's "all severities"
+    severities: r.severities?.length ? [...r.severities] : [...SEVERITIES],
     scope: r.scope ? { ...r.scope } : undefined,
     _expanded: false,
     _scopeSpecific: !!toScopePayload(r.scope),
@@ -214,6 +215,9 @@ function validate(): boolean {
     if (r._scopeSpecific && !toScopePayload(r.scope)) {
       issues[`email_recipients.${i}.scope`] = [getScopeRequiredMessage()]
     }
+    if (!r.severities?.length) {
+      issues[`email_recipients.${i}.severities`] = ['alerts.severities_required']
+    }
   })
   return !showIssues(issues)
 }
@@ -318,6 +322,11 @@ function closeDrawer() {
                 v-model="recipient.severities"
                 :options="severityOptions"
                 :label="t('alerts.severity')"
+                :invalid-message="
+                  validationIssues[`email_recipients.${index}.severities`]?.[0]
+                    ? $t(validationIssues[`email_recipients.${index}.severities`][0])
+                    : ''
+                "
                 grid-style="grid-cols-1 lg:grid-cols-3 gap-3"
               />
 

@@ -95,7 +95,8 @@ function initForm() {
   telegramEnabled.value = props.config.enabled?.telegram ?? false
   channels.value = (props.config.telegram_recipients ?? []).map((r) => ({
     ...r,
-    severities: r.severities ? [...r.severities] : [],
+    // an empty list is the API's "all severities"
+    severities: r.severities?.length ? [...r.severities] : [...SEVERITIES],
     scope: r.scope ? { ...r.scope } : undefined,
     _expanded: false,
     _scopeSpecific: !!toScopePayload(r.scope),
@@ -232,6 +233,9 @@ function validate(): boolean {
   channels.value.forEach((r, i) => {
     if (r._scopeSpecific && !toScopePayload(r.scope)) {
       issues[`telegram_recipients.${i}.scope`] = [getScopeRequiredMessage()]
+    }
+    if (!r.severities?.length) {
+      issues[`telegram_recipients.${i}.severities`] = ['alerts.severities_required']
     }
   })
   return !showIssues(issues)
@@ -380,6 +384,11 @@ function closeDrawer() {
                 v-model="ch.severities"
                 :options="severityOptions"
                 :label="t('alerts.severity')"
+                :invalid-message="
+                  validationIssues[`telegram_recipients.${index}.severities`]?.[0]
+                    ? $t(validationIssues[`telegram_recipients.${index}.severities`][0])
+                    : ''
+                "
                 grid-style="grid-cols-1 lg:grid-cols-3 gap-3"
               />
 
