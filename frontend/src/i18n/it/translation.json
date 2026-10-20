@@ -717,6 +717,8 @@
     "subscription": "Subscription",
     "active_since": "Attiva dal",
     "system_key": "Chiave di sistema",
+    "reregistrations": "Ri-registrazioni",
+    "reregistrations_value": "{n}, l'ultima il {date}",
     "cannot_determine_system_url_description": "Impossibile accedere al sistema perché non è possibile determinarne l'URL.",
     "checking_reachability": "Verifica raggiungibilità del sistema…",
     "system_unreachable": "L'interfaccia del sistema non è raggiungibile pubblicamente. Questo potrebbe accadere a causa della configurazione di rete o di misure di sicurezza.",

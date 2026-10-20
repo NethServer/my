@@ -799,6 +799,8 @@
     "subscription": "Subscription",
     "active_since": "Active since",
     "system_key": "System key",
+    "reregistrations": "Re-registrations",
+    "reregistrations_value": "{n}, last on {date}",
     "cannot_determine_system_url_description": "Cannot access the system because its URL cannot be determined.",
     "checking_reachability": "Checking system reachability…",
     "system_unreachable": "The system UI is not publicly reachable. This might happen due to network configuration or security measures.",
