@@ -16,7 +16,6 @@ import { isUserCustomer } from '@/lib/organizations/organizations'
 const props = defineProps<{
   scopeNames?: AlertScopeNames
   invalidMessage?: string
-  idPrefix: string
 }>()
 
 const specific = defineModel<boolean>('specific', { required: true })
@@ -29,17 +28,17 @@ const { t } = useI18n()
 const canPickOrganizations = !isUserCustomer()
 
 const modeOptions = computed<RadioOption[]>(() => [
-  { id: `${props.idPrefix}-all`, label: t('alerts.scope_all_systems') },
+  { id: 'all', label: t('alerts.scope_all_systems') },
   {
-    id: `${props.idPrefix}-specific`,
+    id: 'specific',
     label: t(canPickOrganizations ? 'alerts.scope_specific' : 'alerts.scope_specific_systems'),
   },
 ])
 
 const mode = computed({
-  get: () => (specific.value ? `${props.idPrefix}-specific` : `${props.idPrefix}-all`),
+  get: () => (specific.value ? 'specific' : 'all'),
   set: (value: string) => {
-    specific.value = value === `${props.idPrefix}-specific`
+    specific.value = value === 'specific'
   },
 })
 

@@ -7,12 +7,14 @@
 import {
   NeBadgeV2,
   NeButton,
+  NeCheckboxCards,
   NeInlineNotification,
   NeSideDrawer,
   NeTextInput,
   NeToggle,
 } from '@nethesis/vue-components'
-import { faTrash, faPlus, faChevronDown, faCircleCheck } from '@fortawesome/free-solid-svg-icons'
+import type { NeCheckboxCardsOption } from '@nethesis/vue-components'
+import { faTrash, faPlus, faChevronDown } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useMutation, useQueryCache } from '@pinia/colada'
@@ -66,6 +68,11 @@ const validationIssues = ref<Record<string, string[]>>({})
 
 const SEVERITIES = ['critical', 'warning', 'info'] as const
 
+const severityOptions: NeCheckboxCardsOption[] = SEVERITIES.map((severity) => ({
+  id: severity,
+  label: capitalize(severity),
+}))
+
 function initForm() {
   expandedIndex.value = null
   validationIssues.value = {}
@@ -109,17 +116,7 @@ function toggleExpand(index: number) {
   expandedIndex.value = expandedIndex.value === index ? null : index
 }
 
-// ── Severity toggle ───────────────────────────────────────────────────────────
-
-function toggleSeverity(endpoint: WebhookRecipient, severity: string) {
-  if (!endpoint.severities) endpoint.severities = []
-  const idx = endpoint.severities.indexOf(severity)
-  if (idx === -1) {
-    endpoint.severities.push(severity)
-  } else {
-    endpoint.severities.splice(idx, 1)
-  }
-}
+// ── Severity ──────────────────────────────────────────────────────────────────
 
 function hasSeverity(endpoint: WebhookRecipient, severity: string) {
   return endpoint.severities?.includes(severity) ?? false
@@ -320,39 +317,18 @@ function closeDrawer() {
               />
 
               <!-- Severity multi-select -->
-              <div class="space-y-2">
-                <p class="font-medium text-gray-700 dark:text-gray-200">
-                  {{ t('alerts.severity') }}
-                </p>
-                <div class="flex gap-2">
-                  <button
-                    v-for="sev in SEVERITIES"
-                    :key="sev"
-                    :class="[
-                      'bg-elevation-1 flex items-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors',
-                      hasSeverity(ep, sev)
-                        ? 'border-primary-700 bg-primary-50 text-primary-800 dark:border-primary-500 dark:bg-primary-900/30 dark:text-primary-300'
-                        : 'text-secondary-neutral border-gray-300 hover:border-gray-400 dark:border-gray-600 dark:hover:border-gray-500',
-                    ]"
-                    type="button"
-                    @click="toggleSeverity(ep, sev)"
-                  >
-                    <FontAwesomeIcon
-                      v-if="hasSeverity(ep, sev)"
-                      :icon="faCircleCheck"
-                      class="text-primary-700 dark:text-primary-400 size-3.5"
-                    />
-                    {{ capitalize(sev) }}
-                  </button>
-                </div>
-              </div>
+              <NeCheckboxCards
+                v-model="ep.severities"
+                :options="severityOptions"
+                :label="t('alerts.severity')"
+                grid-style="grid-cols-1 lg:grid-cols-3 gap-3"
+              />
 
               <!-- Organizations / systems scope -->
               <RecipientScopeSelector
                 v-model:specific="ep._scopeSpecific"
                 v-model:scope="ep.scope"
                 :scope-names="props.config?.scope_names"
-                :id-prefix="`webhook-${index}`"
                 :invalid-message="
                   validationIssues[`webhook_recipients.${index}.scope`]?.[0]
                     ? $t(validationIssues[`webhook_recipients.${index}.scope`][0])
