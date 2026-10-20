@@ -38,8 +38,8 @@ type DiffEngine struct {
 	maxDepth           int
 	maxDiffsPerRun     int
 	maxFieldPathLength int
-	// identifierMap maps "path.prefix.index" to a human-readable identifier
-	// Built per-diff from inventory data using field_identifiers config
+	// identifierMap maps "path.key" of an object collection to a human-readable
+	// identifier. Built per-diff from inventory data using field_identifiers config
 	identifierMap map[string]string
 }
 
@@ -117,7 +117,8 @@ func (de *DiffEngine) ComputeDiff(systemID string, previous, current *models.Inv
 
 	engineLogger.Debug().Msg("JSON parsing completed successfully")
 
-	// Step 2b: Build identifier map from both records for human-readable field paths
+	// Step 2b: Match array elements by identifier and name object keys for human-readable field paths
+	de.keyArraysByIdentifier(prevData, currData)
 	de.identifierMap = de.buildIdentifierMap(prevData, currData)
 
 	// Step 3: Diff Calculation
@@ -520,9 +521,83 @@ func (de *DiffEngine) ReloadConfiguration(configPath string) error {
 	return nil
 }
 
-// buildIdentifierMap builds a lookup map from inventory data using field_identifiers config.
-// It merges identifiers from both previous and current data so that diffs referencing
-// either record can be resolved.
+// keyArraysByIdentifier turns the arrays listed in field_identifiers into
+// objects keyed by their identifier, in both records. The diff library pairs
+// unmatched array elements by position, so a removed module would be reported
+// under whatever module took its slot. An array whose elements lack a unique
+// identifier on either side is left as it is.
+func (de *DiffEngine) keyArraysByIdentifier(prevData, currData map[string]interface{}) {
+	for _, fi := range de.configurableDiffer.GetConfig().FieldIdentifiers {
+		if fi.Type != "array" {
+			continue
+		}
+		segments := strings.Split(fi.Path, ".")
+		prevParent, prevArr := lookupArray(prevData, segments)
+		currParent, currArr := lookupArray(currData, segments)
+
+		prevKeyed, prevOK := keyByIdentifier(prevArr, fi.Identifier)
+		currKeyed, currOK := keyByIdentifier(currArr, fi.Identifier)
+		if !prevOK || !currOK {
+			continue
+		}
+
+		last := segments[len(segments)-1]
+		if prevParent != nil && prevArr != nil {
+			prevParent[last] = prevKeyed
+		}
+		if currParent != nil && currArr != nil {
+			currParent[last] = currKeyed
+		}
+	}
+}
+
+// lookupArray returns the array at path and the object holding it; either is
+// nil when the path is missing or does not lead to an array.
+func lookupArray(data map[string]interface{}, segments []string) (map[string]interface{}, []interface{}) {
+	parent := data
+	for _, segment := range segments[:len(segments)-1] {
+		next, ok := parent[segment].(map[string]interface{})
+		if !ok {
+			return nil, nil
+		}
+		parent = next
+	}
+	arr, ok := parent[segments[len(segments)-1]].([]interface{})
+	if !ok {
+		return nil, nil
+	}
+	return parent, arr
+}
+
+// keyByIdentifier indexes arr by each element's identifier. A nil array is
+// trivially keyable; duplicates or elements without an identifier are not.
+func keyByIdentifier(arr []interface{}, identifier string) (map[string]interface{}, bool) {
+	keyed := make(map[string]interface{}, len(arr))
+	for _, elem := range arr {
+		obj, ok := elem.(map[string]interface{})
+		if !ok {
+			return nil, false
+		}
+		idVal, ok := obj[identifier]
+		if !ok || idVal == nil {
+			return nil, false
+		}
+		id := fmt.Sprintf("%v", idVal)
+		if id == "" {
+			return nil, false
+		}
+		if _, dup := keyed[id]; dup {
+			return nil, false
+		}
+		keyed[id] = elem
+	}
+	return keyed, true
+}
+
+// buildIdentifierMap maps "path.key" to a human-readable identifier for the
+// object collections in field_identifiers (arrays are keyed beforehand by
+// keyArraysByIdentifier). Object keys are stable across records, so a value
+// from either record names the same element.
 func (de *DiffEngine) buildIdentifierMap(datasets ...map[string]interface{}) map[string]string {
 	config := de.configurableDiffer.GetConfig()
 	if len(config.FieldIdentifiers) == 0 {
@@ -536,6 +611,9 @@ func (de *DiffEngine) buildIdentifierMap(datasets ...map[string]interface{}) map
 			continue
 		}
 		for _, fi := range config.FieldIdentifiers {
+			if fi.Type != "object" {
+				continue
+			}
 			pathSegments := strings.Split(fi.Path, ".")
 			de.extractIdentifiers(data, pathSegments, 0, fi, idMap)
 		}
@@ -554,7 +632,6 @@ func (de *DiffEngine) buildIdentifierMap(datasets ...map[string]interface{}) map
 // and extracts identifier values from matching collections
 func (de *DiffEngine) extractIdentifiers(data interface{}, pathSegments []string, depth int, fi FieldIdentifier, idMap map[string]string) {
 	if depth >= len(pathSegments) {
-		// Reached the target collection, extract identifiers
 		de.extractCollectionIdentifiers(data, fi, idMap)
 		return
 	}
@@ -569,38 +646,19 @@ func (de *DiffEngine) extractIdentifiers(data interface{}, pathSegments []string
 	}
 }
 
-// extractCollectionIdentifiers extracts identifier values from an array or object collection
+// extractCollectionIdentifiers extracts identifier values from an object collection
 func (de *DiffEngine) extractCollectionIdentifiers(data interface{}, fi FieldIdentifier, idMap map[string]string) {
-	switch fi.Type {
-	case "array":
-		arr, ok := data.([]interface{})
-		if !ok {
-			return
-		}
-		for i, elem := range arr {
-			if obj, ok := elem.(map[string]interface{}); ok {
-				if idVal, ok := obj[fi.Identifier]; ok {
-					idStr := fmt.Sprintf("%v", idVal)
-					if idStr != "" {
-						key := fmt.Sprintf("%s.%d", fi.Path, i)
-						idMap[key] = idStr
-					}
-				}
-			}
-		}
-	case "object":
-		obj, ok := data.(map[string]interface{})
-		if !ok {
-			return
-		}
-		for k, elem := range obj {
-			if inner, ok := elem.(map[string]interface{}); ok {
-				if idVal, ok := inner[fi.Identifier]; ok {
-					idStr := fmt.Sprintf("%v", idVal)
-					if idStr != "" {
-						key := fmt.Sprintf("%s.%s", fi.Path, k)
-						idMap[key] = idStr
-					}
+	obj, ok := data.(map[string]interface{})
+	if !ok {
+		return
+	}
+	for k, elem := range obj {
+		if inner, ok := elem.(map[string]interface{}); ok {
+			if idVal, ok := inner[fi.Identifier]; ok {
+				idStr := fmt.Sprintf("%v", idVal)
+				if idStr != "" {
+					key := fmt.Sprintf("%s.%s", fi.Path, k)
+					idMap[key] = idStr
 				}
 			}
 		}
