@@ -15,7 +15,6 @@ modules:
     - loki
     - ldapproxy
     - metrics
-    - crowdsec
     - openldap
     - promtail
     - prometheus

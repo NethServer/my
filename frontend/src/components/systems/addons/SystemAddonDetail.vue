@@ -257,7 +257,7 @@ function clearFilters() {
           :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
         />
         <NeButton kind="tertiary" @click="clearFilters">
-          {{ t('common.clear_filters') }}
+          {{ t('common.reset_filters') }}
         </NeButton>
       </div>
       <UpdatingSpinner v-if="refreshing" />
@@ -271,7 +271,7 @@ function clearFilters() {
       class="bg-white dark:bg-gray-950"
     >
       <NeButton kind="tertiary" @click="clearFilters">
-        {{ $t('common.clear_filters') }}
+        {{ $t('common.reset_filters') }}
       </NeButton>
     </NeEmptyState>
     <NeTable

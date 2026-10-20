@@ -8,7 +8,7 @@ import { NeHeading, NeInlineNotification, NeSkeleton } from '@nethesis/vue-compo
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import { useApplicationDetail } from '@/queries/applications/applicationDetail'
 import ApplicationInfoCard from '@/components/applications/ApplicationInfoCard.vue'
-import ApplicationSystemCard from '@/components/applications/ApplicationSystemCard.vue'
+import ApplicationNodeCard from '@/components/applications/ApplicationNodeCard.vue'
 import { getDisplayName } from '@/lib/applications/applications'
 import { canReadApplications } from '@/lib/permissions'
 import { computed } from 'vue'
@@ -44,7 +44,7 @@ const applicationName = computed(() => {
     </NeHeading>
     <div class="3xl:grid-cols-4 grid grid-cols-1 gap-6 md:grid-cols-2">
       <ApplicationInfoCard />
-      <ApplicationSystemCard />
+      <ApplicationNodeCard />
     </div>
   </div>
 </template>

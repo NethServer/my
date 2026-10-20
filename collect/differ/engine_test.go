@@ -587,3 +587,78 @@ func TestDiffEngine_ProcessingLimits(t *testing.T) {
 		t.Errorf("Expected at most %d diffs, got %d", engine.maxDiffsPerRun, len(diffs))
 	}
 }
+
+// A removed module must be reported under its own id, not under the module
+// that slides into its array slot, and a module that changes alongside must
+// be compared with itself.
+func TestDiffEngine_ModulesMatchedByID(t *testing.T) {
+	engine, err := NewDiffEngine("")
+	if err != nil {
+		t.Fatalf("Failed to create engine: %v", err)
+	}
+
+	previous := &models.InventoryRecord{ID: 1, Data: json.RawMessage(`{"facts": {"modules": [
+		{"id": "nethvoice-proxy1", "module": "nethvoice-proxy", "version": "1.7.3"},
+		{"id": "crowdsec6", "module": "crowdsec", "version": "1.3.0"},
+		{"id": "mail1", "module": "mail", "version": "1.9.1"}
+	]}}`)}
+	current := &models.InventoryRecord{ID: 2, Data: json.RawMessage(`{"facts": {"modules": [
+		{"id": "crowdsec6", "module": "crowdsec", "version": "1.4.1"},
+		{"id": "mail1", "module": "mail", "version": "1.9.1"},
+		{"id": "nethvoice-proxy2", "module": "nethvoice-proxy", "version": "1.7.4"}
+	]}}`)}
+
+	diffs, err := engine.ComputeDiff("sys", previous, current)
+	if err != nil {
+		t.Fatalf("ComputeDiff failed: %v", err)
+	}
+
+	got := map[string]string{}
+	for _, d := range diffs {
+		got[d.FieldPath] = d.DiffType
+	}
+	want := map[string]string{
+		"facts.modules.nethvoice-proxy1":  "delete",
+		"facts.modules.nethvoice-proxy2":  "create",
+		"facts.modules.crowdsec6.version": "update",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("expected diffs %v, got %v", want, got)
+	}
+	for path, typ := range want {
+		if got[path] != typ {
+			t.Errorf("expected %s on %s, got %v", typ, path, got)
+		}
+	}
+	for _, d := range diffs {
+		if d.FieldPath != "facts.modules.nethvoice-proxy1" {
+			continue
+		}
+		if prev, ok := d.PreviousValue.(*string); !ok || !strings.Contains(*prev, `"version":"1.7.3"`) {
+			t.Errorf("deleted module carries the wrong value: %v", d.PreviousValue)
+		}
+	}
+}
+
+// Without a unique identifier the array keeps the positional comparison.
+func TestDiffEngine_ModulesWithoutUniqueIDStayPositional(t *testing.T) {
+	engine, err := NewDiffEngine("")
+	if err != nil {
+		t.Fatalf("Failed to create engine: %v", err)
+	}
+
+	previous := &models.InventoryRecord{ID: 1, Data: json.RawMessage(`{"facts": {"modules": [
+		{"id": "a1", "version": "1"}, {"id": "a1", "version": "2"}
+	]}}`)}
+	current := &models.InventoryRecord{ID: 2, Data: json.RawMessage(`{"facts": {"modules": [
+		{"id": "a1", "version": "1"}, {"id": "a1", "version": "3"}
+	]}}`)}
+
+	diffs, err := engine.ComputeDiff("sys", previous, current)
+	if err != nil {
+		t.Fatalf("ComputeDiff failed: %v", err)
+	}
+	if len(diffs) != 1 || diffs[0].FieldPath != "facts.modules.1.version" {
+		t.Fatalf("expected one positional diff on facts.modules.1.version, got %+v", diffs)
+	}
+}
