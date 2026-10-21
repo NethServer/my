@@ -33,17 +33,26 @@ describe('useScopeSummary', () => {
   const summary = mountSummary()
 
   it('pluralises a single kind of item', () => {
-    expect(summary({ organization_ids: ['org-1'] })).toBe('Only 1 company')
+    expect(summary({ assigned_organization_ids: ['org-1'] })).toBe('Only 1 company')
     expect(summary({ system_ids: ['sys-1', 'sys-2'] })).toBe('Only 2 systems')
   })
 
   it('lists companies before systems', () => {
-    expect(summary({ organization_ids: ['org-1', 'org-2'], system_ids: ['sys-1'] })).toBe(
+    expect(summary({ managed_organization_ids: ['org-1', 'org-2'], system_ids: ['sys-1'] })).toBe(
       'Only 2 companies, 1 system',
     )
   })
 
+  it('counts a company listed as both managed and assigned once', () => {
+    expect(
+      summary({
+        managed_organization_ids: ['org-1'],
+        assigned_organization_ids: ['org-1', 'org-2'],
+      }),
+    ).toBe('Only 2 companies')
+  })
+
   it('ignores empty lists', () => {
-    expect(summary({ organization_ids: [], system_ids: ['sys-1'] })).toBe('Only 1 system')
+    expect(summary({ assigned_organization_ids: [], system_ids: ['sys-1'] })).toBe('Only 1 system')
   })
 })

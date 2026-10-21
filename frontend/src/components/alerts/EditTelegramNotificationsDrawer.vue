@@ -342,7 +342,7 @@ function closeDrawer() {
           <Transition name="accordion">
             <div v-if="expandedIndex === index" class="space-y-6 p-4">
               <!-- Telegram channel + bot token -->
-              <div class="space-y-4">
+              <div class="space-y-6">
                 <NeTextInput
                   ref="expandedChatIdRef"
                   :model-value="ch._chatIdInput"

@@ -40,10 +40,13 @@ export interface ChannelToggles {
   telegram?: boolean | null
 }
 
-// Narrows a recipient to the alerts of some organizations (with their
-// sub-trees) and/or some systems. Omitted means every system.
+// Narrows a recipient to the alerts of some organizations and/or some
+// systems. managed_organization_ids cover each organization with its
+// sub-tree, assigned_organization_ids only the organization's own systems.
+// Omitted means every system.
 export interface RecipientScope {
-  organization_ids?: string[]
+  managed_organization_ids?: string[]
+  assigned_organization_ids?: string[]
   system_ids?: string[]
 }
 
@@ -85,15 +88,34 @@ export interface AlertingConfigLayer {
   scope_names?: AlertScopeNames
 }
 
-// Payload form of a scope: undefined when it narrows nothing.
+// Every organization of a scope, managed and assigned alike.
+export const getScopeOrganizationIds = (scope?: RecipientScope): string[] => [
+  ...new Set([
+    ...(scope?.managed_organization_ids ?? []),
+    ...(scope?.assigned_organization_ids ?? []),
+  ]),
+]
+
+// Whether a scope reads as "include the managed companies". A defined but
+// empty managed list keeps the choice while no company is selected yet. The
+// UI applies one choice to every selected company, so a scope mixing both
+// lists (only the API can write one) reads as assigned, the narrower of the
+// two.
+export const isScopeManaged = (scope?: RecipientScope): boolean =>
+  scope?.managed_organization_ids !== undefined && !scope.assigned_organization_ids?.length
+
+// Payload form of a scope: undefined when it narrows nothing. A mixed scope
+// is saved as assigned, matching what isScopeManaged shows.
 export const toScopePayload = (scope?: RecipientScope): RecipientScope | undefined => {
-  const organizationIds = scope?.organization_ids ?? []
+  const organizationIds = getScopeOrganizationIds(scope)
   const systemIds = scope?.system_ids ?? []
   if (!organizationIds.length && !systemIds.length) {
     return undefined
   }
+  const managed = isScopeManaged(scope)
   return {
-    organization_ids: organizationIds.length ? organizationIds : undefined,
+    managed_organization_ids: managed && organizationIds.length ? organizationIds : undefined,
+    assigned_organization_ids: !managed && organizationIds.length ? organizationIds : undefined,
     system_ids: systemIds.length ? systemIds : undefined,
   }
 }
@@ -165,7 +187,10 @@ export type AlertStatusEnum = 'active' | 'suppressed'
 const SeveritySchema = v.picklist(['critical', 'warning', 'info'])
 
 const RecipientScopeSchema = v.object({
-  organization_ids: v.optional(
+  managed_organization_ids: v.optional(
+    v.pipe(v.array(v.string()), v.maxLength(100, 'alerts.scope_too_many')),
+  ),
+  assigned_organization_ids: v.optional(
     v.pipe(v.array(v.string()), v.maxLength(100, 'alerts.scope_too_many')),
   ),
   system_ids: v.optional(v.pipe(v.array(v.string()), v.maxLength(500, 'alerts.scope_too_many'))),

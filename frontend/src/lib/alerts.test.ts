@@ -12,6 +12,7 @@ import {
   getScopeRequiredMessage,
   isAlertSilenced,
   savedNotificationContent,
+  isScopeManaged,
   toScopePayload,
   WITH_COMMENTS_FILTER_ID,
   WITHOUT_COMMENTS_FILTER_ID,
@@ -178,25 +179,67 @@ describe('toScopePayload', () => {
     expect(toScopePayload(undefined)).toBeUndefined()
   })
 
-  it('returns undefined when both lists are empty', () => {
-    expect(toScopePayload({ organization_ids: [], system_ids: [] })).toBeUndefined()
+  it('returns undefined when every list is empty', () => {
+    expect(
+      toScopePayload({
+        managed_organization_ids: [],
+        assigned_organization_ids: [],
+        system_ids: [],
+      }),
+    ).toBeUndefined()
   })
 
-  it('drops the empty side of the scope', () => {
-    expect(toScopePayload({ organization_ids: ['org-1'], system_ids: [] })).toEqual({
-      organization_ids: ['org-1'],
+  it('drops the empty lists of the scope', () => {
+    expect(toScopePayload({ assigned_organization_ids: ['org-1'], system_ids: [] })).toEqual({
+      managed_organization_ids: undefined,
+      assigned_organization_ids: ['org-1'],
       system_ids: undefined,
     })
-    expect(toScopePayload({ system_ids: ['sys-1'] })).toEqual({
-      organization_ids: undefined,
+    expect(toScopePayload({ managed_organization_ids: [], system_ids: ['sys-1'] })).toEqual({
+      managed_organization_ids: undefined,
+      assigned_organization_ids: undefined,
       system_ids: ['sys-1'],
     })
   })
 
-  it('keeps both lists when both are set', () => {
-    expect(toScopePayload({ organization_ids: ['org-1'], system_ids: ['sys-1', 'sys-2'] })).toEqual(
-      { organization_ids: ['org-1'], system_ids: ['sys-1', 'sys-2'] },
-    )
+  it('keeps the managed companies and the systems', () => {
+    expect(
+      toScopePayload({ managed_organization_ids: ['org-1'], system_ids: ['sys-1', 'sys-2'] }),
+    ).toEqual({
+      managed_organization_ids: ['org-1'],
+      assigned_organization_ids: undefined,
+      system_ids: ['sys-1', 'sys-2'],
+    })
+  })
+
+  it('saves a scope mixing managed and assigned companies as assigned', () => {
+    expect(
+      toScopePayload({
+        managed_organization_ids: ['org-1', 'org-2'],
+        assigned_organization_ids: ['org-2', 'org-3'],
+      }),
+    ).toEqual({
+      managed_organization_ids: undefined,
+      assigned_organization_ids: ['org-1', 'org-2', 'org-3'],
+      system_ids: undefined,
+    })
+  })
+})
+
+describe('isScopeManaged', () => {
+  it('reads a missing scope or managed list as assigned', () => {
+    expect(isScopeManaged(undefined)).toBe(false)
+    expect(isScopeManaged({ system_ids: ['sys-1'] })).toBe(false)
+  })
+
+  it('keeps the managed choice while no company is selected', () => {
+    expect(isScopeManaged({ managed_organization_ids: [] })).toBe(true)
+  })
+
+  it('reads a scope mixing managed and assigned companies as assigned', () => {
+    expect(
+      isScopeManaged({ managed_organization_ids: ['org-1'], assigned_organization_ids: ['org-2'] }),
+    ).toBe(false)
   })
 })
 
