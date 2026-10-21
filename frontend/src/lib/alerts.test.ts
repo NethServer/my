@@ -11,6 +11,7 @@ import {
   getRecipientValidationIssues,
   getScopeRequiredMessage,
   isAlertSilenced,
+  savedNotificationContent,
   toScopePayload,
   WITH_COMMENTS_FILTER_ID,
   WITHOUT_COMMENTS_FILTER_ID,
@@ -280,5 +281,38 @@ describe('getScopeRequiredMessage', () => {
   it('asks the other roles for a company or a system', () => {
     signInAs('Reseller')
     expect(getScopeRequiredMessage()).toBe('alerts.scope_required')
+  })
+})
+
+describe('savedNotificationContent', () => {
+  const t = (key: string, named: Record<string, unknown>) => `${key} ${JSON.stringify(named)}`
+
+  it('keeps the default text when every organization was updated', () => {
+    expect(
+      savedNotificationContent({ propagation: 'sync', affected_tenants: 1, warnings: [] }, 'ok', t),
+    ).toEqual({ kind: 'success', description: 'ok' })
+  })
+
+  it('says the change is applied in the background', () => {
+    expect(
+      savedNotificationContent(
+        { propagation: 'async', affected_tenants: 633, warnings: [] },
+        'ok',
+        t,
+      ),
+    ).toEqual({ kind: 'success', description: 'alerts.config_saved_async {"count":633}' })
+  })
+
+  it('warns about organizations that were not updated', () => {
+    expect(
+      savedNotificationContent(
+        { propagation: 'sync', affected_tenants: 3, warnings: ['org a: boom'] },
+        'ok',
+        t,
+      ),
+    ).toEqual({
+      kind: 'warning',
+      description: 'alerts.config_saved_partial {"failed":1,"total":3}',
+    })
   })
 })

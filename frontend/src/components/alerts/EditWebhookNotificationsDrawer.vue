@@ -28,6 +28,7 @@ import {
   getScopeRequiredMessage,
   getSeverityBadgeKind,
   postAlertsConfig,
+  savedNotificationContent,
   toScopePayload,
   type AlertingConfigLayer,
   type WebhookRecipient,
@@ -180,12 +181,17 @@ const {
     }
     return postAlertsConfig(payload)
   },
-  onSuccess() {
+  onSuccess(result) {
+    const { kind, description } = savedNotificationContent(
+      result,
+      t('alerts.webhook_notifications_saved_description'),
+      t,
+    )
     setTimeout(() => {
       notificationsStore.createNotification({
-        kind: 'success',
+        kind,
         title: t('alerts.webhook_notifications_saved'),
-        description: t('alerts.webhook_notifications_saved_description'),
+        description,
       })
     }, 500)
     emit('close')

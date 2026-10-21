@@ -338,12 +338,23 @@ export interface AlertHistoryRecord {
 
 // ── API functions ─────────────────────────────────────────────────────────────
 
+// Progress of the last background fan-out of the caller's layer.
+export interface AlertsConfigPropagation {
+  state: 'running' | 'done' | 'incomplete'
+  total: number
+  pushed: number
+  failed: number
+  started_at: string
+  finished_at: string | null
+}
+
 interface AlertsConfigResponse {
   code: number
   message: string
   data: AlertingConfigLayer & {
     updated_by_name?: string | null
     updated_at?: string | null
+    propagation?: AlertsConfigPropagation | null
   }
 }
 
@@ -468,12 +479,41 @@ export const deleteAlertSilence = (silenceId: string, organizationId?: string) =
   })
 }
 
+export interface AlertsConfigSaveResult {
+  affected_tenants?: number
+  propagated_to?: number
+  propagation?: 'sync' | 'async'
+  warnings?: string[]
+}
+
 export const postAlertsConfig = (config: AlertingConfigLayer) => {
   const loginStore = useLoginStore()
 
-  return axios.post(`${API_URL}/alerts/config`, config, {
-    headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-  })
+  return axios
+    .post<{ code: number; message: string; data: AlertsConfigSaveResult }>(
+      `${API_URL}/alerts/config`,
+      config,
+      { headers: { Authorization: `Bearer ${loginStore.jwtToken}` } },
+    )
+    .then((res) => res.data.data)
+}
+
+// Kind and description of the toast shown after a save: background
+// propagation and organizations that could not be updated get their own text.
+export const savedNotificationContent = (
+  result: AlertsConfigSaveResult | undefined,
+  defaultDescription: string,
+  t: (key: string, named: Record<string, unknown>) => string,
+): { kind: 'success' | 'warning'; description: string } => {
+  const total = result?.affected_tenants ?? 0
+  const failed = result?.warnings?.length ?? 0
+  if (result?.propagation === 'async') {
+    return { kind: 'success', description: t('alerts.config_saved_async', { count: total }) }
+  }
+  if (failed > 0) {
+    return { kind: 'warning', description: t('alerts.config_saved_partial', { failed, total }) }
+  }
+  return { kind: 'success', description: defaultDescription }
 }
 
 export const getAlerts = (

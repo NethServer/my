@@ -29,6 +29,7 @@ import {
   getScopeRequiredMessage,
   getSeverityBadgeKind,
   postAlertsConfig,
+  savedNotificationContent,
   toScopePayload,
   type AlertingConfigLayer,
   type EmailRecipient,
@@ -178,12 +179,17 @@ const {
     }
     return postAlertsConfig(payload)
   },
-  onSuccess() {
+  onSuccess(result) {
+    const { kind, description } = savedNotificationContent(
+      result,
+      t('alerts.email_notifications_saved_description'),
+      t,
+    )
     setTimeout(() => {
       notificationsStore.createNotification({
-        kind: 'success',
+        kind,
         title: t('alerts.email_notifications_saved'),
-        description: t('alerts.email_notifications_saved_description'),
+        description,
       })
     }, 500)
     emit('close')
