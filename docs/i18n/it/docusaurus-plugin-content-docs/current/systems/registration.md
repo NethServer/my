@@ -44,7 +44,7 @@ La registrazione è il processo con cui un sistema esterno (NethServer, NethSecu
 │              │     ✓ Parte pubblica esistente
 │              │     ✓ Parte secret verificata (SHA256)
 │              │     ✓ Non eliminato
-│              │     ✓ Non gia' registrato
+│              │     ✓ Non deregistrato
 └──────────────┘
       │
       │  5. Restituisce il system_key
@@ -190,7 +190,7 @@ La piattaforma esegue diversi controlli di sicurezza:
 
 3. **Controlli di sicurezza**:
    - Il sistema non è eliminato
-   - Il sistema non è già registrato
+   - Il sistema non è stato deregistrato
    - La parte pubblica coincide con il valore memorizzato
 
 4. **Verifica crittografica**:
@@ -300,25 +300,22 @@ MY_SYSTEM_SECRET=my_a1b2c3d4e5f6g7h8i9j0.k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d
 - Contatta l'amministratore per ripristinare il sistema
 - Crea un nuovo sistema, se necessario
 
-### Già Registrato
+### Deregistrato
 
 **HTTP 409 Conflict:**
 ```json
 {
   "code": 409,
-  "message": "system is already registered",
+  "message": "system has been unregistered",
   "data": null
 }
 ```
 
 **Cause:**
-- Il sistema ha già completato la registrazione
-- Il campo `registered_at` non è nullo
+- L'appliance ha rinunciato alle sue credenziali (`unregistered_at` è valorizzato)
 
 **Soluzione:**
-- Il sistema è già registrato, si può procedere con l'autenticazione
-- Usa il `system_key` e il `system_secret` esistenti
-- Non serve fare nulla, a meno che non serva una nuova registrazione
+- La deregistrazione è definitiva: crea un nuovo sistema e registra la macchina con il suo nuovo secret
 
 ## Dopo la Registrazione
 
@@ -344,14 +341,16 @@ Dopo una registrazione andata a buon fine, il sistema dovrebbe:
 
 ## Ri-Registrazione
 
-### Il System Key è Usa e Getta
+### Registrarsi di Nuovo con lo Stesso Secret
 
-La registrazione non si può ripetere né annullare. Una volta che `registered_at` è valorizzato:
+Un sistema registrato può registrarsi di nuovo con il suo secret **valido**, per esempio dopo che la macchina è stata reinstallata da zero e deve raggiungere i suoi backup su My prima di ripristinarne uno:
 
-- `POST /backend/api/systems/register` risponde **409** per quel sistema, per sempre
-- Anche **Rigenera Secret** risponde **409** -- il secret è ormai la credenziale viva con cui l'appliance si autentica su collect
+- `POST /backend/api/systems/register` risponde **200** con lo stesso `system_key` e il `registered_at` originale
+- Il secret non cambia, quindi un backup ripristinato che contiene le stesse credenziali continua a funzionare
+- Ogni registrazione ripetuta viene contata: il dettaglio del sistema mostra `reregistration_count` e `last_reregistered_at`
+- **Rigenera Secret** risponde ancora **409** su un sistema registrato -- il secret è la credenziale viva con cui l'appliance si autentica su collect
 
-Una macchina che ha bisogno di nuovo di una sottoscrizione riceve un **nuovo sistema**, con il proprio `system_secret`. La riga vecchia resta come traccia di una chiave spesa, finché un amministratore non la elimina.
+Un secret sbagliato viene rifiutato con 401, un sistema deregistrato con 409.
 
 ### Cosa Non Influisce sulla Registrazione
 
@@ -496,11 +495,11 @@ else
 fi
 ```
 
-### Registrazioni Multiple (Errore)
+### Registrazioni Multiple
 
 **Domanda:** cosa succede se registro lo stesso sistema più volte?
 
-**Risposta:** dal secondo tentativo in poi la registrazione fallisce con HTTP 409 (già registrato). È voluto, per evitare ri-registrazioni accidentali.
+**Risposta:** ogni tentativo con il secret valido va a buon fine e restituisce lo stesso `system_key`. I tentativi successivi al primo vengono contati in `reregistration_count` e `last_reregistered_at`, visibili nel dettaglio del sistema.
 
 ### Annullare la Registrazione di un Sistema
 

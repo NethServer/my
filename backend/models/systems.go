@@ -103,6 +103,11 @@ type System struct {
 	FirstHeartbeat *time.Time `json:"first_heartbeat,omitempty"` // First heartbeat received
 	FirstInventory *time.Time `json:"first_inventory,omitempty"` // First inventory received
 
+	// Repeated registrations with the valid secret (reinstall + restore),
+	// populated by the single-system read only
+	ReregistrationCount *int       `json:"reregistration_count,omitempty"`
+	LastReregisteredAt  *time.Time `json:"last_reregistered_at,omitempty"`
+
 	// Rebranding info (populated by handler)
 	RebrandingEnabled bool    `json:"rebranding_enabled"`
 	RebrandingOrgID   *string `json:"rebranding_org_id,omitempty"`

@@ -121,6 +121,29 @@ function onCloseSecretRegeneratedModal() {
           <span v-else>-</span>
         </template>
       </DataItem>
+      <!-- registrations with the same secret after the first one -->
+      <template v-if="systemDetail.data?.reregistration_count">
+        <DataItem>
+          <template #label>
+            {{ $t('system_detail.reregistrations') }}
+          </template>
+          <template #data>
+            {{ systemDetail.data.reregistration_count }}
+          </template>
+        </DataItem>
+        <DataItem>
+          <template #label>
+            {{ $t('system_detail.last_reregistration') }}
+          </template>
+          <template #data>
+            {{
+              systemDetail.data.last_reregistered_at
+                ? formatDateTimeNoSeconds(new Date(systemDetail.data.last_reregistered_at), locale)
+                : '-'
+            }}
+          </template>
+        </DataItem>
+      </template>
     </div>
     <!-- regenerate secret modal -->
     <RegenerateSecretModal

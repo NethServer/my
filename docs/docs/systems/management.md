@@ -364,8 +364,7 @@ Export system information for reporting:
 1. Verify secret was copied correctly (no extra spaces)
 2. Check secret hasn't been regenerated
 3. Confirm system is not deleted
-4. Ensure system is not already registered
-5. See [System Registration Troubleshooting](./registration.md#troubleshooting)
+4. See [System Registration Troubleshooting](./registration.md#troubleshooting)
 
 ### System Shows as "Inactive"
 

@@ -2309,6 +2309,19 @@ components:
           description: |
             First inventory received timestamp. Only returned by GET /systems/{id};
             the list endpoint omits it. NULL means no inventory received yet.
+        reregistration_count:
+          type: integer
+          description: |
+            Times the system registered again with its valid secret after the first
+            registration (e.g. reinstall followed by a restore). Only returned by
+            GET /systems/{id}; the list endpoint omits it.
+        last_reregistered_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            Latest repeated registration. Only returned by GET /systems/{id};
+            NULL means the system never registered again.
           example: "2025-07-02T08:20:00Z"
         registered_at:
           type: string
@@ -11120,8 +11133,8 @@ paths:
         3. External system uses system_key for future operations (inventory, heartbeat)
 
         **Important:**
-        - Systems can only be registered once
-        - Deleted systems cannot be registered
+        - A registered system can register again with its valid secret (e.g. after a reinstall): same system_key, counted in reregistration_count
+        - Deleted and unregistered systems cannot be registered
         - The system_secret is validated using SHA256 hashing
       requestBody:
         required: true
@@ -11202,7 +11215,7 @@ paths:
                     type: string
                     example: "system has been deleted"
         '409':
-          description: System is already registered
+          description: System has been unregistered (terminal)
           content:
             application/json:
               schema:
@@ -11213,7 +11226,7 @@ paths:
                     example: 409
                   message:
                     type: string
-                    example: "system is already registered"
+                    example: "system has been unregistered"
         '500':
           $ref: '#/components/responses/InternalServerError'
 

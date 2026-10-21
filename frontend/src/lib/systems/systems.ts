@@ -58,6 +58,8 @@ export const SystemSchema = v.object({
   last_inventory: v.optional(v.string()),
   first_heartbeat: v.optional(v.string()),
   first_inventory: v.optional(v.string()),
+  reregistration_count: v.optional(v.number()),
+  last_reregistered_at: v.optional(v.string()),
   rebranding_enabled: v.optional(v.boolean()),
   // Add-on catalog ids granted and valid right now. The list endpoint sends
   // them only when asked with include_addons, and omits the key for a system

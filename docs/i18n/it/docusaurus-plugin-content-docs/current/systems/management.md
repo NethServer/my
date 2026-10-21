@@ -350,8 +350,7 @@ Per esportare le informazioni sui sistemi:
 1. Verifica che il secret sia stato copiato correttamente (senza spazi di troppo)
 2. Controlla che il secret non sia stato rigenerato
 3. Conferma che il sistema non sia eliminato
-4. Assicurati che il sistema non sia già registrato
-5. Vedi [Risoluzione problemi della registrazione](./registration.md#risoluzione-problemi)
+4. Vedi [Risoluzione problemi della registrazione](./registration.md#risoluzione-problemi)
 
 ### Sistema Sempre in Stato "Inactive"
 
