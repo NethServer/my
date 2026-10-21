@@ -188,10 +188,7 @@ By default a recipient receives the alerts of every system your layer reaches: y
 - **All systems** — the default, no scope.
 - **Only specific companies or systems** — pick one or more organizations in **Companies** and/or systems in **Systems**.
 
-An organization can be chosen in two ways:
-
-- **Managed by** — the organization's own systems and those of every organization it manages: choosing a distributor covers its resellers and their customers, choosing a reseller covers its customers.
-- **Assigned to** — only the systems assigned to the organization itself: choosing a distributor covers the distributor's own systems, not those of its resellers and customers.
+By default a chosen organization covers only the systems assigned to the organization itself: choosing a distributor covers the distributor's own systems, not those of its resellers and customers. Check **Also include systems of the companies they manage** to extend every chosen organization to the organizations it manages: a distributor then covers its resellers and their customers, a reseller its customers. The choice applies to all the chosen organizations at once.
 
 Customers manage no other organization, so they see **Only specific systems** and choose systems only.
 
@@ -205,7 +202,7 @@ An alert reaches the recipient when its system is one of the chosen systems **or
 }
 ```
 
-`managed_organization_ids` is the **Managed by** choice, `assigned_organization_ids` the **Assigned to** one. All three lists are optional, but a scope must name at least one organization or system (at most 100 organizations per list and 500 systems). An empty or missing scope means every system. The legacy key `organization_ids` is still accepted on input as `managed_organization_ids`.
+`managed_organization_ids` holds the organizations chosen with **Also include systems of the companies they manage**, `assigned_organization_ids` the others; the UI writes one list or the other, a scope saved through the API may use both. All three lists are optional, but a scope must name at least one organization or system (at most 100 organizations per list and 500 systems). An empty or missing scope means every system. The legacy key `organization_ids` is still accepted on input as `managed_organization_ids`.
 
 Typical use: a distributor or the Owner follows one customer of a large reseller, or a handful of critical systems, on a dedicated address, without receiving everything else.
 
