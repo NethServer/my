@@ -14515,6 +14515,30 @@ paths:
                       format: "html"
                   webhook_recipients: []
                   telegram_recipients: []
+              DistributorScopedRecipients:
+                summary: Distributor — recipients scoped to managed or assigned organizations
+                description: |
+                  The NOC follows everything managed by one reseller (its
+                  customers included); the distributor's technician only the
+                  systems assigned to the distributor itself, plus one system.
+                value:
+                  enabled: { email: true, webhook: null, telegram: null }
+                  email_recipients:
+                    - address: "noc@distributor.example"
+                      severities: ["critical"]
+                      language: "en"
+                      format: "html"
+                      scope:
+                        managed_organization_ids: ["reseller_logto_id"]
+                    - address: "tech@distributor.example"
+                      severities: []
+                      language: "it"
+                      format: "html"
+                      scope:
+                        assigned_organization_ids: ["distributor_logto_id"]
+                        system_ids: ["1e3f8790-0c66-4727-9139-59a4dc50f41b"]
+                  webhook_recipients: []
+                  telegram_recipients: []
               CustomerWebhookCriticalOnly:
                 summary: Customer — Slack webhook only for `critical`
                 description: |

@@ -186,20 +186,26 @@ Mimir Alertmanager fans out one receiver per severity, named per tenant (`<org_i
 By default a recipient receives the alerts of every system your layer reaches: your own organization and everything below it. In the recipient's settings, **Alerts from** narrows that down:
 
 - **All systems** — the default, no scope.
-- **Only specific companies or systems** — pick one or more organizations in **Companies** and/or systems in **Systems**. An organization includes its whole sub-tree: choosing a reseller covers the reseller's own systems and those of all its customers.
+- **Only specific companies or systems** — pick one or more organizations in **Companies** and/or systems in **Systems**.
+
+An organization can be chosen in two ways:
+
+- **Managed by** — the organization's own systems and those of every organization it manages: choosing a distributor covers its resellers and their customers, choosing a reseller covers its customers.
+- **Assigned to** — only the systems assigned to the organization itself: choosing a distributor covers the distributor's own systems, not those of its resellers and customers.
 
 Customers manage no other organization, so they see **Only specific systems** and choose systems only.
 
-An alert reaches the recipient when its system is one of the chosen systems **or** belongs to one of the chosen organizations. The scope combines with the severities: a recipient scoped to one customer with `["critical"]` gets only that customer's critical alerts.
+An alert reaches the recipient when its system is one of the chosen systems **or** falls in one of the chosen organizations. The scope combines with the severities: a recipient scoped to one customer with `["critical"]` gets only that customer's critical alerts.
 
 ```json
 "scope": {
-  "organization_ids": ["<customer logto id>"],
+  "managed_organization_ids": ["<reseller logto id>"],
+  "assigned_organization_ids": ["<distributor logto id>"],
   "system_ids": ["<system id>", "<system id>"]
 }
 ```
 
-Both lists are optional, but a scope must name at least one organization or system (at most 100 organizations and 500 systems). An empty or missing scope means every system.
+`managed_organization_ids` is the **Managed by** choice, `assigned_organization_ids` the **Assigned to** one. All three lists are optional, but a scope must name at least one organization or system (at most 100 organizations per list and 500 systems). An empty or missing scope means every system. The legacy key `organization_ids` is still accepted on input as `managed_organization_ids`.
 
 Typical use: a distributor or the Owner follows one customer of a large reseller, or a handful of critical systems, on a dedicated address, without receiving everything else.
 

@@ -186,20 +186,26 @@ Mimir Alertmanager espande un receiver per severità, con un nome per tenant (`<
 Di default un destinatario riceve gli allarmi di tutti i sistemi raggiunti dal tuo layer: la tua organizzazione e tutto ciò che sta sotto. Nelle impostazioni del destinatario, **Allarmi di** restringe questo insieme:
 
 - **Tutti i sistemi** — il default, nessuno scope.
-- **Solo aziende o sistemi specifici** — scegli una o più organizzazioni in **Aziende** e/o sistemi in **Sistemi**. Un'organizzazione include tutto il suo sotto-albero: scegliendo un rivenditore si coprono i suoi sistemi e quelli di tutti i suoi clienti.
+- **Solo aziende o sistemi specifici** — scegli una o più organizzazioni in **Aziende** e/o sistemi in **Sistemi**.
+
+Un'organizzazione si può scegliere in due modi:
+
+- **Gestiti da** — i sistemi dell'organizzazione e quelli di tutte le organizzazioni che gestisce: scegliendo un distributore si coprono i suoi rivenditori e i loro clienti, scegliendo un rivenditore i suoi clienti.
+- **Assegnati a** — solo i sistemi assegnati all'organizzazione stessa: scegliendo un distributore si coprono i suoi sistemi, non quelli dei suoi rivenditori e clienti.
 
 I clienti non gestiscono altre organizzazioni, quindi vedono **Solo sistemi specifici** e scelgono solo sistemi.
 
-Un allarme arriva al destinatario se il suo sistema è tra quelli scelti **oppure** appartiene a una delle organizzazioni scelte. Lo scope si combina con le severità: un destinatario limitato a un cliente con `["critical"]` riceve solo gli allarmi critici di quel cliente.
+Un allarme arriva al destinatario se il suo sistema è tra quelli scelti **oppure** rientra in una delle organizzazioni scelte. Lo scope si combina con le severità: un destinatario limitato a un cliente con `["critical"]` riceve solo gli allarmi critici di quel cliente.
 
 ```json
 "scope": {
-  "organization_ids": ["<logto id del cliente>"],
+  "managed_organization_ids": ["<logto id del rivenditore>"],
+  "assigned_organization_ids": ["<logto id del distributore>"],
   "system_ids": ["<id sistema>", "<id sistema>"]
 }
 ```
 
-Entrambe le liste sono opzionali, ma uno scope deve indicare almeno un'organizzazione o un sistema (al massimo 100 organizzazioni e 500 sistemi). Uno scope vuoto o assente significa tutti i sistemi.
+`managed_organization_ids` corrisponde a **Gestiti da**, `assigned_organization_ids` ad **Assegnati a**. Le tre liste sono opzionali, ma uno scope deve indicare almeno un'organizzazione o un sistema (al massimo 100 organizzazioni per lista e 500 sistemi). Uno scope vuoto o assente significa tutti i sistemi. La vecchia chiave `organization_ids` è ancora accettata in ingresso come `managed_organization_ids`.
 
 Uso tipico: un distributore o l'Owner segue su un indirizzo dedicato un singolo cliente di un rivenditore grande, o pochi sistemi critici, senza ricevere tutto il resto.
 
