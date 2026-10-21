@@ -438,7 +438,7 @@ func validateRecipientScopes(layer models.AlertingConfigLayer, stored *models.Al
 		if scope == nil {
 			return ""
 		}
-		for _, id := range scope.OrganizationIDs {
+		for _, id := range append(append([]string{}, scope.ManagedOrganizationIDs...), scope.AssignedOrganizationIDs...) {
 			_, allowed := allowedOrgs[id]
 			_, stale := known[id]
 			if !allowed && !stale {

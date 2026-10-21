@@ -16,15 +16,21 @@ import (
 // orgs whose chain carries no system scope never hit the database.
 type systemsLookup func() (map[string]struct{}, error)
 
-// scopeForOrg narrows one recipient scope to the alerts of a single org.
-// keep=false drops the recipient for this org. A nil result means the
-// recipient gets every alert of the org; otherwise only the listed systems.
-func scopeForOrg(s *models.RecipientScope, chain map[string]struct{}, systems systemsLookup) (*models.RecipientScope, bool, error) {
+// scopeForOrg narrows one recipient scope to the alerts of a single org,
+// whose ancestor chain (Owner→org, inclusive) is chain. keep=false drops the
+// recipient for this org. A nil result means the recipient gets every alert
+// of the org; otherwise only the listed systems.
+func scopeForOrg(s *models.RecipientScope, orgID string, chain map[string]struct{}, systems systemsLookup) (*models.RecipientScope, bool, error) {
 	if s.IsEmpty() {
 		return nil, true, nil
 	}
-	for _, id := range s.OrganizationIDs {
+	for _, id := range s.ManagedOrganizationIDs {
 		if _, ok := chain[id]; ok {
+			return nil, true, nil
+		}
+	}
+	for _, id := range s.AssignedOrganizationIDs {
+		if id == orgID {
 			return nil, true, nil
 		}
 	}
@@ -49,13 +55,14 @@ func scopeForOrg(s *models.RecipientScope, chain map[string]struct{}, systems sy
 
 // scopeLayerForOrg resolves every recipient scope of layer against orgID,
 // whose ancestor chain (Owner→org, inclusive) is chain. Organization scopes
-// become "all alerts" when they hit the chain, system scopes keep only the
-// systems orgID owns, and recipients left with nothing are dropped.
-func scopeLayerForOrg(layer models.AlertingConfigLayer, chain map[string]struct{}, systems systemsLookup) (models.AlertingConfigLayer, error) {
+// become "all alerts" when they hit the chain, assigned organization scopes
+// when they name orgID itself, system scopes keep only the systems orgID
+// owns, and recipients left with nothing are dropped.
+func scopeLayerForOrg(layer models.AlertingConfigLayer, orgID string, chain map[string]struct{}, systems systemsLookup) (models.AlertingConfigLayer, error) {
 	out := layer
 	out.EmailRecipients = make([]models.EmailRecipient, 0, len(layer.EmailRecipients))
 	for _, r := range layer.EmailRecipients {
-		scope, keep, err := scopeForOrg(r.Scope, chain, systems)
+		scope, keep, err := scopeForOrg(r.Scope, orgID, chain, systems)
 		if err != nil {
 			return out, err
 		}
@@ -66,7 +73,7 @@ func scopeLayerForOrg(layer models.AlertingConfigLayer, chain map[string]struct{
 	}
 	out.WebhookRecipients = make([]models.WebhookRecipient, 0, len(layer.WebhookRecipients))
 	for _, r := range layer.WebhookRecipients {
-		scope, keep, err := scopeForOrg(r.Scope, chain, systems)
+		scope, keep, err := scopeForOrg(r.Scope, orgID, chain, systems)
 		if err != nil {
 			return out, err
 		}
@@ -77,7 +84,7 @@ func scopeLayerForOrg(layer models.AlertingConfigLayer, chain map[string]struct{
 	}
 	out.TelegramRecipients = make([]models.TelegramRecipient, 0, len(layer.TelegramRecipients))
 	for _, r := range layer.TelegramRecipients {
-		scope, keep, err := scopeForOrg(r.Scope, chain, systems)
+		scope, keep, err := scopeForOrg(r.Scope, orgID, chain, systems)
 		if err != nil {
 			return out, err
 		}
@@ -128,10 +135,11 @@ func effectiveLayerFromChain(chain []string, layers []models.AlertingConfigLayer
 	for _, id := range chain {
 		chainSet[id] = struct{}{}
 	}
-	systems := lazyOrgSystems(chain[len(chain)-1])
+	orgID := chain[len(chain)-1]
+	systems := lazyOrgSystems(orgID)
 	scoped := make([]models.AlertingConfigLayer, 0, len(layers))
 	for _, l := range layers {
-		sl, err := scopeLayerForOrg(l, chainSet, systems)
+		sl, err := scopeLayerForOrg(l, orgID, chainSet, systems)
 		if err != nil {
 			return models.AlertingConfigLayer{}, err
 		}

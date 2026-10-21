@@ -204,7 +204,7 @@ func scopeKey(s *models.RecipientScope) string {
 	if n == nil {
 		return ""
 	}
-	return "|org:" + strings.Join(n.OrganizationIDs, ",") + "|sys:" + strings.Join(n.SystemIDs, ",")
+	return "|org:" + strings.Join(n.ManagedOrganizationIDs, ",") + "|assigned:" + strings.Join(n.AssignedOrganizationIDs, ",") + "|sys:" + strings.Join(n.SystemIDs, ",")
 }
 
 // normalizeScope returns a sorted, deduped copy of s, or nil when it narrows
@@ -214,8 +214,9 @@ func normalizeScope(s *models.RecipientScope) *models.RecipientScope {
 		return nil
 	}
 	return &models.RecipientScope{
-		OrganizationIDs: sortedUnique(s.OrganizationIDs),
-		SystemIDs:       sortedUnique(s.SystemIDs),
+		ManagedOrganizationIDs:  sortedUnique(s.ManagedOrganizationIDs),
+		AssignedOrganizationIDs: sortedUnique(s.AssignedOrganizationIDs),
+		SystemIDs:               sortedUnique(s.SystemIDs),
 	}
 }
 

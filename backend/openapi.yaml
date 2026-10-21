@@ -275,15 +275,36 @@ components:
     RecipientScope:
       type: object
       description: |
-        Narrows a recipient to the alerts of some organizations (each with its
-        whole sub-tree) and/or some systems; an alert matches when it falls in
-        either list. Omitted or both lists empty means every system the layer
-        reaches. Every id must belong to the caller's hierarchy, otherwise the
-        save fails with `out_of_scope` on `<channel>_recipients.<i>.scope`.
+        Narrows a recipient to the alerts of some organizations and/or some
+        systems; an alert matches when it falls in any list. Omitted or all
+        lists empty means every system the layer reaches. Every id must belong
+        to the caller's hierarchy, otherwise the save fails with `out_of_scope`
+        on `<channel>_recipients.<i>.scope`.
       properties:
-        organization_ids:
+        managed_organization_ids:
           type: array
           maxItems: 100
+          description: |
+            "Managed by": the systems of each organization and of its whole
+            sub-tree (a distributor's resellers and customers, a reseller's
+            customers).
+          items:
+            type: string
+            pattern: '^[A-Za-z0-9_-]{1,255}$'
+        organization_ids:
+          type: array
+          deprecated: true
+          writeOnly: true
+          description: Legacy name of `managed_organization_ids`, still accepted on input and never returned.
+          items:
+            type: string
+            pattern: '^[A-Za-z0-9_-]{1,255}$'
+        assigned_organization_ids:
+          type: array
+          maxItems: 100
+          description: |
+            Only the systems assigned to each organization itself, not those of
+            the organizations it manages.
           items:
             type: string
             pattern: '^[A-Za-z0-9_-]{1,255}$'

@@ -6,6 +6,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package models
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/mail"
 	"net/url"
@@ -95,17 +96,36 @@ type TelegramRecipient struct {
 }
 
 // RecipientScope narrows a recipient to the alerts of some organizations
-// (and their sub-trees) and/or some systems; an alert matches when it falls
-// in either list. nil or both lists empty means every system the layer
-// reaches, as before.
+// and/or some systems; an alert matches when it falls in any list.
+// ManagedOrganizationIDs match the systems an organization manages (its own
+// and its whole sub-tree), AssignedOrganizationIDs only the systems assigned
+// to the organization itself. nil or all lists empty means every system the
+// layer reaches, as before.
 type RecipientScope struct {
-	OrganizationIDs []string `json:"organization_ids,omitempty" binding:"max=100"`
-	SystemIDs       []string `json:"system_ids,omitempty" binding:"max=500"`
+	ManagedOrganizationIDs  []string `json:"managed_organization_ids,omitempty" binding:"max=100"`
+	AssignedOrganizationIDs []string `json:"assigned_organization_ids,omitempty" binding:"max=100"`
+	SystemIDs               []string `json:"system_ids,omitempty" binding:"max=500"`
+}
+
+// UnmarshalJSON also accepts the legacy organization_ids key, read as
+// managed_organization_ids, from older clients and stored layers.
+func (s *RecipientScope) UnmarshalJSON(data []byte) error {
+	type plain RecipientScope
+	var aux struct {
+		plain
+		LegacyOrganizationIDs []string `json:"organization_ids"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*s = RecipientScope(aux.plain)
+	s.ManagedOrganizationIDs = append(s.ManagedOrganizationIDs, aux.LegacyOrganizationIDs...)
+	return nil
 }
 
 // IsEmpty reports whether the scope narrows nothing.
 func (s *RecipientScope) IsEmpty() bool {
-	return s == nil || (len(s.OrganizationIDs) == 0 && len(s.SystemIDs) == 0)
+	return s == nil || (len(s.ManagedOrganizationIDs) == 0 && len(s.AssignedOrganizationIDs) == 0 && len(s.SystemIDs) == 0)
 }
 
 // ScopeIDs returns every organization and system id referenced by the
@@ -117,7 +137,7 @@ func (c *AlertingConfigLayer) ScopeIDs() (orgIDs, systemIDs []string) {
 		if s.IsEmpty() {
 			return
 		}
-		for _, id := range s.OrganizationIDs {
+		for _, id := range append(append([]string{}, s.ManagedOrganizationIDs...), s.AssignedOrganizationIDs...) {
 			if _, ok := seenOrg[id]; !ok {
 				seenOrg[id] = struct{}{}
 				orgIDs = append(orgIDs, id)
@@ -256,13 +276,16 @@ func validateScope(s *RecipientScope) (string, bool) {
 	if s == nil {
 		return "", true
 	}
-	if len(s.OrganizationIDs) > 100 {
-		return "organization_ids", false
+	if len(s.ManagedOrganizationIDs) > 100 {
+		return "managed_organization_ids", false
+	}
+	if len(s.AssignedOrganizationIDs) > 100 {
+		return "assigned_organization_ids", false
 	}
 	if len(s.SystemIDs) > 500 {
 		return "system_ids", false
 	}
-	for _, id := range s.OrganizationIDs {
+	for _, id := range append(append([]string{}, s.ManagedOrganizationIDs...), s.AssignedOrganizationIDs...) {
 		if !scopeIDPattern.MatchString(id) {
 			return id, false
 		}
