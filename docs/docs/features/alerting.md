@@ -28,11 +28,11 @@ From the Alerting page you can:
 The Alerting page is accessible from the side menu at **Alerting**. The two tabs are gated by different permissions:
 
 - **Alerts** tab — requires `read:systems` (admin, support, reader). `manage:systems` is required to create or remove silences.
-- **Alerting Configuration** tab — requires `read:alerts` (admin/super only); `manage:alerts` to save or remove a configuration.
+- **Notifications** tab — requires `read:alerts` (admin/super only); `manage:alerts` to save or remove a configuration.
 
 ## Organization selector
 
-The **Company** filter at the top of the **Alerts** tab narrows the list to one or more organizations in your hierarchy. Owner, distributor and reseller users see it; customers only ever see their own alerts, so the filter is not shown to them. The **Alerting Configuration** tab is always scoped to the caller's own organization — the page never displays another organization's configuration, regardless of the filter value.
+The **Company** filter at the top of the **Alerts** tab narrows the list to one or more organizations in your hierarchy. Owner, distributor and reseller users see it; customers only ever see their own alerts, so the filter is not shown to them. The **Notifications** tab is always scoped to the caller's own organization — the page never displays another organization's configuration, regardless of the filter value.
 
 ## Active Alerts
 
@@ -96,9 +96,9 @@ Free-form **notes** can be added to an alert at any time, independently from sil
 
 Every alert keeps an activity timeline with the full collaboration history: silenced / silence updated / unsilenced, assigned / unassigned (including auto-release on resolution) and notes, each with the actor and timestamp.
 
-## Alerting Configuration
+## Notifications
 
-The **Alerting Configuration** tab lets you define who gets notified when an alert fires for your organization. The configuration you save here is your **layer** — the server merges it with the layers of every organization above you in the hierarchy (Owner → Distributor → Reseller → Customer) and pushes the resulting Alertmanager YAML to Mimir.
+The **Notifications** tab lets you define who gets notified when an alert fires for your organization. The configuration you save here is your **layer** — the server merges it with the layers of every organization above you in the hierarchy (Owner → Distributor → Reseller → Customer) and pushes the resulting Alertmanager YAML to Mimir.
 
 ### What you see vs. what Mimir sees
 
@@ -249,7 +249,8 @@ What Mimir delivers for this customer:
 
 ### Saving and removing a layer
 
-- **Save configuration** persists your layer and triggers a re-render + push to Mimir for every tenant in your hierarchy. The response reports `affected_tenants` and `propagated_to`; any per-tenant push failures appear as warnings without rolling back the save (Mimir can be reconciled by saving again).
+- **Save configuration** persists your layer and triggers a re-render + push to Mimir for every tenant in your hierarchy. Up to 10 tenants are pushed immediately: the response reports `affected_tenants` and `propagated_to`, and any per-tenant push failure appears as a warning without rolling back the save. Larger hierarchies (Owner, large distributors) are updated in the background (`propagation: async`): failed tenants are retried automatically, the **Notifications** tab shows the progress and a notification appears when it ends. If some organizations could not be updated, save again to retry.
+- A recipient you add **immediately receives the alerts that are already active** in its scope, not only the new ones. Restrict personal recipients to specific companies or systems.
 - **Remove this configuration** deletes your layer entirely. Your contributions disappear from the merged config; ancestor layers (Owner / Distributor / Reseller) remain intact and continue to fire. To fully silence a tenant, every layer in its chain must drop its contribution.
 
 ## System-level alerts
