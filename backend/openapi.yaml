@@ -14416,8 +14416,11 @@ paths:
         After save, the effective per-tenant Mimir YAML is recomputed
         server-side (merge of all layers walking up to the Owner) and
         pushed to every tenant in the caller's hierarchy with bounded
-        concurrency. Per-tenant push failures are returned in `warnings[]`;
-        the caller's layer is saved regardless of push outcome (Mimir can
+        concurrency. Up to 10 tenants are pushed inside the request and
+        per-tenant failures are returned in `warnings[]`; larger fan-outs
+        run in the background (`propagation: async`) with retries, and their
+        progress is reported by `GET /alerts/config` in `propagation`.
+        The caller's layer is saved regardless of push outcome (Mimir can
         be reconciled by saving again).
 
         Additive-only contract: descendants can ADD recipients but cannot
@@ -14550,13 +14553,21 @@ paths:
                       affected_tenants:
                         type: integer
                         description: Number of tenants in caller's hierarchy whose effective config was recomputed
+                      propagation:
+                        type: string
+                        enum: [sync, async]
+                        description: |
+                          `sync` when the tenants were pushed inside the request (up to 10);
+                          `async` when the push runs in the background (Owner and large
+                          distributors), with retries and failures logged server-side.
                       propagated_to:
                         type: integer
-                        description: Of `affected_tenants`, how many were successfully pushed to Mimir
+                        description: Of `affected_tenants`, how many were successfully pushed to Mimir. Only with `propagation=sync`.
                       warnings:
                         type: array
                         description: |
-                          Per-tenant push errors. Always present; empty when every push succeeded.
+                          Per-tenant push errors. Always present; empty when every push succeeded
+                          and always empty with `propagation=async`.
                           Each entry: `org <logto_id>: <error>`.
                         items:
                           type: string
@@ -14673,8 +14684,12 @@ paths:
                     properties:
                       affected_tenants:
                         type: integer
+                      propagation:
+                        type: string
+                        enum: [sync, async]
                       propagated_to:
                         type: integer
+                        description: Only with `propagation=sync`
                       warnings:
                         type: array
                         items:
@@ -14758,6 +14773,33 @@ paths:
                             type: string
                             format: date-time
                             nullable: true
+                          propagation:
+                            type: object
+                            nullable: true
+                            description: |
+                              Progress of the last background fan-out of this layer
+                              (saves reaching more than 10 tenants). Null when none ran
+                              since the backend started. Kept in memory only.
+                            properties:
+                              state:
+                                type: string
+                                enum: [running, done, incomplete]
+                              total:
+                                type: integer
+                                description: Tenants to push
+                              pushed:
+                                type: integer
+                                description: Tenants pushed so far
+                              failed:
+                                type: integer
+                                description: Tenants still failing after the retries
+                              started_at:
+                                type: string
+                                format: date-time
+                              finished_at:
+                                type: string
+                                format: date-time
+                                nullable: true
               examples:
                 Configured:
                   summary: Caller has saved a layer
