@@ -1048,7 +1048,6 @@
     "seats_over_quota_description": "The most recent assignments beyond the licenses bought are not active: free some licenses or buy a higher tier.",
     "cannot_change_seat": "Cannot change the license",
     "no_instances_for_seats": "No instance of this application on the cluster yet.",
-    "node_n": "Node {node}",
     "instance_not_in_inventory": "Not in the latest inventory",
     "seat_assigned_on": "Assigned on {date}",
     "seat_held": "License assigned",

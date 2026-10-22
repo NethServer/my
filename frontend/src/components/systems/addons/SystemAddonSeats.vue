@@ -128,6 +128,12 @@ const { mutate: changeSeat } = useMutation({
   },
 })
 
+// the node an instance runs on, written as the application page writes it
+function nodeName(application: Application) {
+  const node = t('common.node_id', { id: application.node_id })
+  return application.node_label ? `${application.node_label} (${node})` : node
+}
+
 function seatDate(seat: AddonSeat) {
   return formatDateNoTime(new Date(seat.assigned_at), locale.value)
 }
@@ -185,10 +191,7 @@ function seatDate(seat: AddonSeat) {
             </div>
             <div class="text-tertiary-neutral text-sm">
               <template v-if="line.application">
-                {{
-                  line.application.node_label ||
-                  $t('addons.node_n', { node: line.application.node_id })
-                }}
+                {{ nodeName(line.application) }}
               </template>
               <template v-else>{{ $t('addons.instance_not_in_inventory') }}</template>
             </div>

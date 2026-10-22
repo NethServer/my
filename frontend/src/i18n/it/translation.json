@@ -966,7 +966,6 @@
     "seats_over_quota_description": "Le assegnazioni più recenti oltre le licenze acquistate non sono attive: libera qualche licenza o acquista una fascia superiore.",
     "cannot_change_seat": "Impossibile modificare la licenza",
     "no_instances_for_seats": "Nessuna istanza di questa applicazione sul cluster.",
-    "node_n": "Nodo {node}",
     "instance_not_in_inventory": "Non presente nell'ultimo inventario",
     "seat_assigned_on": "Assegnata il {date}",
     "seat_held": "Licenza assegnata",
