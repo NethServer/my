@@ -220,7 +220,10 @@ function clearFilters() {
       <UpdatingSpinner v-if="refreshing" />
     </div>
     <!-- skeleton cards -->
-    <div v-if="loading" class="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
+    <div
+      v-if="loading"
+      class="3xl:grid-cols-4 grid grid-cols-1 gap-x-6 gap-y-6 xl:grid-cols-2 2xl:grid-cols-3"
+    >
       <NeCard v-for="index in SKELETON_CARDS" :key="index" loading :skeleton-lines="6" />
     </div>
     <!-- no add-ons for this system at all -->
@@ -243,7 +246,7 @@ function clearFilters() {
         {{ $t('common.reset_filters') }}
       </NeButton>
     </NeEmptyState>
-    <div v-else class="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 2xl:grid-cols-4">
+    <div v-else class="3xl:grid-cols-4 grid grid-cols-1 gap-x-6 gap-y-6 xl:grid-cols-2">
       <SystemAddonCard
         v-for="card in filteredCards"
         :key="card.addon.id"

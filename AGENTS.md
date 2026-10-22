@@ -4,21 +4,13 @@
 
 Centralized authentication and management platform. Logto as IdP, RBAC with business hierarchy (Owner > Distributor > Reseller > Customer) and technical user roles (Owner, Staff, Admin, Support, Backoffice, Reader).
 
-**Version**: v0.5.0 (pre-production). Canonical source: `version.json`.
+**Version**: released, in production. Canonical source: `version.json`.
 
 ---
 
 ## 1. Critical Rules
 
-### 1.1 Pre-production mindset
-
-No users in production. Forbidden language in code, comments, docs:
-- Temporal: "was", "previously", "before", "has been", "used to"
-- Migration-flavored: "refactored", "migrated from", "deprecated", "legacy", "backward compatibility"
-
-The system IS designed the way it currently looks. Treat each change as the current design, not a migration. Remove temporal language on sight. No compatibility shims. Rule removed post-GA.
-
-### 1.2 Post-change verification (mandatory)
+### 1.1 Post-change verification (mandatory)
 
 After any code change, run the component's pre-commit before committing:
 
@@ -50,11 +42,11 @@ cd frontend && npm run audit
 
 Accepted risks live in `.trivyignore` with the reason they are accepted. A JS advisory needs **both** its CVE and its GHSA id there: the file is trivy's ignore file and the npm audit allowlist at the same time.
 
-### 1.3 Skills
+### 1.2 Skills
 
 `.agents/skills/` holds task-specific skills (e.g. `frontend-conventions`, `frontend-a11y-audit`). Before touching matching files, read the skill's `SKILL.md` and follow it for the task's duration.
 
-### 1.4 Git commit messages
+### 1.3 Git commit messages
 
 - **Wrap the commit body at 72 columns — hard limit, always.** Keep the subject line ≤72 too.
 - Short and direct: summarize by theme, not a bullet list per fix.
@@ -371,7 +363,7 @@ Conventions: org endpoints take the **logto_id** (from `apitool list` or API res
 
 ### 7.4 Authorization regression suite (`backend/authz/`)
 
-**Mandatory before any commit that touches the auth/authz core — routes, middleware, a handler's access check, the RBAC helpers, `sync/configs/config.yml`, or the hierarchy logic (§1.2).** It fires all 170 endpoints as every (org role × user role) persona against a real provisioned hierarchy, plus hand-written cross-organization scenarios, third-party app visibility, the credential-type rules (API key masks, impersonation, self-modification) and a lifecycle layer that moves, deletes, restores and promotes throwaway objects while checking access and alert routing in Mimir. ~3500 checks, fixture left untouched, local-only.
+**Mandatory before any commit that touches the auth/authz core — routes, middleware, a handler's access check, the RBAC helpers, `sync/configs/config.yml`, or the hierarchy logic (§1.1).** It fires all 170 endpoints as every (org role × user role) persona against a real provisioned hierarchy, plus hand-written cross-organization scenarios, third-party app visibility, the credential-type rules (API key masks, impersonation, self-modification) and a lifecycle layer that moves, deletes, restores and promotes throwaway objects while checking access and alert routing in Mimir. ~3500 checks, fixture left untouched, local-only.
 
 ```bash
 cd backend && make test-authz          # coverage + persona drift + all five layers

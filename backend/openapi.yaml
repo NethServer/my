@@ -275,15 +275,36 @@ components:
     RecipientScope:
       type: object
       description: |
-        Narrows a recipient to the alerts of some organizations (each with its
-        whole sub-tree) and/or some systems; an alert matches when it falls in
-        either list. Omitted or both lists empty means every system the layer
-        reaches. Every id must belong to the caller's hierarchy, otherwise the
-        save fails with `out_of_scope` on `<channel>_recipients.<i>.scope`.
+        Narrows a recipient to the alerts of some organizations and/or some
+        systems; an alert matches when it falls in any list. Omitted or all
+        lists empty means every system the layer reaches. Every id must belong
+        to the caller's hierarchy, otherwise the save fails with `out_of_scope`
+        on `<channel>_recipients.<i>.scope`.
       properties:
-        organization_ids:
+        managed_organization_ids:
           type: array
           maxItems: 100
+          description: |
+            "Managed by": the systems of each organization and of its whole
+            sub-tree (a distributor's resellers and customers, a reseller's
+            customers).
+          items:
+            type: string
+            pattern: '^[A-Za-z0-9_-]{1,255}$'
+        organization_ids:
+          type: array
+          deprecated: true
+          writeOnly: true
+          description: Legacy name of `managed_organization_ids`, still accepted on input and never returned.
+          items:
+            type: string
+            pattern: '^[A-Za-z0-9_-]{1,255}$'
+        assigned_organization_ids:
+          type: array
+          maxItems: 100
+          description: |
+            Only the systems assigned to each organization itself, not those of
+            the organizations it manages.
           items:
             type: string
             pattern: '^[A-Za-z0-9_-]{1,255}$'
@@ -4780,7 +4801,7 @@ components:
     SearchParam:
       name: search
       in: query
-      description: Search term. For organizations (distributors, resellers, customers), searches across name, description, and all custom_data fields (vat, address, city, contact, email, phone, language, notes, etc.). For systems, also searches across ipv4_address and ipv6_address.
+      description: Search term. For organizations (distributors, resellers, customers), searches across name, description, and all custom_data fields (vat, address, city, contact, email, phone, language, notes, etc.). For systems, also searches across ipv4_address, ipv6_address and the organization name.
       required: false
       schema:
         type: string
@@ -14416,8 +14437,11 @@ paths:
         After save, the effective per-tenant Mimir YAML is recomputed
         server-side (merge of all layers walking up to the Owner) and
         pushed to every tenant in the caller's hierarchy with bounded
-        concurrency. Per-tenant push failures are returned in `warnings[]`;
-        the caller's layer is saved regardless of push outcome (Mimir can
+        concurrency. Up to 10 tenants are pushed inside the request and
+        per-tenant failures are returned in `warnings[]`; larger fan-outs
+        run in the background (`propagation: async`) with retries, and their
+        progress is reported by `GET /alerts/config` in `propagation`.
+        The caller's layer is saved regardless of push outcome (Mimir can
         be reconciled by saving again).
 
         Additive-only contract: descendants can ADD recipients but cannot
@@ -14491,6 +14515,30 @@ paths:
                       format: "html"
                   webhook_recipients: []
                   telegram_recipients: []
+              DistributorScopedRecipients:
+                summary: Distributor — recipients scoped to managed or assigned organizations
+                description: |
+                  The NOC follows everything managed by one reseller (its
+                  customers included); the distributor's technician only the
+                  systems assigned to the distributor itself, plus one system.
+                value:
+                  enabled: { email: true, webhook: null, telegram: null }
+                  email_recipients:
+                    - address: "noc@distributor.example"
+                      severities: ["critical"]
+                      language: "en"
+                      format: "html"
+                      scope:
+                        managed_organization_ids: ["reseller_logto_id"]
+                    - address: "tech@distributor.example"
+                      severities: []
+                      language: "it"
+                      format: "html"
+                      scope:
+                        assigned_organization_ids: ["distributor_logto_id"]
+                        system_ids: ["1e3f8790-0c66-4727-9139-59a4dc50f41b"]
+                  webhook_recipients: []
+                  telegram_recipients: []
               CustomerWebhookCriticalOnly:
                 summary: Customer — Slack webhook only for `critical`
                 description: |
@@ -14550,13 +14598,21 @@ paths:
                       affected_tenants:
                         type: integer
                         description: Number of tenants in caller's hierarchy whose effective config was recomputed
+                      propagation:
+                        type: string
+                        enum: [sync, async]
+                        description: |
+                          `sync` when the tenants were pushed inside the request (up to 10);
+                          `async` when the push runs in the background (Owner and large
+                          distributors), with retries and failures logged server-side.
                       propagated_to:
                         type: integer
-                        description: Of `affected_tenants`, how many were successfully pushed to Mimir
+                        description: Of `affected_tenants`, how many were successfully pushed to Mimir. Only with `propagation=sync`.
                       warnings:
                         type: array
                         description: |
-                          Per-tenant push errors. Always present; empty when every push succeeded.
+                          Per-tenant push errors. Always present; empty when every push succeeded
+                          and always empty with `propagation=async`.
                           Each entry: `org <logto_id>: <error>`.
                         items:
                           type: string
@@ -14673,8 +14729,12 @@ paths:
                     properties:
                       affected_tenants:
                         type: integer
+                      propagation:
+                        type: string
+                        enum: [sync, async]
                       propagated_to:
                         type: integer
+                        description: Only with `propagation=sync`
                       warnings:
                         type: array
                         items:
@@ -14758,6 +14818,33 @@ paths:
                             type: string
                             format: date-time
                             nullable: true
+                          propagation:
+                            type: object
+                            nullable: true
+                            description: |
+                              Progress of the last background fan-out of this layer
+                              (saves reaching more than 10 tenants). Null when none ran
+                              since the backend started. Kept in memory only.
+                            properties:
+                              state:
+                                type: string
+                                enum: [running, done, incomplete]
+                              total:
+                                type: integer
+                                description: Tenants to push
+                              pushed:
+                                type: integer
+                                description: Tenants pushed so far
+                              failed:
+                                type: integer
+                                description: Tenants still failing after the retries
+                              started_at:
+                                type: string
+                                format: date-time
+                              finished_at:
+                                type: string
+                                format: date-time
+                                nullable: true
               examples:
                 Configured:
                   summary: Caller has saved a layer

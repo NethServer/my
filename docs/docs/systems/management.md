@@ -101,7 +101,7 @@ Navigate to **Systems** to see:
 
 Use filters to find specific systems:
 
-- **Search**: By name or system_key
+- **Search**: free text matched against the system name, system_key, product, status, version, FQDN, IP addresses, creator and organization name
 - **Product**: Filter by type (NethServer or NethSecurity)
 - **Version**: Filter by system version
 - **Organization**: Filter by customer organization

@@ -28,6 +28,7 @@ import {
   getScopeRequiredMessage,
   getSeverityBadgeKind,
   postAlertsConfig,
+  savedNotificationContent,
   toScopePayload,
   type AlertingConfigLayer,
   type TelegramRecipient,
@@ -203,12 +204,17 @@ const {
     }
     return postAlertsConfig(payload)
   },
-  onSuccess() {
+  onSuccess(result) {
+    const { kind, description } = savedNotificationContent(
+      result,
+      t('alerts.telegram_notifications_saved_description'),
+      t,
+    )
     setTimeout(() => {
       notificationsStore.createNotification({
-        kind: 'success',
+        kind,
         title: t('alerts.telegram_notifications_saved'),
-        description: t('alerts.telegram_notifications_saved_description'),
+        description,
       })
     }, 500)
     emit('close')
@@ -336,7 +342,7 @@ function closeDrawer() {
           <Transition name="accordion">
             <div v-if="expandedIndex === index" class="space-y-6 p-4">
               <!-- Telegram channel + bot token -->
-              <div class="space-y-4">
+              <div class="space-y-6">
                 <NeTextInput
                   ref="expandedChatIdRef"
                   :model-value="ch._chatIdInput"

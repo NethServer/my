@@ -39,6 +39,7 @@ import (
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/pkg/version"
 	"github.com/nethesis/my/backend/response"
+	"github.com/nethesis/my/backend/services/alerting"
 	"github.com/nethesis/my/backend/services/local"
 )
 
@@ -711,6 +712,10 @@ func main() {
 
 	if err := srv.Shutdown(ctx); err != nil {
 		logger.Error().Err(err).Msg("Server forced to shutdown")
+	}
+
+	if err := alerting.WaitPropagations(ctx); err != nil {
+		logger.Warn().Err(err).Msg("Alerting config propagation still running at shutdown")
 	}
 
 	// Close Redis connections

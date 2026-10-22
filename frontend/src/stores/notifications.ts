@@ -42,7 +42,13 @@ type StoredNotification = {
   secondButtonAction?: string
 }
 
-type NotificationAction = 'showErrorDetails' | 'copyCommandToClipboard'
+const NOTIFICATION_ACTIONS = ['showErrorDetails'] as const
+type NotificationAction = (typeof NOTIFICATION_ACTIONS)[number]
+
+// Stored notifications outlive the actions they were created with: a button
+// whose action no longer exists is dropped instead of rendering dead.
+const isNotificationAction = (action?: string): action is NotificationAction =>
+  NOTIFICATION_ACTIONS.some((known) => known === action)
 
 export const useNotificationsStore = defineStore('notifications', () => {
   const { t } = useI18n()
@@ -122,10 +128,18 @@ export const useNotificationsStore = defineStore('notifications', () => {
           description: storedNotification.description,
           timestamp: parsedTimestamp,
           payload: storedNotification.payload,
-          firstButtonLabel: storedNotification.firstButtonLabel,
-          secondButtonLabel: storedNotification.secondButtonLabel,
-          firstButtonAction: storedNotification.firstButtonAction,
-          secondButtonAction: storedNotification.secondButtonAction,
+          firstButtonLabel: isNotificationAction(storedNotification.firstButtonAction)
+            ? storedNotification.firstButtonLabel
+            : '',
+          secondButtonLabel: isNotificationAction(storedNotification.secondButtonAction)
+            ? storedNotification.secondButtonLabel
+            : '',
+          firstButtonAction: isNotificationAction(storedNotification.firstButtonAction)
+            ? storedNotification.firstButtonAction
+            : undefined,
+          secondButtonAction: isNotificationAction(storedNotification.secondButtonAction)
+            ? storedNotification.secondButtonAction
+            : undefined,
           isShown: false,
         }
 
@@ -278,10 +292,9 @@ export const useNotificationsStore = defineStore('notifications', () => {
       description: getErrorDescription(axiosError),
       timestamp: new Date(),
       payload: { axiosError: axiosError, responseData: axiosError.response?.data },
-      firstButtonLabel: t('notifications.show_details'),
+      firstButtonLabel: t('common.details'),
       firstButtonAction: 'showErrorDetails',
-      secondButtonLabel: t('error_modal.copy_command'),
-      secondButtonAction: 'copyCommandToClipboard',
+      secondButtonLabel: '',
     }
     addNotification(notification)
   }
@@ -317,20 +330,6 @@ export const useNotificationsStore = defineStore('notifications', () => {
     return notification.payload as AxiosErrorNotificationPayload | undefined
   }
 
-  const copyCommandToClipboard = (notification: NeNotificationV2) => {
-    const payload = getAxiosErrorNotificationPayload(notification)
-    const url = payload?.axiosError?.config?.url ?? ''
-    const method = payload?.axiosError?.config?.method?.toUpperCase() ?? 'GET'
-    // never embed the live JWT: the copied command can end up in tickets or chats
-    const tokenChunk = `-H 'Authorization: Bearer <YOUR_TOKEN>'`
-    const data = payload?.axiosError?.config?.data
-    const dataChunk = data ? `-d ${JSON.stringify(data)}` : ''
-
-    const curlCommand =
-      `curl -X ${method} '${url}' -H 'Content-Type: application/json' ${tokenChunk} ${dataChunk}`.trim()
-    navigator.clipboard.writeText(curlCommand)
-  }
-
   const showErrorDetails = (notification: NeNotificationV2) => {
     setAxiosErrorNotificationToShow(notification)
     setAxiosErrorModalOpen(true)
@@ -345,9 +344,6 @@ export const useNotificationsStore = defineStore('notifications', () => {
     }
 
     switch (action as NotificationAction) {
-      case 'copyCommandToClipboard':
-        copyCommandToClipboard(notification)
-        break
       case 'showErrorDetails':
         showErrorDetails(notification)
         break
@@ -375,7 +371,6 @@ export const useNotificationsStore = defineStore('notifications', () => {
     setAxiosErrorModalOpen,
     setAxiosErrorNotificationToShow,
     getAxiosErrorNotificationPayload,
-    copyCommandToClipboard,
     setNotificationDrawerOpen,
     handleNotificationAction,
     hideNotification,

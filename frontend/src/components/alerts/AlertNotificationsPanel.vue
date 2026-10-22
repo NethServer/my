@@ -6,16 +6,18 @@
 <script setup lang="ts">
 import { faEnvelope, faLink, faPaperPlane } from '@fortawesome/free-solid-svg-icons'
 import { NeHeading, NeInlineNotification } from '@nethesis/vue-components'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAlertsConfig } from '@/queries/alerts/alertsConfig'
 import { canManageAlerts } from '@/lib/permissions'
+import { useNotificationsStore } from '@/stores/notifications'
 import NotificationChannelCard from '@/components/alerts/NotificationChannelCard.vue'
 import EditEmailNotificationsDrawer from '@/components/alerts/EditEmailNotificationsDrawer.vue'
 import EditWebhookNotificationsDrawer from '@/components/alerts/EditWebhookNotificationsDrawer.vue'
 import EditTelegramNotificationsDrawer from '@/components/alerts/EditTelegramNotificationsDrawer.vue'
 
 const { t } = useI18n()
+const notificationsStore = useNotificationsStore()
 
 const { state: configState, asyncStatus } = useAlertsConfig()
 
@@ -25,6 +27,48 @@ const isLoading = computed(
 )
 const loadError = computed(() =>
   configState.value.status === 'error' ? (configState.value.error as Error)?.message : null,
+)
+
+const propagation = computed(() => config.value?.propagation ?? null)
+
+// Toast once when a background run finishes, unless it had already finished
+// when the page loaded (the banner covers that case).
+let silentRun: string | null | undefined
+const notifiedRuns = new Set<string>()
+watch(
+  () => (configState.value.status === 'success' ? propagation.value : undefined),
+  (current) => {
+    if (current === undefined) {
+      return
+    }
+    if (silentRun === undefined) {
+      silentRun = current && current.state !== 'running' ? current.started_at : null
+      return
+    }
+    if (!current || current.state === 'running') {
+      return
+    }
+    const run = current.started_at
+    if (run === silentRun || notifiedRuns.has(run)) {
+      return
+    }
+    notifiedRuns.add(run)
+    const { total, failed } = current
+    notificationsStore.createNotification(
+      current.state === 'done'
+        ? {
+            kind: 'success',
+            title: t('alerts.config_propagation_done'),
+            description: t('alerts.config_propagation_done_description', { count: total }),
+          }
+        : {
+            kind: 'warning',
+            title: t('alerts.config_propagation_incomplete'),
+            description: t('alerts.config_propagation_incomplete_description', { failed, total }),
+          },
+    )
+  },
+  { immediate: true },
 )
 
 type DrawerMode = 'edit' | 'configure'
@@ -90,6 +134,32 @@ function closeTelegramDrawer() {
         {{ t('alerts.configure_channels_description') }}
       </p>
     </div>
+
+    <!-- Background propagation of the last save -->
+    <NeInlineNotification
+      v-if="propagation?.state === 'running'"
+      kind="info"
+      :title="t('alerts.config_propagation_running')"
+      :description="
+        t('alerts.config_propagation_running_description', {
+          pushed: propagation.pushed,
+          total: propagation.total,
+        })
+      "
+      class="mb-6"
+    />
+    <NeInlineNotification
+      v-else-if="propagation?.state === 'incomplete'"
+      kind="warning"
+      :title="t('alerts.config_propagation_incomplete')"
+      :description="
+        t('alerts.config_propagation_incomplete_description', {
+          failed: propagation.failed,
+          total: propagation.total,
+        })
+      "
+      class="mb-6"
+    />
 
     <!-- Error -->
     <NeInlineNotification

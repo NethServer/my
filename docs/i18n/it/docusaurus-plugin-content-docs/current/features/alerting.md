@@ -28,11 +28,11 @@ Dalla pagina Alerting puoi:
 La pagina Alerting è accessibile dal menu laterale alla voce **Alerting**. I due tab hanno permessi diversi:
 
 - Tab **Allarmi** — richiede `read:systems` (admin, support, reader). Per creare o rimuovere silences serve `manage:systems`.
-- Tab **Configurazione alerting** — richiede `read:alerts` (solo admin/super); `manage:alerts` per salvare o rimuovere una configurazione.
+- Tab **Notifiche** — richiede `read:alerts` (solo admin/super); `manage:alerts` per salvare o rimuovere una configurazione.
 
 ## Selezione organizzazione
 
-Il filtro **Azienda** in cima al tab **Allarmi** restringe la lista a una o più organizzazioni della tua gerarchia. Lo vedono Owner, distributori e reseller; i customer vedono solo i propri allarmi, quindi per loro il filtro non compare. Il tab **Configurazione alerting** invece opera **sempre** sulla propria organizzazione — non mostra mai la configurazione di un'altra organizzazione, indipendentemente dal valore del filtro.
+Il filtro **Azienda** in cima al tab **Allarmi** restringe la lista a una o più organizzazioni della tua gerarchia. Lo vedono Owner, distributori e reseller; i customer vedono solo i propri allarmi, quindi per loro il filtro non compare. Il tab **Notifiche** invece opera **sempre** sulla propria organizzazione — non mostra mai la configurazione di un'altra organizzazione, indipendentemente dal valore del filtro.
 
 ## Allarmi attivi
 
@@ -96,9 +96,9 @@ Un allarme può essere **silenziato** per una durata a scelta con un commento op
 
 Ogni allarme conserva una timeline con l'intera cronologia di collaborazione: silenziato / silenziamento aggiornato / riattivato, assegnato / rilasciato (incluso il rilascio automatico alla risoluzione) e note, ciascuno con autore e data.
 
-## Configurazione alerting
+## Notifiche
 
-Il tab **Configurazione alerting** ti permette di definire chi viene notificato quando un allarme scatta nella tua organizzazione. Quello che salvi qui è il tuo **layer** — il server lo unisce ai layer di tutte le organizzazioni sopra di te nella gerarchia (Owner → Distributor → Reseller → Customer) e pusha la YAML Alertmanager risultante a Mimir.
+Il tab **Notifiche** ti permette di definire chi viene notificato quando un allarme scatta nella tua organizzazione. Quello che salvi qui è il tuo **layer** — il server lo unisce ai layer di tutte le organizzazioni sopra di te nella gerarchia (Owner → Distributor → Reseller → Customer) e pusha la YAML Alertmanager risultante a Mimir.
 
 ### Cosa vedi tu vs. cosa vede Mimir
 
@@ -186,20 +186,23 @@ Mimir Alertmanager espande un receiver per severità, con un nome per tenant (`<
 Di default un destinatario riceve gli allarmi di tutti i sistemi raggiunti dal tuo layer: la tua organizzazione e tutto ciò che sta sotto. Nelle impostazioni del destinatario, **Allarmi di** restringe questo insieme:
 
 - **Tutti i sistemi** — il default, nessuno scope.
-- **Solo aziende o sistemi specifici** — scegli una o più organizzazioni in **Aziende** e/o sistemi in **Sistemi**. Un'organizzazione include tutto il suo sotto-albero: scegliendo un rivenditore si coprono i suoi sistemi e quelli di tutti i suoi clienti.
+- **Solo aziende o sistemi specifici** — scegli una o più organizzazioni in **Aziende** e/o sistemi in **Sistemi**.
+
+Di default un'organizzazione scelta copre solo i sistemi assegnati all'organizzazione stessa: scegliendo un distributore si coprono i suoi sistemi, non quelli dei suoi rivenditori e clienti. Selezionando **Includi anche i sistemi delle aziende gestite** ogni organizzazione scelta si estende alle organizzazioni che gestisce: un distributore copre allora i suoi rivenditori e i loro clienti, un rivenditore i suoi clienti. La scelta vale per tutte le organizzazioni scelte insieme.
 
 I clienti non gestiscono altre organizzazioni, quindi vedono **Solo sistemi specifici** e scelgono solo sistemi.
 
-Un allarme arriva al destinatario se il suo sistema è tra quelli scelti **oppure** appartiene a una delle organizzazioni scelte. Lo scope si combina con le severità: un destinatario limitato a un cliente con `["critical"]` riceve solo gli allarmi critici di quel cliente.
+Un allarme arriva al destinatario se il suo sistema è tra quelli scelti **oppure** rientra in una delle organizzazioni scelte. Lo scope si combina con le severità: un destinatario limitato a un cliente con `["critical"]` riceve solo gli allarmi critici di quel cliente.
 
 ```json
 "scope": {
-  "organization_ids": ["<logto id del cliente>"],
+  "managed_organization_ids": ["<logto id del rivenditore>"],
+  "assigned_organization_ids": ["<logto id del distributore>"],
   "system_ids": ["<id sistema>", "<id sistema>"]
 }
 ```
 
-Entrambe le liste sono opzionali, ma uno scope deve indicare almeno un'organizzazione o un sistema (al massimo 100 organizzazioni e 500 sistemi). Uno scope vuoto o assente significa tutti i sistemi.
+`managed_organization_ids` contiene le organizzazioni scelte con **Includi anche i sistemi delle aziende gestite**, `assigned_organization_ids` le altre; la UI scrive l'una o l'altra lista, uno scope salvato tramite API può usarle entrambe. Le tre liste sono opzionali, ma uno scope deve indicare almeno un'organizzazione o un sistema (al massimo 100 organizzazioni per lista e 500 sistemi). Uno scope vuoto o assente significa tutti i sistemi. La vecchia chiave `organization_ids` è ancora accettata in ingresso come `managed_organization_ids`.
 
 Uso tipico: un distributore o l'Owner segue su un indirizzo dedicato un singolo cliente di un rivenditore grande, o pochi sistemi critici, senza ricevere tutto il resto.
 
@@ -249,7 +252,8 @@ Cosa consegna Mimir per questo customer:
 
 ### Salvare e rimuovere un layer
 
-- **Salva configurazione** persiste il tuo layer e triggera un re-render + push a Mimir per ogni tenant della tua gerarchia. La response riporta `affected_tenants` e `propagated_to`; eventuali fallimenti per tenant compaiono come warning senza rollback del salvataggio (Mimir può essere riconciliato salvando di nuovo).
+- **Salva configurazione** persiste il tuo layer e triggera un re-render + push a Mimir per ogni tenant della tua gerarchia. Fino a 10 tenant il push avviene subito: la response riporta `affected_tenants` e `propagated_to`, ed eventuali fallimenti per tenant compaiono come warning senza rollback del salvataggio. Le gerarchie più grandi (Owner, distributori grandi) vengono aggiornate in background (`propagation: async`): i tenant falliti vengono ritentati in automatico, il tab **Notifiche** mostra l'avanzamento e al termine compare una notifica. Se alcune organizzazioni non sono state aggiornate, salva di nuovo per riprovare.
+- Un destinatario che aggiungi **riceve subito gli allarmi già attivi** nel suo ambito, non solo quelli nuovi. Limita i destinatari personali ad aziende o sistemi specifici.
 - **Rimuovi questa configurazione** cancella il tuo layer per intero. Il tuo contributo sparisce dalla config mergiata; i layer degli antenati (Owner / Distributor / Reseller) restano intatti e continuano a scattare. Per silenziare completamente un tenant, ogni layer della sua catena deve eliminare il proprio contributo.
 
 ## Allarmi a livello di sistema

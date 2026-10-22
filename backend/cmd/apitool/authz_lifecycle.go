@@ -623,7 +623,7 @@ func (lc *lcRun) relogin(key string) error {
 func (lc *lcRun) recipient(tag string, orgIDs, systemIDs []string) map[string]interface{} {
 	scope := map[string][]string{}
 	if len(orgIDs) > 0 {
-		scope["organization_ids"] = orgIDs
+		scope["managed_organization_ids"] = orgIDs
 	}
 	if len(systemIDs) > 0 {
 		scope["system_ids"] = systemIDs

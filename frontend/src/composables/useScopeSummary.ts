@@ -1,7 +1,7 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import type { RecipientScope } from '@/lib/alerts'
+import { getScopeOrganizationIds, type RecipientScope } from '@/lib/alerts'
 import { useI18n } from 'vue-i18n'
 
 /**
@@ -13,7 +13,7 @@ export function useScopeSummary() {
 
   return (scope?: RecipientScope) => {
     const parts: string[] = []
-    const organizations = scope?.organization_ids?.length ?? 0
+    const organizations = getScopeOrganizationIds(scope).length
     const systems = scope?.system_ids?.length ?? 0
     if (organizations) {
       parts.push(t('alerts.scope_summary_organizations', { count: organizations }, organizations))

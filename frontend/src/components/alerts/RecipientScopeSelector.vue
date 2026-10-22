@@ -4,13 +4,18 @@
 -->
 
 <script setup lang="ts">
-import { NeMultiselectCombobox, NeRadioSelection } from '@nethesis/vue-components'
+import { NeCheckbox, NeMultiselectCombobox, NeRadioSelection } from '@nethesis/vue-components'
 import type { NeMultiselectComboboxOption, RadioOption } from '@nethesis/vue-components'
-import { computed, reactive } from 'vue'
+import { computed, reactive, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useOrganizationFilter } from '@/composables/useOrganizationFilter'
 import { useSystemFilter } from '@/composables/useSystemFilter'
-import type { AlertScopeNames, RecipientScope } from '@/lib/alerts'
+import {
+  getScopeOrganizationIds,
+  isScopeManaged,
+  type AlertScopeNames,
+  type RecipientScope,
+} from '@/lib/alerts'
 import { isUserCustomer } from '@/lib/organizations/organizations'
 
 const props = defineProps<{
@@ -93,11 +98,29 @@ function remember(options: NeMultiselectComboboxOption[]) {
   }
 }
 
+function setOrganizations(ids: string[], managed: boolean) {
+  scope.value = {
+    ...scope.value,
+    managed_organization_ids: managed ? ids : undefined,
+    assigned_organization_ids: managed ? undefined : ids,
+  }
+}
+
+const includeManaged = computed({
+  get: () => isScopeManaged(scope.value),
+  set: (managed: boolean) => setOrganizations(getScopeOrganizationIds(scope.value), managed),
+})
+
+const includeManagedId = useId()
+
 const selectedOrganizations = computed<NeMultiselectComboboxOption[]>({
-  get: () => (scope.value?.organization_ids ?? []).map(organizationOption),
+  get: () => getScopeOrganizationIds(scope.value).map(organizationOption),
   set: (options) => {
     remember(options)
-    scope.value = { ...scope.value, organization_ids: options.map((o) => o.id) }
+    setOrganizations(
+      options.map((o) => o.id),
+      includeManaged.value,
+    )
   },
 })
 
@@ -111,25 +134,31 @@ const selectedSystems = computed<NeMultiselectComboboxOption[]>({
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="space-y-6">
     <NeRadioSelection v-model="mode" :options="modeOptions" :label="t('alerts.scope')" />
     <template v-if="specific">
-      <NeMultiselectCombobox
-        v-if="canPickOrganizations"
-        v-model="selectedOrganizations"
-        :options="organizationOptions"
-        :label="t('alerts.scope_organizations')"
-        :placeholder="t('organizations.choose_organizations')"
-        :helper-text="t('alerts.scope_organizations_helper')"
-        :loading-options="organizationsLoading"
-        :no-results-label="t('ne_combobox.no_results')"
-        :no-options-label="t('organizations.no_organizations')"
-        :limited-options-label="t('ne_combobox.limited_options_label')"
-        :user-input-label="t('ne_combobox.user_input_label')"
-        :optional-label="t('common.optional')"
-        external-filter
-        @filter="onOrganizationSearch"
-      />
+      <div v-if="canPickOrganizations" class="space-y-3">
+        <NeMultiselectCombobox
+          v-model="selectedOrganizations"
+          :options="organizationOptions"
+          :label="t('alerts.scope_organizations')"
+          :placeholder="t('organizations.choose_organizations')"
+          :loading-options="organizationsLoading"
+          :no-results-label="t('ne_combobox.no_results')"
+          :no-options-label="t('organizations.no_organizations')"
+          :limited-options-label="t('ne_combobox.limited_options_label')"
+          :user-input-label="t('ne_combobox.user_input_label')"
+          :optional-label="t('common.optional')"
+          optional
+          external-filter
+          @filter="onOrganizationSearch"
+        />
+        <NeCheckbox
+          :id="includeManagedId"
+          v-model="includeManaged"
+          :label="t('alerts.scope_include_managed')"
+        />
+      </div>
       <NeMultiselectCombobox
         v-model="selectedSystems"
         :options="systemOptions"
@@ -142,6 +171,7 @@ const selectedSystems = computed<NeMultiselectComboboxOption[]>({
         :limited-options-label="t('ne_combobox.limited_options_label')"
         :user-input-label="t('ne_combobox.user_input_label')"
         :optional-label="t('common.optional')"
+        optional
         external-filter
         @filter="onSystemSearch"
       />

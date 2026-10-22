@@ -30,14 +30,14 @@ func TestScopeLayerForOrg(t *testing.T) {
 	layer := models.AlertingConfigLayer{
 		EmailRecipients: []models.EmailRecipient{
 			{Address: "all@x.it"},
-			{Address: "reseller@x.it", Scope: &models.RecipientScope{OrganizationIDs: []string{"reseller-1"}}},
-			{Address: "other-org@x.it", Scope: &models.RecipientScope{OrganizationIDs: []string{"reseller-2"}}},
+			{Address: "reseller@x.it", Scope: &models.RecipientScope{ManagedOrganizationIDs: []string{"reseller-1"}}},
+			{Address: "other-org@x.it", Scope: &models.RecipientScope{ManagedOrganizationIDs: []string{"reseller-2"}}},
 			{Address: "sys@x.it", Scope: &models.RecipientScope{SystemIDs: []string{"sys-a", "sys-z"}}},
 			{Address: "foreign-sys@x.it", Scope: &models.RecipientScope{SystemIDs: []string{"sys-z"}}},
 		},
 	}
 	chain := set("owner", "dist-1", "reseller-1", "cust-1")
-	out, err := scopeLayerForOrg(layer, chain, staticSystems("sys-a", "sys-b"))
+	out, err := scopeLayerForOrg(layer, "cust-1", chain, staticSystems("sys-a", "sys-b"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,15 +59,42 @@ func TestScopeLayerForOrg(t *testing.T) {
 func TestScopeLayerForOrg_SkipsSystemLookupWithoutSystemScope(t *testing.T) {
 	layer := models.AlertingConfigLayer{
 		EmailRecipients: []models.EmailRecipient{
-			{Address: "a@x.it", Scope: &models.RecipientScope{OrganizationIDs: []string{"cust-1"}}},
+			{Address: "a@x.it", Scope: &models.RecipientScope{ManagedOrganizationIDs: []string{"cust-1"}}},
 		},
 	}
 	lookup := func() (map[string]struct{}, error) {
 		t.Fatal("systems must not be loaded")
 		return nil, nil
 	}
-	if _, err := scopeLayerForOrg(layer, set("cust-1"), lookup); err != nil {
+	if _, err := scopeLayerForOrg(layer, "cust-1", set("cust-1"), lookup); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestScopeLayerForOrg_AssignedOrganization(t *testing.T) {
+	layer := models.AlertingConfigLayer{
+		EmailRecipients: []models.EmailRecipient{
+			{Address: "managed@x.it", Scope: &models.RecipientScope{ManagedOrganizationIDs: []string{"dist-1"}}},
+			{Address: "assigned@x.it", Scope: &models.RecipientScope{AssignedOrganizationIDs: []string{"dist-1"}}},
+		},
+	}
+	chain := set("owner", "dist-1", "reseller-1", "cust-1")
+	lookup := func() (map[string]struct{}, error) { return set(), nil }
+
+	out, err := scopeLayerForOrg(layer, "cust-1", chain, lookup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.EmailRecipients) != 1 || out.EmailRecipients[0].Address != "managed@x.it" {
+		t.Fatalf("a customer below the distributor must reach only the managed scope, got %+v", out.EmailRecipients)
+	}
+
+	out, err = scopeLayerForOrg(layer, "dist-1", set("owner", "dist-1"), lookup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.EmailRecipients) != 2 || out.EmailRecipients[1].Scope != nil {
+		t.Fatalf("the distributor's own systems must reach both scopes, got %+v", out.EmailRecipients)
 	}
 }
 
@@ -158,7 +185,7 @@ func TestValidate_RecipientScope(t *testing.T) {
 	}
 	ok := models.AlertingConfigLayer{
 		TelegramRecipients: []models.TelegramRecipient{
-			{BotToken: "t", ChatID: 1, Scope: &models.RecipientScope{OrganizationIDs: []string{"57rrvkk0hhh3"}, SystemIDs: []string{"e2b55e57-ddb1-489d-91be-0da16bb08319"}}},
+			{BotToken: "t", ChatID: 1, Scope: &models.RecipientScope{ManagedOrganizationIDs: []string{"57rrvkk0hhh3"}, SystemIDs: []string{"e2b55e57-ddb1-489d-91be-0da16bb08319"}}},
 		},
 	}
 	if err := ok.Validate(); err != nil {

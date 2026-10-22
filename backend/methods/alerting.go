@@ -170,14 +170,12 @@ func resolveOrgScope(c *gin.Context, user *models.User) ([]string, bool) {
 }
 
 // configPropagationFanoutTimeout caps how long a POST /alerts/config call
-// will wait for re-rendering+pushing the effective config across descendant
-// tenants. Tuned so a Owner save with hundreds of tenants completes in
-// reasonable time without holding the request open too long.
-const configPropagationFanoutTimeout = 30 * time.Second
+// waits for an in-request fan-out (at most configPropagationSyncMaxTenants).
+const configPropagationFanoutTimeout = 20 * time.Second
 
-// configPropagationFanoutConcurrency limits simultaneous in-flight Mimir
-// pushes to avoid opening hundreds of sockets when an Owner saves.
-const configPropagationFanoutConcurrency = 10
+// configPropagationSyncMaxTenants is the largest fan-out pushed inside the
+// request; bigger ones (Owner, large distributors) run in the background.
+const configPropagationSyncMaxTenants = 10
 
 // alertLayerMutexes guards per-organization layer save+propagate operations.
 // Two parallel POSTs/DELETEs for the same org would otherwise race at the
@@ -380,19 +378,11 @@ func ConfigureAlerts(c *gin.Context) {
 	// Map each affected org to its reseller tenant and dedupe: one nested config
 	// per reseller covers all its customers, so push once per distinct tenant.
 	tenants := distinctTenants(descendants)
-	warnings := propagateAlertingConfigToTenants(c.Request.Context(), tenants)
-	auditDetails := map[string]interface{}{
-		"before":               snapshotLayerForAudit(prevLayer),
-		"after":                snapshotLayerBodyForAudit(user.OrganizationID, req),
-		"affected_tenants":     len(tenants),
-		"propagation_warnings": len(warnings),
-	}
+	payload, auditDetails := propagateLayer(c.Request.Context(), user, tenants)
+	auditDetails["before"] = snapshotLayerForAudit(prevLayer)
+	auditDetails["after"] = snapshotLayerBodyForAudit(user.OrganizationID, req)
 	logger.LogBusinessOperationDetails(c, "alerts", "save_layer", "alert_config_layer", user.OrganizationID, true, nil, auditDetails)
-	c.JSON(http.StatusOK, response.OK("alerting configuration updated successfully", gin.H{
-		"warnings":         warnings,
-		"propagated_to":    len(tenants) - len(warnings),
-		"affected_tenants": len(tenants),
-	}))
+	c.JSON(http.StatusOK, response.OK("alerting configuration updated successfully", payload))
 }
 
 // validateRecipientScopes checks that every organization and system named in
@@ -448,7 +438,7 @@ func validateRecipientScopes(layer models.AlertingConfigLayer, stored *models.Al
 		if scope == nil {
 			return ""
 		}
-		for _, id := range scope.OrganizationIDs {
+		for _, id := range append(append([]string{}, scope.ManagedOrganizationIDs...), scope.AssignedOrganizationIDs...) {
 			_, allowed := allowedOrgs[id]
 			_, stale := known[id]
 			if !allowed && !stale {
@@ -482,47 +472,46 @@ func validateRecipientScopes(layer models.AlertingConfigLayer, stored *models.Al
 	return nil, nil
 }
 
-// propagateAlertingConfigToTenants re-renders and re-pushes the effective
-// Mimir config for each tenant in the list, with bounded concurrency and a
-// global timeout. Per-tenant errors are collected as warnings (string
-// `org <logto_id>: <error>`) and returned; non-erroring tenants are pushed
-// successfully. Always returns a non-nil slice.
-func propagateAlertingConfigToTenants(parent context.Context, tenants []string) []string {
-	warnings := []string{}
-	if len(tenants) == 0 {
-		return warnings
+// propagateLayer pushes the effective config of every tenant affected by
+// the caller's layer. Small fan-outs run in the request and report per-tenant
+// warnings; larger ones go to the background and report propagation "async".
+// It returns the response payload and the audit details to merge.
+func propagateLayer(ctx context.Context, user *models.User, tenants []string) (gin.H, map[string]interface{}) {
+	if len(tenants) <= configPropagationSyncMaxTenants {
+		ctx, cancel := context.WithTimeout(ctx, configPropagationFanoutTimeout)
+		defer cancel()
+		warnings := alerting.PropagateToTenants(ctx, tenants)
+		for _, w := range warnings {
+			logger.Warn().Str("org_id", user.OrganizationID).Str("warning", w).Msg("config propagation failed")
+		}
+		return gin.H{
+			"warnings":         warnings,
+			"propagated_to":    len(tenants) - len(warnings),
+			"affected_tenants": len(tenants),
+			"propagation":      "sync",
+		}, map[string]interface{}{
+			"affected_tenants":     len(tenants),
+			"propagation_warnings": len(warnings),
+			"propagation":          "sync",
+		}
 	}
-	var (
-		mu sync.Mutex
-		wg sync.WaitGroup
-	)
-	ctx, cancel := context.WithTimeout(parent, configPropagationFanoutTimeout)
-	defer cancel()
-	sem := make(chan struct{}, configPropagationFanoutConcurrency)
 
-	for _, tenant := range tenants {
-		wg.Add(1)
-		go func(tenant string) {
-			defer wg.Done()
-			select {
-			case sem <- struct{}{}:
-				defer func() { <-sem }()
-			case <-ctx.Done():
-				mu.Lock()
-				warnings = append(warnings, fmt.Sprintf("org %s: timed out waiting for slot", tenant))
-				mu.Unlock()
-				return
-			}
-			if err := alerting.RenderAndPushEffective(ctx, tenant); err != nil {
-				logger.Warn().Err(err).Str("org_id", tenant).Msg("config propagation failed")
-				mu.Lock()
-				warnings = append(warnings, fmt.Sprintf("org %s: %s", tenant, err.Error()))
-				mu.Unlock()
-			}
-		}(tenant)
+	orgRole, orgID := user.OrgRole, user.OrganizationID
+	alerting.PropagateAsync(orgID, func() ([]string, error) {
+		descendants, err := local.NewUserService().GetHierarchicalOrganizationIDs(orgRole, orgID)
+		if err != nil {
+			return nil, err
+		}
+		return distinctTenants(descendants), nil
+	})
+	return gin.H{
+		"warnings":         []string{},
+		"affected_tenants": len(tenants),
+		"propagation":      "async",
+	}, map[string]interface{}{
+		"affected_tenants": len(tenants),
+		"propagation":      "async",
 	}
-	wg.Wait()
-	return warnings
 }
 
 // DisableAlerts handles DELETE /api/alerts/config — removes the CALLER's
@@ -573,19 +562,11 @@ func DisableAlerts(c *gin.Context) {
 
 	// Map each affected org to its reseller tenant and dedupe (see ConfigureAlerts).
 	tenants := distinctTenants(descendants)
-	warnings := propagateAlertingConfigToTenants(c.Request.Context(), tenants)
-	auditDetails := map[string]interface{}{
-		"before":               snapshotLayerForAudit(prevLayer),
-		"after":                nil,
-		"affected_tenants":     len(tenants),
-		"propagation_warnings": len(warnings),
-	}
+	payload, auditDetails := propagateLayer(c.Request.Context(), user, tenants)
+	auditDetails["before"] = snapshotLayerForAudit(prevLayer)
+	auditDetails["after"] = nil
 	logger.LogBusinessOperationDetails(c, "alerts", "delete_layer", "alert_config_layer", user.OrganizationID, true, nil, auditDetails)
-	c.JSON(http.StatusOK, response.OK("alerting layer removed successfully", gin.H{
-		"warnings":         warnings,
-		"propagated_to":    len(tenants) - len(warnings),
-		"affected_tenants": len(tenants),
-	}))
+	c.JSON(http.StatusOK, response.OK("alerting layer removed successfully", payload))
 }
 
 // alertsListDefaultPageSize matches the per-list default the project uses
@@ -1284,6 +1265,7 @@ func GetAlertingConfig(c *gin.Context) {
 			"scope_names":         alertScopeNames{Organizations: map[string]alertScopeOrg{}, Systems: map[string]alertScopeSystem{}},
 			"updated_by_name":     nil,
 			"updated_at":          nil,
+			"propagation":         layerPropagationStatus(user.OrganizationID),
 		}))
 		return
 	}
@@ -1302,7 +1284,18 @@ func GetAlertingConfig(c *gin.Context) {
 		"scope_names":         scopeNames,
 		"updated_by_name":     rec.UpdatedByName,
 		"updated_at":          rec.UpdatedAt,
+		"propagation":         layerPropagationStatus(user.OrganizationID),
 	}))
+}
+
+// layerPropagationStatus is the progress of the last background fan-out of
+// orgID's layer, or nil when none ran since the backend started.
+func layerPropagationStatus(orgID string) *alerting.PropagationStatus {
+	st, ok := alerting.PropagationStatusFor(orgID)
+	if !ok {
+		return nil
+	}
+	return &st
 }
 
 type alertScopeOrg struct {
@@ -1724,16 +1717,13 @@ func belongsToOrg(ownerOrg, orgID, tenant string) bool {
 // of every tenant under a restored org: its routes (and the recipient scopes
 // naming its systems) were dropped while it was deleted.
 func refreshAlertingAfterRestore(orgType, orgID string) {
-	go func() {
+	alerting.PropagateAsync("restore:"+orgID, func() ([]string, error) {
 		orgIDs, err := local.NewUserService().GetHierarchicalOrganizationIDs(orgType, orgID)
 		if err != nil {
-			logger.Warn().Err(err).Str("org_id", orgID).Msg("alerting refresh after restore: hierarchy enumeration failed")
-			return
+			return nil, err
 		}
-		if warnings := propagateAlertingConfigToTenants(context.Background(), distinctTenants(orgIDs)); len(warnings) > 0 {
-			logger.Warn().Strs("warnings", warnings).Str("org_id", orgID).Msg("alerting refresh after restore: some tenants were not pushed")
-		}
-	}()
+		return distinctTenants(orgIDs), nil
+	})
 }
 
 // distinctTenants maps each authorized customer/org id to its Mimir tenant
