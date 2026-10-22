@@ -4,14 +4,18 @@ sidebar_position: 8
 
 # Add-ons
 
-Granular add-on licensing for systems: firewall services and per-application modules, purchased on NethShop and enforced in real time. Each add-on is backed by an **entitlement** — a license that grants one add-on to one system.
+Granular add-on licensing for systems: firewall services and NethServer 8 application modules, purchased on NethShop and enforced in real time. Each add-on is backed by an **entitlement** — a license that grants one add-on to one system.
 
 ## Overview
 
 Two kinds of add-on exist:
 
 - **Service** — a NethSecurity firewall add-on, granted system-wide (e.g. *Advanced Threat Shield*, *High Availability*, *Sandbox*)
-- **Module** — an add-on for a **single application instance** of a NethServer 8 cluster (e.g. the *Chat* module for `nethvoice1`, but not for `nethvoice2`)
+- **Module** — an add-on for an application of a NethServer 8 cluster (e.g. *Chat* for NethVoice), bought for the whole cluster in one of two ways:
+  - **Whole cluster** — it covers every instance of the application, on every node (e.g. *Advanced Threat Shield* for CrowdSec)
+  - **By licenses** — it is bought with a number of **licenses** (the shop tier, e.g. *1 - 10 instances*), and each license is given to one instance of the application, on any node. Only the instances holding a license use the add-on
+
+Every add-on is bought for the whole system, identified by its system key: an add-on is never bought for a single application instance.
 
 Add-ons are bought on **NethShop** and appear on the system automatically once the subscription is active. Renewals extend the expiry in place; cancelling the subscription revokes the grant. The appliance features validate their license in real time against My Nethesis (`/auth`): without an active add-on the feature is not served.
 
@@ -20,11 +24,13 @@ Add-ons are bought on **NethShop** and appear on the system automatically once t
 Every system whose type is known (NethSecurity or NethServer 8) shows an **Add-ons** tab:
 
 - On a **firewall** the table lists the available services: purchased ones show the payment reference, validity, next renewal and — where the product has tiers — the purchased **tier** (e.g. *31 - 60 device*); the others offer **Buy on NethShop**.
-- On a **cluster** the table has two levels: the application instances found on the system (from the inventory) and, under each instance, the modules available for that application — purchased or buyable per instance.
+- On a **cluster** the cards list the modules of the applications the cluster runs, with the same details. A module sold by licenses also shows how many licenses are assigned, and **Manage licenses** opens the list of the application's instances (from the inventory), each with its node, where a license is assigned or freed. When the licenses are all assigned, **Buy more licenses** opens the shop for a higher tier.
+
+An instance that leaves the inventory — removed, or moved to another node, which gives it a new id — frees its license on its own, ready to be assigned again. If the add-on expires or is revoked the instances keep their licenses, which come back into force with the renewal.
 
 Each purchased add-on also shows **who bought it** (*Purchased by*), within the limits of your hierarchy: a buyer in your organizations is named, one that sits above you or in another branch is shown as *purchased by another organization*, and an add-on carried over from the legacy migration — whose buyer was never a My Nethesis user — reads *migrated, buyer not recorded*.
 
-The **Buy on NethShop** button opens the shop with the system (and application instance) pre-selected, so the purchase is bound to the right target with no manual input.
+The **Buy on NethShop** button opens the shop with the system pre-selected, so the purchase is bound to the right target with no manual input.
 
 ## Finding the systems that hold an add-on
 
@@ -41,13 +47,14 @@ See [Systems Management](../systems/management.md#filtering-and-search).
 |---|---|
 | See add-ons and expirations (`read:entitlements`) | All user roles, within their hierarchy |
 | Buy on NethShop / cancel a subscription (`manage:entitlements`) | Admin, Backoffice — and Nethesis staff, across the whole fleet |
+| Assign and free the licenses of an add-on (`manage:entitlements`) | Whoever can buy, on the systems of their hierarchy — and the Owner organization |
 | Manage the catalog, manual grants, fleet-wide view | Owner organization (Nethesis) |
 
 Distributors and resellers cannot self-activate add-ons: everything flows through the shop.
 
 ## Add-ons catalog (Nethesis)
 
-The **Add-ons** entry in the side menu is available to everyone holding the `read:entitlements` permission, but the **Configuration** tab with the catalog of add-on types is reserved to the Owner organization. Creating a type takes a kind (Service or Module), the target application for modules (the id is composed automatically, e.g. `nethvoice` + `chat` → `nethvoice-chat`), a display name and a description.
+The **Add-ons** entry in the side menu is available to everyone holding the `read:entitlements` permission, but the **Configuration** tab with the catalog of add-on types is reserved to the Owner organization. Creating a type takes a kind (Service or Module), the target application for modules (the id is composed automatically, e.g. `nethvoice` + `chat` → `nethvoice-chat`), a display name and a description. A module is sold for the **whole cluster** or **by licenses**: the choice cannot be changed once the type exists, since grants and assigned licenses depend on it.
 
 Two switches govern whether a type can be bought:
 
@@ -64,7 +71,8 @@ The **Add-ons** page shows the same data as a dashboard, on the **Report** tab: 
 
 ## For developers
 
-- Grants live in `system_entitlements` (one row per system + entitlement + scope; renewals update `valid_until` in place, revocations keep the row for audit). The purchase snapshot (`purchased_by`) and the tier (`variant`) are stored alongside, display-only.
-- Enforcement is served by collect: `GET /auth/service/<id>[?scope=<instance>]` with the system's Basic credentials returns `200` with an active grant, `403` without. Legacy wire ids (`ng-*`) are resolved through the catalog `legacy_alias`, so the appliance feeds keep calling the historical paths unchanged. `/auth-hash` answers the same with `Authorization: Bearer <sha256("<system_key>:<token>")>`, a hash collect learns at the system's first request.
-- The shop activates and renews grants through `POST /backend/api/entitlements/activate` (idempotent, addressed by `system_key`) and revokes them with `POST /backend/api/entitlements/deactivate`.
+- Grants live in `system_entitlements` (one row per system + entitlement; renewals update `valid_until` in place, revocations keep the row for audit). The purchase snapshot (`purchased_by`) and the tier (`variant`) are stored alongside, display-only. A catalog type with `seated = true` is sold by licenses: the grant carries the number bought in `seats`, and `entitlement_seats` records which instance holds each license (released rows are kept for audit, with the reason: `manual` or `instance_removed`).
+- Enforcement is served by collect: `GET /auth/service/<id>[?scope=<instance>]` with the system's Basic credentials returns `200` with an active grant, `403` without. For an add-on sold by licenses the instance must be named in `scope` and hold one of the licenses bought (the oldest assignments first): without `scope` the answer is `403`. Collect frees the licenses of the instances missing from each inventory. Legacy wire ids (`ng-*`) are resolved through the catalog `legacy_alias`, so the appliance feeds keep calling the historical paths unchanged. `/auth-hash` answers the same with `Authorization: Bearer <sha256("<system_key>:<token>")>`, a hash collect learns at the system's first request.
+- The shop activates and renews grants through `POST /backend/api/entitlements/activate` (idempotent, addressed by `system_key`) and revokes them with `POST /backend/api/entitlements/deactivate`. For an add-on sold by licenses the activation carries `seats`, the licenses of the purchased tier: a higher tier raises it on the same grant and the assigned licenses stay where they are.
+- Licenses are assigned with `POST /backend/api/systems/<id>/entitlements/<addon>/seats` (`{"module_id": "nethvoice5"}`) and freed with `DELETE /backend/api/systems/<id>/entitlements/<addon>/seats/<module_id>`; `GET /backend/api/systems/<id>/entitlements` returns `seats` and `seat_assignments` for these add-ons.
 - `GET /backend/api/systems` takes a repeatable `addon=<catalog id>` filter (several ids match any of them) and, with `include_addons=true`, adds to every system the `addons` list of the catalog ids it currently holds. The list is opt-in because it costs one extra query per page, which a bulk read has no use for. The choices for the filter come from `GET /backend/api/filters/systems`, which returns the add-ons present in the caller's hierarchy as `{id, display_name}` pairs; `GET /backend/api/entitlements/catalog` resolves any id to its name.
