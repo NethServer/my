@@ -85,18 +85,11 @@
   },
   "notifications": {
     "title": "Notifiche",
-    "no_notification": "Nessuna notifica",
-    "show_details": "Mostra dettagli"
+    "no_notification": "Nessuna notifica"
   },
   "error_modal": {
     "request_failed": "Richiesta fallita",
     "the_following_request_has_failed": "La seguente richiesta è fallita:",
-    "report_issue_description": "Se il problema persiste e vuoi segnalarlo, segui questi passaggi",
-    "copy_command": "Copia comando",
-    "copy_the_command": "Copia il comando",
-    "report_issue_step_1": "{copyTheCommand} che è fallito",
-    "report_issue_step_2": "Incolla il comando su una shell ed eseguilo",
-    "report_issue_step_3": "Segnala il problema, assicurandoti di fornire sia il comando che il suo output corrispondente",
     "response": "Risposta:",
     "unknown_error": "Errore sconosciuto"
   },
@@ -604,7 +597,6 @@
     "status": "Stato",
     "fqdn": "FQDN",
     "fqdn_ip_address": "FQDN / Indirizzo IP",
-    "show_details": "Mostra dettagli",
     "update_available": "Aggiornam. disponibile",
     "go_to_system": "Vai al sistema",
     "create_system": "Crea sistema",

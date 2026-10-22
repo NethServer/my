@@ -85,18 +85,11 @@
   },
   "notifications": {
     "title": "Notifications",
-    "no_notification": "No notifications yet",
-    "show_details": "Show details"
+    "no_notification": "No notifications yet"
   },
   "error_modal": {
     "request_failed": "Request failed",
     "the_following_request_has_failed": "The following request has failed:",
-    "report_issue_description": "If the issue persists and you want to report it, please follow these steps",
-    "copy_command": "Copy command",
-    "copy_the_command": "Copy the command",
-    "report_issue_step_1": "{copyTheCommand} that failed",
-    "report_issue_step_2": "Paste the command on a shell and execute it",
-    "report_issue_step_3": "Report the issue, ensuring to provide both the command and its corresponding output",
     "response": "Response:",
     "unknown_error": "Unknown error"
   },
@@ -686,7 +679,6 @@
     "status": "Status",
     "fqdn": "FQDN",
     "fqdn_ip_address": "FQDN / IP address",
-    "show_details": "Show details",
     "update_available": "Update available",
     "go_to_system": "Go to system",
     "create_system": "Create system",

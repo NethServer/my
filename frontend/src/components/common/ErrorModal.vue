@@ -4,7 +4,7 @@
 -->
 
 <script lang="ts" setup>
-import { NeFormItemLabel, NeLink, NeTooltip } from '@nethesis/vue-components'
+import { NeFormItemLabel } from '@nethesis/vue-components'
 import { NeModal } from '@nethesis/vue-components'
 import { computed, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -12,7 +12,6 @@ import { useNotificationsStore } from '@/stores/notifications'
 
 const { t } = useI18n()
 const notificationsStore = useNotificationsStore()
-const justCopied = ref(false)
 const isExpandedRequest = ref(false)
 const isExpandedResponse = ref(false)
 
@@ -61,17 +60,6 @@ watch(
     }
   },
 )
-
-function copyCommandToClipboard() {
-  if (notification.value) {
-    notificationsStore.copyCommandToClipboard(notification.value)
-    justCopied.value = true
-
-    setTimeout(() => {
-      justCopied.value = false
-    }, 2000)
-  }
-}
 </script>
 <template>
   <NeModal
@@ -102,36 +90,6 @@ function copyCommandToClipboard() {
         <div class="font-mono break-all">
           {{ response }}
         </div>
-      </div>
-      <div>
-        <div class="mb-1">{{ t('error_modal.report_issue_description') }}:</div>
-        <ol class="list-inside list-decimal">
-          <li>
-            <i18n-t keypath="error_modal.report_issue_step_1" tag="span" scope="global">
-              <template #copyTheCommand>
-                <NeTooltip v-if="justCopied" trigger-event="mouseenter focus" placement="top-start">
-                  <template #trigger>
-                    <NeLink @click="copyCommandToClipboard">
-                      {{ t('error_modal.copy_the_command') }}
-                    </NeLink>
-                  </template>
-                  <template #content>
-                    {{ t('common.copied') }}
-                  </template>
-                </NeTooltip>
-                <NeLink v-else @click="copyCommandToClipboard">
-                  {{ t('error_modal.copy_the_command') }}
-                </NeLink>
-              </template>
-            </i18n-t>
-          </li>
-          <li>
-            {{ t('error_modal.report_issue_step_2') }}
-          </li>
-          <li>
-            {{ t('error_modal.report_issue_step_3') }}
-          </li>
-        </ol>
       </div>
     </div>
   </NeModal>
