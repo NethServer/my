@@ -174,6 +174,52 @@ func resolvePurchaser(buyerEmail string) map[string]interface{} {
 // Admin): a reseller must not learn who sits above them — the UI renders a
 // generic "purchased by another organization" from the bare marker. Raw
 // email-only snapshots have no organization and are admin-only too.
+// buyerOutsideHierarchy reports whether the my user who bought a shop order
+// cannot reach the system it activates: an order must not land on somebody
+// else's system, where cancelling or refunding it would revoke an add-on that
+// system's owner paid for. A buyer matching no my user (an old shop account,
+// an imported order) cannot be placed and is let through; the Owner
+// organization reaches every system.
+func buyerOutsideHierarchy(purchaser map[string]interface{}, systemOrgID string) (bool, error) {
+	orgID, _ := purchaser["organization_id"].(string)
+	orgRole, _ := purchaser["org_role"].(string)
+	if orgID == "" || strings.EqualFold(orgRole, "owner") {
+		return false, nil
+	}
+	allowed, err := local.NewUserService().GetHierarchicalOrganizationIDs(strings.ToLower(orgRole), orgID)
+	if err != nil {
+		return false, err
+	}
+	return !slices.Contains(allowed, systemOrgID), nil
+}
+
+// checkBuyer refuses a shop call whose buyer cannot reach the system; it
+// answers the request itself and returns false when it refuses or fails.
+func checkBuyer(c *gin.Context, repo *entities.LocalSystemEntitlementRepository, systemID string, purchaser map[string]interface{}) bool {
+	if purchaser == nil {
+		return true
+	}
+	systemOrgID, err := repo.SystemOrganizationID(systemID)
+	if err == nil {
+		var outside bool
+		outside, err = buyerOutsideHierarchy(purchaser, systemOrgID)
+		if err == nil && outside {
+			logger.RequestLogger(c, "entitlements").Warn().
+				Str("system_id", systemID).
+				Interface("buyer", purchaser["email"]).
+				Msg("Shop order refused: the buyer cannot reach this system")
+			c.JSON(http.StatusForbidden, response.Forbidden("the buyer of this order cannot purchase add-ons for this system", nil))
+			return false
+		}
+	}
+	if err != nil {
+		logger.RequestLogger(c, "entitlements").Error().Err(err).Str("system_id", systemID).Msg("Failed to check the buyer")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to check the buyer", nil))
+		return false
+	}
+	return true
+}
+
 // redactSeatAssigners hides who gave each license when that user sits outside
 // the viewer's hierarchy, the same rule the purchaser follows: a customer sees
 // that a license is assigned, not the name of the distributor or Nethesis user
@@ -569,6 +615,11 @@ func ActivateEntitlement(c *gin.Context) {
 		return
 	}
 
+	purchaser := resolvePurchaser(req.BuyerEmail)
+	if !checkBuyer(c, repo, systemID, purchaser) {
+		return
+	}
+
 	createdBy := map[string]interface{}{
 		"user_id":           user.ID,
 		"user_name":         user.Name,
@@ -577,7 +628,7 @@ func ActivateEntitlement(c *gin.Context) {
 		"channel":           "shop",
 	}
 
-	grant, err := repo.Upsert(systemID, item.ID, req.Scope, models.EntitlementSourceShop, req.SourceRef, req.ValidUntil, createdBy, resolvePurchaser(req.BuyerEmail), req.Variant, seats)
+	grant, err := repo.Upsert(systemID, item.ID, req.Scope, models.EntitlementSourceShop, req.SourceRef, req.ValidUntil, createdBy, purchaser, req.Variant, seats)
 	if err != nil {
 		logger.RequestLogger(c, "entitlements").Error().Err(err).
 			Str("system_key", req.SystemKey).
@@ -755,6 +806,11 @@ func PendingEntitlement(c *gin.Context) {
 		return
 	}
 
+	purchaser := resolvePurchaser(req.BuyerEmail)
+	if !checkBuyer(c, repo, systemID, purchaser) {
+		return
+	}
+
 	createdBy := map[string]interface{}{
 		"user_id":           user.ID,
 		"user_name":         user.Name,
@@ -763,7 +819,7 @@ func PendingEntitlement(c *gin.Context) {
 		"channel":           "shop",
 	}
 
-	grant, err := repo.MarkPending(systemID, item.ID, req.Scope, req.SourceRef, createdBy, resolvePurchaser(req.BuyerEmail), req.Variant, seats)
+	grant, err := repo.MarkPending(systemID, item.ID, req.Scope, req.SourceRef, createdBy, purchaser, req.Variant, seats)
 	if err != nil {
 		logger.RequestLogger(c, "entitlements").Error().Err(err).
 			Str("system_key", req.SystemKey).

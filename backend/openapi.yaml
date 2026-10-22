@@ -13634,7 +13634,15 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: |
+            Not the Owner organization with manage:entitlements, or the buyer
+            (`buyer_email`, when it matches a my user outside the Owner
+            organization) cannot reach the system: an order never lands on
+            somebody else's system
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: System not found for this key
           content:
@@ -13698,7 +13706,15 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: |
+            Not the Owner organization with manage:entitlements, or the buyer
+            (`buyer_email`, when it matches a my user outside the Owner
+            organization) cannot reach the system: an order never lands on
+            somebody else's system
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: System not found for this key
           content:

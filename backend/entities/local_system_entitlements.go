@@ -661,6 +661,19 @@ func (r *LocalSystemEntitlementRepository) ClearPending(systemID, entitlement, s
 	return e, nil
 }
 
+// SystemOrganizationID returns the organization a system belongs to.
+func (r *LocalSystemEntitlementRepository) SystemOrganizationID(systemID string) (string, error) {
+	var orgID sql.NullString
+	err := r.db.QueryRow(`SELECT organization_id FROM systems WHERE id = $1`, systemID).Scan(&orgID)
+	if err == sql.ErrNoRows {
+		return "", ErrEntitlementNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to read system organization: %w", err)
+	}
+	return orgID.String, nil
+}
+
 // FindSystemIDByKey resolves a system_key (NETH-...) to the internal system
 // id; deleted systems are excluded.
 func (r *LocalSystemEntitlementRepository) FindSystemIDByKey(systemKey string) (id, systemType string, err error) {

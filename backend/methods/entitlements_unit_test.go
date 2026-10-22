@@ -59,3 +59,15 @@ func TestSeatsFor(t *testing.T) {
 	assert.Empty(t, msg)
 	assert.Nil(t, got)
 }
+
+// A buyer that cannot be placed, and the Owner organization, never trip the
+// hierarchy check: only a known partner buying outside its tree does.
+func TestBuyerOutsideHierarchy_UnplacedAndOwnerPass(t *testing.T) {
+	outside, err := buyerOutsideHierarchy(map[string]interface{}{"email": "old-shop-account@example.com"}, "org-x")
+	assert.NoError(t, err)
+	assert.False(t, outside)
+
+	outside, err = buyerOutsideHierarchy(map[string]interface{}{"organization_id": "owner-org", "org_role": "Owner"}, "org-x")
+	assert.NoError(t, err)
+	assert.False(t, outside)
+}
