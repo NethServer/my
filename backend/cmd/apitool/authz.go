@@ -116,8 +116,9 @@ type RouteSpec struct {
 	// decision belongs to the handler, per object. A handler refusal is then a
 	// correct answer rather than something to review.
 	ObjectScoped bool `yaml:"object_scoped"`
-	// OrgRole narrows the intent to one organization role, ANDed with the
-	// permission: "manage:rebranding, and only from the owner organization".
+	// OrgRole narrows the intent to one organization role (or a comma-separated
+	// list of them), ANDed with the permission: "manage:rebranding, and only
+	// from the owner organization".
 	// Needed where a route-level permission is held across the hierarchy but the
 	// action belongs to one level only — owner_only alone would wrongly expect a
 	// Reader of that organization to pass the permission gate.
@@ -642,10 +643,14 @@ func (s *AuthzSpec) validate() error {
 				problems = append(problems, fmt.Sprintf("%s: unknown permission %q", rt.id(), rt.Intent))
 			}
 		}
-		switch rt.OrgRole {
-		case "", "owner", "distributor", "reseller", "customer":
-		default:
-			problems = append(problems, fmt.Sprintf("%s: unknown organization role %q", rt.id(), rt.OrgRole))
+		if rt.OrgRole != "" {
+			for _, r := range strings.Split(rt.OrgRole, ",") {
+				switch strings.TrimSpace(r) {
+				case "owner", "distributor", "reseller", "customer":
+				default:
+					problems = append(problems, fmt.Sprintf("%s: unknown organization role %q", rt.id(), r))
+				}
+			}
 		}
 		if rt.OrUserRole != "" && rt.OrgRole == "" {
 			problems = append(problems, fmt.Sprintf("%s: or_user_role without org_role", rt.id()))
