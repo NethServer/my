@@ -253,6 +253,29 @@ Requirements:
 Promotion is a hierarchy change, not a cosmetic one. The previous distributor loses visibility on that reseller and on everything beneath it.
 :::
 
+### Changing a Customer's Manager
+
+A customer can be moved under another reseller or distributor. Use the **Change manager** action in the customer's kebab menu or on its detail card: the drawer previews every effect for the selected company before anything changes.
+
+The change:
+
+- **Moves the customer's systems and users with it**: the new manager sees and manages them, the previous one no longer does
+- **Keeps alert history and backups** with the customer
+- **Switches branding and alert notifications** to those of the new manager
+- **Removes the previous manager's silences** on the customer's systems and releases the alerts assigned to its users
+- **Stops the renewal of add-ons bought by the previous manager**: they stay active until they expire, then the new manager purchases them again from the shop. Add-ons bought within the new hierarchy keep renewing, perpetual ones are untouched
+- Keeps **Created by** as it was: it records who created the customer, while **Managed by** shows its current manager
+
+Requirements:
+
+- Owner organization or distributor, with `manage:customers`: a reseller cannot hand its customers to another company
+- A distributor moves only customers of its hierarchy, to itself or to one of its resellers
+- The customer must be **active** and the selected company a reseller or distributor that is not suspended
+
+:::warning
+Changing the manager is a hierarchy change. The previous manager loses every access to the customer, and the add-ons it purchased are not renewed.
+:::
+
 ## Organization Statistics
 
 ### Viewing Statistics
