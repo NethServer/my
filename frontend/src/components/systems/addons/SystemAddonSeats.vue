@@ -32,6 +32,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import ApplicationLogo from '@/components/applications/ApplicationLogo.vue'
 import ClickToCopy from '@/components/common/ClickToCopy.vue'
+import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import UserAvatar from '@/components/users/UserAvatar.vue'
 import {
@@ -233,7 +234,7 @@ function seatDate(seat: AddonSeat) {
           </NeTableCell>
           <!-- who gave the license and when, laid out as "Created by" on a system -->
           <NeTableCell :data-label="$t('addons.assigned_by')">
-            <div v-if="line.seat" class="space-y-0.5">
+            <div v-if="line.seat" class="space-y-0.5 text-sm">
               <div v-if="line.seat.assigned_by?.user_name" class="flex items-center gap-2">
                 <UserAvatar
                   size="xs"
@@ -244,9 +245,14 @@ function seatDate(seat: AddonSeat) {
                 <span>{{ line.seat.assigned_by.user_name }}</span>
               </div>
               <div v-if="line.seat.assigned_by?.organization_name" class="text-tertiary-neutral">
-                {{ line.seat.assigned_by.organization_name }}
+                <CreatorOrganization
+                  :creator="{
+                    organization_id: line.seat.assigned_by.organization_id ?? '',
+                    organization_name: line.seat.assigned_by.organization_name,
+                  }"
+                />
               </div>
-              <div class="text-tertiary-neutral">{{ seatDate(line.seat) }}</div>
+              <div class="text-tertiary-neutral mt-1">{{ seatDate(line.seat) }}</div>
             </div>
             <span v-else>-</span>
           </NeTableCell>
