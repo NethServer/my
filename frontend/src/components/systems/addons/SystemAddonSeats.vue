@@ -16,6 +16,7 @@
 import {
   NeBadgeV2,
   NeButton,
+  formatDateTimeNoSeconds,
   NeHeading,
   NeInlineNotification,
   NeTable,
@@ -42,7 +43,6 @@ import {
   type SystemAddonRow,
 } from '@/lib/addons/systemAddons'
 import { getDisplayName, getFqdns, type Application } from '@/lib/applications/applications'
-import { formatDateNoTime } from '@/lib/dateTime'
 import { canManageAddons } from '@/lib/permissions'
 import { getBackendErrorMessage } from '@/lib/validation'
 import { useSystemApplications } from '@/queries/addons/systemAddons'
@@ -148,7 +148,7 @@ function nodeName(application: Application) {
 }
 
 function seatDate(seat: AddonSeat) {
-  return formatDateNoTime(new Date(seat.assigned_at), locale.value)
+  return formatDateTimeNoSeconds(new Date(seat.assigned_at), locale.value)
 }
 </script>
 
@@ -193,8 +193,8 @@ function seatDate(seat: AddonSeat) {
         <NeTableHeadCell>{{ $t('addons.node') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('applications.fqdn') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('applications.assigned_company') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('addons.license') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('addons.assigned_by') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('addons.license') }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
         </NeTableHeadCell>
@@ -231,31 +231,33 @@ function seatDate(seat: AddonSeat) {
             />
             <span v-else>-</span>
           </NeTableCell>
-          <NeTableCell :data-label="$t('addons.license')">
-            <div class="flex flex-col items-start gap-1">
-              <NeBadgeV2 v-if="line.seat && line.seat.in_quota" kind="green" size="xs">
-                {{ $t('addons.seat_held') }}
-              </NeBadgeV2>
-              <NeBadgeV2 v-else-if="line.seat" kind="amber" size="xs">
-                {{ $t('addons.seat_over_quota') }}
-              </NeBadgeV2>
-              <NeBadgeV2 v-else kind="gray" size="xs">{{ $t('addons.no_seat') }}</NeBadgeV2>
-              <span v-if="line.seat" class="text-tertiary-neutral text-xs">
-                {{ $t('addons.seat_assigned_on', { date: seatDate(line.seat) }) }}
-              </span>
-            </div>
-          </NeTableCell>
+          <!-- who gave the license and when, laid out as "Created by" on a system -->
           <NeTableCell :data-label="$t('addons.assigned_by')">
-            <div v-if="line.seat?.assigned_by?.user_name" class="flex items-center gap-2">
-              <UserAvatar
-                size="xs"
-                :is-owner="false"
-                :name="line.seat.assigned_by.user_name"
-                :logto-id="line.seat.assigned_by.user_id ?? ''"
-              />
-              <span>{{ line.seat.assigned_by.user_name }}</span>
+            <div v-if="line.seat" class="space-y-0.5">
+              <div v-if="line.seat.assigned_by?.user_name" class="flex items-center gap-2">
+                <UserAvatar
+                  size="xs"
+                  :is-owner="false"
+                  :name="line.seat.assigned_by.user_name"
+                  :logto-id="line.seat.assigned_by.user_id ?? ''"
+                />
+                <span>{{ line.seat.assigned_by.user_name }}</span>
+              </div>
+              <div v-if="line.seat.assigned_by?.organization_name" class="text-tertiary-neutral">
+                {{ line.seat.assigned_by.organization_name }}
+              </div>
+              <div class="text-tertiary-neutral">{{ seatDate(line.seat) }}</div>
             </div>
             <span v-else>-</span>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('addons.license')">
+            <NeBadgeV2 v-if="line.seat && line.seat.in_quota" kind="green" size="xs">
+              {{ $t('addons.seat_held') }}
+            </NeBadgeV2>
+            <NeBadgeV2 v-else-if="line.seat" kind="amber" size="xs">
+              {{ $t('addons.seat_over_quota') }}
+            </NeBadgeV2>
+            <NeBadgeV2 v-else kind="gray" size="xs">{{ $t('addons.no_seat') }}</NeBadgeV2>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
             <div v-if="canManageSeats" class="-ml-2.5 flex xl:ml-0 xl:justify-end">

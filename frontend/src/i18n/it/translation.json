@@ -981,7 +981,6 @@
     "assigned_by": "Assegnata da",
     "license": "Licenza",
     "node": "Nodo",
-    "seat_assigned_on": "Assegnata il {date}",
     "seat_held": "Licenza assegnata",
     "seat_over_quota": "Oltre le licenze acquistate",
     "no_seat": "Nessuna licenza",
