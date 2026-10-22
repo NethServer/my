@@ -267,6 +267,14 @@ func main() {
 			systemsGroup.DELETE("/:id/entitlements/:entitlement", methods.DeleteSystemEntitlement) // Owner organization only (handler-gated)
 		}
 
+		// Seats of seated add-ons: handed out by whoever can buy add-ons, which
+		// does not take manage:systems (the Backoffice role buys without it)
+		seatsGroup := customAuthWithAudit.Group("/systems", middleware.RequirePermission("manage:entitlements"))
+		{
+			seatsGroup.POST("/:id/entitlements/:entitlement/seats", methods.AssignEntitlementSeat)
+			seatsGroup.DELETE("/:id/entitlements/:entitlement/seats/:module_id", methods.ReleaseEntitlementSeat)
+		}
+
 		// LEGACY SYSTEMS - how many systems each organization still has on the old
 		// my. Written once per run by the proxy_sync cron on the legacy host with
 		// the owner API key; read back through the systems totals. Owner

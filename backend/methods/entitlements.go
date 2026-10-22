@@ -103,6 +103,25 @@ func systemTypeMismatch(item *models.EntitlementCatalogItem, systemType string) 
 	return item.SystemType != "" && systemType != "" && systemType != item.SystemType
 }
 
+// seatsFor validates the seats sent for a catalog item: required and positive
+// for seated add-ons when required is set, positive when sent, and dropped for
+// add-ons without seats. The message is empty when the value is acceptable.
+func seatsFor(item *models.EntitlementCatalogItem, seats *int, required bool) (*int, string) {
+	if !item.Seated {
+		return nil, ""
+	}
+	if seats == nil {
+		if required {
+			return nil, "seats required for this add-on"
+		}
+		return nil, ""
+	}
+	if *seats <= 0 {
+		return nil, "seats must be greater than zero"
+	}
+	return seats, ""
+}
+
 // resolvePurchaser builds the purchased_by audit snapshot from the order's
 // customer email sent by the shop webhook (server-to-server, trusted). The
 // email is resolved to a my user and snapshotted in full — identity, org and
@@ -252,6 +271,15 @@ func CreateEntitlementCatalogItem(c *gin.Context) {
 		req.AppliesTo = ""
 	}
 
+	// Seats go to the application instances of one cluster: a seated add-on
+	// is an NS8 module granted system-wide, never narrowed to one instance.
+	if req.Seated {
+		if req.Kind != models.EntitlementKindModule || req.SystemType != "ns8" || req.Scoped {
+			c.JSON(http.StatusBadRequest, response.BadRequest("a seated add-on must be an ns8 module without per-application scope", nil))
+			return
+		}
+	}
+
 	repo := entities.NewLocalEntitlementCatalogRepository()
 	item, err := repo.Create(&req)
 	if err == entities.ErrCatalogItemExists {
@@ -268,6 +296,7 @@ func CreateEntitlementCatalogItem(c *gin.Context) {
 		Str("operation", "create_catalog_item").
 		Str("catalog_id", req.ID).
 		Bool("scoped", req.Scoped).
+		Bool("seated", req.Seated).
 		Msg("Entitlement catalog item created")
 
 	c.JSON(http.StatusCreated, response.Created("catalog item created successfully", item))
@@ -492,6 +521,11 @@ func ActivateEntitlement(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response.BadRequest("this entitlement does not support per-application scope", nil))
 		return
 	}
+	seats, msg := seatsFor(item, req.Seats, true)
+	if msg != "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest(msg, nil))
+		return
+	}
 
 	repo := entities.NewLocalSystemEntitlementRepository()
 	systemID, systemType, err := repo.FindSystemIDByKey(req.SystemKey)
@@ -517,7 +551,7 @@ func ActivateEntitlement(c *gin.Context) {
 		"channel":           "shop",
 	}
 
-	grant, err := repo.Upsert(systemID, item.ID, req.Scope, models.EntitlementSourceShop, req.SourceRef, req.ValidUntil, createdBy, resolvePurchaser(req.BuyerEmail), req.Variant)
+	grant, err := repo.Upsert(systemID, item.ID, req.Scope, models.EntitlementSourceShop, req.SourceRef, req.ValidUntil, createdBy, resolvePurchaser(req.BuyerEmail), req.Variant, seats)
 	if err != nil {
 		logger.RequestLogger(c, "entitlements").Error().Err(err).
 			Str("system_key", req.SystemKey).
@@ -674,6 +708,11 @@ func PendingEntitlement(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response.BadRequest("this entitlement does not support per-application scope", nil))
 		return
 	}
+	seats, msg := seatsFor(item, req.Seats, false)
+	if msg != "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest(msg, nil))
+		return
+	}
 
 	repo := entities.NewLocalSystemEntitlementRepository()
 	systemID, systemType, err := repo.FindSystemIDByKey(req.SystemKey)
@@ -698,7 +737,7 @@ func PendingEntitlement(c *gin.Context) {
 		"channel":           "shop",
 	}
 
-	grant, err := repo.MarkPending(systemID, item.ID, req.Scope, req.SourceRef, createdBy, resolvePurchaser(req.BuyerEmail), req.Variant)
+	grant, err := repo.MarkPending(systemID, item.ID, req.Scope, req.SourceRef, createdBy, resolvePurchaser(req.BuyerEmail), req.Variant, seats)
 	if err != nil {
 		logger.RequestLogger(c, "entitlements").Error().Err(err).
 			Str("system_key", req.SystemKey).
@@ -983,9 +1022,166 @@ func ListSystemEntitlements(c *gin.Context) {
 		redactPurchaser(e, scope)
 	}
 
+	var seatedGrants []string
+	for _, e := range list {
+		if e.Seats != nil {
+			seatedGrants = append(seatedGrants, e.ID)
+		}
+	}
+	seats, err := entities.NewLocalEntitlementSeatRepository().ListByGrants(seatedGrants)
+	if err != nil {
+		logger.RequestLogger(c, "entitlements").Error().Err(err).
+			Str("system_id", systemID).
+			Msg("Failed to list seats")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to list entitlements", nil))
+		return
+	}
+	for _, e := range list {
+		if e.Seats != nil {
+			e.SeatAssignments = seats[e.ID]
+			if e.SeatAssignments == nil {
+				e.SeatAssignments = []models.EntitlementSeat{}
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, response.OK("entitlements retrieved successfully", gin.H{
 		"entitlements": list,
 	}))
+}
+
+// seatGrant resolves the seated add-on named in the path and its grant on
+// the system. Whoever can buy add-ons (manage:entitlements, checked on the
+// route) hands out the seats, within their own hierarchy.
+func seatGrant(c *gin.Context) (*models.System, *models.User, *models.EntitlementCatalogItem, *models.SystemEntitlement, bool) {
+	system, user, ok := entitlementAccessCheck(c, false)
+	if !ok {
+		return nil, nil, nil, nil, false
+	}
+
+	item, err := entities.NewLocalEntitlementCatalogRepository().Resolve(c.Param("entitlement"))
+	if err == entities.ErrCatalogItemNotFound {
+		c.JSON(http.StatusNotFound, response.NotFound("entitlement not found for this system", nil))
+		return nil, nil, nil, nil, false
+	}
+	if err != nil {
+		logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to resolve entitlement")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve entitlement", nil))
+		return nil, nil, nil, nil, false
+	}
+	if !item.Seated {
+		c.JSON(http.StatusBadRequest, response.BadRequest("this entitlement has no seats", nil))
+		return nil, nil, nil, nil, false
+	}
+
+	grant, err := entities.NewLocalSystemEntitlementRepository().Get(system.ID, item.ID, "")
+	if err == entities.ErrEntitlementNotFound {
+		c.JSON(http.StatusNotFound, response.NotFound("entitlement not found for this system", nil))
+		return nil, nil, nil, nil, false
+	}
+	if err != nil {
+		logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to read entitlement")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to read entitlement", nil))
+		return nil, nil, nil, nil, false
+	}
+
+	return system, user, item, grant, true
+}
+
+func seatActor(u *models.User) map[string]interface{} {
+	return map[string]interface{}{
+		"user_id":           u.ID,
+		"user_name":         u.Name,
+		"organization_id":   u.OrganizationID,
+		"organization_name": u.OrganizationName,
+	}
+}
+
+// AssignEntitlementSeat handles POST /api/systems/:id/entitlements/:entitlement/seats
+func AssignEntitlementSeat(c *gin.Context) {
+	system, user, item, grant, ok := seatGrant(c)
+	if !ok {
+		return
+	}
+
+	var req models.AssignEntitlementSeatRequest
+	if err := c.ShouldBindBodyWith(&req, binding.JSON); err != nil {
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+		return
+	}
+
+	if isSystemBlocked(system) {
+		c.JSON(http.StatusConflict, response.Conflict("the system is suspended or deleted", nil))
+		return
+	}
+	if !grant.Active {
+		c.JSON(http.StatusConflict, response.Conflict("the add-on is not active on this system", nil))
+		return
+	}
+
+	seat, err := entities.NewLocalEntitlementSeatRepository().Assign(grant.ID, system.ID, item.AppliesTo, req.ModuleID, seatActor(user))
+	switch err {
+	case nil:
+	case entities.ErrInstanceNotFound:
+		c.JSON(http.StatusBadRequest, response.BadRequest("no "+item.AppliesTo+" instance "+req.ModuleID+" on this system", nil))
+		return
+	case entities.ErrSeatAlreadyHeld:
+		c.JSON(http.StatusConflict, response.Conflict("the instance already holds a seat", nil))
+		return
+	case entities.ErrNoFreeSeat:
+		c.JSON(http.StatusConflict, response.Conflict("no free seat left: free one or buy more", nil))
+		return
+	default:
+		logger.RequestLogger(c, "entitlements").Error().Err(err).
+			Str("system_id", system.ID).
+			Str("entitlement", item.ID).
+			Str("module_id", req.ModuleID).
+			Msg("Failed to assign seat")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to assign seat", nil))
+		return
+	}
+
+	logger.RequestLogger(c, "entitlements").Info().
+		Str("operation", "assign_entitlement_seat").
+		Str("system_id", system.ID).
+		Str("entitlement", item.ID).
+		Str("module_id", req.ModuleID).
+		Msg("Entitlement seat assigned")
+
+	c.JSON(http.StatusCreated, response.Created("seat assigned successfully", seat))
+}
+
+// ReleaseEntitlementSeat handles DELETE /api/systems/:id/entitlements/:entitlement/seats/:module_id
+func ReleaseEntitlementSeat(c *gin.Context) {
+	system, user, item, grant, ok := seatGrant(c)
+	if !ok {
+		return
+	}
+	moduleID := c.Param("module_id")
+
+	err := entities.NewLocalEntitlementSeatRepository().Release(grant.ID, moduleID, seatActor(user))
+	if err == entities.ErrSeatNotFound {
+		c.JSON(http.StatusNotFound, response.NotFound("the instance holds no seat", nil))
+		return
+	}
+	if err != nil {
+		logger.RequestLogger(c, "entitlements").Error().Err(err).
+			Str("system_id", system.ID).
+			Str("entitlement", item.ID).
+			Str("module_id", moduleID).
+			Msg("Failed to release seat")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to release seat", nil))
+		return
+	}
+
+	logger.RequestLogger(c, "entitlements").Info().
+		Str("operation", "release_entitlement_seat").
+		Str("system_id", system.ID).
+		Str("entitlement", item.ID).
+		Str("module_id", moduleID).
+		Msg("Entitlement seat released")
+
+	c.JSON(http.StatusOK, response.OK("seat released successfully", nil))
 }
 
 // CreateSystemEntitlement handles POST /api/systems/:id/entitlements
@@ -1018,6 +1214,15 @@ func CreateSystemEntitlement(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response.BadRequest("this entitlement does not support per-application scope", nil))
 		return
 	}
+	if req.Seats != nil && !item.Seated {
+		c.JSON(http.StatusBadRequest, response.BadRequest("this entitlement has no seats", nil))
+		return
+	}
+	seats, msg := seatsFor(item, req.Seats, true)
+	if msg != "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest(msg, nil))
+		return
+	}
 
 	systemType := ""
 	if system.Type != nil {
@@ -1046,7 +1251,7 @@ func CreateSystemEntitlement(c *gin.Context) {
 	}
 
 	repo := entities.NewLocalSystemEntitlementRepository()
-	entitlement, err := repo.Create(systemID, req.Entitlement, req.Scope, source, req.SourceRef, req.ValidFrom, req.ValidUntil, createdBy, resolvePurchaser(req.BuyerEmail), req.Variant)
+	entitlement, err := repo.Create(systemID, req.Entitlement, req.Scope, source, req.SourceRef, req.ValidFrom, req.ValidUntil, createdBy, resolvePurchaser(req.BuyerEmail), req.Variant, seats)
 	if err == entities.ErrEntitlementExists {
 		c.JSON(http.StatusConflict, response.Conflict("entitlement already exists for this system", nil))
 		return
@@ -1094,8 +1299,29 @@ func UpdateSystemEntitlement(c *gin.Context) {
 		validUntil = nil
 	}
 
+	if req.Seats != nil {
+		item, err := entities.NewLocalEntitlementCatalogRepository().Get(entitlementID)
+		if err == entities.ErrCatalogItemNotFound {
+			c.JSON(http.StatusNotFound, response.NotFound("entitlement not found for this system", nil))
+			return
+		}
+		if err != nil {
+			logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to read entitlement catalog")
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to read entitlement catalog", nil))
+			return
+		}
+		if !item.Seated {
+			c.JSON(http.StatusBadRequest, response.BadRequest("this entitlement has no seats", nil))
+			return
+		}
+		if _, msg := seatsFor(item, req.Seats, true); msg != "" {
+			c.JSON(http.StatusBadRequest, response.BadRequest(msg, nil))
+			return
+		}
+	}
+
 	repo := entities.NewLocalSystemEntitlementRepository()
-	entitlement, err := repo.Update(systemID, entitlementID, scope, setValidUntil, validUntil, req.Revoked, models.EntitlementSourceManual)
+	entitlement, err := repo.Update(systemID, entitlementID, scope, setValidUntil, validUntil, req.Revoked, models.EntitlementSourceManual, req.Seats)
 	if err == entities.ErrEntitlementNotFound {
 		c.JSON(http.StatusNotFound, response.NotFound("entitlement not found for this system", nil))
 		return

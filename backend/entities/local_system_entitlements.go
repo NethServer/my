@@ -42,7 +42,7 @@ func NewLocalEntitlementCatalogRepository() *LocalEntitlementCatalogRepository {
 }
 
 func catalogScanDest(item *models.EntitlementCatalogItem) []interface{} {
-	return []interface{}{&item.ID, &item.DisplayName, &item.Description, &item.Scoped, &item.Kind, &item.SystemType, &item.LegacyAlias, &item.AppliesTo, &item.Purchasable, &item.CreatedAt, &item.UpdatedAt}
+	return []interface{}{&item.ID, &item.DisplayName, &item.Description, &item.Scoped, &item.Kind, &item.SystemType, &item.LegacyAlias, &item.AppliesTo, &item.Purchasable, &item.Seated, &item.CreatedAt, &item.UpdatedAt}
 }
 
 func scanCatalogItem(scanner interface{ Scan(...interface{}) error }) (*models.EntitlementCatalogItem, error) {
@@ -75,7 +75,7 @@ const catalogInUseColumn = `EXISTS (SELECT 1 FROM system_entitlements se WHERE s
 // List returns the whole catalog ordered by id.
 func (r *LocalEntitlementCatalogRepository) List() ([]*models.EntitlementCatalogItem, error) {
 	rows, err := r.db.Query(
-		`SELECT c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.purchasable, c.created_at, c.updated_at,
+		`SELECT c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.purchasable, c.seated, c.created_at, c.updated_at,
 		        ` + catalogInUseColumn + `
 		 FROM entitlement_catalog c ORDER BY c.id`)
 	if err != nil {
@@ -97,7 +97,7 @@ func (r *LocalEntitlementCatalogRepository) List() ([]*models.EntitlementCatalog
 // Get returns one catalog item by id.
 func (r *LocalEntitlementCatalogRepository) Get(id string) (*models.EntitlementCatalogItem, error) {
 	item, err := scanCatalogItem(r.db.QueryRow(
-		`SELECT id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, purchasable, created_at, updated_at
+		`SELECT id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, purchasable, seated, created_at, updated_at
 		 FROM entitlement_catalog WHERE id = $1`, id))
 	if err == sql.ErrNoRows {
 		return nil, ErrCatalogItemNotFound
@@ -113,7 +113,7 @@ func (r *LocalEntitlementCatalogRepository) Get(id string) (*models.EntitlementC
 // nsec-blacklist).
 func (r *LocalEntitlementCatalogRepository) Resolve(idOrAlias string) (*models.EntitlementCatalogItem, error) {
 	item, err := scanCatalogItem(r.db.QueryRow(
-		`SELECT id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, purchasable, created_at, updated_at
+		`SELECT id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, purchasable, seated, created_at, updated_at
 		 FROM entitlement_catalog WHERE id = $1 OR (legacy_alias <> '' AND legacy_alias = $1)`, idOrAlias))
 	if err == sql.ErrNoRows {
 		return nil, ErrCatalogItemNotFound
@@ -127,10 +127,10 @@ func (r *LocalEntitlementCatalogRepository) Resolve(idOrAlias string) (*models.E
 // Create adds a new add-on type.
 func (r *LocalEntitlementCatalogRepository) Create(req *models.CreateEntitlementCatalogRequest) (*models.EntitlementCatalogItem, error) {
 	item, err := scanCatalogItem(r.db.QueryRow(
-		`INSERT INTO entitlement_catalog (id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, purchasable)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, TRUE))
-		 RETURNING id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, purchasable, created_at, updated_at`,
-		req.ID, req.DisplayName, req.Description, req.Scoped, req.Kind, req.SystemType, req.LegacyAlias, req.AppliesTo, req.Purchasable))
+		`INSERT INTO entitlement_catalog (id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, purchasable, seated)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, TRUE), $10)
+		 RETURNING id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, purchasable, seated, created_at, updated_at`,
+		req.ID, req.DisplayName, req.Description, req.Scoped, req.Kind, req.SystemType, req.LegacyAlias, req.AppliesTo, req.Purchasable, req.Seated))
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
 			return nil, ErrCatalogItemExists
@@ -150,7 +150,7 @@ func (r *LocalEntitlementCatalogRepository) Update(id string, displayName, descr
 		     purchasable  = COALESCE($4, purchasable),
 		     updated_at   = NOW()
 		 WHERE c.id = $1
-		 RETURNING c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.purchasable, c.created_at, c.updated_at,
+		 RETURNING c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.purchasable, c.seated, c.created_at, c.updated_at,
 		           `+catalogInUseColumn,
 		id, displayName, description, purchasable))
 	if err == sql.ErrNoRows {
@@ -233,7 +233,7 @@ func (r *LocalEntitlementAvailabilityRepository) ListByEntitlement(entitlement s
 // present for an item, RESTRICT it to the matching role/orgs.
 func (r *LocalEntitlementAvailabilityRepository) ListAvailableFor(orgRole, orgID string) ([]*models.EntitlementCatalogItem, error) {
 	rows, err := r.db.Query(
-		`SELECT c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.purchasable, c.created_at, c.updated_at,
+		`SELECT c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.purchasable, c.seated, c.created_at, c.updated_at,
 		        `+catalogInUseColumn+`
 		 FROM entitlement_catalog c
 		 WHERE c.kind IN ('service', 'module')
@@ -347,18 +347,19 @@ func (r *LocalSystemEntitlementRepository) ActiveEntitlementsBySystems(systemIDs
 const entitlementColumns = `
 	id, system_id, entitlement, scope, source, COALESCE(source_ref, ''),
 	valid_from, valid_until, revoked_at, COALESCE(revoked_source, ''),
-	COALESCE(pending_ref, ''), pending_since, created_by, purchased_by, variant, renewal_count, created_at, updated_at,
+	COALESCE(pending_ref, ''), pending_since, created_by, purchased_by, variant, renewal_count, seats, created_at, updated_at,
 	(revoked_at IS NULL AND (valid_until IS NULL OR valid_until > NOW())) AS active`
 
 func scanEntitlement(scanner interface{ Scan(...interface{}) error }) (*models.SystemEntitlement, error) {
 	var e models.SystemEntitlement
 	var validUntil, revokedAt, pendingSince sql.NullTime
 	var createdBy, purchasedBy, variant []byte
+	var seats sql.NullInt64
 
 	err := scanner.Scan(
 		&e.ID, &e.SystemID, &e.Entitlement, &e.Scope, &e.Source, &e.SourceRef,
 		&e.ValidFrom, &validUntil, &revokedAt, &e.RevokedSource,
-		&e.PendingRef, &pendingSince, &createdBy, &purchasedBy, &variant, &e.RenewalCount, &e.CreatedAt, &e.UpdatedAt,
+		&e.PendingRef, &pendingSince, &createdBy, &purchasedBy, &variant, &e.RenewalCount, &seats, &e.CreatedAt, &e.UpdatedAt,
 		&e.Active,
 	)
 	if err != nil {
@@ -376,6 +377,10 @@ func scanEntitlement(scanner interface{ Scan(...interface{}) error }) (*models.S
 	if pendingSince.Valid {
 		t := pendingSince.Time
 		e.PendingSince = &t
+	}
+	if seats.Valid {
+		n := int(seats.Int64)
+		e.Seats = &n
 	}
 	if len(createdBy) > 0 {
 		_ = json.Unmarshal(createdBy, &e.CreatedBy)
@@ -436,7 +441,7 @@ func (r *LocalSystemEntitlementRepository) Get(systemID, entitlement, scope stri
 // scope) tuples return ErrEntitlementExists — renewals must Update the
 // existing row. purchasedBy carries the buyer snapshot when the caller has
 // one (legacy-import backfill with the order email); nil otherwise.
-func (r *LocalSystemEntitlementRepository) Create(systemID, entitlement, scope, source, sourceRef string, validFrom, validUntil *time.Time, createdBy, purchasedBy, variant map[string]interface{}) (*models.SystemEntitlement, error) {
+func (r *LocalSystemEntitlementRepository) Create(systemID, entitlement, scope, source, sourceRef string, validFrom, validUntil *time.Time, createdBy, purchasedBy, variant map[string]interface{}, seats *int) (*models.SystemEntitlement, error) {
 	var createdByJSON []byte
 	if createdBy != nil {
 		createdByJSON, _ = json.Marshal(createdBy)
@@ -455,10 +460,10 @@ func (r *LocalSystemEntitlementRepository) Create(systemID, entitlement, scope, 
 	// validFrom NULL → DB default now(); set for legacy imports to preserve
 	// the original order date.
 	e, err := scanEntitlement(r.db.QueryRow(
-		`INSERT INTO system_entitlements (system_id, entitlement, scope, source, source_ref, valid_from, valid_until, created_by, purchased_by, variant)
-		 VALUES ($1, $2, $3, $4, NULLIF($5, ''), COALESCE($6, now()), $7, $8, $9, $10)
+		`INSERT INTO system_entitlements (system_id, entitlement, scope, source, source_ref, valid_from, valid_until, created_by, purchased_by, variant, seats)
+		 VALUES ($1, $2, $3, $4, NULLIF($5, ''), COALESCE($6, now()), $7, $8, $9, $10, $11)
 		 RETURNING `+entitlementColumns,
-		systemID, entitlement, scope, source, sourceRef, validFrom, validUntil, createdByJSON, purchasedByJSON, variantJSON))
+		systemID, entitlement, scope, source, sourceRef, validFrom, validUntil, createdByJSON, purchasedByJSON, variantJSON, seats))
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
 			switch pqErr.Code {
@@ -474,12 +479,13 @@ func (r *LocalSystemEntitlementRepository) Create(systemID, entitlement, scope, 
 	return e, nil
 }
 
-// Update applies expiry and/or revocation changes to an existing row.
+// Update applies expiry, revocation and/or seat changes to an existing row
+// (seats nil = leave as is).
 // setValidUntil distinguishes "leave valid_until alone" (false) from "set it
 // to the given value, possibly NULL" (true). revokedSource records who is
 // revoking (manual|shop): stamped only on the transition to revoked (an
 // idempotent re-revoke keeps the original), cleared on unrevoke.
-func (r *LocalSystemEntitlementRepository) Update(systemID, entitlement, scope string, setValidUntil bool, validUntil *time.Time, revoked *bool, revokedSource string) (*models.SystemEntitlement, error) {
+func (r *LocalSystemEntitlementRepository) Update(systemID, entitlement, scope string, setValidUntil bool, validUntil *time.Time, revoked *bool, revokedSource string, seats *int) (*models.SystemEntitlement, error) {
 	e, err := scanEntitlement(r.db.QueryRow(
 		`UPDATE system_entitlements SET
 		     valid_until = CASE WHEN $4 THEN $5 ELSE valid_until END,
@@ -495,10 +501,11 @@ func (r *LocalSystemEntitlementRepository) Update(systemID, entitlement, scope s
 		                   END,
 		     pending_ref   = CASE WHEN $6::boolean IS TRUE THEN NULL ELSE pending_ref END,
 		     pending_since = CASE WHEN $6::boolean IS TRUE THEN NULL ELSE pending_since END,
+		     seats       = COALESCE($8, seats),
 		     updated_at  = NOW()
 		 WHERE system_id = $1 AND entitlement = $2 AND scope = $3
 		 RETURNING `+entitlementColumns,
-		systemID, entitlement, scope, setValidUntil, validUntil, revoked, revokedSource))
+		systemID, entitlement, scope, setValidUntil, validUntil, revoked, revokedSource, seats))
 	if err == sql.ErrNoRows {
 		return nil, ErrEntitlementNotFound
 	}
@@ -512,7 +519,7 @@ func (r *LocalSystemEntitlementRepository) Update(systemID, entitlement, scope s
 // source records who revoked: manual (admin) or shop (deactivate webhook).
 func (r *LocalSystemEntitlementRepository) Revoke(systemID, entitlement, scope, source string) (*models.SystemEntitlement, error) {
 	revoked := true
-	return r.Update(systemID, entitlement, scope, false, nil, &revoked, source)
+	return r.Update(systemID, entitlement, scope, false, nil, &revoked, source, nil)
 }
 
 // Upsert creates the grant or, when the (system, entitlement, scope) row
@@ -522,8 +529,8 @@ func (r *LocalSystemEntitlementRepository) Revoke(systemID, entitlement, scope, 
 // purchasedBy (the buyer audit snapshot) and variant (the shop tier of the
 // order line) replace the stored ones only when provided — an activation
 // without them (stamped legacy order) must not wipe what a previous
-// purchase recorded.
-func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, source, sourceRef string, validUntil *time.Time, createdBy, purchasedBy, variant map[string]interface{}) (*models.SystemEntitlement, error) {
+// purchase recorded. seats follows the same rule.
+func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, source, sourceRef string, validUntil *time.Time, createdBy, purchasedBy, variant map[string]interface{}, seats *int) (*models.SystemEntitlement, error) {
 	var createdByJSON []byte
 	if createdBy != nil {
 		createdByJSON, _ = json.Marshal(createdBy)
@@ -540,8 +547,8 @@ func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, 
 	}
 
 	e, err := scanEntitlement(r.db.QueryRow(
-		`INSERT INTO system_entitlements (system_id, entitlement, scope, source, source_ref, valid_until, created_by, purchased_by, variant)
-		 VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $7, $8, $9)
+		`INSERT INTO system_entitlements (system_id, entitlement, scope, source, source_ref, valid_until, created_by, purchased_by, variant, seats)
+		 VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $7, $8, $9, $10)
 		 ON CONFLICT (system_id, entitlement, scope) DO UPDATE SET
 		     valid_until = EXCLUDED.valid_until,
 		     valid_from  = CASE WHEN system_entitlements.valid_until = system_entitlements.valid_from
@@ -554,6 +561,7 @@ func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, 
 		     source_ref  = COALESCE(EXCLUDED.source_ref, system_entitlements.source_ref),
 		     purchased_by = COALESCE(EXCLUDED.purchased_by, system_entitlements.purchased_by),
 		     variant     = COALESCE(EXCLUDED.variant, system_entitlements.variant),
+		     seats       = COALESCE(EXCLUDED.seats, system_entitlements.seats),
 		     -- a renewal is an activation paid by a DIFFERENT order: webhook
 		     -- retries on the same order never double-count
 		     renewal_count = system_entitlements.renewal_count +
@@ -562,7 +570,7 @@ func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, 
 		                          THEN 1 ELSE 0 END,
 		     updated_at  = NOW()
 		 RETURNING `+entitlementColumns,
-		systemID, entitlement, scope, source, sourceRef, validUntil, createdByJSON, purchasedByJSON, variantJSON))
+		systemID, entitlement, scope, source, sourceRef, validUntil, createdByJSON, purchasedByJSON, variantJSON, seats))
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23503" {
 			return nil, ErrCatalogItemNotFound
@@ -580,7 +588,7 @@ func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, 
 // purchasedBy and variant are stamped on the fresh stub only: a pending
 // renewal must not overwrite who bought — or which tier — the grant the
 // customer currently has; activate stamps both when the payment lands.
-func (r *LocalSystemEntitlementRepository) MarkPending(systemID, entitlement, scope, ref string, createdBy, purchasedBy, variant map[string]interface{}) (*models.SystemEntitlement, error) {
+func (r *LocalSystemEntitlementRepository) MarkPending(systemID, entitlement, scope, ref string, createdBy, purchasedBy, variant map[string]interface{}, seats *int) (*models.SystemEntitlement, error) {
 	var createdByJSON []byte
 	if createdBy != nil {
 		createdByJSON, _ = json.Marshal(createdBy)
@@ -597,14 +605,14 @@ func (r *LocalSystemEntitlementRepository) MarkPending(systemID, entitlement, sc
 	}
 
 	e, err := scanEntitlement(r.db.QueryRow(
-		`INSERT INTO system_entitlements (system_id, entitlement, scope, source, source_ref, valid_from, valid_until, pending_ref, pending_since, created_by, purchased_by, variant)
-		 VALUES ($1, $2, $3, 'shop', $4, NOW(), NOW(), $4, NOW(), $5, $6, $7)
+		`INSERT INTO system_entitlements (system_id, entitlement, scope, source, source_ref, valid_from, valid_until, pending_ref, pending_since, created_by, purchased_by, variant, seats)
+		 VALUES ($1, $2, $3, 'shop', $4, NOW(), NOW(), $4, NOW(), $5, $6, $7, $8)
 		 ON CONFLICT (system_id, entitlement, scope) DO UPDATE SET
 		     pending_ref   = EXCLUDED.pending_ref,
 		     pending_since = NOW(),
 		     updated_at    = NOW()
 		 RETURNING `+entitlementColumns,
-		systemID, entitlement, scope, ref, createdByJSON, purchasedByJSON, variantJSON))
+		systemID, entitlement, scope, ref, createdByJSON, purchasedByJSON, variantJSON, seats))
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23503" {
 			return nil, ErrCatalogItemNotFound

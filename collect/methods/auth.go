@@ -32,7 +32,10 @@ import (
 //                                       narrowed to that application instance
 //                                       (e.g. nethvoice1); a system-wide
 //                                       grant (empty scope) also covers every
-//                                       instance (fallback).
+//                                       instance (fallback). A seated
+//                                       add-on covers only the instance
+//                                       named by ?scope= when it holds one
+//                                       of the seats bought.
 //   GET /auth/product/<name>         -> 200 (valid subscription) — product-
 //                                       level enforcement is deferred until
 //                                       the legacy system_products data is
@@ -69,7 +72,9 @@ func AuthCheckService(c *gin.Context) {
 
 	// A system-wide grant (scope '') always qualifies; when the caller asks
 	// for a specific application instance, an instance-narrowed grant does
-	// too. Without ?scope only system-wide grants count.
+	// too. Without ?scope only system-wide grants count. A seated add-on
+	// qualifies only for an instance holding a seat within the seats bought,
+	// oldest seats first.
 	// The requested id may be a legacy wire alias (the feeds still call
 	// ng-blacklist while the canonical catalog id is nsec-blacklist): the
 	// join resolves both.
@@ -82,9 +87,18 @@ func AuthCheckService(c *gin.Context) {
 		     JOIN entitlement_catalog cat ON cat.id = e.entitlement
 		     WHERE e.system_id = $1
 		       AND ($2 IN (cat.id, cat.legacy_alias))
-		       AND e.scope IN ('', $3)
 		       AND e.revoked_at IS NULL
 		       AND (e.valid_until IS NULL OR e.valid_until > NOW())
+		       AND CASE WHEN cat.seated THEN
+		               e.scope = '' AND $3 <> '' AND EXISTS (
+		                   SELECT 1 FROM (
+		                       SELECT s.module_id, ROW_NUMBER() OVER (ORDER BY s.assigned_at, s.id) AS n
+		                       FROM entitlement_seats s
+		                       WHERE s.grant_id = e.id AND s.released_at IS NULL
+		                   ) held
+		                   WHERE held.module_id = $3 AND held.n <= COALESCE(e.seats, 0))
+		           ELSE e.scope IN ('', $3)
+		           END
 		 )`, systemID, serviceID, scope).Scan(&active)
 	if err != nil {
 		logger.ComponentLogger("auth").Error().Err(err).

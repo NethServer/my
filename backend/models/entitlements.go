@@ -80,6 +80,10 @@ type EntitlementCatalogItem struct {
 	// is deliberately separate from the per-organization allowlist, which
 	// answers who may buy rather than whether it is on sale at all.
 	Purchasable bool `json:"purchasable"`
+	// Seated add-ons are bought for the whole system with a number of seats
+	// (the shop tier), and each seat is given to one application instance of
+	// AppliesTo. Only the instances holding a seat are covered.
+	Seated bool `json:"seated"`
 	// InUse is TRUE when at least one grant references the item — revoked
 	// and expired ones included, kept for audit: the foreign key refuses the
 	// DELETE all the same. Computed by the read paths that serve API
@@ -105,10 +109,11 @@ type CreateEntitlementCatalogRequest struct {
 	// Purchasable defaults to TRUE when omitted: a new add-on is on sale
 	// unless it is deliberately withheld.
 	Purchasable *bool `json:"purchasable,omitempty"`
+	Seated      bool  `json:"seated,omitempty"`
 }
 
 // UpdateEntitlementCatalogRequest updates the display fields of a catalog
-// item. The id and scoped flag are immutable (grants may already reference
+// item. The id and the scoped and seated flags are immutable (grants may already reference
 // them with the current semantics).
 type UpdateEntitlementCatalogRequest struct {
 	DisplayName *string `json:"display_name,omitempty"`
@@ -292,9 +297,31 @@ type SystemEntitlement struct {
 	// RenewalCount is the number of paid shop orders on this grant beyond
 	// the first: activate increments it when source_ref CHANGES (webhook
 	// retries on the same order never double-count). 0 = first period.
-	RenewalCount int       `json:"renewal_count"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	RenewalCount int `json:"renewal_count"`
+	// Seats is the number of seats bought, for seated add-ons; nil otherwise.
+	Seats *int `json:"seats,omitempty"`
+	// SeatAssignments lists the instances holding a seat, oldest first.
+	// Filled by the per-system read only, for seated add-ons.
+	SeatAssignments []EntitlementSeat `json:"seat_assignments,omitempty"`
+	CreatedAt       time.Time         `json:"created_at"`
+	UpdatedAt       time.Time         `json:"updated_at"`
+}
+
+// EntitlementSeat is one seat of a seated add-on given to an application
+// instance. InQuota is FALSE for the seats beyond the number bought, oldest
+// first: they are not honored until seats are added.
+type EntitlementSeat struct {
+	ID         string                 `json:"id"`
+	ModuleID   string                 `json:"module_id"`
+	AssignedAt time.Time              `json:"assigned_at"`
+	AssignedBy map[string]interface{} `json:"assigned_by,omitempty"`
+	InQuota    bool                   `json:"in_quota"`
+}
+
+// AssignEntitlementSeatRequest gives a seat of a seated add-on to one
+// application instance of the system.
+type AssignEntitlementSeatRequest struct {
+	ModuleID string `json:"module_id" binding:"required"`
 }
 
 // CreateSystemEntitlementRequest grants an add-on to a system. Scope narrows
@@ -317,6 +344,8 @@ type CreateSystemEntitlementRequest struct {
 	// written by an activation, so a grant created without it stays untiered
 	// until the system's first renewal.
 	Variant map[string]interface{} `json:"variant,omitempty"`
+	// Seats is required for seated add-ons and refused for the others.
+	Seats *int `json:"seats,omitempty"`
 }
 
 // ActivateEntitlementRequest is the shop-facing activation/renewal call
@@ -337,6 +366,10 @@ type ActivateEntitlementRequest struct {
 	// Variant is the shop variation (tier) of the order line, {id, sku,
 	// label}; stored as display metadata on the grant.
 	Variant map[string]interface{} `json:"variant,omitempty"`
+	// Seats is the number of seats of the order line's tier, for seated
+	// add-ons. Required on the first activation, kept when omitted on a
+	// renewal; ignored for add-ons without seats.
+	Seats *int `json:"seats,omitempty"`
 }
 
 // DeactivateEntitlementRequest revokes a shop-managed grant (subscription
@@ -367,6 +400,8 @@ type PendingEntitlementRequest struct {
 	// like BuyerEmail — the not-yet-paid tier must not overwrite the one the
 	// customer currently has.
 	Variant map[string]interface{} `json:"variant,omitempty"`
+	// Seats: see ActivateEntitlementRequest. Fresh pending stubs only.
+	Seats *int `json:"seats,omitempty"`
 }
 
 // UpdateSystemEntitlementRequest extends/reduces the expiry or toggles the
@@ -377,4 +412,6 @@ type UpdateSystemEntitlementRequest struct {
 	ValidUntil      *time.Time `json:"valid_until,omitempty"`
 	ClearValidUntil bool       `json:"clear_valid_until,omitempty"`
 	Revoked         *bool      `json:"revoked,omitempty"`
+	// Seats changes the number of seats of a seated add-on.
+	Seats *int `json:"seats,omitempty"`
 }
