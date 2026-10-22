@@ -529,7 +529,10 @@ func (r *LocalSystemEntitlementRepository) Revoke(systemID, entitlement, scope, 
 // purchasedBy (the buyer audit snapshot) and variant (the shop tier of the
 // order line) replace the stored ones only when provided — an activation
 // without them (stamped legacy order) must not wipe what a previous
-// purchase recorded. seats follows the same rule.
+// purchase recorded. seats follows the same rule, and never goes down on a
+// grant still in force: licenses are only ever upgraded, so a lower tier can
+// only come from an older order renewed late, which must not take licenses
+// back.
 func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, source, sourceRef string, validUntil *time.Time, createdBy, purchasedBy, variant map[string]interface{}, seats *int) (*models.SystemEntitlement, error) {
 	var createdByJSON []byte
 	if createdBy != nil {
@@ -561,7 +564,12 @@ func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, 
 		     source_ref  = COALESCE(EXCLUDED.source_ref, system_entitlements.source_ref),
 		     purchased_by = COALESCE(EXCLUDED.purchased_by, system_entitlements.purchased_by),
 		     variant     = COALESCE(EXCLUDED.variant, system_entitlements.variant),
-		     seats       = COALESCE(EXCLUDED.seats, system_entitlements.seats),
+		     seats       = CASE
+		                       WHEN system_entitlements.revoked_at IS NULL
+		                            AND (system_entitlements.valid_until IS NULL OR system_entitlements.valid_until > NOW())
+		                       THEN GREATEST(EXCLUDED.seats, system_entitlements.seats)
+		                       ELSE COALESCE(EXCLUDED.seats, system_entitlements.seats)
+		                   END,
 		     -- a renewal is an activation paid by a DIFFERENT order: webhook
 		     -- retries on the same order never double-count
 		     renewal_count = system_entitlements.renewal_count +
