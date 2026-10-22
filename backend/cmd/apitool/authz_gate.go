@@ -98,7 +98,7 @@ func (a *authzRunner) buildProbes(rt RouteSpec, p *persona) []gateProbe {
 // expectAllowed decides, from the hand-authored intent alone, whether this
 // persona is supposed to get past the gate.
 func expectAllowed(rt RouteSpec, p *persona, probe gateProbe) bool {
-	if rt.OrgRole != "" && !strings.EqualFold(p.orgRole, rt.OrgRole) && !p.hasUserRole(rt.OrUserRole) {
+	if rt.OrgRole != "" && !orgRoleMatches(rt.OrgRole, p.orgRole) && !p.hasUserRole(rt.OrUserRole) {
 		return false
 	}
 	switch rt.Intent {
@@ -114,6 +114,17 @@ func expectAllowed(rt RouteSpec, p *persona, probe gateProbe) bool {
 		return true
 	}
 	return p.hasAny(rt.IntentAny)
+}
+
+// orgRoleMatches reports whether orgRole is one of the comma-separated
+// organization roles of a route's org_role.
+func orgRoleMatches(allowed, orgRole string) bool {
+	for _, r := range strings.Split(allowed, ",") {
+		if strings.EqualFold(strings.TrimSpace(r), orgRole) {
+			return true
+		}
+	}
+	return false
 }
 
 func intentLabel(rt RouteSpec) string {
