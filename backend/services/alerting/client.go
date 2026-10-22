@@ -371,6 +371,62 @@ func CleanupSystemSilences(orgID, systemKey string) (int, error) {
 	return deleted, firstErr
 }
 
+// SilencesForSystems returns the ids of the live silences in the tenant that
+// name one of systemKeys with an exact system_key matcher, whatever other
+// matchers they carry: when those systems leave the tenant (their customer
+// moves to another manager) the silence can no longer match anything there.
+// Regex matchers span an open set of systems and are left alone.
+func SilencesForSystems(tenantOrgID string, systemKeys []string) ([]string, error) {
+	if len(systemKeys) == 0 {
+		return nil, nil
+	}
+	silences, err := GetSilences(tenantOrgID)
+	if err != nil {
+		return nil, fmt.Errorf("list silences in org %s: %w", tenantOrgID, err)
+	}
+	keys := make(map[string]bool, len(systemKeys))
+	for _, k := range systemKeys {
+		keys[k] = true
+	}
+	ids := []string{}
+	for _, s := range silences {
+		if s.Status != nil && s.Status.State == "expired" {
+			continue
+		}
+		for _, m := range s.Matchers {
+			if m.Name == "system_key" && !m.IsRegex && keys[m.Value] {
+				ids = append(ids, s.ID)
+				break
+			}
+		}
+	}
+	return ids, nil
+}
+
+// CleanupSilencesForSystems deletes, best-effort, the silences returned by
+// SilencesForSystems. Returns how many were deleted and the first error.
+func CleanupSilencesForSystems(tenantOrgID string, systemKeys []string) (int, error) {
+	ids, err := SilencesForSystems(tenantOrgID, systemKeys)
+	if err != nil {
+		return 0, err
+	}
+	deleted := 0
+	var firstErr error
+	for _, id := range ids {
+		if err := DeleteSilence(tenantOrgID, id); err != nil {
+			if errors.Is(err, ErrSilenceNotFound) {
+				continue
+			}
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		deleted++
+	}
+	return deleted, firstErr
+}
+
 // silenceTargetsSystem reports whether the silence is *exclusively* scoped
 // to the given system. We require exactly one matcher equal to
 // `system_key=<key>`, non-regex, non-negated. A silence with extra matchers

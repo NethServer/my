@@ -23,7 +23,14 @@ import (
 // another concurrent reassignment for the same system holds the lock.
 var ErrSystemReassignLocked = errors.New("system reassignment is already in progress")
 
-const systemReassignLockKeyPrefix = "lock:system:reassign:"
+// ErrCustomerTransferLocked is returned by AcquireCustomerTransferLock when
+// another transfer of the same customer holds the lock.
+var ErrCustomerTransferLocked = errors.New("customer transfer is already in progress")
+
+const (
+	systemReassignLockKeyPrefix   = "lock:system:reassign:"
+	customerTransferLockKeyPrefix = "lock:customer:transfer:"
+)
 
 // AcquireSystemReassignLock takes a Redis SETNX-based advisory lock on the
 // system_id for the duration of an org reassignment. The lock has a TTL so a
@@ -42,9 +49,22 @@ const systemReassignLockKeyPrefix = "lock:system:reassign:"
 // the same as before this lock existed) and avoids tying a normal admin
 // operation to Redis availability.
 func AcquireSystemReassignLock(ctx context.Context, systemID string, ttl time.Duration) (func(), error) {
+	return acquireAdvisoryLock(ctx, systemReassignLockKeyPrefix+systemID, ttl, ErrSystemReassignLocked)
+}
+
+// AcquireCustomerTransferLock serializes the "managed by" transfers of one
+// customer, with the same fence-token and fail-open semantics as
+// AcquireSystemReassignLock: two concurrent transfers to different targets
+// would otherwise both pass validation and leave Logto and Postgres pointing
+// at different parents.
+func AcquireCustomerTransferLock(ctx context.Context, customerID string, ttl time.Duration) (func(), error) {
+	return acquireAdvisoryLock(ctx, customerTransferLockKeyPrefix+customerID, ttl, ErrCustomerTransferLocked)
+}
+
+func acquireAdvisoryLock(ctx context.Context, key string, ttl time.Duration, lockedErr error) (func(), error) {
 	rc := GetRedisClient()
 	if rc == nil || rc.client == nil {
-		logger.Warn().Str("system_id", systemID).Msg("Redis unavailable, reassignment lock disabled")
+		logger.Warn().Str("lock_key", key).Msg("Redis unavailable, advisory lock disabled")
 		return func() {}, nil
 	}
 
@@ -53,16 +73,15 @@ func AcquireSystemReassignLock(ctx context.Context, systemID string, ttl time.Du
 		return nil, err
 	}
 	token := hex.EncodeToString(tokenBytes)
-	key := systemReassignLockKeyPrefix + systemID
 
 	ok, err := rc.client.SetNX(ctx, key, token, ttl).Result()
 	if err != nil {
 		// Treat Redis errors as fail-open: log and let the caller proceed.
-		logger.Warn().Err(err).Str("system_id", systemID).Msg("reassignment lock SETNX failed; proceeding without lock")
+		logger.Warn().Err(err).Str("lock_key", key).Msg("advisory lock SETNX failed; proceeding without lock")
 		return func() {}, nil
 	}
 	if !ok {
-		return nil, ErrSystemReassignLocked
+		return nil, lockedErr
 	}
 
 	release := func() {
@@ -78,7 +97,7 @@ func AcquireSystemReassignLock(ctx context.Context, systemID string, ttl time.Du
 		ctxRelease, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := rc.client.Eval(ctxRelease, releaseScript, []string{key}, token).Err(); err != nil {
-			logger.Warn().Err(err).Str("system_id", systemID).Msg("reassignment lock release failed")
+			logger.Warn().Err(err).Str("lock_key", key).Msg("advisory lock release failed")
 		}
 	}
 	return release, nil
