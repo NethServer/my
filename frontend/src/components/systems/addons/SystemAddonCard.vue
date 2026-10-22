@@ -16,6 +16,7 @@ import { computed } from 'vue'
 import ApplicationLogo from '@/components/applications/ApplicationLogo.vue'
 import DataItem from '@/components/common/DataItem.vue'
 import SystemLogo from '@/components/systems/SystemLogo.vue'
+import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 import UserAvatar from '@/components/users/UserAvatar.vue'
 import { useSystemAddonActions, type AddonRowActions } from '@/composables/useSystemAddonActions'
 import {
@@ -153,14 +154,25 @@ const actions = computed((): AddonRowActions =>
           <DataItem>
             <template #label>{{ $t('addons.purchased_by') }}</template>
             <template #data>
-              <div v-if="getPurchaserName(row)" class="flex items-center justify-end gap-2">
-                <UserAvatar
-                  size="sm"
-                  :is-owner="false"
-                  :name="getPurchaserName(row)"
-                  :logto-id="row.grant.purchased_by?.logto_id ?? ''"
-                />
-                <span class="wrap-anywhere">{{ getPurchaserName(row) }}</span>
+              <!-- laid out as "Created by" on a system: avatar and name, then the company -->
+              <div v-if="getPurchaserName(row)" class="space-y-0.5 text-end">
+                <div class="flex items-center justify-end gap-2">
+                  <UserAvatar
+                    size="xs"
+                    :is-owner="false"
+                    :name="getPurchaserName(row)"
+                    :logto-id="row.grant.purchased_by?.logto_id ?? ''"
+                  />
+                  <span class="wrap-anywhere">{{ getPurchaserName(row) }}</span>
+                </div>
+                <div v-if="row.grant.purchased_by?.organization_name" class="text-tertiary-neutral">
+                  <CreatorOrganization
+                    :creator="{
+                      organization_id: row.grant.purchased_by.organization_id ?? '',
+                      organization_name: row.grant.purchased_by.organization_name,
+                    }"
+                  />
+                </div>
               </div>
               <span v-else-if="row.grant.purchased_by?.out_of_scope" class="text-tertiary-neutral">
                 {{
@@ -169,18 +181,23 @@ const actions = computed((): AddonRowActions =>
                     : $t('addons.purchaser_not_visible')
                 }}
               </span>
-              <div
-                v-else-if="row.grant.created_by?.user_name"
-                class="flex items-center justify-end gap-2"
-              >
-                <UserAvatar
-                  size="sm"
-                  :is-owner="false"
-                  :name="row.grant.created_by.user_name"
-                  :logto-id="row.grant.created_by.user_id ?? ''"
-                />
-                <div>
-                  <div class="wrap-anywhere">{{ row.grant.created_by.user_name }}</div>
+              <div v-else-if="row.grant.created_by?.user_name" class="space-y-0.5 text-end">
+                <div class="flex items-center justify-end gap-2">
+                  <UserAvatar
+                    size="xs"
+                    :is-owner="false"
+                    :name="row.grant.created_by.user_name"
+                    :logto-id="row.grant.created_by.user_id ?? ''"
+                  />
+                  <span class="wrap-anywhere">{{ row.grant.created_by.user_name }}</span>
+                </div>
+                <div v-if="row.grant.created_by.organization_name" class="text-tertiary-neutral">
+                  <CreatorOrganization
+                    :creator="{
+                      organization_id: row.grant.created_by.organization_id ?? '',
+                      organization_name: row.grant.created_by.organization_name,
+                    }"
+                  />
                 </div>
               </div>
               <span v-else>-</span>
