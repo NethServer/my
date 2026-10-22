@@ -19,6 +19,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import ApplicationLogo from '@/components/applications/ApplicationLogo.vue'
+import UserAvatar from '@/components/users/UserAvatar.vue'
 import {
   SYSTEM_ADDONS_KEY,
   assignAddonSeat,
@@ -34,6 +35,7 @@ import { getBackendErrorMessage } from '@/lib/validation'
 import { useSystemApplications } from '@/queries/addons/systemAddons'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { useNotificationsStore } from '@/stores/notifications'
+import AddonLicenseUsage from './AddonLicenseUsage.vue'
 
 const { row } = defineProps<{
   // the system-wide row of the seated add-on
@@ -140,9 +142,7 @@ function seatDate(seat: AddonSeat) {
           {{ $t('addons.seats_description') }}
         </p>
       </div>
-      <p class="font-medium text-gray-900 dark:text-gray-100">
-        {{ $t('addons.seats_used_of', { used: usage.used, total: usage.total }) }}
-      </p>
+      <AddonLicenseUsage :used="usage.used" :total="usage.total" />
     </div>
     <NeInlineNotification
       v-if="!isGrantActive"
@@ -191,23 +191,32 @@ function seatDate(seat: AddonSeat) {
                 }}
               </template>
               <template v-else>{{ $t('addons.instance_not_in_inventory') }}</template>
-              <template v-if="line.seat">
-                · {{ $t('addons.seat_assigned_on', { date: seatDate(line.seat) }) }}
-                <template v-if="line.seat.assigned_by?.user_name">
-                  · {{ line.seat.assigned_by.user_name }}
-                </template>
-              </template>
             </div>
           </div>
         </div>
-        <div class="flex items-center gap-3">
-          <NeBadgeV2 v-if="line.seat && line.seat.in_quota" kind="green">
-            {{ $t('addons.seat_held') }}
-          </NeBadgeV2>
-          <NeBadgeV2 v-else-if="line.seat" kind="amber">
-            {{ $t('addons.seat_over_quota') }}
-          </NeBadgeV2>
-          <NeBadgeV2 v-else kind="gray">{{ $t('addons.no_seat') }}</NeBadgeV2>
+        <div class="flex items-center gap-6">
+          <!-- who gave the license, with the avatar the purchaser gets on the card -->
+          <div v-if="line.seat?.assigned_by?.user_name" class="flex items-center gap-2">
+            <UserAvatar
+              size="sm"
+              :is-owner="false"
+              :name="line.seat.assigned_by.user_name"
+              :logto-id="line.seat.assigned_by.user_id ?? ''"
+            />
+            <span class="text-sm">{{ line.seat.assigned_by.user_name }}</span>
+          </div>
+          <div class="flex flex-col items-end gap-1">
+            <NeBadgeV2 v-if="line.seat && line.seat.in_quota" kind="green">
+              {{ $t('addons.seat_held') }}
+            </NeBadgeV2>
+            <NeBadgeV2 v-else-if="line.seat" kind="amber">
+              {{ $t('addons.seat_over_quota') }}
+            </NeBadgeV2>
+            <NeBadgeV2 v-else kind="gray">{{ $t('addons.no_seat') }}</NeBadgeV2>
+            <span v-if="line.seat" class="text-tertiary-neutral text-xs">
+              {{ $t('addons.seat_assigned_on', { date: seatDate(line.seat) }) }}
+            </span>
+          </div>
           <template v-if="canManageSeats">
             <NeButton
               v-if="line.seat"

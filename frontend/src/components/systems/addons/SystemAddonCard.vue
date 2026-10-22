@@ -28,6 +28,7 @@ import {
   type SystemAddonRow,
 } from '@/lib/addons/systemAddons'
 import type { AddonAction } from './AddonActionModal.vue'
+import AddonLicenseUsage from './AddonLicenseUsage.vue'
 import AddonStatusIcon from './AddonStatusIcon.vue'
 
 const { row, systemType } = defineProps<{
@@ -131,7 +132,7 @@ const actions = computed((): AddonRowActions =>
           <DataItem v-if="seatUsage">
             <template #label>{{ $t('addons.seats') }}</template>
             <template #data>
-              {{ $t('addons.seats_used_of', { used: seatUsage.used, total: seatUsage.total }) }}
+              <AddonLicenseUsage :used="seatUsage.used" :total="seatUsage.total" />
             </template>
           </DataItem>
           <DataItem>
