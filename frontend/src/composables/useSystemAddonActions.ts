@@ -36,6 +36,8 @@ export const useSystemAddonActions = () => {
     ['suspended', 'deleted'].includes(systemDetail.value.data?.status ?? ''),
   )
 
+  const isUpgrade = (row: SystemAddonRow) => !!row.addon.seated && row.grant?.status === 'active'
+
   // Nothing is offered on a blocked system, and nothing can be bought that the
   // company is not allowed to have in the first place.
   const canBuy = (row: SystemAddonRow) => {
@@ -48,6 +50,10 @@ export const useSystemAddonActions = () => {
       return false
     }
     if (!row.grant) {
+      return true
+    }
+    // seats are added by buying a higher tier on the live grant
+    if (isUpgrade(row)) {
       return true
     }
     // a shop-side revocation (cancelled subscription, failed payment) can be
@@ -113,7 +119,7 @@ export const useSystemAddonActions = () => {
     buy: canBuy(row)
       ? {
           id: 'buy',
-          label: t('addons.buy'),
+          label: isUpgrade(row) ? t('addons.buy_more_seats') : t('addons.buy'),
           icon: faArrowUpRightFromSquare,
           action: () => openShop(row),
         }

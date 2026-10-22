@@ -2,9 +2,10 @@
   Copyright (C) 2026 Nethesis S.r.l.
   SPDX-License-Identifier: GPL-3.0-or-later
 
-  Where one add-on stands on this system: a row per application instance on a
-  NethServer cluster, a single row for a NethSecurity service, which covers the
-  whole firewall and so shows the system itself in the Application column.
+  Where one add-on stands on this system: a row per application instance for a
+  module narrowed to single instances, a single row for an add-on that covers
+  the whole system, which so shows the system itself in the Application column.
+  A seated add-on adds its seats below, given to the application instances.
 
   The grant endpoint takes no page, search or sort parameters and returns the
   system's whole list at once, so the filtering, sorting and paging below all
@@ -59,6 +60,7 @@ import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { useLoginStore } from '@/stores/login'
 import AddonActionModal, { type AddonAction } from './AddonActionModal.vue'
 import AddonStatusIcon from './AddonStatusIcon.vue'
+import SystemAddonSeats from './SystemAddonSeats.vue'
 
 const { rows, loading, refreshing } = defineProps<{
   addonId: string
@@ -87,11 +89,13 @@ const isShownActionModal = ref(false)
 
 const addonName = computed(() => rows[0]?.addon.display_name ?? '')
 
-// A NethSecurity service covers the whole firewall rather than any one
-// application, so the first column names the system instead. Decided from the
-// rows rather than from the product, because an nsec service granted to a
-// cluster reads the same way.
-const isSystemScoped = computed(() => rows.every((row) => !row.applicationId))
+// An add-on that covers the whole system rather than any one application
+// instance names the system in the first column. Decided from the rows rather
+// than from the product, because an nsec service granted to a cluster reads
+// the same way.
+const isSystemScoped = computed(() => rows.every((row) => !row.scope))
+
+const seatedRow = computed(() => rows.find((row) => row.addon.seated && !row.scope && row.grant))
 
 const firstColumnLabel = computed(() =>
   isSystemScoped.value ? t('systems.system') : t('addons.application'),
@@ -297,7 +301,7 @@ function clearFilters() {
         <NeTableRow v-for="{ row, actions } in pageRows" :key="`${row.addon.id} ${row.scope}`">
           <NeTableCell :data-label="firstColumnLabel">
             <div class="flex items-center gap-2">
-              <ApplicationLogo v-if="row.applicationId" :app="row.applicationId" />
+              <ApplicationLogo v-if="row.applicationId && row.scope" :app="row.applicationId" />
               <SystemLogo v-else :system="systemDetail.data?.type ?? 'nsec'" />
               <span>{{ row.applicationLabel }}</span>
             </div>
@@ -421,6 +425,7 @@ function clearFilters() {
         />
       </template>
     </NeTable>
+    <SystemAddonSeats v-if="seatedRow && !loading" :row="seatedRow" />
     <!-- activate / revoke / reactivate modal -->
     <AddonActionModal
       :visible="isShownActionModal"

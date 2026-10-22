@@ -81,8 +81,8 @@ const cards = computed(() => {
       group = {
         addon: row.addon,
         applicationId: row.applicationId,
-        // a service covers the whole system: one place, nothing to count
-        scoped: row.addon.kind === 'module',
+        // only an add-on narrowed to single instances has places to count
+        scoped: row.addon.scoped,
         counts: Object.fromEntries(ADDON_ROW_STATUSES.map((status) => [status, 0])) as Record<
           AddonRowStatus,
           number
@@ -153,11 +153,19 @@ watch(
   }, 500),
 )
 
-// The card shows the row itself only on a firewall, and only when the add-on
-// really has just the one: a legacy scoped grant there would make two, and
-// hiding one of them on a card would be worse than opening the table.
-function inlineRow(card: { rows: SystemAddonRow[] }) {
-  return systemType === 'nsec' && card.rows.length === 1 ? card.rows[0] : undefined
+// The card shows the row itself when the add-on covers the whole system with
+// a single grant: a legacy scoped grant would make two, and hiding one of them
+// on a card would be worse than opening the table. A seated add-on keeps its
+// detail page, where the seats are handed out.
+function inlineRow(card: { addon: SystemAddonRow['addon']; rows: SystemAddonRow[] }) {
+  if (card.addon.seated || card.rows.length !== 1 || card.rows[0]!.scope) {
+    return undefined
+  }
+  return card.rows[0]
+}
+
+function seatedRow(card: { addon: SystemAddonRow['addon']; rows: SystemAddonRow[] }) {
+  return card.addon.seated ? card.rows.find((row) => !row.scope) : undefined
 }
 
 function showActionModal(row: SystemAddonRow, action: AddonAction) {
@@ -255,6 +263,8 @@ function clearFilters() {
         :counts="card.counts"
         :scoped="card.scoped"
         :row="inlineRow(card)"
+        :seated-row="seatedRow(card)"
+        :system-type="systemType"
         @details="emit('open', card.addon.id)"
         @action="showActionModal"
       />

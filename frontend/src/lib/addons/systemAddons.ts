@@ -54,6 +54,16 @@ export interface AddonCreator {
   channel?: string
 }
 
+// One seat of a seated add-on, held by an application instance. Seats beyond
+// the number bought (oldest first) are out of quota and not honored.
+export interface AddonSeat {
+  id: string
+  module_id: string
+  assigned_at: string
+  assigned_by?: AddonCreator
+  in_quota: boolean
+}
+
 // One add-on granted to one system, optionally narrowed to a single
 // application instance through `scope` ('' = the whole system).
 export interface AddonGrant {
@@ -80,6 +90,9 @@ export interface AddonGrant {
   // shop tier of the purchased product line, display only (e.g. "16-30 device")
   variant?: { id?: number; sku?: string; label?: string }
   renewal_count?: number
+  // seats bought and the instances holding them, for seated add-ons only
+  seats?: number
+  seat_assignments?: AddonSeat[]
 }
 
 interface Envelope<T> {
@@ -111,14 +124,49 @@ export const getAvailableAddons = () =>
 
 // Grant an add-on outright, skipping NethShop. Owner organization only,
 // enforced again by the backend. No expiry means perpetual.
-export const grantSystemAddon = (systemId: string, addonId: string, scope: string) =>
+export const grantSystemAddon = (
+  systemId: string,
+  addonId: string,
+  scope: string,
+  seats?: number,
+) =>
   axios
     .post<Envelope<AddonGrant>>(
       `${API_URL}/${systemAddonsPath(systemId)}`,
-      { entitlement: addonId, scope: scope || undefined },
+      { entitlement: addonId, scope: scope || undefined, seats },
       authHeaders(),
     )
     .then((res) => res.data.data)
+
+// Seats of a seated add-on go to application instances. Allowed to whoever can
+// buy add-ons, within the hierarchy.
+export const assignAddonSeat = (systemId: string, addonId: string, moduleId: string) =>
+  axios
+    .post<Envelope<AddonSeat>>(
+      `${API_URL}/${systemAddonsPath(systemId)}/${addonId}/seats`,
+      { module_id: moduleId },
+      authHeaders(),
+    )
+    .then((res) => res.data.data)
+
+export const releaseAddonSeat = (systemId: string, addonId: string, moduleId: string) =>
+  axios
+    .delete(
+      `${API_URL}/${systemAddonsPath(systemId)}/${addonId}/seats/${encodeURIComponent(moduleId)}`,
+      authHeaders(),
+    )
+    .then(() => undefined)
+
+// Seats taken out of those bought: the ones beyond quota do not count as used,
+// since they cover nothing.
+export const getSeatUsage = (grant: AddonGrant | undefined) => {
+  const held = grant?.seat_assignments ?? []
+  return {
+    used: held.filter((seat) => seat.in_quota).length,
+    total: grant?.seats ?? 0,
+    overQuota: held.filter((seat) => !seat.in_quota).length,
+  }
+}
 
 // Soft revoke: the row stays and records who revoked it, so a later purchase
 // can pick it back up.
@@ -145,8 +193,9 @@ export const restoreSystemAddon = (systemId: string, addonId: string, scope: str
 // ----- rows -----
 
 // One line of the UI: an add-on, the place it applies to, and the grant that
-// covers it if there is one. Services produce a single row for the whole
-// system; modules produce one row per application instance.
+// covers it if there is one. Services, cluster-wide modules and seated modules
+// produce a single row for the whole system; modules narrowed to one
+// application instance produce one row per instance.
 export interface SystemAddonRow {
   addon: Addon
   grant?: AddonGrant
@@ -261,17 +310,36 @@ export const composeSystemAddonRows = ({
     })
   }
 
-  // Modules only exist on a NethServer cluster, one row per application
-  // instance: the add-on names the application it belongs to in `applies_to`,
-  // which is why the id prefix is never read for it — an application name may
-  // itself contain a hyphen ("nethvoice-proxy").
+  // Modules only exist on a NethServer cluster. The add-on names the
+  // application it belongs to in `applies_to`, which is why the id prefix is
+  // never read for it — an application name may itself contain a hyphen
+  // ("nethvoice-proxy"). A module granted to the whole cluster, or bought by
+  // seats, is one row for the system; a module narrowed to one instance is one
+  // row per instance.
   if (systemType === 'ns8') {
     const modules = availableAddons.filter((addon) => addon.kind === 'module')
     const instances = [...applications].sort((a, b) => a.module_id.localeCompare(b.module_id))
 
+    for (const addon of modules.filter((module) => !module.scoped)) {
+      // shown once the cluster runs the application it belongs to, or holds it
+      if (
+        !instances.some((application) => application.instance_of === addon.applies_to) &&
+        !findGrant(addon.id, '')
+      ) {
+        continue
+      }
+      rows.push({
+        addon,
+        grant: findGrant(addon.id, ''),
+        scope: '',
+        applicationId: addon.applies_to ?? '',
+        applicationLabel: systemName,
+      })
+    }
+
     for (const application of instances) {
       for (const addon of modules.filter(
-        (module) => module.applies_to === application.instance_of,
+        (module) => module.scoped && module.applies_to === application.instance_of,
       )) {
         rows.push({
           addon,
@@ -313,6 +381,7 @@ export const composeSystemAddonRows = ({
         kind: scope ? 'module' : 'service',
         // an add-on we cannot even name is certainly not one to offer for sale
         purchasable: false,
+        seated: false,
         // the row exists because a grant references it, which is precisely what
         // in_use means
         in_use: true,

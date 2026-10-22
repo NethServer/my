@@ -11,9 +11,9 @@
 -->
 
 <script setup lang="ts">
-import { NeInlineNotification, NeModal } from '@nethesis/vue-components'
+import { NeInlineNotification, NeModal, NeTextInput } from '@nethesis/vue-components'
 import { useMutation, useQueryCache } from '@pinia/colada'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import {
@@ -48,12 +48,27 @@ const queryCache = useQueryCache()
 
 const systemId = computed(() => route.params.systemId as string)
 
+// a seated add-on is granted with the number of seats to hand out
+const DEFAULT_SEATS = 10
+const seats = ref(String(DEFAULT_SEATS))
+const isSeatsAsked = computed(() => action === 'activate' && !!row?.addon.seated)
+const seatsNumber = computed(() => Number.parseInt(seats.value, 10))
+const isSeatsInvalid = computed(
+  () => isSeatsAsked.value && !(Number.isInteger(seatsNumber.value) && seatsNumber.value > 0),
+)
+
 // Revoking takes something away, so it warns and its button is destructive;
 // the other two only ever add access back.
 const isDestructive = computed(() => action === 'revoke')
 
 const callers: Record<AddonAction, (row: SystemAddonRow) => Promise<unknown>> = {
-  activate: (row) => grantSystemAddon(systemId.value, row.addon.id, row.scope),
+  activate: (row) =>
+    grantSystemAddon(
+      systemId.value,
+      row.addon.id,
+      row.scope,
+      row.addon.seated ? seatsNumber.value : undefined,
+    ),
   revoke: (row) => revokeSystemAddon(systemId.value, row.addon.id, row.scope),
   reactivate: (row) => restoreSystemAddon(systemId.value, row.addon.id, row.scope),
 }
@@ -102,6 +117,7 @@ const errorMessage = computed(() => {
 function onShow() {
   // clear error
   reset()
+  seats.value = String(DEFAULT_SEATS)
 }
 </script>
 
@@ -113,7 +129,7 @@ function onShow() {
     :primary-label="$t(`addons.${action}`)"
     :cancel-label="$t('common.cancel')"
     :primary-button-kind="isDestructive ? 'danger' : 'primary'"
-    :primary-button-disabled="isLoading"
+    :primary-button-disabled="isLoading || isSeatsInvalid"
     :primary-button-loading="isLoading"
     :close-aria-label="$t('common.close')"
     @show="onShow"
@@ -128,6 +144,15 @@ function onShow() {
         })
       }}
     </p>
+    <NeTextInput
+      v-if="isSeatsAsked"
+      v-model="seats"
+      type="number"
+      min="1"
+      :label="$t('addons.seats')"
+      :invalid-message="isSeatsInvalid ? $t('addons.seats_must_be_positive') : ''"
+      class="mt-4"
+    />
     <NeInlineNotification
       v-if="errorMessage"
       kind="error"

@@ -8,9 +8,11 @@
   thing to say about it: the card says it here — status, validity, order,
   purchaser — and carries the action, with no detail table to open.
 
-  A NethServer module applies to each application instance separately, so the
-  card can only summarise (a line per state any instance is in) and hands off to
-  the detail table, which lists them one by one.
+  A NethServer module granted to the whole cluster reads the same way. One
+  narrowed to single application instances can only be summarised (a line per
+  state any instance is in) and hands off to the detail table, which lists
+  them one by one. A seated module shows how many of its seats are taken and
+  hands off to the detail page, where they are given to the instances.
 -->
 
 <script setup lang="ts">
@@ -30,6 +32,7 @@ import {
   getOrderUrl,
   getPurchaserName,
   getRowStatus,
+  getSeatUsage,
   type AddonRowStatus,
   type SystemAddonRow,
 } from '@/lib/addons/systemAddons'
@@ -43,6 +46,8 @@ const {
   counts,
   scoped,
   row = undefined,
+  seatedRow = undefined,
+  systemType,
 } = defineProps<{
   addon: Addon
   // the application these rows belong to, '' for a system-wide service
@@ -53,11 +58,16 @@ const {
   // the single row this add-on has on this system, when it has exactly one:
   // the card then states it in full instead of pointing at the detail table
   row?: SystemAddonRow
+  // the system-wide row of a seated add-on, whose seats the card counts
+  seatedRow?: SystemAddonRow
+  systemType: string
 }>()
 
 const emit = defineEmits<{ details: []; action: [row: SystemAddonRow, action: AddonAction] }>()
 
 const { getAddonActions, formatValidity } = useSystemAddonActions()
+
+const seatUsage = computed(() => (seatedRow?.grant ? getSeatUsage(seatedRow.grant) : undefined))
 
 const statusLines = computed(() =>
   ADDON_ROW_STATUSES.filter((status) => counts[status] > 0).map((status) => ({
@@ -84,7 +94,7 @@ const actions = computed((): AddonRowActions =>
         <div class="flex min-h-10 items-center justify-between gap-4">
           <div class="flex items-center gap-3">
             <ApplicationLogo v-if="applicationId" :app="applicationId" />
-            <SystemLogo v-else system="nsec" />
+            <SystemLogo v-else :system="systemType || 'nsec'" />
             <p class="font-medium text-gray-900 dark:text-gray-100">{{ addon.display_name }}</p>
           </div>
           <!-- kebab menu -->
@@ -195,6 +205,9 @@ const actions = computed((): AddonRowActions =>
           :count="scoped ? line.count : undefined"
           class="pb-1 text-sm font-medium"
         />
+        <p v-if="seatUsage" class="text-tertiary-neutral text-sm">
+          {{ $t('addons.seats_used_of', { used: seatUsage.used, total: seatUsage.total }) }}
+        </p>
       </div>
       <!-- pushed to the bottom so cards of differing height line their buttons up -->
       <div class="mt-auto flex justify-end gap-2">
