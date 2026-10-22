@@ -15,6 +15,7 @@ import {
 export const CUSTOMERS_KEY = 'customers'
 export const CUSTOMERS_TOTAL_KEY = 'customersTotal'
 export const CUSTOMERS_TABLE_ID = 'customersTable'
+export const CUSTOMER_TRANSFER_PREVIEW_KEY = 'customerTransferPreview'
 
 export type CustomerStatus = 'enabled' | 'suspended' | 'deleted'
 
@@ -245,6 +246,68 @@ export const reactivateCustomer = (customer: Customer) => {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     },
   )
+}
+
+export type CustomerTransferRenewal = 'continues' | 'stops' | 'already_stopped' | 'perpetual'
+
+export interface CustomerTransferOrganization {
+  id: string
+  name: string
+  type: string
+}
+
+export interface CustomerTransferAddon {
+  system_id: string
+  system_name: string
+  entitlement: string
+  display_name: string
+  scope?: string
+  valid_until?: string
+  purchased_by_organization_name?: string
+  renewal: CustomerTransferRenewal
+}
+
+// What moving a customer under another manager does: returned by the preview,
+// and with the applied counters by the transfer itself.
+export interface CustomerTransferPlan {
+  customer: CustomerTransferOrganization
+  from: CustomerTransferOrganization
+  to: CustomerTransferOrganization
+  systems_count: number
+  users_count: number
+  addons: CustomerTransferAddon[]
+  renewals_stopping: number
+  silences_count: number
+  assignments_count: number
+  warnings?: string[]
+}
+
+export const getCustomerTransferPreview = (customerId: string, organizationId: string) => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .get<{ code: number; message: string; data: CustomerTransferPlan }>(
+      `${API_URL}/customers/${customerId}/transfer`,
+      {
+        headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+        params: { organization_id: organizationId },
+      },
+    )
+    .then((res) => res.data.data)
+}
+
+export const transferCustomer = (customerId: string, organizationId: string) => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .patch<{ code: number; message: string; data: CustomerTransferPlan }>(
+      `${API_URL}/customers/${customerId}/transfer`,
+      { organization_id: organizationId },
+      {
+        headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+      },
+    )
+    .then((res) => res.data.data)
 }
 
 export const restoreCustomer = (customer: Customer) => {

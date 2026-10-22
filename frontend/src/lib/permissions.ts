@@ -72,6 +72,16 @@ export const canManageCustomers = () => {
   return loginStore.permissions.includes(MANAGE_CUSTOMERS)
 }
 
+// Changing a customer's manager is a decision above the reseller level: the
+// Owner organization and distributors only, matching the backend transfer gate.
+export const canTransferCustomers = () => {
+  const loginStore = useLoginStore()
+  return (
+    canManageCustomers() &&
+    (hasOwnerLevelAuthority() || loginStore.userInfo?.org_role?.toLowerCase() === 'distributor')
+  )
+}
+
 export const canReadUsers = () => {
   const loginStore = useLoginStore()
   return loginStore.permissions.includes(READ_USERS)
