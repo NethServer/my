@@ -348,7 +348,7 @@ function clearFilters() {
                 :name="getPurchaserName(row)"
                 :logto-id="row.grant?.purchased_by?.logto_id ?? ''"
               />
-              <span>{{ getPurchaserName(row) }}</span>
+              <span class="wrap-anywhere">{{ getPurchaserName(row) }}</span>
             </div>
             <span v-else-if="row.grant?.purchased_by?.out_of_scope" class="text-tertiary-neutral">
               {{
@@ -365,7 +365,7 @@ function clearFilters() {
                 :logto-id="row.grant.created_by.user_id ?? ''"
               />
               <div>
-                <div>{{ row.grant.created_by.user_name }}</div>
+                <div class="wrap-anywhere">{{ row.grant.created_by.user_name }}</div>
               </div>
             </div>
             <span v-else>-</span>
