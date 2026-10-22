@@ -275,7 +275,7 @@ func CreateEntitlementCatalogItem(c *gin.Context) {
 	// single application instances through seats, never by being narrowed to
 	// one instance.
 	if req.Scoped {
-		c.JSON(http.StatusBadRequest, response.BadRequest("add-ons cannot be narrowed to one application instance: use seats", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("add-ons cannot be narrowed to one application instance: sell them by licenses", nil))
 		return
 	}
 	if req.Seated && (req.Kind != models.EntitlementKindModule || req.SystemType != "ns8") {
@@ -1129,10 +1129,10 @@ func AssignEntitlementSeat(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response.BadRequest("no "+item.AppliesTo+" instance "+req.ModuleID+" on this system", nil))
 		return
 	case entities.ErrSeatAlreadyHeld:
-		c.JSON(http.StatusConflict, response.Conflict("the instance already holds a seat", nil))
+		c.JSON(http.StatusConflict, response.Conflict("the instance already holds a license", nil))
 		return
 	case entities.ErrNoFreeSeat:
-		c.JSON(http.StatusConflict, response.Conflict("no free seat left: free one or buy more", nil))
+		c.JSON(http.StatusConflict, response.Conflict("no free license left: free one or buy more", nil))
 		return
 	default:
 		logger.RequestLogger(c, "entitlements").Error().Err(err).
@@ -1164,7 +1164,7 @@ func ReleaseEntitlementSeat(c *gin.Context) {
 
 	err := entities.NewLocalEntitlementSeatRepository().Release(grant.ID, moduleID, seatActor(user))
 	if err == entities.ErrSeatNotFound {
-		c.JSON(http.StatusNotFound, response.NotFound("the instance holds no seat", nil))
+		c.JSON(http.StatusNotFound, response.NotFound("the instance holds no license", nil))
 		return
 	}
 	if err != nil {
