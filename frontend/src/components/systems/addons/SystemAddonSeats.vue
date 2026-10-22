@@ -13,7 +13,18 @@
 -->
 
 <script setup lang="ts">
-import { NeBadgeV2, NeButton, NeHeading, NeInlineNotification } from '@nethesis/vue-components'
+import {
+  NeBadgeV2,
+  NeButton,
+  NeHeading,
+  NeInlineNotification,
+  NeTable,
+  NeTableBody,
+  NeTableCell,
+  NeTableHead,
+  NeTableHeadCell,
+  NeTableRow,
+} from '@nethesis/vue-components'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -176,76 +187,78 @@ function seatDate(seat: AddonSeat) {
     <p v-if="!lines.length" class="text-tertiary-neutral">
       {{ $t('addons.no_instances_for_seats') }}
     </p>
-    <ul
-      v-else
-      class="divide-y divide-gray-200 rounded-md border border-gray-200 bg-white dark:divide-gray-700 dark:border-gray-700 dark:bg-gray-950"
-    >
-      <li
-        v-for="line in lines"
-        :key="line.moduleId"
-        class="grid grid-cols-1 items-center gap-4 px-4 py-3 xl:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1fr)_auto_auto]"
-      >
-        <div class="flex min-w-0 items-center gap-3">
-          <ApplicationLogo :app="row.addon.applies_to ?? ''" />
-          <div class="min-w-0">
-            <div class="font-medium text-gray-900 dark:text-gray-100">
-              {{ line.application ? getDisplayName(line.application) : line.moduleId }}
+    <NeTable v-else :aria-label="$t('addons.seats')" card-breakpoint="xl">
+      <NeTableHead>
+        <NeTableHeadCell>{{ $t('applications.name') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('addons.node') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('applications.fqdn') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('applications.assigned_company') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('addons.license') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('addons.assigned_by') }}</NeTableHeadCell>
+        <NeTableHeadCell>
+          <!-- no header for actions -->
+        </NeTableHeadCell>
+      </NeTableHead>
+      <NeTableBody>
+        <NeTableRow v-for="line in lines" :key="line.moduleId">
+          <NeTableCell :data-label="$t('applications.name')">
+            <div class="flex items-center gap-2">
+              <ApplicationLogo :app="row.addon.applies_to ?? ''" />
+              <span>{{ line.application ? getDisplayName(line.application) : line.moduleId }}</span>
             </div>
-            <div class="text-tertiary-neutral text-sm">
-              <template v-if="line.application">
-                {{ nodeName(line.application) }}
-              </template>
-              <template v-else>{{ $t('addons.instance_not_in_inventory') }}</template>
-            </div>
-            <div
-              v-if="line.application && getFqdns(line.application).length"
-              class="flex flex-col items-start text-sm wrap-anywhere"
-            >
+          </NeTableCell>
+          <NeTableCell :data-label="$t('addons.node')">
+            <template v-if="line.application">{{ nodeName(line.application) }}</template>
+            <span v-else class="text-tertiary-neutral">
+              {{ $t('addons.instance_not_in_inventory') }}
+            </span>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('applications.fqdn')" class="wrap-anywhere">
+            <div class="flex flex-col items-start space-y-0.5">
               <ClickToCopy
-                v-for="fqdn in getFqdns(line.application)"
+                v-for="fqdn in line.application ? getFqdns(line.application) : []"
                 :key="fqdn"
                 :text="fqdn"
                 tooltip-placement="top"
               />
+              <div v-if="!line.application || !getFqdns(line.application).length">-</div>
             </div>
-          </div>
-        </div>
-        <!-- the company the instance is assigned to, as on the applications page -->
-        <div class="min-w-0 text-sm">
-          <OrganizationIconAndLink
-            v-if="line.application?.organization"
-            :organization="line.application.organization"
-          />
-          <span v-else class="text-tertiary-neutral">{{ $t('addons.instance_no_company') }}</span>
-        </div>
-        <div class="flex min-w-0 items-center gap-6 xl:contents">
-          <!-- who gave the license, with the avatar the purchaser gets on the card;
-               the cell stays when empty so the columns line up across rows -->
-          <div class="flex min-w-0 items-center gap-2">
-            <template v-if="line.seat?.assigned_by?.user_name">
+          </NeTableCell>
+          <NeTableCell :data-label="$t('applications.assigned_company')">
+            <OrganizationIconAndLink
+              v-if="line.application?.organization"
+              :organization="line.application.organization"
+            />
+            <span v-else>-</span>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('addons.license')">
+            <div class="flex flex-col items-start gap-1">
+              <NeBadgeV2 v-if="line.seat && line.seat.in_quota" kind="green" size="xs">
+                {{ $t('addons.seat_held') }}
+              </NeBadgeV2>
+              <NeBadgeV2 v-else-if="line.seat" kind="amber" size="xs">
+                {{ $t('addons.seat_over_quota') }}
+              </NeBadgeV2>
+              <NeBadgeV2 v-else kind="gray" size="xs">{{ $t('addons.no_seat') }}</NeBadgeV2>
+              <span v-if="line.seat" class="text-tertiary-neutral text-xs">
+                {{ $t('addons.seat_assigned_on', { date: seatDate(line.seat) }) }}
+              </span>
+            </div>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('addons.assigned_by')">
+            <div v-if="line.seat?.assigned_by?.user_name" class="flex items-center gap-2">
               <UserAvatar
                 size="xs"
                 :is-owner="false"
                 :name="line.seat.assigned_by.user_name"
                 :logto-id="line.seat.assigned_by.user_id ?? ''"
               />
-              <span class="text-sm">{{ line.seat.assigned_by.user_name }}</span>
-            </template>
-          </div>
-          <div class="flex flex-col items-end gap-1">
-            <NeBadgeV2 v-if="line.seat && line.seat.in_quota" kind="green" size="xs">
-              {{ $t('addons.seat_held') }}
-            </NeBadgeV2>
-            <NeBadgeV2 v-else-if="line.seat" kind="amber" size="xs">
-              {{ $t('addons.seat_over_quota') }}
-            </NeBadgeV2>
-            <NeBadgeV2 v-else kind="gray" size="xs">{{ $t('addons.no_seat') }}</NeBadgeV2>
-            <span v-if="line.seat" class="text-tertiary-neutral text-xs">
-              {{ $t('addons.seat_assigned_on', { date: seatDate(line.seat) }) }}
-            </span>
-          </div>
-          <div class="flex justify-end">
-            <template v-if="canManageSeats">
+              <span>{{ line.seat.assigned_by.user_name }}</span>
+            </div>
+            <span v-else>-</span>
+          </NeTableCell>
+          <NeTableCell :data-label="$t('common.actions')">
+            <div v-if="canManageSeats" class="-ml-2.5 flex xl:ml-0 xl:justify-end">
               <NeButton
                 v-if="line.seat"
                 kind="tertiary"
@@ -266,10 +279,10 @@ function seatDate(seat: AddonSeat) {
               >
                 {{ $t('addons.assign_seat') }}
               </NeButton>
-            </template>
-          </div>
-        </div>
-      </li>
-    </ul>
+            </div>
+          </NeTableCell>
+        </NeTableRow>
+      </NeTableBody>
+    </NeTable>
   </div>
 </template>
