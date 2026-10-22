@@ -316,8 +316,14 @@ type SystemEntitlement struct {
 	// SeatAssignments lists the instances holding a seat, oldest first.
 	// Filled by the per-system read only, for seated add-ons.
 	SeatAssignments []EntitlementSeat `json:"seat_assignments,omitempty"`
-	CreatedAt       time.Time         `json:"created_at"`
-	UpdatedAt       time.Time         `json:"updated_at"`
+	// RenewalStoppedAt marks a grant the shop must not renew any more: it
+	// stays valid until ValidUntil, then expires. Set when the customer moves
+	// to a manager outside the buyer's hierarchy; an activation from a buyer
+	// that manages the system clears it.
+	RenewalStoppedAt     *time.Time `json:"renewal_stopped_at,omitempty"`
+	RenewalStoppedReason string     `json:"renewal_stopped_reason,omitempty"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
 }
 
 // EntitlementSeat is one seat of a seated add-on given to an application
@@ -336,6 +342,26 @@ type EntitlementSeat struct {
 type AssignEntitlementSeatRequest struct {
 	ModuleID string `json:"module_id" binding:"required"`
 }
+
+// OrganizationEntitlementGrant is one live grant on a system of an
+// organization, as the customer transfer preview needs it: who bought it
+// decides whether its renewal survives the transfer.
+type OrganizationEntitlementGrant struct {
+	ID                 string     `json:"id"`
+	SystemID           string     `json:"system_id"`
+	SystemName         string     `json:"system_name"`
+	Entitlement        string     `json:"entitlement"`
+	DisplayName        string     `json:"display_name"`
+	Scope              string     `json:"scope,omitempty"`
+	ValidUntil         *time.Time `json:"valid_until,omitempty"`
+	PurchasedByOrgID   string     `json:"-"`
+	PurchasedByOrgName string     `json:"-"`
+	RenewalStoppedAt   *time.Time `json:"-"`
+}
+
+// EntitlementRenewalStoppedCustomerTransferred is the renewal_stopped_reason
+// of a grant whose buyer no longer manages the customer after a transfer.
+const EntitlementRenewalStoppedCustomerTransferred = "customer_transferred"
 
 // CreateSystemEntitlementRequest grants an add-on to a system. Scope narrows
 // the grant to one application instance and is only accepted for catalog

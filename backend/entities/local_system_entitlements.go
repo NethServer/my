@@ -347,23 +347,29 @@ func (r *LocalSystemEntitlementRepository) ActiveEntitlementsBySystems(systemIDs
 const entitlementColumns = `
 	id, system_id, entitlement, scope, source, COALESCE(source_ref, ''),
 	valid_from, valid_until, revoked_at, COALESCE(revoked_source, ''),
-	COALESCE(pending_ref, ''), pending_since, created_by, purchased_by, variant, renewal_count, seats, created_at, updated_at,
+	COALESCE(pending_ref, ''), pending_since, created_by, purchased_by, variant, renewal_count, seats,
+	renewal_stopped_at, COALESCE(renewal_stopped_reason, ''), created_at, updated_at,
 	(revoked_at IS NULL AND (valid_until IS NULL OR valid_until > NOW())) AS active`
 
 func scanEntitlement(scanner interface{ Scan(...interface{}) error }) (*models.SystemEntitlement, error) {
 	var e models.SystemEntitlement
-	var validUntil, revokedAt, pendingSince sql.NullTime
+	var validUntil, revokedAt, pendingSince, renewalStoppedAt sql.NullTime
 	var createdBy, purchasedBy, variant []byte
 	var seats sql.NullInt64
 
 	err := scanner.Scan(
 		&e.ID, &e.SystemID, &e.Entitlement, &e.Scope, &e.Source, &e.SourceRef,
 		&e.ValidFrom, &validUntil, &revokedAt, &e.RevokedSource,
-		&e.PendingRef, &pendingSince, &createdBy, &purchasedBy, &variant, &e.RenewalCount, &seats, &e.CreatedAt, &e.UpdatedAt,
+		&e.PendingRef, &pendingSince, &createdBy, &purchasedBy, &variant, &e.RenewalCount, &seats,
+		&renewalStoppedAt, &e.RenewalStoppedReason, &e.CreatedAt, &e.UpdatedAt,
 		&e.Active,
 	)
 	if err != nil {
 		return nil, err
+	}
+	if renewalStoppedAt.Valid {
+		t := renewalStoppedAt.Time
+		e.RenewalStoppedAt = &t
 	}
 
 	if validUntil.Valid {
@@ -560,6 +566,8 @@ func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, 
 		     revoked_source = NULL,
 		     pending_ref = NULL,
 		     pending_since = NULL,
+		     renewal_stopped_at = NULL,
+		     renewal_stopped_reason = NULL,
 		     source      = EXCLUDED.source,
 		     source_ref  = COALESCE(EXCLUDED.source_ref, system_entitlements.source_ref),
 		     purchased_by = COALESCE(EXCLUDED.purchased_by, system_entitlements.purchased_by),
@@ -689,6 +697,72 @@ func (r *LocalSystemEntitlementRepository) FindSystemIDByKey(systemKey string) (
 	return id, sysType.String, nil
 }
 
+// ListLiveForOrganization returns the grants that still work on the live
+// systems of an organization (not revoked, not expired), with the system
+// name and the catalog display name.
+func (r *LocalSystemEntitlementRepository) ListLiveForOrganization(orgID string) ([]*models.OrganizationEntitlementGrant, error) {
+	rows, err := r.db.Query(
+		`SELECT e.id, e.system_id, s.name, e.entitlement, COALESCE(c.display_name, e.entitlement), e.scope,
+		        e.valid_until, e.purchased_by, e.renewal_stopped_at
+		 FROM system_entitlements e
+		 JOIN systems s ON s.id = e.system_id
+		 LEFT JOIN entitlement_catalog c ON c.id = e.entitlement
+		 WHERE s.organization_id = $1 AND s.deleted_at IS NULL
+		   AND e.revoked_at IS NULL AND (e.valid_until IS NULL OR e.valid_until > NOW())
+		 ORDER BY s.name, e.entitlement, e.scope`,
+		orgID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list organization grants: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := []*models.OrganizationEntitlementGrant{}
+	for rows.Next() {
+		var g models.OrganizationEntitlementGrant
+		var validUntil, renewalStoppedAt sql.NullTime
+		var purchasedBy []byte
+		if err := rows.Scan(&g.ID, &g.SystemID, &g.SystemName, &g.Entitlement, &g.DisplayName, &g.Scope,
+			&validUntil, &purchasedBy, &renewalStoppedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan organization grant: %w", err)
+		}
+		if validUntil.Valid {
+			t := validUntil.Time
+			g.ValidUntil = &t
+		}
+		if renewalStoppedAt.Valid {
+			t := renewalStoppedAt.Time
+			g.RenewalStoppedAt = &t
+		}
+		if len(purchasedBy) > 0 {
+			var snap map[string]interface{}
+			if json.Unmarshal(purchasedBy, &snap) == nil {
+				g.PurchasedByOrgID, _ = snap["organization_id"].(string)
+				g.PurchasedByOrgName, _ = snap["organization_name"].(string)
+			}
+		}
+		out = append(out, &g)
+	}
+	return out, rows.Err()
+}
+
+// StopRenewals flags the given grants so the shop stops renewing them;
+// grants already flagged keep their original timestamp and reason.
+func (r *LocalSystemEntitlementRepository) StopRenewals(ids []string, reason string) (int, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	result, err := r.db.Exec(
+		`UPDATE system_entitlements
+		 SET renewal_stopped_at = NOW(), renewal_stopped_reason = $2, updated_at = NOW()
+		 WHERE id = ANY($1::uuid[]) AND renewal_stopped_at IS NULL`,
+		pq.Array(ids), reason)
+	if err != nil {
+		return 0, fmt.Errorf("failed to stop renewals: %w", err)
+	}
+	n, err := result.RowsAffected()
+	return int(n), err
+}
+
 // GrantsReportFilter narrows the fleet-wide grants report. OrgScope nil =
 // no restriction (Owner organization); otherwise only systems whose
 // organization_id is in the set are returned (caller's hierarchy).
@@ -697,8 +771,11 @@ type GrantsReportFilter struct {
 	OrganizationID string
 	Source         string
 	ActiveOnly     bool
-	ExpiringBefore *time.Time
-	OrgScope       []string
+	// RenewalStoppedOnly keeps the grants the shop must not renew: the
+	// renewal cron reads them to drop those systems from the orders it clones.
+	RenewalStoppedOnly bool
+	ExpiringBefore     *time.Time
+	OrgScope           []string
 }
 
 const grantsReportJoin = `
@@ -729,6 +806,9 @@ func (f *GrantsReportFilter) whereClause(args *[]interface{}) string {
 	if f.ActiveOnly {
 		where += " AND e.revoked_at IS NULL AND (e.valid_until IS NULL OR e.valid_until > NOW())"
 	}
+	if f.RenewalStoppedOnly {
+		where += " AND e.renewal_stopped_at IS NOT NULL"
+	}
 	if f.OrgScope != nil {
 		add("s.organization_id = ANY($%d)", pq.Array(f.OrgScope))
 	}
@@ -750,7 +830,8 @@ func (r *LocalSystemEntitlementRepository) ListGrants(f GrantsReportFilter, limi
 	rows, err := r.db.Query(
 		`SELECT e.id, e.system_id, e.entitlement, e.scope, e.source, COALESCE(e.source_ref, ''),
 		        e.valid_from, e.valid_until, e.revoked_at, COALESCE(e.revoked_source, ''),
-		        COALESCE(e.pending_ref, ''), e.pending_since, e.created_by, e.purchased_by, e.variant, e.renewal_count, e.created_at, e.updated_at,
+		        COALESCE(e.pending_ref, ''), e.pending_since, e.created_by, e.purchased_by, e.variant, e.renewal_count,
+		        e.renewal_stopped_at, COALESCE(e.renewal_stopped_reason, ''), e.created_at, e.updated_at,
 		        (e.revoked_at IS NULL AND (e.valid_until IS NULL OR e.valid_until > NOW())) AS active,
 		        (s.suspended_at IS NOT NULL) AS system_suspended,
 		        s.name, COALESCE(s.system_key, ''), s.organization_id,
@@ -768,13 +849,14 @@ func (r *LocalSystemEntitlementRepository) ListGrants(f GrantsReportFilter, limi
 	out := []*models.EntitlementGrantReportRow{}
 	for rows.Next() {
 		var row models.EntitlementGrantReportRow
-		var validUntil, revokedAt, pendingSince sql.NullTime
+		var validUntil, revokedAt, pendingSince, renewalStoppedAt sql.NullTime
 		var createdBy, purchasedBy, variant []byte
 		var systemSuspended bool
 		err := rows.Scan(
 			&row.ID, &row.SystemID, &row.Entitlement, &row.Scope, &row.Source, &row.SourceRef,
 			&row.ValidFrom, &validUntil, &revokedAt, &row.RevokedSource,
-			&row.PendingRef, &pendingSince, &createdBy, &purchasedBy, &variant, &row.RenewalCount, &row.CreatedAt, &row.UpdatedAt,
+			&row.PendingRef, &pendingSince, &createdBy, &purchasedBy, &variant, &row.RenewalCount,
+			&renewalStoppedAt, &row.RenewalStoppedReason, &row.CreatedAt, &row.UpdatedAt,
 			&row.Active, &systemSuspended,
 			&row.SystemName, &row.SystemKey, &row.OrganizationID, &row.OrganizationName,
 		)
@@ -792,6 +874,10 @@ func (r *LocalSystemEntitlementRepository) ListGrants(f GrantsReportFilter, limi
 		if pendingSince.Valid {
 			t := pendingSince.Time
 			row.PendingSince = &t
+		}
+		if renewalStoppedAt.Valid {
+			t := renewalStoppedAt.Time
+			row.RenewalStoppedAt = &t
 		}
 		if len(createdBy) > 0 {
 			_ = json.Unmarshal(createdBy, &row.CreatedBy)

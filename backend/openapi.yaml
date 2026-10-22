@@ -1384,6 +1384,10 @@ components:
           description: Trace of the promotion that gave the organization its level. Distributors only, and only those promoted from reseller level (PATCH /resellers/{id}/promote) - omitted for an organization created at its level.
           allOf:
             - $ref: '#/components/schemas/OrgPromotion'
+        parent:
+          description: Customers only. The organization managing the customer (its custom_data.createdBy), resolved live, so it follows a transfer (PATCH /customers/{id}/transfer) while created_by keeps the organization the customer was created for.
+          allOf:
+            - $ref: '#/components/schemas/ParentOrganization'
 
     OrganizationWithStats:
       description: |
@@ -2806,6 +2810,19 @@ components:
           description: Instances holding a seat, oldest first. Returned by `GET /systems/{id}/entitlements` for seated add-ons only.
           items:
             $ref: '#/components/schemas/EntitlementSeat'
+        renewal_stopped_at:
+          type: string
+          format: date-time
+          description: |
+            Set when the shop must not renew the grant any more: it stays
+            valid until valid_until, then expires. Stamped when the customer
+            moves to a manager outside the buyer's hierarchy; cleared by an
+            activation from a buyer that manages the system.
+          example: "2026-10-22T10:00:00Z"
+        renewal_stopped_reason:
+          type: string
+          enum: [customer_transferred]
+          description: Why the renewal stopped. Omitted while the grant renews normally.
         created_at:
           type: string
           format: date-time
@@ -2849,6 +2866,99 @@ components:
           type: string
           description: Application instance of the add-on's `applies_to` on the system
           example: "nethvoice5"
+
+    CustomerTransferOrganization:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Logto organization ID
+          example: "5j8k2m4n6p8q"
+        name:
+          type: string
+          example: "ACME Reseller"
+        type:
+          type: string
+          enum: [owner, distributor, reseller, customer]
+          example: "reseller"
+
+    CustomerTransferAddon:
+      type: object
+      properties:
+        system_id:
+          type: string
+          example: "0f6e6a3a-2f7e-4a64-9a4c-0d1d2c3b4a59"
+        system_name:
+          type: string
+          example: "fw-headquarters"
+        entitlement:
+          type: string
+          example: "nsec-blacklist"
+        display_name:
+          type: string
+          example: "Advanced Threat Shield"
+        scope:
+          type: string
+          description: Application instance the grant is narrowed to, omitted for system-wide grants
+        valid_until:
+          type: string
+          format: date-time
+          description: Expiry, omitted for perpetual grants
+        purchased_by_organization_name:
+          type: string
+          description: Buyer organization, omitted when unknown or outside the caller's hierarchy
+          example: "ACME Reseller"
+        renewal:
+          type: string
+          enum: [continues, stops, already_stopped, perpetual]
+          description: |
+            What the transfer does to the shop renewal: `continues` when the
+            buyer still manages the customer, `stops` when it does not (or is
+            unknown) — the grant stays valid until it expires —,
+            `already_stopped` by an earlier transfer, `perpetual` when the
+            grant has no expiry.
+
+    CustomerTransferPlan:
+      type: object
+      properties:
+        customer:
+          $ref: '#/components/schemas/CustomerTransferOrganization'
+        from:
+          $ref: '#/components/schemas/CustomerTransferOrganization'
+        to:
+          $ref: '#/components/schemas/CustomerTransferOrganization'
+        systems_count:
+          type: integer
+          description: Live systems of the customer, which move with it
+          example: 4
+        users_count:
+          type: integer
+          description: Users of the customer, who keep their access
+          example: 2
+        addons:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerTransferAddon'
+        renewals_stopping:
+          type: integer
+          description: Add-ons whose renewal stops (preview) or stopped (transfer)
+          example: 1
+        silences_count:
+          type: integer
+          description: Silences on the customer's systems in the current manager's alerting tenant, removed by the transfer
+          example: 2
+        assignments_count:
+          type: integer
+          description: Alerts of the customer assigned to users outside the new hierarchy, released by the transfer
+          example: 1
+        warnings:
+          type: array
+          description: |
+            Steps that could not be checked or applied: `silences_unavailable`
+            (preview), `renewals_not_stopped`, `assignments_not_released`,
+            `silences_not_cleared` (transfer).
+          items:
+            type: string
 
     EntitlementPurchaser:
       type: object
@@ -5048,6 +5158,30 @@ components:
                 type: object
                 nullable: true
                 example: null
+
+    CustomerTransferConflict:
+      description: |
+        The customer cannot be transferred in its current state. `data.type`
+        is `validation_error`, on key `transfer`, with stable `message` codes:
+        `customer_is_suspended` (reactivate it first), `customer_not_synced`
+        (no Logto organization yet), `same_organization` (already managed by
+        the target), `target_is_suspended`, `transfer_in_progress` (another
+        transfer of the same customer is running).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            SameOrganization:
+              summary: the customer is already managed by the target
+              value:
+                code: 409
+                message: "validation failed"
+                data:
+                  type: "validation_error"
+                  errors:
+                    - key: "transfer"
+                      message: "same_organization"
 
     Forbidden:
       description: Forbidden - insufficient permissions
@@ -8194,6 +8328,127 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /customers/{id}/transfer:
+    get:
+      operationId: getCustomerTransferPreview
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
+      tags:
+        - Backend - Customers
+      summary: /customers/{id}/transfer - Preview a customer transfer
+      description: |
+        What moving the customer under another managing organization would do,
+        without changing anything: systems and users that follow it, add-ons
+        whose shop renewal stops, silences and alert assignments of the
+        current manager that go away. Same rules and errors as the PATCH.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Customer Logto ID
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Logto ID of the reseller or distributor that would manage the customer
+      responses:
+        '200':
+          description: Transfer preview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customer transfer preview retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/CustomerTransferPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/CustomerTransferConflict'
+    patch:
+      operationId: transferCustomer
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
+      tags:
+        - Backend - Customers
+      summary: /customers/{id}/transfer - Change the customer manager
+      description: |
+        Move the customer under another managing organization (reseller or
+        distributor) by rewriting its `custom_data.createdBy`, in Logto and
+        locally. Allowed to the Owner organization and to distributors, for a
+        customer inside their hierarchy (403 otherwise). An unusable target is
+        a 400 on key `organization_id` with message `not_in_hierarchy` or
+        `not_a_manager` (not a reseller or distributor).
+
+        Systems, users, backups and alert history stay with the customer and
+        follow it: visibility, rebranding and the alerting tenant derive from
+        the manager. What belongs to the manager it leaves goes away: add-ons
+        bought by that side stop renewing (they stay valid until they expire),
+        its silences on the customer's systems are removed, alerts assigned to
+        its users are released. The response carries the applied counters.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Customer Logto ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organization_id]
+              properties:
+                organization_id:
+                  type: string
+                  description: Logto ID of the reseller or distributor that will manage the customer
+                  example: "5j8k2m4n6p8q"
+      responses:
+        '200':
+          description: Customer transferred
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "customer transferred successfully"
+                  data:
+                    $ref: '#/components/schemas/CustomerTransferPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/CustomerTransferConflict'
 
   /customers/{id}/restore:
     patch:
@@ -13313,6 +13568,12 @@ paths:
           schema:
             type: string
             enum: ["true"]
+        - name: renewal_stopped
+          in: query
+          description: When "true", only grants the shop must not renew (renewal_stopped_at set)
+          schema:
+            type: string
+            enum: ["true"]
         - name: expiring_before
           in: query
           description: Only grants expiring before this RFC3339 timestamp
@@ -13645,6 +13906,15 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: System not found for this key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: |
+            Renewal refused: the grant's renewal stopped (its customer moved to
+            another manager) and the buyer does not manage the system. Key
+            `renewal`, message `renewal_stopped`.
           content:
             application/json:
               schema:

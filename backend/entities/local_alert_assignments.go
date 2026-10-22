@@ -125,3 +125,35 @@ func (r *LocalAlertAssignmentRepository) GetByFingerprints(orgIDs, fingerprints 
 func AssignmentKey(orgID, fingerprint string) string {
 	return orgID + "\x00" + fingerprint
 }
+
+// CountOutsideOrganizations counts the alerts of orgID assigned to a user
+// whose organization is not in keepOrgIDs.
+func (r *LocalAlertAssignmentRepository) CountOutsideOrganizations(orgID string, keepOrgIDs []string) (int, error) {
+	var n int
+	err := r.db.QueryRow(
+		`SELECT COUNT(*) FROM alert_assignments
+		 WHERE organization_id = $1 AND NOT (COALESCE(assigned_user_org_id, '') = ANY($2::text[]))`,
+		orgID, pq.Array(keepOrgIDs),
+	).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("count alert_assignments: %w", err)
+	}
+	return n, nil
+}
+
+// ReleaseOutsideOrganizations drops the assignments of orgID's alerts held
+// by users whose organization is not in keepOrgIDs: after a customer moves
+// to another manager, the previous manager's users can no longer work on
+// its alerts.
+func (r *LocalAlertAssignmentRepository) ReleaseOutsideOrganizations(orgID string, keepOrgIDs []string) (int, error) {
+	result, err := r.db.Exec(
+		`DELETE FROM alert_assignments
+		 WHERE organization_id = $1 AND NOT (COALESCE(assigned_user_org_id, '') = ANY($2::text[]))`,
+		orgID, pq.Array(keepOrgIDs),
+	)
+	if err != nil {
+		return 0, fmt.Errorf("release alert_assignments: %w", err)
+	}
+	n, err := result.RowsAffected()
+	return int(n), err
+}

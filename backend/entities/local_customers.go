@@ -118,8 +118,20 @@ func (r *LocalCustomerRepository) GetByID(id string) (*models.LocalCustomer, err
 
 	customer.CreatedBy = models.ExtractOrgCreator(customer.CustomData)
 	fillCreatorOrgTypes(r.db, customer.CreatedBy)
+	fillCustomerParents(r.db, customer)
 
 	return customer, nil
+}
+
+// fillCustomerParents resolves the managing organization of each customer.
+func fillCustomerParents(db *sql.DB, customers ...*models.LocalCustomer) {
+	slots := make([]parentSlot, 0, len(customers))
+	for _, c := range customers {
+		if c != nil && c.LogtoID != nil {
+			slots = append(slots, parentSlot{*c.LogtoID, &c.Parent})
+		}
+	}
+	fillParentOrganizations(db, slots)
 }
 
 // Update updates a customer in local database
@@ -238,7 +250,18 @@ const customerSystemsCount = "(SELECT COUNT(*) FROM systems s WHERE s.organizati
 // to their subquery, for partnerOrderClause.
 var customerCountSortFields = map[string]string{
 	"systems_count": customerSystemsCount,
+	"managed_by":    customerManagerName,
 }
+
+// customerManagerName is the name of the organization managing the customer
+// (custom_data.createdBy), the one the "Managed by" column shows: it follows
+// a transfer, while the creator snapshot keeps the organization the customer
+// was created for. A manager with no live partner row is the Owner
+// organization, named by the snapshot.
+const customerManagerName = `LOWER(COALESCE(
+	(SELECT mr.name FROM resellers mr WHERE mr.logto_id = c.custom_data->>'createdBy' AND mr.deleted_at IS NULL),
+	(SELECT md.name FROM distributors md WHERE md.logto_id = c.custom_data->>'createdBy' AND md.deleted_at IS NULL),
+	c.custom_data->'createdByUser'->>'organization_name'))`
 
 // customerCountColumns builds the trailing inline counter columns of the
 // customer list query for the requested mode, empty when no counter is wanted.
@@ -676,6 +699,7 @@ func (r *LocalCustomerRepository) executeCustomerQuery(ctx context.Context, coun
 	}
 
 	fillCreatorOrgTypes(r.db, creatorRefsOf(customers, func(c *models.LocalCustomer) models.CreatorOrgRef { return c.CreatedBy })...)
+	fillCustomerParents(r.db, customers...)
 
 	return customers, totalCount, nil
 }

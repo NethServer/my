@@ -247,17 +247,18 @@ var partnerSortFields = map[string]string{
 // partnerOrderClause builds the ORDER BY of a reseller or customer list,
 // newest first when sortBy is empty or unknown. counters maps the list's own
 // counter sort_by values to the subquery that computes them, so the sort works
-// whether or not the counter columns are selected. managed_by and the counters
+// whether or not the counter columns are selected; a list may also override a
+// shared sort_by through it (the customers' managed_by). managed_by and the counters
 // group many rows under one value, so they fall back to the name: with OFFSET
 // paging an unordered tie could repeat or skip a row across pages. The columns
 // are bare so the clause fits both the aliased and the plain queries; only the
 // counter subqueries need the list alias.
 func partnerOrderClause(sortBy, sortDirection string, counters map[string]string) string {
-	column, valid := partnerSortFields[sortBy]
-	tieBreak := sortBy == "managed_by"
+	column, valid := counters[sortBy]
+	tieBreak := true
 	if !valid {
-		column, valid = counters[sortBy]
-		tieBreak = true
+		column, valid = partnerSortFields[sortBy]
+		tieBreak = sortBy == "managed_by"
 	}
 	if !valid {
 		return "ORDER BY created_at DESC"

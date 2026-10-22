@@ -358,6 +358,10 @@ type LocalCustomer struct {
 
 	// Creator snapshot (resolved from custom_data.createdByUser at read time)
 	CreatedBy *OrgCreator `json:"created_by,omitempty"`
+
+	// Parent is the organization managing the customer (custom_data.createdBy),
+	// resolved live: it follows a transfer, the creator snapshot does not.
+	Parent *ParentOrganization `json:"parent,omitempty"`
 }
 
 // CustomerFilters represents filters for customer queries

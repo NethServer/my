@@ -22,8 +22,9 @@
 # Extras:
 #   intent_any        any one of the listed permissions is enough
 #   self_org_get      a user may always read its own organization
-#   org_role          narrows the intent to one organization role, ANDed with the
-#                     permission ("manage:rebranding, from the owner org only")
+#   org_role          narrows the intent to one organization role (or a comma-
+#                     separated list), ANDed with the permission
+#                     ("manage:rebranding, from the owner org only")
 #   or_user_role      widens org_role with a technical role that satisfies it from
 #                     any organization ("the owner org member, Owner or Staff")
 #   enforced_by       where the decision is expected to live; "handler" means a
@@ -772,6 +773,29 @@ routes:
   - method: PATCH
     path: /api/customers/:id/reactivate
     intent: manage:customers
+  - method: GET
+    path: /api/customers/:id/transfer
+    intent: manage:customers
+    org_role: owner,distributor
+    enforced_by: handler
+    object_scoped: true
+    query: organization_id=bogus
+    note: |
+      Preview of a "managed by" transfer. Moving a customer between managers is
+      a commercial-hierarchy decision above the reseller level: a reseller holds
+      manage:customers for its own customers but must not hand one to a peer or
+      take one from it. A distributor moves only customers and targets inside
+      its hierarchy, so a refusal on another tenant's customer is expected.
+  - method: PATCH
+    path: /api/customers/:id/transfer
+    intent: manage:customers
+    org_role: owner,distributor
+    enforced_by: handler
+    object_scoped: true
+    body: '{"organization_id":"bogus"}'
+    note: |
+      Same rules as the preview: Owner organization and distributors only,
+      within their hierarchy.
   - method: GET
     path: /api/customers/totals
     intent: read:customers

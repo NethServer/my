@@ -548,6 +548,10 @@ func main() {
 			customersGroup.PATCH("/:id/suspend", methods.SuspendCustomer)       // Suspend customer and all its users
 			customersGroup.PATCH("/:id/reactivate", methods.ReactivateCustomer) // Reactivate customer and cascade-suspended users
 
+			// Customer transfer to another manager (manage:customers; owner and distributor only, enforced in handler)
+			customersGroup.GET("/:id/transfer", middleware.RequirePermission("manage:customers"), methods.GetCustomerTransferPreview)
+			customersGroup.PATCH("/:id/transfer", methods.TransferCustomer)
+
 			// Customers totals and trend endpoints (read:customers required)
 			customersGroup.GET("/totals", methods.GetCustomersTotals)
 			customersGroup.GET("/trend", methods.GetCustomersTrend)

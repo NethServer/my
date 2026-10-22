@@ -312,3 +312,67 @@ func TestCleanupSystemSilencesContinuesOnPartialFailure(t *testing.T) {
 	assert.True(t, deleted["ok-1"])
 	assert.True(t, deleted["ok-2"])
 }
+
+func TestCleanupSilencesForSystemsDeletesEveryExactSystemMatch(t *testing.T) {
+	oldClient := httpClient
+	oldMimirURL := configuration.Config.MimirURL
+	defer func() {
+		httpClient = oldClient
+		configuration.Config.MimirURL = oldMimirURL
+	}()
+
+	silences := []models.AlertmanagerSilence{
+		{
+			ID:       "only-system",
+			Matchers: []models.AlertmanagerMatcher{{Name: "system_key", Value: "system-1"}},
+			Status:   &models.AlertmanagerSilenceStatus{State: "active"},
+		},
+		{
+			ID: "system-and-alert",
+			Matchers: []models.AlertmanagerMatcher{
+				{Name: "alertname", Value: "DiskFull"},
+				{Name: "system_key", Value: "system-2"},
+			},
+			Status: &models.AlertmanagerSilenceStatus{State: "pending"},
+		},
+		{
+			ID:       "expired",
+			Matchers: []models.AlertmanagerMatcher{{Name: "system_key", Value: "system-1"}},
+			Status:   &models.AlertmanagerSilenceStatus{State: "expired"},
+		},
+		{
+			ID:       "other-customer",
+			Matchers: []models.AlertmanagerMatcher{{Name: "system_key", Value: "system-9"}},
+			Status:   &models.AlertmanagerSilenceStatus{State: "active"},
+		},
+		{
+			ID:       "regex",
+			Matchers: []models.AlertmanagerMatcher{{Name: "system_key", Value: "system-.*", IsRegex: true}},
+			Status:   &models.AlertmanagerSilenceStatus{State: "active"},
+		},
+	}
+
+	deleted := map[string]bool{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "reseller-1", r.Header.Get("X-Scope-OrgID"))
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/alertmanager/api/v2/silences":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(silences)
+		case r.Method == http.MethodDelete:
+			deleted[r.URL.Path[len("/alertmanager/api/v2/silence/"):]] = true
+			w.WriteHeader(http.StatusOK)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	configuration.Config.MimirURL = server.URL
+
+	count, err := CleanupSilencesForSystems("reseller-1", []string{"system-1", "system-2"})
+	require.NoError(t, err)
+	assert.Equal(t, 2, count)
+	assert.Equal(t, map[string]bool{"only-system": true, "system-and-alert": true}, deleted)
+}
