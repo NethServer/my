@@ -198,7 +198,7 @@ function seatDate(seat: AddonSeat) {
           <!-- who gave the license, with the avatar the purchaser gets on the card -->
           <div v-if="line.seat?.assigned_by?.user_name" class="flex items-center gap-2">
             <UserAvatar
-              size="sm"
+              size="xs"
               :is-owner="false"
               :name="line.seat.assigned_by.user_name"
               :logto-id="line.seat.assigned_by.user_id ?? ''"
@@ -206,13 +206,13 @@ function seatDate(seat: AddonSeat) {
             <span class="text-sm">{{ line.seat.assigned_by.user_name }}</span>
           </div>
           <div class="flex flex-col items-end gap-1">
-            <NeBadgeV2 v-if="line.seat && line.seat.in_quota" kind="green">
+            <NeBadgeV2 v-if="line.seat && line.seat.in_quota" kind="green" size="xs">
               {{ $t('addons.seat_held') }}
             </NeBadgeV2>
-            <NeBadgeV2 v-else-if="line.seat" kind="amber">
+            <NeBadgeV2 v-else-if="line.seat" kind="amber" size="xs">
               {{ $t('addons.seat_over_quota') }}
             </NeBadgeV2>
-            <NeBadgeV2 v-else kind="gray">{{ $t('addons.no_seat') }}</NeBadgeV2>
+            <NeBadgeV2 v-else kind="gray" size="xs">{{ $t('addons.no_seat') }}</NeBadgeV2>
             <span v-if="line.seat" class="text-tertiary-neutral text-xs">
               {{ $t('addons.seat_assigned_on', { date: seatDate(line.seat) }) }}
             </span>
