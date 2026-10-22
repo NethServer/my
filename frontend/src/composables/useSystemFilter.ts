@@ -51,6 +51,7 @@ export function useSystemFilter(idField: 'system_key' | 'id' = 'system_key') {
         .map((sys: System) => ({
           id: sys[idField] ?? sys.id,
           label: sys.name,
+          description: sys.organization?.name,
         }))
     )
   })

@@ -4801,7 +4801,7 @@ components:
     SearchParam:
       name: search
       in: query
-      description: Search term. For organizations (distributors, resellers, customers), searches across name, description, and all custom_data fields (vat, address, city, contact, email, phone, language, notes, etc.). For systems, also searches across ipv4_address and ipv6_address.
+      description: Search term. For organizations (distributors, resellers, customers), searches across name, description, and all custom_data fields (vat, address, city, contact, email, phone, language, notes, etc.). For systems, also searches across ipv4_address, ipv6_address and the organization name.
       required: false
       schema:
         type: string
