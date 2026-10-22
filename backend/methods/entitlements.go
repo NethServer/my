@@ -271,13 +271,16 @@ func CreateEntitlementCatalogItem(c *gin.Context) {
 		req.AppliesTo = ""
 	}
 
-	// Seats go to the application instances of one cluster: a seated add-on
-	// is an NS8 module granted system-wide, never narrowed to one instance.
-	if req.Seated {
-		if req.Kind != models.EntitlementKindModule || req.SystemType != "ns8" || req.Scoped {
-			c.JSON(http.StatusBadRequest, response.BadRequest("a seated add-on must be an ns8 module without per-application scope", nil))
-			return
-		}
+	// Add-ons are bought for the whole system. On a cluster an add-on reaches
+	// single application instances through seats, never by being narrowed to
+	// one instance.
+	if req.Scoped {
+		c.JSON(http.StatusBadRequest, response.BadRequest("add-ons cannot be narrowed to one application instance: use seats", nil))
+		return
+	}
+	if req.Seated && (req.Kind != models.EntitlementKindModule || req.SystemType != "ns8") {
+		c.JSON(http.StatusBadRequest, response.BadRequest("a seated add-on must be an ns8 module", nil))
+		return
 	}
 
 	repo := entities.NewLocalEntitlementCatalogRepository()

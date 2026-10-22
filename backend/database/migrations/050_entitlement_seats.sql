@@ -41,14 +41,13 @@ COMMENT ON COLUMN entitlement_seats.released_at     IS 'Set when the seat is fre
 COMMENT ON COLUMN entitlement_seats.released_reason IS 'manual (freed by a user) | instance_removed (the instance left the inventory: removed, or moved to another node under a new id)';
 COMMENT ON COLUMN entitlement_seats.released_by     IS 'Actor snapshot of the user that freed the seat; NULL when collect freed it';
 
--- Threat Shield for NethServer is bought for the whole cluster: its grants
--- narrowed to one crowdsec instance become cluster-wide.
-UPDATE entitlement_catalog SET scoped = FALSE, updated_at = NOW()
-WHERE id = 'crowdsec-advanced-threat-shield' AND scoped;
+-- NS8 add-ons are bought for the whole cluster, never for one instance: the
+-- catalog items narrowed to single instances become cluster-wide, and so does
+-- the most relevant grant of each (system, add-on) holding no cluster-wide one.
+UPDATE entitlement_catalog SET scoped = FALSE, updated_at = NOW() WHERE scoped;
 
 UPDATE system_entitlements e SET scope = '', updated_at = NOW()
-WHERE e.entitlement = 'crowdsec-advanced-threat-shield'
-  AND e.scope <> ''
+WHERE e.scope <> ''
   AND e.id = (SELECT e2.id FROM system_entitlements e2
                WHERE e2.system_id = e.system_id AND e2.entitlement = e.entitlement AND e2.scope <> ''
                ORDER BY (e2.revoked_at IS NULL) DESC, e2.valid_until DESC NULLS FIRST, e2.updated_at DESC

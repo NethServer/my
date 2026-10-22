@@ -53,10 +53,11 @@ func EntitlementStatus(active bool, revokedAt *time.Time, systemBlocked bool, pe
 // are the wire ids the appliance feeds call on /auth/service/<id> — never
 // rename them. New ids follow the convention: nsec-<service> (firewall
 // services), ns8-<app> (application enablement on a cluster), <app>-<module>
-// (per-application-instance modules, Scoped=true).
-// Catalog item kinds — both sellable on the shop: services are firewall
-// add-ons granted system-wide, modules are add-ons for a single application
-// instance of an NS8 cluster.
+// (modules of an application of a cluster).
+// Catalog item kinds — both sellable on the shop and granted system-wide:
+// services are firewall add-ons, modules are add-ons for an application of an
+// NS8 cluster, covering all its instances or, when seated, the instances
+// holding a seat.
 const (
 	EntitlementKindService = "service"
 	EntitlementKindModule  = "module"

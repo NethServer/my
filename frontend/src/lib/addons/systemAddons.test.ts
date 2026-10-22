@@ -45,9 +45,9 @@ const grant = (fields: Partial<AddonGrant>): AddonGrant => ({
 
 const chat = addon({ id: 'nethvoice-chat', applies_to: 'nethvoice', seated: true })
 const crowdsec = addon({ id: 'crowdsec-ats', applies_to: 'crowdsec' })
-const scopedModule = addon({ id: 'webtop-pec', applies_to: 'webtop', scoped: true })
+const pec = addon({ id: 'webtop-pec', applies_to: 'webtop' })
 
-const compose = (grants: AddonGrant[], addons = [chat, crowdsec, scopedModule]) =>
+const compose = (grants: AddonGrant[], addons = [chat, crowdsec, pec]) =>
   composeSystemAddonRows({
     availableAddons: addons,
     grants,
@@ -76,10 +76,19 @@ describe('composeSystemAddonRows on a cluster', () => {
     expect(rows.filter((row) => row.addon.id === 'crowdsec-ats')).toHaveLength(1)
   })
 
-  it('keeps one row per instance for an add-on narrowed to single instances', () => {
-    const rows = compose([]).filter((row) => row.addon.id === 'webtop-pec')
+  it('gives every add-on a single row, even one held through an instance grant', () => {
+    const instanceGrant = grant({ entitlement: 'webtop-pec', scope: 'webtop2' })
+    const rows = compose([instanceGrant]).filter((row) => row.addon.id === 'webtop-pec')
 
-    expect(rows.map((row) => row.scope)).toEqual(['webtop1', 'webtop2'])
+    expect(rows).toEqual([expect.objectContaining({ scope: '', grant: instanceGrant })])
+  })
+
+  it('prefers the system-wide grant when the system also holds an instance grant', () => {
+    const instanceGrant = grant({ id: 'g-old', entitlement: 'crowdsec-ats', scope: 'crowdsec1' })
+    const systemGrant = grant({ id: 'g-sys', entitlement: 'crowdsec-ats' })
+    const row = compose([instanceGrant, systemGrant]).find((row) => row.addon.id === 'crowdsec-ats')
+
+    expect(row?.grant).toBe(systemGrant)
   })
 
   it('leaves out an add-on whose application the cluster does not run', () => {

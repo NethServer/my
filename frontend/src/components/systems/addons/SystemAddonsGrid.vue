@@ -2,13 +2,11 @@
   Copyright (C) 2026 Nethesis S.r.l.
   SPDX-License-Identifier: GPL-3.0-or-later
 
-  The add-ons of one system, one card per add-on. Rows are grouped here and
-  counted by status for the card to summarise; opening a card hands the add-on
-  id up to the panel, which swaps in the detail table.
-
-  On a NethSecurity firewall an add-on has a single, system-wide row, so the
-  card states it in full and carries its action instead — the modal those
-  actions open lives here, once for the whole grid.
+  The add-ons of one system, one card per add-on. Every add-on is bought for
+  the whole system, so its card states it in full and carries its actions —
+  the modal the administrative ones open lives here, once for the whole grid.
+  A seated add-on also opens its seats page, where the seats are given to the
+  application instances.
 -->
 
 <script setup lang="ts">
@@ -26,12 +24,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import { getApplicationDisplayName } from '@/lib/addons/addons'
-import {
-  ADDON_ROW_STATUSES,
-  getRowStatus,
-  type AddonRowStatus,
-  type SystemAddonRow,
-} from '@/lib/addons/systemAddons'
+import { ADDON_ROW_STATUSES, getRowStatus, type SystemAddonRow } from '@/lib/addons/systemAddons'
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
 import AddonActionModal, { type AddonAction } from './AddonActionModal.vue'
 import SystemAddonCard from './SystemAddonCard.vue'
@@ -43,8 +36,7 @@ const { rows, loading, refreshing, systemType } = defineProps<{
   rows: SystemAddonRow[]
   loading: boolean
   refreshing: boolean
-  // 'nsec' puts the add-on's own row on the card; anything else keeps the card
-  // a summary that opens the detail table
+  // the product, for the logo of system-wide services
   systemType: string
 }>()
 
@@ -61,48 +53,13 @@ const currentRow = ref<SystemAddonRow | undefined>()
 const currentAction = ref<AddonAction>('activate')
 const isShownActionModal = ref(false)
 
-// One card per add-on, over every place it applies to.
-const cards = computed(() => {
-  const groups = new Map<
-    string,
-    {
-      addon: SystemAddonRow['addon']
-      applicationId: string
-      scoped: boolean
-      counts: Record<AddonRowStatus, number>
-      rows: SystemAddonRow[]
-    }
-  >()
-
-  for (const row of rows) {
-    let group = groups.get(row.addon.id)
-
-    if (!group) {
-      group = {
-        addon: row.addon,
-        applicationId: row.applicationId,
-        // only an add-on narrowed to single instances has places to count
-        scoped: row.addon.scoped,
-        counts: Object.fromEntries(ADDON_ROW_STATUSES.map((status) => [status, 0])) as Record<
-          AddonRowStatus,
-          number
-        >,
-        rows: [],
-      }
-      groups.set(row.addon.id, group)
-    }
-    group.counts[getRowStatus(row)] += 1
-    group.rows.push(row)
-  }
-
-  return [...groups.values()].sort((a, b) =>
-    a.addon.display_name.localeCompare(b.addon.display_name),
-  )
-})
+const cards = computed(() =>
+  [...rows].sort((a, b) => a.addon.display_name.localeCompare(b.addon.display_name)),
+)
 
 const applicationFilterOptions = computed((): NeDropdownFilterV2Option[] => {
   const applications = new Set(
-    cards.value.map((card) => card.applicationId).filter((application) => !!application),
+    cards.value.map((row) => row.applicationId).filter((application) => !!application),
   )
 
   return [...applications]
@@ -119,17 +76,16 @@ const filteredCards = computed(() => {
   const applications = applicationFilter.value.map((option) => option.id)
   const statuses = statusFilter.value.map((option) => option.id)
 
-  return cards.value.filter((card) => {
-    if (applications.length && !applications.includes(card.applicationId)) {
+  return cards.value.filter((row) => {
+    if (applications.length && !applications.includes(row.applicationId)) {
       return false
     }
-    // a card matches a status when at least one of its places is in it
-    if (statuses.length && !statuses.some((status) => card.counts[status as AddonRowStatus] > 0)) {
+    if (statuses.length && !statuses.includes(getRowStatus(row))) {
       return false
     }
     if (
       search &&
-      !`${card.addon.display_name} ${card.addon.description}`.toLowerCase().includes(search)
+      !`${row.addon.display_name} ${row.addon.description}`.toLowerCase().includes(search)
     ) {
       return false
     }
@@ -152,21 +108,6 @@ watch(
     }
   }, 500),
 )
-
-// The card shows the row itself when the add-on covers the whole system with
-// a single grant: a legacy scoped grant would make two, and hiding one of them
-// on a card would be worse than opening the table. A seated add-on keeps its
-// detail page, where the seats are handed out.
-function inlineRow(card: { addon: SystemAddonRow['addon']; rows: SystemAddonRow[] }) {
-  if (card.addon.seated || card.rows.length !== 1 || card.rows[0]!.scope) {
-    return undefined
-  }
-  return card.rows[0]
-}
-
-function seatedRow(card: { addon: SystemAddonRow['addon']; rows: SystemAddonRow[] }) {
-  return card.addon.seated ? card.rows.find((row) => !row.scope) : undefined
-}
 
 function showActionModal(row: SystemAddonRow, action: AddonAction) {
   currentRow.value = row
@@ -256,16 +197,11 @@ function clearFilters() {
     </NeEmptyState>
     <div v-else class="3xl:grid-cols-4 grid grid-cols-1 gap-x-6 gap-y-6 xl:grid-cols-2">
       <SystemAddonCard
-        v-for="card in filteredCards"
-        :key="card.addon.id"
-        :addon="card.addon"
-        :application-id="card.applicationId"
-        :counts="card.counts"
-        :scoped="card.scoped"
-        :row="inlineRow(card)"
-        :seated-row="seatedRow(card)"
+        v-for="row in filteredCards"
+        :key="row.addon.id"
+        :row="row"
         :system-type="systemType"
-        @details="emit('open', card.addon.id)"
+        @seats="emit('open', row.addon.id)"
         @action="showActionModal"
       />
     </div>

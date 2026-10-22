@@ -132,7 +132,7 @@ function seatDate(seat: AddonSeat) {
 </script>
 
 <template>
-  <div class="mt-10">
+  <div>
     <div class="mb-4 flex flex-wrap items-end justify-between gap-4">
       <div>
         <NeHeading tag="h5">{{ $t('addons.seats') }}</NeHeading>

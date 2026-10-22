@@ -1,5 +1,5 @@
--- Rollback migration 050: drop seated add-ons. Cluster-wide crowdsec grants
--- stay cluster-wide.
+-- Rollback migration 050: drop seated add-ons. Add-ons and grants made
+-- cluster-wide stay cluster-wide.
 
 DROP TABLE IF EXISTS entitlement_seats;
 
