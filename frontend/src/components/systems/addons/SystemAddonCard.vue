@@ -132,7 +132,22 @@ const actions = computed((): AddonRowActions =>
           <DataItem v-if="seatUsage">
             <template #label>{{ $t('addons.seats') }}</template>
             <template #data>
-              <AddonLicenseUsage :used="seatUsage.used" :total="seatUsage.total" />
+              <div class="flex flex-col items-end gap-2">
+                <AddonLicenseUsage :used="seatUsage.used" :total="seatUsage.total" />
+                <!-- buying more belongs with the count it raises -->
+                <NeButton
+                  v-if="actions.buy"
+                  kind="tertiary"
+                  size="sm"
+                  class="-mr-2.5"
+                  @click="actions.buy.action?.()"
+                >
+                  <template v-if="actions.buy.icon" #prefix>
+                    <FontAwesomeIcon :icon="actions.buy.icon" class="size-4" aria-hidden="true" />
+                  </template>
+                  {{ actions.buy.label }}
+                </NeButton>
+              </div>
             </template>
           </DataItem>
           <DataItem>
@@ -175,7 +190,7 @@ const actions = computed((): AddonRowActions =>
       </div>
       <!-- pushed to the bottom so cards of differing height line their buttons up -->
       <div class="mt-auto flex justify-end gap-2">
-        <NeButton v-if="actions.buy" kind="tertiary" @click="actions.buy.action?.()">
+        <NeButton v-if="actions.buy && !seatUsage" kind="tertiary" @click="actions.buy.action?.()">
           <template v-if="actions.buy.icon" #prefix>
             <FontAwesomeIcon :icon="actions.buy.icon" class="size-4" aria-hidden="true" />
           </template>
