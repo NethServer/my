@@ -6,11 +6,16 @@ import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 import { type Pagination } from '../common'
-import type { ImportValidationResult, ImportConfirmResult } from './organizations'
+import {
+  ParentOrganizationSchema,
+  type ImportValidationResult,
+  type ImportConfirmResult,
+} from './organizations'
 
 export const CUSTOMERS_KEY = 'customers'
 export const CUSTOMERS_TOTAL_KEY = 'customersTotal'
 export const CUSTOMERS_TABLE_ID = 'customersTable'
+export const CUSTOMER_TRANSFER_PREVIEW_KEY = 'customerTransferPreview'
 
 export type CustomerStatus = 'enabled' | 'suspended' | 'deleted'
 
@@ -80,12 +85,16 @@ export const CustomerSchema = v.object({
       on_behalf_of: v.optional(v.boolean()),
     }),
   ),
+  // The organization managing the customer (custom_data.createdBy), resolved
+  // live: it follows a transfer, while created_by keeps the organization the
+  // customer was created for.
+  parent: v.optional(ParentOrganizationSchema),
 })
 
 export type CreateCustomer = v.InferOutput<typeof CreateCustomerSchema>
 export type EditCustomer = v.InferOutput<typeof EditCustomerSchema>
 export type Customer = v.InferOutput<typeof CustomerSchema>
-// managed_by: the company in the creator snapshot, the one "Managed by" shows
+// managed_by: the company managing the customer, the one "Managed by" shows
 export type CustomerSortBy = keyof Customer | 'managed_by'
 
 interface CustomersResponse {
@@ -238,6 +247,68 @@ export const reactivateCustomer = (customer: Customer) => {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     },
   )
+}
+
+export type CustomerTransferRenewal = 'continues' | 'stops' | 'already_stopped' | 'perpetual'
+
+export interface CustomerTransferOrganization {
+  id: string
+  name: string
+  type: string
+}
+
+export interface CustomerTransferAddon {
+  system_id: string
+  system_name: string
+  entitlement: string
+  display_name: string
+  scope?: string
+  valid_until?: string
+  purchased_by_organization_name?: string
+  renewal: CustomerTransferRenewal
+}
+
+// What moving a customer under another manager does: returned by the preview,
+// and with the applied counters by the transfer itself.
+export interface CustomerTransferPlan {
+  customer: CustomerTransferOrganization
+  from: CustomerTransferOrganization
+  to: CustomerTransferOrganization
+  systems_count: number
+  users_count: number
+  addons: CustomerTransferAddon[]
+  renewals_stopping: number
+  silences_count: number
+  assignments_count: number
+  warnings?: string[]
+}
+
+export const getCustomerTransferPreview = (customerId: string, organizationId: string) => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .get<{ code: number; message: string; data: CustomerTransferPlan }>(
+      `${API_URL}/customers/${customerId}/transfer`,
+      {
+        headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+        params: { organization_id: organizationId },
+      },
+    )
+    .then((res) => res.data.data)
+}
+
+export const transferCustomer = (customerId: string, organizationId: string) => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .patch<{ code: number; message: string; data: CustomerTransferPlan }>(
+      `${API_URL}/customers/${customerId}/transfer`,
+      { organization_id: organizationId },
+      {
+        headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+      },
+    )
+    .then((res) => res.data.data)
 }
 
 export const restoreCustomer = (customer: Customer) => {

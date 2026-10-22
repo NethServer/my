@@ -2,14 +2,15 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { canReadOrganizationDetail } from './permissions'
+import { canReadOrganizationDetail, canTransferCustomers } from './permissions'
 
 // The helper only reads the caller's permissions and organization, so the store
 // is stubbed down to those.
 const store = {
   permissions: [] as string[],
   isOwner: false,
-  userInfo: { organization_id: 'own-org' } as { organization_id: string } | undefined,
+  userInfo: { organization_id: 'own-org' } as
+    { organization_id: string; org_role?: string } | undefined,
 }
 
 vi.mock('@/stores/login', () => ({
@@ -76,5 +77,33 @@ describe('canReadOrganizationDetail', () => {
     signInWith(['read:resellers'])
 
     expect(canReadOrganizationDetail('Reseller')).toBe(true)
+  })
+})
+
+describe('canTransferCustomers', () => {
+  beforeEach(() => {
+    signInWith(['manage:customers'])
+    store.isOwner = false
+    store.userInfo = { organization_id: 'own-org' }
+  })
+
+  it('offers the move to the Owner organization and to distributors', () => {
+    store.isOwner = true
+    expect(canTransferCustomers()).toBe(true)
+
+    store.isOwner = false
+    store.userInfo = { organization_id: 'own-org', org_role: 'Distributor' }
+    expect(canTransferCustomers()).toBe(true)
+  })
+
+  it('refuses resellers, which manage customers but cannot hand them over', () => {
+    store.userInfo = { organization_id: 'own-org', org_role: 'Reseller' }
+    expect(canTransferCustomers()).toBe(false)
+  })
+
+  it('refuses a distributor without manage:customers', () => {
+    signInWith(['read:customers'])
+    store.userInfo = { organization_id: 'own-org', org_role: 'Distributor' }
+    expect(canTransferCustomers()).toBe(false)
   })
 })

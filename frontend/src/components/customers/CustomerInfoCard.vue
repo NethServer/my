@@ -20,18 +20,20 @@ import DataItem from '../common/DataItem.vue'
 import { computed, ref } from 'vue'
 import NotesModal from '../common/NotesModal.vue'
 import EnabledStatus from '../common/EnabledStatus.vue'
-import { canManageCustomers } from '@/lib/permissions'
+import { canManageCustomers, canTransferCustomers } from '@/lib/permissions'
 import {
   faPenToSquare,
   faCirclePause,
   faCirclePlay,
   faCircleCheck,
   faBoxArchive,
+  faShuffle,
 } from '@fortawesome/free-solid-svg-icons'
 import { useI18n } from 'vue-i18n'
 import CreateOrEditCustomerDrawer from './CreateOrEditCustomerDrawer.vue'
 import SuspendCustomerModal from './SuspendCustomerModal.vue'
 import ReactivateCustomerModal from './ReactivateCustomerModal.vue'
+import TransferCustomerDrawer from './TransferCustomerDrawer.vue'
 import UserAvatar from '../users/UserAvatar.vue'
 import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
@@ -45,6 +47,7 @@ const isNotesModalShown = ref(false)
 const isShownCreateOrEditCustomerDrawer = ref(false)
 const isShownSuspendCustomerModal = ref(false)
 const isShownReactivateCustomerModal = ref(false)
+const isShownTransferCustomerDrawer = ref(false)
 
 function getKebabMenuItems() {
   const items: NeDropdownItem[] = []
@@ -70,6 +73,16 @@ function getKebabMenuItems() {
         disabled: asyncStatus.value === 'loading',
       })
     } else if (!customer.deleted_at) {
+      if (canTransferCustomers()) {
+        items.push({
+          id: 'transferCustomer',
+          label: t('customers.change_manager'),
+          icon: faShuffle,
+          action: () => (isShownTransferCustomerDrawer.value = true),
+          disabled: asyncStatus.value === 'loading',
+        })
+      }
+
       items.push({
         id: 'suspendCustomer',
         label: t('common.suspend'),
@@ -164,6 +177,7 @@ function getKebabMenuItems() {
           </template>
           <template #data>
             <ParentCompanyLink
+              :parent="customerDetail.data.parent"
               :creator="customerDetail.data.created_by"
               icon-size="xs"
               icon-variant="plain"
@@ -232,6 +246,12 @@ function getKebabMenuItems() {
       :visible="isShownSuspendCustomerModal"
       :customer="customerDetail.data ?? undefined"
       @close="isShownSuspendCustomerModal = false"
+    />
+    <!-- transfer customer drawer -->
+    <TransferCustomerDrawer
+      :is-shown="isShownTransferCustomerDrawer"
+      :customer="customerDetail.data ?? undefined"
+      @close="isShownTransferCustomerDrawer = false"
     />
     <!-- reactivate customer modal -->
     <ReactivateCustomerModal

@@ -23,6 +23,7 @@ import {
   faBomb,
   faServer,
   faEye,
+  faShuffle,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -52,9 +53,10 @@ import SuspendCustomerModal from './SuspendCustomerModal.vue'
 import ReactivateCustomerModal from './ReactivateCustomerModal.vue'
 import RestoreCustomerModal from './RestoreCustomerModal.vue'
 import DestroyCustomerModal from './DestroyCustomerModal.vue'
+import TransferCustomerDrawer from './TransferCustomerDrawer.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useCustomers } from '@/queries/organizations/customers'
-import { canManageCustomers, canDestroyCustomers } from '@/lib/permissions'
+import { canManageCustomers, canDestroyCustomers, canTransferCustomers } from '@/lib/permissions'
 import router from '@/router'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
@@ -90,6 +92,7 @@ const isShownSuspendCustomerModal = ref(false)
 const isShownReactivateCustomerModal = ref(false)
 const isShownRestoreCustomerModal = ref(false)
 const isShownDestroyCustomerModal = ref(false)
+const isShownTransferCustomerDrawer = ref(false)
 
 const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
   {
@@ -174,6 +177,11 @@ function showReactivateCustomerModal(customer: Customer) {
   isShownReactivateCustomerModal.value = true
 }
 
+function showTransferCustomerDrawer(customer: Customer) {
+  currentCustomer.value = customer
+  isShownTransferCustomerDrawer.value = true
+}
+
 function showDestroyCustomerModal(customer: Customer) {
   currentCustomer.value = customer
   isShownDestroyCustomerModal.value = true
@@ -224,6 +232,16 @@ function getKebabMenuItems(customer: Customer) {
         disabled: asyncStatus.value === 'loading',
       })
     } else {
+      if (canTransferCustomers()) {
+        items.push({
+          id: 'transferCustomer',
+          label: t('customers.change_manager'),
+          icon: faShuffle,
+          action: () => showTransferCustomerDrawer(customer),
+          disabled: asyncStatus.value === 'loading',
+        })
+      }
+
       items.push({
         id: 'suspendCustomer',
         label: t('common.suspend'),
@@ -444,7 +462,7 @@ const goToCustomerDetails = (customer: Customer) => {
             :data-label="$t('organizations.parent_company')"
             :class="{ 'opacity-50': item.deleted_at }"
           >
-            <ParentCompanyLink :creator="item.created_by" />
+            <ParentCompanyLink :parent="item.parent" :creator="item.created_by" />
           </NeTableCell>
           <NeTableCell :data-label="$t('common.status')">
             <div class="flex items-center gap-2">
@@ -552,6 +570,12 @@ const goToCustomerDetails = (customer: Customer) => {
       :visible="isShownRestoreCustomerModal"
       :customer="currentCustomer"
       @close="isShownRestoreCustomerModal = false"
+    />
+    <!-- transfer customer drawer -->
+    <TransferCustomerDrawer
+      :is-shown="isShownTransferCustomerDrawer"
+      :customer="currentCustomer"
+      @close="isShownTransferCustomerDrawer = false"
     />
     <!-- destroy customer modal -->
     <DestroyCustomerModal
