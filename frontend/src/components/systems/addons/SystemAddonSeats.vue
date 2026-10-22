@@ -244,6 +244,9 @@ function seatDate(seat: AddonSeat) {
                 />
                 <span>{{ line.seat.assigned_by.user_name }}</span>
               </div>
+              <div v-else-if="line.seat.assigned_by?.out_of_scope" class="text-tertiary-neutral">
+                {{ $t('addons.purchaser_not_visible') }}
+              </div>
               <div v-if="line.seat.assigned_by?.organization_name" class="text-tertiary-neutral">
                 <CreatorOrganization
                   :creator="{

@@ -2832,7 +2832,9 @@ components:
           format: date-time
           example: "2026-10-22T10:00:00Z"
         assigned_by:
-          $ref: '#/components/schemas/EntitlementCreator'
+          description: 'Who gave the license; replaced by {"out_of_scope": true} when that user''s organization is outside the caller''s hierarchy'
+          allOf:
+            - $ref: '#/components/schemas/EntitlementCreator'
         in_quota:
           type: boolean
           description: False for the seats beyond the number bought, oldest first. They are not honored until seats are added.

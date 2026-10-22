@@ -60,7 +60,9 @@ export interface AddonSeat {
   id: string
   module_id: string
   assigned_at: string
-  assigned_by?: AddonCreator
+  // `{ out_of_scope: true }` when the assigner sits outside the viewer's
+  // hierarchy (redacted server-side, like the purchaser)
+  assigned_by?: AddonCreator & { out_of_scope?: boolean }
   in_quota: boolean
 }
 

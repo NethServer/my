@@ -103,6 +103,10 @@ func systemTypeMismatch(item *models.EntitlementCatalogItem, systemType string) 
 	return item.SystemType != "" && systemType != "" && systemType != item.SystemType
 }
 
+// maxSeats bounds the licenses of one add-on on one system: far above any
+// shop tier, low enough to keep a typo from becoming a database error.
+const maxSeats = 10000
+
 // seatsFor validates the seats sent for a catalog item: required and positive
 // for seated add-ons when required is set, positive when sent, and dropped for
 // add-ons without seats. The message is empty when the value is acceptable.
@@ -118,6 +122,9 @@ func seatsFor(item *models.EntitlementCatalogItem, seats *int, required bool) (*
 	}
 	if *seats <= 0 {
 		return nil, "seats must be greater than zero"
+	}
+	if *seats > maxSeats {
+		return nil, "seats must be at most " + strconv.Itoa(maxSeats)
 	}
 	return seats, ""
 }
@@ -167,6 +174,22 @@ func resolvePurchaser(buyerEmail string) map[string]interface{} {
 // Admin): a reseller must not learn who sits above them — the UI renders a
 // generic "purchased by another organization" from the bare marker. Raw
 // email-only snapshots have no organization and are admin-only too.
+// redactSeatAssigners hides who gave each license when that user sits outside
+// the viewer's hierarchy, the same rule the purchaser follows: a customer sees
+// that a license is assigned, not the name of the distributor or Nethesis user
+// that assigned it.
+func redactSeatAssigners(e *models.SystemEntitlement, orgScope []string) {
+	if orgScope == nil {
+		return
+	}
+	for i := range e.SeatAssignments {
+		orgID, _ := e.SeatAssignments[i].AssignedBy["organization_id"].(string)
+		if orgID == "" || !slices.Contains(orgScope, orgID) {
+			e.SeatAssignments[i].AssignedBy = map[string]interface{}{"out_of_scope": true}
+		}
+	}
+}
+
 func redactPurchaser(e *models.SystemEntitlement, orgScope []string) {
 	if e.PurchasedBy == nil || orgScope == nil {
 		return
@@ -1045,6 +1068,7 @@ func ListSystemEntitlements(c *gin.Context) {
 			if e.SeatAssignments == nil {
 				e.SeatAssignments = []models.EntitlementSeat{}
 			}
+			redactSeatAssigners(e, scope)
 		}
 	}
 

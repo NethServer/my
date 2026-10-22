@@ -12,6 +12,25 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestRedactSeatAssigners(t *testing.T) {
+	e := &models.SystemEntitlement{SeatAssignments: []models.EntitlementSeat{
+		{ModuleID: "nethvoice1", AssignedBy: map[string]interface{}{"user_name": "Mario", "organization_id": "org-in"}},
+		{ModuleID: "nethvoice2", AssignedBy: map[string]interface{}{"user_name": "Nethesis staff", "organization_id": "org-owner"}},
+	}}
+
+	redactSeatAssigners(e, []string{"org-in"})
+
+	assert.Equal(t, "Mario", e.SeatAssignments[0].AssignedBy["user_name"])
+	assert.Equal(t, map[string]interface{}{"out_of_scope": true}, e.SeatAssignments[1].AssignedBy)
+
+	// The Owner organization sees every assigner.
+	full := &models.SystemEntitlement{SeatAssignments: []models.EntitlementSeat{
+		{AssignedBy: map[string]interface{}{"user_name": "Anyone", "organization_id": "org-x"}},
+	}}
+	redactSeatAssigners(full, nil)
+	assert.Equal(t, "Anyone", full.SeatAssignments[0].AssignedBy["user_name"])
+}
+
 func TestSeatsFor(t *testing.T) {
 	seated := &models.EntitlementCatalogItem{ID: "nethvoice-chat", Seated: true}
 	plain := &models.EntitlementCatalogItem{ID: "crowdsec-advanced-threat-shield"}
@@ -30,6 +49,10 @@ func TestSeatsFor(t *testing.T) {
 
 	_, msg = seatsFor(seated, &zero, true)
 	assert.Equal(t, "seats must be greater than zero", msg)
+
+	tooMany := maxSeats + 1
+	_, msg = seatsFor(seated, &tooMany, true)
+	assert.Equal(t, "seats must be at most 10000", msg)
 
 	// An add-on without seats drops whatever the shop sends.
 	got, msg = seatsFor(plain, &ten, true)
