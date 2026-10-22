@@ -1,7 +1,12 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { faArrowUpRightFromSquare, faBan, faCircleCheck } from '@fortawesome/free-solid-svg-icons'
+import {
+  faArrowUpRightFromSquare,
+  faBan,
+  faCircleCheck,
+  faPenToSquare,
+} from '@fortawesome/free-solid-svg-icons'
 import type { NeDropdownItem } from '@nethesis/vue-components'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -86,6 +91,14 @@ export const useSystemAddonActions = () => {
         action: () => onSelect('activate'),
       })
     } else if (row.grant.status === 'active') {
+      if (row.addon.seated) {
+        items.push({
+          id: 'resize',
+          label: t('addons.resize'),
+          icon: faPenToSquare,
+          action: () => onSelect('resize'),
+        })
+      }
       items.push({
         id: 'revoke',
         label: t('addons.revoke'),

@@ -172,6 +172,7 @@ type EntitlementReport struct {
 	Totals        EntitlementReportTotals     `json:"totals"`
 	ByEntitlement []EntitlementReportByType   `json:"by_entitlement"`
 	Renewals      EntitlementReportRenewals   `json:"renewals"`
+	Licenses      EntitlementReportLicenses   `json:"licenses"`
 	Trend         []EntitlementReportTrendRow `json:"trend"`
 }
 
@@ -235,6 +236,17 @@ type EntitlementReportByVariant struct {
 	DisplayName string `json:"display_name"`
 	Label       string `json:"label"`
 	Count       int    `json:"count"`
+}
+
+// EntitlementReportLicenses sums up the add-ons sold by licenses that are in
+// force: licenses bought, licenses assigned to instances (within the number
+// bought), how many such add-ons there are and how many have every license
+// assigned.
+type EntitlementReportLicenses struct {
+	Bought   int `json:"bought"`
+	Assigned int `json:"assigned"`
+	Addons   int `json:"addons"`
+	Full     int `json:"full"`
 }
 
 // EntitlementReportRenewals is the renewal distribution across grants.

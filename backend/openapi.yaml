@@ -3029,6 +3029,14 @@ components:
             once: { type: integer, example: 30 }
             twice: { type: integer, example: 15 }
             three_plus: { type: integer, example: 5 }
+        licenses:
+          type: object
+          description: Licenses of the add-ons sold by licenses that are in force (not revoked, not expired)
+          properties:
+            bought: { type: integer, example: 40, description: "Licenses bought" }
+            assigned: { type: integer, example: 27, description: "Licenses assigned to application instances, within the number bought" }
+            addons: { type: integer, example: 6, description: "Add-ons sold by licenses in force" }
+            full: { type: integer, example: 2, description: "Of those, how many have every license assigned" }
         trend:
           type: array
           description: Grants created per month, last 12 months

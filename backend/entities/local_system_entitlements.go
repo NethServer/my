@@ -911,6 +911,27 @@ func (r *LocalSystemEntitlementRepository) Report(orgScope, catalogScope []strin
 		return nil, fmt.Errorf("failed to compute renewal distribution: %w", err)
 	}
 
+	// Licenses of the add-ons sold by licenses that are in force. Assignments
+	// beyond the number bought are not honored, so they do not count.
+	err = r.db.QueryRow(`
+		SELECT COALESCE(SUM(e.seats), 0),
+		       COALESCE(SUM(LEAST(h.held, e.seats)), 0),
+		       COUNT(*),
+		       COUNT(*) FILTER (WHERE h.held >= e.seats)
+		FROM system_entitlements e
+		JOIN systems s ON s.id = e.system_id
+		CROSS JOIN LATERAL (SELECT COUNT(*) AS held FROM entitlement_seats es
+		                     WHERE es.grant_id = e.id AND es.released_at IS NULL) h
+		WHERE s.deleted_at IS NULL
+		  AND e.seats IS NOT NULL
+		  AND e.revoked_at IS NULL
+		  AND (e.valid_until IS NULL OR e.valid_until > NOW())`+scope,
+		args...,
+	).Scan(&report.Licenses.Bought, &report.Licenses.Assigned, &report.Licenses.Addons, &report.Licenses.Full)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute license usage: %w", err)
+	}
+
 	// Per add-on type. FULL JOIN so both sides show up: catalog items nobody
 	// holds yet (all counts 0 — the finding the card is there to surface) and
 	// grants whose type is no longer in the catalog (legacy imports), labelled

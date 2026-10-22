@@ -21,13 +21,14 @@ import {
   grantSystemAddon,
   restoreSystemAddon,
   revokeSystemAddon,
+  updateSystemAddonSeats,
   type SystemAddonRow,
 } from '@/lib/addons/systemAddons'
 import { getBackendErrorMessage } from '@/lib/validation'
 import { useNotificationsStore } from '@/stores/notifications'
 import type { AxiosError } from 'axios'
 
-export type AddonAction = 'activate' | 'revoke' | 'reactivate'
+export type AddonAction = 'activate' | 'revoke' | 'reactivate' | 'resize'
 
 const {
   visible = false,
@@ -51,7 +52,9 @@ const systemId = computed(() => route.params.systemId as string)
 // a seated add-on is granted with the number of seats to hand out
 const DEFAULT_SEATS = 10
 const seats = ref(String(DEFAULT_SEATS))
-const isSeatsAsked = computed(() => action === 'activate' && !!row?.addon.seated)
+const isSeatsAsked = computed(
+  () => action === 'resize' || (action === 'activate' && !!row?.addon.seated),
+)
 const seatsNumber = computed(() => Number.parseInt(seats.value, 10))
 const isSeatsInvalid = computed(
   () => isSeatsAsked.value && !(Number.isInteger(seatsNumber.value) && seatsNumber.value > 0),
@@ -71,6 +74,7 @@ const callers: Record<AddonAction, (row: SystemAddonRow) => Promise<unknown>> = 
     ),
   revoke: (row) => revokeSystemAddon(systemId.value, row.addon.id, row.scope),
   reactivate: (row) => restoreSystemAddon(systemId.value, row.addon.id, row.scope),
+  resize: (row) => updateSystemAddonSeats(systemId.value, row.addon.id, seatsNumber.value),
 }
 
 const {
@@ -117,7 +121,8 @@ const errorMessage = computed(() => {
 function onShow() {
   // clear error
   reset()
-  seats.value = String(DEFAULT_SEATS)
+  // changing the licenses starts from the ones bought
+  seats.value = String(action === 'resize' ? (row?.grant?.seats ?? DEFAULT_SEATS) : DEFAULT_SEATS)
 }
 </script>
 

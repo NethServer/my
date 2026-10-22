@@ -25,6 +25,7 @@ import { computed } from 'vue'
 import CounterCard from '@/components/common/CounterCard.vue'
 import { useAddonReport } from '@/queries/addons/addonsReport'
 import AddonActivationsCard from './report/AddonActivationsCard.vue'
+import AddonLicensesCard from './report/AddonLicensesCard.vue'
 import AddonRenewalsCard from './report/AddonRenewalsCard.vue'
 import AddonsByAddonCard from './report/AddonsByAddonCard.vue'
 import AddonsByOrganizationCard from './report/AddonsByOrganizationCard.vue'
@@ -134,6 +135,11 @@ const expiryBadges = computed(() =>
       />
       <AddonsByOrganizationCard class="sm:col-span-2" />
       <AddonsByTierCard class="sm:col-span-2" />
+      <AddonLicensesCard
+        :licenses="report.data?.licenses ?? { bought: 0, assigned: 0, addons: 0, full: 0 }"
+        :loading="loading"
+        class="sm:col-span-2"
+      />
     </div>
   </div>
 </template>

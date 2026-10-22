@@ -19,6 +19,8 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import ApplicationLogo from '@/components/applications/ApplicationLogo.vue'
+import ClickToCopy from '@/components/common/ClickToCopy.vue'
+import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import UserAvatar from '@/components/users/UserAvatar.vue'
 import {
   SYSTEM_ADDONS_KEY,
@@ -28,7 +30,7 @@ import {
   type AddonSeat,
   type SystemAddonRow,
 } from '@/lib/addons/systemAddons'
-import { getDisplayName, type Application } from '@/lib/applications/applications'
+import { getDisplayName, getFqdns, type Application } from '@/lib/applications/applications'
 import { formatDateNoTime } from '@/lib/dateTime'
 import { canManageAddons } from '@/lib/permissions'
 import { getBackendErrorMessage } from '@/lib/validation'
@@ -181,11 +183,11 @@ function seatDate(seat: AddonSeat) {
       <li
         v-for="line in lines"
         :key="line.moduleId"
-        class="flex flex-wrap items-center justify-between gap-4 px-4 py-3"
+        class="grid grid-cols-1 items-center gap-4 px-4 py-3 xl:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1fr)_auto_auto]"
       >
-        <div class="flex items-center gap-3">
+        <div class="flex min-w-0 items-center gap-3">
           <ApplicationLogo :app="row.addon.applies_to ?? ''" />
-          <div>
+          <div class="min-w-0">
             <div class="font-medium text-gray-900 dark:text-gray-100">
               {{ line.application ? getDisplayName(line.application) : line.moduleId }}
             </div>
@@ -195,18 +197,40 @@ function seatDate(seat: AddonSeat) {
               </template>
               <template v-else>{{ $t('addons.instance_not_in_inventory') }}</template>
             </div>
+            <div
+              v-if="line.application && getFqdns(line.application).length"
+              class="flex flex-col items-start text-sm wrap-anywhere"
+            >
+              <ClickToCopy
+                v-for="fqdn in getFqdns(line.application)"
+                :key="fqdn"
+                :text="fqdn"
+                tooltip-placement="top"
+              />
+            </div>
           </div>
         </div>
-        <div class="flex items-center gap-6">
-          <!-- who gave the license, with the avatar the purchaser gets on the card -->
-          <div v-if="line.seat?.assigned_by?.user_name" class="flex items-center gap-2">
-            <UserAvatar
-              size="xs"
-              :is-owner="false"
-              :name="line.seat.assigned_by.user_name"
-              :logto-id="line.seat.assigned_by.user_id ?? ''"
-            />
-            <span class="text-sm">{{ line.seat.assigned_by.user_name }}</span>
+        <!-- the company the instance is assigned to, as on the applications page -->
+        <div class="min-w-0 text-sm">
+          <OrganizationIconAndLink
+            v-if="line.application?.organization"
+            :organization="line.application.organization"
+          />
+          <span v-else class="text-tertiary-neutral">{{ $t('addons.instance_no_company') }}</span>
+        </div>
+        <div class="flex min-w-0 items-center gap-6 xl:contents">
+          <!-- who gave the license, with the avatar the purchaser gets on the card;
+               the cell stays when empty so the columns line up across rows -->
+          <div class="flex min-w-0 items-center gap-2">
+            <template v-if="line.seat?.assigned_by?.user_name">
+              <UserAvatar
+                size="xs"
+                :is-owner="false"
+                :name="line.seat.assigned_by.user_name"
+                :logto-id="line.seat.assigned_by.user_id ?? ''"
+              />
+              <span class="text-sm">{{ line.seat.assigned_by.user_name }}</span>
+            </template>
           </div>
           <div class="flex flex-col items-end gap-1">
             <NeBadgeV2 v-if="line.seat && line.seat.in_quota" kind="green" size="xs">
@@ -220,28 +244,30 @@ function seatDate(seat: AddonSeat) {
               {{ $t('addons.seat_assigned_on', { date: seatDate(line.seat) }) }}
             </span>
           </div>
-          <template v-if="canManageSeats">
-            <NeButton
-              v-if="line.seat"
-              kind="tertiary"
-              size="sm"
-              :loading="busyModule === line.moduleId"
-              :disabled="!!busyModule"
-              @click="changeSeat({ moduleId: line.moduleId, assign: false })"
-            >
-              {{ $t('addons.release_seat') }}
-            </NeButton>
-            <NeButton
-              v-else
-              kind="secondary"
-              size="sm"
-              :loading="busyModule === line.moduleId"
-              :disabled="!!busyModule || !isGrantActive || isFull"
-              @click="changeSeat({ moduleId: line.moduleId, assign: true })"
-            >
-              {{ $t('addons.assign_seat') }}
-            </NeButton>
-          </template>
+          <div class="flex justify-end">
+            <template v-if="canManageSeats">
+              <NeButton
+                v-if="line.seat"
+                kind="tertiary"
+                size="sm"
+                :loading="busyModule === line.moduleId"
+                :disabled="!!busyModule"
+                @click="changeSeat({ moduleId: line.moduleId, assign: false })"
+              >
+                {{ $t('addons.release_seat') }}
+              </NeButton>
+              <NeButton
+                v-else
+                kind="secondary"
+                size="sm"
+                :loading="busyModule === line.moduleId"
+                :disabled="!!busyModule || !isGrantActive || isFull"
+                @click="changeSeat({ moduleId: line.moduleId, assign: true })"
+              >
+                {{ $t('addons.assign_seat') }}
+              </NeButton>
+            </template>
+          </div>
         </div>
       </li>
     </ul>

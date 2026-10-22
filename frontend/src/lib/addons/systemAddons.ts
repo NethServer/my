@@ -138,6 +138,17 @@ export const grantSystemAddon = (
     )
     .then((res) => res.data.data)
 
+// The number of licenses of an add-on sold by licenses. Owner organization
+// only, enforced again by the backend.
+export const updateSystemAddonSeats = (systemId: string, addonId: string, seats: number) =>
+  axios
+    .put<Envelope<AddonGrant>>(
+      `${API_URL}/${systemAddonsPath(systemId)}/${addonId}`,
+      { seats },
+      authHeaders(),
+    )
+    .then((res) => res.data.data)
+
 // Seats of a seated add-on go to application instances. Allowed to whoever can
 // buy add-ons, within the hierarchy.
 export const assignAddonSeat = (systemId: string, addonId: string, moduleId: string) =>
@@ -449,6 +460,10 @@ export const getBuyUrl = (systemKey: string, row: SystemAddonRow) => {
 
   if (row.scope) {
     url += `&scope=${encodeURIComponent(row.scope)}`
+  }
+  // buying more licenses: the shop offers only the tiers above the current one
+  if (row.addon.seated && row.grant?.status === 'active' && row.grant.seats) {
+    url += `&seats=${row.grant.seats}`
   }
   // Explicit return page for the shop's "back to My Nethesis" link: the
   // Referer header cannot carry it, since strict-origin-when-cross-origin
