@@ -85,16 +85,38 @@ interface LatestInventoryResponse {
   data: InventoryData
 }
 
-export interface InventoryNetworkInterface {
+interface NsecNetworkInterfaceProps {
+  ipaddr: string
+  netmask: string
+  // null when the interface has no default route
+  gateway: string | null
+  // member ports, bridges only
+  bridge?: string[]
+}
+
+// python3-nethsec < 1.8.1 reports the firewall zone as a role: green for lan,
+// red for wan, the zone name for any other zone, null outside every zone
+export interface LegacyInventoryNetworkInterface {
   name: string
   type: string
-  props: {
-    role: string
-    ipaddr: string
-    gateway: string | null
-    netmask: string
+  props: NsecNetworkInterfaceProps & {
+    role: string | null
   }
 }
+
+// python3-nethsec >= 1.8.1 names the logical interface and its zone as they are
+export interface CurrentInventoryNetworkInterface {
+  name: string
+  type: string
+  props: NsecNetworkInterfaceProps & {
+    interface: string
+    zone: string | null
+  }
+}
+
+// firewalls send either format until every one runs python3-nethsec >= 1.8.1
+export type InventoryNetworkInterface =
+  LegacyInventoryNetworkInterface | CurrentInventoryNetworkInterface
 
 export const getLatestInventory = (systemId: string) => {
   const loginStore = useLoginStore()

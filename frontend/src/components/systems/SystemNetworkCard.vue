@@ -19,6 +19,7 @@ import {
 import { computed } from 'vue'
 import type { InventoryNetworkInterface, NsecFacts } from '@/lib/systems/inventory'
 import type { Ns8Facts, Ns8NetworkInterface } from '@/lib/systems/ns8Facts'
+import { compareNetworkZones, getNetworkInterfaceZone } from '@/lib/systems/nsecFacts'
 import { netmaskToCIDR } from '@/lib/network'
 
 // ns8 keeps network facts per cluster node, so the card is told which one to
@@ -53,9 +54,12 @@ const networkInterfaces = computed((): (InventoryNetworkInterface | Ns8NetworkIn
   if (!networkConfig) {
     return []
   }
-  // numeric collation so eth2 comes before eth10
-  return Object.values(networkConfig).sort((a, b) =>
-    a.name.localeCompare(b.name, undefined, { numeric: true }),
+  // by zone, then by the name shown first; numeric collation so eth2 comes
+  // before eth10
+  return Object.values(networkConfig).sort(
+    (a, b) =>
+      compareNetworkZones(getInterfaceZone(a), getInterfaceZone(b)) ||
+      getDisplayName(a).localeCompare(getDisplayName(b), undefined, { numeric: true }),
   )
 })
 
@@ -72,39 +76,51 @@ const getIpAddressWithCidr = (iface: InventoryNetworkInterface | Ns8NetworkInter
   }
 }
 
-// ns8 assigns no role to its interfaces, so they get a neutral look of their
-// own and the role is left out of the subtitle
-const getInterfaceRole = (iface: InventoryNetworkInterface | Ns8NetworkInterface) =>
-  iface.props && 'role' in iface.props ? iface.props.role : undefined
+const isNsecInterface = (
+  iface: InventoryNetworkInterface | Ns8NetworkInterface,
+): iface is InventoryNetworkInterface => 'zone' in iface.props || 'role' in iface.props
+
+// ns8 places its interfaces in no firewall zone, so they get a neutral look of
+// their own and the zone is left out of the subtitle
+const getInterfaceZone = (iface: InventoryNetworkInterface | Ns8NetworkInterface) =>
+  isNsecInterface(iface) ? getNetworkInterfaceZone(iface) : undefined
+
+// only python3-nethsec >= 1.8.1 reports the logical interface; elsewhere the
+// device name is all there is
+const getLogicalInterfaceName = (iface: InventoryNetworkInterface | Ns8NetworkInterface) =>
+  'interface' in iface.props ? iface.props.interface : undefined
+
+const getDisplayName = (iface: InventoryNetworkInterface | Ns8NetworkInterface) =>
+  getLogicalInterfaceName(iface) || iface.name
 
 const getInterfaceIcon = (iface: InventoryNetworkInterface | Ns8NetworkInterface) => {
-  const role = getInterfaceRole(iface)
-  return role === undefined ? faNetworkWired : getNetworkRoleIcon(role)
+  const zone = getInterfaceZone(iface)
+  return zone === undefined ? faNetworkWired : getNetworkZoneIcon(zone)
 }
 
 const getInterfaceBackgroundStyle = (iface: InventoryNetworkInterface | Ns8NetworkInterface) => {
-  const role = getInterfaceRole(iface)
-  return role === undefined
+  const zone = getInterfaceZone(iface)
+  return zone === undefined
     ? 'bg-indigo-100 dark:bg-indigo-700'
-    : getNetworkRoleBackgroundStyle(role)
+    : getNetworkZoneBackgroundStyle(zone)
 }
 
 const getInterfaceForegroundStyle = (iface: InventoryNetworkInterface | Ns8NetworkInterface) => {
-  const role = getInterfaceRole(iface)
-  return role === undefined
+  const zone = getInterfaceZone(iface)
+  return zone === undefined
     ? 'text-indigo-700 dark:text-indigo-50'
-    : getNetworkRoleForegroundStyle(role)
+    : getNetworkZoneForegroundStyle(zone)
 }
 
-const getNetworkRoleIcon = (role: string | undefined) => {
-  switch (role) {
-    case 'green':
+const getNetworkZoneIcon = (zone: string) => {
+  switch (zone) {
+    case 'lan':
       return faLocationDot
-    case 'red':
+    case 'wan':
       return faEarthAmericas
-    case 'blue':
+    case 'guest':
       return faUsers
-    case 'orange':
+    case 'dmz':
       return faShield
     case 'hotspot':
       return faWifi
@@ -113,15 +129,15 @@ const getNetworkRoleIcon = (role: string | undefined) => {
   }
 }
 
-const getNetworkRoleBackgroundStyle = (role: string | undefined) => {
-  switch (role) {
-    case 'green':
+const getNetworkZoneBackgroundStyle = (zone: string) => {
+  switch (zone) {
+    case 'lan':
       return 'bg-green-100 dark:bg-green-700'
-    case 'red':
+    case 'wan':
       return 'bg-rose-100 dark:bg-rose-700'
-    case 'blue':
+    case 'guest':
       return 'bg-blue-100 dark:bg-blue-700'
-    case 'orange':
+    case 'dmz':
       return 'bg-amber-100 dark:bg-amber-700'
     case 'hotspot':
       return 'bg-sky-100 dark:bg-sky-700'
@@ -130,15 +146,15 @@ const getNetworkRoleBackgroundStyle = (role: string | undefined) => {
   }
 }
 
-const getNetworkRoleForegroundStyle = (role: string | undefined) => {
-  switch (role) {
-    case 'green':
+const getNetworkZoneForegroundStyle = (zone: string) => {
+  switch (zone) {
+    case 'lan':
       return 'text-green-700 dark:text-green-50'
-    case 'red':
+    case 'wan':
       return 'text-rose-700 dark:text-rose-50'
-    case 'blue':
+    case 'guest':
       return 'text-blue-700 dark:text-blue-50'
-    case 'orange':
+    case 'dmz':
       return 'text-amber-700 dark:text-amber-50'
     case 'hotspot':
       return 'text-sky-700 dark:text-sky-50'
@@ -183,16 +199,22 @@ const getNetworkRoleForegroundStyle = (role: string | undefined) => {
               :class="`size-8 ${getInterfaceForegroundStyle(iface)}`"
             />
           </div>
-          <!-- name -->
+          <!-- name: the logical interface over its device, or the device alone -->
           <div class="mt-2 text-base font-medium">
+            {{ getDisplayName(iface) }}
+          </div>
+          <div
+            v-if="getLogicalInterfaceName(iface)"
+            class="text-tertiary-neutral dark:text-tertiary-neutral"
+          >
             {{ iface.name }}
           </div>
-          <!-- type and role -->
+          <!-- type and zone -->
           <div class="text-tertiary-neutral dark:text-tertiary-neutral mt-1">
             {{ iface?.type || '-' }}
-            <span v-if="getInterfaceRole(iface)"
+            <span v-if="getInterfaceZone(iface)"
               >&bull;
-              {{ getInterfaceRole(iface) }}
+              <span class="uppercase">{{ getInterfaceZone(iface) }}</span>
             </span>
           </div>
           <!-- ip address -->
