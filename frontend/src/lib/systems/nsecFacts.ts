@@ -13,6 +13,43 @@ import type {
 
 export type { PciDevice }
 
+const LEGACY_ROLE_ZONES: Readonly<Record<string, string>> = { green: 'lan', red: 'wan' }
+
+// Firewall zone of an interface whichever inventory format reported it, so
+// callers never deal with the legacy green/red roles.
+export const getNetworkInterfaceZone = (iface: InventoryNetworkInterface): string | undefined => {
+  if ('zone' in iface.props) {
+    return iface.props.zone || undefined
+  }
+  const role = iface.props.role
+  return role ? (LEGACY_ROLE_ZONES[role] ?? role) : undefined
+}
+
+// same ranking as the NethSecurity UI (nethsecurity-ui zonesSorting)
+const ZONES_RANKING = [
+  'lan',
+  'wan',
+  'guest',
+  'dmz',
+  'hotspot',
+  'openvpn',
+  'rwopenvpn',
+  'ipsec',
+] as const satisfies readonly string[]
+
+const getZoneRank = (zone: string | undefined): number => {
+  if (zone === undefined) {
+    return ZONES_RANKING.length + 1
+  }
+  const rank = ZONES_RANKING.findIndex((rankedZone) => rankedZone === zone)
+  return rank === -1 ? ZONES_RANKING.length : rank
+}
+
+// Built-in zones in the NethSecurity UI order, then custom zones by name, then
+// interfaces outside every zone.
+export const compareNetworkZones = (zone1: string | undefined, zone2: string | undefined): number =>
+  getZoneRank(zone1) - getZoneRank(zone2) || (zone1 ?? '').localeCompare(zone2 ?? '')
+
 export interface NsecFacts {
   pci: PciDevice[]
   fqdn: string

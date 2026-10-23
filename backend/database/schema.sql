@@ -1258,7 +1258,9 @@ CREATE INDEX IF NOT EXISTS idx_api_key_audit_event ON api_key_audit(event);
 -- system_entitlements: one row grants one add-on to one system, optionally
 -- narrowed to one application instance via scope ('' = whole system).
 -- Collect's native /auth/service/<id>[?scope=] answers 200/403 from here;
--- a system-wide grant also covers every instance (fallback).
+-- a system-wide grant also covers every instance (fallback). A seated add-on
+-- is granted system-wide with a number of seats, and only the instances
+-- holding one of its seats (entitlement_seats) are covered.
 -- Active = revoked_at IS NULL AND (valid_until IS NULL OR valid_until > now());
 -- valid_until NULL = perpetual (legacy imports). Renewals UPDATE valid_until
 -- in place — one row per (system, entitlement, scope).
@@ -1273,8 +1275,10 @@ CREATE TABLE IF NOT EXISTS entitlement_catalog (
     legacy_alias VARCHAR(100) NOT NULL DEFAULT '',
     applies_to   VARCHAR(100) NOT NULL DEFAULT '',
     purchasable  BOOLEAN NOT NULL DEFAULT TRUE,
+    seated       BOOLEAN NOT NULL DEFAULT FALSE,
     created_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    updated_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT entitlement_catalog_seated_check CHECK (NOT seated OR (applies_to <> '' AND NOT scoped))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_entitlement_catalog_legacy_alias
@@ -1286,6 +1290,7 @@ COMMENT ON COLUMN entitlement_catalog.scoped       IS 'TRUE = grantable per appl
 COMMENT ON COLUMN entitlement_catalog.kind         IS 'service (nsec-<service>, firewall add-on, system-wide) | module (<app>-<module>, add-on for one application instance of an NS8 cluster) — both sellable on the shop';
 COMMENT ON COLUMN entitlement_catalog.system_type  IS 'System type the add-on applies to: nsec | ns8; empty = any. Grants are refused on mismatching systems and the UI/shop only offer pertinent add-ons';
 COMMENT ON COLUMN entitlement_catalog.legacy_alias IS 'Legacy wire id the appliance feeds still call on /auth/service/<id>; collect resolves it to the canonical id';
+COMMENT ON COLUMN entitlement_catalog.seated       IS 'TRUE = bought for the whole system with a number of seats, each seat given to one application instance of applies_to (entitlement_seats); FALSE = the grant covers the whole system';
 COMMENT ON COLUMN entitlement_catalog.applies_to   IS 'applications.instance_of the module add-on applies to (kind=module); empty for system-wide services. Explicit because the <app>-<module> id prefix is ambiguous for hyphenated app names (nethvoice-proxy)';
 
 INSERT INTO entitlement_catalog (id, display_name, description, scoped, kind, system_type, legacy_alias) VALUES
@@ -1330,9 +1335,11 @@ CREATE TABLE IF NOT EXISTS system_entitlements (
     purchased_by JSONB,
     variant     JSONB,
     renewal_count INTEGER NOT NULL DEFAULT 0,
+    seats       INTEGER,
     created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    CONSTRAINT system_entitlements_unique UNIQUE (system_id, entitlement, scope)
+    CONSTRAINT system_entitlements_unique UNIQUE (system_id, entitlement, scope),
+    CONSTRAINT system_entitlements_seats_check CHECK (seats IS NULL OR seats > 0)
 );
 
 CREATE INDEX IF NOT EXISTS idx_system_entitlements_system_id ON system_entitlements(system_id);
@@ -1351,3 +1358,26 @@ COMMENT ON COLUMN system_entitlements.created_by  IS 'Actor snapshot (user/org o
 COMMENT ON COLUMN system_entitlements.purchased_by IS 'Snapshot of the my user that BOUGHT the grant on the shop, resolved from the order customer email (webhook activation or legacy-import backfill): {logto_id, name, email, organization_id, organization_name, org_role, user_roles}. {email} only when the address matches no my user; NULL for manual grants and legacy rows without an order';
 COMMENT ON COLUMN system_entitlements.variant IS 'Shop variation (tier) of the purchased product line: {id, sku, label} (e.g. label "16-30 device"). Display metadata only — the add-on mapping stays on the parent product and /auth enforcement ignores it. Refreshed by activate (upgrades/downgrades follow renewals); NULL for manual grants and simple products';
 COMMENT ON COLUMN system_entitlements.renewal_count IS 'Paid shop orders on this grant beyond the first: incremented by activate when source_ref CHANGES (webhook retries on the same order never double-count). 0 = first period';
+COMMENT ON COLUMN system_entitlements.seats IS 'Seats bought, for seated add-ons (set by activate from the shop tier); NULL for add-ons without seats';
+
+CREATE TABLE IF NOT EXISTS entitlement_seats (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    grant_id        UUID NOT NULL REFERENCES system_entitlements(id) ON DELETE CASCADE,
+    module_id       VARCHAR(255) NOT NULL,
+    assigned_at     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    assigned_by     JSONB,
+    released_at     TIMESTAMP WITH TIME ZONE,
+    released_reason VARCHAR(50),
+    released_by     JSONB
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_entitlement_seats_held
+    ON entitlement_seats(grant_id, module_id) WHERE released_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_entitlement_seats_grant_id ON entitlement_seats(grant_id);
+
+COMMENT ON TABLE  entitlement_seats                 IS 'Seats of a seated add-on given to application instances; checked by collect /auth/service/<id>?scope=<module_id>. Released rows are kept for audit';
+COMMENT ON COLUMN entitlement_seats.module_id       IS 'Application instance holding the seat (applications.module_id, e.g. nethvoice5)';
+COMMENT ON COLUMN entitlement_seats.assigned_by     IS 'Actor snapshot of the user that gave the seat';
+COMMENT ON COLUMN entitlement_seats.released_at     IS 'Set when the seat is freed; NULL = held';
+COMMENT ON COLUMN entitlement_seats.released_reason IS 'manual (freed by a user) | instance_removed (the instance left the inventory: removed, or moved to another node under a new id)';
+COMMENT ON COLUMN entitlement_seats.released_by     IS 'Actor snapshot of the user that freed the seat; NULL when collect freed it';

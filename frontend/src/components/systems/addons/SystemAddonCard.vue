@@ -2,15 +2,10 @@
   Copyright (C) 2026 Nethesis S.r.l.
   SPDX-License-Identifier: GPL-3.0-or-later
 
-  One add-on of a system, in one of two shapes.
-
-  A NethSecurity service covers the whole firewall, so there is exactly one
-  thing to say about it: the card says it here — status, validity, order,
-  purchaser — and carries the action, with no detail table to open.
-
-  A NethServer module applies to each application instance separately, so the
-  card can only summarise (a line per state any instance is in) and hands off to
-  the detail table, which lists them one by one.
+  One add-on of a system. Every add-on is bought for the whole system, so the
+  card says everything there is to say about it — status, validity, order,
+  tier, purchaser — and carries its actions. A seated add-on also counts its
+  seats and opens the page where they are given to the application instances.
 -->
 
 <script setup lang="ts">
@@ -21,58 +16,41 @@ import { computed } from 'vue'
 import ApplicationLogo from '@/components/applications/ApplicationLogo.vue'
 import DataItem from '@/components/common/DataItem.vue'
 import SystemLogo from '@/components/systems/SystemLogo.vue'
+import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 import UserAvatar from '@/components/users/UserAvatar.vue'
 import { useSystemAddonActions, type AddonRowActions } from '@/composables/useSystemAddonActions'
 import {
-  ADDON_ROW_STATUSES,
   canOpenOrder,
   getOrderNumber,
   getOrderUrl,
   getPurchaserName,
   getRowStatus,
-  type AddonRowStatus,
+  getSeatUsage,
   type SystemAddonRow,
 } from '@/lib/addons/systemAddons'
-import type { Addon } from '@/lib/addons/addons'
 import type { AddonAction } from './AddonActionModal.vue'
+import AddonLicenseUsage from './AddonLicenseUsage.vue'
 import AddonStatusIcon from './AddonStatusIcon.vue'
 
-const {
-  addon,
-  applicationId,
-  counts,
-  scoped,
-  row = undefined,
-} = defineProps<{
-  addon: Addon
-  // the application these rows belong to, '' for a system-wide service
-  applicationId: string
-  counts: Record<AddonRowStatus, number>
-  // false for a NethSecurity service: one place, so no counting
-  scoped: boolean
-  // the single row this add-on has on this system, when it has exactly one:
-  // the card then states it in full instead of pointing at the detail table
-  row?: SystemAddonRow
+const { row, systemType } = defineProps<{
+  row: SystemAddonRow
+  systemType: string
 }>()
 
-const emit = defineEmits<{ details: []; action: [row: SystemAddonRow, action: AddonAction] }>()
+const emit = defineEmits<{ seats: []; action: [row: SystemAddonRow, action: AddonAction] }>()
 
 const { getAddonActions, formatValidity } = useSystemAddonActions()
 
-const statusLines = computed(() =>
-  ADDON_ROW_STATUSES.filter((status) => counts[status] > 0).map((status) => ({
-    status,
-    count: counts[status],
-  })),
+// seats are counted, and handed out, once the add-on has been bought
+const seatUsage = computed(() =>
+  row.addon.seated && row.grant ? getSeatUsage(row.grant) : undefined,
 )
 
 // Buying gets a button at the foot of the card, the administrative actions a
 // kebab in its corner. Buying opens the shop from the item itself; the
 // administrative actions travel up to the grid, which owns the modal.
 const actions = computed((): AddonRowActions =>
-  row
-    ? getAddonActions(row, (action) => emit('action', row, action))
-    : { buy: undefined, menu: [] },
+  getAddonActions(row, (action) => emit('action', row, action)),
 )
 </script>
 
@@ -83,9 +61,11 @@ const actions = computed((): AddonRowActions =>
       <div class="flex flex-col gap-2">
         <div class="flex min-h-10 items-center justify-between gap-4">
           <div class="flex items-center gap-3">
-            <ApplicationLogo v-if="applicationId" :app="applicationId" />
-            <SystemLogo v-else system="nsec" />
-            <p class="font-medium text-gray-900 dark:text-gray-100">{{ addon.display_name }}</p>
+            <ApplicationLogo v-if="row.applicationId" :app="row.applicationId" />
+            <SystemLogo v-else :system="systemType || 'nsec'" />
+            <p class="font-medium text-gray-900 dark:text-gray-100">
+              {{ row.addon.display_name }}
+            </p>
           </div>
           <!-- kebab menu -->
           <NeDropdown
@@ -95,10 +75,12 @@ const actions = computed((): AddonRowActions =>
             :open-menu-aria-label="$t('ne_dropdown.open_menu')"
           />
         </div>
-        <p v-if="addon.description" class="text-tertiary-neutral">{{ addon.description }}</p>
+        <p v-if="row.addon.description" class="text-tertiary-neutral">
+          {{ row.addon.description }}
+        </p>
       </div>
-      <!-- everything there is to say about the one place it applies to -->
-      <div v-if="row" class="divide-y divide-gray-200 dark:divide-gray-700">
+      <!-- everything there is to say about the add-on on this system -->
+      <div class="divide-y divide-gray-200 dark:divide-gray-700">
         <DataItem>
           <template #label>{{ $t('addons.status') }}</template>
           <template #data>
@@ -148,17 +130,49 @@ const actions = computed((): AddonRowActions =>
             <template #label>{{ $t('addons.tier') }}</template>
             <template #data>{{ row.grant.variant.label }}</template>
           </DataItem>
+          <DataItem v-if="seatUsage">
+            <template #label>{{ $t('addons.seats') }}</template>
+            <template #data>
+              <div class="flex flex-col items-end gap-2">
+                <AddonLicenseUsage :used="seatUsage.used" :total="seatUsage.total" />
+                <!-- buying more belongs with the count it raises -->
+                <NeButton
+                  v-if="actions.buy"
+                  kind="tertiary"
+                  size="sm"
+                  class="-mr-2.5"
+                  @click="actions.buy.action?.()"
+                >
+                  <template v-if="actions.buy.icon" #prefix>
+                    <FontAwesomeIcon :icon="actions.buy.icon" class="size-4" aria-hidden="true" />
+                  </template>
+                  {{ actions.buy.label }}
+                </NeButton>
+              </div>
+            </template>
+          </DataItem>
           <DataItem>
             <template #label>{{ $t('addons.purchased_by') }}</template>
             <template #data>
-              <div v-if="getPurchaserName(row)" class="flex items-center justify-end gap-2">
-                <UserAvatar
-                  size="sm"
-                  :is-owner="false"
-                  :name="getPurchaserName(row)"
-                  :logto-id="row.grant.purchased_by?.logto_id ?? ''"
-                />
-                <span class="wrap-anywhere">{{ getPurchaserName(row) }}</span>
+              <!-- laid out as "Created by" on a system: avatar and name, then the company -->
+              <div v-if="getPurchaserName(row)" class="space-y-0.5 text-end">
+                <div class="flex items-center justify-end gap-2">
+                  <UserAvatar
+                    size="xs"
+                    :is-owner="false"
+                    :name="getPurchaserName(row)"
+                    :logto-id="row.grant.purchased_by?.logto_id ?? ''"
+                  />
+                  <span class="wrap-anywhere">{{ getPurchaserName(row) }}</span>
+                </div>
+                <div v-if="row.grant.purchased_by?.organization_name" class="text-tertiary-neutral">
+                  <CreatorOrganization
+                    :creator="{
+                      organization_id: row.grant.purchased_by.organization_id ?? '',
+                      organization_name: row.grant.purchased_by.organization_name,
+                    }"
+                  />
+                </div>
               </div>
               <span v-else-if="row.grant.purchased_by?.out_of_scope" class="text-tertiary-neutral">
                 {{
@@ -167,18 +181,23 @@ const actions = computed((): AddonRowActions =>
                     : $t('addons.purchaser_not_visible')
                 }}
               </span>
-              <div
-                v-else-if="row.grant.created_by?.user_name"
-                class="flex items-center justify-end gap-2"
-              >
-                <UserAvatar
-                  size="sm"
-                  :is-owner="false"
-                  :name="row.grant.created_by.user_name"
-                  :logto-id="row.grant.created_by.user_id ?? ''"
-                />
-                <div>
-                  <div class="wrap-anywhere">{{ row.grant.created_by.user_name }}</div>
+              <div v-else-if="row.grant.created_by?.user_name" class="space-y-0.5 text-end">
+                <div class="flex items-center justify-end gap-2">
+                  <UserAvatar
+                    size="xs"
+                    :is-owner="false"
+                    :name="row.grant.created_by.user_name"
+                    :logto-id="row.grant.created_by.user_id ?? ''"
+                  />
+                  <span class="wrap-anywhere">{{ row.grant.created_by.user_name }}</span>
+                </div>
+                <div v-if="row.grant.created_by.organization_name" class="text-tertiary-neutral">
+                  <CreatorOrganization
+                    :creator="{
+                      organization_id: row.grant.created_by.organization_id ?? '',
+                      organization_name: row.grant.created_by.organization_name,
+                    }"
+                  />
                 </div>
               </div>
               <span v-else>-</span>
@@ -186,27 +205,16 @@ const actions = computed((): AddonRowActions =>
           </DataItem>
         </template>
       </div>
-      <!-- one line per state the add-on is in somewhere on this system -->
-      <div v-else class="flex flex-col gap-2">
-        <AddonStatusIcon
-          v-for="line in statusLines"
-          :key="line.status"
-          :status="line.status"
-          :count="scoped ? line.count : undefined"
-          class="pb-1 text-sm font-medium"
-        />
-      </div>
       <!-- pushed to the bottom so cards of differing height line their buttons up -->
       <div class="mt-auto flex justify-end gap-2">
-        <NeButton v-if="actions.buy" kind="tertiary" @click="actions.buy.action?.()">
+        <NeButton v-if="actions.buy && !seatUsage" kind="tertiary" @click="actions.buy.action?.()">
           <template v-if="actions.buy.icon" #prefix>
             <FontAwesomeIcon :icon="actions.buy.icon" class="size-4" aria-hidden="true" />
           </template>
           {{ actions.buy.label }}
         </NeButton>
-        <!-- a card that only summarises hands off to the detail table instead -->
-        <NeButton v-else-if="!row" kind="tertiary" @click="emit('details')">
-          {{ $t('addons.details') }}
+        <NeButton v-if="seatUsage" kind="tertiary" @click="emit('seats')">
+          {{ $t('addons.manage_seats') }}
           <template #suffix>
             <FontAwesomeIcon :icon="faArrowRightLong" class="size-4" aria-hidden="true" />
           </template>

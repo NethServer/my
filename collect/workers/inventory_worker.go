@@ -918,6 +918,38 @@ func (iw *InventoryWorker) extractApplicationsFromInventory(ctx context.Context,
 				Int64("deleted_count", rowsAffected).
 				Msg("Soft-deleted applications no longer in inventory")
 		}
+
+		// An instance that left the inventory (removed, or moved to another
+		// node under a new id) gives its add-on seats back. The savepoint keeps
+		// a failure here from aborting the inventory transaction.
+		releaseSeatsQuery := fmt.Sprintf(`
+			UPDATE entitlement_seats s
+			SET released_at = NOW(), released_reason = 'instance_removed'
+			FROM system_entitlements e
+			WHERE e.id = s.grant_id
+			  AND e.system_id = $1
+			  AND s.released_at IS NULL
+			  AND s.module_id NOT IN (%s)
+		`, strings.Join(placeholders, ", "))
+
+		if _, err := tx.ExecContext(ctx, "SAVEPOINT release_seats"); err == nil {
+			result, err := tx.ExecContext(ctx, releaseSeatsQuery, args...)
+			if err != nil {
+				_, _ = tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT release_seats")
+				logger.Warn().
+					Err(err).
+					Str("system_id", systemID).
+					Msg("Failed to release add-on seats of removed applications")
+			} else {
+				_, _ = tx.ExecContext(ctx, "RELEASE SAVEPOINT release_seats")
+				if rowsAffected, _ := result.RowsAffected(); rowsAffected > 0 {
+					logger.Info().
+						Str("system_id", systemID).
+						Int64("released_count", rowsAffected).
+						Msg("Released add-on seats of applications no longer in inventory")
+				}
+			}
+		}
 	}
 
 	logger.Debug().

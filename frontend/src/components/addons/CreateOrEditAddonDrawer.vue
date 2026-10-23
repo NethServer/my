@@ -134,6 +134,7 @@ const displayNameRef = useTemplateRef<HTMLInputElement>('displayNameRef')
 const description = ref('')
 const descriptionRef = useTemplateRef<HTMLInputElement>('descriptionRef')
 const purchasable = ref(true)
+const seated = ref(false)
 const validationIssues = ref<Record<string, string[]>>({})
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
@@ -210,6 +211,7 @@ function onShow() {
     displayName.value = currentAddon.display_name
     description.value = currentAddon.description
     purchasable.value = currentAddon.purchasable
+    seated.value = currentAddon.seated
     technicalNameEdited.value = false
     focusElement(displayNameRef)
   } else {
@@ -222,6 +224,7 @@ function onShow() {
     description.value = ''
     // a new add-on is on sale unless it is deliberately withheld
     purchasable.value = true
+    seated.value = false
   }
 }
 
@@ -295,12 +298,13 @@ async function saveAddon() {
       id: composedId.value,
       display_name: form.display_name,
       description: form.description,
-      // Both derived from the product: NethSecurity add-ons are firewall-wide
-      // services, NethServer add-ons are modules of a single application
-      // instance of a cluster.
+      // Derived from the product: NethSecurity add-ons are firewall-wide
+      // services, NethServer add-ons are modules of an application, granted to
+      // the whole cluster or by seats.
       kind: form.product === 'ns8' ? 'module' : 'service',
       system_type: form.product as AddonProduct,
-      scoped: form.product === 'ns8',
+      scoped: false,
+      seated: form.product === 'ns8' && seated.value,
       // the application the module belongs to, so the backend does not have to
       // guess it from the id prefix
       applies_to: form.application,
@@ -396,6 +400,18 @@ async function saveAddon() {
           :optional="true"
           :optional-label="t('common.optional')"
         />
+        <!-- seats: fixed once created, since grants and seats depend on it -->
+        <template v-if="product === 'ns8'">
+          <NeToggle
+            v-model="seated"
+            :top-label="$t('addons.seated_label')"
+            :label="seated ? $t('addons.seated') : $t('addons.not_seated')"
+            :disabled="saving || isEditing"
+          />
+          <p class="text-tertiary-neutral text-sm">
+            {{ $t('addons.seated_helper') }}
+          </p>
+        </template>
         <!-- on sale: withholding it keeps the add-on everywhere it is granted
              and only takes away the buy action -->
         <NeToggle

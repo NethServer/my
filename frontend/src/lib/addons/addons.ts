@@ -19,8 +19,8 @@ export const ADDON_PRODUCTS = ['nsec', 'ns8'] as const
 export type AddonProduct = (typeof ADDON_PRODUCTS)[number]
 
 // Derived from the product, never chosen by the user: NethSecurity add-ons are
-// firewall-wide services, NethServer add-ons are modules of a single
-// application instance of a cluster (hence scoped).
+// firewall-wide services, NethServer add-ons are modules of an application of
+// a cluster, granted to the whole cluster or bought by seats.
 const AddonKindSchema = v.picklist(['service', 'module'])
 export type AddonKind = v.InferOutput<typeof AddonKindSchema>
 
@@ -83,6 +83,9 @@ export const AddonSchema = v.object({
   // granted, only the buy action is withheld. Defaults to true so a frontend
   // running ahead of its backend keeps offering what used to be on sale.
   purchasable: v.optional(v.boolean(), true),
+  // a NethServer add-on bought for the whole cluster with a number of seats,
+  // each given to one application instance of applies_to
+  seated: v.optional(v.boolean(), false),
   // true when any grant references the add-on — revoked and expired ones
   // included: they are kept for audit and the foreign key blocks the delete all
   // the same. Lets the catalog explain the refusal before asking to confirm.
@@ -104,6 +107,7 @@ export interface CreateAddon {
   // the application a module belongs to; ignored by the backend for services
   applies_to: string
   purchasable: boolean
+  seated: boolean
 }
 
 // What PUT /entitlements/catalog/:id accepts: the backend takes the display

@@ -377,6 +377,24 @@ routes:
     enforced_by: handler
     object_scoped: true
     ids: { entitlement: ng-antivirus }
+  - method: POST
+    path: /api/systems/:id/entitlements/:entitlement/seats
+    intent: manage:entitlements
+    object_scoped: true
+    ids: { entitlement: nethvoice-chat }
+    body: '{"module_id":"nethvoice1"}'
+    note: |
+      Giving a license of an add-on sold by licenses to an application
+      instance belongs to whoever buys the add-on (docs/features/entitlements:
+      "Assign and free the licenses … whoever can buy"), so it takes
+      manage:entitlements and not manage:systems — Backoffice buys without
+      managing systems. The system must sit in the caller's hierarchy.
+  - method: DELETE
+    path: /api/systems/:id/entitlements/:entitlement/seats/:module_id
+    intent: manage:entitlements
+    object_scoped: true
+    ids: { entitlement: nethvoice-chat, module_id: nethvoice1 }
+    note: freeing a license is the other half of assigning it
 
   - method: PUT
     path: /api/legacy-systems/counts
