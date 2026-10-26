@@ -51,7 +51,7 @@ FROM scratch as dist
 COPY --from=builder /app/dist /
 
 # Production stage (default for deployment)
-FROM nginx:1.25-alpine as production
+FROM nginx:1.29-alpine as production
 
 # Install gettext for envsubst command
 RUN apk add --no-cache gettext
