@@ -163,7 +163,7 @@ const toneClass = (tone?: string) => {
     <dl v-else-if="items.length" class="space-y-2">
       <div v-for="item in items" :key="item.label" class="flex items-center justify-between gap-3">
         <dt class="text-sm text-gray-500 dark:text-gray-400">{{ item.label }}</dt>
-        <dd :class="['text-sm font-semibold', toneClass(item.tone)]">
+        <dd :class="['text-sm font-medium', toneClass(item.tone)]">
           <component
             :is="item.link ? 'a' : 'span'"
             :href="item.link || undefined"
