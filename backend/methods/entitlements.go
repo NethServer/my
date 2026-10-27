@@ -344,7 +344,7 @@ func CreateEntitlementCatalogItem(c *gin.Context) {
 	// single application instances through seats, never by being narrowed to
 	// one instance.
 	if req.Scoped {
-		c.JSON(http.StatusBadRequest, response.BadRequest("add-ons cannot be narrowed to one application instance: sell them by licenses", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("add-ons cannot be narrowed to one application: sell them by licenses", nil))
 		return
 	}
 	if req.Seated && (req.Kind != models.EntitlementKindModule || req.SystemType != "ns8") {
@@ -474,7 +474,7 @@ func CreateEntitlementAvailability(c *gin.Context) {
 	}
 
 	createdBy := map[string]interface{}{
-		"user_id":           user.ID,
+		"user_id":           actorLogtoID(user),
 		"user_name":         user.Name,
 		"organization_id":   user.OrganizationID,
 		"organization_name": user.OrganizationName,
@@ -621,7 +621,7 @@ func ActivateEntitlement(c *gin.Context) {
 	}
 
 	createdBy := map[string]interface{}{
-		"user_id":           user.ID,
+		"user_id":           actorLogtoID(user),
 		"user_name":         user.Name,
 		"organization_id":   user.OrganizationID,
 		"organization_name": user.OrganizationName,
@@ -812,7 +812,7 @@ func PendingEntitlement(c *gin.Context) {
 	}
 
 	createdBy := map[string]interface{}{
-		"user_id":           user.ID,
+		"user_id":           actorLogtoID(user),
 		"user_name":         user.Name,
 		"organization_id":   user.OrganizationID,
 		"organization_name": user.OrganizationName,
@@ -1171,9 +1171,19 @@ func seatGrant(c *gin.Context) (*models.System, *models.User, *models.Entitlemen
 	return system, user, item, grant, true
 }
 
+// actorLogtoID is the id the actor snapshots carry: the Logto one, as the
+// systems' created_by does, because the UI loads the avatar by it. The local
+// id only stands in for a user not yet synced to the database.
+func actorLogtoID(u *models.User) string {
+	if u.LogtoID != nil && *u.LogtoID != "" {
+		return *u.LogtoID
+	}
+	return u.ID
+}
+
 func seatActor(u *models.User) map[string]interface{} {
 	return map[string]interface{}{
-		"user_id":           u.ID,
+		"user_id":           actorLogtoID(u),
 		"user_name":         u.Name,
 		"organization_id":   u.OrganizationID,
 		"organization_name": u.OrganizationName,
@@ -1206,10 +1216,10 @@ func AssignEntitlementSeat(c *gin.Context) {
 	switch err {
 	case nil:
 	case entities.ErrInstanceNotFound:
-		c.JSON(http.StatusBadRequest, response.BadRequest("no "+item.AppliesTo+" instance "+req.ModuleID+" on this system", nil))
+		c.JSON(http.StatusBadRequest, response.BadRequest("no "+item.AppliesTo+" application "+req.ModuleID+" on this system", nil))
 		return
 	case entities.ErrSeatAlreadyHeld:
-		c.JSON(http.StatusConflict, response.Conflict("the instance already holds a license", nil))
+		c.JSON(http.StatusConflict, response.Conflict("the application already holds a license", nil))
 		return
 	case entities.ErrNoFreeSeat:
 		c.JSON(http.StatusConflict, response.Conflict("no free license left: free one or buy more", nil))
@@ -1244,7 +1254,7 @@ func ReleaseEntitlementSeat(c *gin.Context) {
 
 	err := entities.NewLocalEntitlementSeatRepository().Release(grant.ID, moduleID, seatActor(user))
 	if err == entities.ErrSeatNotFound {
-		c.JSON(http.StatusNotFound, response.NotFound("the instance holds no license", nil))
+		c.JSON(http.StatusNotFound, response.NotFound("the application holds no license", nil))
 		return
 	}
 	if err != nil {
@@ -1327,7 +1337,7 @@ func CreateSystemEntitlement(c *gin.Context) {
 	}
 
 	createdBy := map[string]interface{}{
-		"user_id":           user.ID,
+		"user_id":           actorLogtoID(user),
 		"user_name":         user.Name,
 		"organization_id":   user.OrganizationID,
 		"organization_name": user.OrganizationName,

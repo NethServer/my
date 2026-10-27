@@ -71,3 +71,13 @@ func TestBuyerOutsideHierarchy_UnplacedAndOwnerPass(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, outside)
 }
+
+func TestActorLogtoID(t *testing.T) {
+	logtoID := "w7c95v9enkyv"
+	assert.Equal(t, logtoID, actorLogtoID(&models.User{ID: "c9042f95-local", LogtoID: &logtoID}))
+	assert.Equal(t, "c9042f95-local", actorLogtoID(&models.User{ID: "c9042f95-local"}))
+	empty := ""
+	assert.Equal(t, "c9042f95-local", actorLogtoID(&models.User{ID: "c9042f95-local", LogtoID: &empty}))
+	seatUser := "seat-user"
+	assert.Equal(t, seatUser, seatActor(&models.User{ID: "local", LogtoID: &seatUser})["user_id"])
+}
