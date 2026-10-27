@@ -5,6 +5,8 @@ import { defineQuery, useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
 import { ref, watch } from 'vue'
 import {
+  ADDONS_OVER_LIMIT_KEY,
+  ADDONS_OVER_LIMIT_TABLE_ID,
   ADDONS_REPORT_KEY,
   ADDONS_REPORT_ORGANIZATIONS_KEY,
   ADDONS_REPORT_ORGANIZATIONS_TABLE_ID,
@@ -12,9 +14,11 @@ import {
   ADDONS_REPORT_TIERS_TABLE_ID,
   getAddonReport,
   getAddonReportOrganizations,
+  getAddonsOverLimit,
   getAddonReportTiers,
 } from '@/lib/addons/addonsReport'
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
+import { isAddonAdmin } from '@/lib/permissions'
 import { loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { useLoginStore } from '@/stores/login'
 
@@ -116,6 +120,59 @@ export const useAddonReportTiers = defineQuery(() => {
     (email) => {
       if (email) {
         pageSize.value = loadPageSizeFromStorage(ADDONS_REPORT_TIERS_TABLE_ID, PAGE_SIZE)
+      }
+    },
+    { immediate: true },
+  )
+
+  watch(
+    () => textFilter.value,
+    useDebounceFn(() => {
+      // debounce and ignore if text filter is too short
+      if (textFilter.value.length === 0 || textFilter.value.length >= MIN_SEARCH_LENGTH) {
+        debouncedTextFilter.value = textFilter.value
+
+        // reset to first page when filter changes
+        pageNum.value = 1
+      }
+    }, 500),
+  )
+
+  // reset to first page when page size changes
+  watch(
+    () => pageSize.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
+  return { ...rest, state, asyncStatus, pageNum, pageSize, textFilter }
+})
+
+// The add-ons past their tier limit, for Nethesis sales: the widest overrun
+// leads, the search matches system, organization, add-on and tier.
+export const useAddonsOverLimit = defineQuery(() => {
+  const loginStore = useLoginStore()
+  const pageNum = ref(1)
+  const pageSize = ref(PAGE_SIZE)
+  const textFilter = ref('')
+  const debouncedTextFilter = ref('')
+
+  const { state, asyncStatus, ...rest } = useQuery({
+    key: () => [
+      ADDONS_OVER_LIMIT_KEY,
+      { pageNum: pageNum.value, pageSize: pageSize.value, textFilter: debouncedTextFilter.value },
+    ],
+    enabled: () => !!loginStore.jwtToken && isAddonAdmin(),
+    query: () => getAddonsOverLimit(pageNum.value, pageSize.value, debouncedTextFilter.value),
+  })
+
+  // load table page size from storage
+  watch(
+    () => loginStore.userInfo?.email,
+    (email) => {
+      if (email) {
+        pageSize.value = loadPageSizeFromStorage(ADDONS_OVER_LIMIT_TABLE_ID, PAGE_SIZE)
       }
     },
     { immediate: true },

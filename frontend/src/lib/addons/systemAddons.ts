@@ -92,9 +92,14 @@ export interface AddonGrant {
   // shop tier of the purchased product line, display only (e.g. "16-30 device")
   variant?: { id?: number; sku?: string; label?: string }
   renewal_count?: number
-  // seats bought and the instances holding them, for seated add-ons only
+  // seats bought and the instances holding them, for seated add-ons; the tier
+  // limit for add-ons with a usage metric (none = no limit)
   seats?: number
   seat_assignments?: AddonSeat[]
+  // what collect measured against the tier limit at the last inventory, sent
+  // to Nethesis only
+  usage?: number
+  usage_at?: string
 }
 
 interface Envelope<T> {
@@ -172,6 +177,24 @@ export const releaseAddonSeat = (systemId: string, addonId: string, moduleId: st
 
 // Seats taken out of those bought: the ones beyond quota do not count as used,
 // since they cover nothing.
+// Measured usage of an add-on sold in tiers without seats, against its limit.
+// Undefined when nothing was measured, the viewer is not shown it, or the
+// add-on is not in force: going past a tier only matters while it is.
+export const getTierUsage = (row: SystemAddonRow) => {
+  const usage = row.grant?.usage
+  if (!row.addon.usage_metric || usage === undefined || row.grant?.status !== 'active') {
+    return undefined
+  }
+  const limit = row.grant?.seats
+  return {
+    metric: row.addon.usage_metric,
+    usage,
+    limit,
+    over: limit !== undefined ? Math.max(0, usage - limit) : 0,
+    measuredAt: row.grant?.usage_at,
+  }
+}
+
 export const getSeatUsage = (grant: AddonGrant | undefined) => {
   const held = grant?.seat_assignments ?? []
   return {

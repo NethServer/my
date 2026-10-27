@@ -1276,9 +1276,13 @@ CREATE TABLE IF NOT EXISTS entitlement_catalog (
     applies_to   VARCHAR(100) NOT NULL DEFAULT '',
     purchasable  BOOLEAN NOT NULL DEFAULT TRUE,
     seated       BOOLEAN NOT NULL DEFAULT FALSE,
+    usage_metric VARCHAR(20) NOT NULL DEFAULT '',
     created_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    CONSTRAINT entitlement_catalog_seated_check CHECK (NOT seated OR (applies_to <> '' AND NOT scoped))
+    CONSTRAINT entitlement_catalog_seated_check CHECK (NOT seated OR (applies_to <> '' AND NOT scoped)),
+    CONSTRAINT entitlement_catalog_usage_metric_check CHECK (usage_metric IN ('', 'arp_macs', 'instances')
+                                                             AND (usage_metric = '' OR NOT seated)
+                                                             AND (usage_metric <> 'instances' OR applies_to <> ''))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_entitlement_catalog_legacy_alias
@@ -1292,12 +1296,15 @@ COMMENT ON COLUMN entitlement_catalog.system_type  IS 'System type the add-on ap
 COMMENT ON COLUMN entitlement_catalog.legacy_alias IS 'Legacy wire id the appliance feeds still call on /auth/service/<id>; collect resolves it to the canonical id';
 COMMENT ON COLUMN entitlement_catalog.seated       IS 'TRUE = bought for the whole system with a number of seats, each seat given to one application instance of applies_to (entitlement_seats); FALSE = the grant covers the whole system';
 COMMENT ON COLUMN entitlement_catalog.applies_to   IS 'applications.instance_of the module add-on applies to (kind=module); empty for system-wide services. Explicit because the <app>-<module> id prefix is ambiguous for hyphenated app names (nethvoice-proxy)';
+COMMENT ON COLUMN entitlement_catalog.usage_metric IS 'What the tier limit (system_entitlements.seats) is measured against, for add-ons without seats: arp_macs (devices seen by the firewall, inventory facts.arp_macs) | instances (application instances of applies_to) | empty = not measured';
 
 INSERT INTO entitlement_catalog (id, display_name, description, scoped, kind, system_type, legacy_alias) VALUES
     ('nsec-blacklist', 'Advanced Threat Shield', 'Enterprise blacklist feeds (bl.nethesis.it)', FALSE, 'service', 'nsec', 'ng-blacklist'),
     ('nsec-ha',        'High Availability',      'High availability (HA)',                      FALSE, 'service', 'nsec', 'ng-ha'),
     ('nsec-sandbox',   'Sandbox',                'Sandbox',                                     FALSE, 'service', 'nsec', 'ng-sandbox')
 ON CONFLICT (id) DO NOTHING;
+
+UPDATE entitlement_catalog SET usage_metric = 'arp_macs' WHERE id = 'nsec-blacklist' AND usage_metric = '';
 
 -- OPTIONAL commercial restriction: sellable items are available to everyone
 -- by default; rules, when present, restrict to matching role/orgs.
@@ -1336,6 +1343,8 @@ CREATE TABLE IF NOT EXISTS system_entitlements (
     variant     JSONB,
     renewal_count INTEGER NOT NULL DEFAULT 0,
     seats       INTEGER,
+    usage       INTEGER,
+    usage_at    TIMESTAMP WITH TIME ZONE,
     created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT system_entitlements_unique UNIQUE (system_id, entitlement, scope),
@@ -1358,7 +1367,12 @@ COMMENT ON COLUMN system_entitlements.created_by  IS 'Actor snapshot (user/org o
 COMMENT ON COLUMN system_entitlements.purchased_by IS 'Snapshot of the my user that BOUGHT the grant on the shop, resolved from the order customer email (webhook activation or legacy-import backfill): {logto_id, name, email, organization_id, organization_name, org_role, user_roles}. {email} only when the address matches no my user; NULL for manual grants and legacy rows without an order';
 COMMENT ON COLUMN system_entitlements.variant IS 'Shop variation (tier) of the purchased product line: {id, sku, label} (e.g. label "16-30 device"). Display metadata only — the add-on mapping stays on the parent product and /auth enforcement ignores it. Refreshed by activate (upgrades/downgrades follow renewals); NULL for manual grants and simple products';
 COMMENT ON COLUMN system_entitlements.renewal_count IS 'Paid shop orders on this grant beyond the first: incremented by activate when source_ref CHANGES (webhook retries on the same order never double-count). 0 = first period';
-COMMENT ON COLUMN system_entitlements.seats IS 'Seats bought, for seated add-ons (set by activate from the shop tier); NULL for add-ons without seats';
+COMMENT ON COLUMN system_entitlements.seats IS 'Seats bought, for seated add-ons; tier limit compared with usage, for add-ons with a usage_metric (NULL = no limit); set by activate from the shop tier';
+COMMENT ON COLUMN system_entitlements.usage IS 'Usage measured by collect at the last inventory, for add-ons with a usage_metric; NULL = not measured';
+COMMENT ON COLUMN system_entitlements.usage_at IS 'When usage was measured';
+
+CREATE INDEX IF NOT EXISTS idx_system_entitlements_over_limit
+    ON system_entitlements(entitlement) WHERE usage > seats;
 
 CREATE TABLE IF NOT EXISTS entitlement_seats (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),

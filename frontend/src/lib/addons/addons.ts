@@ -86,6 +86,9 @@ export const AddonSchema = v.object({
   // a NethServer add-on bought for the whole cluster with a number of seats,
   // each given to one application instance of applies_to
   seated: v.optional(v.boolean(), false),
+  // what the tier limit of an add-on without seats is measured against:
+  // devices seen by the firewall, or instances of applies_to on the cluster
+  usage_metric: v.optional(v.picklist(['arp_macs', 'instances'])),
   // true when any grant references the add-on — revoked and expired ones
   // included: they are kept for audit and the foreign key blocks the delete all
   // the same. Lets the catalog explain the refusal before asking to confirm.

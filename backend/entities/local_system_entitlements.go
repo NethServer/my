@@ -42,7 +42,7 @@ func NewLocalEntitlementCatalogRepository() *LocalEntitlementCatalogRepository {
 }
 
 func catalogScanDest(item *models.EntitlementCatalogItem) []interface{} {
-	return []interface{}{&item.ID, &item.DisplayName, &item.Description, &item.Scoped, &item.Kind, &item.SystemType, &item.LegacyAlias, &item.AppliesTo, &item.Purchasable, &item.Seated, &item.CreatedAt, &item.UpdatedAt}
+	return []interface{}{&item.ID, &item.DisplayName, &item.Description, &item.Scoped, &item.Kind, &item.SystemType, &item.LegacyAlias, &item.AppliesTo, &item.Purchasable, &item.Seated, &item.UsageMetric, &item.CreatedAt, &item.UpdatedAt}
 }
 
 func scanCatalogItem(scanner interface{ Scan(...interface{}) error }) (*models.EntitlementCatalogItem, error) {
@@ -75,7 +75,7 @@ const catalogInUseColumn = `EXISTS (SELECT 1 FROM system_entitlements se WHERE s
 // List returns the whole catalog ordered by id.
 func (r *LocalEntitlementCatalogRepository) List() ([]*models.EntitlementCatalogItem, error) {
 	rows, err := r.db.Query(
-		`SELECT c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.purchasable, c.seated, c.created_at, c.updated_at,
+		`SELECT c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.purchasable, c.seated, c.usage_metric, c.created_at, c.updated_at,
 		        ` + catalogInUseColumn + `
 		 FROM entitlement_catalog c ORDER BY c.id`)
 	if err != nil {
@@ -97,7 +97,7 @@ func (r *LocalEntitlementCatalogRepository) List() ([]*models.EntitlementCatalog
 // Get returns one catalog item by id.
 func (r *LocalEntitlementCatalogRepository) Get(id string) (*models.EntitlementCatalogItem, error) {
 	item, err := scanCatalogItem(r.db.QueryRow(
-		`SELECT id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, purchasable, seated, created_at, updated_at
+		`SELECT id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, purchasable, seated, usage_metric, created_at, updated_at
 		 FROM entitlement_catalog WHERE id = $1`, id))
 	if err == sql.ErrNoRows {
 		return nil, ErrCatalogItemNotFound
@@ -113,7 +113,7 @@ func (r *LocalEntitlementCatalogRepository) Get(id string) (*models.EntitlementC
 // nsec-blacklist).
 func (r *LocalEntitlementCatalogRepository) Resolve(idOrAlias string) (*models.EntitlementCatalogItem, error) {
 	item, err := scanCatalogItem(r.db.QueryRow(
-		`SELECT id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, purchasable, seated, created_at, updated_at
+		`SELECT id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, purchasable, seated, usage_metric, created_at, updated_at
 		 FROM entitlement_catalog WHERE id = $1 OR (legacy_alias <> '' AND legacy_alias = $1)`, idOrAlias))
 	if err == sql.ErrNoRows {
 		return nil, ErrCatalogItemNotFound
@@ -127,10 +127,10 @@ func (r *LocalEntitlementCatalogRepository) Resolve(idOrAlias string) (*models.E
 // Create adds a new add-on type.
 func (r *LocalEntitlementCatalogRepository) Create(req *models.CreateEntitlementCatalogRequest) (*models.EntitlementCatalogItem, error) {
 	item, err := scanCatalogItem(r.db.QueryRow(
-		`INSERT INTO entitlement_catalog (id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, purchasable, seated)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, TRUE), $10)
-		 RETURNING id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, purchasable, seated, created_at, updated_at`,
-		req.ID, req.DisplayName, req.Description, req.Scoped, req.Kind, req.SystemType, req.LegacyAlias, req.AppliesTo, req.Purchasable, req.Seated))
+		`INSERT INTO entitlement_catalog (id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, purchasable, seated, usage_metric)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, TRUE), $10, $11)
+		 RETURNING id, display_name, description, scoped, kind, system_type, legacy_alias, applies_to, purchasable, seated, usage_metric, created_at, updated_at`,
+		req.ID, req.DisplayName, req.Description, req.Scoped, req.Kind, req.SystemType, req.LegacyAlias, req.AppliesTo, req.Purchasable, req.Seated, req.UsageMetric))
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
 			return nil, ErrCatalogItemExists
@@ -142,17 +142,18 @@ func (r *LocalEntitlementCatalogRepository) Create(req *models.CreateEntitlement
 
 // Update changes the display fields of a catalog item (id and scoped are
 // immutable).
-func (r *LocalEntitlementCatalogRepository) Update(id string, displayName, description *string, purchasable *bool) (*models.EntitlementCatalogItem, error) {
+func (r *LocalEntitlementCatalogRepository) Update(id string, displayName, description *string, purchasable *bool, usageMetric *string) (*models.EntitlementCatalogItem, error) {
 	item, err := scanCatalogItemWithUsage(r.db.QueryRow(
 		`UPDATE entitlement_catalog c SET
 		     display_name = COALESCE($2, display_name),
 		     description  = COALESCE($3, description),
 		     purchasable  = COALESCE($4, purchasable),
+		     usage_metric = COALESCE($5, usage_metric),
 		     updated_at   = NOW()
 		 WHERE c.id = $1
-		 RETURNING c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.purchasable, c.seated, c.created_at, c.updated_at,
+		 RETURNING c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.purchasable, c.seated, c.usage_metric, c.created_at, c.updated_at,
 		           `+catalogInUseColumn,
-		id, displayName, description, purchasable))
+		id, displayName, description, purchasable, usageMetric))
 	if err == sql.ErrNoRows {
 		return nil, ErrCatalogItemNotFound
 	}
@@ -233,7 +234,7 @@ func (r *LocalEntitlementAvailabilityRepository) ListByEntitlement(entitlement s
 // present for an item, RESTRICT it to the matching role/orgs.
 func (r *LocalEntitlementAvailabilityRepository) ListAvailableFor(orgRole, orgID string) ([]*models.EntitlementCatalogItem, error) {
 	rows, err := r.db.Query(
-		`SELECT c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.purchasable, c.seated, c.created_at, c.updated_at,
+		`SELECT c.id, c.display_name, c.description, c.scoped, c.kind, c.system_type, c.legacy_alias, c.applies_to, c.purchasable, c.seated, c.usage_metric, c.created_at, c.updated_at,
 		        `+catalogInUseColumn+`
 		 FROM entitlement_catalog c
 		 WHERE c.kind IN ('service', 'module')
@@ -347,19 +348,38 @@ func (r *LocalSystemEntitlementRepository) ActiveEntitlementsBySystems(systemIDs
 const entitlementColumns = `
 	id, system_id, entitlement, scope, source, COALESCE(source_ref, ''),
 	valid_from, valid_until, revoked_at, COALESCE(revoked_source, ''),
-	COALESCE(pending_ref, ''), pending_since, created_by, purchased_by, variant, renewal_count, seats, created_at, updated_at,
+	COALESCE(pending_ref, ''), pending_since, created_by, purchased_by, variant, renewal_count, seats, usage, usage_at, created_at, updated_at,
 	(revoked_at IS NULL AND (valid_until IS NULL OR valid_until > NOW())) AS active`
+
+func scanQuantities(seats, usage sql.NullInt64, usageAt sql.NullTime) (*int, *int, *time.Time) {
+	var s, u *int
+	var at *time.Time
+	if seats.Valid {
+		n := int(seats.Int64)
+		s = &n
+	}
+	if usage.Valid {
+		n := int(usage.Int64)
+		u = &n
+	}
+	if usageAt.Valid {
+		t := usageAt.Time
+		at = &t
+	}
+	return s, u, at
+}
 
 func scanEntitlement(scanner interface{ Scan(...interface{}) error }) (*models.SystemEntitlement, error) {
 	var e models.SystemEntitlement
 	var validUntil, revokedAt, pendingSince sql.NullTime
 	var createdBy, purchasedBy, variant []byte
-	var seats sql.NullInt64
+	var seats, usage sql.NullInt64
+	var usageAt sql.NullTime
 
 	err := scanner.Scan(
 		&e.ID, &e.SystemID, &e.Entitlement, &e.Scope, &e.Source, &e.SourceRef,
 		&e.ValidFrom, &validUntil, &revokedAt, &e.RevokedSource,
-		&e.PendingRef, &pendingSince, &createdBy, &purchasedBy, &variant, &e.RenewalCount, &seats, &e.CreatedAt, &e.UpdatedAt,
+		&e.PendingRef, &pendingSince, &createdBy, &purchasedBy, &variant, &e.RenewalCount, &seats, &usage, &usageAt, &e.CreatedAt, &e.UpdatedAt,
 		&e.Active,
 	)
 	if err != nil {
@@ -378,10 +398,7 @@ func scanEntitlement(scanner interface{ Scan(...interface{}) error }) (*models.S
 		t := pendingSince.Time
 		e.PendingSince = &t
 	}
-	if seats.Valid {
-		n := int(seats.Int64)
-		e.Seats = &n
-	}
+	e.Seats, e.Usage, e.UsageAt = scanQuantities(seats, usage, usageAt)
 	if len(createdBy) > 0 {
 		_ = json.Unmarshal(createdBy, &e.CreatedBy)
 	}
@@ -532,8 +549,9 @@ func (r *LocalSystemEntitlementRepository) Revoke(systemID, entitlement, scope, 
 // purchase recorded. seats follows the same rule, and never goes down on a
 // grant still in force: licenses are only ever upgraded, so a lower tier can
 // only come from an older order renewed late, which must not take licenses
-// back.
-func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, source, sourceRef string, validUntil *time.Time, createdBy, purchasedBy, variant map[string]interface{}, seats *int) (*models.SystemEntitlement, error) {
+// back. limitFromTier overrides that rule for an add-on whose seats are a
+// tier limit: the tier of the order sets it, a tier without one clearing it.
+func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, source, sourceRef string, validUntil *time.Time, createdBy, purchasedBy, variant map[string]interface{}, seats *int, limitFromTier bool) (*models.SystemEntitlement, error) {
 	var createdByJSON []byte
 	if createdBy != nil {
 		createdByJSON, _ = json.Marshal(createdBy)
@@ -565,6 +583,7 @@ func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, 
 		     purchased_by = COALESCE(EXCLUDED.purchased_by, system_entitlements.purchased_by),
 		     variant     = COALESCE(EXCLUDED.variant, system_entitlements.variant),
 		     seats       = CASE
+		                       WHEN $11 THEN EXCLUDED.seats
 		                       WHEN system_entitlements.revoked_at IS NULL
 		                            AND (system_entitlements.valid_until IS NULL OR system_entitlements.valid_until > NOW())
 		                       THEN GREATEST(EXCLUDED.seats, system_entitlements.seats)
@@ -578,7 +597,7 @@ func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, 
 		                          THEN 1 ELSE 0 END,
 		     updated_at  = NOW()
 		 RETURNING `+entitlementColumns,
-		systemID, entitlement, scope, source, sourceRef, validUntil, createdByJSON, purchasedByJSON, variantJSON, seats))
+		systemID, entitlement, scope, source, sourceRef, validUntil, createdByJSON, purchasedByJSON, variantJSON, seats, limitFromTier))
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23503" {
 			return nil, ErrCatalogItemNotFound
@@ -699,6 +718,12 @@ type GrantsReportFilter struct {
 	ActiveOnly     bool
 	ExpiringBefore *time.Time
 	OrgScope       []string
+	// OverLimit keeps the active grants whose measured usage is past their
+	// tier limit.
+	OverLimit bool
+	// Search matches what the grants table shows: system, organization,
+	// add-on and tier.
+	Search string
 }
 
 const grantsReportJoin = `
@@ -726,13 +751,32 @@ func (f *GrantsReportFilter) whereClause(args *[]interface{}) string {
 	if f.ExpiringBefore != nil {
 		add("e.valid_until IS NOT NULL AND e.valid_until <= $%d", *f.ExpiringBefore)
 	}
-	if f.ActiveOnly {
+	if f.ActiveOnly || f.OverLimit {
 		where += " AND e.revoked_at IS NULL AND (e.valid_until IS NULL OR e.valid_until > NOW())"
+	}
+	if f.OverLimit {
+		where += " AND e.usage > e.seats"
+	}
+	if f.Search != "" {
+		add(`($%[1]d = '' OR s.name ILIKE '%%' || $%[1]d || '%%'
+		      OR COALESCE(d.name, r.name, c.name, 'Owner') ILIKE '%%' || $%[1]d || '%%'
+		      OR e.entitlement ILIKE '%%' || $%[1]d || '%%'
+		      OR EXISTS (SELECT 1 FROM entitlement_catalog cat WHERE cat.id = e.entitlement AND cat.display_name ILIKE '%%' || $%[1]d || '%%')
+		      OR COALESCE(e.variant->>'label', '') ILIKE '%%' || $%[1]d || '%%')`, f.Search)
 	}
 	if f.OrgScope != nil {
 		add("s.organization_id = ANY($%d)", pq.Array(f.OrgScope))
 	}
 	return where
+}
+
+// orderBy puts the widest overrun first when listing grants past their
+// limit, the newest grant first otherwise.
+func (f *GrantsReportFilter) orderBy() string {
+	if f.OverLimit {
+		return "e.usage - e.seats DESC, e.created_at DESC"
+	}
+	return "e.created_at DESC"
 }
 
 // ListGrants returns the grants report (grant + system + org identity),
@@ -750,14 +794,14 @@ func (r *LocalSystemEntitlementRepository) ListGrants(f GrantsReportFilter, limi
 	rows, err := r.db.Query(
 		`SELECT e.id, e.system_id, e.entitlement, e.scope, e.source, COALESCE(e.source_ref, ''),
 		        e.valid_from, e.valid_until, e.revoked_at, COALESCE(e.revoked_source, ''),
-		        COALESCE(e.pending_ref, ''), e.pending_since, e.created_by, e.purchased_by, e.variant, e.renewal_count, e.created_at, e.updated_at,
+		        COALESCE(e.pending_ref, ''), e.pending_since, e.created_by, e.purchased_by, e.variant, e.renewal_count, e.seats, e.usage, e.usage_at, e.created_at, e.updated_at,
 		        (e.revoked_at IS NULL AND (e.valid_until IS NULL OR e.valid_until > NOW())) AS active,
 		        (s.suspended_at IS NOT NULL) AS system_suspended,
 		        s.name, COALESCE(s.system_key, ''), s.organization_id,
 		        COALESCE(d.name, r.name, c.name, 'Owner') AS organization_name
 		 `+grantsReportJoin+`
 		 `+where+`
-		 ORDER BY e.created_at DESC
+		 ORDER BY `+f.orderBy()+`
 		 LIMIT $`+fmt.Sprint(len(args)-1)+` OFFSET $`+fmt.Sprint(len(args)),
 		args...)
 	if err != nil {
@@ -770,11 +814,13 @@ func (r *LocalSystemEntitlementRepository) ListGrants(f GrantsReportFilter, limi
 		var row models.EntitlementGrantReportRow
 		var validUntil, revokedAt, pendingSince sql.NullTime
 		var createdBy, purchasedBy, variant []byte
+		var seats, usage sql.NullInt64
+		var usageAt sql.NullTime
 		var systemSuspended bool
 		err := rows.Scan(
 			&row.ID, &row.SystemID, &row.Entitlement, &row.Scope, &row.Source, &row.SourceRef,
 			&row.ValidFrom, &validUntil, &revokedAt, &row.RevokedSource,
-			&row.PendingRef, &pendingSince, &createdBy, &purchasedBy, &variant, &row.RenewalCount, &row.CreatedAt, &row.UpdatedAt,
+			&row.PendingRef, &pendingSince, &createdBy, &purchasedBy, &variant, &row.RenewalCount, &seats, &usage, &usageAt, &row.CreatedAt, &row.UpdatedAt,
 			&row.Active, &systemSuspended,
 			&row.SystemName, &row.SystemKey, &row.OrganizationID, &row.OrganizationName,
 		)
@@ -802,6 +848,7 @@ func (r *LocalSystemEntitlementRepository) ListGrants(f GrantsReportFilter, limi
 		if len(variant) > 0 {
 			_ = json.Unmarshal(variant, &row.Variant)
 		}
+		row.Seats, row.Usage, row.UsageAt = scanQuantities(seats, usage, usageAt)
 		// Deleted systems are filtered out by the WHERE, so the overlay here
 		// is suspension only.
 		row.Status = models.EntitlementStatus(row.Active, row.RevokedAt, systemSuspended, row.PendingRef)
@@ -870,6 +917,8 @@ func (r *LocalSystemEntitlementRepository) Report(orgScope, catalogScope []strin
 
 	statusJoin := `FROM system_entitlements e JOIN systems s ON s.id = e.system_id WHERE s.deleted_at IS NULL` + scope
 
+	var overLimit int
+
 	// Totals: lifecycle counts, expiry buckets, coverage (with the org-type
 	// breakdown of who is buying) and renewals in one pass.
 	err := r.db.QueryRow(`
@@ -889,7 +938,8 @@ func (r *LocalSystemEntitlementRepository) Report(orgScope, catalogScope []strin
 		       COUNT(DISTINCT e.system_id) FILTER (WHERE rs.logto_id IS NOT NULL),
 		       COUNT(DISTINCT e.system_id) FILTER (WHERE c.logto_id IS NOT NULL),
 		       COUNT(DISTINCT e.system_id) FILTER (WHERE d.logto_id IS NULL AND rs.logto_id IS NULL AND c.logto_id IS NULL),
-		       COALESCE(SUM(e.renewal_count), 0)
+		       COALESCE(SUM(e.renewal_count), 0),
+		       COUNT(*) FILTER (WHERE `+reportStatusExpr+` = 'active' AND e.usage > e.seats)
 		FROM system_entitlements e
 		JOIN systems s ON s.id = e.system_id
 		LEFT JOIN distributors d ON s.organization_id = d.logto_id AND d.deleted_at IS NULL
@@ -906,10 +956,12 @@ func (r *LocalSystemEntitlementRepository) Report(orgScope, catalogScope []strin
 		&report.Totals.DistributorSystems, &report.Totals.ResellerSystems, &report.Totals.CustomerSystems,
 		&report.Totals.OwnerSystems,
 		&report.Totals.TotalRenewals,
+		&overLimit,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute report totals: %w", err)
 	}
+	report.Totals.OverLimit = &overLimit
 
 	// Renewal distribution.
 	err = r.db.QueryRow(`
@@ -933,6 +985,7 @@ func (r *LocalSystemEntitlementRepository) Report(orgScope, catalogScope []strin
 		       COUNT(*) FILTER (WHERE h.held >= e.seats)
 		FROM system_entitlements e
 		JOIN systems s ON s.id = e.system_id
+		JOIN entitlement_catalog cat ON cat.id = e.entitlement AND cat.seated
 		CROSS JOIN LATERAL (SELECT COUNT(*) AS held FROM entitlement_seats es
 		                     WHERE es.grant_id = e.id AND es.released_at IS NULL) h
 		WHERE s.deleted_at IS NULL

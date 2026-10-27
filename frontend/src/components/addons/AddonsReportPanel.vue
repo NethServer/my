@@ -30,6 +30,7 @@ import AddonRenewalsCard from './report/AddonRenewalsCard.vue'
 import AddonsByAddonCard from './report/AddonsByAddonCard.vue'
 import AddonsByOrganizationCard from './report/AddonsByOrganizationCard.vue'
 import AddonsByTierCard from './report/AddonsByTierCard.vue'
+import AddonsOverLimitCard from './report/AddonsOverLimitCard.vue'
 
 const { state: report } = useAddonReport()
 
@@ -135,6 +136,8 @@ const expiryBadges = computed(() =>
       />
       <AddonsByOrganizationCard class="sm:col-span-2" />
       <AddonsByTierCard class="sm:col-span-2" />
+      <!-- the report carries the count to Nethesis only -->
+      <AddonsOverLimitCard v-if="totals?.over_limit !== undefined" class="sm:col-span-2" />
       <AddonLicensesCard
         :licenses="report.data?.licenses ?? { bought: 0, assigned: 0, addons: 0, full: 0 }"
         :loading="loading"

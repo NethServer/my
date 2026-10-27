@@ -2658,6 +2658,16 @@ components:
             holding a seat are covered. False = the grant covers the whole
             system.
           example: false
+        usage_metric:
+          type: string
+          enum: [arp_macs, instances]
+          description: |
+            What the tier limit of an add-on without seats (the grant's
+            `seats`) is measured against at every inventory: `arp_macs`
+            (devices seen by the firewall) or `instances` (application
+            instances of `applies_to`). Omitted = not measured. Going past
+            the limit blocks nothing.
+          example: arp_macs
         in_use:
           type: boolean
           description: |
@@ -2799,8 +2809,17 @@ components:
           example: 3
         seats:
           type: integer
-          description: Seats bought, for seated add-ons. Omitted for add-ons without seats.
+          description: Seats bought, for seated add-ons; the tier limit, for add-ons with a usage metric (omitted = no limit). Omitted for the other add-ons.
           example: 10
+        usage:
+          type: integer
+          description: Usage measured at the last inventory against the tier limit, for add-ons with a usage metric. Returned to the Owner organization only.
+          example: 49
+        usage_at:
+          type: string
+          format: date-time
+          description: When `usage` was measured. Returned to the Owner organization only.
+          example: "2026-10-27T10:00:00Z"
         seat_assignments:
           type: array
           description: Instances holding a seat, oldest first. Returned by `GET /systems/{id}/entitlements` for seated add-ons only.
@@ -3001,6 +3020,7 @@ components:
             customer_systems: { type: integer, example: 22, description: "Systems owned by customer organizations" }
             owner_systems: { type: integer, example: 3, description: "Systems owned by the owner organization" }
             total_renewals: { type: integer, example: 60, description: "Sum of renewal_count over all grants" }
+            over_limit: { type: integer, example: 4, description: "Active grants whose measured usage is past their tier limit. Owner organization only" }
         by_entitlement:
           type: array
           description: |
@@ -3195,6 +3215,11 @@ components:
           description: Bought with a number of seats given to application instances. Requires kind=module, system_type=ns8 and scoped=false.
           default: false
           example: false
+        usage_metric:
+          type: string
+          enum: [arp_macs, instances]
+          description: What the tier limit is measured against. Not allowed on seated add-ons; `instances` needs `applies_to`.
+          example: arp_macs
 
     UpdateEntitlementCatalogRequest:
       type: object
@@ -3212,6 +3237,11 @@ components:
           type: boolean
           description: Toggles the buy action. Omitted leaves it as it is.
           example: false
+        usage_metric:
+          type: string
+          enum: ["", arp_macs, instances]
+          description: Changes what the tier limit is measured against; empty stops measuring, omitted leaves it as it is.
+          example: instances
 
     CreateEntitlementAvailabilityRequest:
       type: object
@@ -13320,6 +13350,18 @@ paths:
             type: string
             format: date-time
             example: "2026-12-31T23:59:59Z"
+        - name: over_limit
+          in: query
+          description: When "true", only active grants whose measured usage is past their tier limit, widest overrun first. Owner organization only (ignored otherwise)
+          schema:
+            type: string
+            enum: ["true"]
+        - name: search
+          in: query
+          description: Matches system name, organization name, add-on id or name and tier label
+          schema:
+            type: string
+            example: "fw-sede"
         - name: page
           in: query
           description: Page number
