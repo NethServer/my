@@ -47,7 +47,7 @@ const buyAction = computed(() =>
       <template #prefix>
         <FontAwesomeIcon :icon="faArrowLeft" class="size-4" aria-hidden="true" />
       </template>
-      {{ $t('addons.back_to_addons') }}
+      {{ $t('common.back_to_page', { page: $t('addons.title') }) }}
     </NeButton>
     <!-- title + description + buy more -->
     <div class="mb-8 flex flex-wrap items-center justify-between gap-4">
