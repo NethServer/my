@@ -58,7 +58,8 @@
     "node_id": "Node {id}",
     "add": "Add",
     "eg_value": "e.g. {value}",
-    "data_updated_every_seconds": "Data updated every {seconds} seconds"
+    "data_updated_every_seconds": "Data updated every {seconds} seconds",
+    "update_available": "Update available"
   },
   "shell": {
     "open_sidebar": "Open sidebar",
@@ -680,7 +681,6 @@
     "status": "Status",
     "fqdn": "FQDN",
     "fqdn_ip_address": "FQDN / IP address",
-    "update_available": "Update available",
     "go_to_system": "Go to system",
     "create_system": "Create system",
     "name_cannot_be_empty": "Name is required",
@@ -863,8 +863,7 @@
     "title": "Application detail",
     "cannot_retrieve_application_detail": "Cannot retrieve application detail",
     "installation_node": "Installation node",
-    "node": "Node",
-    "update_available": "Update available"
+    "node": "Node"
   },
   "applications": {
     "title": "Applications",

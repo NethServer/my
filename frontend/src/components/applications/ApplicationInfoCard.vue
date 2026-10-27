@@ -5,7 +5,6 @@
 
 <script setup lang="ts">
 import {
-  NeBadgeV2,
   NeCard,
   NeDropdown,
   NeHeading,
@@ -14,18 +13,18 @@ import {
   type NeDropdownItem,
 } from '@nethesis/vue-components'
 import { useApplicationDetail } from '@/queries/applications/applicationDetail'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import DataItem from '@/components/common/DataItem.vue'
+import UpdateAvailableIcon from '@/components/common/UpdateAvailableIcon.vue'
 import NotesModal from '@/components/common/NotesModal.vue'
 import EnabledStatus from '@/components/common/EnabledStatus.vue'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
-import { getDisplayName, getFqdns } from '@/lib/applications/applications'
+import { getDisplayName, getFqdns, isUpdateAvailable } from '@/lib/applications/applications'
 import ClickToCopy from '@/components/common/ClickToCopy.vue'
 import ApplicationLogo from '@/components/applications/ApplicationLogo.vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { canManageApplications } from '@/lib/permissions'
-import { faArrowsRotate, faBuilding, faPenToSquare } from '@fortawesome/free-solid-svg-icons'
+import { faBuilding, faPenToSquare } from '@fortawesome/free-solid-svg-icons'
 import AssignOrganizationDrawer from './AssignOrganizationDrawer.vue'
 import SetNotesDrawer from './SetNotesDrawer.vue'
 
@@ -115,12 +114,7 @@ function getKebabMenuItems() {
           <template #data>
             <div class="flex items-center gap-2">
               {{ applicationDetail.data.version || '-' }}
-              <NeBadgeV2 kind="amber">
-                <div class="flex items-center gap-1">
-                  <FontAwesomeIcon :icon="faArrowsRotate" class="size-4" aria-hidden="true" />
-                  {{ t('application_detail.update_available') }}
-                </div>
-              </NeBadgeV2>
+              <UpdateAvailableIcon v-if="isUpdateAvailable(applicationDetail.data)" />
             </div>
           </template>
         </DataItem>

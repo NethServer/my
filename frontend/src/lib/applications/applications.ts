@@ -65,6 +65,12 @@ export function getFqdns(application: Pick<Application, 'inventory_data'>): stri
     : []
 }
 
+// Whether the NS8 inventory reports a newer version of the module
+// (inventory_data.update_available). False when it was never reported.
+export function isUpdateAvailable(application: Pick<Application, 'inventory_data'>): boolean {
+  return application.inventory_data?.update_available === true
+}
+
 interface ApplicationsResponse {
   code: number
   message: string

@@ -58,7 +58,8 @@
     "remove": "Rimuovi",
     "add": "Aggiungi",
     "eg_value": "Es. {value}",
-    "data_updated_every_seconds": "Dati aggiornati ogni {seconds} secondi"
+    "data_updated_every_seconds": "Dati aggiornati ogni {seconds} secondi",
+    "update_available": "Aggiornamento disponibile"
   },
   "shell": {
     "open_sidebar": "Apri barra laterale",
@@ -598,7 +599,6 @@
     "status": "Stato",
     "fqdn": "FQDN",
     "fqdn_ip_address": "FQDN / Indirizzo IP",
-    "update_available": "Aggiornam. disponibile",
     "go_to_system": "Vai al sistema",
     "create_system": "Crea sistema",
     "name_cannot_be_empty": "Il nome è obbligatorio",
@@ -781,8 +781,7 @@
     "title": "Dettaglio applicazione",
     "cannot_retrieve_application_detail": "Impossibile recuperare il dettaglio dell'applicazione",
     "installation_node": "Nodo di installazione",
-    "node": "Nodo",
-    "update_available": "Aggiornam. disponibile"
+    "node": "Nodo"
   },
   "applications": {
     "title": "Applicazioni",
