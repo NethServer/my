@@ -349,7 +349,7 @@ function clearFilters() {
                 v-for="fqdn in line.application ? getFqdns(line.application) : []"
                 :key="fqdn"
                 :text="fqdn"
-                tooltip-placement="top"
+                tooltip-placement="right"
               />
               <div v-if="!line.application || !getFqdns(line.application).length">-</div>
             </div>
