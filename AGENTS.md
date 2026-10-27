@@ -46,6 +46,8 @@ Accepted risks live in `.trivyignore` with the reason they are accepted. A JS ad
 
 `.agents/skills/` holds task-specific skills (e.g. `frontend-conventions`, `frontend-a11y-audit`). Before touching matching files, read the skill's `SKILL.md` and follow it for the task's duration.
 
+The rules of the Nethesis Design System (components, colors, dark theme, typography, icons, interface text and glossary) come from the `nethesis-frontend` skill of the `nethesis-design` plugin in the [NethServer/agents](https://github.com/NethServer/agents) marketplace, not from the skills in this repository.
+
 ### 1.3 Git commit messages
 
 - **Wrap the commit body at 72 columns — hard limit, always.** Keep the subject line ≤72 too.

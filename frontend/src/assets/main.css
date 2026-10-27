@@ -11,8 +11,10 @@
 @import '@vuepic/vue-datepicker/dist/main.css' layer(vendor);
 @import './vue-datepicker.css';
 
-/* Poppins font */
-@import '@fontsource/poppins';
+/* Poppins font: Regular and Medium, the two weights of the design system.
+   The default import loads only Regular, and the browser would fake Medium */
+@import '@fontsource/poppins/400.css';
+@import '@fontsource/poppins/500.css';
 
 /* import theme from @nethesis/vue-components */
 @import '@nethesis/vue-components/theme.css';

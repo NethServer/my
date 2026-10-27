@@ -37,7 +37,12 @@ import { canSeeParentOfCustomers, isUserCustomer } from '@/lib/organizations/org
 import { APPLICATIONS_TABLE_ID } from '@/lib/applications/applications'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import { useApplications } from '@/queries/applications/applications'
-import { getDisplayName, getFqdns, type Application } from '@/lib/applications/applications'
+import {
+  getDisplayName,
+  getFqdns,
+  isUpdateAvailable,
+  type Application,
+} from '@/lib/applications/applications'
 import ClickToCopy from '@/components/common/ClickToCopy.vue'
 import ApplicationLogo from './ApplicationLogo.vue'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
@@ -46,6 +51,7 @@ import SetNotesDrawer from './SetNotesDrawer.vue'
 import { useApplicationFilters } from '@/queries/applications/applicationFilters'
 import { buildVersionFilterOptions } from '@/lib/applications/applicationFilters'
 import router from '@/router'
+import UpdateAvailableIcon from '@/components/common/UpdateAvailableIcon.vue'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import SystemDropdownFilter from '@/components/systems/SystemDropdownFilter.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
@@ -354,8 +360,9 @@ const goToApplicationDetails = (application: Application) => {
               </div>
             </NeTableCell>
             <NeTableCell :data-label="$t('applications.version')" class="wrap-anywhere">
-              <div>
+              <div class="flex items-center gap-2">
                 {{ item.version || '-' }}
+                <UpdateAvailableIcon v-if="isUpdateAvailable(item)" />
               </div>
             </NeTableCell>
             <NeTableCell :data-label="$t('applications.fqdn')" class="wrap-anywhere">

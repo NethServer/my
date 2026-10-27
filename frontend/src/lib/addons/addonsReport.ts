@@ -63,6 +63,15 @@ export interface AddonReportRenewals {
   three_plus: number
 }
 
+// Licenses of the add-ons sold by licenses that are in force.
+export interface AddonReportLicenses {
+  bought: number
+  assigned: number
+  addons: number
+  // add-ons with every license assigned
+  full: number
+}
+
 export interface AddonReportTrendRow {
   // 'YYYY-MM'
   month: string
@@ -73,6 +82,7 @@ export interface AddonReport {
   totals: AddonReportTotals
   by_entitlement: AddonReportByType[]
   renewals: AddonReportRenewals
+  licenses: AddonReportLicenses
   trend: AddonReportTrendRow[]
 }
 
@@ -92,6 +102,8 @@ export interface AddonReportByTier {
   display_name: string
   // the shop tier of the purchased product line, e.g. "16-30 device"
   label: string
+  // its SKU, the key the tier is translated by; empty when the order had none
+  sku: string
   count: number
 }
 

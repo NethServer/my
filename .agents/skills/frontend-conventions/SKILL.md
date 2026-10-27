@@ -1,6 +1,6 @@
 ---
 name: frontend-conventions
-description: 'Baseline conventions for the Vue 3 + TypeScript frontend (frontend/), including design-system drift and type-safety auditing. Use when writing, editing, or reviewing any frontend code: components, views, Pinia Colada queries, useMutation flows, Pinia stores, lib modules, valibot schemas, permissions, i18n, Tailwind styling, @nethesis/vue-components usage, tests, license headers, and TypeScript type-safety. Also use when auditing a component for design-system compliance (raw HTML vs Ne* components, hard-coded colours, missing dark variants, whole-library icon imports, hardcoded strings, any/non-null assertions). Load this whenever a task touches files under frontend/.'
+description: 'Baseline conventions for the Vue 3 + TypeScript frontend (frontend/), including type-safety auditing. Use when writing, editing, or reviewing any frontend code: components, views, Pinia Colada queries, useMutation flows, Pinia stores, lib modules, valibot schemas, permissions, i18n files, tests, license headers, and TypeScript type-safety (any/non-null assertions). Load this whenever a task touches files under frontend/.'
 ---
 
 # Frontend Conventions
@@ -8,11 +8,16 @@ description: 'Baseline conventions for the Vue 3 + TypeScript frontend (frontend
 Baseline, always-applicable conventions for the Vue 3 + TypeScript SPA under `frontend/`.
 Other frontend skills (`frontend-a11y-audit`) build on these rules — follow this skill first.
 
+The design-system rules (`@nethesis/vue-components` usage, colors, dark theme, typography, icons,
+interface text and the glossary) are not here: they come from the `nethesis-frontend` skill of the
+`nethesis-design` plugin, in the [NethServer/agents](https://github.com/NethServer/agents)
+marketplace. Use both.
+
 ## When to Use
 
 - Writing or editing any `.vue` / `.ts` file under `frontend/`.
 - Adding components, views, queries, mutations, stores, lib modules, or tests.
-- Reviewing frontend code for convention, design-system, and type-safety compliance.
+- Reviewing frontend code for convention and type-safety compliance.
 
 ## Core Rules (always apply)
 
@@ -20,8 +25,6 @@ Other frontend skills (`frontend-a11y-audit`) build on these rules — follow th
 - **License header** on every `.vue` and `.ts` file (see [styling-i18n-testing](./references/styling-i18n-testing.md)).
 - **Path alias `@/`** maps to `frontend/src/`. Never traverse upward with `../../`.
 - **No hardcoded user-visible strings** — always i18n keys, even for buttons, errors, toast titles.
-- **`@nethesis/vue-components` first** — prefer `Ne*` primitives over raw HTML elements. Check the
-  [Storybook](https://nethesis.github.io/vue-components/) for correct prop usage when unsure.
 - **Type-safe always** — no `any`, no non-null assertions; annotate signatures.
   See [typescript-safety](./references/typescript-safety.md).
 
@@ -35,20 +38,21 @@ Load the reference that matches the task:
   pagination/filter/debounce, lib modules, valibot schemas, API functions, permissions, validation errors.
 - [typescript-safety.md](./references/typescript-safety.md) — strict TypeScript rules with
   bad→good examples (`any`, assertions, non-null, generics, `satisfies`, `as const`).
-- [styling-i18n-testing.md](./references/styling-i18n-testing.md) — license header, Tailwind v4 +
-  dark mode, FontAwesome icons, i18n key rules, vitest testing, path alias.
-- [design-system-checklist.md](./references/design-system-checklist.md) — full audit checklist
-  for design-system drift and type-safety (component library, Tailwind, icons, i18n, TypeScript).
+- [styling-i18n-testing.md](./references/styling-i18n-testing.md) — license header, where the
+  styles live, i18n key rules, vitest testing, path alias.
+- [review-checklist.md](./references/review-checklist.md) — audit checklist for project
+  conventions and type-safety.
 
-## Auditing for Design-System Drift
+## Auditing for Convention and Type-Safety Drift
 
-When asked to audit or review a file for design-system compliance:
+When asked to audit or review a file for convention or type-safety compliance:
 
 1. **Read** the target file(s).
-2. **Check** every item in the [design-system checklist](./references/design-system-checklist.md).
+2. **Check** every item in the [review checklist](./references/review-checklist.md).
 3. **Fix** all deviations in place.
-4. **Summarise** the changes, grouped by category (component library / Tailwind / icons / i18n /
-   TypeScript).
+4. **Summarise** the changes, grouped by category (i18n and conventions / TypeScript).
+
+For design-system compliance, follow the review procedure of `nethesis-frontend`.
 
 Optionally classify findings by severity before fixing:
 

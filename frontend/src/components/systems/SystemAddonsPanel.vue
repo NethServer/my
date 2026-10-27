@@ -17,6 +17,7 @@ import { faPuzzlePiece } from '@fortawesome/free-solid-svg-icons'
 import { NeEmptyState, NeInlineNotification } from '@nethesis/vue-components'
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import { composeSystemAddonRows } from '@/lib/addons/systemAddons'
 import {
   useAvailableAddons,
@@ -91,14 +92,19 @@ function closeAddon() {
 
 <template>
   <div>
-    <!-- page description: on a firewall the card states the add-on in full, so
-         there is nothing to open and the last sentence would be a dead end -->
-    <div v-if="isLoading || isSystemReady" class="text-tertiary-neutral mb-8 max-w-3xl">
-      {{
-        system?.type === 'nsec'
-          ? $t('addons.system_addons_description_nsec')
-          : $t('addons.system_addons_description')
-      }}
+    <!-- page description, for the cards only: the licenses page has its own -->
+    <div
+      v-if="!selectedAddonId && (isLoading || isSystemReady)"
+      class="mb-8 flex items-start justify-between gap-4"
+    >
+      <p class="text-tertiary-neutral max-w-3xl">
+        {{
+          system?.type === 'nsec'
+            ? $t('addons.system_addons_description_nsec')
+            : $t('addons.system_addons_description')
+        }}
+      </p>
+      <UpdatingSpinner v-if="isRefreshing" />
     </div>
     <!-- get add-ons error notification -->
     <NeInlineNotification
@@ -146,7 +152,6 @@ function closeAddon() {
         v-else
         :rows="rows"
         :loading="isLoading"
-        :refreshing="isRefreshing"
         :system-type="system?.type ?? ''"
         @open="openAddon"
       />

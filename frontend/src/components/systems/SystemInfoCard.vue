@@ -6,7 +6,6 @@
 <script setup lang="ts">
 import { withDangerItemsLast } from '@/lib/common'
 import {
-  NeBadgeV2,
   NeCard,
   NeDropdown,
   NeHeading,
@@ -21,12 +20,11 @@ import { exportSystem, getProductName } from '@/lib/systems/systems'
 import SystemLogo from './SystemLogo.vue'
 import DataItem from '../common/DataItem.vue'
 import ClickToCopy from '../common/ClickToCopy.vue'
+import UpdateAvailableIcon from '../common/UpdateAvailableIcon.vue'
 import { ref } from 'vue'
 import NotesModal from '../common/NotesModal.vue'
 import { canManageSystems, canDestroySystems } from '@/lib/permissions'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
-  faArrowsRotate,
   faFileCsv,
   faFilePdf,
   faPenToSquare,
@@ -225,12 +223,7 @@ function getKebabMenuItems() {
           <template #data>
             <div class="flex items-center gap-2">
               {{ systemDetail.data.version || '-' }}
-              <NeBadgeV2 v-if="systemDetail.data.update_available" kind="amber" size="xs">
-                <div class="flex items-center gap-1">
-                  <FontAwesomeIcon :icon="faArrowsRotate" class="size-4" aria-hidden="true" />
-                  {{ $t('systems.update_available') }}
-                </div>
-              </NeBadgeV2>
+              <UpdateAvailableIcon v-if="systemDetail.data.update_available" />
             </div>
           </template>
         </DataItem>

@@ -2649,6 +2649,15 @@ components:
             Separate from the per-organization allowlist, which answers who may
             buy rather than whether it is on sale at all.
           example: true
+        seated:
+          type: boolean
+          description: |
+            True for NS8 add-ons bought for the whole system with a number of
+            seats (the shop tier): each seat is given to one application
+            instance of `applies_to`, on any node, and only the instances
+            holding a seat are covered. False = the grant covers the whole
+            system.
+          example: false
         in_use:
           type: boolean
           description: |
@@ -2788,6 +2797,15 @@ components:
             increments it when source_ref changes (webhook retries on the
             same order never double-count). 0 = first period.
           example: 3
+        seats:
+          type: integer
+          description: Seats bought, for seated add-ons. Omitted for add-ons without seats.
+          example: 10
+        seat_assignments:
+          type: array
+          description: Instances holding a seat, oldest first. Returned by `GET /systems/{id}/entitlements` for seated add-ons only.
+          items:
+            $ref: '#/components/schemas/EntitlementSeat'
         created_at:
           type: string
           format: date-time
@@ -2796,6 +2814,41 @@ components:
           type: string
           format: date-time
           example: "2026-07-01T10:00:00Z"
+
+    EntitlementSeat:
+      type: object
+      description: One seat of a seated add-on given to an application instance
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "8f1c2a8e-4d1b-4e57-9a6f-2b3c4d5e6f70"
+        module_id:
+          type: string
+          description: Application instance holding the seat
+          example: "nethvoice5"
+        assigned_at:
+          type: string
+          format: date-time
+          example: "2026-10-22T10:00:00Z"
+        assigned_by:
+          description: 'Who gave the license; replaced by {"out_of_scope": true} when that user''s organization is outside the caller''s hierarchy'
+          allOf:
+            - $ref: '#/components/schemas/EntitlementCreator'
+        in_quota:
+          type: boolean
+          description: False for the seats beyond the number bought, oldest first. They are not honored until seats are added.
+          example: true
+
+    AssignEntitlementSeatRequest:
+      type: object
+      required:
+        - module_id
+      properties:
+        module_id:
+          type: string
+          description: Application instance of the add-on's `applies_to` on the system
+          example: "nethvoice5"
 
     EntitlementPurchaser:
       type: object
@@ -2978,6 +3031,14 @@ components:
             once: { type: integer, example: 30 }
             twice: { type: integer, example: 15 }
             three_plus: { type: integer, example: 5 }
+        licenses:
+          type: object
+          description: Licenses of the add-ons sold by licenses that are in force (not revoked, not expired)
+          properties:
+            bought: { type: integer, example: 40, description: "Licenses bought" }
+            assigned: { type: integer, example: 27, description: "Licenses assigned to application instances, within the number bought" }
+            addons: { type: integer, example: 6, description: "Add-ons sold by licenses in force" }
+            full: { type: integer, example: 2, description: "Of those, how many have every license assigned" }
         trend:
           type: array
           description: Grants created per month, last 12 months
@@ -3052,6 +3113,11 @@ components:
           example: "mario.rossi@example.com"
         variant:
           $ref: '#/components/schemas/EntitlementVariant'
+        seats:
+          type: integer
+          minimum: 1
+          description: Seats to grant. Required for seated add-ons, refused for the others.
+          example: 10
 
     UpdateSystemEntitlementRequest:
       type: object
@@ -3070,6 +3136,11 @@ components:
           type: boolean
           description: "True revokes the grant, false restores it. Omitted = unchanged."
           example: false
+        seats:
+          type: integer
+          minimum: 1
+          description: New number of seats of a seated add-on. Omitted = unchanged.
+          example: 20
 
     CreateEntitlementCatalogRequest:
       type: object
@@ -3119,10 +3190,15 @@ components:
           description: Whether the add-on is on sale. Defaults to true when omitted.
           default: true
           example: true
+        seated:
+          type: boolean
+          description: Bought with a number of seats given to application instances. Requires kind=module, system_type=ns8 and scoped=false.
+          default: false
+          example: false
 
     UpdateEntitlementCatalogRequest:
       type: object
-      description: Updates the display fields of a catalog item. The id and scoped flag are immutable (grants may already reference them with the current semantics).
+      description: Updates the display fields of a catalog item. The id and the scoped and seated flags are immutable (grants may already reference them with the current semantics).
       properties:
         display_name:
           type: string
@@ -3195,6 +3271,11 @@ components:
           example: "mario.rossi@example.com"
         variant:
           $ref: '#/components/schemas/EntitlementVariant'
+        seats:
+          type: integer
+          minimum: 1
+          description: Seats of the order line's tier. Required for seated add-ons, ignored for the others.
+          example: 10
 
     DeactivateEntitlementRequest:
       type: object
@@ -3254,6 +3335,11 @@ components:
           example: "mario.rossi@example.com"
         variant:
           $ref: '#/components/schemas/EntitlementVariant'
+        seats:
+          type: integer
+          minimum: 1
+          description: Seats of the order line's tier, for seated add-ons. Stamped on fresh pending stubs only.
+          example: 10
 
     # Applications schemas
     Application:
@@ -12516,6 +12602,151 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /systems/{id}/entitlements/{entitlement}/seats:
+    post:
+      operationId: assignEntitlementSeat
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
+      tags:
+        - Backend - Entitlements
+      summary: /systems/{id}/entitlements/{entitlement}/seats - Give a seat to an application instance
+      description: |
+        Give one seat of a seated add-on to an application instance of the
+        system (any node). The add-on must be active and a seat must be free.
+        Requires `manage:entitlements` — the permission to buy add-ons — on a
+        system within the caller's hierarchy.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+        - name: entitlement
+          in: path
+          required: true
+          description: Catalog id (or legacy alias) of a seated add-on
+          schema:
+            type: string
+            example: "nethvoice-chat"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignEntitlementSeatRequest'
+      responses:
+        '201':
+          description: Seat assigned successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: "seat assigned successfully"
+                  data:
+                    $ref: '#/components/schemas/EntitlementSeat'
+        '400':
+          description: Not a seated add-on, or no such instance of the add-on's application on the system
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: System not found, or the add-on is not granted to it
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Add-on not active, system suspended or deleted, instance already holding a seat, or no free seat left
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /systems/{id}/entitlements/{entitlement}/seats/{module_id}:
+    delete:
+      operationId: releaseEntitlementSeat
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
+      tags:
+        - Backend - Entitlements
+      summary: /systems/{id}/entitlements/{entitlement}/seats/{module_id} - Free a seat
+      description: |
+        Free the seat an application instance holds, so it can be given to
+        another one. Collect frees the seats of instances that leave the
+        inventory on its own. Requires `manage:entitlements` on a system
+        within the caller's hierarchy.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+        - name: entitlement
+          in: path
+          required: true
+          description: Catalog id (or legacy alias) of a seated add-on
+          schema:
+            type: string
+            example: "nethvoice-chat"
+        - name: module_id
+          in: path
+          required: true
+          description: Application instance holding the seat
+          schema:
+            type: string
+            example: "nethvoice5"
+      responses:
+        '200':
+          description: Seat released successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "seat released successfully"
+                  data:
+                    type: object
+                    nullable: true
+                    example: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: System not found, add-on not granted, or the instance holds no seat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /legacy-systems/counts:
     put:
       operationId: replaceLegacySystemCounts
@@ -13300,13 +13531,13 @@ paths:
       summary: /entitlements/report/tiers - Per-tier slice of the add-on report
       description: |
         Grants grouped by shop tier (variable products only), paginated and
-        searchable by add-on display name, add-on id or tier label. Restricted
+        searchable by add-on display name, add-on id, tier label or tier SKU. Restricted
         to the caller's hierarchy (the whole fleet for the Owner organization).
       parameters:
         - name: search
           in: query
           schema: { type: string }
-          description: Case-insensitive filter on the add-on display name, the add-on id or the tier label
+          description: Case-insensitive filter on the add-on display name, the add-on id, the tier label or the tier SKU
         - name: page
           in: query
           schema: { type: integer, default: 1 }
@@ -13338,6 +13569,7 @@ paths:
                             entitlement: { type: string, example: "nsec-blacklist" }
                             display_name: { type: string, example: "Advanced Threat Shield" }
                             label: { type: string, example: "16 - 30 device" }
+                            sku: { type: string, example: "R-NS-YOTS-2", description: "Shop SKU of the tier, empty when the order carried none" }
                             count: { type: integer, example: 14 }
                       total: { type: integer, example: 12 }
                       page: { type: integer, example: 1 }
@@ -13403,7 +13635,15 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: |
+            Not the Owner organization with manage:entitlements, or the buyer
+            (`buyer_email`, when it matches a my user outside the Owner
+            organization) cannot reach the system: an order never lands on
+            somebody else's system
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: System not found for this key
           content:
@@ -13467,7 +13707,15 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: |
+            Not the Owner organization with manage:entitlements, or the buyer
+            (`buyer_email`, when it matches a my user outside the Owner
+            organization) cannot reach the system: an order never lands on
+            somebody else's system
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: System not found for this key
           content:
@@ -19155,6 +19403,10 @@ paths:
         application instance (e.g. `nethvoice1`); a system-wide grant (empty
         scope) covers every instance. Without `scope` only system-wide grants
         count.
+
+        A seated add-on (e.g. `nethvoice-chat`) covers only the instance named
+        by `scope`, and only while that instance holds one of the seats bought
+        (oldest seats first). Without `scope` a seated add-on answers 403.
       security:
         - BasicAuth: [system_key:system_secret]
       parameters:

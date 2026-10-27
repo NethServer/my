@@ -1,7 +1,12 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { faArrowUpRightFromSquare, faBan, faCircleCheck } from '@fortawesome/free-solid-svg-icons'
+import {
+  faArrowUpRightFromSquare,
+  faBan,
+  faCircleCheck,
+  faPenToSquare,
+} from '@fortawesome/free-solid-svg-icons'
 import type { NeDropdownItem } from '@nethesis/vue-components'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -36,6 +41,8 @@ export const useSystemAddonActions = () => {
     ['suspended', 'deleted'].includes(systemDetail.value.data?.status ?? ''),
   )
 
+  const isUpgrade = (row: SystemAddonRow) => !!row.addon.seated && row.grant?.status === 'active'
+
   // Nothing is offered on a blocked system, and nothing can be bought that the
   // company is not allowed to have in the first place.
   const canBuy = (row: SystemAddonRow) => {
@@ -48,6 +55,10 @@ export const useSystemAddonActions = () => {
       return false
     }
     if (!row.grant) {
+      return true
+    }
+    // seats are added by buying a higher tier on the live grant
+    if (isUpgrade(row)) {
       return true
     }
     // a shop-side revocation (cancelled subscription, failed payment) can be
@@ -80,6 +91,14 @@ export const useSystemAddonActions = () => {
         action: () => onSelect('activate'),
       })
     } else if (row.grant.status === 'active') {
+      if (row.addon.seated) {
+        items.push({
+          id: 'resize',
+          label: t('addons.resize'),
+          icon: faPenToSquare,
+          action: () => onSelect('resize'),
+        })
+      }
       items.push({
         id: 'revoke',
         label: t('addons.revoke'),
@@ -113,7 +132,7 @@ export const useSystemAddonActions = () => {
     buy: canBuy(row)
       ? {
           id: 'buy',
-          label: t('addons.buy'),
+          label: isUpgrade(row) ? t('addons.buy_more_seats') : t('addons.buy'),
           icon: faArrowUpRightFromSquare,
           action: () => openShop(row),
         }

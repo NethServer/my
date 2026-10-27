@@ -127,7 +127,7 @@ const hasMountpoints = computed(() => Object.keys(hardware.value?.mountpoints ||
                 node.id === selectedNodeId
                   ? 'border-primary-700 dark:border-primary-500 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50'
                   : 'text-tertiary-neutral dark:text-tertiary-neutral border-transparent hover:text-gray-900 dark:hover:text-gray-50',
-                'flex w-full cursor-pointer items-center rounded-md border-l-4 px-3 py-2 text-left text-sm leading-6 font-semibold wrap-anywhere transition-colors duration-(--duration-small) hover:bg-gray-100 dark:hover:bg-gray-800',
+                'flex w-full cursor-pointer items-center rounded-md border-l-4 px-3 py-2 text-left text-sm leading-6 font-medium wrap-anywhere transition-colors duration-(--duration-small) hover:bg-gray-100 dark:hover:bg-gray-800',
               ]"
               @click="selectedNodeId = node.id"
             >

@@ -17,6 +17,12 @@ import { useLoginStore } from '@/stores/login'
 // instances to page through.
 const SYSTEM_APPLICATIONS_PAGE_SIZE = 200
 
+// The licenses and the instances they go to change behind the page — an
+// inventory frees the license of an instance that left the cluster — and the
+// two are read together: both are fetched again whenever the page is opened or
+// the tab regains focus, so neither shows a state the other has moved past.
+const ALWAYS_FRESH = { refetchOnMount: 'always', refetchOnWindowFocus: 'always' } as const
+
 export const useSystemAddons = defineQuery(() => {
   const loginStore = useLoginStore()
   const route = useRoute()
@@ -25,6 +31,7 @@ export const useSystemAddons = defineQuery(() => {
     key: () => [SYSTEM_ADDONS_KEY, route.params.systemId as string],
     enabled: () => !!loginStore.jwtToken && !!route.params.systemId,
     query: () => getSystemAddons(route.params.systemId as string),
+    ...ALWAYS_FRESH,
   })
 
   return { ...rest, state, asyncStatus }
@@ -61,6 +68,7 @@ export const useSystemApplications = defineQuery(() => {
         'module_id',
         false,
       ),
+    ...ALWAYS_FRESH,
   })
 
   return { ...rest, state, asyncStatus }

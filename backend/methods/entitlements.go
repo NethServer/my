@@ -103,6 +103,32 @@ func systemTypeMismatch(item *models.EntitlementCatalogItem, systemType string) 
 	return item.SystemType != "" && systemType != "" && systemType != item.SystemType
 }
 
+// maxSeats bounds the licenses of one add-on on one system: far above any
+// shop tier, low enough to keep a typo from becoming a database error.
+const maxSeats = 10000
+
+// seatsFor validates the seats sent for a catalog item: required and positive
+// for seated add-ons when required is set, positive when sent, and dropped for
+// add-ons without seats. The message is empty when the value is acceptable.
+func seatsFor(item *models.EntitlementCatalogItem, seats *int, required bool) (*int, string) {
+	if !item.Seated {
+		return nil, ""
+	}
+	if seats == nil {
+		if required {
+			return nil, "seats required for this add-on"
+		}
+		return nil, ""
+	}
+	if *seats <= 0 {
+		return nil, "seats must be greater than zero"
+	}
+	if *seats > maxSeats {
+		return nil, "seats must be at most " + strconv.Itoa(maxSeats)
+	}
+	return seats, ""
+}
+
 // resolvePurchaser builds the purchased_by audit snapshot from the order's
 // customer email sent by the shop webhook (server-to-server, trusted). The
 // email is resolved to a my user and snapshotted in full — identity, org and
@@ -148,6 +174,68 @@ func resolvePurchaser(buyerEmail string) map[string]interface{} {
 // Admin): a reseller must not learn who sits above them — the UI renders a
 // generic "purchased by another organization" from the bare marker. Raw
 // email-only snapshots have no organization and are admin-only too.
+// buyerOutsideHierarchy reports whether the my user who bought a shop order
+// cannot reach the system it activates: an order must not land on somebody
+// else's system, where cancelling or refunding it would revoke an add-on that
+// system's owner paid for. A buyer matching no my user (an old shop account,
+// an imported order) cannot be placed and is let through; the Owner
+// organization reaches every system.
+func buyerOutsideHierarchy(purchaser map[string]interface{}, systemOrgID string) (bool, error) {
+	orgID, _ := purchaser["organization_id"].(string)
+	orgRole, _ := purchaser["org_role"].(string)
+	if orgID == "" || strings.EqualFold(orgRole, "owner") {
+		return false, nil
+	}
+	allowed, err := local.NewUserService().GetHierarchicalOrganizationIDs(strings.ToLower(orgRole), orgID)
+	if err != nil {
+		return false, err
+	}
+	return !slices.Contains(allowed, systemOrgID), nil
+}
+
+// checkBuyer refuses a shop call whose buyer cannot reach the system; it
+// answers the request itself and returns false when it refuses or fails.
+func checkBuyer(c *gin.Context, repo *entities.LocalSystemEntitlementRepository, systemID string, purchaser map[string]interface{}) bool {
+	if purchaser == nil {
+		return true
+	}
+	systemOrgID, err := repo.SystemOrganizationID(systemID)
+	if err == nil {
+		var outside bool
+		outside, err = buyerOutsideHierarchy(purchaser, systemOrgID)
+		if err == nil && outside {
+			logger.RequestLogger(c, "entitlements").Warn().
+				Str("system_id", systemID).
+				Interface("buyer", purchaser["email"]).
+				Msg("Shop order refused: the buyer cannot reach this system")
+			c.JSON(http.StatusForbidden, response.Forbidden("the buyer of this order cannot purchase add-ons for this system", nil))
+			return false
+		}
+	}
+	if err != nil {
+		logger.RequestLogger(c, "entitlements").Error().Err(err).Str("system_id", systemID).Msg("Failed to check the buyer")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to check the buyer", nil))
+		return false
+	}
+	return true
+}
+
+// redactSeatAssigners hides who gave each license when that user sits outside
+// the viewer's hierarchy, the same rule the purchaser follows: a customer sees
+// that a license is assigned, not the name of the distributor or Nethesis user
+// that assigned it.
+func redactSeatAssigners(e *models.SystemEntitlement, orgScope []string) {
+	if orgScope == nil {
+		return
+	}
+	for i := range e.SeatAssignments {
+		orgID, _ := e.SeatAssignments[i].AssignedBy["organization_id"].(string)
+		if orgID == "" || !slices.Contains(orgScope, orgID) {
+			e.SeatAssignments[i].AssignedBy = map[string]interface{}{"out_of_scope": true}
+		}
+	}
+}
+
 func redactPurchaser(e *models.SystemEntitlement, orgScope []string) {
 	if e.PurchasedBy == nil || orgScope == nil {
 		return
@@ -252,6 +340,18 @@ func CreateEntitlementCatalogItem(c *gin.Context) {
 		req.AppliesTo = ""
 	}
 
+	// Add-ons are bought for the whole system. On a cluster an add-on reaches
+	// single application instances through seats, never by being narrowed to
+	// one instance.
+	if req.Scoped {
+		c.JSON(http.StatusBadRequest, response.BadRequest("add-ons cannot be narrowed to one application: sell them by licenses", nil))
+		return
+	}
+	if req.Seated && (req.Kind != models.EntitlementKindModule || req.SystemType != "ns8") {
+		c.JSON(http.StatusBadRequest, response.BadRequest("a seated add-on must be an ns8 module", nil))
+		return
+	}
+
 	repo := entities.NewLocalEntitlementCatalogRepository()
 	item, err := repo.Create(&req)
 	if err == entities.ErrCatalogItemExists {
@@ -268,6 +368,7 @@ func CreateEntitlementCatalogItem(c *gin.Context) {
 		Str("operation", "create_catalog_item").
 		Str("catalog_id", req.ID).
 		Bool("scoped", req.Scoped).
+		Bool("seated", req.Seated).
 		Msg("Entitlement catalog item created")
 
 	c.JSON(http.StatusCreated, response.Created("catalog item created successfully", item))
@@ -373,7 +474,7 @@ func CreateEntitlementAvailability(c *gin.Context) {
 	}
 
 	createdBy := map[string]interface{}{
-		"user_id":           user.ID,
+		"user_id":           actorLogtoID(user),
 		"user_name":         user.Name,
 		"organization_id":   user.OrganizationID,
 		"organization_name": user.OrganizationName,
@@ -492,6 +593,11 @@ func ActivateEntitlement(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response.BadRequest("this entitlement does not support per-application scope", nil))
 		return
 	}
+	seats, msg := seatsFor(item, req.Seats, true)
+	if msg != "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest(msg, nil))
+		return
+	}
 
 	repo := entities.NewLocalSystemEntitlementRepository()
 	systemID, systemType, err := repo.FindSystemIDByKey(req.SystemKey)
@@ -509,15 +615,20 @@ func ActivateEntitlement(c *gin.Context) {
 		return
 	}
 
+	purchaser := resolvePurchaser(req.BuyerEmail)
+	if !checkBuyer(c, repo, systemID, purchaser) {
+		return
+	}
+
 	createdBy := map[string]interface{}{
-		"user_id":           user.ID,
+		"user_id":           actorLogtoID(user),
 		"user_name":         user.Name,
 		"organization_id":   user.OrganizationID,
 		"organization_name": user.OrganizationName,
 		"channel":           "shop",
 	}
 
-	grant, err := repo.Upsert(systemID, item.ID, req.Scope, models.EntitlementSourceShop, req.SourceRef, req.ValidUntil, createdBy, resolvePurchaser(req.BuyerEmail), req.Variant)
+	grant, err := repo.Upsert(systemID, item.ID, req.Scope, models.EntitlementSourceShop, req.SourceRef, req.ValidUntil, createdBy, purchaser, req.Variant, seats)
 	if err != nil {
 		logger.RequestLogger(c, "entitlements").Error().Err(err).
 			Str("system_key", req.SystemKey).
@@ -674,6 +785,11 @@ func PendingEntitlement(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response.BadRequest("this entitlement does not support per-application scope", nil))
 		return
 	}
+	seats, msg := seatsFor(item, req.Seats, false)
+	if msg != "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest(msg, nil))
+		return
+	}
 
 	repo := entities.NewLocalSystemEntitlementRepository()
 	systemID, systemType, err := repo.FindSystemIDByKey(req.SystemKey)
@@ -690,15 +806,20 @@ func PendingEntitlement(c *gin.Context) {
 		return
 	}
 
+	purchaser := resolvePurchaser(req.BuyerEmail)
+	if !checkBuyer(c, repo, systemID, purchaser) {
+		return
+	}
+
 	createdBy := map[string]interface{}{
-		"user_id":           user.ID,
+		"user_id":           actorLogtoID(user),
 		"user_name":         user.Name,
 		"organization_id":   user.OrganizationID,
 		"organization_name": user.OrganizationName,
 		"channel":           "shop",
 	}
 
-	grant, err := repo.MarkPending(systemID, item.ID, req.Scope, req.SourceRef, createdBy, resolvePurchaser(req.BuyerEmail), req.Variant)
+	grant, err := repo.MarkPending(systemID, item.ID, req.Scope, req.SourceRef, createdBy, purchaser, req.Variant, seats)
 	if err != nil {
 		logger.RequestLogger(c, "entitlements").Error().Err(err).
 			Str("system_key", req.SystemKey).
@@ -983,9 +1104,177 @@ func ListSystemEntitlements(c *gin.Context) {
 		redactPurchaser(e, scope)
 	}
 
+	var seatedGrants []string
+	for _, e := range list {
+		if e.Seats != nil {
+			seatedGrants = append(seatedGrants, e.ID)
+		}
+	}
+	seats, err := entities.NewLocalEntitlementSeatRepository().ListByGrants(seatedGrants)
+	if err != nil {
+		logger.RequestLogger(c, "entitlements").Error().Err(err).
+			Str("system_id", systemID).
+			Msg("Failed to list seats")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to list entitlements", nil))
+		return
+	}
+	for _, e := range list {
+		if e.Seats != nil {
+			e.SeatAssignments = seats[e.ID]
+			if e.SeatAssignments == nil {
+				e.SeatAssignments = []models.EntitlementSeat{}
+			}
+			redactSeatAssigners(e, scope)
+		}
+	}
+
 	c.JSON(http.StatusOK, response.OK("entitlements retrieved successfully", gin.H{
 		"entitlements": list,
 	}))
+}
+
+// seatGrant resolves the seated add-on named in the path and its grant on
+// the system. Whoever can buy add-ons (manage:entitlements, checked on the
+// route) hands out the seats, within their own hierarchy.
+func seatGrant(c *gin.Context) (*models.System, *models.User, *models.EntitlementCatalogItem, *models.SystemEntitlement, bool) {
+	system, user, ok := entitlementAccessCheck(c, false)
+	if !ok {
+		return nil, nil, nil, nil, false
+	}
+
+	item, err := entities.NewLocalEntitlementCatalogRepository().Resolve(c.Param("entitlement"))
+	if err == entities.ErrCatalogItemNotFound {
+		c.JSON(http.StatusNotFound, response.NotFound("entitlement not found for this system", nil))
+		return nil, nil, nil, nil, false
+	}
+	if err != nil {
+		logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to resolve entitlement")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve entitlement", nil))
+		return nil, nil, nil, nil, false
+	}
+	if !item.Seated {
+		c.JSON(http.StatusBadRequest, response.BadRequest("this entitlement has no seats", nil))
+		return nil, nil, nil, nil, false
+	}
+
+	grant, err := entities.NewLocalSystemEntitlementRepository().Get(system.ID, item.ID, "")
+	if err == entities.ErrEntitlementNotFound {
+		c.JSON(http.StatusNotFound, response.NotFound("entitlement not found for this system", nil))
+		return nil, nil, nil, nil, false
+	}
+	if err != nil {
+		logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to read entitlement")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to read entitlement", nil))
+		return nil, nil, nil, nil, false
+	}
+
+	return system, user, item, grant, true
+}
+
+// actorLogtoID is the id the actor snapshots carry: the Logto one, as the
+// systems' created_by does, because the UI loads the avatar by it. The local
+// id only stands in for a user not yet synced to the database.
+func actorLogtoID(u *models.User) string {
+	if u.LogtoID != nil && *u.LogtoID != "" {
+		return *u.LogtoID
+	}
+	return u.ID
+}
+
+func seatActor(u *models.User) map[string]interface{} {
+	return map[string]interface{}{
+		"user_id":           actorLogtoID(u),
+		"user_name":         u.Name,
+		"organization_id":   u.OrganizationID,
+		"organization_name": u.OrganizationName,
+	}
+}
+
+// AssignEntitlementSeat handles POST /api/systems/:id/entitlements/:entitlement/seats
+func AssignEntitlementSeat(c *gin.Context) {
+	system, user, item, grant, ok := seatGrant(c)
+	if !ok {
+		return
+	}
+
+	var req models.AssignEntitlementSeatRequest
+	if err := c.ShouldBindBodyWith(&req, binding.JSON); err != nil {
+		c.JSON(http.StatusBadRequest, response.ValidationBadRequestMultiple(err))
+		return
+	}
+
+	if isSystemBlocked(system) {
+		c.JSON(http.StatusConflict, response.Conflict("the system is suspended or deleted", nil))
+		return
+	}
+	if !grant.Active {
+		c.JSON(http.StatusConflict, response.Conflict("the add-on is not active on this system", nil))
+		return
+	}
+
+	seat, err := entities.NewLocalEntitlementSeatRepository().Assign(grant.ID, system.ID, item.AppliesTo, req.ModuleID, seatActor(user))
+	switch err {
+	case nil:
+	case entities.ErrInstanceNotFound:
+		c.JSON(http.StatusBadRequest, response.BadRequest("no "+item.AppliesTo+" application "+req.ModuleID+" on this system", nil))
+		return
+	case entities.ErrSeatAlreadyHeld:
+		c.JSON(http.StatusConflict, response.Conflict("the application already holds a license", nil))
+		return
+	case entities.ErrNoFreeSeat:
+		c.JSON(http.StatusConflict, response.Conflict("no free license left: free one or buy more", nil))
+		return
+	default:
+		logger.RequestLogger(c, "entitlements").Error().Err(err).
+			Str("system_id", system.ID).
+			Str("entitlement", item.ID).
+			Str("module_id", req.ModuleID).
+			Msg("Failed to assign seat")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to assign seat", nil))
+		return
+	}
+
+	logger.RequestLogger(c, "entitlements").Info().
+		Str("operation", "assign_entitlement_seat").
+		Str("system_id", system.ID).
+		Str("entitlement", item.ID).
+		Str("module_id", req.ModuleID).
+		Msg("Entitlement seat assigned")
+
+	c.JSON(http.StatusCreated, response.Created("seat assigned successfully", seat))
+}
+
+// ReleaseEntitlementSeat handles DELETE /api/systems/:id/entitlements/:entitlement/seats/:module_id
+func ReleaseEntitlementSeat(c *gin.Context) {
+	system, user, item, grant, ok := seatGrant(c)
+	if !ok {
+		return
+	}
+	moduleID := c.Param("module_id")
+
+	err := entities.NewLocalEntitlementSeatRepository().Release(grant.ID, moduleID, seatActor(user))
+	if err == entities.ErrSeatNotFound {
+		c.JSON(http.StatusNotFound, response.NotFound("the application holds no license", nil))
+		return
+	}
+	if err != nil {
+		logger.RequestLogger(c, "entitlements").Error().Err(err).
+			Str("system_id", system.ID).
+			Str("entitlement", item.ID).
+			Str("module_id", moduleID).
+			Msg("Failed to release seat")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to release seat", nil))
+		return
+	}
+
+	logger.RequestLogger(c, "entitlements").Info().
+		Str("operation", "release_entitlement_seat").
+		Str("system_id", system.ID).
+		Str("entitlement", item.ID).
+		Str("module_id", moduleID).
+		Msg("Entitlement seat released")
+
+	c.JSON(http.StatusOK, response.OK("seat released successfully", nil))
 }
 
 // CreateSystemEntitlement handles POST /api/systems/:id/entitlements
@@ -1018,6 +1307,15 @@ func CreateSystemEntitlement(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response.BadRequest("this entitlement does not support per-application scope", nil))
 		return
 	}
+	if req.Seats != nil && !item.Seated {
+		c.JSON(http.StatusBadRequest, response.BadRequest("this entitlement has no seats", nil))
+		return
+	}
+	seats, msg := seatsFor(item, req.Seats, true)
+	if msg != "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest(msg, nil))
+		return
+	}
 
 	systemType := ""
 	if system.Type != nil {
@@ -1039,14 +1337,14 @@ func CreateSystemEntitlement(c *gin.Context) {
 	}
 
 	createdBy := map[string]interface{}{
-		"user_id":           user.ID,
+		"user_id":           actorLogtoID(user),
 		"user_name":         user.Name,
 		"organization_id":   user.OrganizationID,
 		"organization_name": user.OrganizationName,
 	}
 
 	repo := entities.NewLocalSystemEntitlementRepository()
-	entitlement, err := repo.Create(systemID, req.Entitlement, req.Scope, source, req.SourceRef, req.ValidFrom, req.ValidUntil, createdBy, resolvePurchaser(req.BuyerEmail), req.Variant)
+	entitlement, err := repo.Create(systemID, req.Entitlement, req.Scope, source, req.SourceRef, req.ValidFrom, req.ValidUntil, createdBy, resolvePurchaser(req.BuyerEmail), req.Variant, seats)
 	if err == entities.ErrEntitlementExists {
 		c.JSON(http.StatusConflict, response.Conflict("entitlement already exists for this system", nil))
 		return
@@ -1094,8 +1392,29 @@ func UpdateSystemEntitlement(c *gin.Context) {
 		validUntil = nil
 	}
 
+	if req.Seats != nil {
+		item, err := entities.NewLocalEntitlementCatalogRepository().Get(entitlementID)
+		if err == entities.ErrCatalogItemNotFound {
+			c.JSON(http.StatusNotFound, response.NotFound("entitlement not found for this system", nil))
+			return
+		}
+		if err != nil {
+			logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to read entitlement catalog")
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to read entitlement catalog", nil))
+			return
+		}
+		if !item.Seated {
+			c.JSON(http.StatusBadRequest, response.BadRequest("this entitlement has no seats", nil))
+			return
+		}
+		if _, msg := seatsFor(item, req.Seats, true); msg != "" {
+			c.JSON(http.StatusBadRequest, response.BadRequest(msg, nil))
+			return
+		}
+	}
+
 	repo := entities.NewLocalSystemEntitlementRepository()
-	entitlement, err := repo.Update(systemID, entitlementID, scope, setValidUntil, validUntil, req.Revoked, models.EntitlementSourceManual)
+	entitlement, err := repo.Update(systemID, entitlementID, scope, setValidUntil, validUntil, req.Revoked, models.EntitlementSourceManual, req.Seats)
 	if err == entities.ErrEntitlementNotFound {
 		c.JSON(http.StatusNotFound, response.NotFound("entitlement not found for this system", nil))
 		return

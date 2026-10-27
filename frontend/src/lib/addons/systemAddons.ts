@@ -14,7 +14,7 @@ import { API_URL, SHOP_BASE_URL } from '../config'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import { useLoginStore } from '@/stores/login'
 import { isAddonAdmin } from '../permissions'
-import { getDisplayName, type Application } from '../applications/applications'
+import type { Application } from '../applications/applications'
 import type { Addon } from './addons'
 
 export const SYSTEM_ADDONS_KEY = 'systemAddons'
@@ -54,6 +54,18 @@ export interface AddonCreator {
   channel?: string
 }
 
+// One seat of a seated add-on, held by an application instance. Seats beyond
+// the number bought (oldest first) are out of quota and not honored.
+export interface AddonSeat {
+  id: string
+  module_id: string
+  assigned_at: string
+  // `{ out_of_scope: true }` when the assigner sits outside the viewer's
+  // hierarchy (redacted server-side, like the purchaser)
+  assigned_by?: AddonCreator & { out_of_scope?: boolean }
+  in_quota: boolean
+}
+
 // One add-on granted to one system, optionally narrowed to a single
 // application instance through `scope` ('' = the whole system).
 export interface AddonGrant {
@@ -80,6 +92,9 @@ export interface AddonGrant {
   // shop tier of the purchased product line, display only (e.g. "16-30 device")
   variant?: { id?: number; sku?: string; label?: string }
   renewal_count?: number
+  // seats bought and the instances holding them, for seated add-ons only
+  seats?: number
+  seat_assignments?: AddonSeat[]
 }
 
 interface Envelope<T> {
@@ -111,14 +126,60 @@ export const getAvailableAddons = () =>
 
 // Grant an add-on outright, skipping NethShop. Owner organization only,
 // enforced again by the backend. No expiry means perpetual.
-export const grantSystemAddon = (systemId: string, addonId: string, scope: string) =>
+export const grantSystemAddon = (
+  systemId: string,
+  addonId: string,
+  scope: string,
+  seats?: number,
+) =>
   axios
     .post<Envelope<AddonGrant>>(
       `${API_URL}/${systemAddonsPath(systemId)}`,
-      { entitlement: addonId, scope: scope || undefined },
+      { entitlement: addonId, scope: scope || undefined, seats },
       authHeaders(),
     )
     .then((res) => res.data.data)
+
+// The number of licenses of an add-on sold by licenses. Owner organization
+// only, enforced again by the backend.
+export const updateSystemAddonSeats = (systemId: string, addonId: string, seats: number) =>
+  axios
+    .put<Envelope<AddonGrant>>(
+      `${API_URL}/${systemAddonsPath(systemId)}/${addonId}`,
+      { seats },
+      authHeaders(),
+    )
+    .then((res) => res.data.data)
+
+// Seats of a seated add-on go to application instances. Allowed to whoever can
+// buy add-ons, within the hierarchy.
+export const assignAddonSeat = (systemId: string, addonId: string, moduleId: string) =>
+  axios
+    .post<Envelope<AddonSeat>>(
+      `${API_URL}/${systemAddonsPath(systemId)}/${addonId}/seats`,
+      { module_id: moduleId },
+      authHeaders(),
+    )
+    .then((res) => res.data.data)
+
+export const releaseAddonSeat = (systemId: string, addonId: string, moduleId: string) =>
+  axios
+    .delete(
+      `${API_URL}/${systemAddonsPath(systemId)}/${addonId}/seats/${encodeURIComponent(moduleId)}`,
+      authHeaders(),
+    )
+    .then(() => undefined)
+
+// Seats taken out of those bought: the ones beyond quota do not count as used,
+// since they cover nothing.
+export const getSeatUsage = (grant: AddonGrant | undefined) => {
+  const held = grant?.seat_assignments ?? []
+  return {
+    used: held.filter((seat) => seat.in_quota).length,
+    total: grant?.seats ?? 0,
+    overQuota: held.filter((seat) => !seat.in_quota).length,
+  }
+}
 
 // Soft revoke: the row stays and records who revoked it, so a later purchase
 // can pick it back up.
@@ -144,17 +205,15 @@ export const restoreSystemAddon = (systemId: string, addonId: string, scope: str
 
 // ----- rows -----
 
-// One line of the UI: an add-on, the place it applies to, and the grant that
-// covers it if there is one. Services produce a single row for the whole
-// system; modules produce one row per application instance.
+// One add-on of a system and the grant that covers it, if there is one.
 export interface SystemAddonRow {
   addon: Addon
   grant?: AddonGrant
-  // '' for a system-wide service, the application instance's module_id otherwise
+  // always '': add-ons are bought for the whole system
   scope: string
-  // the application type (instance_of), '' for a system-wide service
+  // the application a module belongs to (instance_of), '' for a service
   applicationId: string
-  // what the Application column shows: the instance label, or the system name
+  // the system name, which the action modal and notifications name
   applicationLabel: string
 }
 
@@ -169,6 +228,17 @@ export type AddonRowStatus = (typeof ADDON_ROW_STATUSES)[number]
 // "inactive" would have the card contradict the table it opens onto.
 export const getRowStatus = (row: SystemAddonRow): AddonRowStatus =>
   row.grant?.status ?? 'not_purchased'
+
+// The shop names a tier in Italian only. A tier My knows is translated by its
+// SKU; any other keeps the shop label as it is.
+export const getTierLabel = (
+  tier: { sku?: string; label?: string },
+  t: (key: string) => string,
+  te: (key: string) => boolean,
+) => {
+  const key = `addons.tiers.${tier.sku}`
+  return tier.sku && te(key) ? t(key) : (tier.label ?? '')
+}
 
 // Who bought the grant, as far as this viewer is allowed to know: a purchaser
 // outside their hierarchy arrives redacted, and a manual grant has no buyer at
@@ -229,9 +299,10 @@ interface ComposeRowsArgs {
 }
 
 // The grant list carries no catalog information and the application instances
-// live in a different endpoint again, so the three are joined here. The
-// backend model is flat — one row per (system, add-on, scope) — and the
-// two-level shape the UI shows is built entirely from that.
+// live in a different endpoint again, so the three are joined here. Every
+// add-on is bought for the whole system, so each one is a single row: the
+// system-wide grant when there is one, otherwise whatever grant the system
+// holds for it.
 export const composeSystemAddonRows = ({
   availableAddons,
   grants,
@@ -239,64 +310,52 @@ export const composeSystemAddonRows = ({
   systemType,
   systemName,
 }: ComposeRowsArgs): SystemAddonRow[] => {
-  const findGrant = (addonId: string, scope: string) =>
-    grants.find((grant) => grant.entitlement === addonId && (grant.scope ?? '') === scope)
+  const findGrant = (addonId: string) => {
+    const held = grants.filter((grant) => grant.entitlement === addonId)
+    return held.find((grant) => !grant.scope) ?? held[0]
+  }
 
   const rows: SystemAddonRow[] = []
 
-  // System-wide services, limited to the ones that apply to this product.
-  const services = availableAddons.filter(
-    (addon) =>
-      addon.kind === 'service' &&
-      (!addon.system_type || !systemType || addon.system_type === systemType),
-  )
+  for (const addon of availableAddons) {
+    if (addon.system_type && systemType && addon.system_type !== systemType) {
+      continue
+    }
+    const grant = findGrant(addon.id)
 
-  for (const addon of services) {
+    // A module belongs to one application of the cluster: it is offered once
+    // the cluster runs that application, or while the system holds it. The
+    // add-on names the application in `applies_to` — the id prefix is never
+    // read for it, since an application name may contain a hyphen
+    // ("nethvoice-proxy").
+    if (
+      addon.kind === 'module' &&
+      !grant &&
+      !applications.some((application) => application.instance_of === addon.applies_to)
+    ) {
+      continue
+    }
+
     rows.push({
       addon,
-      grant: findGrant(addon.id, ''),
+      grant,
       scope: '',
-      applicationId: '',
+      applicationId: addon.kind === 'module' ? (addon.applies_to ?? '') : '',
       applicationLabel: systemName,
     })
-  }
-
-  // Modules only exist on a NethServer cluster, one row per application
-  // instance: the add-on names the application it belongs to in `applies_to`,
-  // which is why the id prefix is never read for it — an application name may
-  // itself contain a hyphen ("nethvoice-proxy").
-  if (systemType === 'ns8') {
-    const modules = availableAddons.filter((addon) => addon.kind === 'module')
-    const instances = [...applications].sort((a, b) => a.module_id.localeCompare(b.module_id))
-
-    for (const application of instances) {
-      for (const addon of modules.filter(
-        (module) => module.applies_to === application.instance_of,
-      )) {
-        rows.push({
-          addon,
-          grant: findGrant(addon.id, application.module_id),
-          scope: application.module_id,
-          applicationId: application.instance_of,
-          applicationLabel: getDisplayName(application),
-        })
-      }
-    }
   }
 
   // Grants nothing above accounts for — legacy imports, add-ons an
   // availability rule has since restricted away — still deserve a row rather
   // than vanishing from a page that claims to list what the system holds.
-  const covered = new Set(rows.map((row) => `${row.addon.id} ${row.scope}`))
+  const covered = new Set(rows.map((row) => row.addon.id))
 
   for (const grant of grants) {
-    const scope = grant.scope ?? ''
-
-    if (covered.has(`${grant.entitlement} ${scope}`)) {
+    if (covered.has(grant.entitlement)) {
       continue
     }
+    covered.add(grant.entitlement)
 
-    const application = applications.find((app) => app.module_id === scope)
     // Usually the add-on is perfectly well known and was only skipped above
     // because it does not apply to this product — an nsec service granted to a
     // cluster, say. Falling straight through to a synthetic entry would show
@@ -309,20 +368,21 @@ export const composeSystemAddonRows = ({
         id: grant.entitlement,
         display_name: grant.entitlement,
         description: '',
-        scoped: !!scope,
-        kind: scope ? 'module' : 'service',
+        scoped: false,
+        kind: 'service',
         // an add-on we cannot even name is certainly not one to offer for sale
         purchasable: false,
+        seated: false,
         // the row exists because a grant references it, which is precisely what
         // in_use means
         in_use: true,
         created_at: '',
         updated_at: '',
       },
-      grant,
-      scope,
-      applicationId: application?.instance_of ?? '',
-      applicationLabel: application ? getDisplayName(application) : scope || systemName,
+      grant: findGrant(grant.entitlement),
+      scope: '',
+      applicationId: known?.kind === 'module' ? (known.applies_to ?? '') : '',
+      applicationLabel: systemName,
     })
   }
 
@@ -413,6 +473,10 @@ export const getBuyUrl = (systemKey: string, row: SystemAddonRow) => {
 
   if (row.scope) {
     url += `&scope=${encodeURIComponent(row.scope)}`
+  }
+  // buying more licenses: the shop offers only the tiers above the current one
+  if (row.addon.seated && row.grant?.status === 'active' && row.grant.seats) {
+    url += `&seats=${row.grant.seats}`
   }
   // Explicit return page for the shop's "back to My Nethesis" link: the
   // Referer header cannot carry it, since strict-origin-when-cross-origin

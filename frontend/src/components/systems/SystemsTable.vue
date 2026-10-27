@@ -20,7 +20,6 @@ import {
   faCirclePlay,
   faBomb,
   faTriangleExclamation,
-  faArrowsRotate,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -69,6 +68,7 @@ import SuspendSystemModal from './SuspendSystemModal.vue'
 import ReactivateSystemModal from './ReactivateSystemModal.vue'
 import DestroySystemModal from './DestroySystemModal.vue'
 import SystemStatusIcon from './SystemStatusIcon.vue'
+import UpdateAvailableIcon from '@/components/common/UpdateAvailableIcon.vue'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 import {
@@ -574,23 +574,7 @@ function onCloseSecretRegeneratedModal() {
               :class="{ 'opacity-50': item.status === 'deleted' }"
             >
               {{ item.version || '-' }}
-              <NeTooltip
-                v-if="item.update_available"
-                trigger-event="mouseenter focus"
-                placement="top"
-              >
-                <template #trigger>
-                  <FontAwesomeIcon
-                    :icon="faArrowsRotate"
-                    class="size-4 text-amber-700 dark:text-amber-500"
-                    aria-hidden="true"
-                  />
-                  <span class="sr-only">{{ $t('systems.update_available') }}</span>
-                </template>
-                <template #content>
-                  {{ $t('systems.update_available') }}
-                </template>
-              </NeTooltip>
+              <UpdateAvailableIcon v-if="item.update_available" />
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.fqdn_ip_address')" class="wrap-anywhere">
