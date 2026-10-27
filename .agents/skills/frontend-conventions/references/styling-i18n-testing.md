@@ -17,28 +17,14 @@ For `.vue` files use HTML comment syntax:
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 ```
 
-## Styling — Tailwind CSS v4
+## Styling
 
-- Configured via `@tailwindcss/vite` — no `tailwind.config.js`.
-- **Primary colour `sky-*`**: `sky-600` interactive, `sky-700` on hover. No hard-coded hex colours.
-- **Dark mode** via `.dark` class — always pair light/dark variants:
-  ```html
-  <span class="text-gray-700 dark:text-gray-200">
-  <div class="bg-white dark:bg-gray-950">
-  ```
-- **No inline `style`** — Tailwind utilities only.
-- **No arbitrary values** (e.g. `w-[137px]`) unless genuinely unavoidable.
-- Spacing follows the 4px grid (`p-4`, `gap-6`, `mt-2`).
-
-Use `@nethesis/vue-components` for all UI primitives: `NeButton`, `NeCard`, `NeHeading`,
-`NeSkeleton`, `NeInlineNotification`, `NeEmptyState`, `NeDropdownFilter`, `NeTextInput`,
-`NeBadgeV2`, etc. Reference: [Storybook](https://nethesis.github.io/vue-components/).
-
-## Icons
-
-FontAwesome via `@fortawesome/vue-fontawesome` + the `FontAwesomeIcon` component. Import individual
-icons from `@fortawesome/free-solid-svg-icons` (or `free-regular-svg-icons`). Never import the
-whole library.
+- Tailwind CSS v4, configured via `@tailwindcss/vite` — no `tailwind.config.js`.
+- Everything about styles is in `src/assets/main.css`: the primary palette (`sky` in My Nethesis,
+  used through `primary-*` classes), the semantic colors for the light and the dark theme, and
+  the `.dark` variant.
+- Components, colors, dark theme, typography and icons follow the Nethesis Design System: see
+  the `nethesis-frontend` skill.
 
 ## i18n
 
