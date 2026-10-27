@@ -918,7 +918,7 @@
     "never_expires": "Non scade mai",
     "purchaser_not_visible": "Non visibile",
     "purchaser_migrated": "Acquisto migrato — compratore non tracciato",
-    "status_active": "Attivo",
+    "status_active": "Acquistato",
     "status_pending": "In attesa di pagamento",
     "status_suspended": "Sospeso",
     "status_revoked": "Revocato",

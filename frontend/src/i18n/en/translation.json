@@ -1000,7 +1000,7 @@
     "never_expires": "Never expires",
     "purchaser_not_visible": "Not visible",
     "purchaser_migrated": "Migrated — buyer not recorded",
-    "status_active": "Active",
+    "status_active": "Purchased",
     "status_pending": "Pending payment",
     "status_suspended": "Suspended",
     "status_revoked": "Revoked",
