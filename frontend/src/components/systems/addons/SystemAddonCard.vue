@@ -5,11 +5,12 @@
   One add-on of a system. Every add-on is bought for the whole system, so the
   card says everything there is to say about it — status, validity, order,
   tier, purchaser — and carries its actions. A seated add-on also counts its
-  seats and opens the page where they are given to the application instances.
+  seats and opens the page where they are given to the application instances;
+  buying more of them lives on that page, next to the table they fill.
 -->
 
 <script setup lang="ts">
-import { faArrowRightLong } from '@fortawesome/free-solid-svg-icons'
+import { faArrowRight } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { NeButton, NeCard, NeDropdown } from '@nethesis/vue-components'
 import { computed } from 'vue'
@@ -52,32 +53,33 @@ const seatUsage = computed(() =>
 const actions = computed((): AddonRowActions =>
   getAddonActions(row, (action) => emit('action', row, action)),
 )
+
+// buying more licenses of a grant in force is offered on the licenses page;
+// any other purchase (first one, renewal) stays on the card
+const isBuyShown = computed(
+  () => !!actions.value.buy && !(seatUsage.value && row.grant?.status === 'active'),
+)
 </script>
 
 <template>
   <NeCard>
-    <div class="flex h-full flex-col gap-5">
-      <!-- logo + name + description -->
-      <div class="flex flex-col gap-2">
-        <div class="flex min-h-10 items-center justify-between gap-4">
-          <div class="flex items-center gap-3">
-            <ApplicationLogo v-if="row.applicationId" :app="row.applicationId" />
-            <SystemLogo v-else :system="systemType || 'nsec'" />
-            <p class="font-medium text-gray-900 dark:text-gray-100">
-              {{ row.addon.display_name }}
-            </p>
-          </div>
-          <!-- kebab menu -->
-          <NeDropdown
-            v-if="actions.menu.length"
-            :items="actions.menu"
-            :align-to-right="true"
-            :open-menu-aria-label="$t('ne_dropdown.open_menu')"
-          />
+    <div class="flex h-full flex-col gap-4">
+      <!-- logo + name -->
+      <div class="flex min-h-8 items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <ApplicationLogo v-if="row.applicationId" :app="row.applicationId" />
+          <SystemLogo v-else :system="systemType || 'nsec'" />
+          <p class="text-primary-neutral font-medium">
+            {{ row.addon.display_name }}
+          </p>
         </div>
-        <p v-if="row.addon.description" class="text-tertiary-neutral">
-          {{ row.addon.description }}
-        </p>
+        <!-- kebab menu -->
+        <NeDropdown
+          v-if="actions.menu.length"
+          :items="actions.menu"
+          :align-to-right="true"
+          :open-menu-aria-label="$t('ne_dropdown.open_menu')"
+        />
       </div>
       <!-- everything there is to say about the add-on on this system -->
       <div class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -106,7 +108,7 @@ const actions = computed((): AddonRowActions =>
                 :href="getOrderUrl(row.grant)"
                 target="_blank"
                 rel="noopener"
-                class="text-primary-700 dark:text-primary-500 hover:underline"
+                class="text-primary-active font-medium hover:underline"
               >
                 #{{ getOrderNumber(row.grant) }}
               </a>
@@ -130,27 +132,12 @@ const actions = computed((): AddonRowActions =>
             <template #label>{{ $t('addons.tier') }}</template>
             <template #data>{{ row.grant.variant.label }}</template>
           </DataItem>
-          <DataItem v-if="seatUsage">
-            <template #label>{{ $t('addons.seats') }}</template>
-            <template #data>
-              <div class="flex flex-col items-end gap-2">
-                <AddonLicenseUsage :used="seatUsage.used" :total="seatUsage.total" />
-                <!-- buying more belongs with the count it raises -->
-                <NeButton
-                  v-if="actions.buy"
-                  kind="tertiary"
-                  size="sm"
-                  class="-mr-2.5"
-                  @click="actions.buy.action?.()"
-                >
-                  <template v-if="actions.buy.icon" #prefix>
-                    <FontAwesomeIcon :icon="actions.buy.icon" class="size-4" aria-hidden="true" />
-                  </template>
-                  {{ actions.buy.label }}
-                </NeButton>
-              </div>
-            </template>
-          </DataItem>
+          <AddonLicenseUsage
+            v-if="seatUsage"
+            :used="seatUsage.used"
+            :total="seatUsage.total"
+            class="py-4"
+          />
           <DataItem>
             <template #label>{{ $t('addons.purchased_by') }}</template>
             <template #data>
@@ -207,7 +194,7 @@ const actions = computed((): AddonRowActions =>
       </div>
       <!-- pushed to the bottom so cards of differing height line their buttons up -->
       <div class="mt-auto flex justify-end gap-2">
-        <NeButton v-if="actions.buy && !seatUsage" kind="tertiary" @click="actions.buy.action?.()">
+        <NeButton v-if="actions.buy && isBuyShown" kind="tertiary" @click="actions.buy.action?.()">
           <template v-if="actions.buy.icon" #prefix>
             <FontAwesomeIcon :icon="actions.buy.icon" class="size-4" aria-hidden="true" />
           </template>
@@ -216,7 +203,7 @@ const actions = computed((): AddonRowActions =>
         <NeButton v-if="seatUsage" kind="tertiary" @click="emit('seats')">
           {{ $t('addons.manage_seats') }}
           <template #suffix>
-            <FontAwesomeIcon :icon="faArrowRightLong" class="size-4" aria-hidden="true" />
+            <FontAwesomeIcon :icon="faArrowRight" class="size-4" aria-hidden="true" />
           </template>
         </NeButton>
       </div>

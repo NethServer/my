@@ -91,9 +91,11 @@ function closeAddon() {
 
 <template>
   <div>
-    <!-- page description: on a firewall the card states the add-on in full, so
-         there is nothing to open and the last sentence would be a dead end -->
-    <div v-if="isLoading || isSystemReady" class="text-tertiary-neutral mb-8 max-w-3xl">
+    <!-- page description, for the cards only: the licenses page has its own -->
+    <div
+      v-if="!selectedAddonId && (isLoading || isSystemReady)"
+      class="text-tertiary-neutral mb-8 max-w-3xl"
+    >
       {{
         system?.type === 'nsec'
           ? $t('addons.system_addons_description_nsec')

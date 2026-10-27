@@ -14,20 +14,32 @@
 
 <script setup lang="ts">
 import {
-  NeBadgeV2,
+  faCircleCheck,
+  faCircleXmark,
+  faMagnifyingGlass,
+  faTriangleExclamation,
+} from '@fortawesome/free-solid-svg-icons'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import {
   NeButton,
-  formatDateTimeNoSeconds,
-  NeHeading,
+  NeDropdownFilterV2,
+  NeEmptyState,
   NeInlineNotification,
+  NeModal,
+  NePaginator,
   NeTable,
   NeTableBody,
   NeTableCell,
   NeTableHead,
   NeTableHeadCell,
   NeTableRow,
+  NeTextInput,
+  NeTooltip,
+  useItemPagination,
+  type NeDropdownFilterV2Option,
 } from '@nethesis/vue-components'
 import { useMutation, useQueryCache } from '@pinia/colada'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import ApplicationLogo from '@/components/applications/ApplicationLogo.vue'
@@ -45,20 +57,36 @@ import {
 } from '@/lib/addons/systemAddons'
 import { getDisplayName, getFqdns, type Application } from '@/lib/applications/applications'
 import { canManageAddons } from '@/lib/permissions'
+import {
+  DEFAULT_PAGE_SIZE,
+  PAGE_SIZE_OPTIONS,
+  loadPageSizeFromStorage,
+  savePageSizeToStorage,
+} from '@/lib/tablePageSize'
 import { getBackendErrorMessage } from '@/lib/validation'
 import { useSystemApplications } from '@/queries/addons/systemAddons'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
+import { useLoginStore } from '@/stores/login'
 import { useNotificationsStore } from '@/stores/notifications'
 import AddonLicenseUsage from './AddonLicenseUsage.vue'
+
+const SEATS_TABLE_ID = 'addonSeatsTable'
+
+// filter value -> label key, the same words as the License column
+const LICENSE_FILTER_LABELS = {
+  assigned: 'addons.seat_assigned_status',
+  not_assigned: 'addons.seat_not_assigned',
+} as const
 
 const { row } = defineProps<{
   // the system-wide row of the seated add-on
   row: SystemAddonRow
 }>()
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const route = useRoute()
 const queryCache = useQueryCache()
+const loginStore = useLoginStore()
 const notificationsStore = useNotificationsStore()
 const { state: applicationsState } = useSystemApplications()
 const { state: systemDetail } = useSystemDetail()
@@ -68,6 +96,13 @@ const grant = computed(() => row.grant)
 const usage = computed(() => getSeatUsage(grant.value))
 const busyModule = ref('')
 const errorMessage = ref('')
+
+const textFilter = ref('')
+const licenseFilter = ref<NeDropdownFilterV2Option[]>([])
+const pageSize = ref(loadPageSizeFromStorage(SEATS_TABLE_ID, DEFAULT_PAGE_SIZE))
+
+const lineToFree = ref<SeatLine | undefined>()
+const isShownFreeModal = ref(false)
 
 const isSystemBlocked = computed(() =>
   ['suspended', 'deleted'].includes(systemDetail.value.data?.status ?? ''),
@@ -102,36 +137,65 @@ const lines = computed((): SeatLine[] => {
       out.push({ moduleId: seat.module_id, seat })
     }
   }
-  // seated instances first, then the others by id
-  return out.sort(
-    (a, b) => Number(!a.seat) - Number(!b.seat) || a.moduleId.localeCompare(b.moduleId),
-  )
+  // by id only, so a row stays where it is when its license changes
+  return out.sort((a, b) => a.moduleId.localeCompare(b.moduleId, undefined, { numeric: true }))
+})
+
+const licenseFilterOptions = computed((): NeDropdownFilterV2Option[] =>
+  Object.entries(LICENSE_FILTER_LABELS).map(([id, key]) => ({ id, label: t(key) })),
+)
+
+const filteredLines = computed(() => {
+  const search = textFilter.value.trim().toLowerCase()
+  const licenses = licenseFilter.value.map((option) => option.id)
+
+  return lines.value.filter((line) => {
+    if (licenses.length && !licenses.includes(line.seat ? 'assigned' : 'not_assigned')) {
+      return false
+    }
+    if (search && !lineSearchText(line).includes(search)) {
+      return false
+    }
+    return true
+  })
+})
+
+const { currentPage, paginatedItems } = useItemPagination(filteredLines, {
+  itemsPerPage: pageSize,
+})
+
+watch([textFilter, licenseFilter], () => {
+  currentPage.value = 1
 })
 
 const { mutate: changeSeat } = useMutation({
-  mutation: async ({ moduleId, assign }: { moduleId: string; assign: boolean }) => {
+  mutation: async ({ line, assign }: { line: SeatLine; assign: boolean }) => {
     if (assign) {
-      await assignAddonSeat(systemId.value, row.addon.id, moduleId)
+      await assignAddonSeat(systemId.value, row.addon.id, line.moduleId)
     } else {
-      await releaseAddonSeat(systemId.value, row.addon.id, moduleId)
+      await releaseAddonSeat(systemId.value, row.addon.id, line.moduleId)
     }
   },
-  onMutate({ moduleId }) {
-    busyModule.value = moduleId
+  onMutate({ line }) {
+    busyModule.value = line.moduleId
     errorMessage.value = ''
   },
-  onSuccess(_data, { moduleId, assign }) {
-    notificationsStore.createNotification({
-      kind: 'success',
+  onSuccess(_data, { line, assign }) {
+    const notification = {
+      kind: 'success' as const,
       title: assign ? t('addons.seat_assigned') : t('addons.seat_released'),
       description: t(
         assign ? 'addons.seat_assigned_description' : 'addons.seat_released_description',
-        {
-          name: row.addon.display_name,
-          application: moduleId,
-        },
+        { application: lineName(line) },
       ),
-    })
+    }
+    if (assign) {
+      notificationsStore.createNotification(notification)
+      return
+    }
+    // freeing confirms in a modal: let it close before the toast shows
+    isShownFreeModal.value = false
+    setTimeout(() => notificationsStore.createNotification(notification), 500)
   },
   onError(error) {
     errorMessage.value = getBackendErrorMessage(error)
@@ -142,70 +206,135 @@ const { mutate: changeSeat } = useMutation({
   },
 })
 
+function lineName(line: SeatLine) {
+  return line.application ? getDisplayName(line.application) : line.moduleId
+}
+
+function lineSearchText(line: SeatLine) {
+  const application = line.application
+  return [
+    lineName(line),
+    application ? nodeName(application) : '',
+    ...(application ? getFqdns(application) : []),
+    application?.organization?.name ?? '',
+  ]
+    .join(' ')
+    .toLowerCase()
+}
+
 // the node an instance runs on, written as the application page writes it
 function nodeName(application: Application) {
   const node = t('common.node_id', { id: application.node_id })
   return application.node_label ? `${application.node_label} (${node})` : node
 }
 
-function seatDate(seat: AddonSeat) {
-  return formatDateTimeNoSeconds(new Date(seat.assigned_at), locale.value)
+function isMe(seat: AddonSeat) {
+  return !!seat.assigned_by?.user_id && seat.assigned_by.user_id === loginStore.userInfo?.logto_id
+}
+
+function showFreeModal(line: SeatLine) {
+  lineToFree.value = line
+  errorMessage.value = ''
+  isShownFreeModal.value = true
+}
+
+function closeFreeModal() {
+  isShownFreeModal.value = false
+  // the error belongs to the modal: it must not reappear under the toolbar
+  errorMessage.value = ''
+}
+
+function clearFilters() {
+  textFilter.value = ''
+  licenseFilter.value = []
 }
 </script>
 
 <template>
   <div>
-    <div class="mb-4 flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <NeHeading tag="h5">{{ $t('addons.seats') }}</NeHeading>
-        <p class="text-tertiary-neutral mt-1 max-w-3xl">
-          {{ $t('addons.seats_description') }}
-        </p>
+    <!-- filters + license usage -->
+    <div class="mb-8 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex flex-wrap items-center gap-4">
+        <NeTextInput
+          v-model="textFilter"
+          is-search
+          :placeholder="$t('addons.filter_seat_applications')"
+          class="max-w-48 sm:max-w-xs"
+          @blur="textFilter = textFilter.trim()"
+        />
+        <NeDropdownFilterV2
+          v-model="licenseFilter"
+          kind="checkbox"
+          :label="$t('addons.license')"
+          :options="licenseFilterOptions"
+          :clear-filter-label="$t('ne_dropdown_filter.clear_selection')"
+          :open-menu-aria-label="$t('ne_dropdown_filter.open_filter')"
+          :no-options-label="$t('ne_dropdown_filter.no_options')"
+          :more-options-hidden-label="$t('ne_dropdown_filter.more_options_hidden')"
+          :clear-search-label="$t('ne_dropdown_filter.clear_search')"
+          :options-filter-placeholder="$t('ne_dropdown_filter.options_filter_placeholder')"
+        />
+        <NeButton kind="tertiary" @click="clearFilters">
+          {{ $t('common.reset_filters') }}
+        </NeButton>
       </div>
-      <AddonLicenseUsage :used="usage.used" :total="usage.total" />
+      <AddonLicenseUsage :used="usage.used" :total="usage.total" class="w-52" />
     </div>
     <NeInlineNotification
       v-if="!isGrantActive"
       kind="info"
       :title="$t('addons.seats_not_in_force')"
       :description="$t('addons.seats_not_in_force_description')"
-      class="mb-4"
+      class="mb-6"
     />
     <NeInlineNotification
       v-if="usage.overQuota"
       kind="warning"
       :title="$t('addons.seats_over_quota', { count: usage.overQuota })"
       :description="$t('addons.seats_over_quota_description')"
-      class="mb-4"
+      class="mb-6"
     />
+    <!-- an assignment failing; freeing reports in its own modal -->
     <NeInlineNotification
-      v-if="errorMessage"
+      v-if="errorMessage && !isShownFreeModal"
       kind="error"
       :title="$t('addons.cannot_change_seat')"
       :description="errorMessage"
-      class="mb-4"
+      class="mb-6"
     />
     <p v-if="!lines.length" class="text-tertiary-neutral">
       {{ $t('addons.no_instances_for_seats') }}
     </p>
+    <!-- no application matching filters -->
+    <NeEmptyState
+      v-else-if="!filteredLines.length"
+      :title="$t('applications.no_applications_found')"
+      :description="$t('common.try_changing_search_filters')"
+      :icon="faMagnifyingGlass"
+      class="bg-white dark:bg-gray-950"
+    >
+      <NeButton kind="tertiary" @click="clearFilters">
+        {{ $t('common.reset_filters') }}
+      </NeButton>
+    </NeEmptyState>
     <NeTable v-else :aria-label="$t('addons.seats')" card-breakpoint="xl">
       <NeTableHead>
         <NeTableHeadCell>{{ $t('applications.name') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('addons.node') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('applications.fqdn') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('applications.assigned_company') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('addons.assigned_by') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('addons.license') }}</NeTableHeadCell>
+        <NeTableHeadCell>{{ $t('addons.assigned_by') }}</NeTableHeadCell>
         <NeTableHeadCell>
           <!-- no header for actions -->
         </NeTableHeadCell>
       </NeTableHead>
       <NeTableBody>
-        <NeTableRow v-for="line in lines" :key="line.moduleId">
+        <NeTableRow v-for="line in paginatedItems" :key="line.moduleId">
           <NeTableCell :data-label="$t('applications.name')">
             <div class="flex items-center gap-2">
               <ApplicationLogo :app="row.addon.applies_to ?? ''" />
-              <span>{{ line.application ? getDisplayName(line.application) : line.moduleId }}</span>
+              <span>{{ lineName(line) }}</span>
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('addons.node')">
@@ -232,68 +361,163 @@ function seatDate(seat: AddonSeat) {
             />
             <span v-else>-</span>
           </NeTableCell>
-          <!-- who gave the license and when, laid out as "Created by" on a system -->
-          <NeTableCell :data-label="$t('addons.assigned_by')">
-            <div v-if="line.seat" class="space-y-0.5 text-sm">
-              <div v-if="line.seat.assigned_by?.user_name" class="flex items-center gap-2">
-                <UserAvatar
-                  size="xs"
-                  :is-owner="false"
-                  :name="line.seat.assigned_by.user_name"
-                  :logto-id="line.seat.assigned_by.user_id ?? ''"
-                />
-                <span>{{ line.seat.assigned_by.user_name }}</span>
-              </div>
-              <div v-else-if="line.seat.assigned_by?.out_of_scope" class="text-tertiary-neutral">
-                {{ $t('addons.purchaser_not_visible') }}
-              </div>
-              <div v-if="line.seat.assigned_by?.organization_name" class="text-tertiary-neutral">
-                <CreatorOrganization
-                  :creator="{
-                    organization_id: line.seat.assigned_by.organization_id ?? '',
-                    organization_name: line.seat.assigned_by.organization_name,
-                  }"
-                />
-              </div>
-              <div class="text-tertiary-neutral mt-1">{{ seatDate(line.seat) }}</div>
-            </div>
-            <span v-else>-</span>
-          </NeTableCell>
           <NeTableCell :data-label="$t('addons.license')">
-            <NeBadgeV2 v-if="line.seat && line.seat.in_quota" kind="green" size="xs">
-              {{ $t('addons.seat_held') }}
-            </NeBadgeV2>
-            <NeBadgeV2 v-else-if="line.seat" kind="amber" size="xs">
-              {{ $t('addons.seat_over_quota') }}
-            </NeBadgeV2>
-            <NeBadgeV2 v-else kind="gray" size="xs">{{ $t('addons.no_seat') }}</NeBadgeV2>
+            <span class="flex items-center gap-2">
+              <FontAwesomeIcon
+                v-if="line.seat && line.seat.in_quota"
+                :icon="faCircleCheck"
+                class="text-icon-enabled size-4 shrink-0"
+                aria-hidden="true"
+              />
+              <FontAwesomeIcon
+                v-else-if="line.seat"
+                :icon="faTriangleExclamation"
+                class="size-4 shrink-0 text-amber-700 dark:text-amber-500"
+                aria-hidden="true"
+              />
+              <FontAwesomeIcon
+                v-else
+                :icon="faCircleXmark"
+                class="text-icon-neutral size-4 shrink-0"
+                aria-hidden="true"
+              />
+              <span>
+                {{
+                  line.seat
+                    ? line.seat.in_quota
+                      ? $t('addons.seat_assigned_status')
+                      : $t('addons.seat_over_quota')
+                    : $t('addons.seat_not_assigned')
+                }}
+              </span>
+            </span>
+          </NeTableCell>
+          <!-- who gave the license, laid out as "Created by" on a system -->
+          <NeTableCell :data-label="$t('addons.assigned_by')">
+            <div v-if="line.seat?.assigned_by?.user_name" class="flex items-center gap-2">
+              <UserAvatar
+                size="sm"
+                :is-owner="false"
+                :name="line.seat.assigned_by.user_name"
+                :logto-id="line.seat.assigned_by.user_id ?? ''"
+              />
+              <div>
+                <div>
+                  {{ line.seat.assigned_by.user_name }}
+                  <span v-if="isMe(line.seat)">({{ $t('users.me') }})</span>
+                </div>
+                <div v-if="line.seat.assigned_by.organization_name" class="text-tertiary-neutral">
+                  <CreatorOrganization
+                    :creator="{
+                      organization_id: line.seat.assigned_by.organization_id ?? '',
+                      organization_name: line.seat.assigned_by.organization_name,
+                    }"
+                  />
+                </div>
+              </div>
+            </div>
+            <span v-else-if="line.seat?.assigned_by?.out_of_scope" class="text-tertiary-neutral">
+              {{ $t('addons.purchaser_not_visible') }}
+            </span>
+            <span v-else>-</span>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
             <div v-if="canManageSeats" class="-ml-2.5 flex xl:ml-0 xl:justify-end">
               <NeButton
                 v-if="line.seat"
                 kind="tertiary"
-                size="sm"
-                :loading="busyModule === line.moduleId"
                 :disabled="!!busyModule"
-                @click="changeSeat({ moduleId: line.moduleId, assign: false })"
+                @click="showFreeModal(line)"
               >
+                <template #prefix>
+                  <FontAwesomeIcon :icon="faCircleXmark" class="size-4" aria-hidden="true" />
+                </template>
                 {{ $t('addons.release_seat') }}
               </NeButton>
+              <!-- out of licenses: the button stays, and says why it cannot be used -->
+              <NeTooltip v-else-if="isGrantActive && isFull" trigger-event="mouseenter focus">
+                <template #trigger>
+                  <span tabindex="0" class="inline-flex">
+                    <NeButton kind="secondary" disabled class="pointer-events-none">
+                      <template #prefix>
+                        <FontAwesomeIcon :icon="faCircleCheck" class="size-4" aria-hidden="true" />
+                      </template>
+                      {{ $t('addons.assign_seat') }}
+                    </NeButton>
+                  </span>
+                </template>
+                <template #content>{{ $t('addons.no_seats_available') }}</template>
+              </NeTooltip>
               <NeButton
                 v-else
                 kind="secondary"
-                size="sm"
                 :loading="busyModule === line.moduleId"
-                :disabled="!!busyModule || !isGrantActive || isFull"
-                @click="changeSeat({ moduleId: line.moduleId, assign: true })"
+                :disabled="!!busyModule || !isGrantActive"
+                @click="changeSeat({ line, assign: true })"
               >
+                <template #prefix>
+                  <FontAwesomeIcon :icon="faCircleCheck" class="size-4" aria-hidden="true" />
+                </template>
                 {{ $t('addons.assign_seat') }}
               </NeButton>
             </div>
           </NeTableCell>
         </NeTableRow>
       </NeTableBody>
+      <template #paginator>
+        <NePaginator
+          :current-page="currentPage"
+          :total-rows="filteredLines.length"
+          :page-size="pageSize"
+          :page-sizes="PAGE_SIZE_OPTIONS"
+          :nav-pagination-label="$t('ne_table.pagination')"
+          :next-label="$t('ne_table.go_to_next_page')"
+          :previous-label="$t('ne_table.go_to_previous_page')"
+          :range-of-total-label="$t('ne_table.of')"
+          :page-size-label="$t('ne_table.show')"
+          @select-page="
+            (page: number) => {
+              currentPage = page
+            }
+          "
+          @select-page-size="
+            (size: number) => {
+              pageSize = size
+              savePageSizeToStorage(SEATS_TABLE_ID, size)
+            }
+          "
+        />
+      </template>
     </NeTable>
+    <!-- free license modal -->
+    <NeModal
+      :visible="isShownFreeModal"
+      kind="warning"
+      :title="$t('addons.release_seat')"
+      :primary-label="$t('addons.release_seat')"
+      :cancel-label="$t('common.cancel')"
+      primary-button-kind="primary"
+      :primary-button-disabled="!!busyModule"
+      :primary-button-loading="!!busyModule"
+      :close-aria-label="$t('common.close')"
+      @close="closeFreeModal"
+      @primary-click="lineToFree && changeSeat({ line: lineToFree, assign: false })"
+    >
+      <p>
+        {{
+          $t('addons.release_seat_confirmation', {
+            name: row.addon.display_name,
+            application: lineToFree ? lineName(lineToFree) : '',
+          })
+        }}
+      </p>
+      <NeInlineNotification
+        v-if="errorMessage"
+        kind="error"
+        :title="$t('addons.cannot_change_seat')"
+        :description="errorMessage"
+        class="mt-4"
+      />
+    </NeModal>
   </div>
 </template>

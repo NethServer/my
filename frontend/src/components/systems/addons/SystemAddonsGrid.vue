@@ -10,22 +10,11 @@
 -->
 
 <script setup lang="ts">
-import { faMagnifyingGlass, faPuzzlePiece } from '@fortawesome/free-solid-svg-icons'
-import {
-  NeButton,
-  NeCard,
-  NeDropdownFilterV2,
-  NeEmptyState,
-  NeTextInput,
-  type NeDropdownFilterV2Option,
-} from '@nethesis/vue-components'
-import { useDebounceFn } from '@vueuse/core'
-import { computed, ref, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { faPuzzlePiece } from '@fortawesome/free-solid-svg-icons'
+import { NeCard, NeEmptyState } from '@nethesis/vue-components'
+import { computed, ref } from 'vue'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
-import { getApplicationDisplayName } from '@/lib/addons/addons'
-import { ADDON_ROW_STATUSES, getRowStatus, type SystemAddonRow } from '@/lib/addons/systemAddons'
-import { MIN_SEARCH_LENGTH } from '@/lib/common'
+import type { SystemAddonRow } from '@/lib/addons/systemAddons'
 import AddonActionModal, { type AddonAction } from './AddonActionModal.vue'
 import SystemAddonCard from './SystemAddonCard.vue'
 
@@ -42,13 +31,6 @@ const { rows, loading, refreshing, systemType } = defineProps<{
 
 const emit = defineEmits<{ open: [addonId: string] }>()
 
-const { t } = useI18n()
-
-const textFilter = ref('')
-const debouncedTextFilter = ref('')
-const applicationFilter = ref<NeDropdownFilterV2Option[]>([])
-const statusFilter = ref<NeDropdownFilterV2Option[]>([])
-
 const currentRow = ref<SystemAddonRow | undefined>()
 const currentAction = ref<AddonAction>('activate')
 const isShownActionModal = ref(false)
@@ -57,116 +39,17 @@ const cards = computed(() =>
   [...rows].sort((a, b) => a.addon.display_name.localeCompare(b.addon.display_name)),
 )
 
-const applicationFilterOptions = computed((): NeDropdownFilterV2Option[] => {
-  const applications = new Set(
-    cards.value.map((row) => row.applicationId).filter((application) => !!application),
-  )
-
-  return [...applications]
-    .map((application) => ({ id: application, label: getApplicationDisplayName(application) }))
-    .sort((a, b) => a.label.localeCompare(b.label))
-})
-
-const statusFilterOptions = computed((): NeDropdownFilterV2Option[] =>
-  ADDON_ROW_STATUSES.map((status) => ({ id: status, label: t(`addons.status_${status}`) })),
-)
-
-const filteredCards = computed(() => {
-  const search = debouncedTextFilter.value.trim().toLowerCase()
-  const applications = applicationFilter.value.map((option) => option.id)
-  const statuses = statusFilter.value.map((option) => option.id)
-
-  return cards.value.filter((row) => {
-    if (applications.length && !applications.includes(row.applicationId)) {
-      return false
-    }
-    if (statuses.length && !statuses.includes(getRowStatus(row))) {
-      return false
-    }
-    if (
-      search &&
-      !`${row.addon.display_name} ${row.addon.description}`.toLowerCase().includes(search)
-    ) {
-      return false
-    }
-    return true
-  })
-})
-
-const isNoDataEmptyStateShown = computed(() => !loading && !cards.value.length)
-
-const isNoMatchEmptyStateShown = computed(
-  () => !loading && !!cards.value.length && !filteredCards.value.length,
-)
-
-watch(
-  () => textFilter.value,
-  useDebounceFn(() => {
-    // debounce and ignore if text filter is too short
-    if (textFilter.value.length === 0 || textFilter.value.length >= MIN_SEARCH_LENGTH) {
-      debouncedTextFilter.value = textFilter.value
-    }
-  }, 500),
-)
-
 function showActionModal(row: SystemAddonRow, action: AddonAction) {
   currentRow.value = row
   currentAction.value = action
   isShownActionModal.value = true
 }
-
-function clearFilters() {
-  textFilter.value = ''
-  debouncedTextFilter.value = ''
-  applicationFilter.value = []
-  statusFilter.value = []
-}
 </script>
 
 <template>
   <div>
-    <!-- filters -->
-    <div class="mb-6 flex w-full items-end justify-between gap-4">
-      <div class="flex flex-wrap items-center gap-4">
-        <NeTextInput
-          v-model="textFilter"
-          is-search
-          :placeholder="$t('addons.filter_addons')"
-          class="max-w-48 sm:max-w-sm"
-          @blur="textFilter = textFilter.trim()"
-        />
-        <!-- a firewall's add-ons are system-wide: there is no application to
-             filter by, so the dropdown would only ever offer an empty list -->
-        <NeDropdownFilterV2
-          v-if="systemType !== 'nsec'"
-          v-model="applicationFilter"
-          kind="checkbox"
-          :label="t('addons.application_type')"
-          :options="applicationFilterOptions"
-          :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
-          :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-          :no-options-label="t('ne_dropdown_filter.no_options')"
-          :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-          :clear-search-label="t('ne_dropdown_filter.clear_search')"
-          :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
-        />
-        <NeDropdownFilterV2
-          v-model="statusFilter"
-          kind="checkbox"
-          :label="t('addons.status')"
-          :options="statusFilterOptions"
-          :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
-          :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-          :no-options-label="t('ne_dropdown_filter.no_options')"
-          :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-          :clear-search-label="t('ne_dropdown_filter.clear_search')"
-          :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
-        />
-        <NeButton kind="tertiary" @click="clearFilters">
-          {{ t('common.reset_filters') }}
-        </NeButton>
-      </div>
-      <UpdatingSpinner v-if="refreshing" />
+    <div v-if="refreshing" class="mb-4 flex justify-end">
+      <UpdatingSpinner />
     </div>
     <!-- skeleton cards -->
     <div
@@ -177,27 +60,15 @@ function clearFilters() {
     </div>
     <!-- no add-ons for this system at all -->
     <NeEmptyState
-      v-else-if="isNoDataEmptyStateShown"
+      v-else-if="!cards.length"
       :title="$t('addons.no_system_addons')"
       :description="$t('addons.no_system_addons_description')"
       :icon="faPuzzlePiece"
       class="bg-white dark:bg-gray-950"
     />
-    <!-- no add-on matching filter -->
-    <NeEmptyState
-      v-else-if="isNoMatchEmptyStateShown"
-      :title="$t('addons.no_addons_found')"
-      :description="$t('common.try_changing_search_filters')"
-      :icon="faMagnifyingGlass"
-      class="bg-white dark:bg-gray-950"
-    >
-      <NeButton kind="tertiary" @click="clearFilters">
-        {{ $t('common.reset_filters') }}
-      </NeButton>
-    </NeEmptyState>
     <div v-else class="3xl:grid-cols-4 grid grid-cols-1 gap-x-6 gap-y-6 xl:grid-cols-2">
       <SystemAddonCard
-        v-for="row in filteredCards"
+        v-for="row in cards"
         :key="row.addon.id"
         :row="row"
         :system-type="systemType"
