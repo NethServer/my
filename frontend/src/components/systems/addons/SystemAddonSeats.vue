@@ -317,7 +317,7 @@ function clearFilters() {
         {{ $t('common.reset_filters') }}
       </NeButton>
     </NeEmptyState>
-    <NeTable v-else :aria-label="$t('addons.seats')" card-breakpoint="xl">
+    <NeTable v-else :aria-label="$t('addons.seats')" card-breakpoint="2xl">
       <NeTableHead>
         <NeTableHeadCell>{{ $t('applications.name') }}</NeTableHeadCell>
         <NeTableHeadCell>{{ $t('addons.node') }}</NeTableHeadCell>
@@ -422,7 +422,7 @@ function clearFilters() {
             <span v-else>-</span>
           </NeTableCell>
           <NeTableCell :data-label="$t('common.actions')">
-            <div v-if="canManageSeats" class="-ml-2.5 flex xl:ml-0 xl:justify-end">
+            <div v-if="canManageSeats" class="-ml-2.5 flex 2xl:ml-0 2xl:justify-end">
               <NeButton
                 v-if="line.seat"
                 kind="tertiary"
