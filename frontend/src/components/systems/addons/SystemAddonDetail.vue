@@ -56,22 +56,22 @@ const buyAction = computed(() =>
         <NeSkeleton />
       </div>
       <div v-else>
-        <div class="flex items-center gap-4">
-          <NeHeading tag="h4">
-            {{ $t('addons.addon_licenses_title', { name: row?.addon.display_name }) }}
-          </NeHeading>
-          <UpdatingSpinner v-if="refreshing" />
-        </div>
+        <NeHeading tag="h4">
+          {{ $t('addons.addon_licenses_title', { name: row?.addon.display_name }) }}
+        </NeHeading>
         <p v-if="seatedRow" class="text-tertiary-neutral mt-1">
           {{ $t('addons.seats_description', { name: seatedRow.addon.display_name }) }}
         </p>
       </div>
-      <NeButton v-if="buyAction" kind="secondary" @click="buyAction.action?.()">
-        <template v-if="buyAction.icon" #prefix>
-          <FontAwesomeIcon :icon="buyAction.icon" class="size-4" aria-hidden="true" />
-        </template>
-        {{ buyAction.label }}
-      </NeButton>
+      <div class="flex items-center gap-4">
+        <UpdatingSpinner v-if="refreshing" />
+        <NeButton v-if="buyAction" kind="secondary" @click="buyAction.action?.()">
+          <template v-if="buyAction.icon" #prefix>
+            <FontAwesomeIcon :icon="buyAction.icon" class="size-4" aria-hidden="true" />
+          </template>
+          {{ buyAction.label }}
+        </NeButton>
+      </div>
     </div>
     <NeSkeleton v-if="loading" :lines="6" />
     <SystemAddonSeats v-else-if="seatedRow" :row="seatedRow" />
