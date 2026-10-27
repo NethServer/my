@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Application } from '../applications/applications'
 import type { Addon } from './addons'
-import { composeSystemAddonRows, getSeatUsage, type AddonGrant } from './systemAddons'
+import { composeSystemAddonRows, getSeatUsage, getTierLabel, type AddonGrant } from './systemAddons'
 
 const addon = (fields: Partial<Addon>): Addon => ({
   id: 'x',
@@ -130,5 +130,23 @@ describe('getSeatUsage', () => {
 
   it('reads zero without a grant', () => {
     expect(getSeatUsage(undefined)).toEqual({ used: 0, total: 0, overQuota: 0 })
+  })
+})
+
+describe('getTierLabel', () => {
+  const messages: Record<string, string> = { 'addons.tiers.R-NS8-TS1': 'Single node' }
+  const t = (key: string) => messages[key] ?? key
+  const te = (key: string) => key in messages
+
+  it('translates a known tier by its SKU', () => {
+    expect(getTierLabel({ sku: 'R-NS8-TS1', label: 'Singolo nodo' }, t, te)).toBe('Single node')
+  })
+
+  it('keeps the shop label of an unknown tier', () => {
+    expect(getTierLabel({ sku: 'R-NS-YOTS-2', label: '16-30 device' }, t, te)).toBe('16-30 device')
+  })
+
+  it('keeps the shop label when the order had no SKU', () => {
+    expect(getTierLabel({ label: '3–10 instances' }, t, te)).toBe('3–10 instances')
   })
 })

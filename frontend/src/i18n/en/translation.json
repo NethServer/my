@@ -1073,7 +1073,11 @@
     "seat_assigned_status": "Assigned",
     "seat_not_assigned": "Not assigned",
     "release_seat_confirmation": "{name} will no longer be available on {application}. The license will be available for another application.",
-    "no_seats_available": "No licenses available. Free a license or buy more on NethShop."
+    "no_seats_available": "No licenses available. Free a license or buy more on NethShop.",
+    "tiers": {
+      "R-NS8-TS1": "Single node",
+      "R-NS8-TS2": "Cluster (multi-node)"
+    }
   },
   "rebranding": {
     "title": "Rebranding",

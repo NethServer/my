@@ -23,6 +23,7 @@ import {
 } from '@nethesis/vue-components'
 import { computed } from 'vue'
 import { ADDONS_REPORT_TIERS_TABLE_ID } from '@/lib/addons/addonsReport'
+import { getTierLabel } from '@/lib/addons/systemAddons'
 import { PAGE_SIZE_OPTIONS, savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useAddonReportTiers } from '@/queries/addons/addonsReport'
 import AddonLogo from '../AddonLogo.vue'
@@ -68,14 +69,16 @@ const loading = computed(() => tiers.value.status === 'pending')
           <NeTableHeadCell>{{ $t('addons.count') }}</NeTableHeadCell>
         </NeTableHead>
         <NeTableBody>
-          <NeTableRow v-for="row in rows" :key="`${row.entitlement} ${row.label}`">
+          <NeTableRow v-for="row in rows" :key="`${row.entitlement} ${row.label} ${row.sku}`">
             <NeTableCell :data-label="$t('addons.addon')">
               <div class="flex items-center gap-2">
                 <AddonLogo :addon-id="row.entitlement" />
                 <span>{{ row.display_name || row.entitlement }}</span>
               </div>
             </NeTableCell>
-            <NeTableCell :data-label="$t('addons.tier')">{{ row.label }}</NeTableCell>
+            <NeTableCell :data-label="$t('addons.tier')">{{
+              getTierLabel(row, $t, $te)
+            }}</NeTableCell>
             <NeTableCell :data-label="$t('addons.count')">{{ row.count }}</NeTableCell>
           </NeTableRow>
         </NeTableBody>

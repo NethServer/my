@@ -229,6 +229,17 @@ export type AddonRowStatus = (typeof ADDON_ROW_STATUSES)[number]
 export const getRowStatus = (row: SystemAddonRow): AddonRowStatus =>
   row.grant?.status ?? 'not_purchased'
 
+// The shop names a tier in Italian only. A tier My knows is translated by its
+// SKU; any other keeps the shop label as it is.
+export const getTierLabel = (
+  tier: { sku?: string; label?: string },
+  t: (key: string) => string,
+  te: (key: string) => boolean,
+) => {
+  const key = `addons.tiers.${tier.sku}`
+  return tier.sku && te(key) ? t(key) : (tier.label ?? '')
+}
+
 // Who bought the grant, as far as this viewer is allowed to know: a purchaser
 // outside their hierarchy arrives redacted, and a manual grant has no buyer at
 // all. Callers fall back to the creator snapshot when this comes back empty.

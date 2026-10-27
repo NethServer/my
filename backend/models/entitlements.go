@@ -235,7 +235,10 @@ type EntitlementReportByVariant struct {
 	Entitlement string `json:"entitlement"`
 	DisplayName string `json:"display_name"`
 	Label       string `json:"label"`
-	Count       int    `json:"count"`
+	// Sku identifies the tier across languages: the shop label is Italian
+	// only, so the UI translates the tier by its SKU when it knows it.
+	Sku   string `json:"sku"`
+	Count int    `json:"count"`
 }
 
 // EntitlementReportLicenses sums up the add-ons sold by licenses that are in

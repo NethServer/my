@@ -13531,13 +13531,13 @@ paths:
       summary: /entitlements/report/tiers - Per-tier slice of the add-on report
       description: |
         Grants grouped by shop tier (variable products only), paginated and
-        searchable by add-on display name, add-on id or tier label. Restricted
+        searchable by add-on display name, add-on id, tier label or tier SKU. Restricted
         to the caller's hierarchy (the whole fleet for the Owner organization).
       parameters:
         - name: search
           in: query
           schema: { type: string }
-          description: Case-insensitive filter on the add-on display name, the add-on id or the tier label
+          description: Case-insensitive filter on the add-on display name, the add-on id, the tier label or the tier SKU
         - name: page
           in: query
           schema: { type: integer, default: 1 }
@@ -13569,6 +13569,7 @@ paths:
                             entitlement: { type: string, example: "nsec-blacklist" }
                             display_name: { type: string, example: "Advanced Threat Shield" }
                             label: { type: string, example: "16 - 30 device" }
+                            sku: { type: string, example: "R-NS-YOTS-2", description: "Shop SKU of the tier, empty when the order carried none" }
                             count: { type: integer, example: 14 }
                       total: { type: integer, example: 12 }
                       page: { type: integer, example: 1 }

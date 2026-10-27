@@ -102,6 +102,8 @@ export interface AddonReportByTier {
   display_name: string
   // the shop tier of the purchased product line, e.g. "16-30 device"
   label: string
+  // its SKU, the key the tier is translated by; empty when the order had none
+  sku: string
   count: number
 }
 

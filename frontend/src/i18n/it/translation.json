@@ -991,7 +991,11 @@
     "seat_assigned_status": "Assegnata",
     "seat_not_assigned": "Non assegnata",
     "release_seat_confirmation": "{name} non sarà più disponibile su {application}. La licenza potrà essere assegnata a un'altra applicazione.",
-    "no_seats_available": "Nessuna licenza disponibile. Libera una licenza o acquistane altre su NethShop."
+    "no_seats_available": "Nessuna licenza disponibile. Libera una licenza o acquistane altre su NethShop.",
+    "tiers": {
+      "R-NS8-TS1": "Nodo singolo",
+      "R-NS8-TS2": "Cluster (multi-nodo)"
+    }
   },
   "rebranding": {
     "title": "Rebranding",

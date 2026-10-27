@@ -27,6 +27,7 @@ import {
   getPurchaserName,
   getRowStatus,
   getSeatUsage,
+  getTierLabel,
   type SystemAddonRow,
 } from '@/lib/addons/systemAddons'
 import type { AddonAction } from './AddonActionModal.vue'
@@ -128,9 +129,9 @@ const isBuyShown = computed(
           </DataItem>
           <!-- only a tiered product carries one, and a manual grant never
                does: no row rather than an empty one -->
-          <DataItem v-if="row.grant.variant?.label">
+          <DataItem v-if="row.grant.variant?.label || row.grant.variant?.sku">
             <template #label>{{ $t('addons.tier') }}</template>
-            <template #data>{{ row.grant.variant.label }}</template>
+            <template #data>{{ getTierLabel(row.grant.variant, $t, $te) }}</template>
           </DataItem>
           <AddonLicenseUsage
             v-if="seatUsage"

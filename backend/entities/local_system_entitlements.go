@@ -1066,7 +1066,7 @@ func (r *LocalSystemEntitlementRepository) ReportOrganizations(search string, or
 }
 
 // ReportVariants is the paginated + searchable per-tier slice of the add-on
-// report (variable products only). search filters by add-on id or tier label;
+// report (variable products only). search filters by add-on id, tier label or SKU;
 // orgScope narrows the rows to the caller's hierarchy (nil = whole fleet).
 func (r *LocalSystemEntitlementRepository) ReportVariants(search string, orgScope []string, limit, offset int) ([]models.EntitlementReportByVariant, int, error) {
 	args := []interface{}{search}
@@ -1081,8 +1081,9 @@ func (r *LocalSystemEntitlementRepository) ReportVariants(search string, orgScop
 		WHERE s.deleted_at IS NULL AND e.variant->>'label' IS NOT NULL` + scope + `
 		  AND ($1 = '' OR e.entitlement ILIKE '%' || $1 || '%'
 		       OR COALESCE(cat.display_name, '') ILIKE '%' || $1 || '%'
-		       OR e.variant->>'label' ILIKE '%' || $1 || '%')
-		GROUP BY e.entitlement, COALESCE(cat.display_name, e.entitlement), e.variant->>'label'`
+		       OR e.variant->>'label' ILIKE '%' || $1 || '%'
+		       OR COALESCE(e.variant->>'sku', '') ILIKE '%' || $1 || '%')
+		GROUP BY e.entitlement, COALESCE(cat.display_name, e.entitlement), e.variant->>'label', COALESCE(e.variant->>'sku', '')`
 
 	var total int
 	if err := r.db.QueryRow(`SELECT COUNT(*) FROM (SELECT 1 `+where+`) g`, args...).Scan(&total); err != nil {
@@ -1091,7 +1092,8 @@ func (r *LocalSystemEntitlementRepository) ReportVariants(search string, orgScop
 
 	args = append(args, limit, offset)
 	rows, err := r.db.Query(`
-		SELECT e.entitlement, COALESCE(cat.display_name, e.entitlement), e.variant->>'label', COUNT(*)
+		SELECT e.entitlement, COALESCE(cat.display_name, e.entitlement), e.variant->>'label',
+		       COALESCE(e.variant->>'sku', ''), COUNT(*)
 		`+where+`
 		ORDER BY COALESCE(cat.display_name, e.entitlement), COUNT(*) DESC
 		LIMIT $`+fmt.Sprint(len(args)-1)+` OFFSET $`+fmt.Sprint(len(args)), args...)
@@ -1103,7 +1105,7 @@ func (r *LocalSystemEntitlementRepository) ReportVariants(search string, orgScop
 	out := []models.EntitlementReportByVariant{}
 	for rows.Next() {
 		var row models.EntitlementReportByVariant
-		if err := rows.Scan(&row.Entitlement, &row.DisplayName, &row.Label, &row.Count); err != nil {
+		if err := rows.Scan(&row.Entitlement, &row.DisplayName, &row.Label, &row.Sku, &row.Count); err != nil {
 			return nil, 0, fmt.Errorf("failed to scan per-variant row: %w", err)
 		}
 		out = append(out, row)
