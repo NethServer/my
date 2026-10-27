@@ -13,7 +13,6 @@
 import { faPuzzlePiece } from '@fortawesome/free-solid-svg-icons'
 import { NeCard, NeEmptyState } from '@nethesis/vue-components'
 import { computed, ref } from 'vue'
-import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import type { SystemAddonRow } from '@/lib/addons/systemAddons'
 import AddonActionModal, { type AddonAction } from './AddonActionModal.vue'
 import SystemAddonCard from './SystemAddonCard.vue'
@@ -21,10 +20,9 @@ import SystemAddonCard from './SystemAddonCard.vue'
 // enough cards to fill the widest row while the three queries land
 const SKELETON_CARDS = 4
 
-const { rows, loading, refreshing, systemType } = defineProps<{
+const { rows, loading, systemType } = defineProps<{
   rows: SystemAddonRow[]
   loading: boolean
-  refreshing: boolean
   // the product, for the logo of system-wide services
   systemType: string
 }>()
@@ -48,9 +46,6 @@ function showActionModal(row: SystemAddonRow, action: AddonAction) {
 
 <template>
   <div>
-    <div v-if="refreshing" class="mb-4 flex justify-end">
-      <UpdatingSpinner />
-    </div>
     <!-- skeleton cards -->
     <div
       v-if="loading"
