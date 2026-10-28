@@ -63,6 +63,13 @@ const (
 	EntitlementKindModule  = "module"
 )
 
+// Usage metrics of the add-ons sold in tiers without seats: the tier limit
+// (the grant's seats) against what collect measures at every inventory.
+const (
+	EntitlementUsageArpMacs   = "arp_macs"  // devices seen by the firewall (inventory facts.arp_macs)
+	EntitlementUsageInstances = "instances" // application instances of AppliesTo
+)
+
 type EntitlementCatalogItem struct {
 	ID          string `json:"id"`
 	DisplayName string `json:"display_name"`
@@ -85,6 +92,10 @@ type EntitlementCatalogItem struct {
 	// (the shop tier), and each seat is given to one application instance of
 	// AppliesTo. Only the instances holding a seat are covered.
 	Seated bool `json:"seated"`
+	// UsageMetric names what the tier limit of an add-on without seats is
+	// measured against (EntitlementUsage*); empty = not measured. Going past
+	// the limit never blocks the add-on: it is flagged to Nethesis.
+	UsageMetric string `json:"usage_metric,omitempty"`
 	// InUse is TRUE when at least one grant references the item — revoked
 	// and expired ones included, kept for audit: the foreign key refuses the
 	// DELETE all the same. Computed by the read paths that serve API
@@ -109,8 +120,9 @@ type CreateEntitlementCatalogRequest struct {
 	AppliesTo   string `json:"applies_to,omitempty"`
 	// Purchasable defaults to TRUE when omitted: a new add-on is on sale
 	// unless it is deliberately withheld.
-	Purchasable *bool `json:"purchasable,omitempty"`
-	Seated      bool  `json:"seated,omitempty"`
+	Purchasable *bool  `json:"purchasable,omitempty"`
+	Seated      bool   `json:"seated,omitempty"`
+	UsageMetric string `json:"usage_metric,omitempty"`
 }
 
 // UpdateEntitlementCatalogRequest updates the display fields of a catalog
@@ -121,6 +133,9 @@ type UpdateEntitlementCatalogRequest struct {
 	Description *string `json:"description,omitempty"`
 	// Purchasable toggles the buy action; omitted leaves it as it is.
 	Purchasable *bool `json:"purchasable,omitempty"`
+	// UsageMetric changes what the tier limit is measured against; "" stops
+	// measuring, omitted leaves it as it is.
+	UsageMetric *string `json:"usage_metric,omitempty"`
 }
 
 // EntitlementAvailability is one commercial unlock: the catalog item can be
@@ -200,6 +215,9 @@ type EntitlementReportTotals struct {
 	CustomerSystems    int `json:"customer_systems"`
 	OwnerSystems       int `json:"owner_systems"`
 	TotalRenewals      int `json:"total_renewals"` // sum of renewal_count over all grants
+	// OverLimit counts the active grants whose measured usage is past their
+	// tier limit. Nethesis only: nil for everyone else.
+	OverLimit *int `json:"over_limit,omitempty"`
 }
 
 // EntitlementReportByType is the lifecycle breakdown of one add-on type.
@@ -314,8 +332,14 @@ type SystemEntitlement struct {
 	// the first: activate increments it when source_ref CHANGES (webhook
 	// retries on the same order never double-count). 0 = first period.
 	RenewalCount int `json:"renewal_count"`
-	// Seats is the number of seats bought, for seated add-ons; nil otherwise.
+	// Seats is the number of seats bought, for seated add-ons, and the tier
+	// limit for add-ons with a usage metric (nil = no limit); nil otherwise.
 	Seats *int `json:"seats,omitempty"`
+	// Usage is what collect measured at the last inventory against the tier
+	// limit, for add-ons with a usage metric. Shown to Nethesis only: the
+	// read endpoints drop it for everyone else.
+	Usage   *int       `json:"usage,omitempty"`
+	UsageAt *time.Time `json:"usage_at,omitempty"`
 	// SeatAssignments lists the instances holding a seat, oldest first.
 	// Filled by the per-system read only, for seated add-ons.
 	SeatAssignments []EntitlementSeat `json:"seat_assignments,omitempty"`

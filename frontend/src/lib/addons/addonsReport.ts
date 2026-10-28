@@ -11,12 +11,15 @@ export const ADDONS_REPORT_ORGANIZATIONS_KEY = 'addonsReportOrganizations'
 export const ADDONS_REPORT_TIERS_KEY = 'addonsReportTiers'
 export const ADDONS_REPORT_ORGANIZATIONS_TABLE_ID = 'addonsReportOrganizationsTable'
 export const ADDONS_REPORT_TIERS_TABLE_ID = 'addonsReportTiersTable'
+export const ADDONS_OVER_LIMIT_KEY = 'addonsOverLimit'
+export const ADDONS_OVER_LIMIT_TABLE_ID = 'addonsOverLimitTable'
 
 // The wire paths are still named "entitlements": that is the backend contract.
 // Everything on this side is an add-on.
 const REPORT_PATH = 'entitlements/report'
 const REPORT_ORGANIZATIONS_PATH = 'entitlements/report/organizations'
 const REPORT_TIERS_PATH = 'entitlements/report/tiers'
+const GRANTS_PATH = 'entitlements/grants'
 
 // Every aggregate below is scoped server-side to the caller's hierarchy: the
 // the Owner organization sees the whole fleet, everyone else only
@@ -43,6 +46,9 @@ export interface AddonReportTotals {
   customer_systems: number
   owner_systems: number
   total_renewals: number
+  // active add-ons whose measured usage is past their tier limit; sent to
+  // Nethesis only
+  over_limit?: number
 }
 
 export interface AddonReportByType {
@@ -155,6 +161,33 @@ export const getAddonReportTiers = (page: number, pageSize: number, search: stri
     )
     .then((res) => ({
       tiers: (res.data.data.tiers ?? []) as AddonReportByTier[],
+      total: res.data.data.total as number,
+    }))
+
+// An add-on in force past its tier limit, with the system it is on.
+export interface AddonOverLimit {
+  id: string
+  system_id: string
+  entitlement: string
+  variant?: { id?: number; sku?: string; label?: string }
+  seats: number
+  usage: number
+  usage_at?: string
+  system_name: string
+  organization_id: string
+  organization_name: string
+}
+
+// Widest overrun first. Nethesis only: the backend ignores the filter for
+// anyone else.
+export const getAddonsOverLimit = (page: number, pageSize: number, search: string) =>
+  axios
+    .get<Envelope<Paginated<AddonOverLimit>>>(
+      `${API_URL}/${GRANTS_PATH}?over_limit=true&${paginationParams(page, pageSize, search)}`,
+      authHeaders(),
+    )
+    .then((res) => ({
+      grants: (res.data.data.grants ?? []) as AddonOverLimit[],
       total: res.data.data.total as number,
     }))
 

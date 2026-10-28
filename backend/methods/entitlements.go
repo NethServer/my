@@ -107,15 +107,43 @@ func systemTypeMismatch(item *models.EntitlementCatalogItem, systemType string) 
 // shop tier, low enough to keep a typo from becoming a database error.
 const maxSeats = 10000
 
+// usageMetricError checks the usage metric of a catalog item: a known one,
+// on an add-on without seats (seats are counted by their assignments), and
+// the instances of an application only for an add-on that names it.
+func usageMetricError(metric string, seated bool, appliesTo string) string {
+	switch metric {
+	case "":
+		return ""
+	case models.EntitlementUsageArpMacs, models.EntitlementUsageInstances:
+	default:
+		return "usage_metric must be one of: arp_macs, instances"
+	}
+	if seated {
+		return "a seated add-on counts its seats, not a usage metric"
+	}
+	if metric == models.EntitlementUsageInstances && appliesTo == "" {
+		return "the instances metric needs the application the add-on applies to"
+	}
+	return ""
+}
+
+// hasQuantity tells whether the grants of a catalog item carry a number:
+// the seats of a seated add-on, or the tier limit of one with a usage metric.
+func hasQuantity(item *models.EntitlementCatalogItem) bool {
+	return item.Seated || item.UsageMetric != ""
+}
+
 // seatsFor validates the seats sent for a catalog item: required and positive
 // for seated add-ons when required is set, positive when sent, and dropped for
-// add-ons without seats. The message is empty when the value is acceptable.
+// add-ons carrying no number. For an add-on with a usage metric they are its
+// tier limit, never required: no limit is a tier too (an NS8 cluster). The
+// message is empty when the value is acceptable.
 func seatsFor(item *models.EntitlementCatalogItem, seats *int, required bool) (*int, string) {
-	if !item.Seated {
+	if !hasQuantity(item) {
 		return nil, ""
 	}
 	if seats == nil {
-		if required {
+		if required && item.Seated {
 			return nil, "seats required for this add-on"
 		}
 		return nil, ""
@@ -236,6 +264,14 @@ func redactSeatAssigners(e *models.SystemEntitlement, orgScope []string) {
 	}
 }
 
+// redactUsage drops the measured usage for everyone outside Nethesis: going
+// past a tier limit is followed up by Nethesis sales.
+func redactUsage(e *models.SystemEntitlement, user *models.User) {
+	if !IsOwnerOrgMember(user) {
+		e.Usage, e.UsageAt = nil, nil
+	}
+}
+
 func redactPurchaser(e *models.SystemEntitlement, orgScope []string) {
 	if e.PurchasedBy == nil || orgScope == nil {
 		return
@@ -351,6 +387,10 @@ func CreateEntitlementCatalogItem(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response.BadRequest("a seated add-on must be an ns8 module", nil))
 		return
 	}
+	if msg := usageMetricError(req.UsageMetric, req.Seated, req.AppliesTo); msg != "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest(msg, nil))
+		return
+	}
 
 	repo := entities.NewLocalEntitlementCatalogRepository()
 	item, err := repo.Create(&req)
@@ -387,7 +427,23 @@ func UpdateEntitlementCatalogItem(c *gin.Context) {
 	}
 
 	repo := entities.NewLocalEntitlementCatalogRepository()
-	item, err := repo.Update(c.Param("id"), req.DisplayName, req.Description, req.Purchasable)
+	if req.UsageMetric != nil {
+		current, err := repo.Get(c.Param("id"))
+		if err == entities.ErrCatalogItemNotFound {
+			c.JSON(http.StatusNotFound, response.NotFound("catalog item not found", nil))
+			return
+		}
+		if err != nil {
+			logger.RequestLogger(c, "entitlements").Error().Err(err).Str("catalog_id", c.Param("id")).Msg("Failed to read catalog item")
+			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to read catalog item", nil))
+			return
+		}
+		if msg := usageMetricError(*req.UsageMetric, current.Seated, current.AppliesTo); msg != "" {
+			c.JSON(http.StatusBadRequest, response.BadRequest(msg, nil))
+			return
+		}
+	}
+	item, err := repo.Update(c.Param("id"), req.DisplayName, req.Description, req.Purchasable, req.UsageMetric)
 	if err == entities.ErrCatalogItemNotFound {
 		c.JSON(http.StatusNotFound, response.NotFound("catalog item not found", nil))
 		return
@@ -628,7 +684,10 @@ func ActivateEntitlement(c *gin.Context) {
 		"channel":           "shop",
 	}
 
-	grant, err := repo.Upsert(systemID, item.ID, req.Scope, models.EntitlementSourceShop, req.SourceRef, req.ValidUntil, createdBy, purchaser, req.Variant, seats)
+	// The tier of a measured add-on sets its limit, a tier without one (an
+	// NS8 cluster) included; an activation that names no tier keeps it.
+	limitFromTier := item.UsageMetric != "" && req.Variant != nil
+	grant, err := repo.Upsert(systemID, item.ID, req.Scope, models.EntitlementSourceShop, req.SourceRef, req.ValidUntil, createdBy, purchaser, req.Variant, seats, limitFromTier)
 	if err != nil {
 		logger.RequestLogger(c, "entitlements").Error().Err(err).
 			Str("system_key", req.SystemKey).
@@ -876,6 +935,8 @@ func GetEntitlementGrants(c *gin.Context) {
 		Source:         c.Query("source"),
 		ActiveOnly:     c.Query("active") == "true",
 		OrgScope:       scope,
+		OverLimit:      c.Query("over_limit") == "true" && IsOwnerOrgMember(u),
+		Search:         strings.TrimSpace(c.Query("search")),
 	}
 	if v := c.Query("expiring_before"); v != "" {
 		t, err := time.Parse(time.RFC3339, v)
@@ -905,6 +966,7 @@ func GetEntitlementGrants(c *gin.Context) {
 	// Buyer identity is only shown within the viewer's hierarchy.
 	for _, row := range rows {
 		redactPurchaser(&row.SystemEntitlement, scope)
+		redactUsage(&row.SystemEntitlement, u)
 	}
 
 	c.JSON(http.StatusOK, response.OK("grants retrieved successfully", gin.H{
@@ -957,6 +1019,9 @@ func GetEntitlementReport(c *gin.Context) {
 		logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to build entitlement report")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to build entitlement report", nil))
 		return
+	}
+	if !IsOwnerOrgMember(u) {
+		report.Totals.OverLimit = nil
 	}
 
 	c.JSON(http.StatusOK, response.OK("entitlement report retrieved successfully", report))
@@ -1102,6 +1167,7 @@ func ListSystemEntitlements(c *gin.Context) {
 	}
 	for _, e := range list {
 		redactPurchaser(e, scope)
+		redactUsage(e, user)
 	}
 
 	var seatedGrants []string
@@ -1307,7 +1373,7 @@ func CreateSystemEntitlement(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response.BadRequest("this entitlement does not support per-application scope", nil))
 		return
 	}
-	if req.Seats != nil && !item.Seated {
+	if req.Seats != nil && !hasQuantity(item) {
 		c.JSON(http.StatusBadRequest, response.BadRequest("this entitlement has no seats", nil))
 		return
 	}
@@ -1403,7 +1469,7 @@ func UpdateSystemEntitlement(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to read entitlement catalog", nil))
 			return
 		}
-		if !item.Seated {
+		if !hasQuantity(item) {
 			c.JSON(http.StatusBadRequest, response.BadRequest("this entitlement has no seats", nil))
 			return
 		}

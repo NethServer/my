@@ -49,7 +49,7 @@ function showActionModal(row: SystemAddonRow, action: AddonAction) {
     <!-- skeleton cards -->
     <div
       v-if="loading"
-      class="3xl:grid-cols-4 grid grid-cols-1 gap-x-6 gap-y-6 xl:grid-cols-2 2xl:grid-cols-3"
+      class="4xl:grid-cols-4 grid grid-cols-1 gap-x-6 gap-y-6 xl:grid-cols-2 2xl:grid-cols-3"
     >
       <NeCard v-for="index in SKELETON_CARDS" :key="index" loading :skeleton-lines="6" />
     </div>
@@ -61,7 +61,10 @@ function showActionModal(row: SystemAddonRow, action: AddonAction) {
       :icon="faPuzzlePiece"
       class="bg-white dark:bg-gray-950"
     />
-    <div v-else class="3xl:grid-cols-4 grid grid-cols-1 gap-x-6 gap-y-6 xl:grid-cols-2">
+    <div
+      v-else
+      class="4xl:grid-cols-4 grid grid-cols-1 gap-x-6 gap-y-6 xl:grid-cols-2 2xl:grid-cols-3"
+    >
       <SystemAddonCard
         v-for="row in cards"
         :key="row.addon.id"

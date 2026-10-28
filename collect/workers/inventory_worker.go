@@ -268,6 +268,8 @@ func (iw *InventoryWorker) processBatchInTransaction(ctx context.Context, conn *
 					Int64("record_id", recordID).
 					Msg("Failed to extract applications from inventory")
 			}
+
+			iw.updateEntitlementUsage(txCtx, tx, inventory.SystemID, parsedData, logger)
 		}
 
 		// Keep only lightweight record for diff triggering
@@ -664,6 +666,48 @@ func (iw *InventoryWorker) updateSystemFieldsFromInventory(ctx context.Context, 
 	}
 
 	return nil
+}
+
+// updateEntitlementUsage measures, for the add-ons of the system sold in
+// tiers without seats, what their tier limit is compared with: the devices
+// the firewall sees, or the instances of the application on the cluster
+// (counted after the applications of this inventory are stored). Going past
+// the limit never blocks anything, so a failure here is logged and the
+// savepoint keeps it from aborting the inventory transaction.
+func (iw *InventoryWorker) updateEntitlementUsage(ctx context.Context, tx *sql.Tx, systemID string, inventoryData map[string]interface{}, logger zerolog.Logger) {
+	var arpMacs *int
+	if facts, ok := inventoryData["facts"].(map[string]interface{}); ok {
+		if v, ok := facts["arp_macs"].(float64); ok && v >= 0 {
+			n := int(v)
+			arpMacs = &n
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx, "SAVEPOINT entitlement_usage"); err != nil {
+		return
+	}
+	_, err := tx.ExecContext(ctx, `
+		UPDATE system_entitlements e
+		SET usage = CASE c.usage_metric
+		                WHEN 'arp_macs' THEN $2::int
+		                WHEN 'instances' THEN (SELECT COUNT(*)::int FROM applications a
+		                                       WHERE a.system_id = e.system_id
+		                                         AND a.instance_of = c.applies_to
+		                                         AND a.deleted_at IS NULL)
+		            END,
+		    usage_at = NOW()
+		FROM entitlement_catalog c
+		WHERE c.id = e.entitlement
+		  AND c.usage_metric <> ''
+		  AND e.system_id = $1
+		  AND e.revoked_at IS NULL`,
+		systemID, arpMacs)
+	if err != nil {
+		_, _ = tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT entitlement_usage")
+		logger.Warn().Err(err).Str("system_id", systemID).Msg("Failed to measure add-on usage")
+		return
+	}
+	_, _ = tx.ExecContext(ctx, "RELEASE SAVEPOINT entitlement_usage")
 }
 
 // extractApplicationsFromInventory extracts modules from NS8 inventory and upserts them into applications table.

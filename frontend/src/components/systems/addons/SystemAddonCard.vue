@@ -6,14 +6,23 @@
   card says everything there is to say about it — status, validity, order,
   tier, purchaser — and carries its actions. A seated add-on also counts its
   seats and opens the page where they are given to the application instances;
-  buying more of them lives on that page, next to the table they fill.
+  buying more of them lives on that page, next to the table they fill. An
+  add-on sold in tiers without seats shows Nethesis what was measured against
+  its tier: going past it blocks nothing, sales follow it up.
 -->
 
 <script setup lang="ts">
-import { faArrowRight } from '@fortawesome/free-solid-svg-icons'
+import { faArrowRight, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { NeButton, NeCard, NeDropdown } from '@nethesis/vue-components'
+import {
+  NeButton,
+  NeCard,
+  NeDropdown,
+  NeInlineNotification,
+  NeTooltip,
+} from '@nethesis/vue-components'
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import ApplicationLogo from '@/components/applications/ApplicationLogo.vue'
 import DataItem from '@/components/common/DataItem.vue'
 import SystemLogo from '@/components/systems/SystemLogo.vue'
@@ -28,11 +37,13 @@ import {
   getRowStatus,
   getSeatUsage,
   getTierLabel,
+  getTierUsage,
   type SystemAddonRow,
 } from '@/lib/addons/systemAddons'
 import type { AddonAction } from './AddonActionModal.vue'
 import AddonLicenseUsage from './AddonLicenseUsage.vue'
 import AddonStatusIcon from './AddonStatusIcon.vue'
+import { formatDateNoTime } from '@/lib/dateTime'
 
 const { row, systemType } = defineProps<{
   row: SystemAddonRow
@@ -42,6 +53,9 @@ const { row, systemType } = defineProps<{
 const emit = defineEmits<{ seats: []; action: [row: SystemAddonRow, action: AddonAction] }>()
 
 const { getAddonActions, formatValidity } = useSystemAddonActions()
+const { locale } = useI18n()
+
+const tierUsage = computed(() => getTierUsage(row))
 
 // seats are counted, and handed out, once the add-on has been bought
 const seatUsage = computed(() =>
@@ -82,6 +96,12 @@ const isBuyShown = computed(
           :open-menu-aria-label="$t('ne_dropdown.open_menu')"
         />
       </div>
+      <NeInlineNotification
+        v-if="tierUsage?.over"
+        kind="warning"
+        :title="$t('addons.tier_exceeded')"
+        :description="$t(`addons.tier_exceeded_description_${tierUsage.metric}`)"
+      />
       <!-- everything there is to say about the add-on on this system -->
       <div class="divide-y divide-gray-200 dark:divide-gray-700">
         <DataItem>
@@ -132,6 +152,47 @@ const isBuyShown = computed(
           <DataItem v-if="row.grant.variant?.label || row.grant.variant?.sku">
             <template #label>{{ $t('addons.tier') }}</template>
             <template #data>{{ getTierLabel(row.grant.variant, $t, $te) }}</template>
+          </DataItem>
+          <DataItem v-if="tierUsage">
+            <template #label>{{ $t('addons.usage') }}</template>
+            <template #data>
+              <div class="space-y-0.5 text-end">
+                <div class="flex items-center justify-end gap-2">
+                  <NeTooltip v-if="tierUsage.over" trigger-event="mouseenter focus" placement="top">
+                    <template #trigger>
+                      <FontAwesomeIcon
+                        :icon="faTriangleExclamation"
+                        class="size-4 text-amber-700 dark:text-amber-500"
+                        aria-hidden="true"
+                      />
+                      <span class="sr-only">
+                        {{ $t(`addons.over_tier_${tierUsage.metric}`, tierUsage.over) }}
+                      </span>
+                    </template>
+                    <template #content>
+                      {{ $t(`addons.over_tier_${tierUsage.metric}`, tierUsage.over) }}
+                    </template>
+                  </NeTooltip>
+                  <span>
+                    {{
+                      tierUsage.limit !== undefined
+                        ? $t(`addons.usage_of_limit_${tierUsage.metric}`, {
+                            usage: tierUsage.usage,
+                            limit: tierUsage.limit,
+                          })
+                        : $t(`addons.usage_${tierUsage.metric}`, { usage: tierUsage.usage })
+                    }}
+                  </span>
+                </div>
+                <div v-if="tierUsage.measuredAt" class="text-tertiary-neutral text-xs">
+                  {{
+                    $t('addons.usage_measured_at', {
+                      date: formatDateNoTime(new Date(tierUsage.measuredAt), locale),
+                    })
+                  }}
+                </div>
+              </div>
+            </template>
           </DataItem>
           <AddonLicenseUsage
             v-if="seatUsage"
