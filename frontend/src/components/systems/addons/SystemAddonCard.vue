@@ -12,9 +12,15 @@
 -->
 
 <script setup lang="ts">
-import { faArrowRight } from '@fortawesome/free-solid-svg-icons'
+import { faArrowRight, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { NeBadgeV2, NeButton, NeCard, NeDropdown } from '@nethesis/vue-components'
+import {
+  NeButton,
+  NeCard,
+  NeDropdown,
+  NeInlineNotification,
+  NeTooltip,
+} from '@nethesis/vue-components'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ApplicationLogo from '@/components/applications/ApplicationLogo.vue'
@@ -90,6 +96,12 @@ const isBuyShown = computed(
           :open-menu-aria-label="$t('ne_dropdown.open_menu')"
         />
       </div>
+      <NeInlineNotification
+        v-if="tierUsage?.over"
+        kind="warning"
+        :title="$t('addons.tier_exceeded')"
+        :description="$t(`addons.tier_exceeded_description_${tierUsage.metric}`)"
+      />
       <!-- everything there is to say about the add-on on this system -->
       <div class="divide-y divide-gray-200 dark:divide-gray-700">
         <DataItem>
@@ -146,9 +158,21 @@ const isBuyShown = computed(
             <template #data>
               <div class="space-y-0.5 text-end">
                 <div class="flex items-center justify-end gap-2">
-                  <NeBadgeV2 v-if="tierUsage.over" kind="amber">
-                    {{ $t('addons.over_tier', { over: tierUsage.over }) }}
-                  </NeBadgeV2>
+                  <NeTooltip v-if="tierUsage.over" trigger-event="mouseenter focus" placement="top">
+                    <template #trigger>
+                      <FontAwesomeIcon
+                        :icon="faTriangleExclamation"
+                        class="size-4 text-amber-700 dark:text-amber-500"
+                        aria-hidden="true"
+                      />
+                      <span class="sr-only">
+                        {{ $t(`addons.over_tier_${tierUsage.metric}`, tierUsage.over) }}
+                      </span>
+                    </template>
+                    <template #content>
+                      {{ $t(`addons.over_tier_${tierUsage.metric}`, tierUsage.over) }}
+                    </template>
+                  </NeTooltip>
                   <span>
                     {{
                       tierUsage.limit !== undefined

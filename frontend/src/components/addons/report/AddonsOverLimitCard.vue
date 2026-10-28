@@ -9,9 +9,9 @@
 -->
 
 <script setup lang="ts">
-import { faCircleCheck } from '@fortawesome/free-solid-svg-icons'
+import { faCircleCheck, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
-  NeBadgeV2,
   NeEmptyState,
   NePaginator,
   NeTable,
@@ -21,9 +21,11 @@ import {
   NeTableHeadCell,
   NeTableRow,
   NeTextInput,
+  NeTooltip,
 } from '@nethesis/vue-components'
 import { computed } from 'vue'
-import { ADDONS_OVER_LIMIT_TABLE_ID } from '@/lib/addons/addonsReport'
+import { useI18n } from 'vue-i18n'
+import { ADDONS_OVER_LIMIT_TABLE_ID, type AddonOverLimit } from '@/lib/addons/addonsReport'
 import { getTierLabel } from '@/lib/addons/systemAddons'
 import { PAGE_SIZE_OPTIONS, savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useAddons } from '@/queries/addons/addons'
@@ -41,6 +43,14 @@ const loading = computed(() => overLimit.value.status === 'pending')
 // from the catalog
 const { state: catalog } = useAddons()
 const addonOf = (id: string) => catalog.value.data?.find((item) => item.id === id)
+
+const { t } = useI18n()
+
+const overTierText = (row: AddonOverLimit) => {
+  const over = row.usage - row.seats
+  const metric = addonOf(row.entitlement)?.usage_metric
+  return metric ? t(`addons.over_tier_${metric}`, over) : t('addons.over_tier', { count: over })
+}
 </script>
 
 <template>
@@ -104,7 +114,17 @@ const addonOf = (id: string) => catalog.value.data?.find((item) => item.id === i
                    short enough for the narrow card -->
               <div class="flex items-center gap-2 whitespace-nowrap">
                 <span>{{ row.usage }}/{{ row.seats }}</span>
-                <NeBadgeV2 kind="amber">+{{ row.usage - row.seats }}</NeBadgeV2>
+                <NeTooltip trigger-event="mouseenter focus" placement="top">
+                  <template #trigger>
+                    <FontAwesomeIcon
+                      :icon="faTriangleExclamation"
+                      class="size-4 text-amber-700 dark:text-amber-500"
+                      aria-hidden="true"
+                    />
+                    <span class="sr-only">{{ overTierText(row) }}</span>
+                  </template>
+                  <template #content>{{ overTierText(row) }}</template>
+                </NeTooltip>
               </div>
             </NeTableCell>
           </NeTableRow>
