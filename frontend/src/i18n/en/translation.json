@@ -954,7 +954,7 @@
     "over_tier_arp_macs": "{count} device over the tier | {count} devices over the tier",
     "over_tier_instances": "{count} application over the tier | {count} applications over the tier",
     "tier_exceeded": "Tier exceeded",
-    "tier_exceeded_description_arp_macs": "The firewall unit sees more devices than its tier covers.",
+    "tier_exceeded_description_arp_macs": "The unit sees more devices than its tier covers.",
     "tier_exceeded_description_instances": "The cluster runs more applications than its tier covers.",
     "usage_measured_at": "Measured on {date}",
     "over_limit": "Over the tier",

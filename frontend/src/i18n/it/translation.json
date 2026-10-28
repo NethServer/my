@@ -872,7 +872,7 @@
     "over_tier_arp_macs": "{count} dispositivo oltre la fascia | {count} dispositivi oltre la fascia",
     "over_tier_instances": "{count} applicazione oltre la fascia | {count} applicazioni oltre la fascia",
     "tier_exceeded": "Fascia superata",
-    "tier_exceeded_description_arp_macs": "L'unità firewall vede più dispositivi di quelli coperti dalla fascia.",
+    "tier_exceeded_description_arp_macs": "L'unità vede più dispositivi di quelli coperti dalla fascia.",
     "tier_exceeded_description_instances": "Il cluster ha più applicazioni di quelle coperte dalla fascia.",
     "usage_measured_at": "Rilevato il {date}",
     "over_limit": "Oltre la fascia",

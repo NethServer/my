@@ -113,7 +113,6 @@ const overTierText = (row: AddonOverLimit) => {
               <!-- the tier column already says what is counted: the cell stays
                    short enough for the narrow card -->
               <div class="flex items-center gap-2 whitespace-nowrap">
-                <span>{{ row.usage }}/{{ row.seats }}</span>
                 <NeTooltip trigger-event="mouseenter focus" placement="top">
                   <template #trigger>
                     <FontAwesomeIcon
@@ -125,6 +124,7 @@ const overTierText = (row: AddonOverLimit) => {
                   </template>
                   <template #content>{{ overTierText(row) }}</template>
                 </NeTooltip>
+                <span>{{ row.usage }}/{{ row.seats }}</span>
               </div>
             </NeTableCell>
           </NeTableRow>
