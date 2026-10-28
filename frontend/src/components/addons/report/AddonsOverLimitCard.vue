@@ -46,6 +46,13 @@ const addonOf = (id: string) => catalog.value.data?.find((item) => item.id === i
 
 const { t } = useI18n()
 
+// both the system and the add-on lead to the add-ons of the system
+const systemAddonsRoute = (row: AddonOverLimit) => ({
+  name: 'system_detail',
+  params: { systemId: row.system_id },
+  query: { tab: 'addons' },
+})
+
 const overTierText = (row: AddonOverLimit) => {
   const over = row.usage - row.seats
   const metric = addonOf(row.entitlement)?.usage_metric
@@ -88,22 +95,23 @@ const overTierText = (row: AddonOverLimit) => {
             <NeTableCell :data-label="$t('addons.system_column')">
               <div class="space-y-0.5">
                 <router-link
-                  :to="{
-                    name: 'system_detail',
-                    params: { systemId: row.system_id },
-                    query: { tab: 'addons' },
-                  }"
+                  :to="systemAddonsRoute(row)"
                   class="cursor-pointer font-medium hover:underline"
                 >
                   {{ row.system_name }}
                 </router-link>
-                <div class="text-tertiary-neutral text-xs">{{ row.organization_name }}</div>
+                <div class="text-tertiary-neutral">{{ row.organization_name }}</div>
               </div>
             </NeTableCell>
             <NeTableCell :data-label="$t('addons.addon')">
               <div class="flex items-center gap-2">
                 <AddonLogo :addon-id="row.entitlement" />
-                <span>{{ addonOf(row.entitlement)?.display_name ?? row.entitlement }}</span>
+                <router-link
+                  :to="systemAddonsRoute(row)"
+                  class="cursor-pointer font-medium hover:underline"
+                >
+                  {{ addonOf(row.entitlement)?.display_name ?? row.entitlement }}
+                </router-link>
               </div>
             </NeTableCell>
             <NeTableCell :data-label="$t('addons.tier')">
