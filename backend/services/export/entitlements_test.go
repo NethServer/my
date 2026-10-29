@@ -38,6 +38,7 @@ func sampleGrants() []*models.EntitlementGrantReportRow {
 		},
 		SystemName:       "Novavetro_Firewall2",
 		SystemKey:        "NETH-AAAA",
+		SystemType:       "nsec",
 		OrganizationName: "Novavetro",
 		ResellerName:     "MIT INFORMATICA",
 	}
@@ -77,6 +78,7 @@ func TestGrantsExportToCSV(t *testing.T) {
 	}
 	assert.Equal(t, "sys-1", col("System ID"))
 	assert.Equal(t, "Novavetro_Firewall2", col("System"))
+	assert.Equal(t, "NethSecurity", col("Product"))
 	assert.Equal(t, "MIT INFORMATICA", col("Reseller"))
 	assert.Equal(t, "Advanced Threat Shield", col("Add-on"))
 	assert.Equal(t, "130", col("Usage"))
@@ -85,8 +87,8 @@ func TestGrantsExportToCSV(t *testing.T) {
 	assert.Equal(t, "103812", col("Order"))
 
 	// an add-on missing from the catalog keeps its id, no limit means no overrun
-	assert.Equal(t, "crowdsec-advanced-threat-shield", records[2][5])
-	assert.Equal(t, "", records[2][9])
+	assert.Equal(t, "crowdsec-advanced-threat-shield", records[2][6])
+	assert.Equal(t, "", records[2][10])
 }
 
 func TestGrantUsage(t *testing.T) {

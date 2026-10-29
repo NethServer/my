@@ -2995,6 +2995,10 @@ components:
               type: string
               description: Name of the organization owning the system
               example: "ACME S.r.l."
+            system_type:
+              type: string
+              description: Product of the system (nsec, ns8)
+              example: "nsec"
             reseller_name:
               type: string
               description: Who sells to the owning organization — its parent for a customer, the organization itself for a reseller or a distributor
@@ -13325,7 +13329,7 @@ paths:
 
         **Features:**
         - Maximum 10,000 grants per export (DoS protection)
-        - CSV: system id and key, system, organization, reseller, add-on, tier, usage, limit, overrun, measured at, order, status, valid until
+        - CSV: system id and key, system, product, organization, reseller, add-on, tier, usage, limit, overrun, measured at, order, status, valid until
         - PDF: formatted report with metadata and filters applied
         - File naming: `addons_export_YYYY-MM-DD_HHmmss.[csv|pdf]`, `addons_over_tier_export_...` for the over-limit list
       parameters:

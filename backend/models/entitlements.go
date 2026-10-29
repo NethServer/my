@@ -164,6 +164,7 @@ type EntitlementGrantReportRow struct {
 	SystemEntitlement
 	SystemName       string `json:"system_name"`
 	SystemKey        string `json:"system_key"`
+	SystemType       string `json:"system_type,omitempty"`
 	OrganizationID   string `json:"organization_id"`
 	OrganizationName string `json:"organization_name"`
 	// ResellerName is who sells to the owning organization: its parent for a

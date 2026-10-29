@@ -40,6 +40,7 @@ func (s *GrantsExportService) ExportToCSV(rows []*models.EntitlementGrantReportR
 		"System ID",
 		"System key",
 		"System",
+		"Product",
 		"Organization",
 		"Reseller",
 		"Add-on",
@@ -61,6 +62,7 @@ func (s *GrantsExportService) ExportToCSV(rows []*models.EntitlementGrantReportR
 			row.SystemID,
 			row.SystemKey,
 			row.SystemName,
+			systemProduct(row.SystemType),
 			row.OrganizationName,
 			row.ResellerName,
 			s.addonName(row.Entitlement),
@@ -120,6 +122,17 @@ func (s *GrantsExportService) ExportToPDF(rows []*models.EntitlementGrantReportR
 		Rows:  out,
 		Empty: "No add-ons found with the applied filters.",
 	})
+}
+
+// systemProduct names the product of a system type
+func systemProduct(systemType string) string {
+	switch systemType {
+	case "nsec":
+		return "NethSecurity"
+	case "ns8":
+		return "NethServer"
+	}
+	return systemType
 }
 
 func (s *GrantsExportService) addonName(id string) string {

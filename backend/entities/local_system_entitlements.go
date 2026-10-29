@@ -806,7 +806,7 @@ func (r *LocalSystemEntitlementRepository) ListGrants(f GrantsReportFilter, limi
 		        COALESCE(e.pending_ref, ''), e.pending_since, e.created_by, e.purchased_by, e.variant, e.renewal_count, e.seats, e.usage, e.usage_at, e.created_at, e.updated_at,
 		        (e.revoked_at IS NULL AND (e.valid_until IS NULL OR e.valid_until > NOW())) AS active,
 		        (s.suspended_at IS NOT NULL) AS system_suspended,
-		        s.name, COALESCE(s.system_key, ''), s.organization_id,
+		        s.name, COALESCE(s.system_key, ''), COALESCE(s.type, ''), s.organization_id,
 		        COALESCE(d.name, r.name, c.name, 'Owner') AS organization_name,
 		        `+grantsResellerName+`
 		 `+grantsReportJoin+`
@@ -832,7 +832,7 @@ func (r *LocalSystemEntitlementRepository) ListGrants(f GrantsReportFilter, limi
 			&row.ValidFrom, &validUntil, &revokedAt, &row.RevokedSource,
 			&row.PendingRef, &pendingSince, &createdBy, &purchasedBy, &variant, &row.RenewalCount, &seats, &usage, &usageAt, &row.CreatedAt, &row.UpdatedAt,
 			&row.Active, &systemSuspended,
-			&row.SystemName, &row.SystemKey, &row.OrganizationID, &row.OrganizationName,
+			&row.SystemName, &row.SystemKey, &row.SystemType, &row.OrganizationID, &row.OrganizationName,
 			&row.ResellerName,
 		)
 		if err != nil {
