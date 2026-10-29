@@ -304,6 +304,7 @@ func main() {
 
 			// Reporting: buyers see their hierarchy (expirations/renewals), owner/SA the fleet
 			entitlementsGroup.GET("/grants", methods.GetEntitlementGrants)
+			entitlementsGroup.GET("/grants/export", middleware.LimitExports(), middleware.ExtendDeadline(180*time.Second), methods.ExportEntitlementGrants) // Export grants to CSV or PDF with applied filters
 			entitlementsGroup.GET("/stats", methods.GetEntitlementStats)
 			entitlementsGroup.GET("/report", methods.GetEntitlementReport)                            // aggregates scoped to the caller's hierarchy
 			entitlementsGroup.GET("/report/organizations", methods.GetEntitlementReportOrganizations) // aggregates scoped to the caller's hierarchy

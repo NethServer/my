@@ -199,5 +199,5 @@ export const useAddonsOverLimit = defineQuery(() => {
     },
   )
 
-  return { ...rest, state, asyncStatus, pageNum, pageSize, textFilter }
+  return { ...rest, state, asyncStatus, pageNum, pageSize, textFilter, debouncedTextFilter }
 })

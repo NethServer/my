@@ -880,6 +880,8 @@
     "system_column": "Sistema",
     "usage_column": "Utilizzo",
     "filter_over_limit": "Filtra sistema, add-on o fascia",
+    "export_to_pdf": "Esporta in PDF",
+    "export_to_csv": "Esporta in CSV",
     "count": "Quantità",
     "no_addons": "Nessun add-on",
     "no_addons_description": "Crea il primo add-on per renderlo disponibile per sistemi e applicazioni.",

@@ -166,6 +166,9 @@ type EntitlementGrantReportRow struct {
 	SystemKey        string `json:"system_key"`
 	OrganizationID   string `json:"organization_id"`
 	OrganizationName string `json:"organization_name"`
+	// ResellerName is who sells to the owning organization: its parent for a
+	// customer, the organization itself for a reseller or a distributor.
+	ResellerName string `json:"reseller_name"`
 }
 
 // EntitlementStatsRow aggregates active grants per entitlement per org.

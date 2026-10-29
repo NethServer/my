@@ -733,6 +733,15 @@ const grantsReportJoin = `
 	LEFT JOIN resellers   r ON (s.organization_id = r.logto_id) AND r.deleted_at IS NULL
 	LEFT JOIN customers   c ON (s.organization_id = c.logto_id) AND c.deleted_at IS NULL`
 
+// grantsResellerName is who sells to the organization owning the system: the
+// parent of a customer, the organization itself above it.
+const grantsResellerName = `CASE WHEN c.logto_id IS NOT NULL
+		             THEN COALESCE((SELECT pr.name FROM resellers pr WHERE pr.logto_id = c.custom_data->>'createdBy' AND pr.deleted_at IS NULL),
+		                           (SELECT pd.name FROM distributors pd WHERE pd.logto_id = c.custom_data->>'createdBy' AND pd.deleted_at IS NULL),
+		                           'Owner')
+		             ELSE COALESCE(r.name, d.name, 'Owner')
+		        END AS reseller_name`
+
 func (f *GrantsReportFilter) whereClause(args *[]interface{}) string {
 	where := "WHERE s.deleted_at IS NULL"
 	add := func(clause string, v interface{}) {
@@ -798,7 +807,8 @@ func (r *LocalSystemEntitlementRepository) ListGrants(f GrantsReportFilter, limi
 		        (e.revoked_at IS NULL AND (e.valid_until IS NULL OR e.valid_until > NOW())) AS active,
 		        (s.suspended_at IS NOT NULL) AS system_suspended,
 		        s.name, COALESCE(s.system_key, ''), s.organization_id,
-		        COALESCE(d.name, r.name, c.name, 'Owner') AS organization_name
+		        COALESCE(d.name, r.name, c.name, 'Owner') AS organization_name,
+		        `+grantsResellerName+`
 		 `+grantsReportJoin+`
 		 `+where+`
 		 ORDER BY `+f.orderBy()+`
@@ -823,6 +833,7 @@ func (r *LocalSystemEntitlementRepository) ListGrants(f GrantsReportFilter, limi
 			&row.PendingRef, &pendingSince, &createdBy, &purchasedBy, &variant, &row.RenewalCount, &seats, &usage, &usageAt, &row.CreatedAt, &row.UpdatedAt,
 			&row.Active, &systemSuspended,
 			&row.SystemName, &row.SystemKey, &row.OrganizationID, &row.OrganizationName,
+			&row.ResellerName,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan grant row: %w", err)

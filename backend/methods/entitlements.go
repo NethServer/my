@@ -913,20 +913,19 @@ func grantsOrgScope(u *models.User) ([]string, error) {
 	return local.NewUserService().GetHierarchicalOrganizationIDs(u.OrgRole, u.OrganizationID)
 }
 
-// GetEntitlementGrants handles GET /api/entitlements/grants — fleet-wide (or
-// hierarchy-wide) grants report with filters: entitlement, organization_id,
-// source, active=true, expiring_before=RFC3339, page/page_size.
-func GetEntitlementGrants(c *gin.Context) {
+// grantsFilter reads the grants report filters of the request, within the
+// caller's visibility. The over-limit view is Nethesis only.
+func grantsFilter(c *gin.Context) (*models.User, []string, entities.GrantsReportFilter, bool) {
 	u, found := helpers.GetUserFromContext(c)
 	if !found {
-		return
+		return nil, nil, entities.GrantsReportFilter{}, false
 	}
 
 	scope, err := grantsOrgScope(u)
 	if err != nil {
 		logger.RequestLogger(c, "entitlements").Error().Err(err).Msg("Failed to resolve org scope")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to resolve organization scope", nil))
-		return
+		return nil, nil, entities.GrantsReportFilter{}, false
 	}
 
 	filter := entities.GrantsReportFilter{
@@ -942,9 +941,20 @@ func GetEntitlementGrants(c *gin.Context) {
 		t, err := time.Parse(time.RFC3339, v)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, response.BadRequest("expiring_before must be RFC3339", nil))
-			return
+			return nil, nil, entities.GrantsReportFilter{}, false
 		}
 		filter.ExpiringBefore = &t
+	}
+	return u, scope, filter, true
+}
+
+// GetEntitlementGrants handles GET /api/entitlements/grants — fleet-wide (or
+// hierarchy-wide) grants report with filters: entitlement, organization_id,
+// source, active=true, expiring_before=RFC3339, page/page_size.
+func GetEntitlementGrants(c *gin.Context) {
+	u, scope, filter, ok := grantsFilter(c)
+	if !ok {
+		return
 	}
 
 	page, pageSize := 1, 50
