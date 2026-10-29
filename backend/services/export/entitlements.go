@@ -92,8 +92,8 @@ func (s *GrantsExportService) ExportToPDF(rows []*models.EntitlementGrantReportR
 		out = append(out, []string{
 			row.SystemName,
 			row.SystemKey,
-			row.ResellerName,
 			row.OrganizationName,
+			row.ResellerName,
 			s.addonName(row.Entitlement),
 			grantTier(row),
 			grantUsage(row),
@@ -110,8 +110,8 @@ func (s *GrantsExportService) ExportToPDF(rows []*models.EntitlementGrantReportR
 		Columns: []pdfColumn{
 			{Title: "System", Width: 2},
 			{Title: "System ID", Width: 3},
-			{Title: "Reseller", Width: 2},
-			{Title: "Organization", Width: 1},
+			{Title: "Organization", Width: 2},
+			{Title: "Reseller", Width: 1},
 			{Title: "Add-on", Width: 1},
 			{Title: "Tier", Width: 1},
 			{Title: "Usage", Width: 1, Align: alignRight},
