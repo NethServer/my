@@ -9,9 +9,17 @@
 -->
 
 <script setup lang="ts">
-import { faCircleCheck, faTriangleExclamation } from '@fortawesome/free-solid-svg-icons'
+import {
+  faChevronDown,
+  faCircleCheck,
+  faFileCsv,
+  faFilePdf,
+  faTriangleExclamation,
+} from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
+  NeButton,
+  NeDropdown,
   NeEmptyState,
   NePaginator,
   NeTable,
@@ -23,17 +31,29 @@ import {
   NeTextInput,
   NeTooltip,
 } from '@nethesis/vue-components'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ADDONS_OVER_LIMIT_TABLE_ID, type AddonOverLimit } from '@/lib/addons/addonsReport'
+import {
+  ADDONS_OVER_LIMIT_TABLE_ID,
+  getAddonsOverLimitExport,
+  type AddonOverLimit,
+} from '@/lib/addons/addonsReport'
+import { downloadFile, exportFileName, getExportLimitError } from '@/lib/common'
 import { getTierLabel } from '@/lib/addons/systemAddons'
 import { PAGE_SIZE_OPTIONS, savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useAddons } from '@/queries/addons/addons'
 import { useAddonsOverLimit } from '@/queries/addons/addonsReport'
+import { useNotificationsStore } from '@/stores/notifications'
 import AddonLogo from '../AddonLogo.vue'
 import ReportCard from './ReportCard.vue'
 
-const { state: overLimit, pageNum, pageSize, textFilter } = useAddonsOverLimit()
+const {
+  state: overLimit,
+  pageNum,
+  pageSize,
+  textFilter,
+  debouncedTextFilter,
+} = useAddonsOverLimit()
 
 const rows = computed(() => overLimit.value.data?.grants ?? [])
 const total = computed(() => overLimit.value.data?.total ?? 0)
@@ -45,6 +65,50 @@ const { state: catalog } = useAddons()
 const addonOf = (id: string) => catalog.value.data?.find((item) => item.id === id)
 
 const { t } = useI18n()
+const notificationsStore = useNotificationsStore()
+
+// the whole list, not just the page on screen, with the search applied: one
+// export at a time, the Actions button showing progress
+const isExporting = ref(false)
+
+const exportItems = computed(() => [
+  {
+    id: 'exportToPdf',
+    label: t('addons.export_to_pdf'),
+    icon: faFilePdf,
+    action: () => exportOverLimit('pdf'),
+    disabled: isExporting.value || !rows.value.length,
+  },
+  {
+    id: 'exportToCsv',
+    label: t('addons.export_to_csv'),
+    icon: faFileCsv,
+    action: () => exportOverLimit('csv'),
+    disabled: isExporting.value || !rows.value.length,
+  },
+])
+
+async function exportOverLimit(format: 'pdf' | 'csv') {
+  try {
+    isExporting.value = true
+    const data = await getAddonsOverLimitExport(format, debouncedTextFilter.value)
+    downloadFile(data, exportFileName(t('addons.over_limit'), format), format)
+  } catch (error) {
+    const limit = getExportLimitError(error)
+    if (limit) {
+      notificationsStore.createNotification({
+        kind: 'error',
+        title: t('common.too_many_records_to_export'),
+        description: t('common.too_many_records_to_export_description', limit),
+      })
+      return
+    }
+    console.error(`Cannot export add-ons over the tier to ${format}:`, error)
+    throw error
+  } finally {
+    isExporting.value = false
+  }
+}
 
 // both the system and the add-on lead to the add-ons of the system
 const systemAddonsRoute = (row: AddonOverLimit) => ({
@@ -63,13 +127,29 @@ const overTierText = (row: AddonOverLimit) => {
 <template>
   <ReportCard :title="$t('addons.over_limit')">
     <div class="flex flex-col gap-4">
-      <NeTextInput
-        v-model="textFilter"
-        is-search
-        :placeholder="$t('addons.filter_over_limit')"
-        class="max-w-48 sm:max-w-xs"
-        @blur="textFilter = textFilter.trim()"
-      />
+      <div class="flex items-center justify-between gap-4">
+        <NeTextInput
+          v-model="textFilter"
+          is-search
+          :placeholder="$t('addons.filter_over_limit')"
+          class="max-w-48 sm:max-w-xs"
+          @blur="textFilter = textFilter.trim()"
+        />
+        <NeDropdown
+          :items="exportItems"
+          align-to-right
+          :open-menu-aria-label="$t('ne_dropdown.open_menu')"
+        >
+          <template #button>
+            <NeButton :disabled="isExporting" :loading="isExporting" loading-position="suffix">
+              <template #suffix>
+                <FontAwesomeIcon :icon="faChevronDown" class="h-4 w-4" aria-hidden="true" />
+              </template>
+              {{ $t('common.actions') }}
+            </NeButton>
+          </template>
+        </NeDropdown>
+      </div>
       <NeEmptyState
         v-if="!loading && !rows.length"
         :title="$t('addons.no_over_limit')"

@@ -461,6 +461,11 @@ routes:
     intent: read:entitlements
     object_scoped: true
   - method: GET
+    path: /api/entitlements/grants/export
+    intent: read:entitlements
+    object_scoped: true
+    note: an export is a bulk read; same permission and hierarchy scope as /entitlements/grants
+  - method: GET
     path: /api/entitlements/stats
     intent: read:entitlements
     object_scoped: true

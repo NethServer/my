@@ -191,6 +191,18 @@ export const getAddonsOverLimit = (page: number, pageSize: number, search: strin
       total: res.data.data.total as number,
     }))
 
+// The over-limit list as a file, with the search of the table. Read as a
+// blob: a PDF read as text is corrupted.
+export const getAddonsOverLimitExport = (format: 'pdf' | 'csv', search: string) => {
+  const params = new URLSearchParams({ format, over_limit: 'true', search })
+  return axios
+    .get<Blob>(`${API_URL}/${GRANTS_PATH}/export?${params}`, {
+      ...authHeaders(),
+      responseType: 'blob',
+    })
+    .then((res) => res.data)
+}
+
 // ----- derived shapes -----
 
 export const TREND_MONTHS = 12

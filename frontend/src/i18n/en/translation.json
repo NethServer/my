@@ -962,6 +962,8 @@
     "system_column": "System",
     "usage_column": "Usage",
     "filter_over_limit": "Filter system, add-on or tier",
+    "export_to_pdf": "Export to PDF",
+    "export_to_csv": "Export to CSV",
     "count": "Count",
     "no_addons": "No add-ons yet",
     "no_addons_description": "Create the first add-on to make it available for systems and applications.",
