@@ -91,13 +91,13 @@ func (s *GrantsExportService) ExportToPDF(rows []*models.EntitlementGrantReportR
 	for _, row := range rows {
 		out = append(out, []string{
 			row.SystemName,
-			row.OrganizationName,
+			row.SystemKey,
 			row.ResellerName,
+			row.OrganizationName,
 			s.addonName(row.Entitlement),
 			grantTier(row),
 			grantUsage(row),
 			grantOrder(row),
-			formatOptionalDate(row.UsageAt),
 		})
 	}
 
@@ -105,15 +105,17 @@ func (s *GrantsExportService) ExportToPDF(rows []*models.EntitlementGrantReportR
 		Title:      title,
 		Filters:    filters,
 		ExportedBy: exportedBy,
+		// 12-unit grid: the system key is the widest value and the one the
+		// partners look systems up by; the measure date stays in the CSV
 		Columns: []pdfColumn{
 			{Title: "System", Width: 2},
-			{Title: "Organization", Width: 2},
+			{Title: "System ID", Width: 3},
 			{Title: "Reseller", Width: 2},
-			{Title: "Add-on", Width: 2},
+			{Title: "Organization", Width: 1},
+			{Title: "Add-on", Width: 1},
 			{Title: "Tier", Width: 1},
 			{Title: "Usage", Width: 1, Align: alignRight},
 			{Title: "Order", Width: 1},
-			{Title: "Measured", Width: 1},
 		},
 		Rows:  out,
 		Empty: "No add-ons found with the applied filters.",
