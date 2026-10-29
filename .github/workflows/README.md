@@ -47,9 +47,12 @@ These GitHub Actions automatically manage redirect URIs in your Logto applicatio
 label or `[skip preview]` title marker): without a preview there is nothing to redirect to.
 
 ### 2. `pr-redirect-uris-remove.yml`
-**Trigger**: When a PR is closed or merged
-**Purpose**: Removes redirect URIs for the PR's Render deployments from Logto
-**Skipped** for Renovate PRs; for every other PR the removal is a no-op when nothing was added.
+**Trigger**: When a PR is closed or merged (`pull_request_target`, so it also runs when the
+branch is deleted right after closing: a plain `pull_request` run needs the merge ref, which is
+gone by then)
+**Purpose**: Removes the preview redirect URIs of every PR that is no longer open, not only the
+one being closed, so a removal that never ran does not leave a stale URI behind. The job never
+checks out the PR code. It is a no-op when there is nothing to remove.
 
 ## End-to-end suite
 

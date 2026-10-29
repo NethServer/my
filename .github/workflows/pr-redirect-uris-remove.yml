@@ -1,15 +1,17 @@
 name: PR - Remove Redirect URIs from Logto
 
+# pull_request_target: a PR closed and deleted in the same breath has no merge
+# ref, so a plain pull_request workflow never gets a run.
 on:
-  pull_request:
+  pull_request_target:
     types: [closed]
+
+permissions:
+  issues: write
+  pull-requests: write
 
 jobs:
   remove-redirect-uris:
-    # Renovate PRs never get redirect URIs (see pr-redirect-uris-add.yml), so
-    # there is nothing to remove. Human PRs always run: the removal is a no-op
-    # when the URIs were never added.
-    if: github.event.pull_request.user.login != 'renovate[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Extract PR number
@@ -48,32 +50,38 @@ jobs:
           echo "$RESPONSE" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: List open pull requests
+        id: open-prs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          OPEN_PRS=$(gh pr list --repo "${{ github.repository }}" --state open --limit 500 --json number --jq '[.[].number]')
+          echo "Open pull requests: $OPEN_PRS"
+          echo "numbers=$OPEN_PRS" >> $GITHUB_OUTPUT
+
       - name: Remove redirect URIs
+        id: remove
         run: |
           # Extract current redirect URIs
           CURRENT_REDIRECT_URIS=$(echo '${{ steps.current-config.outputs.current_config }}' | jq -r '.oidcClientMetadata.redirectUris // []')
           CURRENT_POST_LOGOUT_URIS=$(echo '${{ steps.current-config.outputs.current_config }}' | jq -r '.oidcClientMetadata.postLogoutRedirectUris // []')
+          OPEN_PRS='${{ steps.open-prs.outputs.numbers }}'
 
-          # Define URIs to remove for this PR (only proxy, services are private)
-          PR_PROXY_REDIRECT_URI="https://my-proxy-qa-pr-${{ steps.pr.outputs.number }}.onrender.com/login-redirect"
-          PR_PROXY_LOGOUT_URI="https://my-proxy-qa-pr-${{ steps.pr.outputs.number }}.onrender.com/login"
+          # Keep every non-preview URI plus the previews of PRs still open: this
+          # drops the closed PR and any leftover of a removal that never ran.
+          KEEP_OPEN='def pr: [capture("^https://my-proxy-qa-pr-(?<n>[0-9]+)\\.onrender\\.com/").n | tonumber][0];
+            map(select(pr as $n | $n == null or any($open[]; . == $n)))'
+          UPDATED_REDIRECT_URIS=$(echo "$CURRENT_REDIRECT_URIS" | jq --argjson open "$OPEN_PRS" "$KEEP_OPEN")
+          UPDATED_POST_LOGOUT_URIS=$(echo "$CURRENT_POST_LOGOUT_URIS" | jq --argjson open "$OPEN_PRS" "$KEEP_OPEN")
 
-          # Remove PR-specific URIs from existing ones
-          UPDATED_REDIRECT_URIS=$(echo "$CURRENT_REDIRECT_URIS" | jq --arg proxy "$PR_PROXY_REDIRECT_URI" '. - [$proxy]')
-          UPDATED_POST_LOGOUT_URIS=$(echo "$CURRENT_POST_LOGOUT_URIS" | jq --arg proxy "$PR_PROXY_LOGOUT_URI" '. - [$proxy]')
+          REMOVED=$(jq -n -c \
+            --argjson a "$CURRENT_REDIRECT_URIS" --argjson b "$UPDATED_REDIRECT_URIS" \
+            --argjson c "$CURRENT_POST_LOGOUT_URIS" --argjson d "$UPDATED_POST_LOGOUT_URIS" \
+            '($a - $b) + ($c - $d)')
+          echo "removed=$REMOVED" >> $GITHUB_OUTPUT
 
-          # Check if there are URIs to remove
-          REDIRECT_COUNT_BEFORE=$(echo "$CURRENT_REDIRECT_URIS" | jq 'length')
-          REDIRECT_COUNT_AFTER=$(echo "$UPDATED_REDIRECT_URIS" | jq 'length')
-          POST_LOGOUT_COUNT_BEFORE=$(echo "$CURRENT_POST_LOGOUT_URIS" | jq 'length')
-          POST_LOGOUT_COUNT_AFTER=$(echo "$UPDATED_POST_LOGOUT_URIS" | jq 'length')
-
-          if [ "$REDIRECT_COUNT_BEFORE" -eq "$REDIRECT_COUNT_AFTER" ] && [ "$POST_LOGOUT_COUNT_BEFORE" -eq "$POST_LOGOUT_COUNT_AFTER" ]; then
-            echo "ℹ️ No redirect URIs found for PR #${{ steps.pr.outputs.number }} to remove"
-            echo "Checked redirect URIs:"
-            echo "- $PR_PROXY_REDIRECT_URI"
-            echo "Checked post-logout redirect URIs:"
-            echo "- $PR_PROXY_LOGOUT_URI"
+          if [ "$(echo "$REMOVED" | jq 'length')" -eq 0 ]; then
+            echo "ℹ️ No redirect URIs to remove for PR #${{ steps.pr.outputs.number }}"
             exit 0
           fi
 
@@ -102,11 +110,8 @@ jobs:
 
           # Check if the update was successful
           if echo "$RESPONSE" | jq -e '.oidcClientMetadata.redirectUris' > /dev/null; then
-            echo "✅ Successfully removed redirect URIs for PR #${{ steps.pr.outputs.number }}"
-            echo "Removed redirect URIs:"
-            echo "- $PR_PROXY_REDIRECT_URI"
-            echo "Removed post-logout redirect URIs:"
-            echo "- $PR_PROXY_LOGOUT_URI"
+            echo "✅ Successfully removed redirect URIs:"
+            echo "$REMOVED" | jq -r '.[] | "- " + .'
           else
             echo "❌ Failed to update redirect URIs"
             echo "Response: $RESPONSE"
@@ -114,23 +119,21 @@ jobs:
           fi
 
       - name: Comment on PR
+        if: steps.remove.outputs.removed != '[]'
         uses: actions/github-script@v7
+        env:
+          REMOVED: ${{ steps.remove.outputs.removed }}
         with:
           script: |
             const prNumber = '${{ steps.pr.outputs.number }}';
-            const proxyRedirectUri = `https://my-proxy-qa-pr-${prNumber}.onrender.com/login-redirect`;
-            const proxyLogoutUri = `https://my-proxy-qa-pr-${prNumber}.onrender.com/login`;
+            const removed = JSON.parse(process.env.REMOVED);
 
             const body = [
               '🗑️ **Redirect URIs Removed from Logto**',
               '',
               'The following redirect URIs have been automatically removed from the Logto application configuration:',
               '',
-              '**Redirect URIs:**',
-              `- \`${proxyRedirectUri}\``,
-              '',
-              '**Post-logout redirect URIs:**',
-              `- \`${proxyLogoutUri}\``,
+              ...removed.map(uri => `- \`${uri}\``),
               '',
               `Cleanup completed for PR #${prNumber}.`
             ].join('\n');
