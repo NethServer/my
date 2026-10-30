@@ -128,14 +128,16 @@ watch(
   (groups) => {
     for (const group of groups) {
       for (const session of group.sessions) {
-        if (session.status === 'active' && !servicesMap.value[session.id]) {
+        if (session.status === 'active' && !servicesMap.value[session.id]?.length) {
+          // An empty or failed answer is not cached: the manifest may arrive
+          // later (tunnel reconnecting), so the next list refresh asks again
           getSupportSessionServices(session.id)
             .then((svcGroups) => {
-              servicesMap.value[session.id] = svcGroups || []
+              if (svcGroups?.length) {
+                servicesMap.value[session.id] = svcGroups
+              }
             })
-            .catch(() => {
-              servicesMap.value[session.id] = []
-            })
+            .catch(() => {})
         }
       }
     }
