@@ -249,3 +249,19 @@ func TestBuildHostRewriteMapUsesServiceLabels(t *testing.T) {
 		t.Fatalf("unexpected rewrites: %v", rewrites)
 	}
 }
+
+func TestRewriteLocation(t *testing.T) {
+	rewrites := map[string]string{"voice1.example.org": "nethvoice1-wizard-b2db864d--slug.support.my.nethesis.it"}
+	for loc, want := range map[string]string{
+		"https://voice1.example.org/freepbx/visualplan/?did=1": "https://nethvoice1-wizard-b2db864d--slug.support.my.nethesis.it/freepbx/visualplan/?did=1",
+		"http://voice1.example.org:443/x":                      "https://nethvoice1-wizard-b2db864d--slug.support.my.nethesis.it/x",
+		"https://evil.example.com/x":                           "https://evil.example.com/x",
+		"/relative/path":                                       "/relative/path",
+	} {
+		resp := &http.Response{Header: http.Header{"Location": []string{loc}}}
+		rewriteLocation(resp, rewrites)
+		if got := resp.Header.Get("Location"); got != want {
+			t.Errorf("rewriteLocation(%q) = %q, want %q", loc, got, want)
+		}
+	}
+}
