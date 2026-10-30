@@ -269,7 +269,7 @@ services:
       - key: SUPPORT_SERVICE_URL
         value: http://my-support-prod:10000
 
-      # Wildcard domain for {service}--{session}.support.{domain} proxy
+      # Wildcard domain for {label}--{session}.support.{domain} proxy
       - key: SUPPORT_PROXY_DOMAIN
         value: my.nethesis.it
 
@@ -538,7 +538,7 @@ services:
       - key: SUPPORT_SERVICE_URL
         value: http://my-support-qa:10000
 
-      # Wildcard domain for {service}--{session}.support.{domain} proxy
+      # Wildcard domain for {label}--{session}.support.{domain} proxy
       - key: SUPPORT_PROXY_DOMAIN
         value: qa.my.nethesis.it
 

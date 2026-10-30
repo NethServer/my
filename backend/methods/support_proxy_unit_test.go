@@ -13,10 +13,16 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/nethesis/my/backend/configuration"
+	"github.com/nethesis/my/backend/helpers"
 )
 
 const testSlug = "0123456789abcdef0123456789abcdef"
 const otherSlug = "fedcba9876543210fedcba9876543210"
+
+var (
+	caLabel = helpers.ServiceHostLabel("cluster-admin")
+	nvLabel = helpers.ServiceHostLabel("nethvoice")
+)
 
 func withSupportProxyDomain(t *testing.T, domain string) {
 	prev := configuration.Config.SupportProxyDomain
@@ -27,33 +33,35 @@ func withSupportProxyDomain(t *testing.T, domain string) {
 func TestParseSupportProxyHost(t *testing.T) {
 	withSupportProxyDomain(t, "my.nethesis.it")
 
-	svc, slug, ok := parseSupportProxyHost("cluster-admin--" + testSlug + ".support.my.nethesis.it:443")
+	svc, slug, ok := parseSupportProxyHost(caLabel + "--" + testSlug + ".support.my.nethesis.it:443")
 	assert.True(t, ok)
-	assert.Equal(t, "cluster-admin", svc)
+	assert.Equal(t, caLabel, svc)
 	assert.Equal(t, testSlug, slug)
 
 	for _, host := range []string{
-		"cluster-admin--" + testSlug + ".support.my.nethesis.it.evil.com",
-		"cluster-admin--" + testSlug + ".support.evil.com",
-		"cluster-admin--" + testSlug + ".support.qa.my.nethesis.it",
-		"cluster-admin--short.support.my.nethesis.it",
+		caLabel + "--" + testSlug + ".support.my.nethesis.it.evil.com",
+		caLabel + "--" + testSlug + ".support.evil.com",
+		caLabel + "--" + testSlug + ".support.qa.my.nethesis.it",
+		caLabel + "--short.support.my.nethesis.it",
 		"--" + testSlug + ".support.my.nethesis.it",
 		".support.my.nethesis.it",
 		"my.nethesis.it",
+		"cluster-admin--" + testSlug + ".support.my.nethesis.it",
+		"a.b-0123abcd--" + testSlug + ".support.my.nethesis.it",
 	} {
 		_, _, ok := parseSupportProxyHost(host)
 		assert.False(t, ok, host)
 	}
 
 	withSupportProxyDomain(t, "")
-	assert.False(t, IsSupportProxyHost("cluster-admin--"+testSlug+".support.my.nethesis.it"))
+	assert.False(t, IsSupportProxyHost(caLabel+"--"+testSlug+".support.my.nethesis.it"))
 }
 
 func TestSupportProxyRequestAllowed(t *testing.T) {
 	withSupportProxyDomain(t, "my.nethesis.it")
-	sameOrigin := "https://cluster-admin--" + testSlug + ".support.my.nethesis.it"
-	sibling := "https://nethvoice--" + testSlug + ".support.my.nethesis.it"
-	otherSession := "https://cluster-admin--" + otherSlug + ".support.my.nethesis.it"
+	sameOrigin := "https://" + caLabel + "--" + testSlug + ".support.my.nethesis.it"
+	sibling := "https://" + nvLabel + "--" + testSlug + ".support.my.nethesis.it"
+	otherSession := "https://" + caLabel + "--" + otherSlug + ".support.my.nethesis.it"
 
 	cases := []struct {
 		name    string

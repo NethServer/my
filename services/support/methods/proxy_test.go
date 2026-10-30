@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -20,6 +21,10 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/hashicorp/yamux"
+
+	"github.com/nethesis/my/services/support/tunnel"
 )
 
 func TestStripInternalHeadersThroughReverseProxy(t *testing.T) {
@@ -212,5 +217,35 @@ func TestRewriteBodyUnsupportedEncodingUntouched(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	if !bytes.Equal(body, data) {
 		t.Fatal("brotli body must not be rewritten")
+	}
+}
+
+func TestBuildHostRewriteMapUsesServiceLabels(t *testing.T) {
+	prev := TunnelManager
+	TunnelManager = tunnel.NewManager(10, 10)
+	t.Cleanup(func() { TunnelManager = prev })
+
+	c1, c2 := net.Pipe()
+	t.Cleanup(func() { _ = c1.Close(); _ = c2.Close() })
+	ys, err := yamux.Client(c1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tun, err := TunnelManager.Register("sys", "", "sess", ys, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tun.SetServices(map[string]tunnel.ServiceInfo{
+		"nethvoice1-cti":   {Target: "127.0.0.1:80", Host: "cti.example.org"},
+		"nethvoice1-voice": {Target: "127.0.0.1:80", Host: "voice.example.org"},
+	})
+
+	slug := "0123456789abcdef0123456789abcdef"
+	cti := tunnel.ServiceHostLabel("nethvoice1-cti") + "--" + slug + ".support.my.nethesis.it"
+	voice := tunnel.ServiceHostLabel("nethvoice1-voice") + "--" + slug + ".support.my.nethesis.it"
+
+	rewrites := buildHostRewriteMap(tun, cti)
+	if rewrites["cti.example.org"] != cti || rewrites["voice.example.org"] != voice {
+		t.Fatalf("unexpected rewrites: %v", rewrites)
 	}
 }

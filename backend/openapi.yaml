@@ -20393,8 +20393,10 @@ paths:
       description: |
         Generates a short-lived signed JWT (SUPPORT_PROXY_TOKEN_TTL, default 15m) that grants access to
         a specific service on a remote system through the subdomain-based support proxy. The returned URL
-        uses the format `https://{service}--{session_slug}.support.{domain}/` (where session_slug is the
-        full UUID without dashes) where the token is passed as a query parameter on the first request,
+        uses the format `https://{label}--{session_slug}.support.{domain}/`, where label is a DNS-safe
+        digest of the service name (readable prefix of at most 20 chars plus 8 hex chars of its sha256,
+        so the whole host label stays within 63 chars) and session_slug is the full UUID without dashes;
+        the token is passed as a query parameter on the first request,
         then stored as an HttpOnly cookie. Every proxied request re-checks, at most once a minute, that the
         operator is still active and holds connect:systems; state-changing requests and WebSocket upgrades
         whose Origin is not a subdomain of the same session are refused with 403. The first use of the

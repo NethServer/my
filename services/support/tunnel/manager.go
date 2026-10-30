@@ -291,6 +291,21 @@ func (m *Manager) AggregateSessionServices(sessionID string) map[string]ServiceI
 	return merged
 }
 
+// ResolveSessionServiceName maps a host label (see ServiceHostLabel) or an
+// exact service name to the service name in the session manifest.
+func (m *Manager) ResolveSessionServiceName(sessionID, ref string) (string, bool) {
+	services := m.AggregateSessionServices(sessionID)
+	if _, ok := services[ref]; ok {
+		return ref, true
+	}
+	for name := range services {
+		if ServiceHostLabel(name) == ref {
+			return name, true
+		}
+	}
+	return "", false
+}
+
 // FindServiceInSession returns the tunnel best suited to proxy a request for
 // the given service. The chosen tunnel is the one whose NodeID matches the
 // service entry's NodeID; if none matches, the first tunnel that knows the
