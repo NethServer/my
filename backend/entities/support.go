@@ -68,6 +68,14 @@ func buildRBACFilter(userOrgRole, userOrgID string, argIdx int) (string, []inter
 	}
 }
 
+// A system row describes its live sessions (active or pending) when it has
+// any, otherwise its latest one: closed history must not stretch the times.
+const (
+	liveSession    = "ss.status IN ('active', 'pending')"
+	groupStartedAt = "COALESCE(MIN(ss.started_at) FILTER (WHERE " + liveSession + "), MAX(ss.started_at))"
+	groupExpiresAt = "COALESCE(MAX(ss.expires_at) FILTER (WHERE " + liveSession + "), MAX(ss.expires_at))"
+)
+
 // GetSystemSessions returns support sessions grouped by system, with server-side
 // pagination based on distinct systems (not individual sessions).
 func (r *SupportRepository) GetSystemSessions(
@@ -121,8 +129,8 @@ func (r *SupportRepository) GetSystemSessions(
 
 	// Validate sort column (mapped to aggregate expressions)
 	allowedSortColumns := map[string]string{
-		"started_at": "MIN(ss.started_at)",
-		"expires_at": "MAX(ss.expires_at)",
+		"started_at": groupStartedAt,
+		"expires_at": groupExpiresAt,
 		"created_at": "MIN(ss.created_at)",
 		"status": `CASE
 			WHEN bool_or(ss.status = 'active') THEN 0
@@ -144,8 +152,8 @@ func (r *SupportRepository) GetSystemSessions(
 	groupQuery := fmt.Sprintf(
 		`SELECT
 			ss.system_id,
-			MIN(ss.started_at) AS started_at,
-			MAX(ss.expires_at) AS expires_at,
+			`+groupStartedAt+` AS started_at,
+			`+groupExpiresAt+` AS expires_at,
 			CASE
 				WHEN bool_or(ss.status = 'active') THEN 'active'
 				WHEN bool_or(ss.status = 'pending') THEN 'pending'
@@ -153,7 +161,8 @@ func (r *SupportRepository) GetSystemSessions(
 				ELSE 'closed'
 			END AS best_status,
 			COUNT(*) AS session_count,
-			COUNT(DISTINCT ss.node_id) FILTER (WHERE ss.node_id IS NOT NULL) AS node_count,
+			COALESCE(NULLIF(COUNT(DISTINCT ss.node_id) FILTER (WHERE ss.node_id IS NOT NULL AND `+liveSession+`), 0),
+				COUNT(DISTINCT ss.node_id) FILTER (WHERE ss.node_id IS NOT NULL)) AS node_count,
 			s.name, s.type, s.system_key, s.organization_id,
 			COALESCE(uo.name, '') AS org_name,
 			COALESCE(uo.db_id, '') AS org_db_id,
