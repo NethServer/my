@@ -130,6 +130,7 @@ func CreateSystem(c *gin.Context) {
 	logger.LogBusinessOperation(c, "systems", "create", "system", system.ID, true, nil)
 
 	// Return success response with system data directly in data
+	hideSupportSessionIDs(c, system)
 	c.JSON(http.StatusCreated, response.Created("system created successfully", system))
 }
 
@@ -268,6 +269,7 @@ func GetSystems(c *gin.Context) {
 		Msg("Systems list requested")
 
 	// Return paginated systems list
+	hideSupportSessionIDs(c, systems...)
 	c.JSON(http.StatusOK, response.OK("systems retrieved successfully", gin.H{
 		"systems":    helpers.EnsureSlice(systems),
 		"pagination": helpers.BuildPaginationInfoWithSorting(page, pageSize, totalCount, sortBy, sortDirection),
@@ -310,6 +312,7 @@ func GetSystem(c *gin.Context) {
 		Msg("System details requested")
 
 	// Return system
+	hideSupportSessionIDs(c, system)
 	c.JSON(http.StatusOK, response.OK("system retrieved successfully", system))
 }
 
@@ -368,6 +371,7 @@ func UpdateSystem(c *gin.Context) {
 	logger.LogBusinessOperation(c, "systems", "update", "system", systemID, true, nil)
 
 	// Return updated system
+	hideSupportSessionIDs(c, system)
 	c.JSON(http.StatusOK, response.OK("system updated successfully", system))
 }
 
@@ -576,6 +580,7 @@ func RegenerateSystemSecret(c *gin.Context) {
 	logger.LogBusinessOperation(c, "systems", "regenerate_secret", "system", systemID, true, nil)
 
 	// Return new secret (only time it's visible)
+	hideSupportSessionIDs(c, system)
 	c.JSON(http.StatusOK, response.OK("system secret regenerated successfully", system))
 }
 
@@ -817,6 +822,21 @@ func CheckSystemReachability(c *gin.Context) {
 		Msg("System is not reachable on any candidate URL")
 
 	c.JSON(http.StatusOK, response.OK("reachability check completed", gin.H{"reachable": false, "url": ""}))
+}
+
+// hideSupportSessionIDs drops support_session_id for callers that cannot
+// connect to systems: only they can use the session it points to.
+func hideSupportSessionIDs(c *gin.Context, systems ...*models.System) {
+	if u, ok := c.Get("user"); ok {
+		if user, ok := u.(*models.User); ok && HasPermission(user.UserPermissions, user.OrgPermissions, "connect:systems") {
+			return
+		}
+	}
+	for _, system := range systems {
+		if system != nil {
+			system.SupportSessionID = nil
+		}
+	}
 }
 
 // attachSystemAddons fills the Addons list of the given systems with one batch

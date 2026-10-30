@@ -136,10 +136,9 @@ func main() {
 	// In production, nginx handles this rewrite
 	// IMPORTANT: this must run BEFORE gzip middleware so that c.Abort() prevents
 	// the outer gzip wrapper from double-compressing proxied responses
-	if configuration.Config.SupportProxyDomain != "" {
+	if configuration.Config.SupportProxyDomain != "" && gin.Mode() == gin.DebugMode {
 		router.Use(func(c *gin.Context) {
-			host := c.Request.Host
-			if strings.Contains(host, ".support.") && !strings.HasPrefix(c.Request.URL.Path, "/support-proxy") {
+			if methods.IsSupportProxyHost(c.Request.Host) && !strings.HasPrefix(c.Request.URL.Path, "/support-proxy") {
 				c.Request.URL.Path = "/support-proxy" + c.Request.URL.Path
 				router.HandleContext(c)
 				c.Abort()
@@ -704,7 +703,6 @@ func main() {
 			supportGroup.POST("/:id/services", methods.AddSupportSessionServices)
 			supportGroup.DELETE("/:id/services/:name", methods.RemoveSupportSessionService)
 			supportGroup.POST("/:id/terminal-ticket", methods.GenerateTerminalTicket)
-			supportGroup.Any("/:id/proxy/:service/*path", methods.ProxySupportSession)
 			supportGroup.POST("/:id/proxy-token", methods.GenerateSupportProxyToken)
 		}
 

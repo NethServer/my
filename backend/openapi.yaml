@@ -2365,7 +2365,7 @@ components:
         support_session_id:
           type: string
           nullable: true
-          description: ID of the active or pending support session for this system, null if none. Use GET /api/support-sessions/:id to fetch session details.
+          description: ID of the active or pending support session for this system, null if none or if the caller lacks connect:systems. Use GET /api/support-sessions/:id to fetch session details.
           example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
         rebranding_enabled:
           type: boolean
@@ -20278,7 +20278,9 @@ paths:
         Returns the ephemeral users provisioned by the tunnel-client for this support session.
         Includes cluster admin credentials (NS8), domain user credentials per LDAP/Samba provider,
         and local user credentials (NethSecurity). Returns `null` for `users` if no users have
-        been provisioned yet.
+        been provisioned yet. The credentials are stored encrypted and cleared when the session
+        is closed; every read that returns them is recorded in the session access log
+        (access_type `view`, metadata `{"action": "credentials_view"}`).
       security:
         - BearerAuth: []
       parameters:
@@ -20389,10 +20391,14 @@ paths:
         - Backend - Support Sessions
       summary: Generate a subdomain proxy token for a support session service
       description: |
-        Generates a short-lived signed JWT (8h) that grants access to a specific service on a remote
-        system through the subdomain-based support proxy. The returned URL uses the format
-        `https://{service}--{session_slug}.support.{domain}/` (where session_slug is the full UUID without dashes) where the token is passed as a query
-        parameter on the first request, then stored as an HttpOnly cookie.
+        Generates a short-lived signed JWT (SUPPORT_PROXY_TOKEN_TTL, default 15m) that grants access to
+        a specific service on a remote system through the subdomain-based support proxy. The returned URL
+        uses the format `https://{service}--{session_slug}.support.{domain}/` (where session_slug is the
+        full UUID without dashes) where the token is passed as a query parameter on the first request,
+        then stored as an HttpOnly cookie. Every proxied request re-checks, at most once a minute, that the
+        operator is still active and holds connect:systems; state-changing requests and WebSocket upgrades
+        whose Origin is not a subdomain of the same session are refused with 403. The first use of the
+        token on each service is recorded in the session access log (ui_proxy).
       security:
         - BearerAuth: []
       parameters:
@@ -20617,56 +20623,6 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-
-  /support-sessions/{id}/proxy/{service}/{path}:
-    get:
-      operationId: proxySupportSession
-      tags:
-        - Backend - Support Sessions
-      summary: Proxy HTTP requests to a remote service
-      description: |
-        Proxies HTTP requests through the support tunnel to a service on the remote system.
-        Supports all HTTP methods (GET, POST, PUT, DELETE, PATCH, etc.).
-        Also handles WebSocket upgrade requests for services that require them.
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: Support session ID
-          schema:
-            type: string
-            format: uuid
-        - name: service
-          in: path
-          required: true
-          description: Service name (as returned by the services endpoint)
-          schema:
-            type: string
-        - name: path
-          in: path
-          required: true
-          description: Path to proxy to the remote service
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Proxied response from the remote service
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '502':
-          description: Support service unavailable
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
 
   /support-sessions/{id}/terminal-ticket:
     post:

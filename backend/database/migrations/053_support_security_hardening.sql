@@ -1,10 +1,11 @@
 -- Migration 053: Security hardening for support service
 -- Description: Adds support_enabled flag to systems and reconnect_token to sessions
 
--- #2: Require explicit opt-in before a system can connect to the support tunnel
-ALTER TABLE systems ADD COLUMN IF NOT EXISTS support_enabled BOOLEAN NOT NULL DEFAULT false;
+-- #2: Per-system kill switch for the support tunnel (consent is the appliance admin starting it)
+ALTER TABLE systems ADD COLUMN IF NOT EXISTS support_enabled BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE systems ALTER COLUMN support_enabled SET DEFAULT true;
 
-COMMENT ON COLUMN systems.support_enabled IS 'Explicit opt-in: system can connect to support tunnel only when true';
+COMMENT ON COLUMN systems.support_enabled IS 'Kill switch: when false the system cannot open support tunnels';
 
 CREATE INDEX IF NOT EXISTS idx_systems_support_enabled ON systems(support_enabled) WHERE support_enabled = true AND deleted_at IS NULL;
 
