@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -157,6 +158,13 @@ func HandleProxy(c *gin.Context) {
 			stripInternalHeaders(req.Header)
 			filterSessionCookies(req.Header, cookiePrefix)
 
+			// Stand in for the Traefik the request bypasses: apps build
+			// absolute redirects from these (e.g. FreePBX /freepbx/visualplan)
+			if proxyHost != "" {
+				req.Header.Set("X-Forwarded-Host", proxyHost)
+				req.Header.Set("X-Forwarded-Proto", "https")
+			}
+
 			// Rewrite Host header if specified in manifest
 			if svc.Host != "" {
 				req.Host = svc.Host
@@ -188,6 +196,10 @@ func HandleProxy(c *gin.Context) {
 			// namespace per session, scope to exact proxy hostname,
 			// enforce Secure and SameSite=Strict
 			rewriteUpstreamCookies(resp, cookiePrefix)
+
+			if needsRewrite {
+				rewriteLocation(resp, hostRewrites)
+			}
 
 			// Rewrite hardcoded hostnames in text responses so that JS API calls
 			// go through the proxy instead of directly to the original host.
@@ -349,6 +361,24 @@ func buildHostRewriteMap(t *tunnel.Tunnel, currentProxyHost string) map[string]s
 		return nil
 	}
 	return rewrites
+}
+
+// rewriteLocation points absolute redirects to an original upstream host back
+// at its proxy subdomain, so a redirect never leaves the support proxy.
+func rewriteLocation(resp *http.Response, rewrites map[string]string) {
+	loc := resp.Header.Get("Location")
+	if loc == "" {
+		return
+	}
+	u, err := url.Parse(loc)
+	if err != nil || u.Host == "" {
+		return
+	}
+	if proxyHostname, ok := rewrites[strings.ToLower(u.Hostname())]; ok {
+		u.Scheme = "https"
+		u.Host = proxyHostname
+		resp.Header.Set("Location", u.String())
+	}
 }
 
 // internalHeaders are added by nginx, Render or the backend for the support
