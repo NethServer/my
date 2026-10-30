@@ -41,6 +41,7 @@ type ServiceInfo struct {
 	PathPrefix string `json:"path_prefix,omitempty"` // Traefik PathPrefix to strip when proxying
 	ModuleID   string `json:"module_id,omitempty"`   // NS8 module ID for grouping (e.g., "nethvoice103")
 	NodeID     string `json:"node_id,omitempty"`     // NS8 node ID (e.g., "1", "2")
+	Auth       string `json:"auth,omitempty"`        // "cluster" when the NS8 cluster login guards the route
 }
 
 // ServiceManifest is the JSON manifest sent by the tunnel client
@@ -545,6 +546,9 @@ func ValidateService(svc ServiceInfo) error {
 		if p != "" && (!validRoutePath.MatchString(p) || strings.Contains(p, "..")) {
 			return fmt.Errorf("invalid route path %q", p)
 		}
+	}
+	if svc.Auth != "" && svc.Auth != "cluster" {
+		return fmt.Errorf("invalid auth value %q", svc.Auth)
 	}
 	return nil
 }
