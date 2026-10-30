@@ -42,7 +42,7 @@ run:
 .PHONY: run-tunnel-client
 run-tunnel-client:
 	@echo "Starting tunnel-client..."
-	@go run ./cmd/tunnel-client/
+	@go run ./cmd/tunnel-client/ --dev
 
 # Run the application with QA environment
 .PHONY: run-qa
