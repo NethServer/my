@@ -651,6 +651,7 @@ func ChangeInfo(c *gin.Context) {
 
 	if req.Name != nil {
 		updateData.Name = req.Name
+		updateData.Profile = models.UserProfileFromName(*req.Name)
 		changedFields = append(changedFields, "name")
 	}
 

@@ -6,6 +6,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 package models
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -516,4 +517,60 @@ func TestEmptyStructsInitialization(t *testing.T) {
 	for _, s := range emptyStructs {
 		assert.NotNil(t, s)
 	}
+}
+
+func TestUserProfileFromName(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		given  string
+		family string
+		isNil  bool
+	}{
+		{name: "two words", input: "Luigi Rossi", given: "Luigi", family: "Rossi"},
+		{name: "compound given name", input: "Sebastian Marius Besel", given: "Sebastian Marius", family: "Besel"},
+		{name: "single word", input: "Mario", given: "Mario", family: ""},
+		{name: "extra whitespace", input: "  Maria   Grazia  De Luca ", given: "Maria Grazia De", family: "Luca"},
+		{name: "blank", input: "   ", isNil: true},
+		{name: "empty", input: "", isNil: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			profile := UserProfileFromName(tt.input)
+			if tt.isNil {
+				assert.Nil(t, profile)
+				return
+			}
+			assert.NotNil(t, profile)
+			assert.Equal(t, tt.given, profile.GivenName)
+			assert.Equal(t, tt.family, profile.FamilyName)
+		})
+	}
+}
+
+func TestUserProfileJSON(t *testing.T) {
+	t.Run("family name omitted when empty", func(t *testing.T) {
+		data, err := json.Marshal(UpdateUserRequest{Profile: UserProfileFromName("Mario")})
+		assert.NoError(t, err)
+		assert.JSONEq(t, `{"profile":{"givenName":"Mario"}}`, string(data))
+	})
+
+	t.Run("profile omitted when nil", func(t *testing.T) {
+		name := "Luigi Rossi"
+		data, err := json.Marshal(UpdateUserRequest{Name: &name})
+		assert.NoError(t, err)
+		assert.JSONEq(t, `{"name":"Luigi Rossi"}`, string(data))
+	})
+
+	t.Run("create request carries both names", func(t *testing.T) {
+		data, err := json.Marshal(CreateUserRequest{
+			Username: "luigi_rossi",
+			Password: "secret",
+			Name:     "Luigi Rossi",
+			Profile:  UserProfileFromName("Luigi Rossi"),
+		})
+		assert.NoError(t, err)
+		assert.Contains(t, string(data), `"profile":{"givenName":"Luigi","familyName":"Rossi"}`)
+	})
 }

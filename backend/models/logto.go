@@ -10,6 +10,7 @@
 package models
 
 import (
+	"strings"
 	"time"
 )
 
@@ -169,6 +170,30 @@ type CreateOrganizationJitRolesRequest struct {
 	OrganizationRoleIds []string `json:"organizationRoleIds"`
 }
 
+// LogtoUserProfile backs the given_name / family_name ID token claims;
+// PATCH /users/{id} replaces it whole
+type LogtoUserProfile struct {
+	GivenName  string `json:"givenName,omitempty"`
+	FamilyName string `json:"familyName,omitempty"`
+}
+
+// UserProfileFromName splits the single display name on its last space,
+// so relying parties joining the two claims get the full name back
+func UserProfileFromName(name string) *LogtoUserProfile {
+	words := strings.Fields(name)
+	switch len(words) {
+	case 0:
+		return nil
+	case 1:
+		return &LogtoUserProfile{GivenName: words[0]}
+	default:
+		return &LogtoUserProfile{
+			GivenName:  strings.Join(words[:len(words)-1], " "),
+			FamilyName: words[len(words)-1],
+		}
+	}
+}
+
 // CreateUserRequest represents a request to create a user
 type CreateUserRequest struct {
 	Username     string                 `json:"username" binding:"required"`
@@ -178,6 +203,7 @@ type CreateUserRequest struct {
 	PrimaryPhone string                 `json:"primaryPhone,omitempty"`
 	Avatar       *string                `json:"avatar,omitempty"`
 	CustomData   map[string]interface{} `json:"customData,omitempty"`
+	Profile      *LogtoUserProfile      `json:"profile,omitempty"`
 }
 
 // UpdateUserRequest represents a request to update a user
@@ -189,4 +215,5 @@ type UpdateUserRequest struct {
 	Avatar       *string                `json:"avatar,omitempty"`
 	CustomData   map[string]interface{} `json:"customData,omitempty"`
 	IsSuspended  *bool                  `json:"isSuspended,omitempty"`
+	Profile      *LogtoUserProfile      `json:"profile,omitempty"`
 }
