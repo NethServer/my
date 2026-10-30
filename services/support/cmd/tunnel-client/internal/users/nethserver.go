@@ -10,8 +10,10 @@
 package users
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os/exec"
@@ -28,6 +30,7 @@ import (
 // user creation for all domains in the cluster.
 type NethServerProvisioner struct {
 	RedisAddr string
+	worker    bool
 }
 
 // userDomainsResponse is the top-level response from cluster/list-user-domains
@@ -48,7 +51,13 @@ type userProvider struct {
 	ID string `json:"id"` // module ID (e.g., "openldap3", "samba1")
 }
 
-func (p *NethServerProvisioner) Create(sessionID string) (*SessionUsers, error) {
+// FetchesFromLeader reports whether the last Create ran on a worker node,
+// where credentials come from the leader through the support service.
+func (p *NethServerProvisioner) FetchesFromLeader() bool {
+	return p.worker
+}
+
+func (p *NethServerProvisioner) Create(sessionID string, record RecordFunc) (*SessionUsers, error) {
 	username := generateUsername(sessionID)
 	result := &SessionUsers{
 		SessionID: sessionID,
@@ -59,6 +68,7 @@ func (p *NethServerProvisioner) Create(sessionID string) (*SessionUsers, error) 
 	// Skip user provisioning on worker nodes — only the leader can submit cluster tasks
 	if !p.isLeaderNode() {
 		log.Println("NS8 user provisioning: skipping (not the leader node)")
+		p.worker = true
 		return result, nil
 	}
 
@@ -69,6 +79,13 @@ func (p *NethServerProvisioner) Create(sessionID string) (*SessionUsers, error) 
 		log.Printf("NS8 user provisioning: cluster-admin creation failed: %v", err)
 	} else {
 		result.ClusterAdmin = &UserCredential{Username: username, Password: adminPwd}
+		if err := record(result); err != nil {
+			result.ClusterAdmin = nil
+			if delErr := p.deleteClusterAdmin(username); delErr != nil {
+				log.Printf("NS8 user provisioning: rollback of unrecorded cluster-admin %q failed: %v", username, delErr)
+			}
+			return result, fmt.Errorf("cannot record cluster-admin: %w", err)
+		}
 		log.Printf("NS8 user provisioning: cluster-admin %q created", username)
 	}
 
@@ -104,43 +121,51 @@ func (p *NethServerProvisioner) Create(sessionID string) (*SessionUsers, error) 
 			Username: username,
 			Password: domainPwd,
 		})
+		if err := record(result); err != nil {
+			result.DomainUsers = result.DomainUsers[:len(result.DomainUsers)-1]
+			if delErr := p.deleteDomainUser(provider, username); delErr != nil {
+				log.Printf("NS8 user provisioning: rollback of unrecorded domain user on %s failed: %v", provider, delErr)
+			}
+			return result, fmt.Errorf("cannot record domain user: %w", err)
+		}
 		log.Printf("NS8 user provisioning: domain user %q created on %s (%s)", username, provider, domain.Name)
 	}
 
 	return result, nil
 }
 
+// Delete attempts every deletion regardless of the node role: a node that was
+// leader at creation time may have been demoted since. Failures stay in users.
 func (p *NethServerProvisioner) Delete(users *SessionUsers) error {
 	if users == nil {
 		return nil
 	}
 
-	// Only the leader node can remove cluster/domain users
-	if !p.isLeaderNode() {
-		log.Println("NS8 user cleanup: skipping (not the leader node)")
-		return nil
-	}
-
-	// Remove domain users (reverse order)
+	var errs []error
+	var remaining []DomainUser
 	for i := len(users.DomainUsers) - 1; i >= 0; i-- {
 		du := users.DomainUsers[i]
 		if err := p.deleteDomainUser(du.Module, du.Username); err != nil {
 			log.Printf("NS8 user cleanup: failed to remove domain user %q from %s: %v", du.Username, du.Module, err)
+			errs = append(errs, err)
+			remaining = append([]DomainUser{du}, remaining...)
 		} else {
 			log.Printf("NS8 user cleanup: domain user %q removed from %s", du.Username, du.Module)
 		}
 	}
+	users.DomainUsers = remaining
 
-	// Remove cluster-admin
 	if users.ClusterAdmin != nil {
 		if err := p.deleteClusterAdmin(users.ClusterAdmin.Username); err != nil {
 			log.Printf("NS8 user cleanup: failed to remove cluster-admin %q: %v", users.ClusterAdmin.Username, err)
+			errs = append(errs, err)
 		} else {
 			log.Printf("NS8 user cleanup: cluster-admin %q removed", users.ClusterAdmin.Username)
+			users.ClusterAdmin = nil
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
 func (p *NethServerProvisioner) createClusterAdmin(username, password string) error {
@@ -157,17 +182,15 @@ func (p *NethServerProvisioner) createClusterAdmin(username, password string) er
 		},
 	}
 
-	data, _ := json.Marshal(payload)
-	return runAgentTask("cluster", "add-user", string(data))
+	return runAgentTask("cluster", "add-user", payload)
 }
 
 func (p *NethServerProvisioner) deleteClusterAdmin(username string) error {
-	data, _ := json.Marshal(map[string]string{"user": username})
-	return runAgentTask("cluster", "remove-user", string(data))
+	return runAgentTask("cluster", "remove-user", map[string]string{"user": username})
 }
 
 func (p *NethServerProvisioner) listUserDomains() ([]userDomain, error) {
-	output, err := runAgentTaskOutput("cluster", "list-user-domains", "{}")
+	output, err := runAgentTaskOutput("cluster", "list-user-domains", map[string]interface{}{})
 	if err != nil {
 		return nil, fmt.Errorf("list-user-domains failed: %w", err)
 	}
@@ -186,13 +209,11 @@ func (p *NethServerProvisioner) createDomainUser(provider, username, password st
 		"password":     password,
 		"locked":       false,
 	}
-	data, _ := json.Marshal(payload)
-	return runAgentTask(fmt.Sprintf("module/%s", provider), "add-user", string(data))
+	return runAgentTask(fmt.Sprintf("module/%s", provider), "add-user", payload)
 }
 
 func (p *NethServerProvisioner) deleteDomainUser(provider, username string) error {
-	data, _ := json.Marshal(map[string]string{"user": username})
-	return runAgentTask(fmt.Sprintf("module/%s", provider), "remove-user", string(data))
+	return runAgentTask(fmt.Sprintf("module/%s", provider), "remove-user", map[string]string{"user": username})
 }
 
 // isLeaderNode checks if the local Redis instance is the cluster leader (master).
@@ -209,22 +230,16 @@ func (p *NethServerProvisioner) isLeaderNode() bool {
 	return firstLine == "master"
 }
 
-// runAgentTask executes an NS8 agent task via a Python helper using runagent.
-// This uses the agent.tasks framework with redis://127.0.0.1 endpoint,
-// which bypasses the API server and runs tasks directly via Redis.
-func runAgentTask(agentID, action, data string) error {
-	_, err := runAgentTaskOutput(agentID, action, data)
-	return err
-}
-
-// runAgentTaskOutput executes an NS8 agent task and returns the output JSON.
-func runAgentTaskOutput(agentID, action, data string) ([]byte, error) {
-	script := fmt.Sprintf(`
+// agentTaskScript runs an NS8 agent task through agent.tasks with the
+// redis://cluster-leader endpoint, bypassing the API server. The request is
+// read from stdin so passwords never appear in the process argv.
+const agentTaskScript = `
 import agent.tasks, json, sys
+req = json.load(sys.stdin)
 result = agent.tasks.run(
-    agent_id=%q,
-    action=%q,
-    data=json.loads(%q),
+    agent_id=req["agent_id"],
+    action=req["action"],
+    data=req["data"],
     extra={"isNotificationHidden": True},
     endpoint="redis://cluster-leader",
 )
@@ -232,17 +247,37 @@ if result["exit_code"] != 0:
     print(json.dumps(result.get("error", "task failed")), file=sys.stderr)
     sys.exit(1)
 print(json.dumps(result["output"]))
-`, agentID, action, data)
+`
 
-	cmd := exec.Command("runagent", "python3", "-c", script) //nolint:gosec // runagent is a trusted NS8 system binary
-	output, err := cmd.CombinedOutput()
+// runAgentTask executes an NS8 agent task and discards its output.
+func runAgentTask(agentID, action string, data interface{}) error {
+	_, err := runAgentTaskOutput(agentID, action, data)
+	return err
+}
+
+// runAgentTaskOutput executes an NS8 agent task and returns the output JSON.
+func runAgentTaskOutput(agentID, action string, data interface{}) ([]byte, error) {
+	req, err := json.Marshal(map[string]interface{}{
+		"agent_id": agentID,
+		"action":   action,
+		"data":     data,
+	})
 	if err != nil {
+		return nil, err
+	}
+
+	cmd := exec.Command("runagent", "python3", "-c", agentTaskScript) //nolint:gosec // runagent is a trusted NS8 system binary
+	cmd.Stdin = bytes.NewReader(req)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
 		// Truncate output to avoid dumping full Python stack traces in logs
-		msg := strings.TrimSpace(string(output))
+		msg := strings.TrimSpace(stderr.String())
 		if len(msg) > 200 {
 			msg = msg[:200] + "..."
 		}
 		return nil, fmt.Errorf("agent task %s/%s failed: %w: %s", agentID, action, err, msg)
 	}
-	return output, nil
+	return stdout.Bytes(), nil
 }

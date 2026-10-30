@@ -23,7 +23,13 @@ import (
 	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/terminal"
 )
 
-const maxLineLength = 1024
+const (
+	maxLineLength          = 1024
+	maxConcurrentTerminals = 8
+	dialTimeout            = 10 * time.Second
+)
+
+var terminalSlots = make(chan struct{}, maxConcurrentTerminals)
 
 // ReadLine reads a newline-terminated line from r, byte by byte.
 // Returns the line without the trailing newline. Returns an error if the line
@@ -70,6 +76,13 @@ func HandleStream(stream net.Conn, services map[string]models.ServiceInfo) {
 func dispatchStream(stream net.Conn, serviceName string, services map[string]models.ServiceInfo) {
 	// Built-in terminal service: spawn a PTY instead of dialing TCP
 	if serviceName == "terminal" {
+		select {
+		case terminalSlots <- struct{}{}:
+			defer func() { <-terminalSlots }()
+		default:
+			_ = writeConnectResponse(stream, fmt.Errorf("too many open terminals (max %d)", maxConcurrentTerminals))
+			return
+		}
 		if err := writeConnectResponse(stream, nil); err != nil {
 			return
 		}
@@ -86,14 +99,24 @@ func dispatchStream(stream net.Conn, serviceName string, services map[string]mod
 	}
 
 	// Connect to local target
+	// Server-injected services carry the address resolved and validated at add time
+	addr := svc.Target
+	if svc.DialAddr != "" {
+		addr = svc.DialAddr
+	}
 	var err error
 	var targetConn net.Conn
+	dialer := &net.Dialer{Timeout: dialTimeout}
 	if svc.TLS {
-		targetConn, err = tls.Dial("tcp", svc.Target, &tls.Config{
+		tlsCfg := &tls.Config{
 			InsecureSkipVerify: true, //nolint:gosec // Local services use self-signed certs
-		})
+		}
+		if host, _, splitErr := net.SplitHostPort(svc.Target); splitErr == nil && net.ParseIP(host) == nil {
+			tlsCfg.ServerName = host
+		}
+		targetConn, err = tls.DialWithDialer(dialer, "tcp", addr, tlsCfg)
 	} else {
-		targetConn, err = net.DialTimeout("tcp", svc.Target, 10*time.Second)
+		targetConn, err = dialer.Dial("tcp", addr)
 	}
 	if err != nil {
 		_ = writeConnectResponse(stream, fmt.Errorf("failed to connect to %s: %v", svc.Target, err))
