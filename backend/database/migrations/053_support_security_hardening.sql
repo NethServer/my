@@ -1,4 +1,4 @@
--- Migration 027: Security hardening for support service
+-- Migration 053: Security hardening for support service
 -- Description: Adds support_enabled flag to systems and reconnect_token to sessions
 
 -- #2: Require explicit opt-in before a system can connect to the support tunnel

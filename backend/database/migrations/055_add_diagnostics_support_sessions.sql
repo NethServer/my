@@ -1,4 +1,4 @@
--- Migration 029: add diagnostics columns to support_sessions
+-- Migration 055: add diagnostics columns to support_sessions
 ALTER TABLE support_sessions
     ADD COLUMN IF NOT EXISTS diagnostics JSONB,
     ADD COLUMN IF NOT EXISTS diagnostics_at TIMESTAMPTZ;

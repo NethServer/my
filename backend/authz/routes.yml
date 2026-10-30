@@ -322,6 +322,81 @@ routes:
     intent: manage:systems
 
   # ===========================================================================
+  # Support sessions. Reaching into a customer appliance (terminal, UI proxy,
+  # ephemeral users) is connect:systems, which config.yml gives to the Staff and
+  # Owner user roles only. The session belongs to a system, so on top of the
+  # permission the system still has to sit inside the caller's scope.
+  # ===========================================================================
+  - method: GET
+    path: /api/support-sessions
+    intent: connect:systems
+
+  - method: GET
+    path: /api/support-sessions/diagnostics
+    intent: connect:systems
+
+  - method: GET
+    path: /api/support-sessions/:id/terminal
+    intent: public
+    expect_anonymous: [400, 401]
+    note: the one-time ticket in the query IS the credential (browsers cannot set headers on a WebSocket)
+
+  - method: GET
+    path: /api/support-sessions/:id
+    intent: connect:systems
+    object_scoped: true
+
+  - method: PATCH
+    path: /api/support-sessions/:id/extend
+    intent: connect:systems
+    object_scoped: true
+
+  - method: DELETE
+    path: /api/support-sessions/:id
+    intent: connect:systems
+    object_scoped: true
+
+  - method: GET
+    path: /api/support-sessions/:id/logs
+    intent: connect:systems
+    object_scoped: true
+
+  - method: GET
+    path: /api/support-sessions/:id/diagnostics
+    intent: connect:systems
+    object_scoped: true
+
+  - method: GET
+    path: /api/support-sessions/:id/users
+    intent: connect:systems
+    object_scoped: true
+
+  - method: GET
+    path: /api/support-sessions/:id/services
+    intent: connect:systems
+    object_scoped: true
+
+  - method: POST
+    path: /api/support-sessions/:id/services
+    intent: connect:systems
+    object_scoped: true
+
+  - method: DELETE
+    path: /api/support-sessions/:id/services/:name
+    intent: connect:systems
+    object_scoped: true
+
+  - method: POST
+    path: /api/support-sessions/:id/terminal-ticket
+    intent: connect:systems
+    object_scoped: true
+
+  - method: POST
+    path: /api/support-sessions/:id/proxy-token
+    intent: connect:systems
+    object_scoped: true
+
+  # ===========================================================================
   # Entitlements. config.yml splits the vocabulary in two and the code follows
   # it (methods/entitlements.go):
   #   read:entitlements    — "See add-on licenses and expirations". Every

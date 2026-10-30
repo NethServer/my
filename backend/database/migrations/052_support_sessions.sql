@@ -1,4 +1,4 @@
--- Migration 026: Support sessions and access logs
+-- Migration 052: Support sessions and access logs
 -- Description: Tables for WebSocket tunnel-based support sessions
 
 -- Support sessions track active tunnel connections from client systems
@@ -15,6 +15,11 @@ CREATE TABLE IF NOT EXISTS support_sessions (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT support_sessions_status_check CHECK (status IN ('pending', 'active', 'expired', 'closed'))
 );
+
+COMMENT ON TABLE support_sessions IS 'WebSocket tunnel-based support sessions from client systems';
+COMMENT ON COLUMN support_sessions.session_token IS 'Unique token for tunnel authentication';
+COMMENT ON COLUMN support_sessions.status IS 'Session status: pending (no tunnel yet), active, expired, closed';
+COMMENT ON COLUMN support_sessions.closed_by IS 'Who closed the session: client, operator, timeout, system';
 
 CREATE INDEX IF NOT EXISTS idx_support_sessions_system_id ON support_sessions(system_id);
 CREATE INDEX IF NOT EXISTS idx_support_sessions_status ON support_sessions(status);
@@ -33,6 +38,10 @@ CREATE TABLE IF NOT EXISTS support_access_logs (
     metadata JSONB,
     CONSTRAINT support_access_logs_access_type_check CHECK (access_type IN ('view', 'ssh', 'web_terminal', 'ui_proxy'))
 );
+
+COMMENT ON TABLE support_access_logs IS 'Operator interactions with support sessions';
+COMMENT ON COLUMN support_access_logs.operator_id IS 'Logto user ID of the operator';
+COMMENT ON COLUMN support_access_logs.access_type IS 'Type of access: view, ssh, web_terminal, ui_proxy';
 
 CREATE INDEX IF NOT EXISTS idx_support_access_logs_session_id ON support_access_logs(session_id);
 CREATE INDEX IF NOT EXISTS idx_support_access_logs_operator_id ON support_access_logs(operator_id);
