@@ -11,6 +11,7 @@ package tunnel
 
 import (
 	"testing"
+	"time"
 )
 
 func TestNewManager(t *testing.T) {
@@ -54,7 +55,7 @@ func TestManagerRegisterUnregister(t *testing.T) {
 	}
 
 	// Unregister
-	m.Unregister("sys1", "")
+	m.Unregister(tun)
 	if m.Count() != 0 {
 		t.Fatalf("expected 0 tunnels after unregister, got %d", m.Count())
 	}
@@ -178,7 +179,7 @@ func TestManagerMultiNode(t *testing.T) {
 	}
 
 	// Unregister one node
-	m.Unregister("sys1", "2")
+	m.Unregister(m.Get("sys1", "2"))
 	if m.Count() != 2 {
 		t.Fatalf("expected 2 tunnels after unregister, got %d", m.Count())
 	}
@@ -241,6 +242,13 @@ func TestValidateServiceTarget(t *testing.T) {
 		{"224.0.0.1:80", true},                    // multicast
 		{"255.255.255.255:80", true},              // broadcast
 		{"", true},
+		{"10.0.0.1", true},                 // missing port
+		{"10.0.0.1:0", true},               // port out of range
+		{"10.0.0.1:70000", true},           // port out of range
+		{"[fe80::1]:80", true},             // IPv6 link-local
+		{"[fd00:ec2::254]:80", true},       // AWS IPv6 metadata
+		{"bad host:80", true},              // invalid hostname
+		{"no-such-host.invalid:80", false}, // syntax only, no DNS
 	}
 
 	for _, tt := range tests {
@@ -248,5 +256,82 @@ func TestValidateServiceTarget(t *testing.T) {
 		if (err != nil) != tt.wantErr {
 			t.Errorf("validateServiceTarget(%q) = %v, wantErr %v", tt.target, err, tt.wantErr)
 		}
+	}
+}
+
+func TestUnregisterKeepsReplacement(t *testing.T) {
+	m := NewManager(0, 64)
+	old, _ := m.Register("sys1", "1", "sess-old", nil, nil)
+	repl, _ := m.Register("sys1", "1", "sess-new", nil, nil)
+
+	if m.Unregister(old) {
+		t.Fatal("unregistering a replaced tunnel must report false")
+	}
+	if got := m.Get("sys1", "1"); got != repl {
+		t.Fatal("replacement tunnel must stay registered")
+	}
+	select {
+	case <-repl.Done():
+		t.Fatal("replacement tunnel must not be closed")
+	default:
+	}
+	if !m.Unregister(repl) {
+		t.Fatal("unregistering the current tunnel must report true")
+	}
+	if m.Count() != 0 {
+		t.Fatalf("expected 0 tunnels, got %d", m.Count())
+	}
+}
+
+func TestCloseBySystemID(t *testing.T) {
+	m := NewManager(0, 64)
+	_, _ = m.Register("sys1", "1", "s1", nil, nil)
+	_, _ = m.Register("sys1", "2", "s2", nil, nil)
+	_, _ = m.Register("sys10", "", "s3", nil, nil)
+	m.StartGracePeriod("sys1", "3", "s4", time.Hour)
+
+	if n := m.CloseBySystemID("sys1"); n != 2 {
+		t.Fatalf("expected 2 tunnels closed, got %d", n)
+	}
+	if m.Count() != 1 || m.Get("sys10", "") == nil {
+		t.Fatal("tunnels of other systems must survive")
+	}
+	if m.HasGracePeriod("sys1", "3") {
+		t.Fatal("grace timers of the system must be cancelled")
+	}
+}
+
+func TestValidateServicePaths(t *testing.T) {
+	tests := []struct {
+		path, prefix string
+		wantErr      bool
+	}{
+		{"", "", false},
+		{"/cluster-admin", "", false},
+		{"/a/b_c~d.e", "/a", false},
+		{"cluster-admin", "", true},
+		{"/x y", "", true},
+		{"/x?y", "", true},
+		{"", "/a/../b", true},
+		{"", "/a%2f", true},
+		{"/ok", "//evil.com\\", true},
+	}
+	for _, tt := range tests {
+		err := ValidateService(ServiceInfo{Target: "127.0.0.1:80", Path: tt.path, PathPrefix: tt.prefix})
+		if (err != nil) != tt.wantErr {
+			t.Errorf("ValidateService(path=%q prefix=%q) = %v, wantErr %v", tt.path, tt.prefix, err, tt.wantErr)
+		}
+	}
+
+	tun := &Tunnel{SystemID: "sys1"}
+	tun.SetServices(map[string]ServiceInfo{
+		"good": {Target: "127.0.0.1:80", PathPrefix: "/app"},
+		"bad":  {Target: "127.0.0.1:80", PathPrefix: "/app\"<script>"},
+	})
+	if _, ok := tun.GetService("bad"); ok {
+		t.Fatal("service with invalid path prefix must be rejected")
+	}
+	if _, ok := tun.GetService("good"); !ok {
+		t.Fatal("valid service must be kept")
 	}
 }

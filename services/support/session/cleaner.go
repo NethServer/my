@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/nethesis/my/services/support/configuration"
-	"github.com/nethesis/my/services/support/database"
 	"github.com/nethesis/my/services/support/logger"
 )
 
@@ -37,48 +36,18 @@ func StartCleaner(ctx context.Context, callback CleanerCallback) {
 			log.Info().Msg("session cleaner stopped")
 			return
 		case <-ticker.C:
-			// Get sessions that are about to expire
-			expiredIDs, err := getExpiredSessionIDs()
-			if err != nil {
-				log.Error().Err(err).Msg("failed to get expired session IDs")
-				continue
-			}
-
-			// Expire sessions in DB
-			count, err := ExpireSessions()
+			expiredIDs, err := ExpireSessions()
 			if err != nil {
 				log.Error().Err(err).Msg("failed to expire sessions")
 				continue
 			}
 
-			if count > 0 {
-				log.Info().Int64("expired_count", count).Msg("sessions expired")
-				if callback != nil && len(expiredIDs) > 0 {
+			if len(expiredIDs) > 0 {
+				log.Info().Int("expired_count", len(expiredIDs)).Msg("sessions expired")
+				if callback != nil {
 					callback(expiredIDs)
 				}
 			}
 		}
 	}
-}
-
-// getExpiredSessionIDs returns IDs of sessions that are expired but not yet marked
-func getExpiredSessionIDs() ([]string, error) {
-	rows, err := database.DB.Query(
-		`SELECT id FROM support_sessions
-		 WHERE status IN ('pending', 'active') AND expires_at < NOW()`,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	var ids []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	return ids, rows.Err()
 }

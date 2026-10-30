@@ -64,6 +64,7 @@ func main() {
 		configuration.Config.RateLimitTunnelPerIP,
 		configuration.Config.RateLimitTunnelPerKey,
 		configuration.Config.RateLimitSessionPerID,
+		configuration.Config.RateLimitAuthFailPerIP,
 		configuration.Config.RateLimitWindow,
 	)
 
@@ -104,11 +105,16 @@ func main() {
 	// Start command listener for backend commands via Redis pub/sub
 	go methods.StartCommandListener(ctx)
 
-	// #12: Start auth cache invalidation listener
-	go middleware.StartAuthCacheInvalidator(ctx)
+	// #12: Start auth cache invalidation listener; revoked systems lose their tunnels
+	go middleware.StartAuthCacheInvalidator(ctx, methods.RevokeSystem)
 
 	// Setup HTTP router (gin.New without default logger to avoid raw query params in logs)
 	router := gin.New()
+	// Client IP for rate limiting: only X-Forwarded-For entries added by trusted proxies count
+	router.RemoteIPHeaders = []string{"X-Forwarded-For"}
+	if err := router.SetTrustedProxies(configuration.Config.TrustedProxies); err != nil {
+		logger.Fatal().Err(err).Msg("invalid TRUSTED_PROXIES")
+	}
 	router.Use(gin.Recovery())
 	router.Use(logger.GinLogger())
 	router.Use(logger.SecurityMiddleware())

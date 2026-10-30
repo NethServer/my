@@ -13,7 +13,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
@@ -30,7 +32,7 @@ import (
 	"github.com/nethesis/my/services/support/tunnel"
 )
 
-// globalRewriteBytes tracks the total memory used by concurrent response rewrites (#14).
+// globalRewriteBytes tracks the memory used by concurrent response rewrites (#14).
 // Limits total decompressed memory to prevent coordinated gzip bomb attacks.
 var globalRewriteBytes atomic.Int64
 
@@ -90,18 +92,6 @@ func HandleProxy(c *gin.Context) {
 		}
 	}
 
-	// Re-validate service target at connection time to prevent DNS rebinding attacks.
-	// The target was validated at manifest registration, but DNS records can change.
-	if err := tunnel.ValidateServiceTarget(svc.Target); err != nil {
-		log.Warn().Err(err).
-			Str("session_id", sessionID).
-			Str("service", serviceName).
-			Str("target", svc.Target).
-			Msg("service target failed DNS re-validation at proxy time")
-		c.JSON(http.StatusForbidden, response.Error(http.StatusForbidden, "service target blocked by security policy", nil))
-		return
-	}
-
 	// Strip Traefik PathPrefix from the request path.
 	// In NS8, Traefik routes e.g. PathPrefix('/cluster-admin') to the backend
 	// and strips the prefix. Our proxy bypasses Traefik, so we must strip it too.
@@ -127,6 +117,7 @@ func HandleProxy(c *gin.Context) {
 	proxyHost := c.GetHeader("X-Proxy-Host")
 	hostRewrites := buildHostRewriteMap(t, proxyHost)
 	needsRewrite := len(hostRewrites) > 0
+	cookiePrefix := sessionCookiePrefix(sessionID)
 
 	// #10: Check stream limit before opening a new stream
 	if !t.AcquireStream() {
@@ -152,6 +143,9 @@ func HandleProxy(c *gin.Context) {
 			req.URL.Host = svc.Target
 			req.URL.Path = path
 			req.URL.RawQuery = c.Request.URL.RawQuery
+
+			stripInternalHeaders(req.Header)
+			filterSessionCookies(req.Header, cookiePrefix)
 
 			// Rewrite Host header if specified in manifest
 			if svc.Host != "" {
@@ -181,8 +175,9 @@ func HandleProxy(c *gin.Context) {
 			resp.Header.Set("Content-Security-Policy", "frame-ancestors 'self'")
 
 			// Rewrite upstream cookies to prevent cross-session leakage (#9):
-			// scope to exact proxy hostname, enforce Secure and SameSite=Strict
-			rewriteUpstreamCookies(resp)
+			// namespace per session, scope to exact proxy hostname,
+			// enforce Secure and SameSite=Strict
+			rewriteUpstreamCookies(resp, cookiePrefix)
 
 			// Rewrite hardcoded hostnames in text responses so that JS API calls
 			// go through the proxy instead of directly to the original host.
@@ -343,73 +338,143 @@ func buildHostRewriteMap(t *tunnel.Tunnel, currentProxyHost string) map[string]s
 	return rewrites
 }
 
-// rewriteUpstreamCookies rewrites cookies from upstream services to prevent
-// cross-session leakage (#9). Scopes cookies to the exact proxy hostname
-// and enforces Secure + SameSite=Strict flags.
-func rewriteUpstreamCookies(resp *http.Response) {
-	cookies := resp.Cookies()
-	if len(cookies) == 0 {
-		return
+// internalHeaders are added by nginx, Render or the backend for the support
+// service only and must never reach the appliance.
+var internalHeaders = []string{
+	"X-Internal-Secret",
+	"X-Session-Token",
+	"X-Proxy-Host",
+	"X-Forwarded-For",
+	"X-Forwarded-Host",
+	"X-Forwarded-Proto",
+	"X-Forwarded-Port",
+	"X-Forwarded-Server",
+	"Forwarded",
+	"X-Real-IP",
+	"True-Client-IP",
+	"X-Request-Start",
+	"X-Request-Id",
+	"Render-Proxy-TTL",
+	"Rndr-Id",
+	"CF-Connecting-IP",
+	"CF-IPCountry",
+	"CF-Ray",
+	"CF-Visitor",
+	"CDN-Loop",
+}
+
+// stripInternalHeaders removes every internal header from an outgoing request
+func stripInternalHeaders(h http.Header) {
+	for _, name := range internalHeaders {
+		h.Del(name)
 	}
-	resp.Header.Del("Set-Cookie")
-	for _, cookie := range cookies {
-		cookie.Domain = ""
-		cookie.Secure = true
-		cookie.SameSite = http.SameSiteStrictMode
-		resp.Header.Add("Set-Cookie", cookie.String())
+	// nil (not absent) stops ReverseProxy from adding its own X-Forwarded-For
+	h["X-Forwarded-For"] = nil
+}
+
+// sessionCookiePrefix namespaces upstream cookies per support session so that
+// sessions sharing the *.support domain cannot read or plant each other's cookies.
+func sessionCookiePrefix(sessionID string) string {
+	sum := sha256.Sum256([]byte(sessionID))
+	return "sp" + hex.EncodeToString(sum[:])[:8] + "_"
+}
+
+// filterSessionCookies forwards only the cookies carrying this session's
+// prefix (with the prefix removed) and drops everything else.
+func filterSessionCookies(h http.Header, prefix string) {
+	var kept []string
+	for _, line := range h.Values("Cookie") {
+		for _, part := range strings.Split(line, ";") {
+			part = strings.TrimSpace(part)
+			name, value, ok := strings.Cut(part, "=")
+			if !ok || !strings.HasPrefix(name, prefix) || len(name) == len(prefix) {
+				continue
+			}
+			kept = append(kept, strings.TrimPrefix(name, prefix)+"="+value)
+		}
+	}
+	h.Del("Cookie")
+	if len(kept) > 0 {
+		h.Set("Cookie", strings.Join(kept, "; "))
 	}
 }
 
+// rewriteUpstreamCookies rewrites cookies from upstream services to prevent
+// cross-session leakage (#9). Prefixes names with the session namespace,
+// scopes cookies to the exact proxy hostname and enforces Secure + SameSite=Strict.
+func rewriteUpstreamCookies(resp *http.Response, prefix string) {
+	cookies := resp.Cookies()
+	resp.Header.Del("Set-Cookie")
+	for _, cookie := range cookies {
+		cookie.Name = prefix + cookie.Name
+		cookie.Domain = ""
+		cookie.Secure = true
+		cookie.SameSite = http.SameSiteStrictMode
+		if v := cookie.String(); v != "" {
+			resp.Header.Add("Set-Cookie", v)
+		}
+	}
+}
+
+// readCloser pairs a reader with the closer of the original body
+type readCloser struct {
+	io.Reader
+	io.Closer
+}
+
 // rewriteResponseBodyMulti replaces all hostname occurrences in the response body
-// using a map of original -> proxy hostnames.
+// using a map of original -> proxy hostnames. Bodies that are too large, use an
+// unsupported encoding or fail to decompress are passed through unmodified.
 func rewriteResponseBodyMulti(resp *http.Response, rewrites map[string]string) error {
 	if resp.Body == nil || len(rewrites) == 0 {
 		return nil
 	}
 
-	// Check global memory budget before decompressing (#14)
-	if globalRewriteBytes.Load() >= maxGlobalRewriteBytes {
+	encoding := strings.ToLower(strings.TrimSpace(resp.Header.Get("Content-Encoding")))
+	isGzipped := encoding == "gzip"
+	if encoding != "" && encoding != "identity" && !isGzipped {
 		return nil
 	}
 
-	var body []byte
-	var isGzipped bool
+	// Check global memory budget before buffering (#14)
+	if globalRewriteBytes.Load() >= maxGlobalRewriteBytes {
+		return nil
+	}
+	var tracked int64
+	track := func(n int) {
+		tracked += int64(n)
+		globalRewriteBytes.Add(int64(n))
+	}
+	defer func() { globalRewriteBytes.Add(-tracked) }()
 
-	limitedReader := io.LimitReader(resp.Body, maxRewriteBodySize+1)
+	orig := resp.Body
+	raw, err := io.ReadAll(io.LimitReader(orig, maxRewriteBodySize+1))
+	track(len(raw))
+	if err != nil || len(raw) > maxRewriteBodySize {
+		resp.Body = readCloser{io.MultiReader(bytes.NewReader(raw), orig), orig}
+		return err
+	}
+	_ = orig.Close()
+	resp.Body = io.NopCloser(bytes.NewReader(raw))
 
-	if resp.Header.Get("Content-Encoding") == "gzip" {
-		isGzipped = true
-		gr, err := gzip.NewReader(limitedReader)
+	body := raw
+	if isGzipped {
+		gr, err := gzip.NewReader(bytes.NewReader(raw))
 		if err != nil {
 			return err
 		}
 		// Limit decompressed size to prevent gzip bombs
 		body, err = io.ReadAll(io.LimitReader(gr, maxRewriteBodySize+1))
 		_ = gr.Close()
+		track(len(body))
 		if err != nil {
 			return err
 		}
-	} else {
-		var err error
-		body, err = io.ReadAll(limitedReader)
-		if err != nil {
-			return err
+		if len(body) > maxRewriteBodySize {
+			return nil
 		}
 	}
-	_ = resp.Body.Close()
 
-	// Track memory usage for concurrent rewrite budget (#14)
-	bodySize := int64(len(body))
-	globalRewriteBytes.Add(bodySize)
-	defer globalRewriteBytes.Add(-bodySize)
-
-	// Skip rewriting for oversized responses
-	if bodySize > maxRewriteBodySize {
-		resp.Body = io.NopCloser(bytes.NewReader(body))
-		return nil
-	}
-
-	// Replace all hostname mappings
 	for oldHost, newHost := range rewrites {
 		body = bytes.ReplaceAll(body, []byte(oldHost), []byte(newHost))
 	}
@@ -424,11 +489,11 @@ func rewriteResponseBodyMulti(resp *http.Response, rewrites map[string]string) e
 			return err
 		}
 		body = buf.Bytes()
-		resp.Header.Set("Content-Encoding", "gzip")
 	}
 
 	resp.Body = io.NopCloser(bytes.NewReader(body))
 	resp.ContentLength = int64(len(body))
 	resp.Header.Set("Content-Length", strconv.Itoa(len(body)))
+	resp.Header.Del("Transfer-Encoding")
 	return nil
 }
