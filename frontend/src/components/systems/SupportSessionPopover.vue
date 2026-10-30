@@ -33,6 +33,9 @@ const props = defineProps<{
 const { t, locale } = useI18n()
 
 // An operator connection with node context
+// Access types that stay open until the operator disconnects
+const LIVE_ACCESS_TYPES = ['web_terminal', 'ssh']
+
 interface OperatorConnection {
   accessType: string
   nodeId: string | null
@@ -79,8 +82,8 @@ async function fetchData() {
       try {
         const logsData = await getSupportSessionLogs(sessionRef.id, 1, 100)
         for (const log of logsData.access_logs || []) {
-          // Skip disconnected and ui_proxy logs
-          if (log.disconnected_at || log.access_type === 'ui_proxy') continue
+          // Only open connections: views and proxy accesses are one-off events
+          if (log.disconnected_at || !LIVE_ACCESS_TYPES.includes(log.access_type)) continue
 
           let entry = operatorMap.get(log.operator_id)
           if (!entry) {
