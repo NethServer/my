@@ -288,7 +288,7 @@ CREATE TABLE IF NOT EXISTS systems (
     update_available BOOLEAN,                -- Update available per the latest inventory (NULL = unknown)
 
     -- Support
-    support_enabled BOOLEAN NOT NULL DEFAULT false, -- Explicit opt-in for support tunnel access
+    support_enabled BOOLEAN NOT NULL DEFAULT true, -- Kill switch: when false the system cannot open support tunnels
 
     -- Soft delete
     deleted_at TIMESTAMP WITH TIME ZONE,    -- NULL = active, non-NULL = soft deleted
@@ -318,7 +318,7 @@ COMMENT ON COLUMN systems.update_available IS 'Update available per the latest i
 COMMENT ON COLUMN systems.registered_at IS 'Timestamp when system first sent inventory. NULL = not yet registered';
 COMMENT ON COLUMN systems.unregistered_at IS 'Timestamp when the system announced its unregistration. NULL = credentials still valid; non-NULL = credentials refused, row kept until deleted';
 COMMENT ON COLUMN systems.created_by IS 'JSON object: {user_id, username, name, email, organization_id, organization_name, on_behalf_of} who created the system; display/audit only, not used for RBAC';
-COMMENT ON COLUMN systems.support_enabled IS 'Explicit opt-in: system can connect to support tunnel only when true';
+COMMENT ON COLUMN systems.support_enabled IS 'Kill switch: when false the system cannot open support tunnels';
 COMMENT ON COLUMN systems.deleted_at IS 'Soft delete timestamp. NULL means active, non-NULL means deleted';
 COMMENT ON COLUMN systems.deleted_by_org_id IS 'Organization that caused cascade soft-deletion (for tracking cascade source)';
 

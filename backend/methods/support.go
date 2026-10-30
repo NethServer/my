@@ -291,6 +291,9 @@ func GetSupportSessionUsers(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get session users", nil))
 		return
 	}
+	if data != nil {
+		logAccessWithMetadata(c, sessionID, "view", map[string]string{"action": "credentials_view"})
+	}
 
 	c.JSON(http.StatusOK, response.OK("session users retrieved successfully", gin.H{
 		"session_id": sessionID,

@@ -354,6 +354,42 @@ export const getSupportSessionServices = (sessionId: string): Promise<SupportSer
     })
 }
 
+/**
+ * Builds the URL that opens a proxied service. `path` comes from the appliance,
+ * so the result must stay on the proxy host returned by the backend: anything
+ * else would hand the token to another site. Returns null when it does not.
+ */
+export const buildSupportProxyUrl = (
+  proxyUrl: string,
+  token: string,
+  path?: string,
+): string | null => {
+  let base: URL
+  let target: URL
+  try {
+    base = new URL(proxyUrl)
+    target = path && path !== '/' ? new URL('/' + path.replace(/^[/\\]+/, ''), base) : new URL(base)
+  } catch {
+    return null
+  }
+  if (base.protocol !== 'https:' && base.protocol !== 'http:') {
+    return null
+  }
+  if (
+    target.protocol !== base.protocol ||
+    target.host !== base.host ||
+    target.username ||
+    target.password
+  ) {
+    return null
+  }
+  if (!target.pathname.endsWith('/')) {
+    target.pathname += '/'
+  }
+  target.searchParams.set('token', token)
+  return target.toString()
+}
+
 export const generateSupportProxyToken = (sessionId: string, service: string) => {
   const loginStore = useLoginStore()
 

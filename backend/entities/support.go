@@ -12,7 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/database"
+	"github.com/nethesis/my/backend/helpers"
 	"github.com/nethesis/my/backend/models"
 )
 
@@ -525,8 +527,13 @@ func (r *SupportRepository) GetUsers(sessionID, userOrgRole, userOrgID string) (
 		return nil, nil, nil
 	}
 
+	plainUsers, err := helpers.DecryptSupportUsers(configuration.Config.SupportInternalSecret, rawUsers)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	var data map[string]interface{}
-	if err := json.Unmarshal(rawUsers, &data); err != nil {
+	if err := json.Unmarshal(plainUsers, &data); err != nil {
 		return nil, nil, fmt.Errorf("failed to unmarshal users: %w", err)
 	}
 
