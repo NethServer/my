@@ -11,12 +11,15 @@ package middleware
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"math/rand/v2"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -135,9 +138,19 @@ func init() {
 }
 
 type authCacheEntry struct {
-	systemID  string
-	valid     bool
-	expiresAt time.Time
+	systemID   string
+	valid      bool
+	expiresAt  time.Time
+	insertedAt time.Time
+}
+
+// lastInvalidatedAt records when each system_key was last invalidated, so an
+// entry cached by a request that raced with the purge is ignored.
+var lastInvalidatedAt sync.Map
+
+func invalidatedSince(systemKey string, t time.Time) bool {
+	v, ok := lastInvalidatedAt.Load(systemKey)
+	return ok && !v.(time.Time).Before(t)
 }
 
 // authCacheKey returns a consistent cache key for in-process and Redis caches
@@ -155,7 +168,7 @@ func checkInProcessCache(systemKey, systemSecret string) (string, bool, bool) {
 		return "", false, false
 	}
 	entry := val.(*authCacheEntry)
-	if time.Now().After(entry.expiresAt) {
+	if time.Now().After(entry.expiresAt) || invalidatedSince(systemKey, entry.insertedAt) {
 		inProcessAuthCache.Delete(key)
 		return "", false, false
 	}
@@ -171,16 +184,20 @@ func setInProcessCache(systemKey, systemSecret, systemID string, valid bool) {
 	} else {
 		ttl = 1 * time.Minute
 	}
+	now := time.Now()
 	inProcessAuthCache.Store(key, &authCacheEntry{
-		systemID:  systemID,
-		valid:     valid,
-		expiresAt: time.Now().Add(ttl),
+		systemID:   systemID,
+		valid:      valid,
+		expiresAt:  now.Add(ttl),
+		insertedAt: now,
 	})
 }
 
 // InvalidateAuthCache removes cached credentials for a system key from both caches.
-// Called when system secrets are regenerated via Redis pub/sub.
+// Called on the auth invalidations published by backend and collect.
 func InvalidateAuthCache(ctx context.Context, systemKey string) {
+	lastInvalidatedAt.Store(systemKey, time.Now())
+
 	// Clear all in-process cache entries for this system key
 	inProcessAuthCache.Range(func(key, _ any) bool {
 		if k, ok := key.(string); ok && strings.HasPrefix(k, systemKey+":") {
@@ -201,15 +218,61 @@ func InvalidateAuthCache(ctx context.Context, systemKey string) {
 	}
 }
 
-// StartAuthCacheInvalidator listens for cache invalidation events via Redis pub/sub.
-// When a system secret is regenerated, the backend publishes the system_key to this channel.
-func StartAuthCacheInvalidator(ctx context.Context) {
+// systemKeyFormat pins the shape of a system_key so an invalidation payload
+// cannot smuggle Redis SCAN globs (mirrors collect/middleware/auth_invalidator.go)
+var systemKeyFormat = regexp.MustCompile(`^NETH(-[A-F0-9]{4}){8}$`)
+
+// systemAuthInvalidationChannelBase is the channel backend and collect publish
+// on (backend/cache/system_auth.go); APP_ENV is appended at runtime.
+const systemAuthInvalidationChannelBase = "my:auth:invalidate"
+
+func authInvalidationChannel() string {
+	env := configuration.Config.AppEnv
+	if env == "" {
+		env = "dev"
+	}
+	return systemAuthInvalidationChannelBase + ":" + env
+}
+
+// verifyInvalidationPayload accepts a bare system_key (no HMAC secret
+// configured) or `<systemKey>|<hex(hmac)>`, exactly like collect.
+func verifyInvalidationPayload(payload string) (string, bool) {
+	secret := configuration.Config.InternalHMACSecret
+	parts := strings.SplitN(strings.TrimSpace(payload), "|", 2)
+	systemKey := parts[0]
+	if !systemKeyFormat.MatchString(systemKey) {
+		return "", false
+	}
+	if secret == "" {
+		return systemKey, true
+	}
+	if len(parts) != 2 {
+		return "", false
+	}
+	expected, err := hex.DecodeString(parts[1])
+	if err != nil {
+		return "", false
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(systemKey))
+	if !hmac.Equal(expected, mac.Sum(nil)) {
+		return "", false
+	}
+	return systemKey, true
+}
+
+// StartAuthCacheInvalidator listens for the auth invalidations backend and
+// collect publish when a system is deleted, suspended or its secret rotated.
+// It purges the cached credentials and calls onRevoke so live tunnels and
+// sessions of that system are closed too.
+func StartAuthCacheInvalidator(ctx context.Context, onRevoke func(systemKey string)) {
 	log := logger.ComponentLogger("auth_cache")
-	pubsub := queue.Subscribe(ctx, "support:auth:invalidate")
+	channel := authInvalidationChannel()
+	pubsub := queue.Subscribe(ctx, channel)
 	defer func() { _ = pubsub.Close() }()
 
 	ch := pubsub.Channel()
-	log.Info().Msg("auth cache invalidator started on support:auth:invalidate channel")
+	log.Info().Str("channel", channel).Msg("auth cache invalidator started")
 
 	for {
 		select {
@@ -220,10 +283,17 @@ func StartAuthCacheInvalidator(ctx context.Context) {
 			if !ok {
 				return
 			}
-			systemKey := msg.Payload
-			if systemKey != "" {
-				InvalidateAuthCache(ctx, systemKey)
-				log.Info().Str("system_key", systemKey).Msg("auth cache invalidated")
+			systemKey, valid := verifyInvalidationPayload(msg.Payload)
+			if !valid {
+				log.Warn().
+					Int("payload_bytes", len(msg.Payload)).
+					Msg("auth invalidation: dropping payload with bad shape or signature")
+				continue
+			}
+			InvalidateAuthCache(ctx, systemKey)
+			log.Info().Str("system_key", systemKey).Msg("auth cache invalidated")
+			if onRevoke != nil {
+				onRevoke(systemKey)
 			}
 		}
 	}
@@ -291,20 +361,35 @@ func BasicAuthMiddleware() gin.HandlerFunc {
 		systemKey := parts[0]
 		systemSecret := parts[1]
 
+		// Refuse before the credential lookup once this IP has failed too often
+		clientIP := c.ClientIP()
+		if authFailureLimiter != nil && authFailureLimiter.exceeded(clientIP) {
+			logger.Warn().
+				Str("client_ip", clientIP).
+				Str("path", c.Request.URL.Path).
+				Msg("too many failed authentication attempts")
+			c.JSON(http.StatusTooManyRequests, response.Error(http.StatusTooManyRequests, "too many failed authentication attempts", nil))
+			c.Abort()
+			return
+		}
+
 		systemID, valid := validateSystemCredentials(c, systemKey, systemSecret)
 		if !valid {
+			if authFailureLimiter != nil {
+				authFailureLimiter.allow(clientIP)
+			}
 			c.Header("WWW-Authenticate", `Basic realm="System Authentication"`)
 			c.JSON(http.StatusUnauthorized, response.Unauthorized("invalid system credentials", nil))
 			c.Abort()
 			return
 		}
 
-		// #2: Check support_enabled flag — system must opt-in explicitly
+		// #2: Check support_enabled flag — system must opt-in explicitly.
+		// Checked on every request (not cached) together with the lifecycle
+		// gate collect applies: deleted, suspended (directly or through its
+		// organization) or unregistered systems cannot open a tunnel.
 		var supportEnabled bool
-		err = database.DB.QueryRow(
-			`SELECT support_enabled FROM systems WHERE id = $1 AND deleted_at IS NULL`,
-			systemID,
-		).Scan(&supportEnabled)
+		err = database.DB.QueryRow(systemSupportGateQuery, systemID).Scan(&supportEnabled)
 		if err != nil || !supportEnabled {
 			logger.Warn().
 				Str("system_key", systemKey).
@@ -330,6 +415,20 @@ func BasicAuthMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// systemSupportGateQuery mirrors collect's systemCredentialsQuery lifecycle filters
+const systemSupportGateQuery = `
+	SELECT s.support_enabled
+	FROM systems s
+	LEFT JOIN distributors d ON (s.organization_id = d.logto_id OR s.organization_id = d.id) AND d.deleted_at IS NULL
+	LEFT JOIN resellers r ON (s.organization_id = r.logto_id OR s.organization_id = r.id) AND r.deleted_at IS NULL
+	LEFT JOIN customers c ON (s.organization_id = c.logto_id OR s.organization_id = c.id) AND c.deleted_at IS NULL
+	WHERE s.id = $1
+	  AND s.deleted_at IS NULL
+	  AND s.suspended_at IS NULL
+	  AND s.unregistered_at IS NULL
+	  AND COALESCE(d.suspended_at, r.suspended_at, c.suspended_at) IS NULL
+`
 
 // systemCredentialsRow holds the DB row for system credentials lookup
 type systemCredentialsRow struct {
@@ -383,6 +482,7 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 	}
 
 	// Query database for system credentials
+	started := time.Now()
 	var creds systemCredentialsRow
 	query := `
 		SELECT id, system_secret_public, system_secret_sha256
@@ -440,9 +540,11 @@ func validateSystemCredentials(c *gin.Context, systemKey, systemSecret string) (
 		return "", false
 	}
 
-	// Cache positive result in both caches
-	cacheCredentialsResult(c, systemKey, systemSecret, creds.systemID, true)
-	setInProcessCache(systemKey, systemSecret, creds.systemID, true)
+	// Cache positive result in both caches, unless an invalidation raced with the lookup
+	if !invalidatedSince(systemKey, started) {
+		cacheCredentialsResult(c, systemKey, systemSecret, creds.systemID, true)
+		setInProcessCache(systemKey, systemSecret, creds.systemID, true)
+	}
 
 	return creds.systemID, true
 }

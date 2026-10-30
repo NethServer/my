@@ -80,22 +80,35 @@ func (rl *rateLimiter) allow(key string) bool {
 	return entry.count <= rl.limit
 }
 
+// exceeded reports whether key already used up its budget, without counting a hit
+func (rl *rateLimiter) exceeded(key string) bool {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	entry, exists := rl.entries[key]
+	return exists && time.Now().Before(entry.resetAt) && entry.count >= rl.limit
+}
+
 var (
 	tunnelIPRateLimiter  *rateLimiter
 	tunnelKeyRateLimiter *rateLimiter
 	sessionRateLimiter   *rateLimiter
+	authFailureLimiter   *rateLimiter
 )
 
 // InitRateLimiters initializes rate limiters from configuration.
 // Must be called after configuration.Init().
-func InitRateLimiters(tunnelPerIP, tunnelPerKey, sessionPerID int, window time.Duration) {
+func InitRateLimiters(tunnelPerIP, tunnelPerKey, sessionPerID, authFailPerIP int, window time.Duration) {
 	tunnelIPRateLimiter = newRateLimiter(tunnelPerIP, window)
 	tunnelKeyRateLimiter = newRateLimiter(tunnelPerKey, window)
 	sessionRateLimiter = newRateLimiter(sessionPerID, window)
+	authFailureLimiter = newRateLimiter(authFailPerIP, window)
 }
 
 // TunnelRateLimitMiddleware limits the rate of tunnel connection attempts
 // per client IP (10/min) and per system_key (5/min, checked after auth).
+// The client IP comes from gin's ClientIP, which only honours
+// X-Forwarded-For from TRUSTED_PROXIES (see main.go).
 func TunnelRateLimitMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		clientIP := c.ClientIP()
