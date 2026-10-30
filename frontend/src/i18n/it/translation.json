@@ -1465,6 +1465,8 @@
     "terminal_new_tab": "Nuovo tab terminale",
     "terminal_close_all": "Chiudi tutti i terminali",
     "terminal_close_all_confirm": "Verranno chiuse {count} sessioni terminale attive. Continuare?",
+    "terminal_select_node": "Seleziona nodo",
+    "terminal_select_node_description": "Questo sistema ha più nodi nel cluster. Seleziona il nodo a cui collegarti.",
     "diagnostics": "Diagnostica",
     "add_service": "Aggiungi servizio",
     "add_service_error": "Impossibile aggiungere il servizio",
@@ -1477,6 +1479,13 @@
     "service_target_helper": "Indirizzo e porta del servizio sul sistema remoto",
     "service_label": "Etichetta (opzionale)",
     "service_label_placeholder": "es. Il Mio Servizio",
-    "service_tls": "TLS"
+    "service_tls": "TLS",
+    "services_and_credentials": "Servizi e credenziali",
+    "cluster_admin": "Cluster Admin",
+    "local_users": "Interfaccia di amministrazione",
+    "custom_services": "Servizi personalizzati",
+    "username": "Nome utente",
+    "password": "Password",
+    "domain": "Dominio"
   }
 }
