@@ -1485,6 +1485,7 @@
     "services_and_credentials": "Services & Credentials",
     "no_credentials": "No credentials available for this session.",
     "cluster_admin": "Cluster Admin",
+    "cluster_login_services": "services behind the cluster login",
     "domain_users": "Domain Users",
     "local_users": "Admin Interface",
     "custom_services": "Custom Services",

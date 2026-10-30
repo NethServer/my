@@ -1482,6 +1482,7 @@
     "service_tls": "TLS",
     "services_and_credentials": "Servizi e credenziali",
     "cluster_admin": "Cluster Admin",
+    "cluster_login_services": "servizi protetti dal login del cluster",
     "local_users": "Interfaccia di amministrazione",
     "custom_services": "Servizi personalizzati",
     "username": "Nome utente",

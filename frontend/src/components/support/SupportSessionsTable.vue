@@ -206,7 +206,13 @@ interface UnifiedModuleGroup {
   nodeId: string
   domain: string
   password: string
-  services: { name: string; session: SessionRef; host: string; path: string }[]
+  services: {
+    name: string
+    session: SessionRef
+    host: string
+    path: string
+    clusterAuth: boolean
+  }[]
 }
 
 const unifiedGroup = ref<SystemSessionGroup | null>(null)
@@ -332,7 +338,13 @@ async function handleOpenUnified(group: SystemSessionGroup) {
           if (!mg.moduleLabel && (svc.label || sg.moduleLabel)) {
             mg.moduleLabel = svc.label || sg.moduleLabel
           }
-          mg.services.push({ name: svc.name, session, host: svc.host, path: svc.path })
+          mg.services.push({
+            name: svc.name,
+            session,
+            host: svc.host,
+            path: svc.path,
+            clusterAuth: svc.auth === 'cluster',
+          })
         }
       }
     }
@@ -775,7 +787,7 @@ async function handleAddService() {
               >
                 <!-- Domain credentials for this module -->
                 <div
-                  v-if="mg.domain && mg.password"
+                  v-if="mg.domain && mg.password && mg.services.some((s) => !s.clusterAuth)"
                   class="mb-2 rounded bg-gray-50 p-2 text-sm dark:bg-gray-800/50"
                 >
                   <div class="flex items-center justify-between">
@@ -826,6 +838,68 @@ async function handleAddService() {
                     </div>
                   </div>
                 </div>
+                <!-- Cluster Admin credentials, for the services behind the NS8 cluster login -->
+                <div
+                  v-if="unifiedCredentials?.clusterAdmin && mg.services.some((s) => s.clusterAuth)"
+                  class="mb-2 rounded bg-gray-50 p-2 text-sm dark:bg-gray-800/50"
+                >
+                  <div class="flex items-center justify-between">
+                    <span class="text-gray-500 dark:text-gray-400"
+                      >{{ $t('support.cluster_admin') }}:</span
+                    >
+                    <span class="text-gray-700 dark:text-gray-300">{{
+                      $t('support.cluster_login_services')
+                    }}</span>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-gray-500 dark:text-gray-400"
+                      >{{ $t('support.username') }}:</span
+                    >
+                    <div class="flex items-center gap-1">
+                      <code class="text-gray-900 dark:text-gray-100">{{
+                        unifiedCredentials.clusterAdmin.username
+                      }}</code>
+                      <button
+                        class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                        @click.stop="
+                          copyToClipboard(
+                            unifiedCredentials.clusterAdmin!.username,
+                            `mg-ca-user-${mgIdx}`,
+                          )
+                        "
+                      >
+                        <FontAwesomeIcon
+                          :icon="copiedField === `mg-ca-user-${mgIdx}` ? faCheck : faCopy"
+                          class="h-3 w-3"
+                        />
+                      </button>
+                    </div>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-gray-500 dark:text-gray-400"
+                      >{{ $t('support.password') }}:</span
+                    >
+                    <div class="flex items-center gap-1">
+                      <code class="text-gray-900 dark:text-gray-100">{{
+                        unifiedCredentials.clusterAdmin.password
+                      }}</code>
+                      <button
+                        class="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                        @click.stop="
+                          copyToClipboard(
+                            unifiedCredentials.clusterAdmin!.password,
+                            `mg-ca-pass-${mgIdx}`,
+                          )
+                        "
+                      >
+                        <FontAwesomeIcon
+                          :icon="copiedField === `mg-ca-pass-${mgIdx}` ? faCheck : faCopy"
+                          class="h-3 w-3"
+                        />
+                      </button>
+                    </div>
+                  </div>
+                </div>
                 <!-- Service links -->
                 <div class="flex flex-col gap-0.5">
                   <button
@@ -840,6 +914,12 @@ async function handleAddService() {
                     >
                     <span v-else class="min-w-0 truncate">{{ svc.name }}</span>
                     <span class="min-w-0 shrink truncate text-gray-400">({{ svc.name }})</span>
+                    <NeBadge
+                      v-if="svc.clusterAuth"
+                      :text="$t('support.cluster_admin')"
+                      kind="secondary"
+                      size="xs"
+                    />
                   </button>
                 </div>
               </div>

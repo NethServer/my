@@ -30,7 +30,10 @@ import (
 const (
 	defaultRemoteHTTPSPort = "443"
 	localTraefikIP         = "127.0.0.1"
-	ns8NodeEnvFile         = "/var/lib/nethserver/node/state/environment"
+
+	// AuthCluster marks routes guarded by the NS8 cluster login
+	AuthCluster    = "cluster"
+	ns8NodeEnvFile = "/var/lib/nethserver/node/state/environment"
 )
 
 // moduleIDRegex matches NS8 module IDs (compiled once at package level)
@@ -252,7 +255,13 @@ func discoverNodeRoutes(ctx context.Context, rdb *redis.Client, nodeID string) m
 			}
 		}
 
+		var auth string
+		if route.ForwardAuth != nil && strings.Contains(route.ForwardAuth.Address, "/http-basic/") {
+			auth = AuthCluster
+		}
+
 		services[serviceKey] = models.ServiceInfo{
+			Auth:       auth,
 			Target:     target,
 			Host:       route.Host,
 			TLS:        useTLS,
