@@ -43,13 +43,23 @@ const maxGlobalRewriteBytes int64 = 50 * 1024 * 1024
 // Route: ANY /api/proxy/:session_id/:service/*path (internal, no auth)
 func HandleProxy(c *gin.Context) {
 	sessionID := c.Param("session_id")
-	serviceName := c.Param("service")
 	path := c.Param("path")
 	if path == "" {
 		path = "/"
 	}
 
 	log := logger.ComponentLogger("proxy")
+
+	// The backend forwards the host label of {label}--{session}.support.{domain}
+	serviceName, ok := TunnelManager.ResolveSessionServiceName(sessionID, c.Param("service"))
+	if !ok {
+		if len(TunnelManager.GetAllBySessionID(sessionID)) == 0 {
+			c.JSON(http.StatusNotFound, response.NotFound("tunnel not found for session", nil))
+			return
+		}
+		c.JSON(http.StatusNotFound, response.NotFound("service not found in tunnel manifest", nil))
+		return
+	}
 
 	// Find the tunnel hosting the requested service. With multi-node sessions
 	// (e.g. NS8 clusters) we prefer the tunnel whose NodeID matches the
@@ -291,7 +301,7 @@ func buildHostRewriteMap(t *tunnel.Tunnel, currentProxyHost string) map[string]s
 	}
 
 	// Extract the domain pattern from the current proxy host.
-	// Format: {service}--{session_short}.support.{domain}
+	// Format: {label}--{session_short}.support.{domain}
 	parts := strings.SplitN(currentProxyHost, ".support.", 2)
 	if len(parts) != 2 {
 		return nil
@@ -299,12 +309,12 @@ func buildHostRewriteMap(t *tunnel.Tunnel, currentProxyHost string) map[string]s
 	domain := parts[0]
 	domainSuffix := parts[1]
 
-	// Extract the current service name and session short ID from the subdomain
+	// Extract the current service label and session short ID from the subdomain
 	subParts := strings.SplitN(domain, "--", 2)
 	if len(subParts) != 2 {
 		return nil
 	}
-	currentService := subParts[0]
+	currentLabel := subParts[0]
 	sessionShort := subParts[1]
 
 	// Build rewrite map for all services with hostnames.
@@ -318,15 +328,18 @@ func buildHostRewriteMap(t *tunnel.Tunnel, currentProxyHost string) map[string]s
 		if svc.Host == "" {
 			continue
 		}
-		proxyHostname := fmt.Sprintf("%s--%s.support.%s", svcName, sessionShort, domainSuffix)
+		proxyHostname := fmt.Sprintf("%s--%s.support.%s", tunnel.ServiceHostLabel(svcName), sessionShort, domainSuffix)
 		if svc.Host != proxyHostname {
 			rewrites[svc.Host] = proxyHostname
 		}
 	}
 	// Override: for the current service's hostname, always map to the current
 	// service's proxy subdomain. This ensures same-origin for shared hostnames.
-	if currentSvc, ok := services[currentService]; ok && currentSvc.Host != "" {
-		currentProxy := fmt.Sprintf("%s--%s.support.%s", currentService, sessionShort, domainSuffix)
+	for svcName, currentSvc := range services {
+		if tunnel.ServiceHostLabel(svcName) != currentLabel || currentSvc.Host == "" {
+			continue
+		}
+		currentProxy := fmt.Sprintf("%s--%s.support.%s", currentLabel, sessionShort, domainSuffix)
 		if currentSvc.Host != currentProxy {
 			rewrites[currentSvc.Host] = currentProxy
 		}

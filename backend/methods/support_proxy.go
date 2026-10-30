@@ -43,6 +43,9 @@ var validServiceName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
 // validSessionSlug is a session UUID without dashes, as used in proxy subdomains
 var validSessionSlug = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
+// validServiceLabel matches helpers.ServiceHostLabel output
+var validServiceLabel = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*-[0-9a-f]{8}$`)
+
 // internalTransport is a shared HTTP transport for internal service communication
 var internalTransport = &http.Transport{
 	TLSClientConfig: &tls.Config{
@@ -464,10 +467,10 @@ func GenerateSupportProxyToken(c *gin.Context) {
 		return
 	}
 
-	// Build subdomain URL: {service}--{session_slug}.support.{domain}
-	// Use full UUID without dashes for exact matching (32 hex chars)
+	// Build subdomain URL: {label}--{session_slug}.support.{domain}, where the
+	// label is a DNS-safe digest of the service name: always within 63 chars
 	sessionSlug := strings.ReplaceAll(sessionID, "-", "")
-	subdomain := fmt.Sprintf("%s--%s.support.%s", req.Service, sessionSlug, configuration.Config.SupportProxyDomain)
+	subdomain := fmt.Sprintf("%s--%s.support.%s", helpers.ServiceHostLabel(req.Service), sessionSlug, configuration.Config.SupportProxyDomain)
 	proxyURL := fmt.Sprintf("https://%s/", subdomain)
 
 	if _, markErr := cache.MarkSupportProxyAccess(proxyTokenHash(token), req.Service, configuration.Config.SupportProxyTokenTTL); markErr != nil {
@@ -489,7 +492,7 @@ func SubdomainProxy(c *gin.Context) {
 	}
 
 	// Extract service name and session short ID from subdomain.
-	// Format: {service}--{session_short}.support.{domain}
+	// Format: {label}--{session_short}.support.{domain}
 	forwardedHost := c.GetHeader("X-Forwarded-Host")
 	if forwardedHost == "" {
 		forwardedHost = c.Request.Host
@@ -676,7 +679,7 @@ func IsSupportProxyHost(host string) bool {
 	return ok
 }
 
-// parseSupportProxyHost splits {service}--{session_slug}.support.{domain}.
+// parseSupportProxyHost splits {label}--{session_slug}.support.{domain}.
 // The host must end with exactly ".support." + SUPPORT_PROXY_DOMAIN.
 func parseSupportProxyHost(host string) (string, string, bool) {
 	domain := strings.ToLower(configuration.Config.SupportProxyDomain)
@@ -696,7 +699,7 @@ func parseSupportProxyHost(host string) (string, string, bool) {
 		return "", "", false
 	}
 	serviceName, sessionSlug := label[:sep], label[sep+2:]
-	if !validServiceName.MatchString(serviceName) || !validSessionSlug.MatchString(sessionSlug) {
+	if len(serviceName) > 29 || !validServiceLabel.MatchString(serviceName) || !validSessionSlug.MatchString(sessionSlug) {
 		return "", "", false
 	}
 	return serviceName, sessionSlug, true
