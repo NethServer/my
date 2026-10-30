@@ -67,6 +67,8 @@ envVarGroups:
     envVars:
       - key: ALERTING_HISTORY_WEBHOOK_SECRET
         sync: false
+      - key: SUPPORT_INTERNAL_SECRET
+        sync: false  # backend <-> support HMAC and credential encryption key
 
   - name: logto-prod
     envVars:
@@ -130,6 +132,8 @@ envVarGroups:
     envVars:
       - key: ALERTING_HISTORY_WEBHOOK_SECRET
         sync: false
+      - key: SUPPORT_INTERNAL_SECRET
+        sync: false  # backend <-> support HMAC and credential encryption key
 
   - name: logto-qa
     envVars:
@@ -334,13 +338,14 @@ services:
       - key: SYSTEM_AUTH_CACHE_TTL
         value: 1h
 
-  # Production Support Service
-  - type: web
+  # Production Support Service (Private Service)
+  - type: pserv
     name: my-support-prod
     runtime: image
-    plan: free
+    plan: starter
+    region: frankfurt
     image:
-      url: ghcr.io/nethserver/my/support:v0.6.1
+      url: ghcr.io/nethserver/my/support:v0.10.3
     envVars:
       - fromGroup: app-secrets-prod
 
@@ -368,6 +373,11 @@ services:
         fromDatabase:
           name: my-postgres-prod
           property: connectionString
+
+      # System auth cache; suspend, delete and secret regeneration
+      # invalidate the entry at once, so a longer TTL delays no revoke.
+      - key: SYSTEM_AUTH_CACHE_TTL
+        value: 1h
 
   # Production Frontend (Private Service)
   - type: pserv
@@ -638,6 +648,11 @@ services:
         fromDatabase:
           name: my-postgres-qa
           property: connectionString
+
+      # System auth cache; suspend, delete and secret regeneration
+      # invalidate the entry at once, so a longer TTL delays no revoke.
+      - key: SYSTEM_AUTH_CACHE_TTL
+        value: 1h
 
     autoDeploy: true
     branch: main

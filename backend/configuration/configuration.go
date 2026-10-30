@@ -280,7 +280,7 @@ func Init() {
 	Config.SupportInternalSecret = os.Getenv("SUPPORT_INTERNAL_SECRET")
 
 	// Subdomain proxy token lifetime (short-lived: re-issued by the UI on demand)
-	Config.SupportProxyTokenTTL = parseDurationWithDefault("SUPPORT_PROXY_TOKEN_TTL", 1*time.Hour)
+	Config.SupportProxyTokenTTL = parseDurationWithDefault("SUPPORT_PROXY_TOKEN_TTL", 15*time.Minute)
 
 	// SMTP configuration
 	Config.SMTPHost = os.Getenv("SMTP_HOST")

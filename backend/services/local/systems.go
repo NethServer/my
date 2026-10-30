@@ -939,7 +939,7 @@ func (s *LocalSystemsService) RegisterSystem(systemSecret string) (*models.Regis
 		return nil, fmt.Errorf("invalid system secret")
 	}
 
-	// Update registered_at timestamp and enable support
+	// Update registered_at timestamp; support starts enabled (kill switch)
 	now := time.Now()
 	updateQuery := `
 		UPDATE systems

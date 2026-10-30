@@ -57,16 +57,17 @@ type ProxyTokenClaims struct {
 	SessionID      string `json:"session_id"`
 	ServiceName    string `json:"service_name"`
 	UserID         string `json:"user_id"`
+	UserLogtoID    string `json:"user_logto_id"`
 	OrgRole        string `json:"org_role"`
 	OrganizationID string `json:"organization_id"`
 	jwt.RegisteredClaims
 }
 
 // GenerateProxyToken creates a short-lived JWT for subdomain-based support proxy access
-func GenerateProxyToken(sessionID, serviceName, userID, orgRole, organizationID string) (string, error) {
+func GenerateProxyToken(sessionID, serviceName, userID, userLogtoID, orgRole, organizationID string) (string, error) {
 	expDuration := configuration.Config.SupportProxyTokenTTL
 	if expDuration <= 0 {
-		expDuration = 1 * time.Hour
+		expDuration = 15 * time.Minute
 	}
 
 	claims := ProxyTokenClaims{
@@ -74,6 +75,7 @@ func GenerateProxyToken(sessionID, serviceName, userID, orgRole, organizationID 
 		SessionID:      sessionID,
 		ServiceName:    serviceName,
 		UserID:         userID,
+		UserLogtoID:    userLogtoID,
 		OrgRole:        orgRole,
 		OrganizationID: organizationID,
 		RegisteredClaims: jwt.RegisteredClaims{

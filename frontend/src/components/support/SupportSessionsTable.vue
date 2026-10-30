@@ -52,6 +52,7 @@ import {
   closeSupportSession,
   getSupportSessionServices,
   generateSupportProxyToken,
+  buildSupportProxyUrl,
   addSupportSessionServices,
   removeSupportSessionService,
   getSupportSessionUsers,
@@ -145,12 +146,12 @@ watch(
 async function handleOpenService(session: SessionRef, serviceName: string, path?: string) {
   try {
     const result = await generateSupportProxyToken(session.id, serviceName)
-    let baseUrl = result.url
-    if (path && path !== '/') {
-      baseUrl = baseUrl.replace(/\/$/, '') + path + '/'
+    const url = buildSupportProxyUrl(result.url, result.token, path)
+    if (!url) {
+      console.error('Refusing to open a support proxy URL outside the proxy host')
+      return
     }
-    const url = baseUrl + '?token=' + result.token
-    window.open(url, '_blank')
+    window.open(url, '_blank', 'noopener,noreferrer')
   } catch (error) {
     console.error('Cannot generate proxy token:', error)
   }

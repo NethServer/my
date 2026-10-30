@@ -7,8 +7,11 @@ package methods
 
 import (
 	"bufio"
+	"crypto/sha256"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -16,8 +19,10 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -29,10 +34,14 @@ import (
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
+	"github.com/nethesis/my/backend/services/local"
 )
 
 // validServiceName validates service names against path traversal and injection attacks
 var validServiceName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
+
+// validSessionSlug is a session UUID without dashes, as used in proxy subdomains
+var validSessionSlug = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
 // internalTransport is a shared HTTP transport for internal service communication
 var internalTransport = &http.Transport{
@@ -112,14 +121,18 @@ func getSessionToken(c *gin.Context, sessionID string) string {
 }
 
 // logAccess inserts an access log entry for the current user
-func logAccess(c *gin.Context, sessionID, accessType, metadata string) {
+func logAccess(c *gin.Context, sessionID, accessType, service string) {
+	logAccessWithMetadata(c, sessionID, accessType, map[string]string{"service": service})
+}
+
+// logAccessWithMetadata inserts an access log entry for the current user
+func logAccessWithMetadata(c *gin.Context, sessionID, accessType string, metadata map[string]string) {
 	userID, _, _, _ := helpers.GetUserContextExtended(c)
 	userName := ""
 	if name, exists := c.Get("name"); exists {
 		userName, _ = name.(string)
 	}
-	// Wrap metadata as JSON object for the jsonb column
-	metaBytes, _ := json.Marshal(map[string]string{"service": metadata})
+	metaBytes, _ := json.Marshal(metadata)
 	jsonMetadata := string(metaBytes)
 	repo := entities.NewSupportRepository()
 	if _, err := repo.InsertAccessLog(sessionID, userID, userName, accessType, jsonMetadata); err != nil {
@@ -406,56 +419,6 @@ func GetSupportSessionServices(c *gin.Context) {
 	proxyGetWithTokenOrEmpty(c, targetURL, sessionToken)
 }
 
-// ProxySupportSession handles ANY /api/support-sessions/:id/proxy/:service/*path
-func ProxySupportSession(c *gin.Context) {
-	sessionID := c.Param("id")
-	serviceName := c.Param("service")
-	path := c.Param("path")
-	if path == "" {
-		path = "/"
-	}
-
-	if sessionID == "" || serviceName == "" {
-		c.JSON(http.StatusBadRequest, response.BadRequest("session id and service name required", nil))
-		return
-	}
-
-	if !validServiceName.MatchString(serviceName) {
-		c.JSON(http.StatusBadRequest, response.BadRequest("invalid service name", nil))
-		return
-	}
-
-	if session := getActiveSession(c, sessionID); session == nil {
-		return
-	}
-
-	sessionToken := getSessionToken(c, sessionID)
-	if sessionToken == "" {
-		return
-	}
-
-	logAccess(c, sessionID, "ui_proxy", serviceName)
-
-	targetURL := fmt.Sprintf("%s/api/proxy/%s/%s%s", configuration.Config.SupportServiceURL, sessionID, serviceName, path)
-	target, err := url.Parse(targetURL)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.InternalServerError("invalid proxy target", nil))
-		return
-	}
-
-	proxy := &httputil.ReverseProxy{
-		Director: func(req *http.Request) {
-			req.URL = target
-			req.URL.RawQuery = c.Request.URL.RawQuery
-			req.Host = target.Host
-			req.Header.Del("Authorization")
-		},
-		Transport: &sessionTokenTransport{inner: internalTransport, sessionToken: sessionToken},
-	}
-
-	proxy.ServeHTTP(c.Writer, c.Request)
-}
-
 // GenerateSupportProxyToken handles POST /api/support-sessions/:id/proxy-token
 func GenerateSupportProxyToken(c *gin.Context) {
 	sessionID := c.Param("id")
@@ -482,13 +445,19 @@ func GenerateSupportProxyToken(c *gin.Context) {
 	}
 
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	userLogtoID := ""
+	if u, ok := c.Get("user"); ok {
+		if user, ok := u.(*models.User); ok && user.LogtoID != nil {
+			userLogtoID = *user.LogtoID
+		}
+	}
 
 	if !validServiceName.MatchString(req.Service) {
 		c.JSON(http.StatusBadRequest, response.BadRequest("invalid service name", nil))
 		return
 	}
 
-	token, err := customjwt.GenerateProxyToken(sessionID, req.Service, userID, userOrgRole, userOrgID)
+	token, err := customjwt.GenerateProxyToken(sessionID, req.Service, userID, userLogtoID, userOrgRole, userOrgID)
 	if err != nil {
 		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to generate proxy token")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to generate proxy token", nil))
@@ -501,6 +470,9 @@ func GenerateSupportProxyToken(c *gin.Context) {
 	subdomain := fmt.Sprintf("%s--%s.support.%s", req.Service, sessionSlug, configuration.Config.SupportProxyDomain)
 	proxyURL := fmt.Sprintf("https://%s/", subdomain)
 
+	if _, markErr := cache.MarkSupportProxyAccess(proxyTokenHash(token), req.Service, configuration.Config.SupportProxyTokenTTL); markErr != nil {
+		logger.Warn().Err(markErr).Str("session_id", sessionID).Msg("failed to record proxy token access")
+	}
 	logAccess(c, sessionID, "ui_proxy", req.Service)
 
 	c.JSON(http.StatusOK, response.OK("proxy token generated", gin.H{
@@ -522,26 +494,10 @@ func SubdomainProxy(c *gin.Context) {
 	if forwardedHost == "" {
 		forwardedHost = c.Request.Host
 	}
-	hostOnly := forwardedHost
-	if h, _, splitErr := net.SplitHostPort(forwardedHost); splitErr == nil {
-		hostOnly = h
-	}
 
-	var serviceName, sessionSlug string
-	if parts := strings.SplitN(hostOnly, ".support.", 2); len(parts) == 2 {
-		if subParts := strings.SplitN(parts[0], "--", 2); len(subParts) == 2 {
-			serviceName = subParts[0]
-			sessionSlug = subParts[1]
-		}
-	}
-
-	if serviceName == "" || sessionSlug == "" {
+	serviceName, sessionSlug, ok := parseSupportProxyHost(forwardedHost)
+	if !ok {
 		c.JSON(http.StatusBadRequest, response.BadRequest("invalid support proxy subdomain", nil))
-		return
-	}
-
-	if !validServiceName.MatchString(serviceName) {
-		c.JSON(http.StatusBadRequest, response.BadRequest("invalid service name in subdomain", nil))
 		return
 	}
 
@@ -562,6 +518,11 @@ func SubdomainProxy(c *gin.Context) {
 		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
 		c.Header("Access-Control-Max-Age", "3600")
 		c.Status(http.StatusNoContent)
+		return
+	}
+
+	if !supportProxyRequestAllowed(c.Request, sessionSlug) {
+		c.JSON(http.StatusForbidden, response.Error(http.StatusForbidden, "cross-origin request refused", nil))
 		return
 	}
 
@@ -596,6 +557,13 @@ func SubdomainProxy(c *gin.Context) {
 	}
 
 	sessionID := claims.SessionID
+	tokenHash := proxyTokenHash(tokenString)
+
+	operatorName, status := verifyProxyTokenPrincipal(tokenHash, claims)
+	if status != 0 {
+		c.JSON(status, response.Error(status, "proxy token is no longer valid", nil))
+		return
+	}
 
 	// If token came from query param, set cookie and redirect to same path without token
 	if fromQueryParam {
@@ -604,7 +572,7 @@ func SubdomainProxy(c *gin.Context) {
 		// Cookie lives exactly as long as the proxy token it carries.
 		cookieMaxAge := int(configuration.Config.SupportProxyTokenTTL.Seconds())
 		if cookieMaxAge <= 0 {
-			cookieMaxAge = 3600
+			cookieMaxAge = 900
 		}
 		c.SetSameSite(http.SameSiteLaxMode)
 		c.SetCookie("support_proxy", tokenString, cookieMaxAge, "/", cookieDomain, secureCookie, true)
@@ -641,6 +609,19 @@ func SubdomainProxy(c *gin.Context) {
 		return
 	}
 
+	if claims.ExpiresAt != nil {
+		first, markErr := cache.MarkSupportProxyAccess(tokenHash, serviceName, time.Until(claims.ExpiresAt.Time))
+		if markErr != nil {
+			logger.Warn().Err(markErr).Str("session_id", sessionID).Msg("failed to record proxy token access")
+		}
+		if first {
+			metaBytes, _ := json.Marshal(map[string]string{"service": serviceName})
+			if _, logErr := repo.InsertAccessLog(sessionID, claims.UserID, operatorName, "ui_proxy", string(metaBytes)); logErr != nil {
+				logger.Warn().Err(logErr).Str("session_id", sessionID).Msg("failed to insert access log")
+			}
+		}
+	}
+
 	// Build target URL for support service
 	targetURL := fmt.Sprintf("%s/api/proxy/%s/%s%s", configuration.Config.SupportServiceURL, sessionID, serviceName, path)
 	target, parseErr := url.Parse(targetURL)
@@ -657,12 +638,12 @@ func SubdomainProxy(c *gin.Context) {
 	}
 
 	proxy := &httputil.ReverseProxy{
-		Director: func(req *http.Request) {
-			req.URL = target
-			req.URL.RawQuery = c.Request.URL.RawQuery
-			req.Host = target.Host
-			req.Header.Set("X-Proxy-Host", proxyHost)
-			filterSupportProxyCookie(req)
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			pr.Out.URL = target
+			pr.Out.URL.RawQuery = c.Request.URL.RawQuery
+			pr.Out.Host = target.Host
+			pr.Out.Header.Set("X-Proxy-Host", proxyHost)
+			filterSupportProxyCookie(pr.Out)
 		},
 		ModifyResponse: func(resp *http.Response) error {
 			// Replace upstream security headers with proxy-appropriate values
@@ -688,27 +669,163 @@ func SubdomainProxy(c *gin.Context) {
 	proxy.ServeHTTP(c.Writer, c.Request)
 }
 
+// IsSupportProxyHost reports whether host (with or without port) is a
+// subdomain of .support.{SUPPORT_PROXY_DOMAIN}.
+func IsSupportProxyHost(host string) bool {
+	_, _, ok := parseSupportProxyHost(host)
+	return ok
+}
+
+// parseSupportProxyHost splits {service}--{session_slug}.support.{domain}.
+// The host must end with exactly ".support." + SUPPORT_PROXY_DOMAIN.
+func parseSupportProxyHost(host string) (string, string, bool) {
+	domain := strings.ToLower(configuration.Config.SupportProxyDomain)
+	if domain == "" || host == "" {
+		return "", "", false
+	}
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.ToLower(host)
+	label, found := strings.CutSuffix(host, ".support."+domain)
+	if !found || label == "" {
+		return "", "", false
+	}
+	sep := strings.LastIndex(label, "--")
+	if sep <= 0 {
+		return "", "", false
+	}
+	serviceName, sessionSlug := label[:sep], label[sep+2:]
+	if !validServiceName.MatchString(serviceName) || !validSessionSlug.MatchString(sessionSlug) {
+		return "", "", false
+	}
+	return serviceName, sessionSlug, true
+}
+
 // supportProxyCORSOrigin checks if the request Origin is a sibling subdomain
 // of the same support session (same session slug under *.support.{domain}).
 // Returns the origin if valid, empty string otherwise.
 func supportProxyCORSOrigin(origin, sessionSlug string) string {
-	if origin == "" || sessionSlug == "" || configuration.Config.SupportProxyDomain == "" {
+	if origin == "" || sessionSlug == "" {
 		return ""
 	}
 	u, err := url.Parse(origin)
-	if err != nil {
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" {
 		return ""
 	}
-	host := u.Hostname()
-	parts := strings.SplitN(host, ".support.", 2)
-	if len(parts) != 2 || parts[1] != configuration.Config.SupportProxyDomain {
-		return ""
-	}
-	subParts := strings.SplitN(parts[0], "--", 2)
-	if len(subParts) != 2 || subParts[1] != sessionSlug {
+	_, slug, ok := parseSupportProxyHost(u.Host)
+	if !ok || slug != sessionSlug {
 		return ""
 	}
 	return origin
+}
+
+// supportProxyRequestAllowed refuses state-changing requests and WebSocket
+// upgrades coming from another origin, sibling sessions included: they share
+// the support_proxy cookie, so SameSite does not separate them.
+func supportProxyRequestAllowed(r *http.Request, sessionSlug string) bool {
+	isUpgrade := strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
+	switch r.Method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		if !isUpgrade {
+			return true
+		}
+	}
+	if origin := r.Header.Get("Origin"); origin != "" {
+		return supportProxyCORSOrigin(origin, sessionSlug) != ""
+	}
+	switch r.Header.Get("Sec-Fetch-Site") {
+	case "cross-site", "same-site":
+		return false
+	}
+	return true
+}
+
+func proxyTokenHash(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
+}
+
+type proxyPrincipalEntry struct {
+	name      string
+	status    int
+	expiresAt time.Time
+}
+
+const proxyPrincipalCacheTTL = 60 * time.Second
+
+var (
+	proxyPrincipalMu        sync.Mutex
+	proxyPrincipalCache     = map[string]proxyPrincipalEntry{}
+	proxyPrincipalLastSweep time.Time
+)
+
+// verifyProxyTokenPrincipal re-checks, at most once a minute per token, that
+// the operator behind a proxy token is still active, not revoked, still in
+// the same organization and still holds connect:systems. Returns the
+// operator's name and 0, or the HTTP status to refuse with.
+func verifyProxyTokenPrincipal(tokenHash string, claims *customjwt.ProxyTokenClaims) (string, int) {
+	now := time.Now()
+	proxyPrincipalMu.Lock()
+	if e, ok := proxyPrincipalCache[tokenHash]; ok && now.Before(e.expiresAt) {
+		proxyPrincipalMu.Unlock()
+		return e.name, e.status
+	}
+	proxyPrincipalMu.Unlock()
+
+	name, status, cacheable := checkProxyTokenPrincipal(claims)
+	if !cacheable {
+		return name, status
+	}
+
+	proxyPrincipalMu.Lock()
+	defer proxyPrincipalMu.Unlock()
+	if now.Sub(proxyPrincipalLastSweep) > proxyPrincipalCacheTTL {
+		for k, e := range proxyPrincipalCache {
+			if now.After(e.expiresAt) {
+				delete(proxyPrincipalCache, k)
+			}
+		}
+		proxyPrincipalLastSweep = now
+	}
+	proxyPrincipalCache[tokenHash] = proxyPrincipalEntry{name: name, status: status, expiresAt: now.Add(proxyPrincipalCacheTTL)}
+	return name, status
+}
+
+func checkProxyTokenPrincipal(claims *customjwt.ProxyTokenClaims) (string, int, bool) {
+	if claims.UserLogtoID == "" {
+		return "", http.StatusUnauthorized, true
+	}
+
+	issuedAt := time.Time{}
+	if claims.IssuedAt != nil {
+		issuedAt = claims.IssuedAt.Time
+	}
+	revoked, _, err := cache.GetTokenBlacklist().IsUserTokenInvalidatedSince(claims.UserLogtoID, issuedAt)
+	if err != nil {
+		logger.Error().Err(err).Str("user_id", claims.UserID).Msg("failed to check proxy token revocation")
+		return "", http.StatusServiceUnavailable, false
+	}
+	if revoked {
+		return "", http.StatusUnauthorized, true
+	}
+
+	user, err := local.ResolveUserByLogtoID(claims.UserLogtoID)
+	if errors.Is(err, local.ErrUserInactive) {
+		return "", http.StatusUnauthorized, true
+	}
+	if err != nil {
+		logger.Error().Err(err).Str("user_id", claims.UserID).Msg("failed to resolve proxy token user")
+		return "", http.StatusServiceUnavailable, false
+	}
+
+	if user.OrganizationID != claims.OrganizationID || !strings.EqualFold(user.OrgRole, claims.OrgRole) {
+		return "", http.StatusForbidden, true
+	}
+	if !slices.Contains(user.UserPermissions, "connect:systems") && !slices.Contains(user.OrgPermissions, "connect:systems") {
+		return "", http.StatusForbidden, true
+	}
+	return user.Name, 0, true
 }
 
 // filterSupportProxyCookie removes the support_proxy cookie from the request
