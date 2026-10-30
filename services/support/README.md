@@ -47,13 +47,17 @@ SUPPORT_INTERNAL_SECRET=change-me-to-a-random-secret-min-32-chars
 LISTEN_ADDRESS=127.0.0.1:8082
 LOG_LEVEL=info
 LOG_FORMAT=console
-SYSTEM_AUTH_CACHE_TTL=24h
+SYSTEM_AUTH_CACHE_TTL=1h
 SYSTEM_SECRET_MIN_LENGTH=32
 SESSION_DEFAULT_DURATION=24h
 SESSION_CLEANER_INTERVAL=5m
 TUNNEL_GRACE_PERIOD=2m
 MAX_TUNNELS=1000
 MAX_SESSIONS_PER_SYSTEM=5
+RATE_LIMIT_AUTH_FAIL_PER_IP=5   # failed tunnel logins per IP per RATE_LIMIT_WINDOW
+TRUSTED_PROXIES=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8,::1/128,fc00::/7
+APP_ENV=dev                     # must match backend: auth invalidations arrive on my:auth:invalidate:<APP_ENV>
+INTERNAL_HMAC_SECRET=           # must match backend/collect when set (signed invalidations)
 ```
 
 ## Architecture
@@ -195,6 +199,20 @@ services/support/
 
 All tunnel client settings are configured via environment variables or CLI flags.
 
+```bash
+--url, -u string        # Tunnel URL, must be wss:// (env: SUPPORT_URL)
+--key, -k string        # System key (env: SYSTEM_KEY)
+                        # System secret: env SYSTEM_SECRET only, never a flag (keeps it out of argv)
+--node-id, -n string    # Cluster node ID, auto-detected on NS8 (env: NODE_ID)
+--tls-insecure          # Skip TLS verification, refused without --dev (env: TLS_INSECURE)
+--dev                   # Development only, flag only: allows ws:// and --tls-insecure
+--cleanup-only          # Delete the users recorded in the state file and exit, no network (env: CLEANUP_ONLY=1)
+```
+
+- The server returns `X-Reconnect-Token` on the WebSocket upgrade; the client keeps it in memory and sends it as the `reconnect_token` query parameter (next to `node_id`) on every reconnect.
+- HTTP 410 on the handshake means the session was closed or expired: the client removes its support users and exits 0. Three consecutive 401/403 handshakes are terminal too (exit 1).
+- At most 256 concurrent yamux streams and 8 terminals; the `CONNECT`/`COMMAND` header must arrive within 10s.
+
 Service exclusion patterns filter out services that are not useful for support operators:
 
 ```bash
@@ -225,6 +243,8 @@ Operator clicks "Add service" in the UI
 **Example:** to access a Yealink phone's web UI at `192.168.1.100:443` on a customer's system, add a service with `target: 192.168.1.100:443` and `tls: true`. The phone's interface becomes available through the subdomain proxy as if the operator were on the same LAN.
 
 Constraints: max 10 services per call, names must match `[a-zA-Z0-9][a-zA-Z0-9._-]*`, target must be `host:port`.
+
+The tunnel-client applies its own checks: the target is resolved once when the service is added and the resolved IP is pinned for every later dial (no DNS rebinding); link-local, metadata, multicast and unspecified addresses are refused; addresses of the host itself (loopback or any local interface) are refused unless a discovered service already exposes the same `ip:port`; an injected name cannot shadow a discovered service or `terminal`.
 
 ### Diagnostics Plugin System
 
@@ -272,16 +292,19 @@ The tunnel-client provisions temporary users when a support session starts and r
 **NS8 (NethServer)**:
 - Creates a cluster-admin user via `runagent` + `agent.tasks` (leader node only)
 - Creates a domain user on each local LDAP/Samba provider (skips remote/read-only providers)
-- Worker nodes fetch credentials from the server (created by the leader) via `USERS_FETCH` stream
+- Worker nodes fetch credentials from the server (created by the leader) via `USERS_FETCH` stream. Only `support-*` usernames with the generated password charset are accepted; they are passed to plugins but never recorded nor deleted by the worker
+- Agent task payloads (passwords included) go to `runagent python3` through stdin, never argv
 
 **NethSecurity**:
 - Creates a local user via `python3` + `nethsec.users` module
 - Promotes to admin for web UI access
+- Never fetches credentials from the server
+- The password goes to `python3` through stdin, never argv
 
 **Credential lifecycle**:
-1. **On connect**: tunnel-client creates users, stores credentials in a local state file (`/var/run/my-support-users.json`), reports them to the server via yamux `USERS_REPORT` stream, the server stores them in the `users` JSONB column
-2. **On disconnect/session end**: tunnel-client deletes all ephemeral users and removes the state file; the server clears the `users` column from the database
-3. **On crash recovery**: next startup reads the orphaned state file, runs cleanup (delete users + teardown plugins), then removes the file
+1. **On connect**: tunnel-client creates users and records each identity in a persistent state file (default `/var/lib/my-support/users-state.json`, directory 0700, file 0600, atomic rename) right after it is created, before any plugin runs. Passwords are not written to the file. Then it reports the credentials to the server via yamux `USERS_REPORT` stream, the server stores them AES-256-GCM encrypted (key derived from `SUPPORT_INTERNAL_SECRET`) in the `users` JSONB column and wipes them when the session closes or expires
+2. **On disconnect/session end**: tunnel-client deletes all ephemeral users, updating the state file as each delete succeeds; the file is removed only when every delete succeeded, failed ones stay recorded. On NS8 deletion is attempted even if the node is no longer the leader
+3. **On crash recovery**: next startup (or `tunnel-client --cleanup-only`, which packaging runs at boot) reads the state file, runs teardown plugins and deletes the recorded users; `--cleanup-only` exits 0 on success or when there is no state, non-zero otherwise
 4. **Reconnection**: user provisioning happens only on the first successful connection; subsequent reconnections re-send the existing report without re-provisioning
 
 ```bash
@@ -289,7 +312,8 @@ The tunnel-client provisions temporary users when a support session starts and r
 --users-dir string                # Default: /usr/share/my/users.d (env: USERS_DIR)
 --users-plugin-timeout duration   # Default: 15s (env: USERS_PLUGIN_TIMEOUT)
 --users-total-timeout duration    # Default: 60s (env: USERS_TOTAL_TIMEOUT)
---users-state-file string         # Default: /var/run/my-support-users.json (env: USERS_STATE_FILE)
+--users-state-file string         # Default: /var/lib/my-support/users-state.json (env: USERS_STATE_FILE)
+                                  # NethSecurity: /etc/support-tunnel/users-state.json
 ```
 
 ### Users Plugin System (`users.d/`)

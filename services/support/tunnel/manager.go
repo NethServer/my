@@ -16,6 +16,7 @@ import (
 	"net"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -189,22 +190,40 @@ func (m *Manager) Register(systemID, nodeID, sessionID string, yamuxSession *yam
 	return t, nil
 }
 
-// Unregister removes a tunnel from the manager
-func (m *Manager) Unregister(systemID, nodeID string) {
+// Unregister removes the given tunnel from the manager. A tunnel that has
+// already been replaced under the same key is closed without touching the
+// newer one. Returns true when t was the registered tunnel.
+func (m *Manager) Unregister(t *Tunnel) bool {
+	if t == nil {
+		return false
+	}
+	t.Close()
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	key := TunnelKey(systemID, nodeID)
-	if t, ok := m.tunnels[key]; ok {
-		t.Close()
-		delete(m.tunnels, key)
-
-		logger.ComponentLogger("tunnel_manager").Info().
-			Str("system_id", systemID).
-			Str("node_id", nodeID).
-			Str("session_id", t.SessionID).
-			Msg("tunnel unregistered")
+	key := TunnelKey(t.SystemID, t.NodeID)
+	if m.tunnels[key] != t {
+		return false
 	}
+	delete(m.tunnels, key)
+
+	logger.ComponentLogger("tunnel_manager").Info().
+		Str("system_id", t.SystemID).
+		Str("node_id", t.NodeID).
+		Str("session_id", t.SessionID).
+		Msg("tunnel unregistered")
+	return true
+}
+
+// IsRegistered reports whether t is the tunnel currently registered for its key
+func (m *Manager) IsRegistered(t *Tunnel) bool {
+	if t == nil {
+		return false
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.tunnels[TunnelKey(t.SystemID, t.NodeID)] == t
 }
 
 // Get returns a tunnel by system ID and node ID
@@ -323,30 +342,45 @@ func (m *Manager) List() []TunnelInfo {
 	return infos
 }
 
-// CloseBySessionID closes a tunnel by session ID, sending a graceful close
+// CloseBySessionID closes the tunnels of a session, sending a graceful close
 // frame so the tunnel-client knows not to reconnect.
 func (m *Manager) CloseBySessionID(sessionID string) bool {
+	return m.closeMatching(func(t *Tunnel) bool { return t.SessionID == sessionID }) > 0
+}
+
+// CloseBySystemID gracefully closes every tunnel of a system and cancels its grace timers
+func (m *Manager) CloseBySystemID(systemID string) int {
 	m.mu.Lock()
-	var found *Tunnel
+	for key, gt := range m.graceTimers {
+		if key == systemID || strings.HasPrefix(key, systemID+":") {
+			gt.timer.Stop()
+			delete(m.graceTimers, key)
+		}
+	}
+	m.mu.Unlock()
+	return m.closeMatching(func(t *Tunnel) bool { return t.SystemID == systemID })
+}
+
+func (m *Manager) closeMatching(match func(*Tunnel) bool) int {
+	m.mu.Lock()
+	var found []*Tunnel
 	for key, t := range m.tunnels {
-		if t.SessionID == sessionID {
-			found = t
+		if match(t) {
+			found = append(found, t)
 			delete(m.tunnels, key)
-			break
 		}
 	}
 	m.mu.Unlock()
 
-	if found == nil {
-		return false
+	for _, t := range found {
+		t.GracefulClose()
+		logger.ComponentLogger("tunnel_manager").Info().
+			Str("system_id", t.SystemID).
+			Str("node_id", t.NodeID).
+			Str("session_id", t.SessionID).
+			Msg("tunnel gracefully closed")
 	}
-
-	found.GracefulClose()
-	logger.ComponentLogger("tunnel_manager").Info().
-		Str("system_id", found.SystemID).
-		Str("session_id", sessionID).
-		Msg("tunnel gracefully closed by session ID")
-	return true
+	return len(found)
 }
 
 // StartGracePeriod begins a grace period for a disconnected tunnel.
@@ -451,43 +485,53 @@ func (t *Tunnel) Done() <-chan struct{} {
 const maxServicesPerManifest = 500
 
 // SetServices updates the services available through this tunnel.
-// Services with dangerous targets (cloud metadata, link-local) are rejected.
-// The manifest is capped at maxServicesPerManifest entries.
+// Services with dangerous targets (cloud metadata, link-local) or malformed
+// fields are rejected. The manifest is capped at maxServicesPerManifest entries.
 func (t *Tunnel) SetServices(services map[string]ServiceInfo) {
-	t.servicesMu.Lock()
-	defer t.servicesMu.Unlock()
-
+	log := logger.ComponentLogger("tunnel_manager")
 	validated := make(map[string]ServiceInfo, len(services))
 	for name, svc := range services {
 		if len(validated) >= maxServicesPerManifest {
-			logger.ComponentLogger("tunnel_manager").Warn().
+			log.Warn().
 				Str("system_id", t.SystemID).
 				Int("max", maxServicesPerManifest).
 				Msg("service manifest truncated at max limit")
 			break
 		}
-		if err := validateServiceTarget(svc.Target); err != nil {
-			logger.ComponentLogger("tunnel_manager").Warn().
+		if err := ValidateService(svc); err != nil {
+			log.Warn().
 				Str("system_id", t.SystemID).
 				Str("service", name).
-				Str("target", svc.Target).
 				Err(err).
-				Msg("rejected service with dangerous target")
-			continue
-		}
-		// Validate Host field to prevent hostname rewrite injection (#7):
-		// a malicious Host value could hijack rewrite mappings for other services.
-		if svc.Host != "" && !validHostname.MatchString(svc.Host) {
-			logger.ComponentLogger("tunnel_manager").Warn().
-				Str("system_id", t.SystemID).
-				Str("service", name).
-				Str("host", svc.Host).
-				Msg("rejected service with invalid host value")
+				Msg("rejected service from manifest")
 			continue
 		}
 		validated[name] = svc
 	}
+
+	t.servicesMu.Lock()
 	t.services = validated
+	t.servicesMu.Unlock()
+}
+
+// validRoutePath restricts manifest Path/PathPrefix to plain URL path characters
+var validRoutePath = regexp.MustCompile(`^/[A-Za-z0-9._~/-]*$`)
+
+// ValidateService checks every manifest field the server acts on
+func ValidateService(svc ServiceInfo) error {
+	if err := validateServiceTarget(svc.Target); err != nil {
+		return err
+	}
+	// A malicious Host value could hijack rewrite mappings for other services (#7)
+	if svc.Host != "" && !validHostname.MatchString(svc.Host) {
+		return fmt.Errorf("invalid host value")
+	}
+	for _, p := range []string{svc.Path, svc.PathPrefix} {
+		if p != "" && (!validRoutePath.MatchString(p) || strings.Contains(p, "..")) {
+			return fmt.Errorf("invalid route path %q", p)
+		}
+	}
+	return nil
 }
 
 // dangerousHostnames contains cloud metadata and other dangerous hostnames
@@ -505,41 +549,36 @@ func ValidateServiceTarget(target string) error {
 	return validateServiceTarget(target)
 }
 
-// validateServiceTarget rejects targets pointing to dangerous addresses.
-// For non-IP hostnames, DNS is resolved to block DNS rebinding attacks (#2).
+// validateServiceTarget is a pure syntax check of a host:port target. The
+// server never dials it (the tunnel-client does), so no DNS lookup is done here.
 func validateServiceTarget(target string) error {
 	if target == "" {
 		return fmt.Errorf("empty target")
 	}
 
-	host, _, err := net.SplitHostPort(target)
+	host, portStr, err := net.SplitHostPort(target)
 	if err != nil {
-		host = target
+		return fmt.Errorf("target must be host:port: %w", err)
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil || port < 1 || port > 65535 {
+		return fmt.Errorf("invalid target port %q", portStr)
+	}
+	if host == "" {
+		return fmt.Errorf("empty target host")
 	}
 
-	// Block known dangerous hostnames
-	if dangerousHostnames[strings.ToLower(host)] {
+	if ip := net.ParseIP(host); ip != nil {
+		return validateIP(ip)
+	}
+
+	if !validHostname.MatchString(host) {
+		return fmt.Errorf("invalid target host %q", host)
+	}
+	if dangerousHostnames[strings.ToLower(strings.TrimSuffix(host, "."))] {
 		return fmt.Errorf("cloud metadata hostname blocked: %s", host)
 	}
-
-	ip := net.ParseIP(host)
-	if ip == nil {
-		// Resolve DNS to prevent rebinding attacks: a hostname that resolves
-		// to a benign IP at registration time could later resolve to a
-		// dangerous IP (e.g., 169.254.169.254) when the operator connects.
-		ips, lookupErr := net.LookupIP(host)
-		if lookupErr != nil {
-			return fmt.Errorf("DNS resolution failed for %s: %w", host, lookupErr)
-		}
-		for _, resolvedIP := range ips {
-			if err := validateIP(resolvedIP); err != nil {
-				return fmt.Errorf("hostname %s resolves to blocked address: %w", host, err)
-			}
-		}
-		return nil
-	}
-
-	return validateIP(ip)
+	return nil
 }
 
 // validateIP checks a single IP address against blocked ranges
@@ -575,6 +614,11 @@ func validateIP(ip net.IP) error {
 		// Block IPv6 multicast (ff00::/8)
 		if ip.IsMulticast() {
 			return fmt.Errorf("IPv6 multicast address blocked: %s", ip)
+		}
+
+		// Block the AWS IPv6 metadata endpoint (fd00:ec2::254)
+		if ip.Equal(net.ParseIP("fd00:ec2::254")) {
+			return fmt.Errorf("cloud metadata address blocked: %s", ip)
 		}
 	}
 

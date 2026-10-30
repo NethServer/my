@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/nethesis/my/services/support/logger"
@@ -49,10 +50,18 @@ type Configuration struct {
 	TerminalMaxFrameSize      int           `json:"terminal_max_frame_size"`
 
 	// Rate limiting configuration
-	RateLimitTunnelPerIP  int           `json:"rate_limit_tunnel_per_ip"`
-	RateLimitTunnelPerKey int           `json:"rate_limit_tunnel_per_key"`
-	RateLimitSessionPerID int           `json:"rate_limit_session_per_id"`
-	RateLimitWindow       time.Duration `json:"rate_limit_window"`
+	RateLimitTunnelPerIP   int           `json:"rate_limit_tunnel_per_ip"`
+	RateLimitTunnelPerKey  int           `json:"rate_limit_tunnel_per_key"`
+	RateLimitSessionPerID  int           `json:"rate_limit_session_per_id"`
+	RateLimitAuthFailPerIP int           `json:"rate_limit_auth_fail_per_ip"`
+	RateLimitWindow        time.Duration `json:"rate_limit_window"`
+
+	// Proxies whose X-Forwarded-For is trusted for the client IP
+	TrustedProxies []string `json:"trusted_proxies"`
+
+	// Cross-service plumbing — must match backend's APP_ENV / INTERNAL_HMAC_SECRET
+	AppEnv             string `json:"app_env"`
+	InternalHMACSecret string `json:"-"`
 
 	// Internal authentication (shared secret with backend)
 	InternalSecret string `json:"-"`
@@ -78,7 +87,7 @@ func Init() {
 	Config.RedisPassword = os.Getenv("REDIS_PASSWORD")
 
 	// System authentication configuration
-	Config.SystemAuthCacheTTL = parseDurationWithDefault("SYSTEM_AUTH_CACHE_TTL", 24*time.Hour)
+	Config.SystemAuthCacheTTL = parseDurationWithDefault("SYSTEM_AUTH_CACHE_TTL", 1*time.Hour)
 	Config.SystemSecretMinLength = parseIntWithDefault("SYSTEM_SECRET_MIN_LENGTH", 32)
 
 	// Session configuration
@@ -99,7 +108,20 @@ func Init() {
 	Config.RateLimitTunnelPerIP = parseIntWithDefault("RATE_LIMIT_TUNNEL_PER_IP", 10)
 	Config.RateLimitTunnelPerKey = parseIntWithDefault("RATE_LIMIT_TUNNEL_PER_KEY", 5)
 	Config.RateLimitSessionPerID = parseIntWithDefault("RATE_LIMIT_SESSION_PER_ID", 10000)
+	Config.RateLimitAuthFailPerIP = parseIntWithDefault("RATE_LIMIT_AUTH_FAIL_PER_IP", 5)
 	Config.RateLimitWindow = parseDurationWithDefault("RATE_LIMIT_WINDOW", 1*time.Minute)
+
+	// Default: private ranges only (nginx and the Render proxy reach us over the private network)
+	Config.TrustedProxies = parseListWithDefault("TRUSTED_PROXIES",
+		[]string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8", "::1/128", "fc00::/7"})
+
+	Config.AppEnv = getStringWithDefault("APP_ENV", "dev")
+	Config.InternalHMACSecret = os.Getenv("INTERNAL_HMAC_SECRET")
+	if Config.InternalHMACSecret != "" && len(Config.InternalHMACSecret) < 32 {
+		logger.Fatal().
+			Int("length", len(Config.InternalHMACSecret)).
+			Msg("INTERNAL_HMAC_SECRET must be at least 32 characters; refusing to start with a weak secret")
+	}
 
 	// Internal authentication (required: fail fast if empty)
 	Config.InternalSecret = os.Getenv("SUPPORT_INTERNAL_SECRET")
@@ -132,6 +154,20 @@ func parseIntWithDefault(envVar string, defaultValue int) int {
 	}
 	logger.LogConfigLoad("env", envVar, false, fmt.Errorf("invalid integer format, using default %d", defaultValue))
 	return defaultValue
+}
+
+func parseListWithDefault(envVar string, defaultValue []string) []string {
+	envValue := os.Getenv(envVar)
+	if envValue == "" {
+		return defaultValue
+	}
+	var out []string
+	for _, item := range strings.Split(envValue, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 func getStringWithDefault(envVar string, defaultValue string) string {

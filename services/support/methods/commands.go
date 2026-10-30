@@ -116,12 +116,12 @@ func handleAddServicesCommand(cmd SupportCommand) {
 	// This is a defense-in-depth layer; the tunnel-client also validates, but the server
 	// should reject dangerous targets before they reach the customer's machine at all.
 	for name, svc := range cmd.Services {
-		if err := tunnel.ValidateServiceTarget(svc.Target); err != nil {
+		if err := tunnel.ValidateService(svc); err != nil {
 			log.Error().Err(err).
 				Str("session_id", cmd.SessionID).
 				Str("service", name).
 				Str("target", svc.Target).
-				Msg("rejected add_services command: dangerous service target")
+				Msg("rejected add_services command: invalid service")
 			return
 		}
 	}
