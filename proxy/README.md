@@ -14,13 +14,19 @@ my.nethesis.it (Production)
 ├── /                    → Frontend Service (private, HTTP :10000)
 ├── /backend/api/        → Backend Service (private, HTTP :10000)
 ├── /collect/api/        → Collect Service (private, HTTP :10000)
-└── /support/api/        → Support Service (private, HTTP :10000, WebSocket)
+└── /support/api/tunnel  → Support Service (private, HTTP :10000, WebSocket)
+
+support.my.nethesis.it   → /api/tunnel only (appliance tunnels), 404 elsewhere
+*.support.my.nethesis.it → appliance UI proxy via backend
 
 qa.my.nethesis.it (QA)
 ├── /                    → Frontend Service (private, HTTP :10000)
 ├── /backend/api/        → Backend Service (private, HTTP :10000)
 ├── /collect/api/        → Collect Service (private, HTTP :10000)
-└── /support/api/        → Support Service (private, HTTP :10000, WebSocket)
+└── /support/api/tunnel  → Support Service (private, HTTP :10000, WebSocket)
+
+support.qa.my.nethesis.it   → /api/tunnel only, 404 elsewhere
+*.support.qa.my.nethesis.it → appliance UI proxy via backend
 ```
 
 All inter-service communication uses HTTP over Render's internal network. The proxy handles TLS termination for external clients.
