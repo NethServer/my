@@ -25,6 +25,18 @@ type User struct {
 	Password string `json:"password"`
 }
 
+func ownerUserData(username, email, displayName string) map[string]interface{} {
+	userData := map[string]interface{}{
+		"username":     username,
+		"primaryEmail": email,
+		"name":         displayName,
+	}
+	if profile := client.UserProfileFromName(displayName); profile != nil {
+		userData["profile"] = profile
+	}
+	return userData
+}
+
 // CreateOwnerUser creates the owner user in Logto
 func CreateOwnerUser(client *client.LogtoClient, username, email, displayName string) (*User, error) {
 	logger.Info("Creating Owner user...")
@@ -34,14 +46,7 @@ func CreateOwnerUser(client *client.LogtoClient, username, email, displayName st
 		return nil, fmt.Errorf("failed to generate password: %w", err)
 	}
 
-	// Create user
-	userData := map[string]interface{}{
-		"username":     username,
-		"primaryEmail": email,
-		"name":         displayName,
-	}
-
-	createdUser, err := client.CreateUser(userData)
+	createdUser, err := client.CreateUser(ownerUserData(username, email, displayName))
 	if err != nil {
 		// Check if user already exists
 		errStr := err.Error()
