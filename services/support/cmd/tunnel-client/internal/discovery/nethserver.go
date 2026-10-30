@@ -29,6 +29,7 @@ import (
 
 const (
 	defaultRemoteHTTPSPort = "443"
+	localTraefikIP         = "127.0.0.1"
 	ns8NodeEnvFile         = "/var/lib/nethserver/node/state/environment"
 )
 
@@ -90,21 +91,24 @@ func DiscoverNethServerServices(ctx context.Context, redisAddr string) map[strin
 	for _, nodeID := range ordered {
 		nodeServices := discoverNodeRoutes(ctx, rdb, nodeID)
 
-		// For remote nodes, rewrite targets to go through the node's Traefik (HTTPS).
-		// Traefik on the remote node handles TLS termination, Host-based routing,
-		// and PathPrefix stripping, so we clear PathPrefix to avoid double-stripping.
+		// Every route goes through its node's Traefik (HTTPS), local node
+		// included: Traefik applies the route's middlewares (forwardAuth,
+		// injected headers, prefix stripping) exactly as for a direct visit,
+		// so PathPrefix is cleared to avoid double-stripping.
+		nodeIP := localTraefikIP
 		if nodeID != localNodeID {
 			remoteIP, ok := nodeIPs[nodeID]
 			if !ok {
 				log.Printf("NethServer discovery: skipping node %s (no IP)", nodeID)
 				continue
 			}
-			for name, svc := range nodeServices {
-				svc.Target = remoteIP + ":" + defaultRemoteHTTPSPort
-				svc.TLS = true
-				svc.PathPrefix = ""
-				nodeServices[name] = svc
-			}
+			nodeIP = remoteIP
+		}
+		for name, svc := range nodeServices {
+			svc.Target = nodeIP + ":" + defaultRemoteHTTPSPort
+			svc.TLS = true
+			svc.PathPrefix = ""
+			nodeServices[name] = svc
 		}
 
 		// First-writer-wins so the leader's view of a duplicated route prevails.
