@@ -242,6 +242,8 @@ export interface SupportServiceItem {
   pathPrefix: string
   moduleId: string
   nodeId: string
+  // 'cluster' when the NS8 cluster login guards the service instead of the app
+  auth: string
 }
 
 export interface SupportServiceGroup {
@@ -266,6 +268,7 @@ interface SupportServicesRawResponse {
         path_prefix?: string
         module_id?: string
         node_id?: string
+        auth?: string
       }
     >
   }
@@ -299,6 +302,7 @@ export const getSupportSessionServices = (sessionId: string): Promise<SupportSer
         pathPrefix: svc.path_prefix || '',
         moduleId: svc.module_id || '',
         nodeId: svc.node_id || '',
+        auth: svc.auth || '',
       }))
 
       // Group by nodeId + moduleId

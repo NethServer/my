@@ -335,3 +335,12 @@ func TestValidateServicePaths(t *testing.T) {
 		t.Fatal("valid service must be kept")
 	}
 }
+
+func TestValidateServiceAuth(t *testing.T) {
+	for auth, ok := range map[string]bool{"": true, "cluster": true, "domain": false, "cluster;x": false} {
+		err := ValidateService(ServiceInfo{Target: "127.0.0.1:443", Auth: auth})
+		if (err == nil) != ok {
+			t.Errorf("ValidateService(auth=%q) error = %v, want ok=%v", auth, err, ok)
+		}
+	}
+}

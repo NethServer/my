@@ -19,6 +19,9 @@ type ServiceInfo struct {
 	PathPrefix string `json:"path_prefix,omitempty"`
 	ModuleID   string `json:"module_id,omitempty"`
 	NodeID     string `json:"node_id,omitempty"`
+	// Auth is "cluster" when the route sits behind the NS8 cluster login
+	// (Traefik forwardAuth to cluster-admin http-basic) instead of the app's own.
+	Auth string `json:"auth,omitempty"`
 	// DialAddr pins the resolved ip:port of a server-injected service so a
 	// later DNS change cannot redirect the dial. Never sent in the manifest.
 	DialAddr string `json:"-"`
@@ -38,4 +41,7 @@ type ApiCliRoute struct {
 	URL           string `json:"url"`
 	StripPrefix   bool   `json:"strip_prefix"`
 	SkipCertVerif bool   `json:"skip_cert_verify"`
+	ForwardAuth   *struct {
+		Address string `json:"address"`
+	} `json:"forward_auth,omitempty"`
 }
