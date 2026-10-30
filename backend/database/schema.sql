@@ -1256,7 +1256,6 @@ CREATE INDEX IF NOT EXISTS idx_api_key_audit_event ON api_key_audit(event);
 
 -- =============================================================================
 -- ENTITLEMENTS (granular add-on licensing, migration 037)
--- ======================================================================
 -- =============================================================================
 -- entitlement_catalog: DB-driven set of grantable add-on types. The 3 ng-*
 -- ids are the legacy wire ids the feeds call — do not rename. New ids follow
@@ -1401,7 +1400,8 @@ COMMENT ON COLUMN entitlement_seats.assigned_by     IS 'Actor snapshot of the us
 COMMENT ON COLUMN entitlement_seats.released_at     IS 'Set when the seat is freed; NULL = held';
 COMMENT ON COLUMN entitlement_seats.released_reason IS 'manual (freed by a user) | instance_removed (the instance left the inventory: removed, or moved to another node under a new id)';
 COMMENT ON COLUMN entitlement_seats.released_by     IS 'Actor snapshot of the user that freed the seat; NULL when collect freed it';
-=======
+
+-- =============================================================================
 -- SUPPORT SESSIONS TABLE
 -- =============================================================================
 -- Tracks WebSocket tunnel-based support sessions from client systems

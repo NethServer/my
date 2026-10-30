@@ -1,4 +1,4 @@
--- Rollback Migration 027: Security hardening for support service
+-- Rollback Migration 053: Security hardening for support service
 
 DROP INDEX IF EXISTS idx_support_sessions_reconnect_token;
 ALTER TABLE support_sessions DROP COLUMN IF EXISTS reconnect_token;

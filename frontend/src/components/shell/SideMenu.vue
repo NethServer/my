@@ -79,7 +79,14 @@ const menuExpanded: Ref<Record<string, boolean>> = ref({
   resellers: false,
 })
 
-const systemsManagementRoutes = ['alerts', 'systems', 'applications', 'addons', 'rebranding', 'support-sessions']
+const systemsManagementRoutes = [
+  'alerts',
+  'systems',
+  'applications',
+  'addons',
+  'rebranding',
+  'support-sessions',
+]
 const companiesAndUsersRoutes = ['distributors', 'resellers', 'customers', 'users']
 
 const navigation = computed(() => {
