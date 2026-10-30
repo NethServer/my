@@ -60,6 +60,8 @@ type MenuItem = {
   to: string
   solidIcon?: IconDefinition
   lightIcon?: IconDefinition
+  // evens out a light glyph drawn smaller than its solid counterpart
+  lightIconTransform?: string
   children?: MenuItem[]
 }
 
@@ -150,6 +152,7 @@ const navigation = computed(() => {
       to: 'support-sessions',
       solidIcon: fasHeadset,
       lightIcon: falHeadset,
+      lightIconTransform: 'grow-1',
     })
   }
 
@@ -297,6 +300,7 @@ function loadMenuItemsExpanded() {
           >
             <FontAwesomeIcon
               :icon="isCurrentRoute(item.to) ? item.solidIcon! : item.lightIcon!"
+              :transform="isCurrentRoute(item.to) ? undefined : item.lightIconTransform"
               class="h-6 w-8 shrink-0"
               aria-hidden="true"
             />
