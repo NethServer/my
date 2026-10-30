@@ -33,6 +33,7 @@ import {
   NeTextInput,
   NeToggle,
   NeSpinner,
+  formatDateTimeNoSeconds,
 } from '@nethesis/vue-components'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -56,7 +57,6 @@ import {
   getSupportSessionUsers,
 } from '@/lib/support/support'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
-import { formatDateTimeNoSeconds } from '@/lib/dateTime'
 import { canConnectSystems } from '@/lib/permissions'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useQueryCache } from '@pinia/colada'

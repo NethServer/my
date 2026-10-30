@@ -1317,7 +1317,6 @@ CREATE INDEX IF NOT EXISTS idx_api_key_audit_event ON api_key_audit(event);
 
 -- =============================================================================
 -- ENTITLEMENTS (granular add-on licensing, migration 037)
--- ======================================================================
 -- =============================================================================
 -- entitlement_catalog: DB-driven set of grantable add-on types. The 3 ng-*
 -- ids are the legacy wire ids the feeds call — do not rename. New ids follow
