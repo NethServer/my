@@ -59,10 +59,16 @@ type UsersReport struct {
 	Users      SessionUsers `json:"users"`
 }
 
+// RecordFunc persists the identities created so far. Provisioners call it
+// right after each successful creation and roll the identity back if it fails.
+type RecordFunc func(created *SessionUsers) error
+
 // Provisioner creates and deletes ephemeral support users.
 // Implementations are platform-specific (NS8 vs NethSecurity).
+// Delete removes from users every identity it deleted, so on error users
+// holds exactly the identities that are still pending.
 type Provisioner interface {
-	Create(sessionID string) (*SessionUsers, error)
+	Create(sessionID string, record RecordFunc) (*SessionUsers, error)
 	Delete(users *SessionUsers) error
 }
 

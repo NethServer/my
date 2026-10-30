@@ -14,6 +14,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -110,6 +111,19 @@ func (s *serviceStore) removeInjected(name string) bool {
 	return true
 }
 
+// discovered returns the services that were not injected via COMMAND.
+func (s *serviceStore) discovered() map[string]models.ServiceInfo {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	result := make(map[string]models.ServiceInfo, len(s.services))
+	for k, v := range s.services {
+		if _, ok := s.injected[k]; !ok {
+			result[k] = v
+		}
+	}
+	return result
+}
+
 func (s *serviceStore) len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -120,109 +134,85 @@ func (s *serviceStore) len() int {
 // Must match the server-side maxServicesPerManifest in tunnel/manager.go.
 const maxServicesTotal = 500
 
-// dangerousHostnames mirrors the server-side list in tunnel/manager.go.
-var dangerousHostnames = map[string]bool{
-	"metadata.google.internal":     true,
-	"metadata":                     true,
-	"metadata.azure.internal":      true,
-	"instance-data":                true,
-	"metadata.platformequinix.com": true,
-}
-
-// validateTarget rejects service targets pointing to dangerous addresses.
-// Fix #1: mirrors the server-side validateServiceTarget in tunnel/manager.go so that
-// COMMAND-injected services are SSRF-validated on the tunnel-client side as well.
-func validateTarget(target string) error {
-	if target == "" {
-		return fmt.Errorf("empty target")
-	}
-	host, _, err := net.SplitHostPort(target)
-	if err != nil {
-		host = target
-	}
-	if dangerousHostnames[strings.ToLower(host)] {
-		return fmt.Errorf("cloud metadata hostname blocked: %s", host)
-	}
-	ip := net.ParseIP(host)
-	if ip == nil {
-		ips, lookupErr := net.LookupIP(host)
-		if lookupErr != nil {
-			return fmt.Errorf("DNS resolution failed for %s: %w", host, lookupErr)
-		}
-		for _, resolvedIP := range ips {
-			if err := validateTargetIP(resolvedIP); err != nil {
-				return fmt.Errorf("hostname %s resolves to blocked address: %w", host, err)
-			}
-		}
-		return nil
-	}
-	return validateTargetIP(ip)
-}
-
-func validateTargetIP(ip net.IP) error {
-	if ip.IsUnspecified() {
-		return fmt.Errorf("unspecified address blocked: %s", ip)
-	}
-	if ip.To4() != nil {
-		linkLocal := net.IPNet{IP: net.IPv4(169, 254, 0, 0), Mask: net.CIDRMask(16, 32)}
-		if linkLocal.Contains(ip) {
-			return fmt.Errorf("link-local/cloud metadata address blocked: %s", ip)
-		}
-		multicast := net.IPNet{IP: net.IPv4(224, 0, 0, 0), Mask: net.CIDRMask(4, 32)}
-		if multicast.Contains(ip) {
-			return fmt.Errorf("multicast address blocked: %s", ip)
-		}
-		if ip.Equal(net.IPv4bcast) {
-			return fmt.Errorf("broadcast address blocked: %s", ip)
-		}
-	} else {
-		if ip.IsLinkLocalUnicast() {
-			return fmt.Errorf("IPv6 link-local address blocked: %s", ip)
-		}
-		if ip.IsMulticast() {
-			return fmt.Errorf("IPv6 multicast address blocked: %s", ip)
-		}
-	}
-	return nil
-}
-
 // closeCodeSessionClosed matches the server's CloseCodeSessionClosed.
 // When the operator closes a session, the server sends this code
 // to tell the client to exit without reconnecting.
 const closeCodeSessionClosed = 4000
 
+const (
+	// maxAuthFailures is how many consecutive 401/403 handshakes are tolerated
+	// before giving up: the system credentials were revoked or rotated.
+	maxAuthFailures = 3
+	// maxConcurrentStreams caps the yamux streams handled at the same time.
+	maxConcurrentStreams = 256
+	// headerReadTimeout bounds the wait for the CONNECT/COMMAND header line.
+	headerReadTimeout = 10 * time.Second
+	// fetchTimeout and maxFetchSize bound a single USERS_FETCH exchange.
+	fetchTimeout = 15 * time.Second
+	maxFetchSize = 256 * 1024
+)
+
+// errSessionGone is returned when the server answers the handshake with 410:
+// the session was closed or expired and must not be resumed.
+var errSessionGone = errors.New("support session closed or expired (HTTP 410)")
+
+type authError struct{ status int }
+
+func (e *authError) Error() string {
+	return fmt.Sprintf("authentication rejected (HTTP %d)", e.status)
+}
+
+var streamSlots = make(chan struct{}, maxConcurrentStreams)
+
+// runState is the state carried across reconnections.
+type runState struct {
+	provisioned    bool
+	provisioner    users.Provisioner
+	owned          *users.SessionUsers // identities created by this client
+	leftover       *users.SessionUsers // identities of a previous run still pending deletion
+	sessionUsers   *users.SessionUsers // what is reported and passed to plugins
+	lastServices   map[string]models.ServiceInfo
+	reconnectToken string
+}
+
 // RunWithReconnect connects to the support service and reconnects on failure
 // with exponential backoff. User provisioning happens once on first successful
 // connection and cleanup happens when the session is permanently closed.
-func RunWithReconnect(ctx context.Context, cfg *config.ClientConfig) {
+// leftover holds identities of a previous run whose deletion failed; they are
+// kept in the state file and deleted together with this session's ones.
+// Returns the process exit code.
+func RunWithReconnect(ctx context.Context, cfg *config.ClientConfig, leftover *users.SessionUsers) int {
 	delay := cfg.ReconnectDelay
-	var sessionUsers *users.SessionUsers
-	var provisioner users.Provisioner
-	var lastServices map[string]models.ServiceInfo
-	usersProvisioned := false
+	st := &runState{leftover: leftover}
+	authFailures := 0
 
-	// Cleanup users on final exit (context cancel or session closed)
-	defer func() {
-		if sessionUsers != nil {
-			cleanupCtx := context.Background()
-			users.RunTeardown(cleanupCtx, cfg.UsersDir, sessionUsers, lastServices, cfg.RedisAddr, cfg.UsersPluginTimeout)
-			_ = provisioner.Delete(sessionUsers)
-			users.RemoveState(cfg.UsersStateFile)
-			log.Println("Support users cleaned up")
-		}
-	}()
+	defer st.teardown(cfg)
 
 	for {
 		start := time.Now()
-		err := connect(ctx, cfg, &sessionUsers, &provisioner, &usersProvisioned, &lastServices)
+		err := connect(ctx, cfg, st)
 		if ctx.Err() != nil {
-			return // context cancelled, clean shutdown
+			return 0 // context cancelled, clean shutdown
 		}
 
 		// Check if the server sent a "session closed" close frame
 		if websocket.IsCloseError(err, closeCodeSessionClosed) {
 			log.Println("Session closed by operator. Exiting.")
-			return
+			return 0
+		}
+		if errors.Is(err, errSessionGone) {
+			log.Println("Session closed or expired on the server. Exiting.")
+			return 0
+		}
+		var authErr *authError
+		if errors.As(err, &authErr) {
+			authFailures++
+			if authFailures >= maxAuthFailures {
+				log.Printf("Giving up after %d rejected handshakes: %v", authFailures, err)
+				return 1
+			}
+		} else {
+			authFailures = 0
 		}
 
 		log.Printf("Connection lost: %v", err)
@@ -236,7 +226,7 @@ func RunWithReconnect(ctx context.Context, cfg *config.ClientConfig) {
 
 		select {
 		case <-ctx.Done():
-			return
+			return 0
 		case <-time.After(delay):
 		}
 
@@ -248,36 +238,100 @@ func RunWithReconnect(ctx context.Context, cfg *config.ClientConfig) {
 	}
 }
 
-func connect(ctx context.Context, cfg *config.ClientConfig, sessionUsers **users.SessionUsers, provisioner *users.Provisioner, usersProvisioned *bool, lastServices *map[string]models.ServiceInfo) error {
+// teardown undoes plugin configuration and deletes every identity this client
+// created. Identities whose deletion fails stay in the state file.
+func (st *runState) teardown(cfg *config.ClientConfig) {
+	if st.sessionUsers != nil {
+		users.RunTeardown(context.Background(), cfg.UsersDir, st.sessionUsers, st.lastServices, cfg.RedisAddr, cfg.UsersPluginTimeout)
+	}
+	pending := users.MergeState(st.leftover, st.owned)
+	if !users.HasIdentities(pending) {
+		if err := users.RemoveState(cfg.UsersStateFile); err != nil {
+			log.Printf("Failed to remove users state file: %v", err)
+		}
+		return
+	}
+	deleteErr := users.ProvisionerForPlatform(pending.Platform, cfg.RedisAddr).Delete(pending)
+	if err := users.PersistState(cfg.UsersStateFile, pending); err != nil {
+		log.Printf("Failed to update users state file: %v", err)
+	}
+	if deleteErr != nil {
+		log.Printf("Support users cleanup incomplete, pending identities kept in %s for retry: %v", cfg.UsersStateFile, deleteErr)
+		return
+	}
+	log.Println("Support users cleaned up")
+}
+
+// buildConnectURL appends the node_id and reconnect_token query parameters.
+func buildConnectURL(base, nodeID, reconnectToken string) (string, error) {
+	parsed, err := url.Parse(base)
+	if err != nil {
+		return "", fmt.Errorf("invalid URL: %w", err)
+	}
+	q := parsed.Query()
+	if nodeID != "" {
+		q.Set("node_id", nodeID)
+	}
+	if reconnectToken != "" {
+		q.Set("reconnect_token", reconnectToken)
+	}
+	parsed.RawQuery = q.Encode()
+	return parsed.String(), nil
+}
+
+// handshakeError maps a failed WebSocket handshake to a terminal error when
+// the server's answer says retrying is pointless.
+func handshakeError(resp *http.Response, err error) error {
+	if resp != nil {
+		switch resp.StatusCode {
+		case http.StatusGone:
+			return errSessionGone
+		case http.StatusUnauthorized, http.StatusForbidden:
+			return &authError{status: resp.StatusCode}
+		}
+	}
+	return fmt.Errorf("websocket dial failed: %w", err)
+}
+
+// dialTunnel performs the WebSocket handshake, resuming the session with the
+// reconnect token when one was issued, and stores the token the server returns.
+func dialTunnel(ctx context.Context, cfg *config.ClientConfig, st *runState) (*websocket.Conn, error) {
 	// Build Basic Auth header
 	creds := base64.StdEncoding.EncodeToString([]byte(cfg.Key + ":" + cfg.Secret))
 	header := http.Header{}
 	header.Set("Authorization", "Basic "+creds)
 
-	// Append node_id query parameter for multi-node clusters
-	connectURL := cfg.URL
-	if cfg.NodeID != "" {
-		parsed, err := url.Parse(connectURL)
-		if err != nil {
-			return fmt.Errorf("invalid URL: %w", err)
-		}
-		q := parsed.Query()
-		q.Set("node_id", cfg.NodeID)
-		parsed.RawQuery = q.Encode()
-		connectURL = parsed.String()
+	connectURL, err := buildConnectURL(cfg.URL, cfg.NodeID, st.reconnectToken)
+	if err != nil {
+		return nil, err
 	}
 
-	log.Printf("Connecting to %s ...", connectURL)
+	log.Printf("Connecting to %s (node_id=%q, resume=%v) ...", cfg.URL, cfg.NodeID, st.reconnectToken != "")
 
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: cfg.TLSInsecure, //nolint:gosec // Configurable: disabled by default, enable for dev/self-signed certs
+			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: cfg.TLSInsecure && cfg.Dev, //nolint:gosec // Only with --dev, refused otherwise at startup
 		},
 	}
-	wsConn, _, err := dialer.Dial(connectURL, header)
+	wsConn, resp, err := dialer.DialContext(ctx, connectURL, header)
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
 	if err != nil {
-		return fmt.Errorf("websocket dial failed: %w", err)
+		return nil, handshakeError(resp, err)
+	}
+	if token := resp.Header.Get("X-Reconnect-Token"); token != "" {
+		st.reconnectToken = token
+	}
+	return wsConn, nil
+}
+
+func connect(ctx context.Context, cfg *config.ClientConfig, st *runState) error {
+	wsConn, err := dialTunnel(ctx, cfg, st)
+	if err != nil {
+		return err
 	}
 	log.Println("WebSocket connected")
 
@@ -328,28 +382,26 @@ func connect(ctx context.Context, cfg *config.ClientConfig, sessionUsers **users
 	}
 
 	// Provision ephemeral support users (only on first successful connection)
-	if !*usersProvisioned {
-		*provisioner = users.NewProvisioner(cfg.RedisAddr)
-		su, provisionErr := (*provisioner).Create(cfg.Key)
+	if !st.provisioned {
+		st.provisioner = users.NewProvisioner(cfg.RedisAddr)
+		record := func(created *users.SessionUsers) error {
+			return users.PersistState(cfg.UsersStateFile, users.MergeState(st.leftover, created))
+		}
+		su, provisionErr := st.provisioner.Create(cfg.Key, record)
 		if provisionErr != nil {
 			log.Printf("User provisioning failed: %v", provisionErr)
 		}
+		if users.HasIdentities(su) {
+			st.owned = su
+		}
 
-		// If provisioner didn't create credentials (e.g., worker node),
-		// fetch them from the server (created by the leader node)
-		hasCredentials := su != nil && (su.ClusterAdmin != nil || len(su.DomainUsers) > 0 || len(su.LocalUsers) > 0)
-		if !hasCredentials {
+		// NS8 worker nodes cannot create users: adopt the credentials the
+		// leader created, fetched through the support service. They are
+		// never recorded in the state file nor deleted by this client.
+		if ns, ok := st.provisioner.(*users.NethServerProvisioner); ok && ns.FetchesFromLeader() && !users.HasIdentities(su) {
 			log.Println("No local credentials created, fetching from server...")
-			fetched := fetchUsersFromServer(session, 3, 10*time.Second)
-			if fetched != nil {
-				if su == nil {
-					su = fetched
-				} else {
-					// Merge fetched credentials into the local result
-					su.ClusterAdmin = fetched.ClusterAdmin
-					su.DomainUsers = fetched.DomainUsers
-					su.LocalUsers = fetched.LocalUsers
-				}
+			if fetched := users.SanitizeFetched(fetchUsersFromServer(ctx, session, 3, 10*time.Second), cfg.Key); fetched != nil {
+				su = fetched
 			}
 		}
 
@@ -361,26 +413,20 @@ func connect(ctx context.Context, cfg *config.ClientConfig, sessionUsers **users
 			setupCancel()
 			su.Apps = apps
 			su.Errors = pluginErrors
-			*lastServices = currentServices
-
-			// Save state for crash recovery
-			if stateErr := users.SaveState(cfg.UsersStateFile, su); stateErr != nil {
-				log.Printf("Failed to save users state: %v", stateErr)
-			}
-
-			*sessionUsers = su
+			st.lastServices = currentServices
+			st.sessionUsers = su
 		}
-		*usersProvisioned = true
+		st.provisioned = true
 
 		// Send users report to support service
-		if *sessionUsers != nil {
-			if sendErr := sendUsersReport(session, *sessionUsers); sendErr != nil {
+		if st.sessionUsers != nil {
+			if sendErr := sendUsersReport(session, st.sessionUsers); sendErr != nil {
 				log.Printf("Failed to send users report: %v", sendErr)
 			}
 		}
-	} else if *sessionUsers != nil {
+	} else if st.sessionUsers != nil {
 		// Re-send users report on reconnect so the new session gets the data
-		if sendErr := sendUsersReport(session, *sessionUsers); sendErr != nil {
+		if sendErr := sendUsersReport(session, st.sessionUsers); sendErr != nil {
 			log.Printf("Failed to re-send users report: %v", sendErr)
 		}
 	}
@@ -409,12 +455,12 @@ func connect(ctx context.Context, cfg *config.ClientConfig, sessionUsers **users
 					// configured later) brings a new user-domain binding that
 					// the frontend needs to show domain credentials. Refresh
 					// users.ModuleDomains and resend the report when changed.
-					if *sessionUsers != nil &&
-						users.RefreshModuleDomains(*sessionUsers, newServices, cfg.RedisAddr) {
-						if err := sendUsersReport(session, *sessionUsers); err != nil {
+					if st.sessionUsers != nil &&
+						users.RefreshModuleDomains(st.sessionUsers, newServices, cfg.RedisAddr) {
+						if err := sendUsersReport(session, st.sessionUsers); err != nil {
 							log.Printf("Failed to send updated users report: %v", err)
 						} else {
-							log.Printf("Users report updated (module_domains: %d)", len(((*sessionUsers).ModuleDomains)))
+							log.Printf("Users report updated (module_domains: %d)", len(st.sessionUsers.ModuleDomains))
 						}
 					}
 				}
@@ -445,8 +491,17 @@ func connect(ctx context.Context, cfg *config.ClientConfig, sessionUsers **users
 			}
 			return fmt.Errorf("stream accept error: %w", err)
 		}
+		select {
+		case streamSlots <- struct{}{}:
+		default:
+			log.Printf("Rejecting stream: %d concurrent streams already open", maxConcurrentStreams)
+			_ = yamuxStream.Close()
+			continue
+		}
 		go func() {
+			defer func() { <-streamSlots }()
 			// Read the first line to determine stream type
+			_ = yamuxStream.SetReadDeadline(time.Now().Add(headerReadTimeout))
 			firstLine, lineErr := stream.ReadLine(yamuxStream)
 			if lineErr != nil {
 				_ = yamuxStream.Close()
@@ -455,6 +510,7 @@ func connect(ctx context.Context, cfg *config.ClientConfig, sessionUsers **users
 			if strings.HasPrefix(firstLine, "COMMAND ") {
 				handleCommandStream(yamuxStream, firstLine, store, session)
 			} else {
+				_ = yamuxStream.SetReadDeadline(time.Time{})
 				stream.HandleStreamWithFirstLine(yamuxStream, firstLine, store.get())
 			}
 		}()
@@ -530,15 +586,20 @@ func applyAddServices(newSvcs map[string]models.ServiceInfo, store *serviceStore
 		return fmt.Errorf("service limit exceeded: max %d total services", maxServicesTotal)
 	}
 
+	discovered := store.discovered()
 	validated := make(map[string]models.ServiceInfo, len(newSvcs))
 	for name, svc := range newSvcs {
 		if !validServiceName.MatchString(name) {
 			return fmt.Errorf("invalid service name %q: must match [a-z0-9][a-z0-9_-]{0,63}", name)
 		}
-		// Fix #1: SSRF validation on injected targets — mirrors server-side validateServiceTarget.
-		if err := validateTarget(svc.Target); err != nil {
+		if _, exists := discovered[name]; exists || name == "terminal" {
+			return fmt.Errorf("service %q rejected: name already used by a discovered service", name)
+		}
+		dialAddr, err := resolveInjectedTarget(svc.Target, discovered)
+		if err != nil {
 			return fmt.Errorf("service %q rejected: %w", name, err)
 		}
+		svc.DialAddr = dialAddr
 		validated[name] = svc
 	}
 
@@ -574,59 +635,63 @@ func sendManifest(session *yamux.Session, services map[string]models.ServiceInfo
 // fetchUsersFromServer asks the support service for credentials already created
 // by another node (e.g., the leader). Returns nil if no credentials are available.
 // Retries up to maxAttempts with a delay between attempts to handle the case
-// where the leader hasn't connected yet.
-func fetchUsersFromServer(session *yamux.Session, maxAttempts int, retryDelay time.Duration) *users.SessionUsers {
+// where the leader hasn't connected yet. The result is untrusted and must go
+// through users.SanitizeFetched.
+func fetchUsersFromServer(ctx context.Context, session *yamux.Session, maxAttempts int, retryDelay time.Duration) *users.SessionUsers {
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		yamuxStream, err := session.Open()
-		if err != nil {
-			return nil
+		su, retry := fetchUsersOnce(session)
+		if su != nil || !retry {
+			return su
 		}
-
-		if _, err := fmt.Fprintf(yamuxStream, "USERS_FETCH 1\n"); err != nil {
-			_ = yamuxStream.Close()
-			return nil
-		}
-
-		// Read response (up to 256 KB)
-		data, readErr := io.ReadAll(io.LimitReader(yamuxStream, 256*1024))
-		_ = yamuxStream.Close()
-
-		if readErr != nil || len(data) == 0 {
-			return nil
-		}
-
-		// Parse the response — it's a UsersReport JSON (same format as USERS 1)
-		var report users.UsersReport
-		if err := json.Unmarshal(data, &report); err != nil {
-			// Try parsing as empty object
-			if string(data) == "{}\n" || string(data) == "{}" {
-				if attempt < maxAttempts {
-					log.Printf("No credentials available from server yet (attempt %d/%d), retrying in %v...", attempt, maxAttempts, retryDelay)
-					time.Sleep(retryDelay)
-					continue
-				}
+		if attempt < maxAttempts {
+			log.Printf("No credentials available from server yet (attempt %d/%d), retrying in %v...", attempt, maxAttempts, retryDelay)
+			select {
+			case <-ctx.Done():
 				return nil
+			case <-time.After(retryDelay):
 			}
-			log.Printf("Failed to parse fetched users: %v", err)
-			return nil
 		}
-
-		// Check if there are actual credentials
-		su := &report.Users
-		if su.ClusterAdmin == nil && len(su.DomainUsers) == 0 && len(su.LocalUsers) == 0 {
-			if attempt < maxAttempts {
-				log.Printf("No credentials available from server yet (attempt %d/%d), retrying in %v...", attempt, maxAttempts, retryDelay)
-				time.Sleep(retryDelay)
-				continue
-			}
-			return nil
-		}
-
-		log.Printf("Fetched credentials from server: cluster_admin=%v, domain_users=%d, local_users=%d",
-			su.ClusterAdmin != nil, len(su.DomainUsers), len(su.LocalUsers))
-		return su
 	}
 	return nil
+}
+
+// fetchUsersOnce performs a single bounded USERS_FETCH exchange. retry is true
+// when the server answered but had no credentials yet.
+func fetchUsersOnce(session *yamux.Session) (su *users.SessionUsers, retry bool) {
+	yamuxStream, err := session.Open()
+	if err != nil {
+		return nil, false
+	}
+	defer func() { _ = yamuxStream.Close() }()
+	_ = yamuxStream.SetDeadline(time.Now().Add(fetchTimeout))
+
+	if _, err := fmt.Fprintf(yamuxStream, "USERS_FETCH 1\n"); err != nil {
+		return nil, false
+	}
+
+	data, readErr := io.ReadAll(io.LimitReader(yamuxStream, maxFetchSize+1))
+	if readErr != nil || len(data) == 0 {
+		return nil, false
+	}
+	if len(data) > maxFetchSize {
+		log.Printf("Fetched users response exceeds %d bytes, ignoring", maxFetchSize)
+		return nil, false
+	}
+
+	// Parse the response — it's a UsersReport JSON (same format as USERS 1)
+	var report users.UsersReport
+	if err := json.Unmarshal(data, &report); err != nil {
+		log.Printf("Failed to parse fetched users: %v", err)
+		return nil, false
+	}
+
+	if !users.HasIdentities(&report.Users) {
+		return nil, true
+	}
+
+	log.Printf("Fetched credentials from server: cluster_admin=%v, domain_users=%d, local_users=%d",
+		report.Users.ClusterAdmin != nil, len(report.Users.DomainUsers), len(report.Users.LocalUsers))
+	return &report.Users, false
 }
 
 func sendUsersReport(session *yamux.Session, sessionUsers *users.SessionUsers) error {

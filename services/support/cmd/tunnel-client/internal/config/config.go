@@ -10,7 +10,9 @@
 package config
 
 import (
+	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -29,7 +31,7 @@ const (
 	DefaultUsersDir                 = "/usr/share/my/users.d"
 	DefaultUsersPluginTimeout       = 15 * time.Second
 	DefaultUsersTotalTimeout        = 60 * time.Second
-	DefaultUsersStateFile           = "/var/run/my-support-users.json"
+	DefaultUsersStateFile           = "/var/lib/my-support/users-state.json"
 )
 
 // ClientConfig holds the runtime configuration for the tunnel client
@@ -45,6 +47,7 @@ type ClientConfig struct {
 	MaxReconnectDelay        time.Duration
 	DiscoveryInterval        time.Duration
 	TLSInsecure              bool
+	Dev                      bool
 	DiagnosticsDir           string
 	DiagnosticsPluginTimeout time.Duration
 	DiagnosticsTotalTimeout  time.Duration
@@ -91,4 +94,38 @@ func ParseDurationDefault(s string, d time.Duration) time.Duration {
 		return v
 	}
 	return d
+}
+
+// ValidateTransport refuses anything but wss:// and refuses skipping TLS
+// verification, unless dev mode is explicitly enabled.
+func ValidateTransport(rawURL string, tlsInsecure, dev bool) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+	if u.Host == "" {
+		return fmt.Errorf("invalid URL %q: missing host", rawURL)
+	}
+	switch u.Scheme {
+	case "wss":
+	case "ws":
+		if !dev {
+			return fmt.Errorf("refusing plaintext ws:// URL (use wss://, or --dev for local development)")
+		}
+	default:
+		return fmt.Errorf("unsupported URL scheme %q (use wss://)", u.Scheme)
+	}
+	if tlsInsecure && !dev {
+		return fmt.Errorf("--tls-insecure requires --dev")
+	}
+	return nil
+}
+
+// IsTruthy reports whether an environment value enables a boolean option.
+func IsTruthy(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
 }

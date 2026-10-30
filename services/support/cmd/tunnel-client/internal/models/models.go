@@ -19,6 +19,9 @@ type ServiceInfo struct {
 	PathPrefix string `json:"path_prefix,omitempty"`
 	ModuleID   string `json:"module_id,omitempty"`
 	NodeID     string `json:"node_id,omitempty"`
+	// DialAddr pins the resolved ip:port of a server-injected service so a
+	// later DNS change cannot redirect the dial. Never sent in the manifest.
+	DialAddr string `json:"-"`
 }
 
 // ServiceManifest is the JSON manifest sent to the support service

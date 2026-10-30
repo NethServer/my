@@ -13,9 +13,10 @@
 //
 // Usage:
 //
-//	tunnel-client --url ws://support:8082/api/tunnel --key NETH-XXXX --secret my_xxx.yyy \
+//	SYSTEM_SECRET=my_xxx.yyy tunnel-client --url wss://support.example.com/api/tunnel --key NETH-XXXX \
 //	  [--static-services cluster-admin=localhost:9090] \
 //	  [--redis-addr localhost:6379]
+//	tunnel-client --cleanup-only [--users-state-file PATH]
 package main
 
 import (
@@ -25,6 +26,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	flag "github.com/spf13/pflag"
 
@@ -40,7 +42,6 @@ func main() {
 	var (
 		urlFlag                  = flag.StringP("url", "u", config.EnvWithDefault("SUPPORT_URL", ""), "WebSocket tunnel URL (env: SUPPORT_URL)")
 		keyFlag                  = flag.StringP("key", "k", config.EnvWithDefault("SYSTEM_KEY", ""), "System key (env: SYSTEM_KEY)")
-		secretFlag               = flag.StringP("secret", "s", config.EnvWithDefault("SYSTEM_SECRET", ""), "System secret (env: SYSTEM_SECRET)")
 		nodeIDFlag               = flag.StringP("node-id", "n", config.EnvWithDefault("NODE_ID", ""), "Cluster node ID, auto-detected on NS8 (env: NODE_ID)")
 		redisAddr                = flag.StringP("redis-addr", "r", config.EnvWithDefault("REDIS_ADDR", ""), "Redis address, auto-detected on NS8 (env: REDIS_ADDR)")
 		staticServices           = flag.String("static-services", config.EnvWithDefault("STATIC_SERVICES", ""), "Static services name=host:port[:tls],... (env: STATIC_SERVICES)")
@@ -48,7 +49,9 @@ func main() {
 		reconnectDelay           = flag.Duration("reconnect-delay", config.ParseDurationDefault(config.EnvWithDefault("RECONNECT_DELAY", ""), config.DefaultReconnectDelay), "Base reconnect delay (env: RECONNECT_DELAY)")
 		maxReconnectDelay        = flag.Duration("max-reconnect-delay", config.ParseDurationDefault(config.EnvWithDefault("MAX_RECONNECT_DELAY", ""), config.DefaultMaxReconnect), "Max reconnect delay (env: MAX_RECONNECT_DELAY)")
 		discoveryInterval        = flag.Duration("discovery-interval", config.ParseDurationDefault(config.EnvWithDefault("DISCOVERY_INTERVAL", ""), config.DefaultDiscoveryInterval), "Service re-discovery interval (env: DISCOVERY_INTERVAL)")
-		tlsInsecure              = flag.Bool("tls-insecure", config.EnvWithDefault("TLS_INSECURE", "") == "true", "Skip TLS verification (env: TLS_INSECURE)")
+		tlsInsecure              = flag.Bool("tls-insecure", config.IsTruthy(os.Getenv("TLS_INSECURE")), "Skip TLS verification, requires --dev (env: TLS_INSECURE)")
+		devMode                  = flag.Bool("dev", false, "Development mode: allow ws:// and --tls-insecure (flag only)")
+		cleanupOnly              = flag.Bool("cleanup-only", config.IsTruthy(os.Getenv("CLEANUP_ONLY")), "Delete users recorded in the state file and exit, no network (env: CLEANUP_ONLY)")
 		diagnosticsDir           = flag.String("diagnostics-dir", config.EnvWithDefault("DIAGNOSTICS_DIR", "/usr/share/my/diagnostics.d"), "Directory with diagnostic plugin scripts (env: DIAGNOSTICS_DIR)")
 		diagnosticsPluginTimeout = flag.Duration("diagnostics-plugin-timeout", config.ParseDurationDefault(config.EnvWithDefault("DIAGNOSTICS_PLUGIN_TIMEOUT", ""), config.DefaultDiagnosticsPluginTimeout), "Timeout per diagnostic plugin (env: DIAGNOSTICS_PLUGIN_TIMEOUT)")
 		diagnosticsTotalTimeout  = flag.Duration("diagnostics-total-timeout", config.ParseDurationDefault(config.EnvWithDefault("DIAGNOSTICS_TOTAL_TIMEOUT", ""), config.DefaultDiagnosticsTotalTimeout), "Max time to wait for all diagnostics (env: DIAGNOSTICS_TOTAL_TIMEOUT)")
@@ -60,10 +63,29 @@ func main() {
 	)
 	flag.Parse()
 
-	if *urlFlag == "" || *keyFlag == "" || *secretFlag == "" {
-		fmt.Fprintln(os.Stderr, "Usage: tunnel-client --url URL --key KEY --secret SECRET [options]")
-		fmt.Fprintln(os.Stderr, "  Required: --url, --key, --secret (or SUPPORT_URL, SYSTEM_KEY, SYSTEM_SECRET env vars)")
+	// The secret is read from the environment only, never from argv
+	secret := os.Getenv("SYSTEM_SECRET")
+	_ = os.Unsetenv("SYSTEM_SECRET")
+
+	if *cleanupOnly {
+		os.Exit(runCleanupOnly(*usersStateFile, *usersDir, *redisAddr, *usersPluginTimeout))
+	}
+
+	if *urlFlag == "" || *keyFlag == "" || secret == "" {
+		fmt.Fprintln(os.Stderr, "Usage: SYSTEM_SECRET=... tunnel-client --url URL --key KEY [options]")
+		fmt.Fprintln(os.Stderr, "  Required: --url, --key (or SUPPORT_URL, SYSTEM_KEY) and the SYSTEM_SECRET env var")
 		os.Exit(1)
+	}
+
+	if err := config.ValidateTransport(*urlFlag, *tlsInsecure, *devMode); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	if *devMode {
+		log.Println("WARNING: DEVELOPMENT MODE: plaintext ws:// and unverified TLS are allowed. Never use --dev in production.")
+		if *tlsInsecure {
+			log.Println("WARNING: TLS CERTIFICATE VERIFICATION IS DISABLED")
+		}
 	}
 
 	// Auto-detect Redis on localhost if not explicitly specified
@@ -106,7 +128,7 @@ func main() {
 	cfg := &config.ClientConfig{
 		URL:                      *urlFlag,
 		Key:                      *keyFlag,
-		Secret:                   *secretFlag,
+		Secret:                   secret,
 		NodeID:                   *nodeIDFlag,
 		RedisAddr:                *redisAddr,
 		StaticServices:           *staticServices,
@@ -115,6 +137,7 @@ func main() {
 		MaxReconnectDelay:        *maxReconnectDelay,
 		DiscoveryInterval:        *discoveryInterval,
 		TLSInsecure:              *tlsInsecure,
+		Dev:                      *devMode,
 		DiagnosticsDir:           *diagnosticsDir,
 		DiagnosticsPluginTimeout: *diagnosticsPluginTimeout,
 		DiagnosticsTotalTimeout:  *diagnosticsTotalTimeout,
@@ -124,17 +147,45 @@ func main() {
 		UsersStateFile:           *usersStateFile,
 	}
 
-	// Clean up orphaned support users from a previous crash
-	if state, loadErr := users.LoadState(cfg.UsersStateFile); loadErr != nil {
+	// Clean up orphaned support users from a previous run. Identities whose
+	// deletion fails stay recorded and are deleted again with this session's.
+	if err := cleanupState(ctx, cfg.UsersStateFile, cfg.UsersDir, cfg.RedisAddr, cfg.UsersPluginTimeout); err != nil {
+		log.Printf("Warning: orphaned support users cleanup incomplete: %v", err)
+	}
+	leftover, loadErr := users.LoadState(cfg.UsersStateFile)
+	if loadErr != nil {
 		log.Printf("Warning: cannot read users state file: %v", loadErr)
-	} else if state != nil {
-		log.Printf("Found orphaned support users from session %s, cleaning up...", state.SessionID)
-		provisioner := users.NewProvisioner(cfg.RedisAddr)
-		users.RunTeardown(ctx, cfg.UsersDir, state, nil, cfg.RedisAddr, cfg.UsersPluginTimeout)
-		_ = provisioner.Delete(state)
-		users.RemoveState(cfg.UsersStateFile)
-		log.Println("Orphaned support users cleaned up")
 	}
 
-	connection.RunWithReconnect(ctx, cfg)
+	code := connection.RunWithReconnect(ctx, cfg, leftover)
+	cancel()
+	os.Exit(code)
+}
+
+// cleanupState runs plugin teardown and deletes the identities recorded in
+// stateFile, using the provisioner of the platform that created them.
+func cleanupState(ctx context.Context, stateFile, usersDir, redisAddr string, pluginTimeout time.Duration) error {
+	newProvisioner := func(platform string) users.Provisioner {
+		return users.ProvisionerForPlatform(platform, redisAddr)
+	}
+	teardown := func(state *users.SessionUsers) {
+		log.Printf("Found orphaned support users from session %s, cleaning up...", state.SessionID)
+		addr := redisAddr
+		if state.Platform == "ns8" && addr == "" {
+			addr = config.DefaultRedisAddr
+		}
+		users.RunTeardown(ctx, usersDir, state, nil, addr, pluginTimeout)
+	}
+	return users.CleanupState(stateFile, newProvisioner, teardown)
+}
+
+// runCleanupOnly deletes the identities recorded in the state file without
+// touching the network. Returns the process exit code.
+func runCleanupOnly(stateFile, usersDir, redisAddr string, pluginTimeout time.Duration) int {
+	if err := cleanupState(context.Background(), stateFile, usersDir, redisAddr, pluginTimeout); err != nil {
+		log.Printf("Cleanup failed: %v", err)
+		return 1
+	}
+	log.Println("Cleanup complete")
+	return 0
 }

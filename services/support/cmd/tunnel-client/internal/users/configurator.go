@@ -540,6 +540,20 @@ func writeTempJSON(pattern string, data interface{}) (string, error) {
 	if err := os.MkdirAll(pluginTempDir, 0o700); err != nil {
 		return "", fmt.Errorf("cannot create temp directory: %w", err)
 	}
+	// Refuse a pre-existing directory that is a symlink or owned by someone else
+	info, err := os.Lstat(pluginTempDir)
+	if err != nil {
+		return "", err
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("%s is not a directory", pluginTempDir)
+	}
+	if st, ok := info.Sys().(*syscall.Stat_t); ok && int(st.Uid) != os.Getuid() {
+		return "", fmt.Errorf("%s is owned by UID %d", pluginTempDir, st.Uid)
+	}
+	if err := os.Chmod(pluginTempDir, 0o700); err != nil {
+		return "", err
+	}
 
 	f, err := os.CreateTemp(pluginTempDir, pattern)
 	if err != nil {

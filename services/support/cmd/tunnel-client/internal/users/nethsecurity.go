@@ -10,6 +10,9 @@
 package users
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os/exec"
@@ -21,7 +24,7 @@ import (
 //   - Promoted to admin via ubus call ns.users set-admin
 type NethSecurityProvisioner struct{}
 
-func (p *NethSecurityProvisioner) Create(sessionID string) (*SessionUsers, error) {
+func (p *NethSecurityProvisioner) Create(sessionID string, record RecordFunc) (*SessionUsers, error) {
 	username := generateUsername(sessionID)
 	password := generatePassword()
 	result := &SessionUsers{
@@ -39,19 +42,30 @@ func (p *NethSecurityProvisioner) Create(sessionID string) (*SessionUsers, error
 		return result, fmt.Errorf("failed to create local user: %w", err)
 	}
 
-	// Promote to admin (web UI access)
-	if err := p.setAdmin(username); err != nil {
-		// Rollback: remove the user we just created
-		_ = p.deleteLocalUser(username)
-		return result, fmt.Errorf("failed to set admin role: %w", err)
-	}
-
 	result.LocalUsers = append(result.LocalUsers, UserCredential{
 		Username: username,
 		Password: password,
 	})
-	log.Printf("NethSecurity user provisioning: admin user %q created", username)
+	if err := record(result); err != nil {
+		result.LocalUsers = nil
+		if delErr := p.deleteLocalUser(username); delErr != nil {
+			log.Printf("NethSecurity user provisioning: rollback of unrecorded user %q failed: %v", username, delErr)
+		}
+		return result, fmt.Errorf("cannot record local user: %w", err)
+	}
 
+	// Promote to admin (web UI access)
+	if err := p.setAdmin(username); err != nil {
+		if delErr := p.Delete(result); delErr != nil {
+			log.Printf("NethSecurity user provisioning: rollback of %q failed: %v", username, delErr)
+		}
+		if recErr := record(result); recErr != nil {
+			log.Printf("NethSecurity user provisioning: cannot update users state: %v", recErr)
+		}
+		return result, fmt.Errorf("failed to set admin role: %w", err)
+	}
+
+	log.Printf("NethSecurity user provisioning: admin user %q created", username)
 	return result, nil
 }
 
@@ -60,63 +74,71 @@ func (p *NethSecurityProvisioner) Delete(users *SessionUsers) error {
 		return nil
 	}
 
+	var errs []error
+	var remaining []UserCredential
 	for _, u := range users.LocalUsers {
 		if err := p.removeAdmin(u.Username); err != nil {
 			log.Printf("NethSecurity user cleanup: failed to remove admin role for %q: %v", u.Username, err)
 		}
 		if err := p.deleteLocalUser(u.Username); err != nil {
 			log.Printf("NethSecurity user cleanup: failed to delete user %q: %v", u.Username, err)
+			errs = append(errs, err)
+			remaining = append(remaining, u)
 		} else {
 			log.Printf("NethSecurity user cleanup: user %q removed", u.Username)
 		}
 	}
+	users.LocalUsers = remaining
 
-	return nil
+	return errors.Join(errs...)
 }
 
-func (p *NethSecurityProvisioner) addLocalUser(username, password string) error {
-	script := fmt.Sprintf(`
+// nethsecScript runs one nethsec.users call. Arguments are read as JSON from
+// stdin so the password never appears in the process argv.
+const nethsecScript = `
+import json, sys
 from nethsec import users
 from euci import EUci
+req = json.load(sys.stdin)
 u = EUci()
-users.add_local_user(u, %q, %q, "Support Session", "main")
-`, username, password)
-	return runPython(script)
+op = req["op"]
+name = req["username"]
+if op == "add":
+    users.add_local_user(u, name, req["password"], "Support Session", "main")
+elif op == "set_admin":
+    users.set_admin(u, name, "main")
+elif op == "remove_admin":
+    users.remove_admin(u, name)
+elif op == "delete":
+    users.delete_local_user(u, name, "main")
+else:
+    sys.exit("unknown op")
+`
+
+func (p *NethSecurityProvisioner) addLocalUser(username, password string) error {
+	return runNethsec(map[string]string{"op": "add", "username": username, "password": password})
 }
 
 func (p *NethSecurityProvisioner) setAdmin(username string) error {
-	script := fmt.Sprintf(`
-from nethsec import users
-from euci import EUci
-u = EUci()
-users.set_admin(u, %q, "main")
-`, username)
-	return runPython(script)
+	return runNethsec(map[string]string{"op": "set_admin", "username": username})
 }
 
 func (p *NethSecurityProvisioner) removeAdmin(username string) error {
-	script := fmt.Sprintf(`
-from nethsec import users
-from euci import EUci
-u = EUci()
-users.remove_admin(u, %q)
-`, username)
-	return runPython(script)
+	return runNethsec(map[string]string{"op": "remove_admin", "username": username})
 }
 
 func (p *NethSecurityProvisioner) deleteLocalUser(username string) error {
-	script := fmt.Sprintf(`
-from nethsec import users
-from euci import EUci
-u = EUci()
-users.delete_local_user(u, %q, "main")
-`, username)
-	return runPython(script)
+	return runNethsec(map[string]string{"op": "delete", "username": username})
 }
 
-// runPython executes a Python3 script on NethSecurity.
-func runPython(script string) error {
-	cmd := exec.Command("python3", "-c", script) //nolint:gosec // python3 is a trusted system binary
+// runNethsec executes nethsecScript with req on stdin.
+func runNethsec(req map[string]string) error {
+	data, err := json.Marshal(req)
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command("python3", "-c", nethsecScript) //nolint:gosec // python3 is a trusted system binary
+	cmd.Stdin = bytes.NewReader(data)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("python3 failed: %w: %s", err, output)
