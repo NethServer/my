@@ -384,7 +384,8 @@ func BasicAuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// #2: Check support_enabled flag — system must opt-in explicitly.
+		// #2: Check support_enabled flag — per-system kill switch on the my side
+		// (consent is the appliance admin starting the tunnel).
 		// Checked on every request (not cached) together with the lifecycle
 		// gate collect applies: deleted, suspended (directly or through its
 		// organization) or unregistered systems cannot open a tunnel.
