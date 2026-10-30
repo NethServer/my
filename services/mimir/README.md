@@ -200,6 +200,19 @@ Standard alert types defined for NethServer and NethSecurity systems. Alerts are
 | `BackupFailed` | `critical` | `backup` | Backup job `{{ $labels.name }}` (ID: `{{ $labels.id }}`) has failed. |
 | `ConfigBackupNotEncrypted` | `warning` | `backup` | Configuration backup is not encrypted. Sensitive data may be exposed. |
 
+### NethVoice
+
+Published by the NethVoice and NethVoice proxy modules (NethServer/dev#8093), off by default and enabled per module. `ServiceDown` is also raised by these modules, with the systemd unit in `service`.
+
+| `alertname` | Severity | Service | `description_en` |
+|-------------|----------|---------|-----------------|
+| `NethVoiceTrunkUnreachable` | `critical` | — | Trunk `{{ $labels.trunk }}` of `{{ $labels.module_id }}` has been unreachable for 10 minutes (`reason` tells which check failed). |
+| `NethVoiceTrunkNotMonitored` | `warning` | — | Trunk `{{ $labels.trunk }}` has a name that is not a valid SIP user, so its provider is never checked. |
+| `NethVoiceDnsFailure` | `warning` | — | A NethVoice, CTI or proxy name does not resolve, or points to the wrong IP, on the DNS server of the node. |
+| `NethVoiceDnsSlow` | `warning` | — | The DNS server of the node takes more than 3 seconds to resolve a NethVoice name. |
+| `NethVoiceAIKeyInvalid` | `critical` | — | Deepgram or OpenAI rejects the transcription API key. |
+| `NethVoiceAICreditExhausted` | `critical` | — | A transcription provider refused a call for lack of credit. |
+
 ## Authentication
 
 Alertmanager API calls use the same credentials as system registration and inventory:

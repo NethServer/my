@@ -23,6 +23,7 @@ type AlertCatalogEntry struct {
 // Source of truth — kept in sync with the vmalert rules shipped by:
 //   - NethServer / NS8 metrics: NethServer/ns8-metrics#71
 //   - NethSecurity:             NethServer/nethsecurity#1633
+//   - NethVoice and NethVoice proxy modules: NethServer/dev#8093
 //
 // Plus alerts synthesised by the collect service itself (not raised by a
 // system): LinkFailed, emitted by the heartbeat monitor cron when a system
@@ -60,6 +61,14 @@ var alertCatalog = []AlertCatalogEntry{
 	{Name: "ServiceDown", Severity: "critical"},
 	{Name: "StorageStatus", Severity: "critical", Service: "storage"},
 	{Name: "WanDown", Severity: "critical", Service: "network"},
+
+	// --- NethVoice and NethVoice proxy (dev#8093); ServiceDown is shared ---
+	{Name: "NethVoiceAICreditExhausted", Severity: "critical"},
+	{Name: "NethVoiceAIKeyInvalid", Severity: "critical"},
+	{Name: "NethVoiceDnsFailure", Severity: "warning"},
+	{Name: "NethVoiceDnsSlow", Severity: "warning"},
+	{Name: "NethVoiceTrunkNotMonitored", Severity: "warning"},
+	{Name: "NethVoiceTrunkUnreachable", Severity: "critical"},
 }
 
 // AlertCatalog returns the static alert catalog sorted by alert name. The
