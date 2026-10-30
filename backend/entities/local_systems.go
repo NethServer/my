@@ -71,7 +71,8 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 		       (SELECT MIN(ir.created_at) FROM inventory_records ir WHERE ir.system_id = s.id) as first_inventory,
 		       COALESCE(uo.name, 'Owner') as organization_name,
 		       COALESCE(uo.org_type, 'owner') as organization_type,
-		       COALESCE(uo.db_id, '') as organization_db_id
+		       COALESCE(uo.db_id, '') as organization_db_id,
+		       (SELECT ss.id FROM support_sessions ss WHERE ss.system_id = s.id AND ss.status IN ('pending', 'active') LIMIT 1) as support_session_id
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
 		LEFT JOIN unified_organizations uo ON s.organization_id = uo.logto_id
@@ -85,6 +86,7 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 	var firstHeartbeat, firstInventory sql.NullTime
 	var suspendedByOrgID sql.NullString
 	var organizationName, organizationType, organizationDBID sql.NullString
+	var supportSessionID sql.NullString
 
 	err := r.db.QueryRow(query, id).Scan(
 		&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
@@ -92,6 +94,7 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 		&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &unregisteredAt, &suspendedAt, &suspendedByOrgID, &lastHeartbeat, &lastInventory, &system.UpdateAvailable,
 		&firstHeartbeat, &firstInventory,
 		&organizationName, &organizationType, &organizationDBID,
+		&supportSessionID,
 	)
 
 	if err == sql.ErrNoRows {
@@ -125,6 +128,11 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 	}
 	if suspendedByOrgID.Valid {
 		system.SuspendedByOrgID = &suspendedByOrgID.String
+	}
+
+	// Set support session ID if present
+	if supportSessionID.Valid {
+		system.SupportSessionID = &supportSessionID.String
 	}
 
 	// Parse custom_data JSON
@@ -458,7 +466,8 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(ctx context.Context
 		       COALESCE(uo.name, 'Owner') as organization_name,
 		       COALESCE(uo.org_type, 'owner') as organization_type,
 		       COALESCE(uo.db_id, '') as organization_db_id,
-		       COUNT(*) OVER() as total_count
+		       COUNT(*) OVER() as total_count,
+		       (SELECT ss.id FROM support_sessions ss WHERE ss.system_id = s.id AND ss.status IN ('pending', 'active') LIMIT 1) as support_session_id
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
 		LEFT JOIN unified_organizations uo ON s.organization_id = uo.logto_id
@@ -487,6 +496,7 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(ctx context.Context
 		var deletedAt, registeredAt, unregisteredAt, suspendedAt, lastHeartbeat, lastInventory sql.NullTime
 		var suspendedByOrgID sql.NullString
 		var organizationName, organizationType, organizationDBID sql.NullString
+		var supportSessionID sql.NullString
 
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
@@ -494,6 +504,7 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(ctx context.Context
 			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &deletedAt, &registeredAt, &unregisteredAt, &suspendedAt, &suspendedByOrgID, &createdByJSON, &lastHeartbeat, &lastInventory, &system.UpdateAvailable,
 			&organizationName, &organizationType, &organizationDBID,
 			&totalCount,
+			&supportSessionID,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan system: %w", err)
@@ -536,6 +547,11 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(ctx context.Context
 		}
 		if lastInventory.Valid {
 			system.LastInventory = &lastInventory.Time
+		}
+
+		// Set support session ID if present
+		if supportSessionID.Valid {
+			system.SupportSessionID = &supportSessionID.String
 		}
 
 		// Parse custom_data JSON
