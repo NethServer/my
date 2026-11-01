@@ -236,8 +236,6 @@ func GetSupportSessionTerminal(c *gin.Context) {
 		return
 	}
 
-	// The operator the ticket was issued to must still be allowed, now and for
-	// as long as the shell stays open (checked again while bridging)
 	principal := supportPrincipal{
 		UserID:         ticket.UserID,
 		UserLogtoID:    ticket.UserLogtoID,
@@ -245,6 +243,15 @@ func GetSupportSessionTerminal(c *gin.Context) {
 		OrgRole:        ticket.OrgRole,
 		IssuedAt:       ticket.IssuedAt,
 	}
+	serveSupportTerminal(c, principal, sessionID, ticket.Name, "web_terminal", "terminal")
+}
+
+// serveSupportTerminal bridges an authenticated client to a session's shell
+// endpoint on the support service ("terminal", or "ssh" for the SSH
+// gateway), logging the access under accessType
+func serveSupportTerminal(c *gin.Context, principal supportPrincipal, sessionID, userName, accessType, endpoint string) {
+	// The operator must still be allowed, now and for as long as the shell
+	// stays open (checked again while bridging)
 	if _, status, _ := checkSupportPrincipal(principal); status != 0 {
 		c.JSON(status, response.Error(status, "operator is no longer allowed", nil))
 		return
@@ -252,7 +259,7 @@ func GetSupportSessionTerminal(c *gin.Context) {
 
 	// Verify session is active (using ticket's org context)
 	repo := entities.NewSupportRepository()
-	session, repoErr := repo.GetSessionByID(sessionID, ticket.OrgRole, ticket.OrganizationID)
+	session, repoErr := repo.GetSessionByID(sessionID, principal.OrgRole, principal.OrganizationID)
 	if repoErr != nil {
 		logger.Error().Err(repoErr).Str("session_id", sessionID).Msg("failed to get support session")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get support session", nil))
@@ -272,16 +279,22 @@ func GetSupportSessionTerminal(c *gin.Context) {
 		return
 	}
 
-	// Log access using ticket's user context
-	userName := ticket.Name
-	metaBytes, _ := json.Marshal(map[string]string{"service": "terminal"})
+	metaBytes, _ := json.Marshal(map[string]string{"service": endpoint})
 	jsonMetadata := string(metaBytes)
-	accessLogID, logErr := repo.InsertAccessLog(sessionID, ticket.UserID, userName, "web_terminal", jsonMetadata)
+	accessLogID, logErr := repo.InsertAccessLog(sessionID, principal.UserID, userName, accessType, jsonMetadata)
 	if logErr != nil {
 		logger.Warn().Err(logErr).Str("session_id", sessionID).Msg("failed to insert access log")
 	}
+	// the access ends however the bridge does, a failed upstream included
+	defer func() {
+		if accessLogID != "" {
+			if err := repo.DisconnectAccessLog(accessLogID); err != nil {
+				logger.Warn().Err(err).Str("session_id", sessionID).Msg("failed to update access log disconnect")
+			}
+		}
+	}()
 
-	targetURL := fmt.Sprintf("%s/api/terminal/%s", configuration.Config.SupportServiceURL, sessionID)
+	targetURL := fmt.Sprintf("%s/api/%s/%s", configuration.Config.SupportServiceURL, endpoint, sessionID)
 	target, err := url.Parse(targetURL)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("invalid proxy target", nil))
@@ -415,11 +428,6 @@ func GetSupportSessionTerminal(c *gin.Context) {
 	}()
 
 	<-done
-	if accessLogID != "" {
-		if err := repo.DisconnectAccessLog(accessLogID); err != nil {
-			logger.Warn().Err(err).Str("session_id", sessionID).Msg("failed to update access log disconnect")
-		}
-	}
 	logger.Info().Str("session_id", sessionID).Msg("terminal session ended")
 }
 
