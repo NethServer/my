@@ -24,8 +24,9 @@ import {
   type SSHAccessRequest,
 } from '@/lib/support/ssh'
 
-// An operator approves here the SSH access a terminal is waiting for: the
-// code shown must match the one printed by ssh, or someone else asked for it
+// An operator approves here the SSH access a terminal is waiting for. The
+// request carries the token of the command they copied: anybody else's
+// request is refused by the backend, whoever forwarded the link
 const route = useRoute()
 const { t, locale } = useI18n()
 
@@ -54,7 +55,7 @@ onMounted(async () => {
 function errorMessage(e: unknown): string {
   const status = axios.isAxiosError(e) ? e.response?.status : undefined
   if (status === 404) return t('support.ssh_auth_not_found')
-  if (status === 403) return t('support.ssh_auth_forbidden')
+  if (status === 403) return t('support.ssh_auth_not_yours')
   if (status === 409) return t('support.ssh_auth_no_session')
   return t('support.ssh_auth_error')
 }
@@ -113,23 +114,25 @@ const target = computed(() => {
       <dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
         <dt class="text-gray-500 dark:text-gray-400">{{ t('support.ssh_auth_system') }}</dt>
         <dd class="font-medium text-gray-900 dark:text-gray-100">{{ target }}</dd>
+        <template v-if="request.organization_name">
+          <dt class="text-gray-500 dark:text-gray-400">{{ t('support.ssh_auth_organization') }}</dt>
+          <dd class="text-gray-900 dark:text-gray-100">{{ request.organization_name }}</dd>
+        </template>
+        <dt class="text-gray-500 dark:text-gray-400">{{ t('support.ssh_auth_system_key') }}</dt>
+        <dd class="font-mono text-xs break-all text-gray-900 dark:text-gray-100">
+          {{ request.system_key }}
+        </dd>
         <dt class="text-gray-500 dark:text-gray-400">{{ t('support.ssh_auth_client_ip') }}</dt>
         <dd class="font-mono text-gray-900 dark:text-gray-100">{{ request.client_ip }}</dd>
+        <dt class="text-gray-500 dark:text-gray-400">{{ t('support.ssh_auth_key') }}</dt>
+        <dd class="font-mono text-xs break-all text-gray-900 dark:text-gray-100">
+          {{ request.fingerprint || t('support.ssh_auth_no_key') }}
+        </dd>
         <dt class="text-gray-500 dark:text-gray-400">{{ t('support.ssh_auth_requested_at') }}</dt>
         <dd class="text-gray-900 dark:text-gray-100">
           {{ formatDateTimeNoSeconds(new Date(request.created_at), locale) }}
         </dd>
       </dl>
-      <div class="rounded-md bg-gray-50 p-4 text-center dark:bg-gray-900">
-        <div class="mb-1 text-xs text-gray-500 dark:text-gray-400">
-          {{ t('support.ssh_auth_code_label') }}
-        </div>
-        <div
-          class="font-mono text-2xl font-semibold tracking-widest text-gray-900 dark:text-gray-50"
-        >
-          {{ request.user_code }}
-        </div>
-      </div>
       <NeInlineNotification
         v-if="!request.has_session"
         kind="warning"
