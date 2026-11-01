@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
+
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/helpers"
@@ -74,14 +76,29 @@ const (
 	liveSession    = "ss.status IN ('active', 'pending')"
 	groupStartedAt = "COALESCE(MIN(ss.started_at) FILTER (WHERE " + liveSession + "), MAX(ss.started_at))"
 	groupExpiresAt = "COALESCE(MAX(ss.expires_at) FILTER (WHERE " + liveSession + "), MAX(ss.expires_at))"
+	groupStatus    = `CASE
+				WHEN bool_or(ss.status = 'active') THEN 'active'
+				WHEN bool_or(ss.status = 'pending') THEN 'pending'
+				WHEN bool_or(ss.status = 'expired') THEN 'expired'
+				ELSE 'closed'
+			END`
 )
+
+// SupportSessionFilters narrows the system rows of the support sessions list.
+type SupportSessionFilters struct {
+	Search          string
+	SystemID        string
+	Types           []string
+	OrganizationIDs []string
+	Statuses        []string
+}
 
 // GetSystemSessions returns support sessions grouped by system, with server-side
 // pagination based on distinct systems (not individual sessions).
 func (r *SupportRepository) GetSystemSessions(
 	userOrgRole, userOrgID string,
 	page, pageSize int,
-	status, systemID string,
+	filters SupportSessionFilters,
 	sortBy, sortDirection string,
 ) ([]models.SystemSessionGroup, int, error) {
 	conditions := []string{"1=1"}
@@ -96,26 +113,49 @@ func (r *SupportRepository) GetSystemSessions(
 		argIdx = newArgIdx
 	}
 
-	// Optional status filter: show systems that have at least one session with this status
-	if status != "" {
-		conditions = append(conditions, fmt.Sprintf("ss.status = $%d", argIdx))
-		args = append(args, status)
+	if filters.SystemID != "" {
+		conditions = append(conditions, fmt.Sprintf("ss.system_id = $%d", argIdx))
+		args = append(args, filters.SystemID)
 		argIdx++
 	}
-	if systemID != "" {
-		conditions = append(conditions, fmt.Sprintf("ss.system_id = $%d", argIdx))
-		args = append(args, systemID)
+	if filters.Search != "" {
+		conditions = append(conditions, fmt.Sprintf(
+			`(s.name ILIKE $%d ESCAPE '\' OR s.system_key ILIKE $%d ESCAPE '\' OR uo.name ILIKE $%d ESCAPE '\')`, argIdx, argIdx, argIdx))
+		args = append(args, "%"+escapeLikePattern(filters.Search)+"%")
+		argIdx++
+	}
+	if len(filters.Types) > 0 {
+		conditions = append(conditions, fmt.Sprintf("s.type = ANY($%d)", argIdx))
+		args = append(args, pq.Array(filters.Types))
+		argIdx++
+	}
+	if len(filters.OrganizationIDs) > 0 {
+		conditions = append(conditions, fmt.Sprintf("s.organization_id = ANY($%d)", argIdx))
+		args = append(args, pq.Array(filters.OrganizationIDs))
 		argIdx++
 	}
 
 	whereClause := strings.Join(conditions, " AND ")
 
+	// The status filter matches the row's status, the same one the list shows
+	havingClause := ""
+	if len(filters.Statuses) > 0 {
+		havingClause = fmt.Sprintf("HAVING "+groupStatus+" = ANY($%d)", argIdx)
+		args = append(args, pq.Array(filters.Statuses))
+		argIdx++
+	}
+
 	// Count distinct systems
 	countQuery := fmt.Sprintf(
-		`SELECT COUNT(DISTINCT ss.system_id)
-		 FROM support_sessions ss
-		 JOIN systems s ON ss.system_id = s.id
-		 WHERE %s`, whereClause)
+		`SELECT COUNT(*) FROM (
+			SELECT ss.system_id
+			FROM support_sessions ss
+			JOIN systems s ON ss.system_id = s.id
+			LEFT JOIN unified_organizations uo ON s.organization_id = uo.logto_id
+			WHERE %s
+			GROUP BY ss.system_id
+			%s
+		) g`, whereClause, havingClause)
 
 	var totalCount int
 	err := r.db.QueryRow(countQuery, args...).Scan(&totalCount)
@@ -138,6 +178,9 @@ func (r *SupportRepository) GetSystemSessions(
 			WHEN bool_or(ss.status = 'expired') THEN 2
 			ELSE 3
 		END`,
+		"name":              "LOWER(s.name)",
+		"type":              "s.type",
+		"organization_name": "LOWER(COALESCE(uo.name, ''))",
 	}
 	sortColumn, ok := allowedSortColumns[sortBy]
 	if !ok {
@@ -154,12 +197,7 @@ func (r *SupportRepository) GetSystemSessions(
 			ss.system_id,
 			`+groupStartedAt+` AS started_at,
 			`+groupExpiresAt+` AS expires_at,
-			CASE
-				WHEN bool_or(ss.status = 'active') THEN 'active'
-				WHEN bool_or(ss.status = 'pending') THEN 'pending'
-				WHEN bool_or(ss.status = 'expired') THEN 'expired'
-				ELSE 'closed'
-			END AS best_status,
+			`+groupStatus+` AS best_status,
 			COUNT(*) AS session_count,
 			COALESCE(NULLIF(COUNT(DISTINCT ss.node_id) FILTER (WHERE ss.node_id IS NOT NULL AND `+liveSession+`), 0),
 				COUNT(DISTINCT ss.node_id) FILTER (WHERE ss.node_id IS NOT NULL)) AS node_count,
@@ -172,9 +210,10 @@ func (r *SupportRepository) GetSystemSessions(
 		 LEFT JOIN unified_organizations uo ON s.organization_id = uo.logto_id
 		 WHERE %s
 		 GROUP BY ss.system_id, s.name, s.type, s.system_key, s.organization_id, uo.name, uo.db_id, uo.org_type
-		 ORDER BY %s %s
+		 %s
+		 ORDER BY %s %s, ss.system_id
 		 LIMIT $%d OFFSET $%d`,
-		whereClause, sortColumn, sortDirection, argIdx, argIdx+1)
+		whereClause, havingClause, sortColumn, sortDirection, argIdx, argIdx+1)
 
 	args = append(args, pageSize, offset)
 
@@ -225,6 +264,13 @@ func (r *SupportRepository) GetSystemSessions(
 	if len(systemIDs) == 0 {
 		return groups, totalCount, nil
 	}
+
+	// The company that manages each system's organization ("Managed by")
+	slots := make([]parentSlot, 0, len(groups))
+	for i := range groups {
+		slots = append(slots, parentSlot{orgID: groups[i].Organization.LogtoID, parent: &groups[i].Organization.Parent})
+	}
+	fillParentOrganizations(r.db, slots)
 
 	// Fetch individual sessions for the returned systems
 	placeholders := make([]string, len(systemIDs))
@@ -797,4 +843,14 @@ func (r *SupportRepository) GetAccessLogs(sessionID string, page, pageSize int) 
 	}
 
 	return logs, totalCount, rows.Err()
+}
+
+// IsSessionLive reports whether a support session is still pending or active
+func (r *SupportRepository) IsSessionLive(sessionID string) (bool, error) {
+	var live bool
+	err := r.db.QueryRow(
+		`SELECT EXISTS (SELECT 1 FROM support_sessions WHERE id = $1 AND status IN ('pending', 'active'))`,
+		sessionID,
+	).Scan(&live)
+	return live, err
 }

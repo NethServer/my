@@ -325,7 +325,10 @@ routes:
   # Support sessions. Reaching into a customer appliance (terminal, UI proxy,
   # ephemeral users) is connect:systems, which config.yml gives to the Staff and
   # Owner user roles only. The session belongs to a system, so on top of the
-  # permission the system still has to sit inside the caller's scope.
+  # permission the system still has to sit inside the caller's scope. The
+  # backend also requires the Owner organization (RequireOrgRole on the group,
+  # the proxy and the terminal re-check it live) and refuses impersonation, so
+  # a partner user given connect:systems by mistake still gets 403.
   # ===========================================================================
   - method: GET
     path: /api/support-sessions
@@ -334,6 +337,28 @@ routes:
   - method: GET
     path: /api/support-sessions/diagnostics
     intent: connect:systems
+
+  - method: GET
+    path: /api/support-sessions/activity
+    intent: connect:systems
+
+  - method: GET
+    path: /api/support-notes
+    intent: connect:systems
+
+  - method: POST
+    path: /api/support-notes
+    intent: connect:systems
+
+  - method: PUT
+    path: /api/support-notes/:note_id
+    intent: connect:systems
+    object_scoped: true
+
+  - method: DELETE
+    path: /api/support-notes/:note_id
+    intent: connect:systems
+    object_scoped: true
 
   - method: GET
     path: /api/support-sessions/:id/terminal
@@ -393,6 +418,11 @@ routes:
 
   - method: POST
     path: /api/support-sessions/:id/proxy-token
+    intent: connect:systems
+    object_scoped: true
+
+  - method: POST
+    path: /api/support-sessions/:id/events
     intent: connect:systems
     object_scoped: true
 

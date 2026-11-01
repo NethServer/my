@@ -163,6 +163,8 @@ func GetSystems(c *gin.Context) {
 	filterOrgIDs := c.QueryArray("organization_id") // Organization filter (multiple IDs)
 	filterStatuses := c.QueryArray("status")        // Status filter (multiple values)
 	filterAddons := c.QueryArray("addon")           // Add-on filter (multiple catalog ids)
+	// Live support session filter: only for who may see the sessions at all
+	filterSupportSession := c.Query("support_session") == "active" && canSeeSupportSessions(c)
 
 	// include_hierarchy expands each organization_id filter to the org plus its
 	// whole subtree (resellers/customers); the systems RBAC scope still applies
@@ -195,6 +197,7 @@ func GetSystems(c *gin.Context) {
 		ParentOrganizationIDs: filterParentOrgIDs,
 		Statuses:              filterStatuses,
 		Addons:                filterAddons,
+		SupportSession:        filterSupportSession,
 	}
 	systems, totalCount, err := systemsService.GetSystemsByOrganizationPaginated(
 		c.Request.Context(), userID, userOrgID, userOrgRole, page, pageSize, search, sortBy, sortDirection, filters,
@@ -824,13 +827,28 @@ func CheckSystemReachability(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("reachability check completed", gin.H{"reachable": false, "url": ""}))
 }
 
+// canSeeSupportSessions mirrors the support routes: connect:systems in the
+// Owner organization, never under impersonation
+func canSeeSupportSessions(c *gin.Context) bool {
+	u, ok := c.Get("user")
+	if !ok {
+		return false
+	}
+	user, ok := u.(*models.User)
+	if !ok || !HasPermission(user.UserPermissions, user.OrgPermissions, "connect:systems") {
+		return false
+	}
+	if c.GetBool("is_impersonated") {
+		return false
+	}
+	return models.IsGlobalOrgRole(user.OrgRole)
+}
+
 // hideSupportSessionIDs drops support_session_id for callers that cannot
 // connect to systems: only they can use the session it points to.
 func hideSupportSessionIDs(c *gin.Context, systems ...*models.System) {
-	if u, ok := c.Get("user"); ok {
-		if user, ok := u.(*models.User); ok && HasPermission(user.UserPermissions, user.OrgPermissions, "connect:systems") {
-			return
-		}
+	if canSeeSupportSessions(c) {
+		return
 	}
 	for _, system := range systems {
 		if system != nil {
