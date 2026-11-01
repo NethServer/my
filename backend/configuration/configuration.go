@@ -74,6 +74,9 @@ type Configuration struct {
 	SupportProxyDomain string `json:"support_proxy_domain"`
 	// Shared secret for backend→support internal authentication (#4)
 	SupportInternalSecret string `json:"-"`
+	// Secret the SSH gateway presents on its internal routes: its own, so the
+	// internet-facing gateway never holds the support service's secret
+	SSHGatewaySecret string `json:"-"`
 	// Lifetime of subdomain proxy tokens and their browser cookie. Bounds the
 	// window in which a leaked proxy token/cookie (or stale authorization)
 	// grants access to a customer's web UIs.
@@ -278,6 +281,7 @@ func Init() {
 
 	// Shared secret for backend→support internal communication (#4)
 	Config.SupportInternalSecret = os.Getenv("SUPPORT_INTERNAL_SECRET")
+	Config.SSHGatewaySecret = os.Getenv("SSH_GATEWAY_SECRET")
 
 	// Subdomain proxy token lifetime (short-lived: re-issued by the UI on demand)
 	Config.SupportProxyTokenTTL = parseDurationWithDefault("SUPPORT_PROXY_TOKEN_TTL", time.Hour)
