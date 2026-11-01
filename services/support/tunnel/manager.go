@@ -524,6 +524,11 @@ func (t *Tunnel) SetServices(services map[string]ServiceInfo) {
 				Msg("rejected service from manifest")
 			continue
 		}
+		// the names of the built-in endpoints never reach the web proxy
+		if name == "terminal" || name == "ssh" {
+			log.Warn().Str("system_id", t.SystemID).Str("service", name).Msg("rejected reserved service name from manifest")
+			continue
+		}
 		validated[name] = svc
 	}
 

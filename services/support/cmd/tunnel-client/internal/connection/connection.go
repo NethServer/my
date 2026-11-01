@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -622,7 +623,7 @@ func applyAddServices(newSvcs map[string]models.ServiceInfo, store *serviceStore
 		if !validServiceName.MatchString(name) {
 			return fmt.Errorf("invalid service name %q: must match [a-z0-9][a-z0-9_-]{0,63}", name)
 		}
-		if _, exists := discovered[name]; exists || name == "terminal" {
+		if _, exists := discovered[name]; exists || slices.Contains(models.ReservedServiceNames, name) {
 			return fmt.Errorf("service %q rejected: name already used by a discovered service", name)
 		}
 		dialAddr, err := resolveInjectedTarget(svc.Target, discovered)

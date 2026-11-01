@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/creack/pty"
 	"github.com/pkg/sftp"
@@ -36,6 +37,19 @@ import (
 
 // maxSessionsPerConn bounds the channels one connection can run at once
 const maxSessionsPerConn = 10
+
+// handshakeTimeout bounds the SSH handshake on a fresh stream
+const handshakeTimeout = 15 * time.Second
+
+// Limits on what a client can ask to put in the environment
+const (
+	maxEnvVars     = 32
+	maxEnvValueLen = 4096
+)
+
+// outputGrace is how long the output of an ended process may still flow:
+// a background child holding stdout must not keep the session open
+const outputGrace = time.Second
 
 // sftpServers are the system sftp-server binaries, tried in order; without
 // one (e.g. dropbear only) sftp is served in-process
@@ -49,10 +63,20 @@ var sftpServers = []string{
 // Only locale and timezone variables from the client reach the processes
 var allowedEnv = regexp.MustCompile(`^(LANG|LANGUAGE|LC_[A-Z]+|TZ)$`)
 
+// signals a client may send to its process
 var signals = map[string]syscall.Signal{
 	"HUP": syscall.SIGHUP, "INT": syscall.SIGINT, "QUIT": syscall.SIGQUIT,
 	"KILL": syscall.SIGKILL, "TERM": syscall.SIGTERM,
 	"USR1": syscall.SIGUSR1, "USR2": syscall.SIGUSR2,
+}
+
+// signalNames names how a process ended (RFC 4254 exit-signal)
+var signalNames = map[syscall.Signal]string{
+	syscall.SIGABRT: "ABRT", syscall.SIGALRM: "ALRM", syscall.SIGFPE: "FPE",
+	syscall.SIGHUP: "HUP", syscall.SIGILL: "ILL", syscall.SIGINT: "INT",
+	syscall.SIGKILL: "KILL", syscall.SIGPIPE: "PIPE", syscall.SIGQUIT: "QUIT",
+	syscall.SIGSEGV: "SEGV", syscall.SIGTERM: "TERM", syscall.SIGUSR1: "USR1",
+	syscall.SIGUSR2: "USR2",
 }
 
 var (
@@ -81,14 +105,18 @@ func serverConfig() (*ssh.ServerConfig, error) {
 	return cfg, nil
 }
 
-// Serve runs the SSH protocol on a tunnel stream until it closes
+// Serve runs the SSH protocol on a tunnel stream until it closes. A failure
+// here must never take the tunnel client, and every support stream, down.
 func Serve(conn net.Conn) {
+	defer recoverPanic("connection")
 	cfg, err := serverConfig()
 	if err != nil {
 		log.Printf("SSH: cannot create host key: %v", err)
 		return
 	}
+	_ = conn.SetDeadline(time.Now().Add(handshakeTimeout))
 	sshConn, chans, reqs, err := ssh.NewServerConn(conn, cfg)
+	_ = conn.SetDeadline(time.Time{})
 	if err != nil {
 		log.Printf("SSH: handshake failed: %v", err)
 		return
@@ -113,6 +141,7 @@ func Serve(conn net.Conn) {
 		}
 		go func() {
 			defer func() { <-slots }()
+			defer recoverPanic("session")
 			handleSession(newCh)
 		}()
 	}
@@ -127,6 +156,8 @@ type session struct {
 	cmd     *exec.Cmd
 	mu      sync.Mutex
 	started bool
+	// exited is set once the process is reaped: its PID may be reused
+	exited bool
 }
 
 type ptyRequest struct {
@@ -149,7 +180,8 @@ func handleSession(newCh ssh.NewChannel) {
 		case "env":
 			name, rest, okName := readString(req.Payload)
 			value, _, okValue := readString(rest)
-			if okName && okValue && allowedEnv.MatchString(name) {
+			if okName && okValue && allowedEnv.MatchString(name) &&
+				len(s.env) < maxEnvVars && len(value) <= maxEnvValueLen {
 				s.env = append(s.env, name+"="+value)
 				ok = true
 			}
@@ -205,8 +237,11 @@ func (s *session) start(command string, req *ssh.Request) bool {
 	shell, home := loginShell()
 	var cmd *exec.Cmd
 	if command == "" {
+		log.Println("SSH: shell")
 		cmd = exec.Command(shell, "-l")
 	} else {
+		// the customer keeps a local trail of what support ran
+		log.Printf("SSH: exec %q", truncate(command, 1024))
 		cmd = exec.Command(shell, "-c", command)
 	}
 	cmd.Dir = home
@@ -233,10 +268,17 @@ func (s *session) runPTY(cmd *exec.Cmd, req *ssh.Request) bool {
 	_ = req.Reply(true, nil)
 
 	go func() { _, _ = io.Copy(ptmx, s.ch) }()
+	copied := make(chan struct{})
 	go func() {
 		// a PTY reports EIO once the shell is gone: the output is drained
 		_, _ = io.Copy(s.ch, ptmx)
-		s.finish(cmd.Wait())
+		close(copied)
+	}()
+	go func() {
+		defer recoverPanic("pty")
+		err := s.wait(cmd)
+		awaitOutput(copied)
+		s.finish(err)
 		_ = ptmx.Close()
 	}()
 	return true
@@ -244,13 +286,24 @@ func (s *session) runPTY(cmd *exec.Cmd, req *ssh.Request) bool {
 
 func (s *session) runPipes(cmd *exec.Cmd, req *ssh.Request) bool {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	stdin, errIn := cmd.StdinPipe()
-	stdout, errOut := cmd.StdoutPipe()
-	stderr, errErr := cmd.StderrPipe()
-	if err := errors.Join(errIn, errOut, errErr); err != nil {
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
 		return false
 	}
-	if err := cmd.Start(); err != nil {
+	// own pipes, not exec's: they outlive Wait, so the output still flowing
+	// is read until outputGrace instead of being cut or waited forever
+	stdout, stdoutW, errOut := os.Pipe()
+	stderr, stderrW, errErr := os.Pipe()
+	if err := errors.Join(errOut, errErr); err != nil {
+		return false
+	}
+	cmd.Stdout, cmd.Stderr = stdoutW, stderrW
+	err = cmd.Start()
+	_ = stdoutW.Close()
+	_ = stderrW.Close()
+	if err != nil {
+		_ = stdout.Close()
+		_ = stderr.Close()
 		log.Printf("SSH: cannot start command: %v", err)
 		return false
 	}
@@ -264,15 +317,44 @@ func (s *session) runPipes(cmd *exec.Cmd, req *ssh.Request) bool {
 		_, _ = io.Copy(stdin, s.ch)
 		_ = stdin.Close()
 	}()
+	copied := make(chan struct{})
 	go func() {
 		var wg sync.WaitGroup
 		wg.Add(2)
 		go func() { defer wg.Done(); _, _ = io.Copy(s.ch, stdout) }()
 		go func() { defer wg.Done(); _, _ = io.Copy(s.ch.Stderr(), stderr) }()
 		wg.Wait()
-		s.finish(cmd.Wait())
+		close(copied)
+	}()
+	go func() {
+		defer recoverPanic("command")
+		err := s.wait(cmd)
+		// a background child may still hold the pipes: stop reading them
+		_ = stdout.SetReadDeadline(time.Now().Add(outputGrace))
+		_ = stderr.SetReadDeadline(time.Now().Add(outputGrace))
+		awaitOutput(copied)
+		_ = stdout.Close()
+		_ = stderr.Close()
+		s.finish(err)
 	}()
 	return true
+}
+
+// wait reaps the process and records it, so kill never signals a reused PID
+func (s *session) wait(cmd *exec.Cmd) error {
+	err := cmd.Wait()
+	s.mu.Lock()
+	s.exited = true
+	s.mu.Unlock()
+	return err
+}
+
+// awaitOutput lets the output finish flowing, for outputGrace at most
+func awaitOutput(copied <-chan struct{}) {
+	select {
+	case <-copied:
+	case <-time.After(outputGrace):
+	}
 }
 
 func (s *session) startSFTP(req *ssh.Request) bool {
@@ -281,6 +363,7 @@ func (s *session) startSFTP(req *ssh.Request) bool {
 			if !s.begin() {
 				return false
 			}
+			log.Println("SSH: sftp")
 			_, home := loginShell()
 			cmd := exec.Command(path)
 			cmd.Dir = home
@@ -296,8 +379,10 @@ func (s *session) startSFTP(req *ssh.Request) bool {
 	if err != nil {
 		return false
 	}
+	log.Println("SSH: sftp (built-in)")
 	_ = req.Reply(true, nil)
 	go func() {
+		defer recoverPanic("sftp")
 		err := server.Serve()
 		if errors.Is(err, io.EOF) {
 			err = nil
@@ -365,7 +450,7 @@ func (s *session) signal(name string) {
 func (s *session) kill() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.cmd == nil || s.cmd.Process == nil || s.cmd.ProcessState != nil {
+	if s.cmd == nil || s.cmd.Process == nil || s.exited {
 		return
 	}
 	// the whole group: a pipeline started by sh -c must not outlive the session
@@ -385,12 +470,24 @@ func exitCode(err error) int {
 }
 
 func signalName(sig syscall.Signal) string {
-	for name, s := range signals {
-		if s == sig {
-			return name
-		}
+	if name, ok := signalNames[sig]; ok {
+		return name
 	}
 	return "KILL"
+}
+
+// recoverPanic keeps a failure in one SSH session from crashing the client
+func recoverPanic(where string) {
+	if r := recover(); r != nil {
+		log.Printf("SSH: recovered from a panic in %s: %v", where, r)
+	}
+}
+
+func truncate(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "..."
 }
 
 // loginShell picks the shell and home of the user the client runs as
