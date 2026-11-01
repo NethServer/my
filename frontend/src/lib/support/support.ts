@@ -1,6 +1,7 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
+import type { ParentOrganization } from '@/lib/organizations/organizations'
 import axios from 'axios'
 import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
@@ -29,8 +30,11 @@ export interface SystemSessionGroup {
   system_key: string
   organization: {
     id: string
+    logto_id: string
     name: string
     type: string
+    // the company that manages the organization's systems ("Managed by")
+    parent?: ParentOrganization
   }
   started_at: string
   expires_at: string
@@ -74,11 +78,15 @@ export interface SupportAccessLog {
   metadata: Record<string, unknown> | null
 }
 
+export type DiagnosticStatus = 'ok' | 'warning' | 'critical' | 'error' | 'timeout'
+
 export interface DiagnosticCheck {
   name: string
-  status: 'ok' | 'warning' | 'critical' | 'error' | 'timeout'
+  status: DiagnosticStatus
   value?: string
-  details?: string
+  // free-form: an object of measures, a list of rows (services, units) or a
+  // plain message, as each appliance plugin reports it
+  details?: unknown
 }
 
 export interface DiagnosticPlugin {
@@ -139,10 +147,20 @@ interface SupportAccessLogsResponse {
   }
 }
 
+export type SupportSessionSortBy =
+  'name' | 'type' | 'organization_name' | 'started_at' | 'expires_at' | 'status'
+
+export interface SupportSessionsFilters {
+  search: string
+  types: string[]
+  organizationIds: string[]
+  statuses: SupportSessionStatus[]
+}
+
 export const getSupportSessionsQueryStringParams = (
   pageNum: number,
   pageSize: number,
-  statusFilter: SupportSessionStatus[],
+  filters: SupportSessionsFilters,
   sortBy: string | null,
   sortDescending: boolean,
 ) => {
@@ -153,9 +171,12 @@ export const getSupportSessionsQueryStringParams = (
     sort_direction: sortDescending ? 'desc' : 'asc',
   })
 
-  statusFilter.forEach((status) => {
-    searchParams.append('status', status)
-  })
+  if (filters.search) {
+    searchParams.append('search', filters.search)
+  }
+  filters.types.forEach((type) => searchParams.append('type', type))
+  filters.organizationIds.forEach((id) => searchParams.append('organization_id', id))
+  filters.statuses.forEach((status) => searchParams.append('status', status))
 
   return searchParams.toString()
 }
@@ -163,7 +184,7 @@ export const getSupportSessionsQueryStringParams = (
 export const getSupportSessions = (
   pageNum: number,
   pageSize: number,
-  statusFilter: SupportSessionStatus[],
+  filters: SupportSessionsFilters,
   sortBy: string,
   sortDescending: boolean,
 ) => {
@@ -171,7 +192,7 @@ export const getSupportSessions = (
   const params = getSupportSessionsQueryStringParams(
     pageNum,
     pageSize,
-    statusFilter,
+    filters,
     sortBy,
     sortDescending,
   )
@@ -204,7 +225,7 @@ export const getSupportSession = (id: string) => {
   const loginStore = useLoginStore()
 
   return axios
-    .get<SupportSessionResponse>(`${API_URL}/support-sessions/${id}`, {
+    .get<SupportSessionResponse>(`${API_URL}/support-sessions/${encodeURIComponent(id)}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)
@@ -215,7 +236,7 @@ export const extendSupportSession = (id: string, hours: number) => {
 
   return axios
     .patch(
-      `${API_URL}/support-sessions/${id}/extend`,
+      `${API_URL}/support-sessions/${encodeURIComponent(id)}/extend`,
       { hours },
       {
         headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
@@ -228,7 +249,7 @@ export const closeSupportSession = (id: string) => {
   const loginStore = useLoginStore()
 
   return axios
-    .delete(`${API_URL}/support-sessions/${id}`, {
+    .delete(`${API_URL}/support-sessions/${encodeURIComponent(id)}`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data)
@@ -242,6 +263,8 @@ export interface SupportServiceItem {
   pathPrefix: string
   moduleId: string
   nodeId: string
+  // the node's label set in the cluster UI
+  nodeLabel: string
   // 'cluster' when the NS8 cluster login guards the service instead of the app
   auth: string
 }
@@ -268,6 +291,7 @@ interface SupportServicesRawResponse {
         path_prefix?: string
         module_id?: string
         node_id?: string
+        node_label?: string
         auth?: string
       }
     >
@@ -279,7 +303,9 @@ interface ProxyTokenResponse {
   message: string
   data: {
     url: string
+    // a one-time code the proxy swaps for its access cookie
     token: string
+    expires_at?: string
   }
 }
 
@@ -287,9 +313,12 @@ export const getSupportSessionServices = (sessionId: string): Promise<SupportSer
   const loginStore = useLoginStore()
 
   return axios
-    .get<SupportServicesRawResponse>(`${API_URL}/support-sessions/${sessionId}/services`, {
-      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-    })
+    .get<SupportServicesRawResponse>(
+      `${API_URL}/support-sessions/${encodeURIComponent(sessionId)}/services`,
+      {
+        headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+      },
+    )
     .then((res) => {
       const servicesMap = res.data.data?.services || {}
 
@@ -302,6 +331,7 @@ export const getSupportSessionServices = (sessionId: string): Promise<SupportSer
         pathPrefix: svc.path_prefix || '',
         moduleId: svc.module_id || '',
         nodeId: svc.node_id || '',
+        nodeLabel: svc.node_label || '',
         auth: svc.auth || '',
       }))
 
@@ -363,10 +393,14 @@ export const getSupportSessionServices = (sessionId: string): Promise<SupportSer
  * so the result must stay on the proxy host returned by the backend: anything
  * else would hand the token to another site. Returns null when it does not.
  */
+const SUPPORT_PROXY_HOST = /^[a-z0-9-]+--[0-9a-f]{32}\.support\./
+
 export const buildSupportProxyUrl = (
   proxyUrl: string,
   token: string,
   path?: string,
+  // a page address (a link followed inside the session), not a route prefix
+  exact = false,
 ): string | null => {
   let base: URL
   let target: URL
@@ -379,6 +413,11 @@ export const buildSupportProxyUrl = (
   if (base.protocol !== 'https:' && base.protocol !== 'http:') {
     return null
   }
+  // only a support proxy host may be framed with scripts and same-origin
+  // rights: never my itself
+  if (base.origin === window.location.origin || !SUPPORT_PROXY_HOST.test(base.hostname)) {
+    return null
+  }
   if (
     target.protocol !== base.protocol ||
     target.host !== base.host ||
@@ -387,7 +426,7 @@ export const buildSupportProxyUrl = (
   ) {
     return null
   }
-  if (!target.pathname.endsWith('/')) {
+  if (!exact && !target.pathname.endsWith('/')) {
     target.pathname += '/'
   }
   target.searchParams.set('token', token)
@@ -399,7 +438,7 @@ export const generateSupportProxyToken = (sessionId: string, service: string) =>
 
   return axios
     .post<ProxyTokenResponse>(
-      `${API_URL}/support-sessions/${sessionId}/proxy-token`,
+      `${API_URL}/support-sessions/${encodeURIComponent(sessionId)}/proxy-token`,
       { service },
       {
         headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
@@ -421,7 +460,7 @@ export const getTerminalTicket = (sessionId: string): Promise<string> => {
 
   return axios
     .post<TerminalTicketResponse>(
-      `${API_URL}/support-sessions/${sessionId}/terminal-ticket`,
+      `${API_URL}/support-sessions/${encodeURIComponent(sessionId)}/terminal-ticket`,
       {},
       {
         headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
@@ -435,9 +474,12 @@ export const getSupportSessionLogs = (sessionId: string, pageNum: number, pageSi
   const params = getQueryStringParams(pageNum, pageSize, null, null, false)
 
   return axios
-    .get<SupportAccessLogsResponse>(`${API_URL}/support-sessions/${sessionId}/logs?${params}`, {
-      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-    })
+    .get<SupportAccessLogsResponse>(
+      `${API_URL}/support-sessions/${encodeURIComponent(sessionId)}/logs?${params}`,
+      {
+        headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+      },
+    )
     .then((res) => res.data.data)
 }
 
@@ -451,9 +493,12 @@ export interface AddSessionServiceItem {
 export const removeSupportSessionService = (sessionId: string, serviceName: string) => {
   const loginStore = useLoginStore()
   return axios
-    .delete(`${API_URL}/support-sessions/${sessionId}/services/${serviceName}`, {
-      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
-    })
+    .delete(
+      `${API_URL}/support-sessions/${encodeURIComponent(sessionId)}/services/${encodeURIComponent(serviceName)}`,
+      {
+        headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+      },
+    )
     .then((res) => res.data)
 }
 
@@ -461,7 +506,7 @@ export const addSupportSessionServices = (sessionId: string, services: AddSessio
   const loginStore = useLoginStore()
   return axios
     .post(
-      `${API_URL}/support-sessions/${sessionId}/services`,
+      `${API_URL}/support-sessions/${encodeURIComponent(sessionId)}/services`,
       { services },
       { headers: { Authorization: `Bearer ${loginStore.jwtToken}` } },
     )
@@ -475,7 +520,7 @@ export const getSupportSessionDiagnostics = (sessionId: string): Promise<Session
       code: number
       message: string
       data: SessionDiagnostics
-    }>(`${API_URL}/support-sessions/${sessionId}/diagnostics`, {
+    }>(`${API_URL}/support-sessions/${encodeURIComponent(sessionId)}/diagnostics`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)
@@ -531,7 +576,7 @@ export const getSupportSessionUsers = (sessionId: string): Promise<SessionUsersR
       code: number
       message: string
       data: SessionUsersResponse
-    }>(`${API_URL}/support-sessions/${sessionId}/users`, {
+    }>(`${API_URL}/support-sessions/${encodeURIComponent(sessionId)}/users`, {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)
@@ -548,4 +593,192 @@ export const getSystemDiagnostics = (systemId: string): Promise<SystemDiagnostic
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     })
     .then((res) => res.data.data)
+}
+
+// Support history of a system: its sessions and the operator accesses and
+// actions across all of them, newest first
+export interface SupportActivitySession {
+  id: string
+  node_id?: string
+  status: SupportSessionStatus
+  started_at: string
+  expires_at: string
+  closed_at?: string
+  closed_by?: string
+}
+
+export interface SupportActivityLog {
+  id: string
+  session_id: string
+  operator_id: string
+  operator_name?: string
+  access_type: string
+  connected_at: string
+  disconnected_at?: string
+  // JSON object, as stored
+  metadata?: string
+}
+
+export interface SupportWebPresence {
+  session_id: string
+  operator_id: string
+  operator_name: string
+  service: string
+  last_seen: string
+}
+
+export interface SupportActivity {
+  system_id: string
+  sessions: SupportActivitySession[]
+  access_logs: SupportActivityLog[]
+  // operators on the web interfaces of the live sessions in the last minutes
+  web_presence?: SupportWebPresence[]
+}
+
+export interface SupportNote {
+  id: string
+  session_id: string
+  system_id: string
+  author_id: string
+  author_name?: string
+  body: string
+  created_at: string
+  updated_at: string
+}
+
+export const SUPPORT_NOTE_MAX_LENGTH = 10000
+
+export const getSupportActivity = (systemId: string) => {
+  const loginStore = useLoginStore()
+  const params = new URLSearchParams({ system_id: systemId })
+
+  return axios
+    .get<{ data: SupportActivity }>(`${API_URL}/support-sessions/activity?${params}`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data)
+}
+
+export const getSupportNotes = (systemId: string) => {
+  const loginStore = useLoginStore()
+  const params = new URLSearchParams({ system_id: systemId })
+
+  return axios
+    .get<{ data: { notes: SupportNote[] } }>(`${API_URL}/support-notes?${params}`, {
+      headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+    })
+    .then((res) => res.data.data.notes)
+}
+
+export const createSupportNote = (systemId: string, body: string) => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .post<{ data: SupportNote }>(
+      `${API_URL}/support-notes`,
+      { system_id: systemId, body },
+      { headers: { Authorization: `Bearer ${loginStore.jwtToken}` } },
+    )
+    .then((res) => res.data.data)
+}
+
+export const updateSupportNote = (noteId: string, body: string) => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .put<{ data: SupportNote }>(
+      `${API_URL}/support-notes/${encodeURIComponent(noteId)}`,
+      { body },
+      { headers: { Authorization: `Bearer ${loginStore.jwtToken}` } },
+    )
+    .then((res) => res.data.data)
+}
+
+export const deleteSupportNote = (noteId: string) => {
+  const loginStore = useLoginStore()
+
+  return axios.delete(`${API_URL}/support-notes/${encodeURIComponent(noteId)}`, {
+    headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+  })
+}
+
+// Splits text into plain parts and web links, so links render as anchors and
+// everything else stays text (never HTML)
+export function linkifyText(text: string): { text: string; href?: string }[] {
+  const parts: { text: string; href?: string }[] = []
+  const re = /\bhttps?:\/\/[^\s<>"'`]+/gi
+  let last = 0
+  for (const match of text.matchAll(re)) {
+    let url = match[0]
+    // punctuation closing a sentence is not part of the link
+    const trailing = url.match(/[.,;:!?)\]}]+$/)
+    if (trailing) url = url.slice(0, -trailing[0].length)
+    const start = match.index ?? 0
+    let href: string | undefined
+    try {
+      const parsed = new URL(url)
+      if (parsed.protocol === 'https:' || parsed.protocol === 'http:') href = parsed.href
+    } catch {
+      href = undefined
+    }
+    if (!href) continue
+    if (start > last) parts.push({ text: text.slice(last, start) })
+    parts.push({ text: url, href })
+    last = start + url.length
+  }
+  if (last < text.length) parts.push({ text: text.slice(last) })
+  return parts
+}
+
+// One support intervention on a system: its sessions overlapping in time (a
+// multi-node cluster opens one per node), newest first
+export interface SupportEpisode {
+  id: string
+  startedAt: Date
+  endedAt: Date | null
+  live: boolean
+  sessionIds: string[]
+}
+
+export function groupSupportEpisodes(sessions: SupportActivitySession[]): SupportEpisode[] {
+  const sorted = [...sessions].sort(
+    (a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime(),
+  )
+  const episodes: SupportEpisode[] = []
+  let current: SupportEpisode | null = null
+  let currentEnd = 0
+  for (const s of sorted) {
+    const start = new Date(s.started_at).getTime()
+    const live = s.status === 'active' || s.status === 'pending'
+    const end = live ? Infinity : new Date(s.closed_at || s.expires_at).getTime()
+    if (!current || start > currentEnd) {
+      current = { id: s.id, startedAt: new Date(start), endedAt: null, live, sessionIds: [] }
+      episodes.push(current)
+      currentEnd = end
+    }
+    current.sessionIds.push(s.id)
+    current.live = current.live || live
+    currentEnd = Math.max(currentEnd, end)
+    current.endedAt = current.live ? null : new Date(currentEnd)
+  }
+  return episodes.reverse()
+}
+
+// What only the browser sees goes to the session's access log: a login form
+// filled with the session credentials, a web interface tab closed. Best
+// effort: the history is an aid, the operator's work goes on without it.
+export const logSupportWorkspaceEvent = (
+  sessionId: string,
+  type: 'autofill' | 'ui_close',
+  service: string,
+) => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .post(
+      `${API_URL}/support-sessions/${encodeURIComponent(sessionId)}/events`,
+      { type, service },
+      { headers: { Authorization: `Bearer ${loginStore.jwtToken}` } },
+    )
+    .catch(() => undefined)
 }

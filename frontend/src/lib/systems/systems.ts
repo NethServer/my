@@ -147,6 +147,7 @@ export const getQueryStringParams = (
   sortBy: string | null,
   sortDescending: boolean,
   parentOrganizationFilter: string[] = [],
+  supportSessionOnly = false,
 ) => {
   const searchParams = new URLSearchParams({
     page: pageNum.toString(),
@@ -187,6 +188,11 @@ export const getQueryStringParams = (
   addonFilter.forEach((addon) => {
     searchParams.append('addon', addon)
   })
+
+  // only the systems with a live remote support session
+  if (supportSessionOnly) {
+    searchParams.append('support_session', 'active')
+  }
   return searchParams.toString()
 }
 
@@ -281,6 +287,7 @@ export const getSystems = (
   sortBy: string,
   sortDescending: boolean,
   parentOrganizationFilter: string[] = [],
+  supportSessionOnly = false,
 ) => {
   const loginStore = useLoginStore()
   const params = getQueryStringParams(
@@ -296,6 +303,7 @@ export const getSystems = (
     sortBy,
     sortDescending,
     parentOrganizationFilter,
+    supportSessionOnly,
   )
 
   return axios

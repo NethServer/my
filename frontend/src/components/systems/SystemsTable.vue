@@ -46,7 +46,7 @@ import {
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
-import { canManageSystems, canDestroySystems } from '@/lib/permissions'
+import { canManageSystems, canDestroySystems, canConnectSystems } from '@/lib/permissions'
 import { useSystems } from '@/queries/systems/systems'
 import {
   exportSystem,
@@ -100,6 +100,7 @@ const {
   organizationFilter,
   parentOrganizationFilter,
   addonFilter,
+  supportSessionFilter,
   sortBy,
   sortDescending,
   areDefaultFiltersApplied,
@@ -178,6 +179,17 @@ const versionFilterOptions = computed(() => {
 
 // Only the add-ons someone in the hierarchy actually holds: the endpoint
 // leaves out the ones that could only ever return an empty list.
+// remote support: one option, the systems with a live session
+const supportFilterOptions = computed<NeDropdownFilterV2Option[]>(() => [
+  { id: 'active', label: t('systems.support_session_active') },
+])
+const supportFilterModel = computed<NeDropdownFilterV2Option[]>({
+  get: () => (supportSessionFilter.value ? supportFilterOptions.value : []),
+  set: (selected) => {
+    supportSessionFilter.value = selected.length > 0
+  },
+})
+
 const addonFilterOptions = computed<NeDropdownFilterV2Option[]>(() => {
   if (!systemFiltersState.value.data || !systemFiltersState.value.data.addons) {
     return []
@@ -456,6 +468,20 @@ function onCloseSecretRegeneratedModal() {
             :clear-search-label="t('ne_dropdown_filter.clear_search')"
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
           />
+          <!-- remote support filter: support staff only -->
+          <NeDropdownFilterV2
+            v-if="canConnectSystems()"
+            v-model="supportFilterModel"
+            kind="checkbox"
+            :label="t('systems.support_filter')"
+            :options="supportFilterOptions"
+            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
+          />
           <!-- status filter -->
           <NeDropdownFilterV2
             v-model="statusFilter"
@@ -570,7 +596,10 @@ function onCloseSecretRegeneratedModal() {
                 :system-name="item.name"
                 :system-type="item.type"
               />
-              <SupportSessionPopover v-if="item.support_session_id" :system-id="item.id" />
+              <SupportSessionPopover
+                v-if="item.support_session_id && canConnectSystems()"
+                :system-id="item.id"
+              />
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.version')" class="wrap-anywhere">
