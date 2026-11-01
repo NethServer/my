@@ -1667,7 +1667,11 @@
     "ssh_auth_system_key": "System key",
     "ssh_auth_key": "SSH key",
     "ssh_auth_no_key": "none (approval will be asked at every access)",
-    "ssh_auth_not_yours": "This request was not started by you: you cannot approve it. If someone sent you this link, report it."
+    "ssh_auth_not_yours": "This request was not started by you: you cannot approve it. If someone sent you this link, report it.",
+    "activity_ssh": "SSH",
+    "activity_opened_ssh": "{name} opened an SSH connection",
+    "activity_closed_ssh": "{name} closed the SSH connection",
+    "activity_from": "from {ip}"
   },
   "support_workspace": {
     "title": "Support"
