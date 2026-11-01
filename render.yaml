@@ -441,8 +441,9 @@ services:
       # from Google (s2/favicons redirects to *.gstatic.com)
       - key: THIRD_PARTY_SCRIPT_SRC
         value: https://widget.kapa.ai https://www.google.com https://www.gstatic.com
+      # reCAPTCHA, and the support proxy for the support workspace tabs
       - key: THIRD_PARTY_FRAME_SRC
-        value: https://www.google.com
+        value: https://www.google.com https://*.support.my.nethesis.it
       - key: THIRD_PARTY_IMG_SRC
         value: https://www.google.com https://*.gstatic.com
 
@@ -727,6 +728,10 @@ services:
       # Third-party app origins allowed in the CSP connect-src (info_url widgets)
       - key: THIRD_PARTY_CONNECT_SRC
         value: https://nethshop2.nethesis.it https://my.staging.nethspot.com https://formazione.nethesis.it
+
+      # Support proxy, for the support workspace tabs
+      - key: THIRD_PARTY_FRAME_SRC
+        value: https://*.support.qa.my.nethesis.it
     autoDeploy: true   # Auto-deploy on every commit
     branch: main
     pullRequestPreviewsEnabled: true  # PR previews enabled
