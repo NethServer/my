@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -189,6 +190,10 @@ func ExtendSupportSession(c *gin.Context) {
 	}
 
 	if err := repo.ExtendSession(sessionID, request.Hours); err != nil {
+		if errors.Is(err, entities.ErrSessionTooLong) {
+			c.JSON(http.StatusConflict, response.Error(http.StatusConflict, err.Error(), nil))
+			return
+		}
 		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to extend support session")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to extend support session", nil))
 		return

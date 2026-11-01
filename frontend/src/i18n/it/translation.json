@@ -1602,7 +1602,20 @@
     "notes_edited": "modificata",
     "notes_previous_session": "Sessioni precedenti",
     "notes_delete_confirm": "Eliminare la nota?",
-    "notes_save_error": "Impossibile salvare la nota"
+    "notes_save_error": "Impossibile salvare la nota",
+    "service_node": "Nodo da cui raggiungere il servizio",
+    "extend_title": "Estendi la sessione di {name}",
+    "extend_by": "Estendi di",
+    "extend_hours": "{n} ora | {n} ore",
+    "extend_days": "{n} giorno | {n} giorni",
+    "extend_current": "Scadenza attuale",
+    "extend_new": "Nuova scadenza",
+    "extend_limit_hint": "Al massimo 7 giorni per volta, e non oltre 30 giorni dall'inizio della sessione.",
+    "extend_limit_reached": "La sessione ha già raggiunto la durata massima di 30 giorni.",
+    "extend_too_long": "L'estensione supererebbe la durata massima di 30 giorni: scegli una durata più breve.",
+    "extend_error": "Impossibile estendere la sessione",
+    "extended_title": "Sessione estesa",
+    "extended_description": "La sessione di {name} ora scade il {date}."
   },
   "support_workspace": {
     "title": "Supporto"
