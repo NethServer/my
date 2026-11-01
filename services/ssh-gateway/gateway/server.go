@@ -17,18 +17,20 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 	gossh "golang.org/x/crypto/ssh"
 
+	"github.com/nethesis/my/services/ssh-gateway/configuration"
 	"github.com/nethesis/my/services/ssh-gateway/logger"
 )
 
 const (
-	// handshakeTimeout covers the whole authentication, browser wait included
-	handshakeExtra = time.Minute
-	pingInterval   = 30 * time.Second
+	// waiting for the browser gets this much on top of the approval timeout
+	approvalExtra = time.Minute
+	pingInterval  = 30 * time.Second
 )
 
 // Server accepts SSH connections tunnelled in WebSockets: Render only lets
@@ -37,14 +39,19 @@ type Server struct {
 	auth     *Authenticator
 	hostKey  gossh.Signer
 	upgrader websocket.Upgrader
-	timeout  time.Duration
+
+	// connections still authenticating, overall and per client IP
+	pending chan struct{}
+	mu      sync.Mutex
+	perIP   map[string]int
 }
 
-func NewServer(auth *Authenticator, hostKey gossh.Signer, authTimeout time.Duration) *Server {
+func NewServer(auth *Authenticator, hostKey gossh.Signer) *Server {
 	return &Server{
 		auth:    auth,
 		hostKey: hostKey,
-		timeout: authTimeout + handshakeExtra,
+		pending: make(chan struct{}, configuration.Config.MaxPendingConns),
+		perIP:   make(map[string]int),
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  32 * 1024,
 			WriteBufferSize: 32 * 1024,
@@ -54,38 +61,86 @@ func NewServer(auth *Authenticator, hostKey gossh.Signer, authTimeout time.Durat
 	}
 }
 
+func (s *Server) acquire(ip string) bool {
+	select {
+	case s.pending <- struct{}{}:
+	default:
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.perIP[ip] >= configuration.Config.MaxConnsPerIP {
+		<-s.pending
+		return false
+	}
+	s.perIP[ip]++
+	return true
+}
+
+func (s *Server) release(ip string) {
+	<-s.pending
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.perIP[ip]--; s.perIP[ip] <= 0 {
+		delete(s.perIP, ip)
+	}
+}
+
 // ServeHTTP handles GET /api/ssh
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	clientIP := clientIP(r)
+	if !s.acquire(clientIP) {
+		logger.Warn().Str("client_ip", clientIP).Msg("ssh connection refused: too many pending connections")
+		http.Error(w, "too many connections", http.StatusTooManyRequests)
+		return
+	}
+	released := false
+	release := func() {
+		if !released {
+			released = true
+			s.release(clientIP)
+		}
+	}
+	defer release()
+
 	ws, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
-	clientIP := clientIP(r)
 	conn := newWSConn(ws, &net.TCPAddr{IP: net.ParseIP(clientIP)})
-	done := make(chan struct{})
-	defer close(done)
-	go conn.keepAlive(pingInterval, done)
-	s.serveConn(conn, clientIP)
+	go conn.keepAlive(pingInterval, conn.Done())
+	s.serveConn(conn, clientIP, release)
 }
 
-func (s *Server) serveConn(conn net.Conn, clientIP string) {
+func (s *Server) serveConn(conn *wsConn, clientIP string, authenticated func()) {
 	log := logger.ComponentLogger("server")
 	defer conn.Close() //nolint:errcheck
 
-	timer := time.AfterFunc(s.timeout, func() { _ = conn.Close() })
-	sshConn, chans, reqs, err := gossh.NewServerConn(conn, s.auth.ServerConfig(clientIP, s.hostKey))
+	// a short limit until the authentication starts, a longer one while an
+	// operator approves in the browser
+	timer := time.AfterFunc(configuration.Config.HandshakeTimeout, func() { _ = conn.Close() })
+	st := &connState{
+		clientIP: clientIP,
+		done:     conn.Done(),
+		authStarted: func() {
+			timer.Reset(configuration.Config.AuthTimeout + approvalExtra)
+		},
+	}
+	sshConn, chans, reqs, err := gossh.NewServerConn(conn, s.auth.ServerConfig(st, s.hostKey))
 	timer.Stop()
 	if err != nil {
 		log.Debug().Err(err).Str("client_ip", clientIP).Msg("ssh handshake failed")
 		return
 	}
+	authenticated()
 	defer sshConn.Close() //nolint:errcheck
-	log.Info().Str("client_ip", clientIP).Str("user", sshConn.User()).Str("operator", sshConn.Permissions.Extensions[extOperator]).Msg("ssh connection established")
+	perms := sshConn.Permissions
+	log.Info().Str("client_ip", clientIP).Str("user", stripToken(sshConn.User())).Str("operator", perms.Extensions[extOperator]).Msg("ssh connection established")
 
 	// global requests (remote port forwarding included) are refused
 	go gossh.DiscardRequests(reqs)
 
-	up := &upstream{auth: s.auth, perms: sshConn.Permissions}
+	up := &upstream{perms: perms, clientIP: clientIP}
 	defer up.close()
 	// the backend closes the bridge when the operator is no longer allowed:
 	// the operator's connection goes with it
@@ -104,6 +159,14 @@ func (s *Server) serveConn(conn net.Conn, clientIP string) {
 		}
 		go proxyChannel(newCh, up)
 	}
+}
+
+// stripToken keeps the one-time token out of the logs
+func stripToken(user string) string {
+	if i := strings.LastIndex(user, "+"); i >= 0 {
+		return user[:i]
+	}
+	return user
 }
 
 // clientIP takes the address the proxy computed: X-Forwarded-For starts with
