@@ -46,6 +46,7 @@ import SupportTerminalPane, {
 } from '@/components/support/SupportTerminalPane.vue'
 import SupportWebPane from '@/components/support/SupportWebPane.vue'
 import SupportWorkspacePanel from '@/components/support/SupportWorkspacePanel.vue'
+import SupportAddServiceModal from '@/components/support/SupportAddServiceModal.vue'
 import SupportDiagnosticsPane from '@/components/support/SupportDiagnosticsPane.vue'
 
 interface WorkspaceTab {
@@ -362,6 +363,14 @@ function onTabDrop() {
 function onTabDragEnd() {
   draggedTabId.value = null
   dropBeforeId.value = null
+}
+
+const addServiceOpen = ref(false)
+
+// the tunnel announces the new service a moment after accepting it
+function onServiceAdded() {
+  refreshData()
+  setTimeout(refreshData, 2000)
 }
 
 async function refreshData() {
@@ -827,6 +836,7 @@ onBeforeUnmount(() => {
         @open="openService"
         @open-external="openServiceExternal"
         @remove="removeService"
+        @add-service="addServiceOpen = true"
         @refresh="refreshData"
         @notes-count="(count: number) => (notesCount = count)"
       />
@@ -896,6 +906,13 @@ onBeforeUnmount(() => {
       >
         <p>{{ t('support.workspace_close_confirm', { count: tabs.length }) }}</p>
       </NeModal>
+      <SupportAddServiceModal
+        :visible="addServiceOpen"
+        :sessions="sessions"
+        :node-name="nodeName"
+        @close="addServiceOpen = false"
+        @added="onServiceAdded"
+      />
     </Teleport>
   </div>
 </template>

@@ -9,12 +9,13 @@ import { useI18n } from 'vue-i18n'
 import {
   faChevronDown,
   faChevronRight,
+  faPlug,
   faTrashCan,
   faUpRightFromSquare,
   faWindowMaximize,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { NeBadge, NeSpinner } from '@nethesis/vue-components'
+import { NeBadge, NeButton, NeSpinner } from '@nethesis/vue-components'
 import {
   APPLIANCE_UI_SERVICES,
   nodeDisplayName,
@@ -33,6 +34,7 @@ const emit = defineEmits<{
   open: [svc: WorkspaceService]
   openExternal: [svc: WorkspaceService]
   remove: [svc: WorkspaceService]
+  add: []
 }>()
 
 const { t } = useI18n()
@@ -256,6 +258,15 @@ const domainUsername = computed(() => props.data?.credentials?.domainUsers[0]?.u
       >
         {{ t('support.workspace_no_services') }}
       </p>
+      <!-- a service the discovery missed, reachable from the system -->
+      <div class="shrink-0">
+        <NeButton kind="tertiary" size="sm" @click="emit('add')">
+          <template #prefix>
+            <FontAwesomeIcon :icon="faPlug" aria-hidden="true" />
+          </template>
+          {{ t('support.add_service') }}
+        </NeButton>
+      </div>
     </template>
   </div>
 </template>

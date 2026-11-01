@@ -38,6 +38,7 @@ const emit = defineEmits<{
   open: [svc: WorkspaceService]
   openExternal: [svc: WorkspaceService]
   remove: [svc: WorkspaceService]
+  addService: []
   refresh: []
   // the section rail shows how many notes the system has
   notesCount: [count: number]
@@ -178,6 +179,7 @@ onBeforeUnmount(() => {
       @open="(svc) => emit('open', svc)"
       @open-external="(svc) => emit('openExternal', svc)"
       @remove="(svc) => emit('remove', svc)"
+      @add="emit('addService')"
     />
     <SupportActivityPane
       v-else-if="section === 'activity'"

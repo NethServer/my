@@ -8,7 +8,6 @@ import {
   faHeadset,
   faClockRotateLeft,
   faXmark,
-  faPlug,
   faMagnifyingGlass,
   faWindowMaximize,
 } from '@fortawesome/free-solid-svg-icons'
@@ -24,9 +23,7 @@ import {
   NeEmptyState,
   NeInlineNotification,
   NeBadge,
-  NeModal,
   NeTextInput,
-  NeToggle,
   NeDropdownFilterV2,
   NeSortDropdown,
   type NeDropdownFilterV2Option,
@@ -48,9 +45,7 @@ import {
   type SupportSessionStatus,
   type SupportSessionSortBy,
   type SystemSessionGroup,
-  extendSupportSession,
   closeSupportSession,
-  addSupportSessionServices,
 } from '@/lib/support/support'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import { canConnectSystems } from '@/lib/permissions'
@@ -68,6 +63,8 @@ import {
 } from '@/lib/organizations/organizations'
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
 import SupportHistoryDrawer from '@/components/support/SupportHistoryDrawer.vue'
+import SupportExtendModal from '@/components/support/SupportExtendModal.vue'
+import { useNotificationsStore } from '@/stores/notifications'
 
 const props = withDefaults(defineProps<{ scope?: SupportSessionsScope }>(), { scope: 'live' })
 
@@ -128,7 +125,6 @@ const isNoMatchEmptyStateShown = computed(() => {
   )
 })
 
-const extendingSessionId = ref<string | null>(null)
 const closingSessionId = ref<string | null>(null)
 
 function getStatusBadgeKind(status: SupportSessionStatus) {
@@ -146,16 +142,24 @@ function getStatusBadgeKind(status: SupportSessionStatus) {
   }
 }
 
-async function handleExtendGroup(group: SystemSessionGroup) {
-  extendingSessionId.value = group.system_id
-  try {
-    await Promise.all(group.sessions.map((s) => extendSupportSession(s.id, 24)))
-    queryCache.invalidateQueries({ key: [SUPPORT_SESSIONS_KEY] })
-  } catch (error) {
-    console.error('Cannot extend support session:', error)
-  } finally {
-    extendingSessionId.value = null
-  }
+// Extend: the operator picks how long, within the backend's limits
+const notificationsStore = useNotificationsStore()
+const extendGroup = ref<SystemSessionGroup | null>(null)
+
+function handleExtendGroup(group: SystemSessionGroup) {
+  extendGroup.value = group
+}
+
+function onExtended(group: SystemSessionGroup, expiresAt: Date) {
+  queryCache.invalidateQueries({ key: [SUPPORT_SESSIONS_KEY] })
+  notificationsStore.createNotification({
+    kind: 'success',
+    title: t('support.extended_title'),
+    description: t('support.extended_description', {
+      name: group.system_name || group.system_key,
+      date: formatDateTimeNoSeconds(expiresAt, locale.value),
+    }),
+  })
 }
 
 const workspacesStore = useSupportWorkspacesStore()
@@ -190,55 +194,6 @@ async function handleCloseGroup(group: SystemSessionGroup) {
     console.error('Cannot close support session:', error)
   } finally {
     closingSessionId.value = null
-  }
-}
-
-// Add service modal
-const addServiceGroup = ref<SystemSessionGroup | null>(null)
-const addServiceName = ref('')
-const addServiceTarget = ref('')
-const addServiceLabel = ref('')
-const addServiceTls = ref(false)
-const addServiceLoading = ref(false)
-const addServiceError = ref('')
-
-function handleOpenAddService(group: SystemSessionGroup) {
-  addServiceGroup.value = group
-  addServiceName.value = ''
-  addServiceTarget.value = ''
-  addServiceLabel.value = ''
-  addServiceTls.value = false
-  addServiceError.value = ''
-}
-
-function handleCloseAddService() {
-  addServiceGroup.value = null
-}
-
-async function handleAddService() {
-  if (!addServiceGroup.value) return
-  addServiceError.value = ''
-  addServiceLoading.value = true
-  try {
-    const activeSession = addServiceGroup.value.sessions.find((s) => s.status === 'active')
-    if (!activeSession) {
-      addServiceError.value = t('support.no_active_session')
-      return
-    }
-    await addSupportSessionServices(activeSession.id, [
-      {
-        name: addServiceName.value,
-        target: addServiceTarget.value,
-        label: addServiceLabel.value,
-        tls: addServiceTls.value,
-      },
-    ])
-    handleCloseAddService()
-  } catch (error: unknown) {
-    const axiosError = error as { response?: { data?: { message?: string } } }
-    addServiceError.value = axiosError?.response?.data?.message || t('support.add_service_error')
-  } finally {
-    addServiceLoading.value = false
   }
 }
 </script>
@@ -435,22 +390,9 @@ async function handleAddService() {
                   {{ $t('support.open_workspace') }}
                 </NeButton>
                 <NeButton
-                  v-if="group.status === 'active'"
-                  kind="tertiary"
-                  size="sm"
-                  @click="handleOpenAddService(group)"
-                >
-                  <template #prefix>
-                    <FontAwesomeIcon :icon="faPlug" aria-hidden="true" />
-                  </template>
-                  {{ $t('support.add_service') }}
-                </NeButton>
-                <NeButton
                   v-if="group.status === 'active' || group.status === 'pending'"
                   kind="tertiary"
                   size="sm"
-                  :loading="extendingSessionId === group.system_id"
-                  :disabled="!!extendingSessionId"
                   @click="handleExtendGroup(group)"
                 >
                   <template #prefix>
@@ -512,45 +454,11 @@ async function handleAddService() {
         </template>
       </NeTable>
     </div>
-    <!-- Add service modal -->
-    <NeModal
-      v-if="addServiceGroup"
-      :visible="!!addServiceGroup"
-      :title="$t('support.add_service')"
-      :primary-label="$t('support.add_service')"
-      :cancel-label="$t('common.cancel')"
-      :primary-button-loading="addServiceLoading"
-      :close-aria-label="$t('common.close')"
-      @close="handleCloseAddService"
-      @primary-click="handleAddService"
-    >
-      <div class="flex flex-col gap-4">
-        <NeInlineNotification
-          v-if="addServiceError"
-          kind="error"
-          :title="$t('support.add_service_error')"
-          :description="addServiceError"
-        />
-        <NeTextInput
-          v-model="addServiceName"
-          :label="$t('support.service_name')"
-          :placeholder="$t('support.service_name_placeholder')"
-          :helper-text="$t('support.service_name_helper')"
-        />
-        <NeTextInput
-          v-model="addServiceTarget"
-          :label="$t('support.service_target')"
-          :placeholder="$t('support.service_target_placeholder')"
-          :helper-text="$t('support.service_target_helper')"
-        />
-        <NeTextInput
-          v-model="addServiceLabel"
-          :label="$t('support.service_label')"
-          :placeholder="$t('support.service_label_placeholder')"
-        />
-        <NeToggle v-model="addServiceTls" :label="$t('support.service_tls')" />
-      </div>
-    </NeModal>
+    <SupportExtendModal
+      :group="extendGroup"
+      @close="extendGroup = null"
+      @extended="(expiresAt: Date) => extendGroup && onExtended(extendGroup, expiresAt)"
+    />
     <SupportHistoryDrawer
       :is-shown="isHistoryShown"
       :group="historyGroup"

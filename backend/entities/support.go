@@ -699,6 +699,9 @@ func (r *SupportRepository) GetSystemDiagnostics(systemID, userOrgRole, userOrgI
 // maxSessionDuration is the maximum total duration a session can have from its start time (30 days)
 const maxSessionDuration = 30 * 24 // hours
 
+// ErrSessionTooLong is returned when an extension would pass maxSessionDuration
+var ErrSessionTooLong = fmt.Errorf("extension would exceed maximum session duration of %d days", maxSessionDuration/24)
+
 // ExtendSession extends the expiration of a session atomically.
 // Rejects extensions that would push the total session duration beyond 30 days.
 func (r *SupportRepository) ExtendSession(sessionID string, hours int) error {
@@ -722,7 +725,7 @@ func (r *SupportRepository) ExtendSession(sessionID string, hours int) error {
 			sessionID,
 		).Scan(&exists)
 		if exists {
-			return fmt.Errorf("extension would exceed maximum session duration of %d days", maxSessionDuration/24)
+			return ErrSessionTooLong
 		}
 		return fmt.Errorf("session not found or not extendable")
 	}
