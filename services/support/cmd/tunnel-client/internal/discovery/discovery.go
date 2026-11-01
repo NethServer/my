@@ -84,6 +84,12 @@ func DiscoverServices(ctx context.Context, cfg *config.ClientConfig) map[string]
 		}
 	}
 
+	// the built-in endpoints answer these names: a local service under one of
+	// them would be shadowed and would expose the built-in to the web proxy
+	for _, name := range models.ReservedServiceNames {
+		delete(services, name)
+	}
+
 	if len(services) > 0 {
 		LogDiscoveredServices(services)
 	}
