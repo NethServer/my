@@ -146,8 +146,18 @@ const presence = computed(() => {
     })
     connected.set(log.operator_id, entry)
   }
-  // web interfaces: every page request refreshes the operator's mark
+  // web interfaces: every page request refreshes the operator's mark, until
+  // the operator closes that interface (another tab still open marks it again)
+  const closedAt = new Map<string, number>()
+  for (const log of activity.value?.access_logs || []) {
+    if (log.access_type !== 'ui_close') continue
+    const key = `${log.operator_id}|${serviceLabel(metadataOf(log).service || '')}`
+    const at = new Date(log.connected_at).getTime()
+    if (at > (closedAt.get(key) || 0)) closedAt.set(key, at)
+  }
   for (const p of activity.value?.web_presence || []) {
+    const closed = closedAt.get(`${p.operator_id}|${serviceLabel(p.service)}`)
+    if (closed && closed >= new Date(p.last_seen).getTime()) continue
     const entry = connected.get(p.operator_id) || {
       operatorId: p.operator_id,
       name: p.operator_name || t('support.notes_unknown_author'),
