@@ -125,6 +125,13 @@ const router = createRouter({
       name: 'support',
       component: () => import('../views/SupportSessionsView.vue'),
     },
+    {
+      // detached support window: rendered without the app shell
+      path: '/support-sessions/workspace/:systemId',
+      name: 'support_workspace',
+      component: () => import('../views/SupportWorkspaceView.vue'),
+      meta: { standalone: true },
+    },
   ],
 })
 

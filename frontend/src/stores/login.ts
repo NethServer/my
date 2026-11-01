@@ -25,6 +25,8 @@ export const TOKEN_REFRESH_INTERVAL = 20 * 60 * 1000 // 20 minutes
 // refresh ahead of the real expiry so an in-flight request never carries an
 // expired token (which would trigger the 401 logout in the interceptor)
 const TOKEN_EXPIRY_MARGIN = 60 * 1000 // 1 minute
+// told to the other tabs when the user logs out in one of them
+const LOGOUT_MESSAGE = 'logout'
 
 export type UserInfo = {
   email: string
@@ -242,7 +244,22 @@ export const useLoginStore = defineStore('login', () => {
     refreshToken.value = ''
     tokenRefreshedAt.value = 0
     tokenExpiresAt.value = 0
+    clearSupportWorkspaces()
+    // the other tabs of my (and detached support windows) leave too, instead
+    // of showing what they hold until their next request fails
+    authChannel?.postMessage(LOGOUT_MESSAGE)
     signOut(SIGN_OUT_REDIRECT_URI)
+  }
+
+  // the remote support windows saved for this tab go with the session
+  function clearSupportWorkspaces() {
+    try {
+      for (const key of Object.keys(sessionStorage)) {
+        if (key.startsWith('supportWorkspaces')) sessionStorage.removeItem(key)
+      }
+    } catch {
+      // storage unavailable: nothing was saved
+    }
   }
 
   // Failure-path re-auth: tears down the local session but keeps the Logto SSO
@@ -252,6 +269,15 @@ export const useLoginStore = defineStore('login', () => {
   // credentials + MFA on the next visit, which is never the right response to
   // an internal error.
   let reauthStarted = false
+  const authChannel =
+    typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('my-auth')
+  if (authChannel) {
+    authChannel.onmessage = (event: MessageEvent) => {
+      if (event.data !== LOGOUT_MESSAGE || !jwtToken.value) return
+      clearSupportWorkspaces()
+      forceReauth()
+    }
+  }
   const forceReauth = () => {
     // one redirect is enough, even if several requests fail at once
     if (reauthStarted) {

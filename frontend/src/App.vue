@@ -53,8 +53,8 @@ onMounted(() => {
 
 <template>
   <div>
-    <AppShell v-if="route.path !== '/login'" />
-    <!-- login page: don't show app shell -->
+    <AppShell v-if="route.path !== '/login' && !route.meta.standalone" />
+    <!-- login page and detached windows: don't show app shell -->
     <RouterView v-else />
     <ToastNotificationsArea />
   </div>

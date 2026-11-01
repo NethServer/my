@@ -233,7 +233,9 @@ export const canReadOrganizationDetail = (organizationType: string, logtoId?: st
   }
 }
 
+// Remote support is Nethesis staff only: the backend also requires the Owner
+// organization on top of connect:systems
 export const canConnectSystems = () => {
   const loginStore = useLoginStore()
-  return loginStore.permissions.includes(CONNECT_SYSTEMS)
+  return loginStore.isOwner && loginStore.permissions.includes(CONNECT_SYSTEMS)
 }
