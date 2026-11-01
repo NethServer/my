@@ -243,13 +243,15 @@ func GetSupportSessionTerminal(c *gin.Context) {
 		OrgRole:        ticket.OrgRole,
 		IssuedAt:       ticket.IssuedAt,
 	}
-	serveSupportTerminal(c, principal, sessionID, ticket.Name, "web_terminal", "terminal")
+	serveSupportTerminal(c, principal, sessionID, ticket.Name, "web_terminal", "terminal", nil, nil)
 }
 
 // serveSupportTerminal bridges an authenticated client to a session's shell
 // endpoint on the support service ("terminal", or "ssh" for the SSH
-// gateway), logging the access under accessType
-func serveSupportTerminal(c *gin.Context, principal supportPrincipal, sessionID, userName, accessType, endpoint string) {
+// gateway), logging the access under accessType with extra metadata.
+// stillValid, when set, is checked with the operator for as long as the
+// bridge stays open.
+func serveSupportTerminal(c *gin.Context, principal supportPrincipal, sessionID, userName, accessType, endpoint string, metadata map[string]string, stillValid func() bool) {
 	// The operator must still be allowed, now and for as long as the shell
 	// stays open (checked again while bridging)
 	if _, status, _ := checkSupportPrincipal(principal); status != 0 {
@@ -279,7 +281,11 @@ func serveSupportTerminal(c *gin.Context, principal supportPrincipal, sessionID,
 		return
 	}
 
-	metaBytes, _ := json.Marshal(map[string]string{"service": endpoint})
+	meta := map[string]string{"service": endpoint}
+	for k, v := range metadata {
+		meta[k] = v
+	}
+	metaBytes, _ := json.Marshal(meta)
 	jsonMetadata := string(metaBytes)
 	accessLogID, logErr := repo.InsertAccessLog(sessionID, principal.UserID, userName, accessType, jsonMetadata)
 	if logErr != nil {
@@ -410,7 +416,7 @@ func serveSupportTerminal(c *gin.Context, principal supportPrincipal, sessionID,
 			case <-done:
 				return
 			case <-ticker.C:
-				if !terminalStillAllowed(principal, sessionID) {
+				if !terminalStillAllowed(principal, sessionID) || (stillValid != nil && !stillValid()) {
 					logger.Info().Str("session_id", sessionID).Str("user_id", principal.UserID).Msg("closing terminal: operator or session no longer valid")
 					closeBoth()
 					return

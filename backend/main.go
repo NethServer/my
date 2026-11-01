@@ -722,7 +722,7 @@ func main() {
 			supportGroup.GET("/:id/saved-services", methods.GetSupportSessionSavedServices)
 			supportGroup.POST("/:id/services", methods.AddSupportSessionServices)
 			supportGroup.DELETE("/:id/services/:name", methods.RemoveSupportSessionService)
-			supportGroup.POST("/:id/terminal-ticket", methods.GenerateTerminalTicket)
+			supportGroup.POST("/:id/terminal-ticket", middleware.RejectAPIKey(), methods.GenerateTerminalTicket)
 			supportGroup.POST("/:id/proxy-token", methods.GenerateSupportProxyToken)
 			supportGroup.POST("/:id/events", methods.LogSupportWorkspaceEvent)
 		}
@@ -740,21 +740,32 @@ func main() {
 			supportNotesGroup.DELETE("/:note_id", methods.DeleteSupportNote)
 		}
 
-		// SSH access requests from the SSH gateway: the operator approves them
-		// in the browser, with the same access as the sessions
+		// SSH access: the operator mints the token of the ssh command and
+		// approves the gateway's request in the browser. Never with an API key:
+		// the approval is the human step.
 		supportSSHGroup := customAuthWithAudit.Group("/support-ssh",
+			middleware.RejectAPIKey(),
 			middleware.RequirePermission("connect:systems"),
 			middleware.RequireOrgRole(models.OwnerOrgRole),
 			middleware.DisableOnImpersonate(),
 		)
 		{
+			supportSSHGroup.POST("/tokens", methods.CreateSSHToken)
 			supportSSHGroup.GET("/requests/:code", methods.GetSSHAccessRequest)
 			supportSSHGroup.POST("/requests/:code/approve", methods.ApproveSSHAccessRequest)
 			supportSSHGroup.POST("/requests/:code/deny", methods.DenySSHAccessRequest)
 		}
 
-		// SSH gateway shell bridge: internal secret plus an approved grant
-		api.GET("/support-ssh/terminal", methods.GetSSHTerminal)
+		// SSH gateway internal routes: the gateway's own secret (never exposed
+		// by the proxy)
+		sshGatewayGroup := api.Group("/support-ssh/gateway")
+		{
+			sshGatewayGroup.POST("/requests", methods.GatewayCreateSSHRequest)
+			sshGatewayGroup.GET("/requests/:code", methods.GatewaySSHRequestResult)
+			sshGatewayGroup.DELETE("/requests/:code", methods.GatewayCancelSSHRequest)
+			sshGatewayGroup.GET("/keys", methods.GatewayLookupSSHKey)
+			sshGatewayGroup.GET("/terminal", methods.GatewaySSHTerminal)
+		}
 
 		// Terminal WebSocket endpoint - uses one-time ticket auth (not JWT)
 		// to avoid exposing the long-lived JWT in URLs and server logs
