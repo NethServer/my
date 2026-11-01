@@ -9,6 +9,10 @@
 
 package models
 
+// ReservedServiceNames are the built-in endpoints of the tunnel stream: no
+// discovered or added service may take them
+var ReservedServiceNames = []string{"terminal", "ssh"}
+
 // ServiceInfo matches the support service's tunnel.ServiceInfo
 type ServiceInfo struct {
 	Target     string `json:"target"`

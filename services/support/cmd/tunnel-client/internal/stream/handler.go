@@ -32,6 +32,12 @@ const (
 
 var terminalSlots = make(chan struct{}, maxConcurrentTerminals)
 
+// SSH connections have their own slots: busy transfers never lock operators
+// out of the web terminal, nor the other way round
+const maxConcurrentSSH = 8
+
+var sshSlots = make(chan struct{}, maxConcurrentSSH)
+
 // ReadLine reads a newline-terminated line from r, byte by byte.
 // Returns the line without the trailing newline. Returns an error if the line
 // exceeds maxLineLength bytes or the reader fails.
@@ -96,10 +102,10 @@ func dispatchStream(stream net.Conn, serviceName string, services map[string]mod
 	// transfers run with the system's programs
 	if serviceName == "ssh" {
 		select {
-		case terminalSlots <- struct{}{}:
-			defer func() { <-terminalSlots }()
+		case sshSlots <- struct{}{}:
+			defer func() { <-sshSlots }()
 		default:
-			_ = writeConnectResponse(stream, fmt.Errorf("too many open terminals (max %d)", maxConcurrentTerminals))
+			_ = writeConnectResponse(stream, fmt.Errorf("too many open ssh connections (max %d)", maxConcurrentSSH))
 			return
 		}
 		if err := writeConnectResponse(stream, nil); err != nil {

@@ -68,6 +68,8 @@ func HandleSSH(c *gin.Context) {
 		_ = stream.Close()
 		return
 	}
+	// the gateway sends at most 32 KB a message: anything far larger is abuse
+	wsConn.SetReadLimit(1 << 20)
 	log.Info().Str("session_id", sessionID).Msg("ssh stream started")
 
 	var bytesIn, bytesOut atomic.Int64
