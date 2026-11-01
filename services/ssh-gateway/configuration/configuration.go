@@ -21,7 +21,10 @@ import (
 type Configuration struct {
 	// HTTPListenAddress serves the health check and the SSH-over-WebSocket endpoint
 	HTTPListenAddress string
-	SSHHostKeyPath    string
+	// SSHHostKey is the host key itself (PEM), so it survives redeploys on
+	// hosts without a persistent disk; otherwise it lives at SSHHostKeyPath
+	SSHHostKey     string
+	SSHHostKeyPath string
 
 	// AppURL is where operators approve an access request
 	AppURL string
@@ -45,6 +48,8 @@ var Config = Configuration{}
 
 func Init() {
 	Config.HTTPListenAddress = env("HTTP_LISTEN_ADDRESS", "127.0.0.1:8083")
+	// a PEM pasted on one line keeps its newlines as \n
+	Config.SSHHostKey = strings.ReplaceAll(os.Getenv("SSH_HOST_KEY"), `\n`, "\n")
 	Config.SSHHostKeyPath = env("SSH_HOST_KEY_PATH", "./ssh_host_key")
 	Config.AppURL = strings.TrimRight(env("APP_URL", "https://my.localtest.me"), "/")
 	Config.BackendURL = strings.TrimRight(env("BACKEND_URL", "http://localhost:8080"), "/")
