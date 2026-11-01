@@ -360,6 +360,11 @@ routes:
     intent: connect:systems
     object_scoped: true
 
+  - method: POST
+    path: /api/support-ssh/tokens
+    intent: connect:systems
+    object_scoped: true
+
   - method: GET
     path: /api/support-ssh/requests/:code
     intent: connect:systems
@@ -375,11 +380,35 @@ routes:
     intent: connect:systems
     object_scoped: true
 
-  - method: GET
-    path: /api/support-ssh/terminal
+  - method: POST
+    path: /api/support-ssh/gateway/requests
     intent: public
-    expect_anonymous: [401]
-    note: SSH gateway only - the internal secret and an approved grant in the headers are the credential
+    expect_anonymous: [401, 404]
+    note: SSH gateway only - its own secret in the headers is the credential; the proxy does not expose it
+
+  - method: GET
+    path: /api/support-ssh/gateway/requests/:code
+    intent: public
+    expect_anonymous: [401, 404]
+    note: SSH gateway only - its own secret in the headers is the credential; the proxy does not expose it
+
+  - method: DELETE
+    path: /api/support-ssh/gateway/requests/:code
+    intent: public
+    expect_anonymous: [401, 404]
+    note: SSH gateway only - its own secret in the headers is the credential; the proxy does not expose it
+
+  - method: GET
+    path: /api/support-ssh/gateway/keys
+    intent: public
+    expect_anonymous: [401, 404]
+    note: SSH gateway only - its own secret in the headers is the credential; the proxy does not expose it
+
+  - method: GET
+    path: /api/support-ssh/gateway/terminal
+    intent: public
+    expect_anonymous: [401, 404]
+    note: SSH gateway only - its own secret in the headers is the credential; the proxy does not expose it
 
   - method: GET
     path: /api/support-sessions/:id/terminal
