@@ -1612,7 +1612,20 @@
     "notes_edited": "edited",
     "notes_previous_session": "Previous sessions",
     "notes_delete_confirm": "Delete the note?",
-    "notes_save_error": "Cannot save the note"
+    "notes_save_error": "Cannot save the note",
+    "service_node": "Node the service is reached from",
+    "extend_title": "Extend the session of {name}",
+    "extend_by": "Extend by",
+    "extend_hours": "{n} hour | {n} hours",
+    "extend_days": "{n} day | {n} days",
+    "extend_current": "Current expiry",
+    "extend_new": "New expiry",
+    "extend_limit_hint": "At most 7 days at a time, and no more than 30 days from the start of the session.",
+    "extend_limit_reached": "The session has already reached the maximum duration of 30 days.",
+    "extend_too_long": "The extension would pass the maximum duration of 30 days: choose a shorter one.",
+    "extend_error": "Unable to extend the session",
+    "extended_title": "Session extended",
+    "extended_description": "The session of {name} now expires on {date}."
   },
   "support_workspace": {
     "title": "Support"
