@@ -119,7 +119,7 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(logger.GinLogger())
 	router.Use(logger.SecurityMiddleware())
-	router.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPathsRegexs([]string{"^/api/proxy", "^/api/terminal"})))
+	router.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPathsRegexs([]string{"^/api/proxy", "^/api/terminal", "^/api/ssh"})))
 
 	if gin.Mode() == gin.DebugMode {
 		corsConf := cors.DefaultConfig()
@@ -153,6 +153,7 @@ func main() {
 	internal.Use(middleware.InternalSecretMiddleware(), middleware.SessionTokenMiddleware(), middleware.SessionRateLimitMiddleware())
 
 	internal.GET("/terminal/:session_id", methods.HandleTerminal)
+	internal.GET("/ssh/:session_id", methods.HandleSSH)
 	internal.GET("/proxy/:session_id/services", methods.ListServices)
 	internal.Any("/proxy/:session_id/:service/*path", methods.HandleProxy)
 
