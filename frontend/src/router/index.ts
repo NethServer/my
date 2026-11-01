@@ -126,6 +126,12 @@ const router = createRouter({
       component: () => import('../views/SupportSessionsView.vue'),
     },
     {
+      // approval of an access request from the SSH gateway
+      path: '/ssh-auth',
+      name: 'ssh_auth',
+      component: () => import('../views/SshAuthView.vue'),
+    },
+    {
       // detached support window: rendered without the app shell
       path: '/support-sessions/workspace/:systemId',
       name: 'support_workspace',

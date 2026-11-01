@@ -1635,7 +1635,24 @@
     "copy_item": "Copia {item}",
     "close_tab": "Chiudi scheda",
     "activity_connected": "Connesso",
-    "activity_recent": "Attivo di recente"
+    "activity_recent": "Attivo di recente",
+    "ssh_auth_title": "Accesso SSH",
+    "ssh_auth_intro": "Un terminale chiede di aprire una shell su {target} a tuo nome. Autorizza solo se l'hai avviato tu.",
+    "ssh_auth_target_node": "{name} (nodo {node})",
+    "ssh_auth_system": "Sistema",
+    "ssh_auth_client_ip": "IP di provenienza",
+    "ssh_auth_requested_at": "Richiesto il",
+    "ssh_auth_code_label": "Codice di verifica: deve coincidere con quello nel terminale",
+    "ssh_auth_warning": "L'accesso resta valido 4 ore per la tua chiave SSH, finché non esci da My o perdi i permessi.",
+    "ssh_auth_approve": "Autorizza",
+    "ssh_auth_deny": "Rifiuta",
+    "ssh_auth_approved_title": "Accesso autorizzato",
+    "ssh_auth_approved_description": "Torna al terminale: la shell si apre da sola.",
+    "ssh_auth_denied_title": "Accesso rifiutato",
+    "ssh_auth_not_found": "Richiesta non trovata o scaduta: rilancia ssh per crearne una nuova.",
+    "ssh_auth_forbidden": "Non hai accesso a questo sistema.",
+    "ssh_auth_no_session": "Nessuna sessione di supporto attiva su questo sistema.",
+    "ssh_auth_error": "Impossibile completare la richiesta."
   },
   "support_workspace": {
     "title": "Supporto"

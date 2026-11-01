@@ -361,6 +361,27 @@ routes:
     object_scoped: true
 
   - method: GET
+    path: /api/support-ssh/requests/:code
+    intent: connect:systems
+    object_scoped: true
+
+  - method: POST
+    path: /api/support-ssh/requests/:code/approve
+    intent: connect:systems
+    object_scoped: true
+
+  - method: POST
+    path: /api/support-ssh/requests/:code/deny
+    intent: connect:systems
+    object_scoped: true
+
+  - method: GET
+    path: /api/support-ssh/terminal
+    intent: public
+    expect_anonymous: [401]
+    note: SSH gateway only - the internal secret and an approved grant in the headers are the credential
+
+  - method: GET
     path: /api/support-sessions/:id/terminal
     intent: public
     expect_anonymous: [400, 401]

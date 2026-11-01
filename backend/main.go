@@ -740,6 +740,22 @@ func main() {
 			supportNotesGroup.DELETE("/:note_id", methods.DeleteSupportNote)
 		}
 
+		// SSH access requests from the SSH gateway: the operator approves them
+		// in the browser, with the same access as the sessions
+		supportSSHGroup := customAuthWithAudit.Group("/support-ssh",
+			middleware.RequirePermission("connect:systems"),
+			middleware.RequireOrgRole(models.OwnerOrgRole),
+			middleware.DisableOnImpersonate(),
+		)
+		{
+			supportSSHGroup.GET("/requests/:code", methods.GetSSHAccessRequest)
+			supportSSHGroup.POST("/requests/:code/approve", methods.ApproveSSHAccessRequest)
+			supportSSHGroup.POST("/requests/:code/deny", methods.DenySSHAccessRequest)
+		}
+
+		// SSH gateway shell bridge: internal secret plus an approved grant
+		api.GET("/support-ssh/terminal", methods.GetSSHTerminal)
+
 		// Terminal WebSocket endpoint - uses one-time ticket auth (not JWT)
 		// to avoid exposing the long-lived JWT in URLs and server logs
 		api.GET("/support-sessions/:id/terminal", methods.GetSupportSessionTerminal)

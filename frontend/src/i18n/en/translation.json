@@ -1640,7 +1640,24 @@
     "copy_item": "Copy {item}",
     "close_tab": "Close tab",
     "activity_connected": "Connected",
-    "activity_recent": "Recently active"
+    "activity_recent": "Recently active",
+    "ssh_auth_title": "SSH access",
+    "ssh_auth_intro": "A terminal asks to open a shell on {target} on your behalf. Approve only if you started it.",
+    "ssh_auth_target_node": "{name} (node {node})",
+    "ssh_auth_system": "System",
+    "ssh_auth_client_ip": "Source IP",
+    "ssh_auth_requested_at": "Requested at",
+    "ssh_auth_code_label": "Verification code: it must match the one in the terminal",
+    "ssh_auth_warning": "Access stays valid for 4 hours for your SSH key, until you sign out of My or lose your permissions.",
+    "ssh_auth_approve": "Approve",
+    "ssh_auth_deny": "Deny",
+    "ssh_auth_approved_title": "Access approved",
+    "ssh_auth_approved_description": "Go back to the terminal: the shell opens by itself.",
+    "ssh_auth_denied_title": "Access denied",
+    "ssh_auth_not_found": "Request not found or expired: run ssh again to create a new one.",
+    "ssh_auth_forbidden": "You have no access to this system.",
+    "ssh_auth_no_session": "No active support session on this system.",
+    "ssh_auth_error": "Unable to complete the request."
   },
   "support_workspace": {
     "title": "Support"
