@@ -240,13 +240,17 @@ func ReconnectTokenMatches(sess *models.SupportSession, token string) bool {
 
 // IsReconnectTokenEnded reports whether the token belongs to a session of this
 // system that has been closed or has expired, so the client must stop retrying.
+// A session closed only because its tunnel stayed down past the grace period
+// has not ended: support is still on at the appliance, so the client gets a
+// new session instead of giving up after a network outage.
 func IsReconnectTokenEnded(systemID, token string) (bool, error) {
 	if token == "" {
 		return false, nil
 	}
 	var ended bool
 	err := database.DB.QueryRow(
-		`SELECT status IN ('closed', 'expired') OR expires_at <= NOW()
+		`SELECT status = 'expired' OR expires_at <= NOW()
+		        OR (status = 'closed' AND closed_by IS DISTINCT FROM 'disconnect')
 		 FROM support_sessions
 		 WHERE system_id = $1 AND reconnect_token = $2
 		 ORDER BY created_at DESC LIMIT 1`,
@@ -489,4 +493,37 @@ func SystemIDByKey(systemKey string) (string, error) {
 		return "", nil
 	}
 	return id, err
+}
+
+// ClusterAdminForSession returns the NS8 cluster admin credentials reported
+// for the system of an active session (by any of its nodes), or nil when none
+// were reported.
+func ClusterAdminForSession(sessionID string) (*models.UserCredential, error) {
+	var rawUsers []byte
+	err := database.DB.QueryRow(
+		`SELECT src.users
+		 FROM support_sessions src
+		 JOIN support_sessions req
+		   ON req.id = $1 AND req.system_id = src.system_id AND req.status = 'active'
+		  AND req.expires_at > NOW()
+		 WHERE src.status IN ('pending', 'active') AND src.expires_at > NOW()
+		   AND src.users IS NOT NULL
+		 ORDER BY src.users_at DESC LIMIT 1`,
+		sessionID,
+	).Scan(&rawUsers)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	plain, err := helpers.DecryptSupportUsers(configuration.Config.InternalSecret, rawUsers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt users: %w", err)
+	}
+	var report models.UsersReport
+	if err := json.Unmarshal(plain, &report); err != nil {
+		return nil, fmt.Errorf("failed to parse users: %w", err)
+	}
+	return report.Users.ClusterAdmin, nil
 }

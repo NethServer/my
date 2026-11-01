@@ -99,6 +99,7 @@ func main() {
 	go session.StartCleaner(ctx, func(expiredSessionIDs []string) {
 		for _, sessionID := range expiredSessionIDs {
 			tunnelManager.CloseBySessionID(sessionID)
+			methods.ForgetClusterAdmin(sessionID)
 		}
 	})
 

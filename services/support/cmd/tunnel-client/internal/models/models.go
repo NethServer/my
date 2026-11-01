@@ -19,6 +19,7 @@ type ServiceInfo struct {
 	PathPrefix string `json:"path_prefix,omitempty"`
 	ModuleID   string `json:"module_id,omitempty"`
 	NodeID     string `json:"node_id,omitempty"`
+	NodeLabel  string `json:"node_label,omitempty"`
 	// Auth is "cluster" when the route sits behind the NS8 cluster login
 	// (Traefik forwardAuth to cluster-admin http-basic) instead of the app's own.
 	Auth string `json:"auth,omitempty"`

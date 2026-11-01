@@ -228,6 +228,9 @@ func discoverNodeRoutes(ctx context.Context, rdb *redis.Client, nodeID string) m
 		return services
 	}
 
+	// The node's label as set in the cluster UI (empty when none)
+	nodeLabel, _ := rdb.Get(ctx, fmt.Sprintf("node/%s/ui_name", nodeID)).Result()
+
 	for _, route := range routes {
 		serviceKey := route.Instance
 
@@ -270,6 +273,7 @@ func discoverNodeRoutes(ctx context.Context, rdb *redis.Client, nodeID string) m
 			PathPrefix: pathPrefix,
 			ModuleID:   moduleID,
 			NodeID:     nodeID,
+			NodeLabel:  nodeLabel,
 		}
 	}
 

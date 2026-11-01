@@ -129,6 +129,8 @@ func HandleProxy(c *gin.Context) {
 	hostRewrites := buildHostRewriteMap(t, proxyHost)
 	needsRewrite := len(hostRewrites) > 0
 	cookiePrefix := sessionCookiePrefix(sessionID)
+	autofillOrigin := embedOrigin(c.Request)
+	clusterLogin := false
 
 	// #10: Check stream limit before opening a new stream
 	if !t.AcquireStream() {
@@ -157,6 +159,10 @@ func HandleProxy(c *gin.Context) {
 
 			stripInternalHeaders(req.Header)
 			filterSessionCookies(req.Header, cookiePrefix)
+			if autofillOrigin != "" {
+				prepareAutofillRequest(req.Header)
+			}
+			clusterLogin = applyClusterLogin(req, svc.Auth, sessionID)
 
 			// Stand in for the Traefik the request bypasses: apps build
 			// absolute redirects from these (e.g. FreePBX /freepbx/visualplan)
@@ -190,7 +196,20 @@ func HandleProxy(c *gin.Context) {
 			// Replace upstream security headers with proxy-appropriate values
 			// instead of stripping them entirely, to prevent clickjacking
 			resp.Header.Del("X-Frame-Options")
-			resp.Header.Set("Content-Security-Policy", "frame-ancestors 'self'")
+			inject := autofillOrigin != "" && resp.StatusCode == http.StatusOK &&
+				strings.Contains(resp.Header.Get("Content-Type"), "text/html")
+			scriptHash := ""
+			if inject {
+				scriptHash = autofillScriptHash(autofillOrigin)
+			}
+			adjustCSP(resp.Header, scriptHash)
+			if strings.Contains(resp.Header.Get("Content-Type"), "text/html") {
+				resp.Header.Add("Vary", "Sec-Fetch-Dest")
+			}
+			if clusterLogin {
+				// tells the backend to record it in the session's access log
+				resp.Header.Set("X-Support-Cluster-Login", serviceName)
+			}
 
 			// Rewrite upstream cookies to prevent cross-session leakage (#9):
 			// namespace per session, scope to exact proxy hostname,
@@ -202,9 +221,24 @@ func HandleProxy(c *gin.Context) {
 			}
 
 			// Rewrite hardcoded hostnames in text responses so that JS API calls
-			// go through the proxy instead of directly to the original host.
-			if needsRewrite && isRewritableResponse(resp) {
-				if err := rewriteResponseBodyMulti(resp, hostRewrites); err != nil {
+			// go through the proxy instead of directly to the original host,
+			// and give pages framed by the support workspace its login autofill.
+			if (needsRewrite && isRewritableResponse(resp)) || inject {
+				err := transformResponseBody(resp, func(body []byte) []byte {
+					for oldHost, newHost := range hostRewrites {
+						body = bytes.ReplaceAll(body, []byte(oldHost), []byte(newHost))
+					}
+					if inject {
+						body = injectAutofill(body, autofillOrigin)
+					}
+					return body
+				})
+				if inject {
+					resp.Header.Set("Cache-Control", "no-store")
+					resp.Header.Del("ETag")
+					resp.Header.Del("Last-Modified")
+				}
+				if err != nil {
 					log.Warn().Err(err).Msg("failed to rewrite response body")
 				}
 			}
@@ -228,6 +262,10 @@ func HandleProxy(c *gin.Context) {
 				}
 				return stream, nil
 			},
+			// The transport lives for this request only: a kept-alive connection
+			// would never be reused, and its tunnel stream would stay open on the
+			// appliance until the service there hangs up, filling the stream slots
+			DisableKeepAlives: true,
 			// Preserve upstream Content-Encoding as-is; without this, Go auto-decompresses
 			// gzip but keeps the header, causing ERR_CONTENT_DECODING_FAILED in browsers
 			DisableCompression:     true,
@@ -387,6 +425,7 @@ var internalHeaders = []string{
 	"X-Internal-Secret",
 	"X-Session-Token",
 	"X-Proxy-Host",
+	"X-Embed-Origin",
 	"X-Forwarded-For",
 	"X-Forwarded-Host",
 	"X-Forwarded-Proto",
@@ -466,10 +505,24 @@ type readCloser struct {
 }
 
 // rewriteResponseBodyMulti replaces all hostname occurrences in the response body
-// using a map of original -> proxy hostnames. Bodies that are too large, use an
-// unsupported encoding or fail to decompress are passed through unmodified.
+// using a map of original -> proxy hostnames.
 func rewriteResponseBodyMulti(resp *http.Response, rewrites map[string]string) error {
-	if resp.Body == nil || len(rewrites) == 0 {
+	if len(rewrites) == 0 {
+		return nil
+	}
+	return transformResponseBody(resp, func(body []byte) []byte {
+		for oldHost, newHost := range rewrites {
+			body = bytes.ReplaceAll(body, []byte(oldHost), []byte(newHost))
+		}
+		return body
+	})
+}
+
+// transformResponseBody applies fn to the decoded response body. Bodies that
+// are too large, use an unsupported encoding or fail to decompress are passed
+// through unmodified.
+func transformResponseBody(resp *http.Response, fn func([]byte) []byte) error {
+	if resp.Body == nil {
 		return nil
 	}
 
@@ -518,9 +571,7 @@ func rewriteResponseBodyMulti(resp *http.Response, rewrites map[string]string) e
 		}
 	}
 
-	for oldHost, newHost := range rewrites {
-		body = bytes.ReplaceAll(body, []byte(oldHost), []byte(newHost))
-	}
+	body = fn(body)
 
 	if isGzipped {
 		var buf bytes.Buffer

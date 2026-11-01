@@ -146,6 +146,7 @@ func HandleTunnel(c *gin.Context) {
 				log.Warn().Err(err).Str("session_id", existing.ID).Msg("failed to close replaced session")
 			}
 			TunnelManager.CloseBySessionID(existing.ID)
+			ForgetClusterAdmin(existing.ID)
 		}
 		sess, err = session.CreateSession(sysID, nodeID, responseToken)
 		if err != nil {

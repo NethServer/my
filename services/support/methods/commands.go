@@ -164,6 +164,7 @@ func handleCloseCommand(sessionID string) {
 	if TunnelManager.CloseBySessionID(sessionID) {
 		log.Info().Str("session_id", sessionID).Msg("tunnel closed by command")
 	}
+	ForgetClusterAdmin(sessionID)
 
 	// Close the session in the database
 	if err := session.CloseSession(sessionID, "operator"); err != nil {
