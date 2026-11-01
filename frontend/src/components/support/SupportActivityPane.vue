@@ -140,10 +140,10 @@ const presence = computed(() => {
       activities: [],
     }
     const node = nodeOf(log.session_id)
-    addActivity(entry, {
-      kind: 'terminal',
-      text: node ? `${t('support.activity_terminal')} · ${node}` : t('support.activity_terminal'),
-    })
+    const label = t(
+      log.access_type === 'ssh' ? 'support.activity_ssh' : 'support.activity_terminal',
+    )
+    addActivity(entry, { kind: 'terminal', text: node ? `${label} · ${node}` : label })
     connected.set(log.operator_id, entry)
   }
   // web interfaces: every page request refreshes the operator's mark, until
@@ -204,7 +204,12 @@ function logItems(log: SupportActivityLog): TimelineItem[] {
       at: end,
       icon: faTerminal,
       tone: 'end',
-      text: t('support.activity_closed_terminal', { name: operatorName(log) }),
+      text: t(
+        log.access_type === 'ssh'
+          ? 'support.activity_closed_ssh'
+          : 'support.activity_closed_terminal',
+        { name: operatorName(log) },
+      ),
       detail:
         [node, formatDuration(end.getTime() - opened.at.getTime())].filter(Boolean).join(' · ') ||
         undefined,
@@ -223,11 +228,18 @@ function logItem(log: SupportActivityLog): TimelineItem {
     case 'ssh': {
       // the end of a terminal is an event of its own, see logItems
       const duration = isOpen(log) ? t('support.activity_in_progress') : ''
+      // an SSH access says where the operator connected from
+      const from = meta.client_ip ? t('support.activity_from', { ip: meta.client_ip }) : ''
       return {
         ...base,
         icon: faTerminal,
-        text: t('support.activity_opened_terminal', { name }),
-        detail: [node, duration].filter(Boolean).join(' · ') || undefined,
+        text: t(
+          log.access_type === 'ssh'
+            ? 'support.activity_opened_ssh'
+            : 'support.activity_opened_terminal',
+          { name },
+        ),
+        detail: [node, from, duration].filter(Boolean).join(' · ') || undefined,
       }
     }
     case 'autofill':
