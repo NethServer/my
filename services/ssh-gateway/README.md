@@ -26,6 +26,20 @@ Locally, use `wss://my.localtest.me/ssh-gateway/api/ssh`: like the other
 services, the proxy exposes it under its own prefix (`/api/` on the main
 host still forwards to the legacy my).
 
+## Host key
+
+The gateway's host key is its identity: if it changes, every operator's ssh
+stops with "REMOTE HOST IDENTIFICATION HAS CHANGED". On Render, where the disk
+does not survive a deploy, set it once as the `SSH_HOST_KEY` secret:
+
+```
+ssh-keygen -t ed25519 -N '' -C my-ssh-gateway -f ssh_host_key
+ssh-keygen -lf ssh_host_key.pub     # fingerprint to publish for operators
+```
+
+The gateway logs the fingerprint at startup. Publish it in the operator docs,
+so the first connection's prompt is checked rather than accepted blindly.
+
 ## Flow
 
 1. The client proves it owns an SSH key; if that key was approved for this

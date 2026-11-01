@@ -119,8 +119,12 @@ func clientIP(r *http.Request) string {
 	return host
 }
 
-// LoadOrGenerateHostKey keeps the gateway's identity stable across restarts
-func LoadOrGenerateHostKey(path string) (gossh.Signer, error) {
+// LoadOrGenerateHostKey keeps the gateway's identity stable across restarts:
+// a changed key makes every operator's ssh warn of a man in the middle
+func LoadOrGenerateHostKey(pemKey, path string) (gossh.Signer, error) {
+	if pemKey != "" {
+		return gossh.ParsePrivateKey([]byte(pemKey))
+	}
 	if data, err := os.ReadFile(path); err == nil {
 		return gossh.ParsePrivateKey(data)
 	}

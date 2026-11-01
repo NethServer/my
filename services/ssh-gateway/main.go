@@ -20,6 +20,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
+	gossh "golang.org/x/crypto/ssh"
 
 	"github.com/nethesis/my/services/ssh-gateway/configuration"
 	"github.com/nethesis/my/services/ssh-gateway/gateway"
@@ -56,10 +57,12 @@ func main() {
 		logger.Fatal().Err(err).Msg("cannot connect to Redis")
 	}
 
-	hostKey, err := gateway.LoadOrGenerateHostKey(configuration.Config.SSHHostKeyPath)
+	hostKey, err := gateway.LoadOrGenerateHostKey(configuration.Config.SSHHostKey, configuration.Config.SSHHostKeyPath)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("cannot load the SSH host key")
 	}
+	// operators compare it with the documented one at their first connection
+	logger.Info().Str("fingerprint", gossh.FingerprintSHA256(hostKey.PublicKey())).Msg("ssh host key loaded")
 
 	server := gateway.NewServer(gateway.NewAuthenticator(rdb), hostKey, configuration.Config.AuthTimeout)
 
