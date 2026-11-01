@@ -8,6 +8,7 @@ echo "Original BACKEND_SERVICE_NAME=$BACKEND_SERVICE_NAME"
 echo "Original COLLECT_SERVICE_NAME=$COLLECT_SERVICE_NAME"
 echo "Original SUPPORT_SERVICE_NAME=$SUPPORT_SERVICE_NAME"
 echo "Original FRONTEND_SERVICE_NAME=$FRONTEND_SERVICE_NAME"
+echo "Original SSH_GATEWAY_SERVICE_NAME=$SSH_GATEWAY_SERVICE_NAME"
 
 # Check if this is a PR preview environment
 if [ "$IS_PULL_REQUEST" = "true" ]; then
@@ -22,7 +23,7 @@ if [ "$IS_PULL_REQUEST" = "true" ]; then
     # instances, so their names must not be suffixed. To skip a service, set
     # its env var to an FQDN (containing a dot) — the suffix is only applied
     # to short names.
-    for VAR in BACKEND_SERVICE_NAME COLLECT_SERVICE_NAME SUPPORT_SERVICE_NAME FRONTEND_SERVICE_NAME; do
+    for VAR in BACKEND_SERVICE_NAME COLLECT_SERVICE_NAME SUPPORT_SERVICE_NAME FRONTEND_SERVICE_NAME SSH_GATEWAY_SERVICE_NAME; do
         eval "VAL=\$$VAR"
         case "$VAL" in
             *.*) echo "Skipping PR suffix for $VAR (FQDN: $VAL)" ;;
@@ -34,6 +35,7 @@ if [ "$IS_PULL_REQUEST" = "true" ]; then
     echo "Adjusted COLLECT_SERVICE_NAME=$COLLECT_SERVICE_NAME"
     echo "Adjusted SUPPORT_SERVICE_NAME=$SUPPORT_SERVICE_NAME"
     echo "Adjusted FRONTEND_SERVICE_NAME=$FRONTEND_SERVICE_NAME"
+    echo "Adjusted SSH_GATEWAY_SERVICE_NAME=$SSH_GATEWAY_SERVICE_NAME"
 else
     echo '==> Not a PR preview, using original service names'
 fi
@@ -45,7 +47,7 @@ export RESOLVER="${RESOLVER:-8.8.8.8}"
 
 SEARCH_DOMAIN=$(awk '/^search/ {print $2; exit}' /etc/resolv.conf)
 if [ -n "$SEARCH_DOMAIN" ]; then
-    for VAR in BACKEND_SERVICE_NAME COLLECT_SERVICE_NAME SUPPORT_SERVICE_NAME FRONTEND_SERVICE_NAME; do
+    for VAR in BACKEND_SERVICE_NAME COLLECT_SERVICE_NAME SUPPORT_SERVICE_NAME FRONTEND_SERVICE_NAME SSH_GATEWAY_SERVICE_NAME; do
         eval "VAL=\$$VAR"
         case "$VAL" in
             *.*) echo "Skipping search domain for $VAR (already FQDN: $VAL)" ;;
@@ -80,7 +82,7 @@ echo "CSP third-party frame-src: ${THIRD_PARTY_FRAME_SRC:-none}"
 echo "CSP third-party img-src: ${THIRD_PARTY_IMG_SRC:-none}"
 
 echo '==> Substituting nginx config...'
-envsubst '$PORT $BACKEND_SERVICE_NAME $COLLECT_SERVICE_NAME $SUPPORT_SERVICE_NAME $FRONTEND_SERVICE_NAME $RESOLVER $LOGTO_ENDPOINT $THIRD_PARTY_CONNECT_SRC $THIRD_PARTY_SCRIPT_SRC $THIRD_PARTY_FRAME_SRC $THIRD_PARTY_IMG_SRC' < /etc/nginx/nginx.conf > /tmp/nginx.conf
+envsubst '$PORT $BACKEND_SERVICE_NAME $COLLECT_SERVICE_NAME $SUPPORT_SERVICE_NAME $FRONTEND_SERVICE_NAME $SSH_GATEWAY_SERVICE_NAME $RESOLVER $LOGTO_ENDPOINT $THIRD_PARTY_CONNECT_SRC $THIRD_PARTY_SCRIPT_SRC $THIRD_PARTY_FRAME_SRC $THIRD_PARTY_IMG_SRC' < /etc/nginx/nginx.conf > /tmp/nginx.conf
 
 echo '==> Generated upstream URLs:'
 grep -E 'set.*upstream' /tmp/nginx.conf || true

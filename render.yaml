@@ -755,6 +755,11 @@ services:
           name: my-support-qa
           type: pserv
           property: host
+      - key: SSH_GATEWAY_SERVICE_NAME
+        fromService:
+          name: my-ssh-gateway-qa
+          type: pserv
+          property: host
       - key: FRONTEND_SERVICE_NAME
         fromService:
           name: my-frontend-qa
