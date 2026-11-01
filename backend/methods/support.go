@@ -13,7 +13,9 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
@@ -72,12 +74,21 @@ func GetSupportSessions(c *gin.Context) {
 	_, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 	page, pageSize, sortBy, sortDirection := helpers.GetPaginationAndSortingFromQuery(c)
 
-	status := c.Query("status")
-	systemID := c.Query("system_id")
+	filters := entities.SupportSessionFilters{
+		Search:          strings.TrimSpace(c.Query("search")),
+		SystemID:        c.Query("system_id"),
+		Types:           c.QueryArray("type"),
+		OrganizationIDs: c.QueryArray("organization_id"),
+		Statuses:        c.QueryArray("status"),
+	}
+	if msg := validateSupportSessionFilters(filters); msg != "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest(msg, nil))
+		return
+	}
 
 	repo := entities.NewSupportRepository()
 	groups, totalCount, err := repo.GetSystemSessions(
-		userOrgRole, userOrgID, page, pageSize, status, systemID, sortBy, sortDirection,
+		userOrgRole, userOrgID, page, pageSize, filters, sortBy, sortDirection,
 	)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to retrieve support sessions")
@@ -89,6 +100,38 @@ func GetSupportSessions(c *gin.Context) {
 		"support_sessions": helpers.EnsureSlice(groups),
 		"pagination":       helpers.BuildPaginationInfoWithSorting(page, pageSize, totalCount, sortBy, sortDirection),
 	}))
+}
+
+const (
+	maxSupportSearchLength = 100
+	maxSupportFilterValues = 50
+)
+
+var (
+	supportSessionStatuses = []string{"pending", "active", "expired", "closed"}
+	supportSystemTypes     = []string{"ns8", "nsec"}
+)
+
+// validateSupportSessionFilters bounds the list filters: enums for status and
+// product, a cap on the search text and on the number of values per filter.
+func validateSupportSessionFilters(f entities.SupportSessionFilters) string {
+	if len(f.Search) > maxSupportSearchLength {
+		return "search is too long"
+	}
+	if len(f.Types) > maxSupportFilterValues || len(f.OrganizationIDs) > maxSupportFilterValues || len(f.Statuses) > maxSupportFilterValues {
+		return "too many filter values"
+	}
+	for _, status := range f.Statuses {
+		if !slices.Contains(supportSessionStatuses, status) {
+			return "invalid status filter"
+		}
+	}
+	for _, t := range f.Types {
+		if !slices.Contains(supportSystemTypes, t) {
+			return "invalid product filter"
+		}
+	}
+	return ""
 }
 
 // GetSupportSession handles GET /api/support-sessions/:id
@@ -152,6 +195,7 @@ func ExtendSupportSession(c *gin.Context) {
 	}
 
 	logger.LogBusinessOperation(c, "support", "extend", "session", sessionID, true, nil)
+	logAccessWithMetadata(c, sessionID, "session_extend", map[string]string{"hours": strconv.Itoa(request.Hours)})
 
 	c.JSON(http.StatusOK, response.OK("support session extended successfully", gin.H{
 		"session_id":        sessionID,
@@ -182,6 +226,7 @@ func CloseSupportSession(c *gin.Context) {
 		return
 	}
 
+	forgetProxySession(sessionID)
 	if err := repo.CloseSession(sessionID); err != nil {
 		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to close support session")
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to close support session", nil))
@@ -204,6 +249,7 @@ func CloseSupportSession(c *gin.Context) {
 	}
 
 	logger.LogBusinessOperation(c, "support", "close", "session", sessionID, true, nil)
+	logAccessWithMetadata(c, sessionID, "session_close", map[string]string{})
 
 	c.JSON(http.StatusOK, response.OK("support session closed successfully", gin.H{
 		"session_id": sessionID,
@@ -403,6 +449,9 @@ func AddSupportSessionServices(c *gin.Context) {
 	}
 
 	logger.LogBusinessOperation(c, "support", "add_services", "session", sessionID, true, nil)
+	for _, svc := range request.Services {
+		logAccessWithMetadata(c, sessionID, "service_add", map[string]string{"service": svc.Name, "target": svc.Target})
+	}
 
 	c.JSON(http.StatusOK, response.OK("services added successfully", gin.H{
 		"session_id": sessionID,
@@ -417,6 +466,10 @@ func RemoveSupportSessionService(c *gin.Context) {
 	serviceName := c.Param("name")
 	if sessionID == "" || serviceName == "" {
 		c.JSON(http.StatusBadRequest, response.BadRequest("session id and service name required", nil))
+		return
+	}
+	if !validServiceName.MatchString(serviceName) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("invalid service name", nil))
 		return
 	}
 
@@ -458,6 +511,7 @@ func RemoveSupportSessionService(c *gin.Context) {
 	}
 
 	logger.LogBusinessOperation(c, "support", "remove_service", "session", sessionID, true, nil)
+	logAccessWithMetadata(c, sessionID, "service_remove", map[string]string{"service": serviceName})
 
 	c.JSON(http.StatusOK, response.OK("service removed successfully", gin.H{
 		"session_id":   sessionID,

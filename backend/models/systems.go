@@ -131,6 +131,7 @@ type SystemListFilters struct {
 	ParentOrganizationIDs []string // "Managed by": owning organization within these subtrees
 	Statuses              []string // unified status, including suspended/no_inventory
 	Addons                []string // catalog ids of add-ons the system must hold
+	SupportSession        bool     // only systems with a live (pending or active) support session
 }
 
 // IsSuspended returns true if the system is suspended

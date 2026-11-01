@@ -428,6 +428,10 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(ctx context.Context
 		args = append(args, addonArgs...)
 	}
 
+	if f.SupportSession {
+		whereClause += " AND EXISTS (SELECT 1 FROM support_sessions ss WHERE ss.system_id = s.id AND ss.status IN ('pending', 'active'))"
+	}
+
 	// Build ORDER BY clause
 	orderBy := "s.created_at DESC"
 	if sortBy != "" {

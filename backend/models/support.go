@@ -96,3 +96,51 @@ type AddSessionServiceItem struct {
 type AddSessionServicesRequest struct {
 	Services []AddSessionServiceItem `json:"services" binding:"required,min=1,max=10"`
 }
+
+// SupportSessionNote is an operator note written during a support session
+type SupportSessionNote struct {
+	ID         string    `json:"id"`
+	SessionID  string    `json:"session_id"`
+	SystemID   string    `json:"system_id"`
+	AuthorID   string    `json:"author_id"`
+	AuthorName *string   `json:"author_name,omitempty"`
+	Body       string    `json:"body"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+// SupportSessionNoteRequest is the body of a note to create or edit
+type SupportSessionNoteRequest struct {
+	SystemID string `json:"system_id"`
+	Body     string `json:"body" binding:"required"`
+}
+
+// SupportActivitySession is one session of a system in its activity history
+type SupportActivitySession struct {
+	ID        string     `json:"id"`
+	NodeID    *string    `json:"node_id,omitempty"`
+	Status    string     `json:"status"`
+	StartedAt time.Time  `json:"started_at"`
+	ExpiresAt time.Time  `json:"expires_at"`
+	ClosedAt  *time.Time `json:"closed_at,omitempty"`
+	ClosedBy  *string    `json:"closed_by,omitempty"`
+}
+
+// SupportActivity is the support history of a system: its sessions, newest
+// first, and the operator accesses and actions across all of them
+type SupportActivity struct {
+	SystemID   string                   `json:"system_id"`
+	Sessions   []SupportActivitySession `json:"sessions"`
+	AccessLogs []SupportAccessLog       `json:"access_logs"`
+	// operators using the web interfaces of the live sessions right now
+	WebPresence []SupportWebPresence `json:"web_presence"`
+}
+
+// SupportWebPresence is an operator seen lately on a web interface of a session
+type SupportWebPresence struct {
+	SessionID    string    `json:"session_id"`
+	OperatorID   string    `json:"operator_id"`
+	OperatorName string    `json:"operator_name"`
+	Service      string    `json:"service"`
+	LastSeen     time.Time `json:"last_seen"`
+}

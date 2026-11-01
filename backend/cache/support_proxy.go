@@ -11,6 +11,8 @@ package cache
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"time"
 )
@@ -37,4 +39,51 @@ func MarkSupportProxyAccess(tokenHash, service string, ttl time.Duration) (bool,
 		return true, err
 	}
 	return first, nil
+}
+
+const (
+	supportProxyCodePrefix = "support_proxy_code:"
+	supportProxyCodeTTL    = 30 * time.Second
+)
+
+// supportProxyCode is what a one-time proxy code stands for
+type supportProxyCode struct {
+	Token string `json:"token"`
+}
+
+// IssueSupportProxyCode stores a proxy token behind a one-time code that is
+// short-lived, so the token itself never travels in a URL (access logs,
+// history): the browser hands the code to the proxy, which swaps it for the
+// token in an HttpOnly cookie.
+func IssueSupportProxyCode(token string) (string, error) {
+	rc := GetRedisClient()
+	if rc == nil {
+		return "", errSupportProxyAccessRedisUnavailable
+	}
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	code := hex.EncodeToString(b)
+	if err := rc.Set(supportProxyCodePrefix+code, supportProxyCode{Token: token}, supportProxyCodeTTL); err != nil {
+		return "", err
+	}
+	return code, nil
+}
+
+// ConsumeSupportProxyCode returns the token behind a one-time code and deletes
+// it, or "" when the code is unknown, used or expired.
+func ConsumeSupportProxyCode(code string) (string, error) {
+	rc := GetRedisClient()
+	if rc == nil {
+		return "", errSupportProxyAccessRedisUnavailable
+	}
+	var entry supportProxyCode
+	if err := rc.GetDel(supportProxyCodePrefix+code, &entry); err != nil {
+		if err == ErrCacheMiss {
+			return "", nil
+		}
+		return "", err
+	}
+	return entry.Token, nil
 }
