@@ -35,7 +35,7 @@ import {
   type SortEvent,
   formatDateTimeNoSeconds,
 } from '@nethesis/vue-components'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import {
@@ -51,6 +51,7 @@ import {
   type SupportSessionSortBy,
   type SystemSessionGroup,
   closeSupportSession,
+  getSupportSessionServices,
 } from '@/lib/support/support'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import { canConnectSystems } from '@/lib/permissions'
@@ -69,7 +70,7 @@ import {
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
 import SupportHistoryDrawer from '@/components/support/SupportHistoryDrawer.vue'
 import SupportExtendModal from '@/components/support/SupportExtendModal.vue'
-import { sshCommand } from '@/lib/support/ssh'
+import { createSSHCommand } from '@/lib/support/ssh'
 import { useNotificationsStore } from '@/stores/notifications'
 
 const props = withDefaults(defineProps<{ scope?: SupportSessionsScope }>(), { scope: 'live' })
@@ -175,7 +176,8 @@ function handleShowHistory(group: SystemSessionGroup) {
   isHistoryShown.value = true
 }
 
-// SSH: copy the command to paste in a terminal, one per node on a cluster
+// SSH: copy the command to paste in a terminal, one per node on a cluster.
+// Each copy carries a fresh one-time token bound to this operator.
 
 function sshNodes(group: SystemSessionGroup): string[] {
   return group.sessions
@@ -184,9 +186,54 @@ function sshNodes(group: SystemSessionGroup): string[] {
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
 }
 
-async function copySSHCommand(group: SystemSessionGroup, nodeId?: string) {
+// the labels given to the cluster nodes, read from a session's services
+const nodeLabels = ref<Record<string, Record<string, string>>>({})
+const nodeLabelsLoading = new Set<string>()
+
+async function loadNodeLabels(group: SystemSessionGroup) {
+  const session = group.sessions.find((s) => s.status === 'active')
+  if (!session || nodeLabels.value[group.system_id] || nodeLabelsLoading.has(group.system_id))
+    return
+  nodeLabelsLoading.add(group.system_id)
   try {
-    await navigator.clipboard.writeText(sshCommand(group.system_key, nodeId))
+    const labels: Record<string, string> = {}
+    for (const sg of await getSupportSessionServices(session.id)) {
+      for (const svc of sg.services) {
+        if (svc.nodeId && svc.nodeLabel && !labels[svc.nodeId]) labels[svc.nodeId] = svc.nodeLabel
+      }
+    }
+    nodeLabels.value = { ...nodeLabels.value, [group.system_id]: labels }
+  } catch {
+    // no labels: the nodes keep their number
+  } finally {
+    nodeLabelsLoading.delete(group.system_id)
+  }
+}
+
+// the clusters on the page get their node labels for the SSH menu
+watch(
+  () => sessionGroups.value,
+  (groups) => {
+    for (const group of groups || []) {
+      if (group.status === 'active' && sshNodes(group).length > 1) loadNodeLabels(group)
+    }
+  },
+  { immediate: true },
+)
+
+async function copySSHCommand(group: SystemSessionGroup, nodeId?: string) {
+  const command = createSSHCommand(group.system_id, nodeId)
+  try {
+    // the clipboard write starts within the click, the command follows
+    if (typeof ClipboardItem !== 'undefined' && navigator.clipboard.write) {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/plain': command.then((text) => new Blob([text], { type: 'text/plain' })),
+        }),
+      ])
+    } else {
+      await navigator.clipboard.writeText(await command)
+    }
     notificationsStore.createNotification({
       kind: 'success',
       title: t('support.ssh_copied'),
@@ -200,9 +247,12 @@ async function copySSHCommand(group: SystemSessionGroup, nodeId?: string) {
 }
 
 function sshDropdownItems(group: SystemSessionGroup): NeDropdownItem[] {
+  const labels = nodeLabels.value[group.system_id] || {}
   return sshNodes(group).map((nodeId) => ({
     id: `ssh-${nodeId}`,
-    label: t('support.ssh_copy_node', { node: nodeId }),
+    label: labels[nodeId]
+      ? t('support.ssh_copy_node_label', { node: nodeId, label: labels[nodeId] })
+      : t('support.ssh_copy_node', { node: nodeId }),
     action: () => copySSHCommand(group, nodeId),
   }))
 }
@@ -440,18 +490,37 @@ async function handleCloseGroup(group: SystemSessionGroup) {
                     </NeButton>
                   </template>
                 </NeDropdown>
-                <NeButton
-                  v-else-if="group.status === 'active' && group.system_key"
-                  kind="tertiary"
-                  size="sm"
-                  :title="$t('support.ssh_copy_hint')"
-                  @click="copySSHCommand(group)"
-                >
-                  <template #prefix>
-                    <FontAwesomeIcon :icon="faTerminal" aria-hidden="true" />
-                  </template>
-                  {{ $t('support.ssh') }}
-                </NeButton>
+                <!-- a single node: the cell keeps the width of a cluster's dropdown, so
+                     the actions stay aligned while the button keeps its own size -->
+                <div v-else-if="group.status === 'active' && group.system_key" class="grid">
+                  <NeButton
+                    kind="tertiary"
+                    size="sm"
+                    class="pointer-events-none invisible col-start-1 row-start-1"
+                    tabindex="-1"
+                    aria-hidden="true"
+                  >
+                    <template #prefix>
+                      <FontAwesomeIcon :icon="faTerminal" />
+                    </template>
+                    {{ $t('support.ssh') }}
+                    <template #suffix>
+                      <FontAwesomeIcon :icon="faChevronDown" />
+                    </template>
+                  </NeButton>
+                  <NeButton
+                    kind="tertiary"
+                    size="sm"
+                    class="col-start-1 row-start-1 justify-self-start"
+                    :title="$t('support.ssh_copy_hint')"
+                    @click="copySSHCommand(group)"
+                  >
+                    <template #prefix>
+                      <FontAwesomeIcon :icon="faTerminal" aria-hidden="true" />
+                    </template>
+                    {{ $t('support.ssh') }}
+                  </NeButton>
+                </div>
                 <NeButton
                   v-if="group.status === 'active' || group.status === 'pending'"
                   kind="tertiary"
