@@ -25,17 +25,29 @@ type wsConn struct {
 	remoteAddr net.Addr
 	reader     io.Reader
 	writeMu    sync.Mutex
+	done       chan struct{}
+	doneOnce   sync.Once
 }
 
+// maxMessageSize bounds a single WebSocket message from the peer
+const maxMessageSize = 1 << 20
+
 func newWSConn(ws *websocket.Conn, remoteAddr net.Addr) *wsConn {
-	return &wsConn{ws: ws, remoteAddr: remoteAddr}
+	ws.SetReadLimit(maxMessageSize)
+	return &wsConn{ws: ws, remoteAddr: remoteAddr, done: make(chan struct{})}
 }
+
+// Done closes once the peer is gone or the connection is closed
+func (c *wsConn) Done() <-chan struct{} { return c.done }
+
+func (c *wsConn) markDone() { c.doneOnce.Do(func() { close(c.done) }) }
 
 func (c *wsConn) Read(p []byte) (int, error) {
 	for {
 		if c.reader == nil {
 			kind, r, err := c.ws.NextReader()
 			if err != nil {
+				c.markDone()
 				return 0, io.EOF
 			}
 			if kind != websocket.BinaryMessage {
@@ -74,13 +86,18 @@ func (c *wsConn) keepAlive(interval time.Duration, done <-chan struct{}) {
 			return
 		case <-ticker.C:
 			if err := c.ws.WriteControl(websocket.PingMessage, nil, time.Now().Add(10*time.Second)); err != nil {
+				c.markDone()
 				return
 			}
 		}
 	}
 }
 
-func (c *wsConn) Close() error                       { return c.ws.Close() }
+func (c *wsConn) Close() error {
+	c.markDone()
+	return c.ws.Close()
+}
+
 func (c *wsConn) LocalAddr() net.Addr                { return c.ws.LocalAddr() }
 func (c *wsConn) RemoteAddr() net.Addr               { return c.remoteAddr }
 func (c *wsConn) SetDeadline(t time.Time) error      { return c.ws.NetConn().SetDeadline(t) }

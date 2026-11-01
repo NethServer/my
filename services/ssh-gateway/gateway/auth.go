@@ -11,97 +11,94 @@ package gateway
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
 	"regexp"
 	"strings"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	gossh "golang.org/x/crypto/ssh"
 
 	"github.com/nethesis/my/services/ssh-gateway/configuration"
 	"github.com/nethesis/my/services/ssh-gateway/logger"
 )
 
-// Keys shared with the backend, which approves the requests
-const (
-	requestPrefix = "ssh_gw:request:"
-	resultPrefix  = "ssh_gw:result:"
-	keyPrefix     = "ssh_gw:key:"
-	pollInterval  = time.Second
-)
+const pollInterval = time.Second
 
 // Permissions extensions carried from the authentication to the session
 const (
-	extGrant       = "grant"
-	extKeyCacheKey = "key_cache_key"
-	extOperator    = "operator"
-	extSystem      = "system"
+	extGrant    = "grant"
+	extOperator = "operator"
+	extSystem   = "system"
 )
 
-// The SSH user names the system by its key, optionally a cluster node:
-// NETH-XXXX or NETH-XXXX.2
+// The SSH user names the system by its key, optionally a cluster node, and
+// carries the one-time token of the copied command: NETH-XXXX.2+<token>
 var (
 	systemKeyPattern = regexp.MustCompile(`^[A-Za-z0-9-]{1,128}$`)
-	nodeIDPattern    = regexp.MustCompile(`^[0-9]{1,4}$`)
+	nodeIDPattern    = regexp.MustCompile(`^[0-9]{1,10}$`)
+	tokenPattern     = regexp.MustCompile(`^[0-9a-f]{32}$`)
 )
 
-// user codes avoid characters that are easy to confuse (0/O, 1/I)
-const userCodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+const copyHint = "Copia il comando dal pulsante SSH della sessione in my: contiene il tuo token personale.\n"
 
-type accessRequest struct {
-	SystemKey string    `json:"system_key"`
-	NodeID    string    `json:"node_id"`
-	ClientIP  string    `json:"client_ip"`
-	UserCode  string    `json:"user_code"`
-	CreatedAt time.Time `json:"created_at"`
+// Target is what the SSH user asks for
+type Target struct {
+	SystemKey string
+	NodeID    string
+	Token     string
 }
 
-type accessResult struct {
-	Status     string `json:"status"`
-	GrantID    string `json:"grant_id"`
-	Operator   string `json:"operator"`
-	SystemName string `json:"system_name"`
-	NodeID     string `json:"node_id"`
-}
-
-type cachedKey struct {
-	GrantID    string `json:"grant_id"`
-	Operator   string `json:"operator"`
-	SystemName string `json:"system_name"`
-}
-
-// ParseTarget splits the SSH user into system key and node ID
-func ParseTarget(user string) (systemKey, nodeID string, err error) {
-	systemKey = user
-	if i := strings.LastIndex(user, "."); i > 0 && nodeIDPattern.MatchString(user[i+1:]) {
-		systemKey, nodeID = user[:i], user[i+1:]
+// Name is the target without the token: approved keys are remembered per name
+func (t Target) Name() string {
+	if t.NodeID == "" {
+		return t.SystemKey
 	}
-	if !systemKeyPattern.MatchString(systemKey) {
-		return "", "", errors.New("invalid system key")
-	}
-	return systemKey, nodeID, nil
+	return t.SystemKey + "." + t.NodeID
 }
 
-// Authenticator runs the two-step authentication: an SSH key whose ownership
-// the client proves, then the operator's approval in the browser. An approved
-// key skips the browser until its grant expires.
+// ParseTarget splits the SSH user into system key, node ID and token
+func ParseTarget(user string) (Target, error) {
+	var t Target
+	rest := user
+	if i := strings.LastIndex(rest, "+"); i >= 0 {
+		t.Token, rest = rest[i+1:], rest[:i]
+		if !tokenPattern.MatchString(t.Token) {
+			return Target{}, errors.New("invalid token")
+		}
+	}
+	t.SystemKey = rest
+	if i := strings.LastIndex(rest, "."); i > 0 && nodeIDPattern.MatchString(rest[i+1:]) {
+		t.SystemKey, t.NodeID = rest[:i], rest[i+1:]
+	}
+	if !systemKeyPattern.MatchString(t.SystemKey) {
+		return Target{}, errors.New("invalid system key")
+	}
+	return t, nil
+}
+
+// connState follows one client connection through its authentication
+type connState struct {
+	clientIP string
+	// done closes when the client goes away: a pending approval stops there
+	done <-chan struct{}
+	// authStarted gives the connection the time to wait for an approval
+	authStarted func()
+}
+
+// Authenticator runs the authentication: an SSH key approved in the last
+// hours opens the session at once; otherwise the operator who copied the
+// command approves it in the browser.
 type Authenticator struct {
-	redis   *redis.Client
 	limiter *rateLimiter
 }
 
-func NewAuthenticator(rdb *redis.Client) *Authenticator {
-	return &Authenticator{redis: rdb, limiter: newRateLimiter(configuration.Config.MaxRequestsPerMinute, time.Minute)}
+func NewAuthenticator() *Authenticator {
+	return &Authenticator{limiter: newRateLimiter(configuration.Config.MaxRequestsPerMinute, time.Minute)}
 }
 
 // ServerConfig builds the per-connection SSH configuration
-func (a *Authenticator) ServerConfig(clientIP string, hostKey gossh.Signer) *gossh.ServerConfig {
+func (a *Authenticator) ServerConfig(st *connState, hostKey gossh.Signer) *gossh.ServerConfig {
 	cfg := &gossh.ServerConfig{
 		MaxAuthTries:  6,
 		ServerVersion: "SSH-2.0-MyNethesis",
@@ -110,98 +107,98 @@ func (a *Authenticator) ServerConfig(clientIP string, hostKey gossh.Signer) *gos
 			return &gossh.Permissions{}, nil
 		},
 		VerifiedPublicKeyCallback: func(conn gossh.ConnMetadata, key gossh.PublicKey, _ *gossh.Permissions, _ string) (*gossh.Permissions, error) {
-			cacheKey := keyPrefix + conn.User() + ":" + gossh.FingerprintSHA256(key)
-			if perms := a.cachedPermissions(cacheKey); perms != nil {
-				return perms, nil
+			fingerprint := gossh.FingerprintSHA256(key)
+			st.authStarted()
+			if target, err := ParseTarget(conn.User()); err == nil {
+				if perms := a.knownKey(st, target, fingerprint); perms != nil {
+					return perms, nil
+				}
 			}
 			return nil, &gossh.PartialSuccessError{
-				Next: gossh.ServerAuthCallbacks{KeyboardInteractiveCallback: a.browserApproval(clientIP, cacheKey)},
+				Next: gossh.ServerAuthCallbacks{KeyboardInteractiveCallback: a.browserApproval(st, fingerprint)},
 			}
 		},
 		// clients without a key go through the browser every time
-		KeyboardInteractiveCallback: a.browserApproval(clientIP, ""),
+		KeyboardInteractiveCallback: a.browserApproval(st, ""),
 	}
 	cfg.AddHostKey(hostKey)
 	return cfg
 }
 
-func (a *Authenticator) cachedPermissions(cacheKey string) *gossh.Permissions {
-	val, err := a.redis.Get(context.Background(), cacheKey).Result()
+func (a *Authenticator) knownKey(st *connState, target Target, fingerprint string) *gossh.Permissions {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	known, err := lookupKey(ctx, target.Name(), fingerprint)
 	if err != nil {
 		return nil
 	}
-	var cached cachedKey
-	if json.Unmarshal([]byte(val), &cached) != nil || cached.GrantID == "" {
-		return nil
-	}
+	logger.ComponentLogger("auth").Info().Str("target", target.Name()).Str("operator", known.Operator).Str("client_ip", st.clientIP).Msg("ssh access with an approved key")
 	return &gossh.Permissions{Extensions: map[string]string{
-		extGrant:       cached.GrantID,
-		extKeyCacheKey: cacheKey,
-		extOperator:    cached.Operator,
-		extSystem:      cached.SystemName,
+		extGrant:    known.GrantID,
+		extOperator: known.Operator,
+		extSystem:   known.SystemName,
 	}}
 }
 
-// browserApproval parks an access request and waits for an operator to
-// approve it in my; keyCacheKey, when set, remembers the verified key
-func (a *Authenticator) browserApproval(clientIP, keyCacheKey string) func(gossh.ConnMetadata, gossh.KeyboardInteractiveChallenge) (*gossh.Permissions, error) {
+// browserApproval turns the token of the copied command into an access
+// request and waits for its operator to approve it in my
+func (a *Authenticator) browserApproval(st *connState, fingerprint string) func(gossh.ConnMetadata, gossh.KeyboardInteractiveChallenge) (*gossh.Permissions, error) {
 	return func(conn gossh.ConnMetadata, challenge gossh.KeyboardInteractiveChallenge) (*gossh.Permissions, error) {
 		log := logger.ComponentLogger("auth")
-		systemKey, nodeID, err := ParseTarget(conn.User())
-		if err != nil {
-			_, _ = challenge("", "Utente non valido: usa la chiave del sistema, es. ssh NETH-XXXX@my oppure NETH-XXXX.2@my per il nodo 2.\n", nil, nil)
-			return nil, err
+		target, err := ParseTarget(conn.User())
+		if err != nil || target.Token == "" {
+			_, _ = challenge("", "\nAccesso non valido. "+copyHint, nil, nil)
+			return nil, errors.New("missing or invalid token")
 		}
-		if !a.limiter.Allow(clientIP) {
-			log.Warn().Str("client_ip", clientIP).Msg("ssh access request rate limit exceeded")
+		if !a.limiter.Allow(st.clientIP) {
+			log.Warn().Str("client_ip", st.clientIP).Msg("ssh access request rate limit exceeded")
 			return nil, errors.New("rate limited")
 		}
+		st.authStarted()
 
-		code, err := randomHex(32)
-		if err != nil {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func() {
+			select {
+			case <-st.done:
+				cancel()
+			case <-ctx.Done():
+			}
+		}()
+
+		req, err := createRequest(ctx, target.SystemKey, target.NodeID, target.Token, st.clientIP, fingerprint)
+		if errors.Is(err, errNotFound) {
+			_, _ = challenge("", "\nComando scaduto o già usato (vale 10 minuti, una volta sola). "+copyHint, nil, nil)
 			return nil, err
 		}
-		userCode, err := randomUserCode()
 		if err != nil {
-			return nil, err
-		}
-		ctx := context.Background()
-		data, _ := json.Marshal(accessRequest{
-			SystemKey: systemKey,
-			NodeID:    nodeID,
-			ClientIP:  clientIP,
-			UserCode:  userCode,
-			CreatedAt: time.Now(),
-		})
-		timeout := configuration.Config.AuthTimeout
-		if err := a.redis.Set(ctx, requestPrefix+code, data, timeout).Err(); err != nil {
-			log.Error().Err(err).Msg("failed to store ssh access request")
+			log.Error().Err(err).Msg("cannot create the ssh access request")
+			_, _ = challenge("", "\nServizio non disponibile, riprova tra poco.\n", nil, nil)
 			return nil, err
 		}
 
-		target := systemKey
-		if nodeID != "" {
-			target += " (nodo " + nodeID + ")"
-		}
+		target.Token = ""
 		_, _ = challenge("", fmt.Sprintf(
 			"\nMy Nethesis - accesso SSH a %s\n\n"+
-				"Apri questo link e autorizza l'accesso:\n\n  %s/ssh-auth?code=%s\n\n"+
-				"Codice di verifica: %s\n\nIn attesa dell'autorizzazione...\n",
-			target, configuration.Config.AppURL, code, userCode,
+				"Apri questo link e autorizza l'accesso (solo tu puoi farlo):\n\n  %s\n\n"+
+				"In attesa dell'autorizzazione...\n",
+			target.Name(), req.URL,
 		), nil, nil)
+		log.Info().Str("target", target.Name()).Str("client_ip", st.clientIP).Msg("ssh access request waiting for approval")
 
-		log.Info().Str("system_key", systemKey).Str("node_id", nodeID).Str("client_ip", clientIP).Msg("ssh access request waiting for approval")
-
-		result, err := a.waitResult(ctx, code, timeout)
+		result, err := waitResult(ctx, req.Code)
 		if err != nil {
-			a.redis.Del(ctx, requestPrefix+code) //nolint:errcheck
-			_, _ = challenge("", "\nTempo scaduto: nessuna autorizzazione ricevuta.\n", nil, nil)
+			// a client that went away can no longer be approved
+			cancelRequest(req.Code)
+			if ctx.Err() == nil {
+				_, _ = challenge("", "\nTempo scaduto: nessuna autorizzazione ricevuta.\n", nil, nil)
+			}
 			return nil, err
 		}
 
-		switch result.Status {
-		case "approved":
-		case "no_session":
+		switch {
+		case result.Status == "approved" && result.GrantID != "":
+		case result.Status == "no_session":
 			_, _ = challenge("", "\nNessuna sessione di supporto attiva su questo sistema.\n", nil, nil)
 			return nil, errors.New("no active session")
 		default:
@@ -209,69 +206,36 @@ func (a *Authenticator) browserApproval(clientIP, keyCacheKey string) func(gossh
 			return nil, errors.New("access denied")
 		}
 
-		if keyCacheKey != "" {
-			cached, _ := json.Marshal(cachedKey{GrantID: result.GrantID, Operator: result.Operator, SystemName: result.SystemName})
-			a.redis.Set(ctx, keyCacheKey, cached, configuration.Config.KeyAuthTTL) //nolint:errcheck
-		}
-		_, _ = challenge("", fmt.Sprintf("\nAutorizzato da %s. Connessione a %s...\n", result.Operator, result.SystemName), nil, nil)
-
-		log.Info().Str("system_key", systemKey).Str("node_id", nodeID).Str("operator", result.Operator).Bool("key_cached", keyCacheKey != "").Msg("ssh access approved")
+		_, _ = challenge("", fmt.Sprintf("\nAutorizzato. Connessione a %s...\n", result.SystemName), nil, nil)
+		log.Info().Str("target", target.Name()).Str("operator", result.Operator).Bool("key", fingerprint != "").Msg("ssh access approved")
 		return &gossh.Permissions{Extensions: map[string]string{
-			extGrant:       result.GrantID,
-			extKeyCacheKey: keyCacheKey,
-			extOperator:    result.Operator,
-			extSystem:      result.SystemName,
+			extGrant:    result.GrantID,
+			extOperator: result.Operator,
+			extSystem:   result.SystemName,
 		}}, nil
 	}
 }
 
-func (a *Authenticator) waitResult(ctx context.Context, code string, timeout time.Duration) (*accessResult, error) {
-	deadline := time.Now().Add(timeout)
+func waitResult(ctx context.Context, code string) (*accessResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, configuration.Config.AuthTimeout)
+	defer cancel()
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
-	for range ticker.C {
-		if time.Now().After(deadline) {
-			return nil, errors.New("approval timed out")
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+			result, err := requestResult(ctx, code)
+			switch {
+			case err == nil:
+				return result, nil
+			case errors.Is(err, errGone):
+				return nil, err
+			case errors.Is(err, errPending):
+			default:
+				logger.ComponentLogger("auth").Warn().Err(err).Msg("cannot check the ssh access request")
+			}
 		}
-		val, err := a.redis.GetDel(ctx, resultPrefix+code).Result()
-		if err != nil {
-			continue
-		}
-		var result accessResult
-		if err := json.Unmarshal([]byte(val), &result); err != nil {
-			return nil, err
-		}
-		return &result, nil
 	}
-	return nil, errors.New("approval timed out")
-}
-
-// ForgetKey drops a cached key whose grant is no longer valid
-func (a *Authenticator) ForgetKey(cacheKey string) {
-	if cacheKey != "" {
-		a.redis.Del(context.Background(), cacheKey) //nolint:errcheck
-	}
-}
-
-func randomHex(n int) (string, error) {
-	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(b), nil
-}
-
-func randomUserCode() (string, error) {
-	var sb strings.Builder
-	for i := 0; i < 8; i++ {
-		if i == 4 {
-			sb.WriteByte('-')
-		}
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(userCodeAlphabet))))
-		if err != nil {
-			return "", err
-		}
-		sb.WriteByte(userCodeAlphabet[n.Int64()])
-	}
-	return sb.String(), nil
 }

@@ -20,21 +20,29 @@ import (
 )
 
 func TestParseTarget(t *testing.T) {
+	tok := "0123456789abcdef0123456789abcdef"
 	tests := []struct {
-		user, key, node string
-		wantErr         bool
+		user    string
+		want    Target
+		wantErr bool
 	}{
-		{"NETH-AAAA-BBBB", "NETH-AAAA-BBBB", "", false},
-		{"NETH-AAAA-BBBB.2", "NETH-AAAA-BBBB", "2", false},
-		{"NETH-AAAA-BBBB.x", "", "", true},
-		{"NETH AAAA", "", "", true},
-		{"", "", "", true},
+		{"NETH-AAAA-BBBB", Target{SystemKey: "NETH-AAAA-BBBB"}, false},
+		{"NETH-AAAA-BBBB.2", Target{SystemKey: "NETH-AAAA-BBBB", NodeID: "2"}, false},
+		{"NETH-AAAA-BBBB.2+" + tok, Target{SystemKey: "NETH-AAAA-BBBB", NodeID: "2", Token: tok}, false},
+		{"NETH-AAAA-BBBB+" + tok, Target{SystemKey: "NETH-AAAA-BBBB", Token: tok}, false},
+		{"NETH-AAAA-BBBB.2+short", Target{}, true},
+		{"NETH-AAAA-BBBB.x", Target{}, true},
+		{"NETH AAAA", Target{}, true},
+		{"", Target{}, true},
 	}
 	for _, tt := range tests {
-		key, node, err := ParseTarget(tt.user)
-		if (err != nil) != tt.wantErr || key != tt.key || node != tt.node {
-			t.Errorf("ParseTarget(%q) = %q, %q, %v", tt.user, key, node, err)
+		got, err := ParseTarget(tt.user)
+		if (err != nil) != tt.wantErr || got != tt.want {
+			t.Errorf("ParseTarget(%q) = %+v, %v", tt.user, got, err)
 		}
+	}
+	if (Target{SystemKey: "K", NodeID: "2", Token: tok}).Name() != "K.2" {
+		t.Error("the name must leave the token out")
 	}
 }
 

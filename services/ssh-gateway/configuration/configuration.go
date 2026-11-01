@@ -26,22 +26,22 @@ type Configuration struct {
 	SSHHostKey     string
 	SSHHostKeyPath string
 
-	// AppURL is where operators approve an access request
-	AppURL string
-	// BackendURL opens the shells, with the internal secret and a grant
-	BackendURL            string
-	SupportInternalSecret string
-
-	RedisURL      string
-	RedisDB       int
-	RedisPassword string
+	// BackendURL holds every piece of state: access requests, approved keys,
+	// grants and the shell bridge. The gateway has no store of its own.
+	BackendURL string
+	// SSHGatewaySecret authenticates the gateway on the backend's internal
+	// routes; it opens nothing else
+	SSHGatewaySecret string
 
 	// AuthTimeout bounds the wait for the browser approval
 	AuthTimeout time.Duration
-	// KeyAuthTTL is how long an approved SSH key skips the browser
-	KeyAuthTTL time.Duration
+	// HandshakeTimeout bounds a connection until its authentication starts
+	HandshakeTimeout time.Duration
 	// MaxRequestsPerMinute caps the access requests a client IP can open
 	MaxRequestsPerMinute int
+	// MaxConnsPerIP and MaxPendingConns cap connections not yet authenticated
+	MaxConnsPerIP   int
+	MaxPendingConns int
 }
 
 var Config = Configuration{}
@@ -51,20 +51,23 @@ func Init() {
 	// a PEM pasted on one line keeps its newlines as \n
 	Config.SSHHostKey = strings.ReplaceAll(os.Getenv("SSH_HOST_KEY"), `\n`, "\n")
 	Config.SSHHostKeyPath = env("SSH_HOST_KEY_PATH", "./ssh_host_key")
-	Config.AppURL = strings.TrimRight(env("APP_URL", "https://my.localtest.me"), "/")
-	Config.BackendURL = strings.TrimRight(env("BACKEND_URL", "http://localhost:8080"), "/")
-	Config.SupportInternalSecret = os.Getenv("SUPPORT_INTERNAL_SECRET")
-	if Config.SupportInternalSecret == "" {
-		logger.Fatal().Msg("SUPPORT_INTERNAL_SECRET is required")
+	// on Render the disk does not survive a deploy: a generated key would
+	// change at every release and teach operators to ignore the warning
+	if Config.SSHHostKey == "" && os.Getenv("RENDER") != "" {
+		logger.Fatal().Msg("SSH_HOST_KEY is required on Render")
 	}
 
-	Config.RedisURL = env("REDIS_URL", "redis://localhost:6379")
-	Config.RedisDB = envInt("REDIS_DB", 0)
-	Config.RedisPassword = os.Getenv("REDIS_PASSWORD")
+	Config.BackendURL = strings.TrimRight(env("BACKEND_URL", "http://localhost:8080"), "/")
+	Config.SSHGatewaySecret = os.Getenv("SSH_GATEWAY_SECRET")
+	if Config.SSHGatewaySecret == "" {
+		logger.Fatal().Msg("SSH_GATEWAY_SECRET is required")
+	}
 
 	Config.AuthTimeout = envDuration("AUTH_TIMEOUT", 5*time.Minute)
-	Config.KeyAuthTTL = envDuration("KEY_AUTH_TTL", 4*time.Hour)
+	Config.HandshakeTimeout = envDuration("HANDSHAKE_TIMEOUT", 30*time.Second)
 	Config.MaxRequestsPerMinute = envInt("MAX_REQUESTS_PER_MINUTE", 10)
+	Config.MaxConnsPerIP = envInt("MAX_CONNS_PER_IP", 10)
+	Config.MaxPendingConns = envInt("MAX_PENDING_CONNS", 200)
 }
 
 func env(key, fallback string) string {
@@ -75,7 +78,7 @@ func env(key, fallback string) string {
 }
 
 func envInt(key string, fallback int) int {
-	if v, err := strconv.Atoi(os.Getenv(key)); err == nil {
+	if v, err := strconv.Atoi(os.Getenv(key)); err == nil && v > 0 {
 		return v
 	}
 	return fallback

@@ -34,19 +34,36 @@ var deniedRequests = map[string]bool{
 // upstream is the SSH connection to the system's built-in endpoint, opened
 // through the backend on the first session and shared by the others
 type upstream struct {
-	auth   *Authenticator
-	perms  *gossh.Permissions
-	once   sync.Once
-	client *gossh.Client
-	err    string
+	perms    *gossh.Permissions
+	clientIP string
+	once     sync.Once
+	mu       sync.Mutex
+	closed   bool
+	client   *gossh.Client
+	err      string
 }
 
 func (u *upstream) get() (*gossh.Client, string) {
-	u.once.Do(func() { u.client, u.err = u.auth.dialSystem(u.perms) })
+	u.once.Do(func() {
+		client, failure := dialSystem(u.perms)
+		u.mu.Lock()
+		defer u.mu.Unlock()
+		// the operator left while the system was being reached
+		if u.closed && client != nil {
+			_ = client.Close()
+			client, failure = nil, "connection closed"
+		}
+		u.client, u.err = client, failure
+	})
+	u.mu.Lock()
+	defer u.mu.Unlock()
 	return u.client, u.err
 }
 
 func (u *upstream) close() {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.closed = true
 	if u.client != nil {
 		_ = u.client.Close()
 	}
@@ -55,14 +72,15 @@ func (u *upstream) close() {
 // dialSystem opens the shell bridge on the backend, which checks the grant
 // and its operator, and runs SSH over it. The bytes travel through the
 // authenticated tunnel only, so the system's ephemeral host key is not pinned.
-func (a *Authenticator) dialSystem(perms *gossh.Permissions) (*gossh.Client, string) {
+func dialSystem(perms *gossh.Permissions) (*gossh.Client, string) {
 	log := logger.ComponentLogger("session")
-	url := strings.Replace(configuration.Config.BackendURL, "http", "ws", 1) + "/api/support-ssh/terminal"
+	url := strings.Replace(configuration.Config.BackendURL, "http", "ws", 1) + gatewayPath + "/terminal"
 	header := http.Header{}
-	header.Set("X-Internal-Secret", configuration.Config.SupportInternalSecret)
-	header.Set("X-SSH-Grant", perms.Extensions[extGrant])
+	header.Set(gatewaySecretHeader, configuration.Config.SSHGatewaySecret)
+	header.Set(grantHeader, perms.Extensions[extGrant])
 
-	dialer := websocket.Dialer{HandshakeTimeout: 15 * time.Second, ReadBufferSize: 32 * 1024, WriteBufferSize: 32 * 1024}
+	// the backend checks the operator on Logto first: leave it room
+	dialer := websocket.Dialer{HandshakeTimeout: 45 * time.Second, ReadBufferSize: 32 * 1024, WriteBufferSize: 32 * 1024}
 	ws, resp, err := dialer.Dial(url, header)
 	if err != nil {
 		status := 0
@@ -73,13 +91,15 @@ func (a *Authenticator) dialSystem(perms *gossh.Permissions) (*gossh.Client, str
 		log.Warn().Err(err).Int("status", status).Str("system", perms.Extensions[extSystem]).Msg("cannot reach the system")
 		switch status {
 		case http.StatusUnauthorized, http.StatusForbidden:
-			// the grant expired or its operator is no longer allowed
-			a.ForgetKey(perms.Extensions[extKeyCacheKey])
-			return nil, "Autorizzazione scaduta o revocata: riconnettiti per autorizzare di nuovo."
+			// the grant expired or its operator or session is no longer valid:
+			// the backend forgets the approved key with it
+			return nil, "Autorizzazione scaduta o revocata: copia di nuovo il comando dal pulsante SSH in my."
 		case http.StatusNotFound:
 			return nil, "Nessuna sessione di supporto attiva su questo sistema."
 		case http.StatusTooManyRequests:
 			return nil, "Troppe connessioni aperte su questo sistema, riprova tra poco."
+		case http.StatusServiceUnavailable:
+			return nil, "Servizio momentaneamente non disponibile, riprova tra poco."
 		case http.StatusNotImplemented:
 			return nil, "Il sistema non supporta ancora l'accesso SSH: va aggiornato il client del supporto."
 		}
@@ -104,6 +124,7 @@ func (a *Authenticator) dialSystem(perms *gossh.Permissions) (*gossh.Client, str
 // proxyChannel relays one session channel as is: shell, commands, sftp,
 // pipes, exit codes and signals behave as with a direct ssh
 func proxyChannel(newCh gossh.NewChannel, up *upstream) {
+	log := logger.ComponentLogger("session")
 	client, failure := up.get()
 	if client == nil {
 		ch, reqs, err := newCh.Accept()
@@ -141,6 +162,19 @@ func proxyChannel(newCh gossh.NewChannel, up *upstream) {
 				}
 				continue
 			}
+			// what the operator runs is recorded with who and where
+			switch req.Type {
+			case "shell", "exec", "subsystem":
+				event := log.Info().
+					Str("operator", up.perms.Extensions[extOperator]).
+					Str("system", up.perms.Extensions[extSystem]).
+					Str("client_ip", up.clientIP).
+					Str("request", req.Type)
+				if req.Type != "shell" {
+					event = event.Str("command", truncate(sshString(req.Payload), 1024))
+				}
+				event.Msg("ssh session request")
+			}
 			ok, err := upCh.SendRequest(req.Type, req.WantReply, req.Payload)
 			if req.WantReply {
 				_ = req.Reply(ok && err == nil, nil)
@@ -175,4 +209,23 @@ func sendExitStatus(ch gossh.Channel, code uint32) {
 	payload := make([]byte, 4)
 	binary.BigEndian.PutUint32(payload, code)
 	_, _ = ch.SendRequest("exit-status", false, payload)
+}
+
+// sshString reads the leading RFC 4251 string of a request payload
+func sshString(payload []byte) string {
+	if len(payload) < 4 {
+		return ""
+	}
+	n := binary.BigEndian.Uint32(payload)
+	if uint32(len(payload)-4) < n {
+		return ""
+	}
+	return string(payload[4 : 4+n])
+}
+
+func truncate(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "…"
 }
