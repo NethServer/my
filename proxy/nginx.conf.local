@@ -195,6 +195,11 @@ http {
             proxy_read_timeout 24h;
         }
 
+        # The SSH gateway's internal routes on the backend: private network only
+        location ^~ /backend/api/support-ssh/gateway/ {
+            return 404;
+        }
+
         location /backend/api/ {
             rewrite ^/backend/api/(.*)$ /api/$1 break;
             proxy_pass http://backend-full:8080;

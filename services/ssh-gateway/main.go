@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/redis/go-redis/v9"
 	gossh "golang.org/x/crypto/ssh"
 
 	"github.com/nethesis/my/services/ssh-gateway/configuration"
@@ -44,19 +43,6 @@ func main() {
 
 	configuration.Init()
 
-	opt, err := redis.ParseURL(configuration.Config.RedisURL)
-	if err != nil {
-		logger.Fatal().Err(err).Msg("invalid REDIS_URL")
-	}
-	opt.DB = configuration.Config.RedisDB
-	if configuration.Config.RedisPassword != "" {
-		opt.Password = configuration.Config.RedisPassword
-	}
-	rdb := redis.NewClient(opt)
-	if err := rdb.Ping(context.Background()).Err(); err != nil {
-		logger.Fatal().Err(err).Msg("cannot connect to Redis")
-	}
-
 	hostKey, err := gateway.LoadOrGenerateHostKey(configuration.Config.SSHHostKey, configuration.Config.SSHHostKeyPath)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("cannot load the SSH host key")
@@ -64,7 +50,7 @@ func main() {
 	// operators compare it with the documented one at their first connection
 	logger.Info().Str("fingerprint", gossh.FingerprintSHA256(hostKey.PublicKey())).Msg("ssh host key loaded")
 
-	server := gateway.NewServer(gateway.NewAuthenticator(rdb), hostKey, configuration.Config.AuthTimeout)
+	server := gateway.NewServer(gateway.NewAuthenticator(), hostKey)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
@@ -96,6 +82,5 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = httpServer.Shutdown(ctx)
-	_ = rdb.Close()
 	logger.Info().Msg("server exited")
 }
