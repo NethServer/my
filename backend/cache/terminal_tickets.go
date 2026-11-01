@@ -22,13 +22,15 @@ const (
 // TerminalTicket represents a one-time ticket for WebSocket terminal authentication.
 // The ticket is stored in Redis with a short TTL and consumed on first use.
 type TerminalTicket struct {
-	SessionID      string `json:"session_id"`
-	UserID         string `json:"user_id"`
-	UserLogtoID    string `json:"user_logto_id"`
-	Username       string `json:"username"`
-	Name           string `json:"name"`
-	OrgRole        string `json:"org_role"`
-	OrganizationID string `json:"organization_id"`
+	// when the ticket was issued: logouts after it revoke the terminal
+	IssuedAt       time.Time `json:"issued_at"`
+	SessionID      string    `json:"session_id"`
+	UserID         string    `json:"user_id"`
+	UserLogtoID    string    `json:"user_logto_id"`
+	Username       string    `json:"username"`
+	Name           string    `json:"name"`
+	OrgRole        string    `json:"org_role"`
+	OrganizationID string    `json:"organization_id"`
 }
 
 // GenerateTerminalTicket creates a one-time ticket for terminal WebSocket authentication.

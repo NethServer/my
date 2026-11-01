@@ -7,6 +7,7 @@ package methods
 
 import (
 	"bufio"
+	"context"
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/hex"
@@ -160,10 +161,8 @@ func GenerateTerminalTicket(c *gin.Context) {
 
 	userID, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
 	userLogtoID := ""
-	if v, ok := c.Get("user_logto_id"); ok {
-		if s, ok := v.(string); ok {
-			userLogtoID = s
-		}
+	if user, ok := helpers.GetUserFromContext(c); ok && user.LogtoID != nil {
+		userLogtoID = *user.LogtoID
 	}
 	username := ""
 	if v, ok := c.Get("username"); ok {
@@ -179,6 +178,7 @@ func GenerateTerminalTicket(c *gin.Context) {
 	}
 
 	ticket := &cache.TerminalTicket{
+		IssuedAt:       time.Now(),
 		SessionID:      sessionID,
 		UserID:         userID,
 		UserLogtoID:    userLogtoID,
@@ -233,6 +233,20 @@ func GetSupportSessionTerminal(c *gin.Context) {
 	// Verify ticket is for this session
 	if ticket.SessionID != sessionID {
 		c.JSON(http.StatusForbidden, response.Error(http.StatusForbidden, "ticket does not match session", nil))
+		return
+	}
+
+	// The operator the ticket was issued to must still be allowed, now and for
+	// as long as the shell stays open (checked again while bridging)
+	principal := supportPrincipal{
+		UserID:         ticket.UserID,
+		UserLogtoID:    ticket.UserLogtoID,
+		OrganizationID: ticket.OrganizationID,
+		OrgRole:        ticket.OrgRole,
+		IssuedAt:       ticket.IssuedAt,
+	}
+	if _, status, _ := checkSupportPrincipal(principal); status != 0 {
+		c.JSON(status, response.Error(status, "operator is no longer allowed", nil))
 		return
 	}
 
@@ -374,6 +388,23 @@ func GetSupportSessionTerminal(c *gin.Context) {
 		defer closeBoth()
 		_, _ = io.Copy(upstreamConn, clientConn)
 	}()
+	// An open shell ends as soon as its operator or its session stops being valid
+	go func() {
+		ticker := time.NewTicker(terminalRecheckInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				if !terminalStillAllowed(principal, sessionID) {
+					logger.Info().Str("session_id", sessionID).Str("user_id", principal.UserID).Msg("closing terminal: operator or session no longer valid")
+					closeBoth()
+					return
+				}
+			}
+		}
+	}()
 	go func() {
 		defer closeBoth()
 		// Drain any buffered data from the upstream reader first
@@ -390,6 +421,23 @@ func GetSupportSessionTerminal(c *gin.Context) {
 		}
 	}
 	logger.Info().Str("session_id", sessionID).Msg("terminal session ended")
+}
+
+// terminalRecheckInterval is how often an open terminal re-validates its
+// operator and its session
+const terminalRecheckInterval = time.Minute
+
+// terminalStillAllowed tells whether an open terminal may go on. Transient
+// errors keep it open: they are retried at the next tick.
+func terminalStillAllowed(p supportPrincipal, sessionID string) bool {
+	if _, status, cacheable := checkSupportPrincipal(p); status != 0 && cacheable {
+		return false
+	}
+	session, err := entities.NewSupportRepository().GetSessionByID(sessionID, p.OrgRole, p.OrganizationID)
+	if err != nil {
+		return true
+	}
+	return session != nil && session.Status == "active"
 }
 
 // GetSupportSessionServices handles GET /api/support-sessions/:id/services
@@ -473,14 +521,26 @@ func GenerateSupportProxyToken(c *gin.Context) {
 	subdomain := fmt.Sprintf("%s--%s.support.%s", helpers.ServiceHostLabel(req.Service), sessionSlug, configuration.Config.SupportProxyDomain)
 	proxyURL := fmt.Sprintf("https://%s/", subdomain)
 
-	if _, markErr := cache.MarkSupportProxyAccess(proxyTokenHash(token), req.Service, configuration.Config.SupportProxyTokenTTL); markErr != nil {
+	// Marked under the host label the proxied requests use, so opening the
+	// service is logged once, here, with its real name
+	if _, markErr := cache.MarkSupportProxyAccess(proxyTokenHash(token), helpers.ServiceHostLabel(req.Service), configuration.Config.SupportProxyTokenTTL); markErr != nil {
 		logger.Warn().Err(markErr).Str("session_id", sessionID).Msg("failed to record proxy token access")
+	}
+
+	// The browser gets a one-time code, never the token: the proxy swaps it
+	// for the token in an HttpOnly cookie on first use
+	code, err := cache.IssueSupportProxyCode(token)
+	if err != nil {
+		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to issue proxy code")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to generate proxy token", nil))
+		return
 	}
 	logAccess(c, sessionID, "ui_proxy", req.Service)
 
 	c.JSON(http.StatusOK, response.OK("proxy token generated", gin.H{
-		"url":   proxyURL,
-		"token": token,
+		"url":        proxyURL,
+		"token":      code,
+		"expires_at": time.Now().Add(configuration.Config.SupportProxyTokenTTL).UTC(),
 	}))
 }
 
@@ -529,12 +589,24 @@ func SubdomainProxy(c *gin.Context) {
 		return
 	}
 
-	// Prefer query param token (fresh from the UI) over cookie (may be stale
-	// from a previous session — the cookie domain covers all support subdomains).
-	tokenString := c.Query("token")
-	fromQueryParam := tokenString != ""
-	if tokenString == "" {
-		tokenString, _ = c.Cookie("support_proxy")
+	// A one-time code in the query (fresh from the UI) wins over the cookie
+	tokenString := ""
+	code := c.Query("token")
+	fromQueryParam := code != ""
+	if fromQueryParam {
+		token, codeErr := cache.ConsumeSupportProxyCode(code)
+		if codeErr != nil {
+			logger.Error().Err(codeErr).Msg("failed to consume proxy code")
+			c.JSON(http.StatusServiceUnavailable, response.Error(http.StatusServiceUnavailable, "cannot validate the access link", nil))
+			return
+		}
+		if token == "" {
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("the access link is expired or already used", nil))
+			return
+		}
+		tokenString = token
+	} else {
+		tokenString, _ = c.Cookie(supportProxyCookieName(sessionSlug))
 	}
 
 	if tokenString == "" {
@@ -575,13 +647,18 @@ func SubdomainProxy(c *gin.Context) {
 		// Cookie lives exactly as long as the proxy token it carries.
 		cookieMaxAge := int(configuration.Config.SupportProxyTokenTTL.Seconds())
 		if cookieMaxAge <= 0 {
-			cookieMaxAge = 900
+			cookieMaxAge = 3600
 		}
 		c.SetSameSite(http.SameSiteLaxMode)
-		c.SetCookie("support_proxy", tokenString, cookieMaxAge, "/", cookieDomain, secureCookie, true)
+		c.SetCookie(supportProxyCookieName(sessionSlug), tokenString, cookieMaxAge, "/", cookieDomain, secureCookie, true)
+		expireStaleSupportProxyCookies(c, sessionSlug, cookieDomain, secureCookie)
 
 		// Sanitize redirect path to prevent open redirect via protocol-relative URLs (#3).
-		// "//evil.com" is interpreted by browsers as a redirect to evil.com.
+		// "//evil.com" and "/\evil.com" are read by browsers as a redirect to evil.com.
+		if strings.Contains(path, "\\") {
+			c.JSON(http.StatusBadRequest, response.BadRequest("invalid path", nil))
+			return
+		}
 		redirectPath := "/" + strings.TrimLeft(path, "/")
 		q := c.Request.URL.Query()
 		q.Del("token")
@@ -593,26 +670,25 @@ func SubdomainProxy(c *gin.Context) {
 		return
 	}
 
-	// Verify session is still active using the token's org context
+	// Verify session is still active using the token's org context, and get
+	// the session token for internal auth (#3/#4)
 	repo := entities.NewSupportRepository()
-	session, err := repo.GetSessionByID(sessionID, claims.OrgRole, claims.OrganizationID)
-	if err != nil || session == nil {
+	sessionToken, lookupStatus := lookupProxySession(repo, sessionID, claims.OrgRole, claims.OrganizationID)
+	switch lookupStatus {
+	case http.StatusNotFound:
 		c.JSON(http.StatusNotFound, response.NotFound("support session not found", nil))
 		return
-	}
-	if session.Status != "active" {
+	case http.StatusBadRequest:
 		c.JSON(http.StatusBadRequest, response.BadRequest("support session is not active", nil))
 		return
-	}
-
-	// Get session token for internal auth (#3/#4)
-	sessionToken, tokenErr := repo.GetSessionTokenByID(sessionID)
-	if tokenErr != nil {
+	case http.StatusInternalServerError:
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get session token", nil))
 		return
 	}
 
-	if claims.ExpiresAt != nil {
+	cache.TouchSupportPresence(sessionID, claims.UserID, operatorName, serviceName)
+
+	if claims.ExpiresAt != nil && !proxyAccessMarked(tokenHash, serviceName) {
 		first, markErr := cache.MarkSupportProxyAccess(tokenHash, serviceName, time.Until(claims.ExpiresAt.Time))
 		if markErr != nil {
 			logger.Warn().Err(markErr).Str("session_id", sessionID).Msg("failed to record proxy token access")
@@ -646,12 +722,27 @@ func SubdomainProxy(c *gin.Context) {
 			pr.Out.URL.RawQuery = c.Request.URL.RawQuery
 			pr.Out.Host = target.Host
 			pr.Out.Header.Set("X-Proxy-Host", proxyHost)
+			// Set, never forwarded: only my may drive the login autofill
+			pr.Out.Header.Set("X-Embed-Origin", appOrigin())
 			filterSupportProxyCookie(pr.Out)
 		},
 		ModifyResponse: func(resp *http.Response) error {
+			// The support service logged into the NS8 cluster for the operator:
+			// record it once per token and service, then drop the internal header
+			if loggedService := resp.Header.Get(supportClusterLoginHeader); loggedService != "" {
+				resp.Header.Del(supportClusterLoginHeader)
+				if len(loggedService) > 100 || !validServiceName.MatchString(loggedService) {
+					loggedService = serviceName
+				}
+				logClusterLogin(tokenHash, claims, operatorName, loggedService)
+			}
+
 			// Replace upstream security headers with proxy-appropriate values
 			resp.Header.Del("X-Frame-Options")
-			resp.Header.Set("Content-Security-Policy", "frame-ancestors 'self'")
+			setFrameAncestors(resp.Header, supportProxyFrameAncestors())
+			// Proxied content is per operator: no shared cache may keep it
+			// (the browser's own cache still may, with the upstream lifetime)
+			resp.Header.Set("Cache-Control", privateCacheControl(resp.Header.Get("Cache-Control")))
 
 			// Strip upstream CORS headers and replace with proxy-controlled values
 			resp.Header.Del("Access-Control-Allow-Origin")
@@ -667,6 +758,15 @@ func SubdomainProxy(c *gin.Context) {
 			return nil
 		},
 		Transport: &sessionTokenTransport{inner: internalTransportNoCompression, sessionToken: sessionToken},
+		// the default handler only answers 502: say why in the backend log
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			logger.Warn().Err(err).Str("session_id", sessionID).Str("service", serviceName).
+				Str("path", r.URL.Path).Msg("support proxy request failed")
+			w.WriteHeader(http.StatusBadGateway)
+		},
 	}
 
 	proxy.ServeHTTP(c.Writer, c.Request)
@@ -749,6 +849,92 @@ func proxyTokenHash(token string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// A web interface fires hundreds of requests through the proxy: the session
+// lookups behind each one are cached for a few seconds per process, so the
+// database (and its small pool) sees one pair of queries per session instead
+const proxySessionCacheTTL = 15 * time.Second
+
+type proxySessionEntry struct {
+	token     string
+	status    int
+	expiresAt time.Time
+}
+
+var (
+	proxySessionMu    sync.Mutex
+	proxySessionCache = map[string]proxySessionEntry{}
+	// token hash + service already recorded in the access log by this process
+	proxyAccessSeen = map[string]time.Time{}
+)
+
+// lookupProxySession returns the session token of a live session visible to
+// the token's organization, or the HTTP status to refuse the request with.
+// Only live sessions are cached: a refusal is looked up again every time.
+func lookupProxySession(repo *entities.SupportRepository, sessionID, orgRole, orgID string) (string, int) {
+	key := sessionID + "|" + orgRole + "|" + orgID
+	now := time.Now()
+	proxySessionMu.Lock()
+	if e, ok := proxySessionCache[key]; ok && now.Before(e.expiresAt) {
+		proxySessionMu.Unlock()
+		return e.token, e.status
+	}
+	proxySessionMu.Unlock()
+
+	session, err := repo.GetSessionByID(sessionID, orgRole, orgID)
+	if err != nil || session == nil {
+		return "", http.StatusNotFound
+	}
+	if session.Status != "active" {
+		return "", http.StatusBadRequest
+	}
+	token, err := repo.GetSessionTokenByID(sessionID)
+	if err != nil {
+		return "", http.StatusInternalServerError
+	}
+
+	proxySessionMu.Lock()
+	defer proxySessionMu.Unlock()
+	for k, e := range proxySessionCache {
+		if now.After(e.expiresAt) {
+			delete(proxySessionCache, k)
+		}
+	}
+	proxySessionCache[key] = proxySessionEntry{token: token, expiresAt: now.Add(proxySessionCacheTTL)}
+	return token, 0
+}
+
+// forgetProxySession drops the cached lookups of a session that was closed
+func forgetProxySession(sessionID string) {
+	proxySessionMu.Lock()
+	defer proxySessionMu.Unlock()
+	for k := range proxySessionCache {
+		if strings.HasPrefix(k, sessionID+"|") {
+			delete(proxySessionCache, k)
+		}
+	}
+}
+
+// proxyAccessMarked reports whether this process already recorded the access
+// of the token to the service, sparing Redis a write per request
+func proxyAccessMarked(tokenHash, service string) bool {
+	key := tokenHash + "|" + service
+	now := time.Now()
+	proxySessionMu.Lock()
+	defer proxySessionMu.Unlock()
+	if until, ok := proxyAccessSeen[key]; ok && now.Before(until) {
+		return true
+	}
+	if len(proxyAccessSeen) > 10000 {
+		for k, until := range proxyAccessSeen {
+			if now.After(until) {
+				delete(proxyAccessSeen, k)
+			}
+		}
+	}
+	proxyAccessSeen[key] = now.Add(time.Hour)
+	return false
+}
+
 type proxyPrincipalEntry struct {
 	name      string
 	status    int
@@ -796,33 +982,62 @@ func verifyProxyTokenPrincipal(tokenHash string, claims *customjwt.ProxyTokenCla
 }
 
 func checkProxyTokenPrincipal(claims *customjwt.ProxyTokenClaims) (string, int, bool) {
-	if claims.UserLogtoID == "" {
-		return "", http.StatusUnauthorized, true
-	}
-
 	issuedAt := time.Time{}
 	if claims.IssuedAt != nil {
 		issuedAt = claims.IssuedAt.Time
 	}
-	revoked, _, err := cache.GetTokenBlacklist().IsUserTokenInvalidatedSince(claims.UserLogtoID, issuedAt)
+	return checkSupportPrincipal(supportPrincipal{
+		UserID:         claims.UserID,
+		UserLogtoID:    claims.UserLogtoID,
+		OrganizationID: claims.OrganizationID,
+		OrgRole:        claims.OrgRole,
+		IssuedAt:       issuedAt,
+	})
+}
+
+// supportPrincipal is the operator a proxy token or a terminal ticket was
+// issued to, as it was when it was issued
+type supportPrincipal struct {
+	UserID         string
+	UserLogtoID    string
+	OrganizationID string
+	OrgRole        string
+	IssuedAt       time.Time
+}
+
+// checkSupportPrincipal re-validates, live, the operator behind a support
+// credential: not logged out or revoked since, still active, still in the same
+// organization with the same role, still holding connect:systems, and in the
+// Owner organization (remote support is Nethesis staff only). Returns the
+// operator name, 0 or the HTTP status to refuse with, and whether the answer
+// may be cached (transient errors may not).
+func checkSupportPrincipal(p supportPrincipal) (string, int, bool) {
+	if p.UserLogtoID == "" {
+		return "", http.StatusUnauthorized, true
+	}
+
+	revoked, _, err := cache.GetTokenBlacklist().IsUserTokenInvalidatedSince(p.UserLogtoID, p.IssuedAt)
 	if err != nil {
-		logger.Error().Err(err).Str("user_id", claims.UserID).Msg("failed to check proxy token revocation")
+		logger.Error().Err(err).Str("user_id", p.UserID).Msg("failed to check support credential revocation")
 		return "", http.StatusServiceUnavailable, false
 	}
 	if revoked {
 		return "", http.StatusUnauthorized, true
 	}
 
-	user, err := local.ResolveUserByLogtoID(claims.UserLogtoID)
+	user, err := local.ResolveUserByLogtoID(p.UserLogtoID)
 	if errors.Is(err, local.ErrUserInactive) {
 		return "", http.StatusUnauthorized, true
 	}
 	if err != nil {
-		logger.Error().Err(err).Str("user_id", claims.UserID).Msg("failed to resolve proxy token user")
+		logger.Error().Err(err).Str("user_id", p.UserID).Msg("failed to resolve support operator")
 		return "", http.StatusServiceUnavailable, false
 	}
 
-	if user.OrganizationID != claims.OrganizationID || !strings.EqualFold(user.OrgRole, claims.OrgRole) {
+	if user.OrganizationID != p.OrganizationID || !strings.EqualFold(user.OrgRole, p.OrgRole) {
+		return "", http.StatusForbidden, true
+	}
+	if !models.IsGlobalOrgRole(user.OrgRole) {
 		return "", http.StatusForbidden, true
 	}
 	if !slices.Contains(user.UserPermissions, "connect:systems") && !slices.Contains(user.OrgPermissions, "connect:systems") {
@@ -831,13 +1046,142 @@ func checkProxyTokenPrincipal(claims *customjwt.ProxyTokenClaims) (string, int, 
 	return user.Name, 0, true
 }
 
-// filterSupportProxyCookie removes the support_proxy cookie from the request
-// while preserving all other cookies and headers (including Authorization)
+// supportClusterLoginHeader is set by the support service on the responses it
+// fetched with the session's cluster admin; it never reaches the browser
+const supportClusterLoginHeader = "X-Support-Cluster-Login"
+
+func logClusterLogin(tokenHash string, claims *customjwt.ProxyTokenClaims, operatorName, service string) {
+	ttl := time.Hour
+	if claims.ExpiresAt != nil {
+		ttl = time.Until(claims.ExpiresAt.Time)
+	}
+	first, err := cache.MarkSupportProxyAccess(tokenHash, "cluster:"+service, ttl)
+	if err != nil {
+		logger.Warn().Err(err).Str("session_id", claims.SessionID).Msg("failed to record cluster login")
+	}
+	if !first {
+		return
+	}
+	metaBytes, _ := json.Marshal(map[string]string{"service": service})
+	if _, logErr := entities.NewSupportRepository().InsertAccessLog(claims.SessionID, claims.UserID, operatorName, "cluster_login", string(metaBytes)); logErr != nil {
+		logger.Warn().Err(logErr).Str("session_id", claims.SessionID).Msg("failed to insert access log")
+	}
+}
+
+// maxStaleCookieChecks bounds the per-exchange cleanup of old proxy cookies
+const maxStaleCookieChecks = 50
+
+// expireStaleSupportProxyCookies drops the proxy cookies of sessions that are
+// no longer live: all of them go with every request to the support domain, and
+// piling up they would outgrow the request header limit.
+func expireStaleSupportProxyCookies(c *gin.Context, currentSlug, cookieDomain string, secure bool) {
+	repo := entities.NewSupportRepository()
+	checked := 0
+	for _, cookie := range c.Request.Cookies() {
+		if cookie.Name == "support_proxy" {
+			c.SetCookie(cookie.Name, "", -1, "/", cookieDomain, secure, true)
+			continue
+		}
+		slug, ok := strings.CutPrefix(cookie.Name, supportProxyCookiePrefix)
+		if !ok || slug == currentSlug || !validSessionSlug.MatchString(slug) || checked >= maxStaleCookieChecks {
+			continue
+		}
+		checked++
+		live, err := repo.IsSessionLive(sessionIDFromSlug(slug))
+		if err == nil && !live {
+			c.SetCookie(cookie.Name, "", -1, "/", cookieDomain, secure, true)
+		}
+	}
+}
+
+// sessionIDFromSlug puts back the dashes a session UUID loses in a host label
+func sessionIDFromSlug(slug string) string {
+	if len(slug) != 32 {
+		return slug
+	}
+	return slug[0:8] + "-" + slug[8:12] + "-" + slug[12:16] + "-" + slug[16:20] + "-" + slug[20:]
+}
+
+// supportProxyCookieName names the proxy cookie after its session: the cookie
+// domain covers every support subdomain, and one shared name would let the UI
+// of one session overwrite the access of another open in the same browser.
+func supportProxyCookieName(sessionSlug string) string {
+	return supportProxyCookiePrefix + sessionSlug
+}
+
+const supportProxyCookiePrefix = "support_proxy_"
+
+// appOrigin is the origin of the my app, from APP_URL
+func appOrigin() string {
+	if u, err := url.Parse(configuration.Config.AppURL); err == nil && u.Scheme != "" && u.Host != "" {
+		return u.Scheme + "://" + u.Host
+	}
+	return ""
+}
+
+// privateCacheControl turns a cache policy into a browser-only one
+func privateCacheControl(cc string) string {
+	if strings.TrimSpace(cc) == "" {
+		return "private"
+	}
+	var out []string
+	for _, d := range strings.Split(cc, ",") {
+		d = strings.TrimSpace(d)
+		switch strings.ToLower(strings.SplitN(d, "=", 2)[0]) {
+		case "public", "private", "s-maxage", "proxy-revalidate":
+			continue
+		}
+		if d != "" {
+			out = append(out, d)
+		}
+	}
+	return strings.Join(append([]string{"private"}, out...), ", ")
+}
+
+// setFrameAncestors keeps the appliance's own Content-Security-Policy (its
+// defence against XSS in its UI) and replaces only who may frame the page.
+func setFrameAncestors(h http.Header, frameAncestors string) {
+	policies := h.Values("Content-Security-Policy")
+	if len(policies) == 0 {
+		h.Set("Content-Security-Policy", frameAncestors)
+		return
+	}
+	h.Del("Content-Security-Policy")
+	for i, policy := range policies {
+		var kept []string
+		for _, directive := range strings.Split(policy, ";") {
+			directive = strings.TrimSpace(directive)
+			name := strings.ToLower(strings.SplitN(directive, " ", 2)[0])
+			if directive != "" && name != "frame-ancestors" {
+				kept = append(kept, directive)
+			}
+		}
+		if i == 0 {
+			kept = append(kept, frameAncestors)
+		}
+		if len(kept) > 0 {
+			h.Add("Content-Security-Policy", strings.Join(kept, "; "))
+		}
+	}
+}
+
+// supportProxyFrameAncestors lets the my app embed proxied UIs in its support
+// workspace, and no other site.
+func supportProxyFrameAncestors() string {
+	if origin := appOrigin(); origin != "" {
+		return "frame-ancestors 'self' " + origin
+	}
+	return "frame-ancestors 'self'"
+}
+
+// filterSupportProxyCookie removes every support proxy cookie (all sessions
+// share the cookie domain) while preserving all other cookies and headers
+// (including Authorization)
 func filterSupportProxyCookie(req *http.Request) {
 	cookies := req.Cookies()
 	req.Header.Del("Cookie")
 	for _, c := range cookies {
-		if c.Name != "support_proxy" {
+		if c.Name != "support_proxy" && !strings.HasPrefix(c.Name, supportProxyCookiePrefix) {
 			req.AddCookie(c)
 		}
 	}

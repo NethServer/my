@@ -4530,6 +4530,33 @@ components:
             type:
               type: string
 
+    SupportSessionNote:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+          description: The session the note was written in
+        system_id:
+          type: string
+        author_id:
+          type: string
+          description: ID of the operator who wrote the note
+        author_name:
+          type: string
+        body:
+          type: string
+          description: Plain text; links are recognized by the client
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
     SupportAccessLog:
       type: object
       properties:
@@ -4582,6 +4609,8 @@ components:
               type: string
             type:
               type: string
+            parent:
+              $ref: '#/components/schemas/ParentOrganization'
         started_at:
           type: string
           format: date-time
@@ -4968,6 +4997,19 @@ components:
         example: ["nsec-blacklist", "nsec-ha"]
       style: form
       explode: true
+
+    SystemSupportSessionFilterParam:
+      name: support_session
+      in: query
+      description: |
+        `active` keeps only the systems with a live (pending or active) support
+        session. Honored only for callers who can open support sessions
+        (connect:systems in the Owner organization, not impersonating); ignored
+        for everyone else.
+      required: false
+      schema:
+        type: string
+        enum: [active]
 
     IncludeAddonsParam:
       name: include_addons
@@ -10915,6 +10957,7 @@ paths:
         - $ref: '#/components/parameters/ParentOrganizationFilterParam'
         - $ref: '#/components/parameters/SystemStatusFilterParam'
         - $ref: '#/components/parameters/SystemAddonFilterParam'
+        - $ref: '#/components/parameters/SystemSupportSessionFilterParam'
         - $ref: '#/components/parameters/IncludeAddonsParam'
       responses:
         '200':
@@ -19820,9 +19863,25 @@ paths:
             minimum: 1
             maximum: 100
             default: 20
+        - name: search
+          in: query
+          description: Case-insensitive match on system name, system key or organization name
+          schema:
+            type: string
+        - name: type
+          in: query
+          description: Filter by product (can be repeated)
+          schema:
+            type: string
+            enum: [ns8, nsec]
+        - name: organization_id
+          in: query
+          description: Filter by the system's organization Logto ID (can be repeated)
+          schema:
+            type: string
         - name: status
           in: query
-          description: Filter by session status (can be repeated)
+          description: Filter by the system row status, i.e. its best session status (can be repeated)
           schema:
             type: string
             enum: [pending, active, expired, closed]
@@ -19834,6 +19893,7 @@ paths:
           in: query
           schema:
             type: string
+            enum: [name, type, organization_name, started_at, expires_at, status, created_at]
             default: started_at
         - name: sort_direction
           in: query
@@ -20166,6 +20226,274 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /support-sessions/activity:
+    get:
+      operationId: getSupportActivity
+      tags:
+        - Backend - Support Sessions
+      summary: Get the support history of a system
+      description: |
+        Returns the support sessions of a system (newest first, up to 50) and the
+        operator accesses and actions across all of them (newest first, up to 500),
+        so the history outlives each session. Sessions overlapping in time (one
+        per node of a cluster) make up one intervention.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: system_id
+          in: query
+          required: true
+          description: System ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Support activity retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: support activity retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      system_id:
+                        type: string
+                      sessions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                            node_id:
+                              type: string
+                            status:
+                              type: string
+                              enum: [pending, active, expired, closed]
+                            started_at:
+                              type: string
+                              format: date-time
+                            expires_at:
+                              type: string
+                              format: date-time
+                            closed_at:
+                              type: string
+                              format: date-time
+                            closed_by:
+                              type: string
+                      access_logs:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SupportAccessLog'
+                      web_presence:
+                        type: array
+                        description: Operators seen on the web interfaces of the live sessions in the last 2 minutes
+                        items:
+                          type: object
+                          properties:
+                            session_id:
+                              type: string
+                              format: uuid
+                            operator_id:
+                              type: string
+                            operator_name:
+                              type: string
+                            service:
+                              type: string
+                              description: Proxy host label of the service (name plus a short hash)
+                            last_seen:
+                              type: string
+                              format: date-time
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /support-notes:
+    get:
+      operationId: getSupportNotes
+      tags:
+        - Backend - Support Sessions
+      summary: List the operator notes of a system
+      description: |
+        Notes written by operators during the support sessions of a system,
+        newest first (up to 200). Each note keeps the session it was written in.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: system_id
+          in: query
+          required: true
+          description: System ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Support notes retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: support notes retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      notes:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SupportSessionNote'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      operationId: createSupportNote
+      tags:
+        - Backend - Support Sessions
+      summary: Add a note to a system's current support session
+      description: |
+        The note goes to the system's live session, or to its latest one when
+        none is live. Plain text, 1 to 10000 characters.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [system_id, body]
+              properties:
+                system_id:
+                  type: string
+                body:
+                  type: string
+                  minLength: 1
+                  maxLength: 10000
+      responses:
+        '201':
+          description: Support note created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: support note created successfully
+                  data:
+                    $ref: '#/components/schemas/SupportSessionNote'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /support-notes/{note_id}:
+    put:
+      operationId: updateSupportNote
+      tags:
+        - Backend - Support Sessions
+      summary: Edit a support note
+      description: Only the author can edit a note.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: note_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body:
+                  type: string
+                  minLength: 1
+                  maxLength: 10000
+      responses:
+        '200':
+          description: Support note updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: support note updated successfully
+                  data:
+                    $ref: '#/components/schemas/SupportSessionNote'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteSupportNote
+      tags:
+        - Backend - Support Sessions
+      summary: Delete a support note
+      description: Only the author can delete a note.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: note_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Support note deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /support-sessions/{id}/diagnostics:
     get:
       operationId: getSupportSessionDiagnostics
@@ -20384,16 +20712,19 @@ paths:
         - Backend - Support Sessions
       summary: Generate a subdomain proxy token for a support session service
       description: |
-        Generates a short-lived signed JWT (SUPPORT_PROXY_TOKEN_TTL, default 15m) that grants access to
+        Generates a short-lived signed JWT (SUPPORT_PROXY_TOKEN_TTL, default 1h) that grants access to
         a specific service on a remote system through the subdomain-based support proxy. The returned URL
         uses the format `https://{label}--{session_slug}.support.{domain}/`, where label is a DNS-safe
         digest of the service name (readable prefix of at most 20 chars plus 8 hex chars of its sha256,
         so the whole host label stays within 63 chars) and session_slug is the full UUID without dashes;
-        the token is passed as a query parameter on the first request,
-        then stored as an HttpOnly cookie. Every proxied request re-checks, at most once a minute, that the
-        operator is still active and holds connect:systems; state-changing requests and WebSocket upgrades
-        whose Origin is not a subdomain of the same session are refused with 403. The first use of the
-        token on each service is recorded in the session access log (ui_proxy).
+        the browser never gets the token itself: the response carries a one-time code (valid 30 seconds)
+        passed as the `token` query parameter on the first request, which the proxy swaps for the token in
+        an HttpOnly cookie named after the session. Every proxied request re-checks, at most once a minute,
+        that the operator is still active, in the Owner organization and holds connect:systems;
+        state-changing requests and WebSocket upgrades whose Origin is not a subdomain of the same session
+        are refused with 403. Opening a service, and the proxy logging into the NS8 cluster for routes
+        behind the cluster login, are recorded in the session access log (ui_proxy, cluster_login).
+        Remote support is restricted to the Owner organization and refused under impersonation.
       security:
         - BearerAuth: []
       parameters:
@@ -20440,7 +20771,11 @@ paths:
                         example: https://nethvoice103-ui--550e8400.support.my.nethesis.it/
                       token:
                         type: string
-                        description: Signed JWT proxy token (8h expiry)
+                        description: One-time code (30 seconds) the proxy swaps for its access cookie
+                      expires_at:
+                        type: string
+                        format: date-time
+                        description: When the access obtained with the code ends
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -20612,6 +20947,52 @@ paths:
                             node_id:
                               type: string
                               example: "1"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /support-sessions/{id}/events:
+    post:
+      operationId: logSupportWorkspaceEvent
+      tags:
+        - Backend - Support Sessions
+      summary: Record a workspace event
+      description: |
+        Records in the session's access log what only the browser sees:
+        `autofill`, a login form of a proxied service filled with the session
+        credentials (they never leave the browser), and `ui_close`, a web
+        interface tab closed by the operator.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, service]
+              properties:
+                type:
+                  type: string
+                  enum: [autofill, ui_close]
+                service:
+                  type: string
+                  maxLength: 100
+      responses:
+        '200':
+          description: Event recorded
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

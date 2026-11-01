@@ -67,7 +67,7 @@ type ProxyTokenClaims struct {
 func GenerateProxyToken(sessionID, serviceName, userID, userLogtoID, orgRole, organizationID string) (string, error) {
 	expDuration := configuration.Config.SupportProxyTokenTTL
 	if expDuration <= 0 {
-		expDuration = 15 * time.Minute
+		expDuration = time.Hour
 	}
 
 	claims := ProxyTokenClaims{

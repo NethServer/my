@@ -692,12 +692,20 @@ func main() {
 		}
 
 		// ===========================================
-		// SUPPORT SESSIONS - connect:systems permission required
+		// SUPPORT SESSIONS - connect:systems, Owner organization only
 		// ===========================================
-		supportGroup := customAuthWithAudit.Group("/support-sessions", middleware.RequirePermission("connect:systems"))
+		// Remote support is Nethesis staff only: connect:systems AND the Owner
+		// organization, and never under impersonation (the access log would
+		// name the impersonated user)
+		supportGroup := customAuthWithAudit.Group("/support-sessions",
+			middleware.RequirePermission("connect:systems"),
+			middleware.RequireOrgRole(models.OwnerOrgRole),
+			middleware.DisableOnImpersonate(),
+		)
 		{
 			supportGroup.GET("", methods.GetSupportSessions)
 			supportGroup.GET("/diagnostics", methods.GetSystemSessionsDiagnostics)
+			supportGroup.GET("/activity", methods.GetSupportActivity)
 			supportGroup.GET("/:id", methods.GetSupportSession)
 			supportGroup.PATCH("/:id/extend", methods.ExtendSupportSession)
 			supportGroup.DELETE("/:id", methods.CloseSupportSession)
@@ -709,6 +717,20 @@ func main() {
 			supportGroup.DELETE("/:id/services/:name", methods.RemoveSupportSessionService)
 			supportGroup.POST("/:id/terminal-ticket", methods.GenerateTerminalTicket)
 			supportGroup.POST("/:id/proxy-token", methods.GenerateSupportProxyToken)
+			supportGroup.POST("/:id/events", methods.LogSupportWorkspaceEvent)
+		}
+
+		// Operator notes on a system's support sessions: same access as the sessions
+		supportNotesGroup := customAuthWithAudit.Group("/support-notes",
+			middleware.RequirePermission("connect:systems"),
+			middleware.RequireOrgRole(models.OwnerOrgRole),
+			middleware.DisableOnImpersonate(),
+		)
+		{
+			supportNotesGroup.GET("", methods.GetSupportNotes)
+			supportNotesGroup.POST("", methods.CreateSupportNote)
+			supportNotesGroup.PUT("/:note_id", methods.UpdateSupportNote)
+			supportNotesGroup.DELETE("/:note_id", methods.DeleteSupportNote)
 		}
 
 		// Terminal WebSocket endpoint - uses one-time ticket auth (not JWT)
