@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/models"
+	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/sshserver"
 	"github.com/nethesis/my/services/support/cmd/tunnel-client/internal/terminal"
 )
 
@@ -88,6 +89,24 @@ func dispatchStream(stream net.Conn, serviceName string, services map[string]mod
 		}
 		log.Println("CONNECT terminal -> PTY")
 		terminal.HandleTerminal(stream)
+		return
+	}
+
+	// Built-in SSH endpoint for the SSH gateway: shells, commands and file
+	// transfers run with the system's programs
+	if serviceName == "ssh" {
+		select {
+		case terminalSlots <- struct{}{}:
+			defer func() { <-terminalSlots }()
+		default:
+			_ = writeConnectResponse(stream, fmt.Errorf("too many open terminals (max %d)", maxConcurrentTerminals))
+			return
+		}
+		if err := writeConnectResponse(stream, nil); err != nil {
+			return
+		}
+		log.Println("CONNECT ssh -> SSH sessions")
+		sshserver.Serve(stream)
 		return
 	}
 
