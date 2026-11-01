@@ -95,10 +95,10 @@ func Init() {
 	Config.SessionCleanerInterval = parseDurationWithDefault("SESSION_CLEANER_INTERVAL", 5*time.Minute)
 
 	// Tunnel configuration
-	Config.TunnelGracePeriod = parseDurationWithDefault("TUNNEL_GRACE_PERIOD", 30*time.Second)
+	Config.TunnelGracePeriod = parseDurationWithDefault("TUNNEL_GRACE_PERIOD", 2*time.Minute)
 	Config.MaxTunnels = parseIntWithDefault("MAX_TUNNELS", 1000)
-	Config.MaxSessionsPerSystem = parseIntWithDefault("MAX_SESSIONS_PER_SYSTEM", 5)
-	Config.MaxStreamsPerTunnel = parseIntWithDefault("MAX_STREAMS_PER_TUNNEL", 64)
+	Config.MaxSessionsPerSystem = parseIntWithDefault("MAX_SESSIONS_PER_SYSTEM", 16)
+	Config.MaxStreamsPerTunnel = parseIntWithDefault("MAX_STREAMS_PER_TUNNEL", 200)
 
 	// Terminal configuration
 	Config.TerminalInactivityTimeout = parseDurationWithDefault("TERMINAL_INACTIVITY_TIMEOUT", 30*time.Minute)
