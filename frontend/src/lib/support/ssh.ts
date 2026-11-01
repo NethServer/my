@@ -18,6 +18,16 @@ export interface SSHAccessRequest {
   has_session: boolean
 }
 
+// The command an operator pastes to open a shell: ssh tunnelled in a
+// WebSocket by websocat, through the proxy that serves this page. With a
+// ProxyCommand ssh never dials the host: "my" only names the known_hosts
+// entry, the same one an operator's "Host my" config block uses.
+export const sshCommand = (systemKey: string, nodeId?: string | null): string => {
+  const url = `wss://${window.location.host}/ssh-gateway/api/ssh`
+  const user = nodeId ? `${systemKey}.${nodeId}` : systemKey
+  return `ssh -o ProxyCommand='websocat --binary ${url}' ${user}@my`
+}
+
 const authHeaders = () => ({ Authorization: `Bearer ${useLoginStore().jwtToken}` })
 
 export const getSSHAccessRequest = (code: string): Promise<SSHAccessRequest> =>

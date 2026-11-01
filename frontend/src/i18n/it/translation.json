@@ -1652,7 +1652,13 @@
     "ssh_auth_not_found": "Richiesta non trovata o scaduta: rilancia ssh per crearne una nuova.",
     "ssh_auth_forbidden": "Non hai accesso a questo sistema.",
     "ssh_auth_no_session": "Nessuna sessione di supporto attiva su questo sistema.",
-    "ssh_auth_error": "Impossibile completare la richiesta."
+    "ssh_auth_error": "Impossibile completare la richiesta.",
+    "ssh": "SSH",
+    "ssh_copied": "Comando SSH copiato",
+    "ssh_copy_hint": "Copia il comando ssh da incollare nel terminale (serve websocat)",
+    "ssh_copy_node": "Nodo {node}",
+    "ssh_copied_description": "Incollalo in un terminale per aprire una shell su {name}.",
+    "ssh_copy_error": "Impossibile copiare il comando SSH"
   },
   "support_workspace": {
     "title": "Supporto"

@@ -1657,7 +1657,13 @@
     "ssh_auth_not_found": "Request not found or expired: run ssh again to create a new one.",
     "ssh_auth_forbidden": "You have no access to this system.",
     "ssh_auth_no_session": "No active support session on this system.",
-    "ssh_auth_error": "Unable to complete the request."
+    "ssh_auth_error": "Unable to complete the request.",
+    "ssh": "SSH",
+    "ssh_copied": "SSH command copied",
+    "ssh_copy_hint": "Copy the ssh command to paste in a terminal (requires websocat)",
+    "ssh_copy_node": "Node {node}",
+    "ssh_copied_description": "Paste it in a terminal to open a shell on {name}.",
+    "ssh_copy_error": "Unable to copy the SSH command"
   },
   "support_workspace": {
     "title": "Support"
