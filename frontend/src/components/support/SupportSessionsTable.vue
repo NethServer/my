@@ -11,6 +11,8 @@ import {
   faXmark,
   faMagnifyingGlass,
   faWindowMaximize,
+  faTerminal,
+  faChevronDown,
 } from '@fortawesome/free-solid-svg-icons'
 import {
   NeTable,
@@ -21,6 +23,8 @@ import {
   NeTableCell,
   NePaginator,
   NeButton,
+  NeDropdown,
+  type NeDropdownItem,
   NeEmptyState,
   NeInlineNotification,
   NeBadgeV2,
@@ -65,6 +69,7 @@ import {
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
 import SupportHistoryDrawer from '@/components/support/SupportHistoryDrawer.vue'
 import SupportExtendModal from '@/components/support/SupportExtendModal.vue'
+import { sshCommand } from '@/lib/support/ssh'
 import { useNotificationsStore } from '@/stores/notifications'
 
 const props = withDefaults(defineProps<{ scope?: SupportSessionsScope }>(), { scope: 'live' })
@@ -168,6 +173,38 @@ const isHistoryShown = ref(false)
 function handleShowHistory(group: SystemSessionGroup) {
   historyGroup.value = group
   isHistoryShown.value = true
+}
+
+// SSH: copy the command to paste in a terminal, one per node on a cluster
+
+function sshNodes(group: SystemSessionGroup): string[] {
+  return group.sessions
+    .filter((s) => s.status === 'active' && s.node_id)
+    .map((s) => s.node_id as string)
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+}
+
+async function copySSHCommand(group: SystemSessionGroup, nodeId?: string) {
+  try {
+    await navigator.clipboard.writeText(sshCommand(group.system_key, nodeId))
+    notificationsStore.createNotification({
+      kind: 'success',
+      title: t('support.ssh_copied'),
+      description: t('support.ssh_copied_description', {
+        name: group.system_name || group.system_key,
+      }),
+    })
+  } catch {
+    notificationsStore.createNotification({ kind: 'error', title: t('support.ssh_copy_error') })
+  }
+}
+
+function sshDropdownItems(group: SystemSessionGroup): NeDropdownItem[] {
+  return sshNodes(group).map((nodeId) => ({
+    id: `ssh-${nodeId}`,
+    label: t('support.ssh_copy_node', { node: nodeId }),
+    action: () => copySSHCommand(group, nodeId),
+  }))
 }
 
 function handleOpenWorkspace(group: SystemSessionGroup) {
@@ -385,6 +422,35 @@ async function handleCloseGroup(group: SystemSessionGroup) {
                     <FontAwesomeIcon :icon="faWindowMaximize" aria-hidden="true" />
                   </template>
                   {{ $t('support.open_workspace') }}
+                </NeButton>
+                <NeDropdown
+                  v-if="group.status === 'active' && group.system_key && sshNodes(group).length > 1"
+                  :items="sshDropdownItems(group)"
+                  :align-to-right="true"
+                >
+                  <template #button>
+                    <NeButton kind="tertiary" size="sm" :title="$t('support.ssh_copy_hint')">
+                      <template #prefix>
+                        <FontAwesomeIcon :icon="faTerminal" aria-hidden="true" />
+                      </template>
+                      {{ $t('support.ssh') }}
+                      <template #suffix>
+                        <FontAwesomeIcon :icon="faChevronDown" aria-hidden="true" />
+                      </template>
+                    </NeButton>
+                  </template>
+                </NeDropdown>
+                <NeButton
+                  v-else-if="group.status === 'active' && group.system_key"
+                  kind="tertiary"
+                  size="sm"
+                  :title="$t('support.ssh_copy_hint')"
+                  @click="copySSHCommand(group)"
+                >
+                  <template #prefix>
+                    <FontAwesomeIcon :icon="faTerminal" aria-hidden="true" />
+                  </template>
+                  {{ $t('support.ssh') }}
                 </NeButton>
                 <NeButton
                   v-if="group.status === 'active' || group.status === 'pending'"
