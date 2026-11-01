@@ -678,6 +678,11 @@ services:
       - key: LOG_FORMAT
         value: json
 
+      # Host key (PEM): the disk does not survive a deploy, and a new key
+      # makes every operator's ssh warn of a man in the middle
+      - key: SSH_HOST_KEY
+        sync: false  # Configure in Render dashboard
+
       # Where operators approve the access requests
       - key: APP_URL
         value: https://qa.my.nethesis.it
