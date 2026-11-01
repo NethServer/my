@@ -18,8 +18,11 @@ import TopBar from './TopBar.vue'
 import NotificationDrawer from './NotificationDrawer.vue'
 import LoggedUserCard from './LoggedUserCard.vue'
 import { useKapaWidget } from '@/composables/useKapaWidget'
+import SupportWorkspaceDock from '@/components/support/SupportWorkspaceDock.vue'
+import { useSupportWorkspacesStore } from '@/stores/supportWorkspaces'
 
 const themeStore = useThemeStore()
+const workspacesStore = useSupportWorkspacesStore()
 
 useKapaWidget()
 
@@ -138,12 +141,14 @@ const logoFile = computed(() => {
 
     <div class="lg:pl-72">
       <TopBar @open-sidebar="sidebarOpen = true" />
-      <main class="py-10">
+      <!-- leave room for the minimized support windows bar -->
+      <main class="py-10" :class="{ 'pb-32': workspacesStore.hasMinimized }">
         <div class="px-4 sm:px-6 lg:px-8">
           <RouterView />
         </div>
       </main>
     </div>
     <NotificationDrawer :close-on-click-outside="true" />
+    <SupportWorkspaceDock />
   </div>
 </template>

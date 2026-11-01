@@ -4,58 +4,24 @@
 -->
 
 <script setup lang="ts">
-import { faHeadset, faUser } from '@fortawesome/free-solid-svg-icons'
+import { faHeadset, faWindowMaximize } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { NeBadge, NeSpinner } from '@nethesis/vue-components'
+import { NeButton, NeSpinner, formatDateTimeNoSeconds } from '@nethesis/vue-components'
 import { ref, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
-import {
-  getSystemActiveSessions,
-  getSupportSessionLogs,
-  getSystemDiagnostics,
-  type SystemSessionGroup,
-  type SystemDiagnostics,
-} from '@/lib/support/support'
-function formatDateWithMonth(date: Date, loc: string): string {
-  return date.toLocaleString(loc, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
+import { getSystemActiveSessions, type SystemSessionGroup } from '@/lib/support/support'
+import { useSupportWorkspacesStore, workspaceOrganizations } from '@/stores/supportWorkspaces'
 
 const props = defineProps<{
   systemId: string
 }>()
 
 const { t, locale } = useI18n()
+const workspacesStore = useSupportWorkspacesStore()
 
-// An operator connection with node context
-// Access types that stay open until the operator disconnects
-const LIVE_ACCESS_TYPES = ['web_terminal', 'ssh']
-
-interface OperatorConnection {
-  accessType: string
-  nodeId: string | null
-}
-
-// An operator grouped across all sessions/nodes
-interface OperatorEntry {
-  operatorId: string
-  operatorName: string
-  connections: OperatorConnection[]
-}
-
-interface PopoverData {
-  group: SystemSessionGroup
-  operators: OperatorEntry[]
-}
-
-const data = ref<PopoverData | null>(null)
-const diagnostics = ref<SystemDiagnostics | null>(null)
-const expandedNodes = ref<Set<string>>(new Set())
+// details, timeline and notes live in the session's workspace: this only
+// signals the session and leads there
+const group = ref<SystemSessionGroup | null>(null)
 const loading = ref(false)
 const error = ref(false)
 const isOpen = ref(false)
@@ -67,59 +33,7 @@ async function fetchData() {
   error.value = false
   try {
     const groups = await getSystemActiveSessions(props.systemId)
-    if (groups.length === 0) {
-      data.value = null
-      return
-    }
-
-    // Use the first group (one system = one group with potentially multiple session refs)
-    const group = groups[0]
-
-    // Fetch logs for ALL session refs and associate node_id
-    const operatorMap = new Map<string, OperatorEntry>()
-
-    for (const sessionRef of group.sessions || []) {
-      try {
-        const logsData = await getSupportSessionLogs(sessionRef.id, 1, 100)
-        for (const log of logsData.access_logs || []) {
-          // Only open connections: views and proxy accesses are one-off events
-          if (log.disconnected_at || !LIVE_ACCESS_TYPES.includes(log.access_type)) continue
-
-          let entry = operatorMap.get(log.operator_id)
-          if (!entry) {
-            entry = {
-              operatorId: log.operator_id,
-              operatorName: log.operator_name,
-              connections: [],
-            }
-            operatorMap.set(log.operator_id, entry)
-          }
-          entry.connections.push({
-            accessType: log.access_type,
-            nodeId: sessionRef.node_id,
-          })
-        }
-      } catch {
-        // ignore log fetch errors for individual sessions
-      }
-    }
-
-    data.value = {
-      group,
-      operators: Array.from(operatorMap.values()),
-    }
-
-    // Fetch diagnostics for all active sessions of this system
-    try {
-      const sysDiag = await getSystemDiagnostics(props.systemId)
-      diagnostics.value = sysDiag
-      // Auto-expand all nodes in multi-node view
-      if (sysDiag.nodes.length > 1) {
-        expandedNodes.value = new Set(sysDiag.nodes.map((n) => n.node_id ?? '__null__'))
-      }
-    } catch {
-      diagnostics.value = null
-    }
+    group.value = groups[0] || null
   } catch {
     error.value = true
   } finally {
@@ -143,96 +57,47 @@ function toggle() {
   fetchData()
 }
 
-function close() {
+function openWorkspace() {
+  const g = group.value
+  if (!g) return
+  workspacesStore.open(
+    {
+      systemId: g.system_id,
+      systemName: g.system_name || g.system_key,
+      systemType: g.system_type || null,
+      ...workspaceOrganizations(g),
+    },
+    g.sessions,
+  )
   isOpen.value = false
 }
 
 function onClickOutside(e: MouseEvent) {
   if (triggerEl.value?.contains(e.target as Node)) return
-  close()
+  isOpen.value = false
 }
 
 document.addEventListener('click', onClickOutside)
 onBeforeUnmount(() => {
   document.removeEventListener('click', onClickOutside)
 })
-
-function getStatusBadgeKind(status: string) {
-  switch (status) {
-    case 'active':
-      return 'success'
-    case 'pending':
-      return 'warning'
-    default:
-      return 'secondary'
-  }
-}
-
-function formatConnectionBadge(conn: OperatorConnection): string {
-  const label = conn.accessType
-  if (conn.nodeId) {
-    return `${label} (${t('systems.node')} ${conn.nodeId})`
-  }
-  return label
-}
-
-function toggleNode(nodeId: string | null) {
-  const key = nodeId ?? '__null__'
-  if (expandedNodes.value.has(key)) {
-    expandedNodes.value.delete(key)
-  } else {
-    expandedNodes.value.add(key)
-  }
-}
-
-function isNodeExpanded(nodeId: string | null): boolean {
-  return expandedNodes.value.has(nodeId ?? '__null__')
-}
-
-function diagnosticStatusDotClass(status: string): string {
-  switch (status) {
-    case 'ok':
-      return 'bg-green-500'
-    case 'warning':
-      return 'bg-amber-400'
-    case 'critical':
-      return 'bg-red-500'
-    default:
-      return 'bg-gray-400'
-  }
-}
-
-function diagnosticStatusTextClass(status: string): string {
-  switch (status) {
-    case 'ok':
-      return 'text-green-600 dark:text-green-400'
-    case 'warning':
-      return 'text-amber-500 dark:text-amber-400'
-    case 'critical':
-      return 'text-red-600 dark:text-red-400'
-    default:
-      return 'text-gray-500 dark:text-gray-400'
-  }
-}
 </script>
 
 <template>
   <button
     ref="triggerEl"
-    class="cursor-pointer focus:outline-none"
+    class="relative flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center focus:outline-none"
     :title="t('systems.support_session_active')"
+    :aria-label="t('systems.support_session_active')"
     @click.stop="toggle"
   >
-    <FontAwesomeIcon
-      :icon="faHeadset"
-      class="h-4 w-4 text-amber-500 dark:text-amber-400"
-      aria-hidden="true"
-    />
+    <span class="absolute inline-flex h-3 w-3 animate-ping rounded-full bg-amber-400 opacity-75" />
+    <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-400" />
   </button>
   <Teleport to="body">
     <div
       v-if="isOpen"
-      class="fixed z-50 w-[28rem] -translate-y-1/2 rounded-lg border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+      class="fixed z-50 w-72 -translate-y-1/2 rounded-lg border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900"
       :style="panelStyle"
       @click.stop
     >
@@ -242,126 +107,28 @@ function diagnosticStatusTextClass(status: string): string {
       <div v-else-if="error" class="text-sm text-red-600 dark:text-red-400">
         {{ t('systems.cannot_load_support_session') }}
       </div>
-      <div v-else-if="data" class="space-y-2 text-sm">
-        <div class="mb-1 flex items-center gap-2 font-medium">
+      <div v-else-if="group" class="space-y-3 text-sm">
+        <div class="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
           <FontAwesomeIcon
             :icon="faHeadset"
             class="h-4 w-4 text-amber-500 dark:text-amber-400"
             aria-hidden="true"
           />
-          {{ t('systems.support_session') }}
+          {{ t('systems.support_session_active') }}
         </div>
-        <!-- Session info (single session per system) -->
-        <div class="flex items-center justify-between">
-          <span class="font-medium">{{ t('support.status') }}</span>
-          <NeBadge
-            :text="t(`support.status_${data.group.status}`)"
-            :kind="getStatusBadgeKind(data.group.status)"
-            size="sm"
-          />
+        <div class="text-xs text-gray-500 dark:text-gray-400">
+          {{ t('support.expires_at') }}:
+          {{ formatDateTimeNoSeconds(new Date(group.expires_at), locale) }}
         </div>
-        <div class="flex items-center justify-between">
-          <span class="text-gray-500 dark:text-gray-400">{{ t('support.started_at') }}</span>
-          <span>{{ formatDateWithMonth(new Date(data.group.started_at), locale) }}</span>
-        </div>
-        <div class="flex items-center justify-between">
-          <span class="text-gray-500 dark:text-gray-400">{{ t('support.expires_at') }}</span>
-          <span>{{ formatDateWithMonth(new Date(data.group.expires_at), locale) }}</span>
-        </div>
-        <!-- Connected operators -->
-        <div v-if="data.operators.length > 0">
-          <div class="mb-1.5 border-t border-gray-200 pt-2 font-medium dark:border-gray-700">
-            {{ t('systems.connected_operators') }}
-          </div>
-          <div class="space-y-2">
-            <div v-for="op in data.operators" :key="op.operatorId">
-              <div class="flex items-start justify-between gap-3">
-                <div class="flex min-w-[40%] items-center gap-1.5 pt-0.5">
-                  <FontAwesomeIcon
-                    :icon="faUser"
-                    class="h-3 w-3 shrink-0 text-gray-400"
-                    aria-hidden="true"
-                  />
-                  <span class="truncate">{{ op.operatorName }}</span>
-                </div>
-                <div class="flex flex-col items-end gap-1">
-                  <NeBadge
-                    v-for="(conn, idx) in op.connections"
-                    :key="idx"
-                    :text="formatConnectionBadge(conn)"
-                    kind="secondary"
-                    size="sm"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <!-- Diagnostics -->
-        <div
-          v-if="diagnostics && diagnostics.nodes.some((n) => n.diagnostics)"
-          class="border-t border-gray-200 pt-2 dark:border-gray-700"
-        >
-          <div class="mb-1.5 flex items-center gap-1.5 font-medium">
-            <span>{{ t('support.diagnostics') }}</span>
-            <span
-              v-if="diagnostics.overall_status"
-              class="inline-block h-2 w-2 rounded-full"
-              :class="diagnosticStatusDotClass(diagnostics.overall_status)"
-            />
-          </div>
-          <!-- Single-node: flat list (no node headers) -->
-          <div v-if="diagnostics.nodes.length <= 1" class="space-y-1">
-            <template v-for="node in diagnostics.nodes" :key="node.session_id">
-              <div
-                v-for="plugin in node.diagnostics?.plugins || []"
-                :key="plugin.id"
-                class="flex items-center justify-between"
-              >
-                <span class="text-gray-500 dark:text-gray-400">{{ plugin.name }}</span>
-                <span class="text-xs font-medium" :class="diagnosticStatusTextClass(plugin.status)">
-                  {{ plugin.summary || plugin.status }}
-                </span>
-              </div>
-            </template>
-          </div>
-          <!-- Multi-node: collapsible sections per node -->
-          <div v-else class="space-y-1">
-            <div v-for="node in diagnostics.nodes" :key="node.session_id">
-              <button
-                v-if="node.diagnostics"
-                class="flex w-full cursor-pointer items-center justify-between rounded px-1 py-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
-                @click="toggleNode(node.node_id)"
-              >
-                <div class="flex items-center gap-1.5 font-medium">
-                  <span class="text-xs text-gray-400">{{
-                    isNodeExpanded(node.node_id) ? '▾' : '▸'
-                  }}</span>
-                  <span>{{ t('systems.node') }} {{ node.node_id }}</span>
-                </div>
-                <span
-                  class="inline-block h-2 w-2 rounded-full"
-                  :class="diagnosticStatusDotClass(node.diagnostics.overall_status)"
-                />
-              </button>
-              <div v-if="isNodeExpanded(node.node_id) && node.diagnostics" class="space-y-1 pl-5">
-                <div
-                  v-for="plugin in node.diagnostics.plugins"
-                  :key="plugin.id"
-                  class="flex items-center justify-between"
-                >
-                  <span class="text-gray-500 dark:text-gray-400">{{ plugin.name }}</span>
-                  <span
-                    class="text-xs font-medium"
-                    :class="diagnosticStatusTextClass(plugin.status)"
-                  >
-                    {{ plugin.summary || plugin.status }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <NeButton kind="primary" size="sm" class="w-full" @click="openWorkspace">
+          <template #prefix>
+            <FontAwesomeIcon :icon="faWindowMaximize" aria-hidden="true" />
+          </template>
+          {{ t('systems.open_support_session') }}
+        </NeButton>
+      </div>
+      <div v-else class="text-sm text-gray-500 dark:text-gray-400">
+        {{ t('systems.support_session_ended') }}
       </div>
     </div>
   </Teleport>
