@@ -41,6 +41,7 @@ type ServiceInfo struct {
 	PathPrefix string `json:"path_prefix,omitempty"` // Traefik PathPrefix to strip when proxying
 	ModuleID   string `json:"module_id,omitempty"`   // NS8 module ID for grouping (e.g., "nethvoice103")
 	NodeID     string `json:"node_id,omitempty"`     // NS8 node ID (e.g., "1", "2")
+	NodeLabel  string `json:"node_label,omitempty"`  // NS8 node label from the cluster UI
 	Auth       string `json:"auth,omitempty"`        // "cluster" when the NS8 cluster login guards the route
 }
 
@@ -293,16 +294,17 @@ func (m *Manager) AggregateSessionServices(sessionID string) map[string]ServiceI
 }
 
 // ResolveSessionServiceName maps a host label (see ServiceHostLabel) or an
-// exact service name to the service name in the session manifest.
+// exact service name to the service name in the session manifest. Labels win:
+// a service named like another's label must not shadow it.
 func (m *Manager) ResolveSessionServiceName(sessionID, ref string) (string, bool) {
 	services := m.AggregateSessionServices(sessionID)
-	if _, ok := services[ref]; ok {
-		return ref, true
-	}
 	for name := range services {
 		if ServiceHostLabel(name) == ref {
 			return name, true
 		}
+	}
+	if _, ok := services[ref]; ok {
+		return ref, true
 	}
 	return "", false
 }
@@ -534,6 +536,9 @@ func (t *Tunnel) SetServices(services map[string]ServiceInfo) {
 var validRoutePath = regexp.MustCompile(`^/[A-Za-z0-9._~/-]*$`)
 
 // ValidateService checks every manifest field the server acts on
+// maxServiceLabelLen caps the display labels a manifest can carry
+const maxServiceLabelLen = 256
+
 func ValidateService(svc ServiceInfo) error {
 	if err := validateServiceTarget(svc.Target); err != nil {
 		return err
@@ -549,6 +554,9 @@ func ValidateService(svc ServiceInfo) error {
 	}
 	if svc.Auth != "" && svc.Auth != "cluster" {
 		return fmt.Errorf("invalid auth value %q", svc.Auth)
+	}
+	if len(svc.Label) > maxServiceLabelLen || len(svc.NodeLabel) > maxServiceLabelLen {
+		return fmt.Errorf("label too long")
 	}
 	return nil
 }

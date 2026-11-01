@@ -10,6 +10,7 @@
 package tunnel
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -298,6 +299,22 @@ func TestCloseBySystemID(t *testing.T) {
 	}
 	if m.HasGracePeriod("sys1", "3") {
 		t.Fatal("grace timers of the system must be cancelled")
+	}
+}
+
+func TestValidateServiceLabels(t *testing.T) {
+	ok := ServiceInfo{Target: "127.0.0.1:80", Label: "Centralino", NodeLabel: "Milano"}
+	if err := ValidateService(ok); err != nil {
+		t.Fatalf("labels within the limit must pass: %v", err)
+	}
+	long := strings.Repeat("x", maxServiceLabelLen+1)
+	for _, svc := range []ServiceInfo{
+		{Target: "127.0.0.1:80", Label: long},
+		{Target: "127.0.0.1:80", NodeLabel: long},
+	} {
+		if err := ValidateService(svc); err == nil {
+			t.Errorf("label of %d bytes must be rejected", len(long))
+		}
 	}
 }
 
