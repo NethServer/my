@@ -1646,7 +1646,11 @@
     "ssh_auth_system_key": "Chiave del sistema",
     "ssh_auth_key": "Chiave SSH",
     "ssh_auth_no_key": "nessuna (verrà chiesta l'autorizzazione a ogni accesso)",
-    "ssh_auth_not_yours": "Questa richiesta non è stata avviata da te: non puoi autorizzarla. Se qualcuno ti ha mandato questo link, segnalalo."
+    "ssh_auth_not_yours": "Questa richiesta non è stata avviata da te: non puoi autorizzarla. Se qualcuno ti ha mandato questo link, segnalalo.",
+    "activity_ssh": "SSH",
+    "activity_opened_ssh": "{name} ha aperto una connessione SSH",
+    "activity_closed_ssh": "{name} ha chiuso la connessione SSH",
+    "activity_from": "da {ip}"
   },
   "support_workspace": {
     "title": "Supporto"
