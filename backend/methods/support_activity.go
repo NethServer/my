@@ -251,3 +251,28 @@ func LogSupportWorkspaceEvent(c *gin.Context) {
 	logAccessWithMetadata(c, sessionID, request.Type, map[string]string{"service": request.Service})
 	c.JSON(http.StatusOK, response.OK("event recorded", nil))
 }
+
+// GetSupportSessionSavedServices handles GET /api/support-sessions/:id/saved-services:
+// the services operators added to the session's node, who added them and
+// until when they are remembered
+func GetSupportSessionSavedServices(c *gin.Context) {
+	sessionID := c.Param("id")
+	_, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+	repo := entities.NewSupportRepository()
+	sess, err := repo.GetSessionByID(sessionID, userOrgRole, userOrgID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to get support session", nil))
+		return
+	}
+	if sess == nil {
+		c.JSON(http.StatusNotFound, response.NotFound("support session not found", nil))
+		return
+	}
+	services, err := repo.GetSessionSavedServices(sessionID)
+	if err != nil {
+		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to list saved services")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to list saved services", nil))
+		return
+	}
+	c.JSON(http.StatusOK, response.OK("saved services", gin.H{"services": services}))
+}
