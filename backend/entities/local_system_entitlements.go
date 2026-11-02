@@ -590,10 +590,12 @@ func (r *LocalSystemEntitlementRepository) Upsert(systemID, entitlement, scope, 
 		                       ELSE COALESCE(EXCLUDED.seats, system_entitlements.seats)
 		                   END,
 		     -- a renewal is an activation paid by a DIFFERENT order: webhook
-		     -- retries on the same order never double-count
+		     -- retries on the same order never double-count, and the first
+		     -- order of a grant without one (imported, manual) is no renewal
 		     renewal_count = system_entitlements.renewal_count +
 		                     CASE WHEN EXCLUDED.source_ref IS NOT NULL
-		                               AND EXCLUDED.source_ref IS DISTINCT FROM system_entitlements.source_ref
+		                               AND system_entitlements.source_ref IS NOT NULL
+		                               AND EXCLUDED.source_ref <> system_entitlements.source_ref
 		                          THEN 1 ELSE 0 END,
 		     updated_at  = NOW()
 		 RETURNING `+entitlementColumns,
