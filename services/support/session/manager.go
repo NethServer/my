@@ -527,3 +527,36 @@ func ClusterAdminForSession(sessionID string) (*models.UserCredential, error) {
 	}
 	return report.Users.ClusterAdmin, nil
 }
+
+// SavedService is a service an operator added to a system node in an earlier
+// session (backend table support_system_services)
+type SavedService struct {
+	Name   string
+	Target string
+	Label  string
+	TLS    bool
+}
+
+// GetSavedServices returns the services operators added to a system node
+func GetSavedServices(systemID, nodeID string) ([]SavedService, error) {
+	rows, err := database.DB.Query(
+		`SELECT name, target, label, tls FROM support_system_services
+		 WHERE system_id = $1 AND node_id = $2
+		 ORDER BY name
+		 LIMIT 100`,
+		systemID, nodeID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query saved services: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var services []SavedService
+	for rows.Next() {
+		var s SavedService
+		if err := rows.Scan(&s.Name, &s.Target, &s.Label, &s.TLS); err != nil {
+			return nil, fmt.Errorf("failed to scan saved service: %w", err)
+		}
+		services = append(services, s)
+	}
+	return services, rows.Err()
+}

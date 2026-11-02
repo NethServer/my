@@ -236,3 +236,42 @@ func (r *SupportRepository) DeleteNote(noteID, authorID string) (bool, error) {
 	rows, _ := result.RowsAffected()
 	return rows > 0, nil
 }
+
+// SupportSystemService is a service an operator added to a system node
+type SupportSystemService struct {
+	Name   string
+	Target string
+	Label  string
+	TLS    bool
+}
+
+// SaveSystemServices remembers services added to a system node, so later
+// sessions get them again; a service with the same name is replaced
+func (r *SupportRepository) SaveSystemServices(systemID, nodeID, userID, userName string, services []SupportSystemService) error {
+	for _, svc := range services {
+		_, err := r.db.Exec(
+			`INSERT INTO support_system_services (system_id, node_id, name, target, label, tls, created_by_id, created_by_name)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			 ON CONFLICT (system_id, node_id, name) DO UPDATE
+			 SET target = EXCLUDED.target, label = EXCLUDED.label, tls = EXCLUDED.tls,
+			     created_by_id = EXCLUDED.created_by_id, created_by_name = EXCLUDED.created_by_name,
+			     updated_at = NOW()`,
+			systemID, nodeID, svc.Name, svc.Target, svc.Label, svc.TLS, userID, userName,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to save system service: %w", err)
+		}
+	}
+	return nil
+}
+
+// DeleteSystemService forgets a service added to a system node
+func (r *SupportRepository) DeleteSystemService(systemID, nodeID, name string) error {
+	if _, err := r.db.Exec(
+		`DELETE FROM support_system_services WHERE system_id = $1 AND node_id = $2 AND name = $3`,
+		systemID, nodeID, name,
+	); err != nil {
+		return fmt.Errorf("failed to delete system service: %w", err)
+	}
+	return nil
+}

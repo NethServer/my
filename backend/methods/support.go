@@ -453,6 +453,17 @@ func AddSupportSessionServices(c *gin.Context) {
 		return
 	}
 
+	// remembered for the next sessions of this node: the tunnel gets them
+	// again every time it connects
+	saved := make([]entities.SupportSystemService, 0, len(request.Services))
+	for _, svc := range request.Services {
+		saved = append(saved, entities.SupportSystemService{Name: svc.Name, Target: svc.Target, Label: svc.Label, TLS: svc.TLS})
+	}
+	userID, _, _, _ := helpers.GetUserContextExtended(c)
+	if err := repo.SaveSystemServices(sess.SystemID, sessionNode(sess), userID, c.GetString("name"), saved); err != nil {
+		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to remember added services")
+	}
+
 	logger.LogBusinessOperation(c, "support", "add_services", "session", sessionID, true, nil)
 	for _, svc := range request.Services {
 		logAccessWithMetadata(c, sessionID, "service_add", map[string]string{"service": svc.Name, "target": svc.Target})
@@ -515,6 +526,10 @@ func RemoveSupportSessionService(c *gin.Context) {
 		return
 	}
 
+	if err := repo.DeleteSystemService(sess.SystemID, sessionNode(sess), serviceName); err != nil {
+		logger.Error().Err(err).Str("session_id", sessionID).Msg("failed to forget removed service")
+	}
+
 	logger.LogBusinessOperation(c, "support", "remove_service", "session", sessionID, true, nil)
 	logAccessWithMetadata(c, sessionID, "service_remove", map[string]string{"service": serviceName})
 
@@ -522,4 +537,12 @@ func RemoveSupportSessionService(c *gin.Context) {
 		"session_id":   sessionID,
 		"service_name": serviceName,
 	}))
+}
+
+// sessionNode is the cluster node of a session, empty for single-node systems
+func sessionNode(sess *models.SupportSession) string {
+	if sess.NodeID == nil {
+		return ""
+	}
+	return *sess.NodeID
 }

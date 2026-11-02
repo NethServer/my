@@ -280,3 +280,29 @@ func TestApplyAddServicesPinsAndRejectsShadowing(t *testing.T) {
 		t.Error("pinned address lost after re-discovery")
 	}
 }
+
+func TestInjectedServicesSurviveReconnect(t *testing.T) {
+	injected := make(map[string]models.ServiceInfo)
+	first := newServiceStoreWith(map[string]models.ServiceInfo{"ui": {Target: "127.0.0.1:443"}}, injected)
+	first.addInjected(map[string]models.ServiceInfo{"phone": {Target: "192.168.5.10:443"}})
+
+	// a reconnect starts a new store from a fresh discovery
+	second := newServiceStoreWith(map[string]models.ServiceInfo{"ui": {Target: "127.0.0.1:443"}}, injected)
+	if _, ok := second.get()["phone"]; !ok {
+		t.Fatal("a service added by an operator must survive the reconnect")
+	}
+	second.setDiscovered(map[string]models.ServiceInfo{"other": {Target: "127.0.0.1:80"}})
+	if _, ok := second.get()["phone"]; !ok {
+		t.Fatal("a service added by an operator must survive a re-discovery")
+	}
+	if !second.removeInjected("phone") {
+		t.Fatal("removing an added service must succeed")
+	}
+	third := newServiceStoreWith(nil, injected)
+	if _, ok := third.get()["phone"]; ok {
+		t.Fatal("a removed service must not come back on the next reconnect")
+	}
+	if n := third.countNew(map[string]models.ServiceInfo{"phone": {}, "x": {}}); n != 2 {
+		t.Fatalf("countNew = %d, want 2", n)
+	}
+}
