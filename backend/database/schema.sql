@@ -1500,8 +1500,10 @@ CREATE TABLE IF NOT EXISTS support_system_services (
     created_by_name VARCHAR(255),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_used_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT support_system_services_unique UNIQUE (system_id, node_id, name)
 );
 
 COMMENT ON TABLE support_system_services IS 'Services added by operators, restored on every support session of the system node';
 COMMENT ON COLUMN support_system_services.node_id IS 'Cluster node the target is reached from; empty for single-node systems';
+COMMENT ON COLUMN support_system_services.last_used_at IS 'Last time an operator opened it; unused for 90 days, it is no longer restored';

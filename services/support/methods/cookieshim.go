@@ -21,8 +21,10 @@ import (
 // rewriteUpstreamCookies), so the UI's own JavaScript would no longer find
 // them by name (e.g. the Yealink phones read JSESSIONID to follow their
 // login). This script, first in every proxied page, shows document.cookie to
-// the page with the session prefix removed, and adds it back on writes.
-const cookieShimScript = `(function(p){var d=Object.getOwnPropertyDescriptor(Document.prototype,"cookie");if(!d||!d.get||!d.set)return;Object.defineProperty(document,"cookie",{configurable:true,get:function(){return d.get.call(document).split("; ").filter(function(c){return c.indexOf(p)===0&&c.length>p.length}).map(function(c){return c.slice(p.length)}).join("; ")},set:function(v){var s=String(v),i=s.indexOf("="),n=(i<0?s:s.slice(0,i)).trim();d.set.call(document,p+n+(i<0?"":s.slice(i)))}})})(%s);`
+// the page with the session prefix removed, and adds it back on writes. Like
+// the cookies the proxy rewrites, those the page writes stay on its host: a
+// Domain attribute would reach the other services of the session.
+const cookieShimScript = `(function(p){var d=Object.getOwnPropertyDescriptor(Document.prototype,"cookie");if(!d||!d.get||!d.set)return;Object.defineProperty(document,"cookie",{configurable:true,get:function(){return d.get.call(document).split("; ").filter(function(c){return c.indexOf(p)===0&&c.length>p.length}).map(function(c){return c.slice(p.length)}).join("; ")},set:function(v){var s=String(v).replace(/;\s*domain=[^;]*/gi,""),i=s.indexOf("="),n=(i<0?s:s.slice(0,i)).trim();d.set.call(document,p+n+(i<0?"":s.slice(i)))}})})(%s);`
 
 // cookieShimFor is the script for a session's cookie prefix ("" if it cannot
 // be encoded); its hash allows it in the page's Content-Security-Policy

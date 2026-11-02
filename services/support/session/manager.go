@@ -537,8 +537,20 @@ type SavedService struct {
 	TLS    bool
 }
 
-// GetSavedServices returns the services operators added to a system node
+// savedServiceTTL forgets a remembered service nobody opened for this long
+const savedServiceTTL = 90 * 24 * time.Hour
+
+// GetSavedServices returns the services operators added to a system node and
+// opened in the last 90 days; older ones are forgotten
 func GetSavedServices(systemID, nodeID string) ([]SavedService, error) {
+	ttl := int64(savedServiceTTL.Seconds())
+	if _, err := database.DB.Exec(
+		`DELETE FROM support_system_services
+		 WHERE system_id = $1 AND node_id = $2 AND last_used_at <= NOW() - $3 * INTERVAL '1 second'`,
+		systemID, nodeID, ttl,
+	); err != nil {
+		return nil, fmt.Errorf("failed to forget expired services: %w", err)
+	}
 	rows, err := database.DB.Query(
 		`SELECT name, target, label, tls FROM support_system_services
 		 WHERE system_id = $1 AND node_id = $2

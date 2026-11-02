@@ -536,6 +536,10 @@ func GenerateSupportProxyToken(c *gin.Context) {
 		return
 	}
 	logAccess(c, sessionID, "ui_proxy", req.Service)
+	// a remembered service in use keeps being remembered
+	if err := entities.NewSupportRepository().TouchSessionSavedService(sessionID, req.Service); err != nil {
+		logger.Warn().Err(err).Str("session_id", sessionID).Msg("failed to touch saved service")
+	}
 
 	c.JSON(http.StatusOK, response.OK("proxy token generated", gin.H{
 		"url":        proxyURL,

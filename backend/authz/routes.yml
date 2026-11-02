@@ -401,6 +401,11 @@ routes:
     intent: connect:systems
     object_scoped: true
 
+  - method: GET
+    path: /api/support-sessions/:id/saved-services
+    intent: connect:systems
+    object_scoped: true
+
   - method: POST
     path: /api/support-sessions/:id/services
     intent: connect:systems

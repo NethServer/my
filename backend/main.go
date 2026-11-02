@@ -713,6 +713,7 @@ func main() {
 			supportGroup.GET("/:id/diagnostics", methods.GetSupportSessionDiagnostics)
 			supportGroup.GET("/:id/users", methods.GetSupportSessionUsers)
 			supportGroup.GET("/:id/services", methods.GetSupportSessionServices)
+			supportGroup.GET("/:id/saved-services", methods.GetSupportSessionSavedServices)
 			supportGroup.POST("/:id/services", methods.AddSupportSessionServices)
 			supportGroup.DELETE("/:id/services/:name", methods.RemoveSupportSessionService)
 			supportGroup.POST("/:id/terminal-ticket", methods.GenerateTerminalTicket)
