@@ -313,6 +313,7 @@ type controlState struct {
 	mu              sync.Mutex
 	lastManifest    time.Time
 	lastDiagnostics time.Time // fast in-memory pre-check; DB enforces cross-reconnect rate limit
+	restoreOnce     sync.Once // saved services go to the tunnel after its first manifest
 }
 
 // acceptControlStream accepts control streams from the tunnel client.
@@ -413,6 +414,13 @@ func handleControlStream(t *tunnel.Tunnel, stream net.Conn, systemID, sessionID 
 			Str("session_id", sessionID).
 			Int("service_count", len(manifest.Services)).
 			Msg("service manifest received")
+		state.restoreOnce.Do(func() {
+			time.AfterFunc(restoreDelay, func() {
+				if TunnelManager.IsRegistered(t) {
+					restoreSavedServices(t)
+				}
+			})
+		})
 	}
 }
 
