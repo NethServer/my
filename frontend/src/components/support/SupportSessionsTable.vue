@@ -70,7 +70,7 @@ import {
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
 import SupportHistoryDrawer from '@/components/support/SupportHistoryDrawer.vue'
 import SupportExtendModal from '@/components/support/SupportExtendModal.vue'
-import { createSSHCommand } from '@/lib/support/ssh'
+import { copySSHCommand as copySSH } from '@/lib/support/ssh'
 import { useNotificationsStore } from '@/stores/notifications'
 
 const props = withDefaults(defineProps<{ scope?: SupportSessionsScope }>(), { scope: 'live' })
@@ -222,18 +222,8 @@ watch(
 )
 
 async function copySSHCommand(group: SystemSessionGroup, nodeId?: string) {
-  const command = createSSHCommand(group.system_id, nodeId)
   try {
-    // the clipboard write starts within the click, the command follows
-    if (typeof ClipboardItem !== 'undefined' && navigator.clipboard.write) {
-      await navigator.clipboard.write([
-        new ClipboardItem({
-          'text/plain': command.then((text) => new Blob([text], { type: 'text/plain' })),
-        }),
-      ])
-    } else {
-      await navigator.clipboard.writeText(await command)
-    }
+    await copySSH(group.system_id, nodeId)
     notificationsStore.createNotification({
       kind: 'success',
       title: t('support.ssh_copied'),

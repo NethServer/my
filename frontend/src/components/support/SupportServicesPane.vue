@@ -33,18 +33,23 @@ import {
 } from '@/lib/support/workspace'
 import SupportCredentialRow from '@/components/support/SupportCredentialRow.vue'
 import type { SavedSupportService } from '@/lib/support/support'
+import { copySSHCommand } from '@/lib/support/ssh'
+import { useNotificationsStore } from '@/stores/notifications'
 
 // one terminal per node, always at hand while the panel is open
 export interface WorkspaceTerminal {
   sessionId: string
   // the node it opens on, empty for a single-node system
   node: string
+  nodeId: string
 }
 
 const props = defineProps<{
   data: WorkspaceData | null
   loading: boolean
   terminals: WorkspaceTerminal[]
+  systemId: string
+  systemName: string
 }>()
 
 const emit = defineEmits<{
@@ -56,6 +61,29 @@ const emit = defineEmits<{
 }>()
 
 const { t, locale } = useI18n()
+
+const notificationsStore = useNotificationsStore()
+
+async function copySSH(nodeId?: string) {
+  try {
+    await copySSHCommand(props.systemId, nodeId)
+    notificationsStore.createNotification({
+      kind: 'success',
+      title: t('support.ssh_copied'),
+      description: t('support.ssh_copied_description', { name: props.systemName }),
+    })
+  } catch {
+    notificationsStore.createNotification({ kind: 'error', title: t('support.ssh_copy_error') })
+  }
+}
+
+const sshItems = computed<NeDropdownItem[]>(() =>
+  props.terminals.map((term) => ({
+    id: `ssh-${term.sessionId}`,
+    label: term.node,
+    action: () => copySSH(term.nodeId),
+  })),
+)
 
 const terminalItems = computed<NeDropdownItem[]>(() =>
   props.terminals.map((term) => ({
@@ -135,6 +163,32 @@ const domainUsername = computed(() => props.data?.credentials?.domainUsers[0]?.u
           <FontAwesomeIcon :icon="faTerminal" aria-hidden="true" />
         </template>
         {{ t('support.workspace_terminal') }}
+      </NeButton>
+      <!-- the ssh command for the operator's own terminal, one per node -->
+      <NeDropdown v-if="terminals.length > 1" :items="sshItems" :align-to-right="false">
+        <template #button>
+          <NeButton kind="secondary" size="sm" :title="t('support.ssh_copy_hint')">
+            <template #prefix>
+              <FontAwesomeIcon :icon="faTerminal" aria-hidden="true" />
+            </template>
+            {{ t('support.ssh') }}
+            <template #suffix>
+              <FontAwesomeIcon :icon="faChevronDown" aria-hidden="true" />
+            </template>
+          </NeButton>
+        </template>
+      </NeDropdown>
+      <NeButton
+        v-else
+        kind="secondary"
+        size="sm"
+        :title="t('support.ssh_copy_hint')"
+        @click="copySSH(terminals[0].nodeId)"
+      >
+        <template #prefix>
+          <FontAwesomeIcon :icon="faTerminal" aria-hidden="true" />
+        </template>
+        {{ t('support.ssh') }}
       </NeButton>
     </div>
     <template v-if="data && !loading">

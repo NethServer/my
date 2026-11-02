@@ -32,6 +32,7 @@ import SupportNotesPane from '@/components/support/SupportNotesPane.vue'
 
 const props = defineProps<{
   systemId: string
+  systemName: string
   data: WorkspaceData | null
   loading: boolean
   section: WorkspacePanelSection
@@ -184,6 +185,8 @@ onBeforeUnmount(() => {
       :data="data"
       :loading="loading"
       :terminals="terminals"
+      :system-id="systemId"
+      :system-name="systemName"
       @open="(svc) => emit('open', svc)"
       @open-external="(svc) => emit('openExternal', svc)"
       @remove="(svc) => emit('remove', svc)"
