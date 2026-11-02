@@ -1622,7 +1622,9 @@
     "extended_title": "Sessione estesa",
     "extended_description": "La sessione di {name} ora scade il {date}.",
     "workspace_session_ended": "Sessione di supporto terminata",
-    "workspace_session_ended_description": "La sessione di {name} non è più attiva: la sua finestra è stata chiusa."
+    "workspace_session_ended_description": "La sessione di {name} non è più attiva: la sua finestra è stata chiusa.",
+    "saved_service_note": "Salvato da {by} il {date}",
+    "saved_service_title": "Se nessuno lo apre, viene eliminato il {expires}."
   },
   "support_workspace": {
     "title": "Supporto"
