@@ -10,6 +10,7 @@ import { faGlobe, faSpinner, faTerminal } from '@fortawesome/free-solid-svg-icon
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useSupportWorkspacesStore } from '@/stores/supportWorkspaces'
 import { useLoginStore } from '@/stores/login'
+import { useNotificationsStore } from '@/stores/notifications'
 import type { SessionRef } from '@/lib/support/support'
 import {
   decodeTabSpecs,
@@ -56,11 +57,42 @@ watch(
   { immediate: true },
 )
 
+// a session closed or expired takes its parked window with it
+const ENDED_CHECK_MS = 30_000
+const notificationsStore = useNotificationsStore()
+let endedTimer: ReturnType<typeof setInterval> | undefined
+
+async function dropEnded() {
+  if (!store.windows.some((w) => w.minimized || w.dormant)) return
+  for (const name of await store.dropEnded()) {
+    notificationsStore.createNotification({
+      kind: 'info',
+      title: t('support.workspace_session_ended'),
+      description: t('support.workspace_session_ended_description', { name }),
+    })
+  }
+}
+
+function onVisibility() {
+  if (document.visibilityState === 'visible') dropEnded()
+}
+
+onMounted(() => {
+  endedTimer = setInterval(dropEnded, ENDED_CHECK_MS)
+  document.addEventListener('visibilitychange', onVisibility)
+})
+onBeforeUnmount(() => {
+  clearInterval(endedTimer)
+  document.removeEventListener('visibilitychange', onVisibility)
+})
+
 // the windows saved before a page reload, once the user is known
 watch(
   () => loginStore.userInfo?.email,
   (email) => {
-    if (email) store.hydrate()
+    if (!email) return
+    store.hydrate()
+    dropEnded()
   },
   { immediate: true },
 )
