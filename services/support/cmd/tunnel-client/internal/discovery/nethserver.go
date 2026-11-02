@@ -21,6 +21,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/redis/go-redis/v9"
 
@@ -39,6 +40,9 @@ const (
 // moduleIDRegex matches NS8 module IDs (compiled once at package level)
 var moduleIDRegex = regexp.MustCompile(`^(.+\d+)(?:[-_]|$)`)
 
+// workerNotice logs once that a worker node leaves discovery to the leader
+var workerNotice sync.Once
+
 // DiscoverNethServerServices uses api-cli to discover routes from ALL cluster nodes.
 func DiscoverNethServerServices(ctx context.Context, redisAddr string) map[string]models.ServiceInfo {
 	services := make(map[string]models.ServiceInfo)
@@ -47,13 +51,6 @@ func DiscoverNethServerServices(ctx context.Context, redisAddr string) map[strin
 		Addr: redisAddr,
 	})
 	defer func() { _ = rdb.Close() }()
-
-	// Discover all node IDs by scanning Redis keys
-	nodeIDs := discoverNodeIDs(ctx, rdb)
-	if len(nodeIDs) == 0 {
-		log.Println("NethServer discovery: no nodes found, skipping")
-		return services
-	}
 
 	// Read local NODE_ID to distinguish local vs remote nodes
 	localNodeID := ReadNodeID()
@@ -66,6 +63,22 @@ func DiscoverNethServerServices(ctx context.Context, redisAddr string) map[strin
 	if err != nil {
 		log.Printf("NethServer discovery: cannot read cluster/environment NODE_ID (no leader hint): %v", err)
 		leaderNodeID = ""
+	}
+
+	// The leader discovers the routes of every node; a worker cannot run
+	// cluster tasks, so it would only fail at each re-discovery.
+	if localNodeID != "" && leaderNodeID != "" && localNodeID != leaderNodeID {
+		workerNotice.Do(func() {
+			log.Printf("NethServer discovery: skipping on worker node %s, the leader (node %s) discovers the cluster services", localNodeID, leaderNodeID)
+		})
+		return services
+	}
+
+	// Discover all node IDs by scanning Redis keys
+	nodeIDs := discoverNodeIDs(ctx, rdb)
+	if len(nodeIDs) == 0 {
+		log.Println("NethServer discovery: no nodes found, skipping")
+		return services
 	}
 
 	// Order nodes so the leader is processed first, then the local node (if
