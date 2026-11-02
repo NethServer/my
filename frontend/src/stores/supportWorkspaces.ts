@@ -228,6 +228,32 @@ export const useSupportWorkspacesStore = defineStore('supportWorkspaces', () => 
     w.minimized = false
   }
 
+  // Minimized and restored windows of a system with no live session left are
+  // of no use: they go. The open one stays, the operator is looking at it.
+  async function dropEnded(): Promise<string[]> {
+    const parked = () => windows.value.filter((w) => w.minimized || w.dormant)
+    const ended: string[] = []
+    await Promise.all(
+      parked().map(async (w) => {
+        try {
+          const groups = await getSystemActiveSessions(w.systemId)
+          const live = groups.some(
+            (g) =>
+              g.system_id === w.systemId &&
+              g.sessions.some((s) => s.status === 'active' || s.status === 'pending'),
+          )
+          // restored in the meantime: the operator is on it
+          if (live || !parked().includes(w)) return
+          close(w.systemId)
+          ended.push(w.systemName)
+        } catch {
+          // checked again at the next round
+        }
+      }),
+    )
+    return ended
+  }
+
   function close(systemId: string) {
     windows.value = windows.value.filter((w) => w.systemId !== systemId)
     sessionNodes.delete(systemId)
@@ -344,6 +370,7 @@ export const useSupportWorkspacesStore = defineStore('supportWorkspaces', () => 
     minimize,
     restore,
     close,
+    dropEnded,
     hydrate,
     fillOrganizations,
   }

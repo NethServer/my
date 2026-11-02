@@ -1620,7 +1620,9 @@
     "extend_too_long": "The extension would pass the maximum duration of 30 days: choose a shorter one.",
     "extend_error": "Unable to extend the session",
     "extended_title": "Session extended",
-    "extended_description": "The session of {name} now expires on {date}."
+    "extended_description": "The session of {name} now expires on {date}.",
+    "workspace_session_ended": "Support session ended",
+    "workspace_session_ended_description": "The session of {name} is no longer active: its window was closed."
   },
   "support_workspace": {
     "title": "Support"

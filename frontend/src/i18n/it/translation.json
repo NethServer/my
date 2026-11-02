@@ -1615,7 +1615,9 @@
     "extend_too_long": "L'estensione supererebbe la durata massima di 30 giorni: scegli una durata più breve.",
     "extend_error": "Impossibile estendere la sessione",
     "extended_title": "Sessione estesa",
-    "extended_description": "La sessione di {name} ora scade il {date}."
+    "extended_description": "La sessione di {name} ora scade il {date}.",
+    "workspace_session_ended": "Sessione di supporto terminata",
+    "workspace_session_ended_description": "La sessione di {name} non è più attiva: la sua finestra è stata chiusa."
   },
   "support_workspace": {
     "title": "Supporto"
