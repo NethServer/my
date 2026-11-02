@@ -582,6 +582,30 @@ export const getSupportSessionUsers = (sessionId: string): Promise<SessionUsersR
     .then((res) => res.data.data)
 }
 
+// A service operators added to a system node, remembered across sessions
+// until removed or left unopened for 90 days
+export interface SavedSupportService {
+  name: string
+  target: string
+  label: string
+  created_by_name: string
+  created_at: string
+  last_used_at: string
+  expires_at: string
+}
+
+export const getSupportSessionSavedServices = (
+  sessionId: string,
+): Promise<SavedSupportService[]> => {
+  const loginStore = useLoginStore()
+  return axios
+    .get<{ data: { services: SavedSupportService[] } }>(
+      `${API_URL}/support-sessions/${encodeURIComponent(sessionId)}/saved-services`,
+      { headers: { Authorization: `Bearer ${loginStore.jwtToken}` } },
+    )
+    .then((res) => res.data.data?.services || [])
+}
+
 export const getSystemDiagnostics = (systemId: string): Promise<SystemDiagnostics> => {
   const loginStore = useLoginStore()
   return axios

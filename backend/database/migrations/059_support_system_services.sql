@@ -1,7 +1,7 @@
 -- Migration 059: Services added by operators to a system's support sessions
 -- A web UI the discovery missed (a phone, a printer, a device on the LAN)
 -- is added once per system node and offered again to every later session,
--- until an operator removes it.
+-- until an operator removes it or nobody opens it for 90 days.
 
 CREATE TABLE IF NOT EXISTS support_system_services (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -15,8 +15,10 @@ CREATE TABLE IF NOT EXISTS support_system_services (
     created_by_name VARCHAR(255),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_used_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT support_system_services_unique UNIQUE (system_id, node_id, name)
 );
 
 COMMENT ON TABLE support_system_services IS 'Services added by operators, restored on every support session of the system node';
 COMMENT ON COLUMN support_system_services.node_id IS 'Cluster node the target is reached from; empty for single-node systems';
+COMMENT ON COLUMN support_system_services.last_used_at IS 'Last time an operator opened it; unused for 90 days, it is no longer restored';

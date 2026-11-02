@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/lib/pq"
 
@@ -255,7 +256,7 @@ func (r *SupportRepository) SaveSystemServices(systemID, nodeID, userID, userNam
 			 ON CONFLICT (system_id, node_id, name) DO UPDATE
 			 SET target = EXCLUDED.target, label = EXCLUDED.label, tls = EXCLUDED.tls,
 			     created_by_id = EXCLUDED.created_by_id, created_by_name = EXCLUDED.created_by_name,
-			     updated_at = NOW()`,
+			     updated_at = NOW(), last_used_at = NOW()`,
 			systemID, nodeID, svc.Name, svc.Target, svc.Label, svc.TLS, userID, userName,
 		)
 		if err != nil {
@@ -272,6 +273,60 @@ func (r *SupportRepository) DeleteSystemService(systemID, nodeID, name string) e
 		systemID, nodeID, name,
 	); err != nil {
 		return fmt.Errorf("failed to delete system service: %w", err)
+	}
+	return nil
+}
+
+// SavedSystemService is a remembered service as the workspace shows it
+type SavedSystemService struct {
+	Name          string    `json:"name"`
+	Target        string    `json:"target"`
+	Label         string    `json:"label"`
+	CreatedByName string    `json:"created_by_name"`
+	CreatedAt     time.Time `json:"created_at"`
+	LastUsedAt    time.Time `json:"last_used_at"`
+	ExpiresAt     time.Time `json:"expires_at"`
+}
+
+// SavedServiceTTL is how long a remembered service survives without use
+const SavedServiceTTL = 90 * 24 * time.Hour
+
+// GetSessionSavedServices lists the services remembered for a session's node
+func (r *SupportRepository) GetSessionSavedServices(sessionID string) ([]SavedSystemService, error) {
+	rows, err := r.db.Query(
+		`SELECT ss.name, ss.target, ss.label, COALESCE(ss.created_by_name, ''), ss.created_at, ss.last_used_at
+		 FROM support_system_services ss
+		 JOIN support_sessions s ON s.system_id = ss.system_id AND COALESCE(s.node_id, '') = ss.node_id
+		 WHERE s.id = $1 AND ss.last_used_at > NOW() - $2 * INTERVAL '1 second'
+		 ORDER BY ss.name`,
+		sessionID, int64(SavedServiceTTL.Seconds()),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list saved services: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	services := []SavedSystemService{}
+	for rows.Next() {
+		var s SavedSystemService
+		if err := rows.Scan(&s.Name, &s.Target, &s.Label, &s.CreatedByName, &s.CreatedAt, &s.LastUsedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan saved service: %w", err)
+		}
+		s.ExpiresAt = s.LastUsedAt.Add(SavedServiceTTL)
+		services = append(services, s)
+	}
+	return services, rows.Err()
+}
+
+// TouchSessionSavedService records that an operator opened a remembered
+// service: its 90 days start again
+func (r *SupportRepository) TouchSessionSavedService(sessionID, name string) error {
+	if _, err := r.db.Exec(
+		`UPDATE support_system_services ss SET last_used_at = NOW()
+		 FROM support_sessions s
+		 WHERE s.id = $1 AND ss.system_id = s.system_id AND ss.node_id = COALESCE(s.node_id, '') AND ss.name = $2`,
+		sessionID, name,
+	); err != nil {
+		return fmt.Errorf("failed to touch saved service: %w", err)
 	}
 	return nil
 }

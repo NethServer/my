@@ -8,8 +8,10 @@ import {
   type IconDefinition,
 } from '@fortawesome/free-solid-svg-icons'
 import {
+  getSupportSessionSavedServices,
   getSupportSessionServices,
   getSupportSessionUsers,
+  type SavedSupportService,
   type SessionDomainUser,
   type SessionRef,
   type SessionUserCredential,
@@ -71,6 +73,8 @@ export interface WorkspaceService {
   host: string
   path: string
   clusterAuth: boolean
+  // added by an operator and remembered for the next sessions
+  saved?: SavedSupportService
 }
 
 export interface WorkspaceModule {
@@ -117,9 +121,14 @@ export const nodeDisplayName = (
 export const loadWorkspaceData = async (sessions: SessionRef[]): Promise<WorkspaceData> => {
   const activeSessions = sessions.filter((s) => s.status === 'active')
 
-  const [servicesResults, usersResults] = await Promise.all([
+  const [servicesResults, usersResults, savedResults] = await Promise.all([
     Promise.all(activeSessions.map((s) => getSupportSessionServices(s.id).catch(() => []))),
     Promise.all(activeSessions.map((s) => getSupportSessionUsers(s.id).catch(() => null))),
+    Promise.all(
+      activeSessions.map((s) =>
+        getSupportSessionSavedServices(s.id).catch(() => [] as SavedSupportService[]),
+      ),
+    ),
   ])
 
   const credentials: WorkspaceCredentials = { clusterAdmin: null, domainUsers: [], localUsers: [] }
@@ -177,6 +186,7 @@ export const loadWorkspaceData = async (sessions: SessionRef[]): Promise<Workspa
           host: svc.host,
           path: svc.path,
           clusterAuth: svc.auth === 'cluster',
+          saved: savedResults[idx]?.find((saved) => saved.name === svc.name),
         }
         if (!svc.moduleId) {
           ungrouped.push(item)
