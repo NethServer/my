@@ -84,7 +84,9 @@ func DiscoverServices(ctx context.Context, cfg *config.ClientConfig) map[string]
 		}
 	}
 
-	LogDiscoveredServices(services)
+	if len(services) > 0 {
+		LogDiscoveredServices(services)
+	}
 
 	return services
 }
