@@ -10,12 +10,20 @@ import {
   faChevronDown,
   faChevronRight,
   faPlug,
+  faTerminal,
   faTrashCan,
   faUpRightFromSquare,
   faWindowMaximize,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { NeBadge, NeButton, NeSpinner } from '@nethesis/vue-components'
+import {
+  NeBadge,
+  NeButton,
+  NeDropdown,
+  NeSpinner,
+  NeTooltip,
+  type NeDropdownItem,
+} from '@nethesis/vue-components'
 import {
   APPLIANCE_UI_SERVICES,
   nodeDisplayName,
@@ -24,10 +32,19 @@ import {
   type WorkspaceService,
 } from '@/lib/support/workspace'
 import SupportCredentialRow from '@/components/support/SupportCredentialRow.vue'
+import type { SavedSupportService } from '@/lib/support/support'
+
+// one terminal per node, always at hand while the panel is open
+export interface WorkspaceTerminal {
+  sessionId: string
+  // the node it opens on, empty for a single-node system
+  node: string
+}
 
 const props = defineProps<{
   data: WorkspaceData | null
   loading: boolean
+  terminals: WorkspaceTerminal[]
 }>()
 
 const emit = defineEmits<{
@@ -35,9 +52,36 @@ const emit = defineEmits<{
   openExternal: [svc: WorkspaceService]
   remove: [svc: WorkspaceService]
   add: []
+  openTerminal: [sessionId: string]
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
+
+const terminalItems = computed<NeDropdownItem[]>(() =>
+  props.terminals.map((term) => ({
+    id: term.sessionId,
+    label: term.node,
+    action: () => emit('openTerminal', term.sessionId),
+  })),
+)
+
+const shortDate = (value: string) =>
+  new Date(value).toLocaleDateString(locale.value, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+
+function savedNote(saved: SavedSupportService) {
+  return t('support.saved_service_note', {
+    by: saved.created_by_name || t('support.notes_unknown_author'),
+    date: shortDate(saved.created_at),
+  })
+}
+
+function savedTitle(saved: SavedSupportService) {
+  return t('support.saved_service_title', { expires: shortDate(saved.expires_at) })
+}
 
 const expanded = ref<Set<string>>(new Set())
 
@@ -66,7 +110,34 @@ const domainUsername = computed(() => props.data?.credentials?.domainUsers[0]?.u
     <div v-if="loading" class="flex justify-center py-4">
       <NeSpinner />
     </div>
-    <template v-else-if="data">
+    <div v-if="terminals.length" class="flex shrink-0 flex-wrap gap-2">
+      <!-- a cluster picks the node from a menu: one button, however many nodes -->
+      <NeDropdown v-if="terminals.length > 1" :items="terminalItems" :align-to-right="false">
+        <template #button>
+          <NeButton kind="secondary" size="sm">
+            <template #prefix>
+              <FontAwesomeIcon :icon="faTerminal" aria-hidden="true" />
+            </template>
+            {{ t('support.workspace_terminal') }}
+            <template #suffix>
+              <FontAwesomeIcon :icon="faChevronDown" aria-hidden="true" />
+            </template>
+          </NeButton>
+        </template>
+      </NeDropdown>
+      <NeButton
+        v-else
+        kind="secondary"
+        size="sm"
+        @click="emit('openTerminal', terminals[0].sessionId)"
+      >
+        <template #prefix>
+          <FontAwesomeIcon :icon="faTerminal" aria-hidden="true" />
+        </template>
+        {{ t('support.workspace_terminal') }}
+      </NeButton>
+    </div>
+    <template v-if="data && !loading">
       <!-- appliance UI with the credentials that open it -->
       <div
         v-if="data.credentials?.clusterAdmin"
@@ -227,14 +298,32 @@ const domainUsername = computed(() => props.data?.credentials?.domainUsers[0]?.u
         <div
           v-for="svc in customServices"
           :key="svc.name"
-          class="flex items-center gap-1 rounded text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+          class="flex items-center gap-1 rounded text-sm not-last:mb-1.5 hover:bg-gray-50 dark:hover:bg-gray-800"
         >
           <button
-            class="text-primary-600 dark:text-primary-400 flex min-w-0 flex-1 items-center gap-1.5 px-1 py-0.5 text-left"
+            class="flex min-w-0 flex-1 flex-col gap-0.5 px-1.5 py-1.5 text-left"
             @click="emit('open', svc)"
           >
-            <FontAwesomeIcon :icon="faWindowMaximize" class="h-3 w-3 shrink-0" />
-            <span class="min-w-0 truncate">{{ svc.label || svc.name }}</span>
+            <span class="text-primary-600 dark:text-primary-400 flex items-center gap-1.5">
+              <FontAwesomeIcon :icon="faWindowMaximize" class="h-3 w-3 shrink-0" />
+              <span class="min-w-0 truncate">{{ svc.label || svc.name }}</span>
+            </span>
+            <!-- remembered for the next sessions: by whom and until when -->
+            <NeTooltip
+              v-if="svc.saved"
+              placement="left"
+              trigger-event="mouseenter focus"
+              class="min-w-0"
+            >
+              <template #trigger>
+                <span class="block truncate pl-[18px] text-xs text-gray-500 dark:text-gray-400">{{
+                  savedNote(svc.saved)
+                }}</span>
+              </template>
+              <template #content>
+                {{ savedTitle(svc.saved) }}
+              </template>
+            </NeTooltip>
           </button>
           <button
             class="shrink-0 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"

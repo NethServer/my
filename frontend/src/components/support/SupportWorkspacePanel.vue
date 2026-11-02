@@ -23,7 +23,9 @@ import {
   type WorkspacePanelSection,
   type WorkspaceService,
 } from '@/lib/support/workspace'
-import SupportServicesPane from '@/components/support/SupportServicesPane.vue'
+import SupportServicesPane, {
+  type WorkspaceTerminal,
+} from '@/components/support/SupportServicesPane.vue'
 import SupportActivityPane from '@/components/support/SupportActivityPane.vue'
 import SupportNotesPane from '@/components/support/SupportNotesPane.vue'
 
@@ -32,6 +34,7 @@ const props = defineProps<{
   data: WorkspaceData | null
   loading: boolean
   section: WorkspacePanelSection
+  terminals: WorkspaceTerminal[]
 }>()
 
 const emit = defineEmits<{
@@ -39,6 +42,7 @@ const emit = defineEmits<{
   openExternal: [svc: WorkspaceService]
   remove: [svc: WorkspaceService]
   addService: []
+  openTerminal: [sessionId: string]
   refresh: []
   // the section rail shows how many notes the system has
   notesCount: [count: number]
@@ -176,10 +180,12 @@ onBeforeUnmount(() => {
       v-if="section === 'services'"
       :data="data"
       :loading="loading"
+      :terminals="terminals"
       @open="(svc) => emit('open', svc)"
       @open-external="(svc) => emit('openExternal', svc)"
       @remove="(svc) => emit('remove', svc)"
       @add="emit('addService')"
+      @open-terminal="(id: string) => emit('openTerminal', id)"
     />
     <SupportActivityPane
       v-else-if="section === 'activity'"

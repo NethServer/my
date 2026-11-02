@@ -208,6 +208,17 @@ function openTerminal(session: SessionRef) {
   addTab({ kind: 'terminal', sessionId: session.id })
 }
 
+function openTerminalById(sessionId: string) {
+  addTab({ kind: 'terminal', sessionId })
+}
+
+const panelTerminals = computed(() =>
+  activeSessions.value
+    .slice()
+    .sort((a, b) => (a.node_id || '').localeCompare(b.node_id || '', undefined, { numeric: true }))
+    .map((s) => ({ sessionId: s.id, node: s.node_id ? nodeName(s.node_id) : '' })),
+)
+
 function openService(svc: WorkspaceService) {
   addTab({
     kind: 'web',
@@ -791,13 +802,7 @@ onBeforeUnmount(() => {
       <div class="relative min-w-0 flex-1">
         <!-- the fixed first tab: the system's diagnostics -->
         <div class="absolute inset-0" :class="activeTabId === 0 ? 'z-10' : 'invisible z-0'">
-          <SupportDiagnosticsPane
-            :system-id="systemId"
-            :sessions="sessions"
-            :terminal-label="terminalLabel"
-            :node-name="nodeName"
-            @open-terminal="openTerminal"
-          />
+          <SupportDiagnosticsPane :system-id="systemId" :node-name="nodeName" />
         </div>
         <!-- inactive tabs stay mounted and sized: shells and web UIs keep their state -->
         <div
@@ -833,10 +838,12 @@ onBeforeUnmount(() => {
         :system-id="systemId"
         :data="data"
         :loading="dataLoading"
+        :terminals="panelTerminals"
         @open="openService"
         @open-external="openServiceExternal"
         @remove="removeService"
         @add-service="addServiceOpen = true"
+        @open-terminal="openTerminalById"
         @refresh="refreshData"
         @notes-count="(count: number) => (notesCount = count)"
       />
