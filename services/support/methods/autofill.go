@@ -98,9 +98,9 @@ func autofillScriptHash(origin string) string {
 }
 
 // adjustCSP keeps the appliance's Content-Security-Policy: it only lets the
-// injected script run (by hash, where scripts are restricted) and leaves who
+// injected scripts run (by hash, where scripts are restricted) and leaves who
 // may frame the page to the backend, which sets frame-ancestors last.
-func adjustCSP(h http.Header, scriptHash string) {
+func adjustCSP(h http.Header, scriptHashes ...string) {
 	policies := h.Values("Content-Security-Policy")
 	h.Del("Content-Security-Policy")
 	if len(policies) == 0 {
@@ -122,8 +122,10 @@ func adjustCSP(h http.Header, scriptHash string) {
 			has[name] = true
 			directives = append(directives, fields)
 		}
-		if scriptHash != "" {
-			directives = allowScriptHash(directives, has, scriptHash)
+		for _, hash := range scriptHashes {
+			if hash != "" {
+				directives = allowScriptHash(directives, has, hash)
+			}
 		}
 		if i == 0 {
 			directives = append(directives, []string{"frame-ancestors", "'self'"})
