@@ -84,6 +84,8 @@ type connState struct {
 	done <-chan struct{}
 	// authStarted gives the connection the time to wait for an approval
 	authStarted func()
+	// ssh retries keyboard-interactive: a refusal is explained only once
+	refused bool
 }
 
 // Authenticator runs the authentication: an SSH key approved in the last
@@ -147,7 +149,10 @@ func (a *Authenticator) browserApproval(st *connState, fingerprint string) func(
 		log := logger.ComponentLogger("auth")
 		target, err := ParseTarget(conn.User())
 		if err != nil || target.Token == "" {
-			_, _ = challenge("", "\nAccesso non valido. "+copyHint, nil, nil)
+			if !st.refused {
+				st.refused = true
+				_, _ = challenge("", "\nAccesso non valido. "+copyHint, nil, nil)
+			}
 			return nil, errors.New("missing or invalid token")
 		}
 		if !a.limiter.Allow(st.clientIP) {
@@ -168,7 +173,10 @@ func (a *Authenticator) browserApproval(st *connState, fingerprint string) func(
 
 		req, err := createRequest(ctx, target.SystemKey, target.NodeID, target.Token, st.clientIP, fingerprint)
 		if errors.Is(err, errNotFound) {
-			_, _ = challenge("", "\nComando scaduto o già usato (vale 10 minuti, una volta sola). "+copyHint, nil, nil)
+			if !st.refused {
+				st.refused = true
+				_, _ = challenge("", "\nComando scaduto o già usato (vale 10 minuti, una volta sola). "+copyHint, nil, nil)
+			}
 			return nil, err
 		}
 		if err != nil {

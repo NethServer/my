@@ -93,8 +93,14 @@ func (c *wsConn) keepAlive(interval time.Duration, done <-chan struct{}) {
 	}
 }
 
+// Close says goodbye with a WebSocket close frame first: without it a client
+// such as websocat keeps waiting on a connection that is gone
 func (c *wsConn) Close() error {
 	c.markDone()
+	c.writeMu.Lock()
+	_ = c.ws.WriteControl(websocket.CloseMessage,
+		websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), time.Now().Add(time.Second))
+	c.writeMu.Unlock()
 	return c.ws.Close()
 }
 
