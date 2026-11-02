@@ -6,7 +6,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { faArrowsRotate, faTerminal } from '@fortawesome/free-solid-svg-icons'
+import { faArrowsRotate } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   NeButton,
@@ -14,21 +14,11 @@ import {
   NeSpinner,
   formatDateTimeNoSeconds,
 } from '@nethesis/vue-components'
-import {
-  getSystemDiagnostics,
-  type SessionRef,
-  type SystemDiagnostics,
-} from '@/lib/support/support'
+import { getSystemDiagnostics, type SystemDiagnostics } from '@/lib/support/support'
 
 const props = defineProps<{
   systemId: string
-  sessions: SessionRef[]
-  terminalLabel: (sessionId: string) => string
   nodeName: (nodeId: string) => string
-}>()
-
-const emit = defineEmits<{
-  openTerminal: [session: SessionRef]
 }>()
 
 const { t, te, locale } = useI18n()
@@ -37,7 +27,6 @@ const diagnostics = ref<SystemDiagnostics | null>(null)
 const loading = ref(false)
 const error = ref('')
 
-const activeSessions = computed(() => props.sessions.filter((s) => s.status === 'active'))
 const multiNode = computed(() => (diagnostics.value?.nodes.length || 0) > 1)
 
 // One card per node and plugin, the same plugin of each node side by side
@@ -224,18 +213,6 @@ defineExpose({ reload: load })
           <span v-else>{{ t('support.diagnostics_not_available') }}</span>
         </div>
         <div class="ml-auto flex flex-wrap items-center gap-2">
-          <NeButton
-            v-for="session in activeSessions"
-            :key="session.id"
-            kind="secondary"
-            size="sm"
-            @click="emit('openTerminal', session)"
-          >
-            <template #prefix>
-              <FontAwesomeIcon :icon="faTerminal" aria-hidden="true" />
-            </template>
-            {{ terminalLabel(session.id) }}
-          </NeButton>
           <NeButton kind="tertiary" size="sm" :disabled="loading" @click="load">
             <template #prefix>
               <FontAwesomeIcon :icon="faArrowsRotate" aria-hidden="true" />
