@@ -2,7 +2,7 @@
 
 Check every item; fix all deviations in place; summarise grouped by category. Design-system
 items (components, colors, typography, icons, interface text) are checked by the
-`nethesis-frontend` skill instead.
+`nebula-frontend` skill instead.
 
 ## i18n & conventions
 
