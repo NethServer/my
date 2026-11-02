@@ -9,8 +9,8 @@ Baseline, always-applicable conventions for the Vue 3 + TypeScript SPA under `fr
 Other frontend skills (`frontend-a11y-audit`) build on these rules — follow this skill first.
 
 The design-system rules (`@nethesis/vue-components` usage, colors, dark theme, typography, icons,
-interface text and the glossary) are not here: they come from the `nethesis-frontend` skill of the
-`nethesis-design` plugin, in the [NethServer/agents](https://github.com/NethServer/agents)
+interface text and the glossary) are not here: they come from the `nebula-frontend` skill of the
+`frontend-skills` plugin, in the [NethServer/agents](https://github.com/NethServer/agents)
 marketplace. Use both.
 
 ## When to Use
@@ -52,7 +52,7 @@ When asked to audit or review a file for convention or type-safety compliance:
 3. **Fix** all deviations in place.
 4. **Summarise** the changes, grouped by category (i18n and conventions / TypeScript).
 
-For design-system compliance, follow the review procedure of `nethesis-frontend`.
+For design-system compliance, follow the review procedure of `nebula-frontend`.
 
 Optionally classify findings by severity before fixing:
 

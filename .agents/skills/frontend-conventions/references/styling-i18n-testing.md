@@ -23,8 +23,8 @@ For `.vue` files use HTML comment syntax:
 - Everything about styles is in `src/assets/main.css`: the primary palette (`sky` in My Nethesis,
   used through `primary-*` classes), the semantic colors for the light and the dark theme, and
   the `.dark` variant.
-- Components, colors, dark theme, typography and icons follow the Nethesis Design System: see
-  the `nethesis-frontend` skill.
+- Components, colors, dark theme, typography and icons follow the Nebula Design System: see
+  the `nebula-frontend` skill.
 
 ## i18n
 
