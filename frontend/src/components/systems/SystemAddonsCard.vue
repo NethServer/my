@@ -43,7 +43,7 @@ interface AddonItem {
 // they are written here rather than kept as i18n keys that invite a
 // translator to render them.
 const ADDON_LABELS = {
-  threat_shield: 'Advanced Threat Shield',
+  threat_shield: 'Threat Shield',
   flashstart: 'FlashStart Pro',
   flashstart_pro_plus: 'FlashStart Pro Plus',
   netifyd: 'Netify Informatics',
