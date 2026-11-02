@@ -196,13 +196,19 @@ func HandleProxy(c *gin.Context) {
 			// Replace upstream security headers with proxy-appropriate values
 			// instead of stripping them entirely, to prevent clickjacking
 			resp.Header.Del("X-Frame-Options")
-			inject := autofillOrigin != "" && resp.StatusCode == http.StatusOK &&
-				strings.Contains(resp.Header.Get("Content-Type"), "text/html")
+			isHTML := strings.Contains(resp.Header.Get("Content-Type"), "text/html")
+			inject := autofillOrigin != "" && resp.StatusCode == http.StatusOK && isHTML
 			scriptHash := ""
 			if inject {
 				scriptHash = autofillScriptHash(autofillOrigin)
 			}
-			adjustCSP(resp.Header, scriptHash)
+			// every page gets the cookie shim: its scripts must find their
+			// cookies under the names they set
+			shimHash := ""
+			if isHTML {
+				shimHash = cookieShimHash(cookiePrefix)
+			}
+			adjustCSP(resp.Header, scriptHash, shimHash)
 			if strings.Contains(resp.Header.Get("Content-Type"), "text/html") {
 				resp.Header.Add("Vary", "Sec-Fetch-Dest")
 			}
@@ -223,13 +229,16 @@ func HandleProxy(c *gin.Context) {
 			// Rewrite hardcoded hostnames in text responses so that JS API calls
 			// go through the proxy instead of directly to the original host,
 			// and give pages framed by the support workspace its login autofill.
-			if (needsRewrite && isRewritableResponse(resp)) || inject {
+			if (needsRewrite && isRewritableResponse(resp)) || inject || isHTML {
 				err := transformResponseBody(resp, func(body []byte) []byte {
 					for oldHost, newHost := range hostRewrites {
 						body = bytes.ReplaceAll(body, []byte(oldHost), []byte(newHost))
 					}
 					if inject {
 						body = injectAutofill(body, autofillOrigin)
+					}
+					if isHTML {
+						body = injectCookieShim(body, cookiePrefix)
 					}
 					return body
 				})
