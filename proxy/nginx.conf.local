@@ -56,6 +56,10 @@ http {
         location / {
             rewrite ^(.*)$ /support-proxy$1 break;
 
+            # stream the proxied UIs as they answer: gRPC-Web, SSE and long
+            # polls stall behind response buffering
+            proxy_buffering off;
+
             proxy_pass http://backend-full:8080;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
