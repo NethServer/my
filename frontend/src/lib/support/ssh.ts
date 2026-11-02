@@ -77,3 +77,19 @@ export const denySSHAccessRequest = (code: string): Promise<void> =>
       headers: authHeaders(),
     })
     .then(() => undefined)
+
+// Copies the ssh command of a system's node. The clipboard write starts
+// within the click and the command, which needs a request, follows: browsers
+// refuse a write that comes after an await.
+export const copySSHCommand = async (systemId: string, nodeId?: string | null): Promise<void> => {
+  const command = createSSHCommand(systemId, nodeId)
+  if (typeof ClipboardItem !== 'undefined' && navigator.clipboard.write) {
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        'text/plain': command.then((text) => new Blob([text], { type: 'text/plain' })),
+      }),
+    ])
+    return
+  }
+  await navigator.clipboard.writeText(await command)
+}

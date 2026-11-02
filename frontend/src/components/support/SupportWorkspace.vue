@@ -216,7 +216,11 @@ const panelTerminals = computed(() =>
   activeSessions.value
     .slice()
     .sort((a, b) => (a.node_id || '').localeCompare(b.node_id || '', undefined, { numeric: true }))
-    .map((s) => ({ sessionId: s.id, node: s.node_id ? nodeName(s.node_id) : '' })),
+    .map((s) => ({
+      sessionId: s.id,
+      node: s.node_id ? nodeName(s.node_id) : '',
+      nodeId: s.node_id || '',
+    })),
 )
 
 function openService(svc: WorkspaceService) {
@@ -836,6 +840,7 @@ onBeforeUnmount(() => {
         v-model:section="panelSection"
         class="w-96 shrink-0 border-l border-gray-200 dark:border-gray-700"
         :system-id="systemId"
+        :system-name="systemName"
         :data="data"
         :loading="dataLoading"
         :terminals="panelTerminals"
