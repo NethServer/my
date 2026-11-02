@@ -56,10 +56,22 @@ type serviceStore struct {
 }
 
 func newServiceStore(initial map[string]models.ServiceInfo) *serviceStore {
-	return &serviceStore{
-		services: initial,
-		injected: make(map[string]models.ServiceInfo),
+	return newServiceStoreWith(initial, make(map[string]models.ServiceInfo))
+}
+
+// newServiceStoreWith starts from the services added by operators on an
+// earlier connection of this run: a reconnect must not lose them
+func newServiceStoreWith(initial, injected map[string]models.ServiceInfo) *serviceStore {
+	services := make(map[string]models.ServiceInfo, len(initial)+len(injected))
+	for k, v := range initial {
+		services[k] = v
 	}
+	for k, v := range injected {
+		if _, exists := services[k]; !exists {
+			services[k] = v
+		}
+	}
+	return &serviceStore{services: services, injected: injected}
 }
 
 func (s *serviceStore) get() map[string]models.ServiceInfo {
@@ -124,6 +136,19 @@ func (s *serviceStore) discovered() map[string]models.ServiceInfo {
 	return result
 }
 
+// countNew counts the services not in the store yet: re-adding one replaces it
+func (s *serviceStore) countNew(svcs map[string]models.ServiceInfo) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	n := 0
+	for name := range svcs {
+		if _, ok := s.services[name]; !ok {
+			n++
+		}
+	}
+	return n
+}
+
 func (s *serviceStore) len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -173,6 +198,8 @@ type runState struct {
 	sessionUsers   *users.SessionUsers // what is reported and passed to plugins
 	lastServices   map[string]models.ServiceInfo
 	reconnectToken string
+	// services added by operators, kept across the reconnections of this run
+	injected map[string]models.ServiceInfo
 }
 
 // RunWithReconnect connects to the support service and reconnects on failure
@@ -361,7 +388,10 @@ func connect(ctx context.Context, cfg *config.ClientConfig, st *runState) error 
 
 	// Discover services
 	initialServices := discovery.DiscoverServices(ctx, cfg)
-	store := newServiceStore(initialServices)
+	if st.injected == nil {
+		st.injected = make(map[string]models.ServiceInfo)
+	}
+	store := newServiceStoreWith(initialServices, st.injected)
 
 	// Send initial manifest
 	if err := sendManifest(session, store.get()); err != nil {
@@ -582,7 +612,7 @@ func applyAddServices(newSvcs map[string]models.ServiceInfo, store *serviceStore
 	}
 	// Fix #9: enforce total services cap to prevent unbounded store growth
 	// via repeated add_services calls.
-	if store.len()+len(newSvcs) > maxServicesTotal {
+	if store.len()+store.countNew(newSvcs) > maxServicesTotal {
 		return fmt.Errorf("service limit exceeded: max %d total services", maxServicesTotal)
 	}
 
