@@ -22,7 +22,7 @@ interface DeleteMyAvatarResponse {
 }
 
 export const ProfileInfoSchema = v.object({
-  name: v.pipe(v.string(), v.nonEmpty('users.name_cannot_be_empty')),
+  name: v.pipe(v.string(), v.nonEmpty('users.full_name_cannot_be_empty')),
   email: v.pipe(v.string(), v.nonEmpty('users.email_required'), v.email('users.email_invalid')),
   phone: v.optional(v.union([v.literal(''), PhoneNumberSchema])),
 })

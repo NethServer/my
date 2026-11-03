@@ -365,7 +365,7 @@ function getEmailInvalidMessage(): string {
           ref="nameRef"
           v-model="name"
           @blur="name = name.trim()"
-          :label="$t('users.name')"
+          :label="$t('users.full_name')"
           :disabled="saving"
         />
         <!-- email -->

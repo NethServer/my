@@ -20,7 +20,7 @@ export const PhoneNumberSchema = v.pipe(
 
 export const CreateUserSchema = v.object({
   email: v.pipe(v.string(), v.nonEmpty('users.email_required'), v.email('users.email_invalid')),
-  name: v.pipe(v.string(), v.nonEmpty('users.name_cannot_be_empty')),
+  name: v.pipe(v.string(), v.nonEmpty('users.full_name_cannot_be_empty')),
   phone: v.optional(v.union([v.literal(''), PhoneNumberSchema])),
   user_role_ids: v.pipe(
     v.array(v.string()),

@@ -229,7 +229,7 @@ function getKebabMenuItems() {
         ref="nameRef"
         v-model="name"
         @blur="name = name.trim()"
-        :label="$t('users.name')"
+        :label="$t('users.full_name')"
         :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
         :disabled="editUserLoading || loginStore.isOwnerAccount || loginStore.isImpersonating"
       />
