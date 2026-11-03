@@ -31,6 +31,7 @@
     "try_changing_search_filters": "Try changing your search filters",
     "go_to_page": "Go to {page}",
     "back_to_page": "Back to {page}",
+    "open": "Open",
     "open_page": "Open {page}",
     "actions": "Actions",
     "too_many_records_to_export": "Too many records to export",

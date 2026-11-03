@@ -29,6 +29,7 @@ import {
   openThirdPartyApp,
   THIRD_PARTY_APPS_KEY,
   isEnabled,
+  getButtonAriaLabel,
   getButtonLabel,
 } from '@/lib/thirdPartyApps'
 import { useLoginStore } from '@/stores/login'
@@ -121,6 +122,7 @@ const { state: thirdPartyApps } = useQuery({
           <NeButton
             kind="secondary"
             :disabled="!isEnabled(thirdPartyApp)"
+            :aria-label="getButtonAriaLabel(thirdPartyApp)"
             class="self-end"
             @click="openThirdPartyApp(thirdPartyApp)"
           >

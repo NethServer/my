@@ -30,6 +30,7 @@
     "try_changing_search_filters": "Prova a modificare i filtri di ricerca",
     "go_to_page": "Vai a {page}",
     "back_to_page": "Torna a {page}",
+    "open": "Apri",
     "open_page": "Apri {page}",
     "actions": "Azioni",
     "too_many_records_to_export": "Troppi record da esportare",
