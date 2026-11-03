@@ -94,13 +94,10 @@ const goToAddons = () => {
         :key="row.addon.id"
         class="flex items-center justify-between gap-2 py-4"
       >
-        <span class="font-medium text-gray-900 dark:text-gray-50">
+        <span class="text-primary-neutral font-medium">
           {{ row.addon.display_name }}
         </span>
-        <AddonStatusIcon
-          :status="getRowStatus(row)"
-          class="text-tertiary-neutral dark:text-tertiary-neutral font-medium"
-        />
+        <AddonStatusIcon :status="getRowStatus(row)" class="text-tertiary-neutral font-medium" />
       </div>
     </div>
     <NeEmptyState v-else :title="$t('system_detail.no_addons')" :icon="faPuzzlePiece" />
