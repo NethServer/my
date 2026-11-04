@@ -169,7 +169,7 @@ const composedId = computed(() =>
   composeAddonId({
     product: product.value,
     application: application.value,
-    technical_name: technicalName.value,
+    technical_name: technicalName.value.trim(),
   }),
 )
 
@@ -254,7 +254,7 @@ async function saveAddon() {
   if (currentAddon) {
     // editing add-on: the backend accepts the display fields only
     const form = {
-      display_name: displayName.value,
+      display_name: displayName.value.trim(),
       description: description.value,
     }
 
@@ -267,8 +267,8 @@ async function saveAddon() {
     const form: AddonForm = {
       product: product.value,
       application: application.value,
-      technical_name: technicalName.value,
-      display_name: displayName.value,
+      technical_name: technicalName.value.trim(),
+      display_name: displayName.value.trim(),
       description: description.value,
     }
 

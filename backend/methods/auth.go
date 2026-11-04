@@ -612,7 +612,7 @@ func ChangeInfo(c *gin.Context) {
 	// Manual validation with proper field names
 	var validationErrors []gin.H
 
-	if req.Name != nil && *req.Name == "" {
+	if req.Name != nil && strings.TrimSpace(*req.Name) == "" {
 		validationErrors = append(validationErrors, gin.H{
 			"key":     "name",
 			"message": "name cannot be empty",
@@ -620,7 +620,7 @@ func ChangeInfo(c *gin.Context) {
 		})
 	}
 
-	if req.Email != nil && *req.Email == "" {
+	if req.Email != nil && strings.TrimSpace(*req.Email) == "" {
 		validationErrors = append(validationErrors, gin.H{
 			"key":     "email",
 			"message": "email cannot be empty",

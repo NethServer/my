@@ -128,9 +128,9 @@ async function saveProfile() {
 
   if (loginStore.userInfo?.id) {
     const profile = {
-      name: name.value,
-      email: email.value,
-      phone: combinePhoneParts(countryCode.value, phone.value),
+      name: name.value.trim(),
+      email: email.value.trim(),
+      phone: combinePhoneParts(countryCode.value, phone.value.trim()),
     }
 
     if (validate(profile)) {

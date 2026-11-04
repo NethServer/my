@@ -218,7 +218,7 @@ async function saveSystem() {
   clearErrors()
 
   const system = {
-    name: name.value,
+    name: name.value.trim(),
     organization_id: organizationId.value,
     notes: notes.value,
     custom_data: {},

@@ -244,14 +244,14 @@ async function saveCustomer() {
   clearErrors()
 
   const customer = {
-    name: name.value,
+    name: name.value.trim(),
     custom_data: {
-      vat: vatNumber.value,
-      address: address.value,
-      city: city.value,
-      main_contact: mainContact.value,
-      email: email.value,
-      phone: combinePhoneParts(countryCode.value, phone.value),
+      vat: vatNumber.value.trim(),
+      address: address.value.trim(),
+      city: city.value.trim(),
+      main_contact: mainContact.value.trim(),
+      email: email.value.trim(),
+      phone: combinePhoneParts(countryCode.value, phone.value.trim()),
       language: language.value,
       notes: notes.value,
     },

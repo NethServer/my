@@ -273,11 +273,11 @@ async function saveUser() {
   clearErrors()
 
   const user = {
-    email: email.value,
-    name: name.value,
+    email: email.value.trim(),
+    name: name.value.trim(),
     user_role_ids: userRoles.value ? [userRoles.value] : [],
     organization_id: organizationId.value,
-    phone: combinePhoneParts(countryCode.value, phone.value),
+    phone: combinePhoneParts(countryCode.value, phone.value.trim()),
     custom_data: {},
   }
 
