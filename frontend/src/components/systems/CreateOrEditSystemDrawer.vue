@@ -35,7 +35,13 @@ import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
-import { getValidationIssues, isValidationError } from '../../lib/validation'
+import {
+  focusFirstInvalidField,
+  focusFirstRejectedField,
+  getSchemaIssues,
+  getValidationIssues,
+  isValidationError,
+} from '@/lib/validation'
 import type { AxiosError } from 'axios'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faCheck, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
@@ -56,7 +62,7 @@ const notificationsStore = useNotificationsStore()
 const loginStore = useLoginStore()
 
 const {
-  mutate: createSystemMutate,
+  mutateAsync: createSystemMutateAsync,
   isLoading: createSystemLoading,
   reset: createSystemReset,
   error: createSystemError,
@@ -80,7 +86,7 @@ const {
 })
 
 const {
-  mutate: editSystemMutate,
+  mutateAsync: editSystemMutateAsync,
   isLoading: editSystemLoading,
   reset: editSystemReset,
   error: editSystemError,
@@ -202,48 +208,10 @@ function clearErrors() {
   validationIssues.value = {}
 }
 
-function validateCreate(system: CreateSystem): boolean {
-  validationIssues.value = {}
-  const validation = v.safeParse(CreateSystemSchema, system)
-
-  if (validation.success) {
-    // no validation issues
-    return true
-  } else {
-    const issues = v.flatten(validation.issues)
-
-    if (issues.nested) {
-      validationIssues.value = issues.nested as Record<string, string[]>
-
-      // focus the first field with error
-
-      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-      fieldRefs[firstErrorFieldName]?.value?.focus()
-    }
-    return false
-  }
-}
-
-function validateEdit(system: EditSystem): boolean {
-  validationIssues.value = {}
-  const validation = v.safeParse(EditSystemSchema, system)
-
-  if (validation.success) {
-    // no validation issues
-    return true
-  } else {
-    const issues = v.flatten(validation.issues)
-
-    if (issues.nested) {
-      validationIssues.value = issues.nested as Record<string, string[]>
-
-      // focus the first field with error
-
-      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-      fieldRefs[firstErrorFieldName].value?.focus()
-    }
-    return false
-  }
+function validate(schema: v.GenericSchema, system: CreateSystem): boolean {
+  validationIssues.value = getSchemaIssues(schema, system)
+  focusFirstInvalidField(validationIssues.value, fieldRefs)
+  return !Object.keys(validationIssues.value).length
 }
 
 async function saveSystem() {
@@ -264,11 +232,11 @@ async function saveSystem() {
       id: currentSystem.id,
     }
 
-    const isValidationOk = validateEdit(systemToEdit)
-    if (!isValidationOk) {
-      return
+    if (validate(EditSystemSchema, systemToEdit)) {
+      editSystemMutateAsync(systemToEdit).catch(() =>
+        focusFirstRejectedField(validationIssues.value, fieldRefs),
+      )
     }
-    editSystemMutate(systemToEdit)
   } else {
     // creating system
 
@@ -280,11 +248,11 @@ async function saveSystem() {
         : {}),
     }
 
-    const isValidationOk = validateCreate(systemToCreate)
-    if (!isValidationOk) {
-      return
+    if (validate(CreateSystemSchema, systemToCreate)) {
+      createSystemMutateAsync(systemToCreate).catch(() =>
+        focusFirstRejectedField(validationIssues.value, fieldRefs),
+      )
     }
-    createSystemMutate(systemToCreate)
   }
 }
 

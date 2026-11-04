@@ -16,7 +16,7 @@ import {
   type NeComboboxOption,
   getPreference,
 } from '@nethesis/vue-components'
-import { computed, nextTick, ref, useTemplateRef, type ShallowRef } from 'vue'
+import { computed, ref, useTemplateRef, type ShallowRef } from 'vue'
 import {
   CreateResellerSchema,
   RESELLERS_KEY,
@@ -34,6 +34,7 @@ import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import {
   focusFirstInvalidField,
+  focusFirstRejectedField,
   getSchemaIssues,
   getValidationIssues,
   isValidationError,
@@ -239,14 +240,6 @@ function validate(schema: v.GenericSchema, reseller: CreateReseller): boolean {
   return !Object.keys(validationIssues.value).length
 }
 
-// The fields stay disabled until the mutation settles, and a disabled field
-// cannot take focus: wait for the save to end before pointing at the field the
-// backend rejected.
-async function focusFirstRejectedField() {
-  await nextTick()
-  focusFirstInvalidField(validationIssues.value, fieldRefs)
-}
-
 async function saveReseller() {
   clearErrors()
 
@@ -273,7 +266,9 @@ async function saveReseller() {
     }
 
     if (validate(EditResellerSchema, resellerToEdit)) {
-      editResellerMutateAsync(resellerToEdit).catch(focusFirstRejectedField)
+      editResellerMutateAsync(resellerToEdit).catch(() =>
+        focusFirstRejectedField(validationIssues.value, fieldRefs),
+      )
     }
   } else {
     // creating reseller
@@ -286,7 +281,9 @@ async function saveReseller() {
         : {}),
     }
     if (validate(CreateResellerSchema, resellerToCreate)) {
-      createResellerMutateAsync(resellerToCreate).catch(focusFirstRejectedField)
+      createResellerMutateAsync(resellerToCreate).catch(() =>
+        focusFirstRejectedField(validationIssues.value, fieldRefs),
+      )
     }
   }
 }

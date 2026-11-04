@@ -16,7 +16,7 @@ import {
   type NeComboboxOption,
   getPreference,
 } from '@nethesis/vue-components'
-import { computed, nextTick, ref, useTemplateRef, type ShallowRef } from 'vue'
+import { computed, ref, useTemplateRef, type ShallowRef } from 'vue'
 import {
   CreateCustomerSchema,
   CUSTOMERS_KEY,
@@ -34,6 +34,7 @@ import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import {
   focusFirstInvalidField,
+  focusFirstRejectedField,
   getSchemaIssues,
   getValidationIssues,
   isValidationError,
@@ -239,14 +240,6 @@ function validate(schema: v.GenericSchema, customer: CreateCustomer): boolean {
   return !Object.keys(validationIssues.value).length
 }
 
-// The fields stay disabled until the mutation settles, and a disabled field
-// cannot take focus: wait for the save to end before pointing at the field the
-// backend rejected.
-async function focusFirstRejectedField() {
-  await nextTick()
-  focusFirstInvalidField(validationIssues.value, fieldRefs)
-}
-
 async function saveCustomer() {
   clearErrors()
 
@@ -273,7 +266,9 @@ async function saveCustomer() {
     }
 
     if (validate(EditCustomerSchema, customerToEdit)) {
-      editCustomerMutateAsync(customerToEdit).catch(focusFirstRejectedField)
+      editCustomerMutateAsync(customerToEdit).catch(() =>
+        focusFirstRejectedField(validationIssues.value, fieldRefs),
+      )
     }
   } else {
     // creating customer
@@ -286,7 +281,9 @@ async function saveCustomer() {
         : {}),
     }
     if (validate(CreateCustomerSchema, customerToCreate)) {
-      createCustomerMutateAsync(customerToCreate).catch(focusFirstRejectedField)
+      createCustomerMutateAsync(customerToCreate).catch(() =>
+        focusFirstRejectedField(validationIssues.value, fieldRefs),
+      )
     }
   }
 }

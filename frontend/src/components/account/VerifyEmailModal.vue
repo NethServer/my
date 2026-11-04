@@ -10,14 +10,13 @@ import {
   VerifyEmailChangeSchema,
   type VerifyEmailChange,
 } from '@/lib/account'
-import { getBackendErrorMessage, getValidationIssues } from '@/lib/validation'
+import { getBackendErrorMessage, getSchemaIssues, getValidationIssues } from '@/lib/validation'
 import { useNotificationsStore } from '@/stores/notifications'
 import { focusElement, NeInlineNotification, NeModal, NeTextInput } from '@nethesis/vue-components'
 import { useMutation } from '@pinia/colada'
 import type { AxiosError } from 'axios'
 import { computed, ref, useTemplateRef } from 'vue'
 import { useI18n } from 'vue-i18n'
-import * as v from 'valibot'
 
 // The second step of an email change: the code mailed to the new address is
 // typed here. The address itself is never sent again, the backend applies the
@@ -36,7 +35,7 @@ const codeRef = useTemplateRef<HTMLInputElement>('codeRef')
 const validationIssues = ref<Record<string, string[]>>({})
 
 const {
-  mutate: verifyMutate,
+  mutateAsync: verifyMutateAsync,
   isLoading: verifyLoading,
   reset: verifyReset,
   error: verifyError,
@@ -58,7 +57,6 @@ const {
     console.error('Error verifying email change:', error)
     validationIssues.value = getValidationIssues(error as AxiosError, 'account')
     code.value = ''
-    focusElement(codeRef)
   },
 })
 
@@ -108,18 +106,12 @@ function clearErrors() {
 }
 
 function validate(payload: VerifyEmailChange): boolean {
-  validationIssues.value = {}
-  const validation = v.safeParse(VerifyEmailChangeSchema, payload)
-
-  if (validation.success) {
-    return true
-  }
-  const issues = v.flatten(validation.issues)
-  if (issues.nested) {
-    validationIssues.value = issues.nested as Record<string, string[]>
+  validationIssues.value = getSchemaIssues(VerifyEmailChangeSchema, payload)
+  if (Object.keys(validationIssues.value).length) {
     focusElement(codeRef)
+    return false
   }
-  return false
+  return true
 }
 
 function verify() {
@@ -129,7 +121,8 @@ function verify() {
   if (!validate(payload)) {
     return
   }
-  verifyMutate(payload)
+  // the field is disabled until the mutation settles: focus it once it has
+  verifyMutateAsync(payload).catch(() => focusElement(codeRef))
 }
 
 function resend() {

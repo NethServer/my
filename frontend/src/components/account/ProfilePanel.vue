@@ -5,7 +5,13 @@
 
 <script lang="ts" setup>
 import { ProfileInfoSchema, postChangeInfo, type ProfileInfo } from '@/lib/account'
-import { getValidationIssues, isValidationError } from '@/lib/validation'
+import {
+  focusFirstInvalidField,
+  focusFirstRejectedField,
+  getSchemaIssues,
+  getValidationIssues,
+  isValidationError,
+} from '@/lib/validation'
 import { useLoginStore } from '@/stores/login'
 import { useNotificationsStore } from '@/stores/notifications'
 import { faCircleXmark, faPenToSquare } from '@fortawesome/free-solid-svg-icons'
@@ -25,7 +31,6 @@ import { useMutation, useQueryCache } from '@pinia/colada'
 import type { AxiosError } from 'axios'
 import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
-import * as v from 'valibot'
 import { USERS_KEY } from '@/lib/users/users'
 import UserRoleBadge from '../users/UserRoleBadge.vue'
 import UserAvatar from '../users/UserAvatar.vue'
@@ -38,7 +43,7 @@ const loginStore = useLoginStore()
 const notificationsStore = useNotificationsStore()
 
 const {
-  mutate: editUserMutate,
+  mutateAsync: editUserMutateAsync,
   isLoading: editUserLoading,
   reset: editUserReset,
   error: editUserError,
@@ -128,34 +133,18 @@ async function saveProfile() {
       phone: combinePhoneParts(countryCode.value, phone.value),
     }
 
-    const isValidationOk = validate(profile)
-    if (!isValidationOk) {
-      return
+    if (validate(profile)) {
+      editUserMutateAsync(profile).catch(() =>
+        focusFirstRejectedField(validationIssues.value, fieldRefs),
+      )
     }
-    editUserMutate(profile)
   }
 }
 
 function validate(profile: ProfileInfo): boolean {
-  validationIssues.value = {}
-  const validation = v.safeParse(ProfileInfoSchema, profile)
-
-  if (validation.success) {
-    // no validation issues
-    return true
-  } else {
-    const issues = v.flatten(validation.issues)
-
-    if (issues.nested) {
-      validationIssues.value = issues.nested as Record<string, string[]>
-
-      // focus the first field with error
-
-      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-      fieldRefs[firstErrorFieldName].value?.focus()
-    }
-    return false
-  }
+  validationIssues.value = getSchemaIssues(ProfileInfoSchema, profile)
+  focusFirstInvalidField(validationIssues.value, fieldRefs)
+  return !Object.keys(validationIssues.value).length
 }
 
 function onEmailVerified() {

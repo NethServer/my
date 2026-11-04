@@ -3,6 +3,7 @@
 
 import type { AxiosError } from 'axios'
 import * as v from 'valibot'
+import { nextTick } from 'vue'
 import { normalize } from './common'
 
 export type BackendError = {
@@ -99,4 +100,16 @@ export const focusFirstInvalidField = (
   if (field) {
     fieldRefs[field]?.value?.focus()
   }
+}
+
+////
+// For a save the backend rejected: the fields stay disabled until the mutation
+// settles, and a disabled field cannot take focus. Call it once the mutateAsync
+// promise rejects, which happens after the mutation is idle again.
+export const focusFirstRejectedField = async (
+  issues: ValidationIssue,
+  fieldRefs: Record<string, FocusableFieldRef>,
+) => {
+  await nextTick()
+  focusFirstInvalidField(issues, fieldRefs)
 }

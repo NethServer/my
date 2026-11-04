@@ -18,7 +18,7 @@ import {
   type NeMultiselectComboboxOption,
   getPreference,
 } from '@nethesis/vue-components'
-import { computed, nextTick, ref, useTemplateRef, type ShallowRef } from 'vue'
+import { computed, ref, useTemplateRef, type ShallowRef } from 'vue'
 import {
   CreateDistributorSchema,
   DISTRIBUTORS_KEY,
@@ -41,6 +41,7 @@ import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import {
   focusFirstInvalidField,
+  focusFirstRejectedField,
   getSchemaIssues,
   getValidationIssues,
   isValidationError,
@@ -280,14 +281,6 @@ function validate(schema: v.GenericSchema, distributor: CreateDistributor): bool
   return !Object.keys(validationIssues.value).length
 }
 
-// The fields stay disabled until the mutation settles, and a disabled field
-// cannot take focus: wait for the save to end before pointing at the field the
-// backend rejected.
-async function focusFirstRejectedField() {
-  await nextTick()
-  focusFirstInvalidField(validationIssues.value, fieldRefs)
-}
-
 async function saveDistributor() {
   clearErrors()
 
@@ -317,14 +310,18 @@ async function saveDistributor() {
     }
 
     if (validate(EditDistributorSchema, distributorToEdit)) {
-      editDistributorMutateAsync(distributorToEdit).catch(focusFirstRejectedField)
+      editDistributorMutateAsync(distributorToEdit).catch(() =>
+        focusFirstRejectedField(validationIssues.value, fieldRefs),
+      )
     }
   } else {
     // creating distributor
 
     const distributorToCreate: CreateDistributor = distributor
     if (validate(CreateDistributorSchema, distributorToCreate)) {
-      createDistributorMutateAsync(distributorToCreate).catch(focusFirstRejectedField)
+      createDistributorMutateAsync(distributorToCreate).catch(() =>
+        focusFirstRejectedField(validationIssues.value, fieldRefs),
+      )
     }
   }
 }
