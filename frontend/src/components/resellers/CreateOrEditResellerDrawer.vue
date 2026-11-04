@@ -111,6 +111,7 @@ const {
   },
   onError: (error) => {
     console.error('Error editing reseller:', error)
+    validationIssues.value = getValidationIssues(error as AxiosError, 'organizations')
   },
   onSettled: () => queryCache.invalidateQueries({ key: [RESELLERS_KEY] }),
 })

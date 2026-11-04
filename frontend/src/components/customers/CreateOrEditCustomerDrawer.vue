@@ -112,6 +112,7 @@ const {
   },
   onError: (error) => {
     console.error('Error editing customer:', error)
+    validationIssues.value = getValidationIssues(error as AxiosError, 'organizations')
   },
   onSettled: () => queryCache.invalidateQueries({ key: [CUSTOMERS_KEY] }),
 })

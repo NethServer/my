@@ -116,6 +116,7 @@ const {
   },
   onError: (error) => {
     console.error('Error editing distributor:', error)
+    validationIssues.value = getValidationIssues(error as AxiosError, 'organizations')
   },
   onSettled: () => {
     queryCache.invalidateQueries({ key: [DISTRIBUTORS_KEY] })
