@@ -59,6 +59,21 @@ describe('promotion error codes', () => {
   })
 })
 
+// The backend rejects a blank user name with its own key: the client schemas
+// must use the key it maps to, or the message shows as a raw i18n key.
+describe('user name error', () => {
+  it('maps the backend blank name to a translated key', () => {
+    const issues = getValidationIssues(
+      backendError(400, [{ key: 'name', message: 'cannot_be_empty' }]),
+      'users',
+    )
+    const usersTranslations: Record<string, string> = translation.users
+
+    expect(issues).toEqual({ name: ['users.name_cannot_be_empty'] })
+    expect(usersTranslations.name_cannot_be_empty).toBeTruthy()
+  })
+})
+
 describe('getValidationIssues', () => {
   it('returns no issues for a conflict with no field errors', () => {
     const error = {
