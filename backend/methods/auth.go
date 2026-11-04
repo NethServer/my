@@ -615,7 +615,7 @@ func ChangeInfo(c *gin.Context) {
 	if req.Name != nil && strings.TrimSpace(*req.Name) == "" {
 		validationErrors = append(validationErrors, gin.H{
 			"key":     "name",
-			"message": "name cannot be empty",
+			"message": "cannot be empty",
 			"value":   "",
 		})
 	}
@@ -623,7 +623,7 @@ func ChangeInfo(c *gin.Context) {
 	if req.Email != nil && strings.TrimSpace(*req.Email) == "" {
 		validationErrors = append(validationErrors, gin.H{
 			"key":     "email",
-			"message": "email cannot be empty",
+			"message": "cannot be empty",
 			"value":   "",
 		})
 	}

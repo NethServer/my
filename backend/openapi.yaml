@@ -6588,15 +6588,15 @@ paths:
                             message:
                               type: string
                               description: Validation error message
-                              enum: ["name cannot be empty", "email cannot be empty", "invalid email format", "invalid phone format"]
-                              example: "name cannot be empty"
+                              enum: ["cannot be empty", "invalid email format", "invalid phone format"]
+                              example: "cannot be empty"
                             value:
                               type: string
                               description: Value that failed validation
                               example: ""
                         example:
                           - key: "name"
-                            message: "name cannot be empty"
+                            message: "cannot be empty"
                             value: ""
         '401':
           description: Unauthorized - invalid or missing JWT token

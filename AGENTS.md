@@ -272,6 +272,12 @@ Entities synced with Logto (orgs, users) carry both `id` (DB UUID) and `logto_id
 
 User-facing errors are **lowercase**. Example: `"the user has revoked consent for impersonation. please exit impersonation mode."`
 
+Field validation errors (`response.ValidationError` with a 400/409/422 status) are not shown to users as written: the frontend turns each one into an i18n key, `<prefix>.<key>_<message>`, lowercased, with dots and spaces turned into underscores (`getValidationIssues` in `frontend/src/lib/validation.ts`). Therefore:
+
+- Keep the message a short reason that other fields can reuse, such as `cannot be empty`, `already exists`, `reserved` or `invalid`. No quotes, names or other punctuation: they end up in the key.
+- A new message needs its key in `frontend/src/i18n/{en,it}/translation.json`, under the prefix of every form that can receive it (for example `organizations.name_reserved`). Without it, the user sees the raw key.
+- Before rewording an existing message, check the matching key and the `openapi.yaml` examples that quote it.
+
 ### 6.3 List response format
 
 ```json
