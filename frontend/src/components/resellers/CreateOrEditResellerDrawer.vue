@@ -16,7 +16,7 @@ import {
   type NeComboboxOption,
   getPreference,
 } from '@nethesis/vue-components'
-import { computed, ref, useTemplateRef, type ShallowRef } from 'vue'
+import { computed, nextTick, ref, useTemplateRef, type ShallowRef } from 'vue'
 import {
   CreateResellerSchema,
   RESELLERS_KEY,
@@ -32,7 +32,12 @@ import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
-import { getValidationIssues, isValidationError } from '@/lib/validation'
+import {
+  focusFirstInvalidField,
+  getSchemaIssues,
+  getValidationIssues,
+  isValidationError,
+} from '@/lib/validation'
 import type { AxiosError } from 'axios'
 import { getCommonLanguagesOptions } from '@/lib/locale'
 import { getBrowserLocale } from '@/i18n'
@@ -54,7 +59,7 @@ const notificationsStore = useNotificationsStore()
 const loginStore = useLoginStore()
 
 const {
-  mutate: createResellerMutate,
+  mutateAsync: createResellerMutateAsync,
   isLoading: createResellerLoading,
   reset: createResellerReset,
   error: createResellerError,
@@ -87,7 +92,7 @@ const {
 })
 
 const {
-  mutate: editResellerMutate,
+  mutateAsync: editResellerMutateAsync,
   isLoading: editResellerLoading,
   reset: editResellerReset,
   error: editResellerError,
@@ -228,62 +233,18 @@ function clearErrors() {
   validationIssues.value = {}
 }
 
-function validateCreate(reseller: CreateReseller): boolean {
-  validationIssues.value = {}
-  const validation = v.safeParse(CreateResellerSchema, reseller)
-
-  if (validation.success) {
-    // no validation issues
-    return true
-  } else {
-    const flattenedIssues = v.flatten(validation.issues)
-
-    if (flattenedIssues.nested) {
-      const issues: Record<string, string[]> = {}
-
-      for (const key in flattenedIssues.nested) {
-        // replace dots with underscores for i18n key
-        const newKey = key.replace(/\./g, '_')
-        issues[newKey] = flattenedIssues.nested[key] ?? []
-      }
-      validationIssues.value = issues
-
-      // focus the first field with error
-
-      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-      fieldRefs[firstErrorFieldName]?.value?.focus()
-    }
-    return false
-  }
+function validate(schema: v.GenericSchema, reseller: CreateReseller): boolean {
+  validationIssues.value = getSchemaIssues(schema, reseller)
+  focusFirstInvalidField(validationIssues.value, fieldRefs)
+  return !Object.keys(validationIssues.value).length
 }
 
-function validateEdit(reseller: EditReseller): boolean {
-  validationIssues.value = {}
-  const validation = v.safeParse(EditResellerSchema, reseller)
-
-  if (validation.success) {
-    // no validation issues
-    return true
-  } else {
-    const flattenedIssues = v.flatten(validation.issues)
-
-    if (flattenedIssues.nested) {
-      const issues: Record<string, string[]> = {}
-
-      for (const key in flattenedIssues.nested) {
-        // replace dots with underscores for i18n key
-        const newKey = key.replace(/\./g, '_')
-        issues[newKey] = flattenedIssues.nested[key] ?? []
-      }
-      validationIssues.value = issues
-
-      // focus the first field with error
-
-      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-      fieldRefs[firstErrorFieldName]?.value?.focus()
-    }
-    return false
-  }
+// The fields stay disabled until the mutation settles, and a disabled field
+// cannot take focus: wait for the save to end before pointing at the field the
+// backend rejected.
+async function focusFirstRejectedField() {
+  await nextTick()
+  focusFirstInvalidField(validationIssues.value, fieldRefs)
 }
 
 async function saveReseller() {
@@ -311,11 +272,9 @@ async function saveReseller() {
       logto_id: currentReseller.logto_id,
     }
 
-    const isValidationOk = validateEdit(resellerToEdit)
-    if (!isValidationOk) {
-      return
+    if (validate(EditResellerSchema, resellerToEdit)) {
+      editResellerMutateAsync(resellerToEdit).catch(focusFirstRejectedField)
     }
-    editResellerMutate(resellerToEdit)
   } else {
     // creating reseller
 
@@ -326,11 +285,9 @@ async function saveReseller() {
         ? { created_by_organization_id: createdByOrganizationId.value }
         : {}),
     }
-    const isValidationOk = validateCreate(resellerToCreate)
-    if (!isValidationOk) {
-      return
+    if (validate(CreateResellerSchema, resellerToCreate)) {
+      createResellerMutateAsync(resellerToCreate).catch(focusFirstRejectedField)
     }
-    createResellerMutate(resellerToCreate)
   }
 }
 </script>
@@ -485,7 +442,9 @@ async function saveReseller() {
           @blur="notes = notes.trim()"
           :label="$t('common.notes')"
           :disabled="saving"
-          :invalid-message="validationIssues.notes?.[0] ? $t(validationIssues.notes[0]) : ''"
+          :invalid-message="
+            validationIssues.custom_data_notes?.[0] ? $t(validationIssues.custom_data_notes[0]) : ''
+          "
           :optional="true"
           :optional-label="t('common.optional')"
         />

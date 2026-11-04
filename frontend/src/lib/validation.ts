@@ -2,6 +2,7 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import type { AxiosError } from 'axios'
+import * as v from 'valibot'
 import { normalize } from './common'
 
 export type BackendError = {
@@ -61,4 +62,41 @@ export const getValidationIssues = (
     })
   }
   return issues
+}
+
+////
+// Client-side counterpart of getValidationIssues: valibot reports nested paths
+// with dots ("custom_data.vat"), the form keys them with underscores, as the
+// backend errors are, so both sources feed the same map and i18n keys.
+export const getSchemaIssues = <TSchema extends v.GenericSchema>(
+  schema: TSchema,
+  data: unknown,
+): ValidationIssue => {
+  const result = v.safeParse(schema, data)
+  if (result.success) {
+    return {}
+  }
+  const issues: ValidationIssue = {}
+
+  for (const [path, messages] of Object.entries(v.flatten(result.issues).nested ?? {})) {
+    if (messages?.length) {
+      issues[path.replace(/\./g, '_')] = messages
+    }
+  }
+  return issues
+}
+
+export type FocusableFieldRef = { readonly value: { focus: () => void } | null }
+
+////
+// Walks the fields in form order rather than issue order: the backend lists its
+// errors in the order it checks them, not the order the form shows the fields.
+export const focusFirstInvalidField = (
+  issues: ValidationIssue,
+  fieldRefs: Record<string, FocusableFieldRef>,
+) => {
+  const field = Object.keys(fieldRefs).find((key) => issues[key]?.length)
+  if (field) {
+    fieldRefs[field]?.value?.focus()
+  }
 }

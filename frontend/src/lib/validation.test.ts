@@ -1,9 +1,11 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { AxiosError } from 'axios'
-import { getValidationIssues } from './validation'
+import * as v from 'valibot'
+import { focusFirstInvalidField, getSchemaIssues, getValidationIssues } from './validation'
+import { CreateResellerSchema } from './organizations/resellers'
 import translation from '@/i18n/en/translation.json'
 
 type BackendFieldError = { key: string; message: string; value?: string }
@@ -71,5 +73,66 @@ describe('getValidationIssues', () => {
     const error = backendError(500, [{ key: 'promote', message: 'organization_is_suspended' }])
 
     expect(getValidationIssues(error, 'organizations')).toEqual({})
+  })
+})
+
+describe('getSchemaIssues', () => {
+  const reseller = {
+    name: 'Acme',
+    custom_data: { vat: '12345678901', email: '', phone: '' },
+  }
+
+  it('returns no issues for valid data', () => {
+    expect(getSchemaIssues(CreateResellerSchema, reseller)).toEqual({})
+  })
+
+  it('keys nested issues the way the backend does', () => {
+    const issues = getSchemaIssues(CreateResellerSchema, {
+      name: '',
+      custom_data: { ...reseller.custom_data, vat: '', email: 'not-an-email' },
+    })
+
+    expect(issues).toEqual({
+      name: ['organizations.name_cannot_be_empty'],
+      custom_data_vat: ['organizations.custom_data_vat_cannot_be_empty'],
+      custom_data_email: ['organizations.custom_data_email_invalid'],
+    })
+  })
+
+  it('ignores issues on the root of the data', () => {
+    expect(getSchemaIssues(v.object({}), 'not an object')).toEqual({})
+  })
+})
+
+describe('focusFirstInvalidField', () => {
+  const fieldRef = () => ({ value: { focus: vi.fn() } })
+
+  it('focuses the first invalid field in form order, not issue order', () => {
+    const fieldRefs = {
+      name: fieldRef(),
+      custom_data_vat: fieldRef(),
+      custom_data_email: fieldRef(),
+    }
+
+    focusFirstInvalidField(
+      { custom_data_email: ['invalid'], custom_data_vat: ['already_exists'] },
+      fieldRefs,
+    )
+
+    expect(fieldRefs.custom_data_vat.value.focus).toHaveBeenCalledOnce()
+    expect(fieldRefs.custom_data_email.value.focus).not.toHaveBeenCalled()
+    expect(fieldRefs.name.value.focus).not.toHaveBeenCalled()
+  })
+
+  it('does nothing when no invalid field has a ref', () => {
+    const fieldRefs = { name: fieldRef(), unmounted: { value: null } }
+
+    expect(() =>
+      focusFirstInvalidField(
+        { unmounted: ['invalid'], created_by_organization_id: ['x'] },
+        fieldRefs,
+      ),
+    ).not.toThrow()
+    expect(fieldRefs.name.value.focus).not.toHaveBeenCalled()
   })
 })

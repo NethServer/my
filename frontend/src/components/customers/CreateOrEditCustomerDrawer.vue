@@ -16,7 +16,7 @@ import {
   type NeComboboxOption,
   getPreference,
 } from '@nethesis/vue-components'
-import { computed, ref, useTemplateRef, type ShallowRef } from 'vue'
+import { computed, nextTick, ref, useTemplateRef, type ShallowRef } from 'vue'
 import {
   CreateCustomerSchema,
   CUSTOMERS_KEY,
@@ -32,7 +32,12 @@ import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
-import { getValidationIssues, isValidationError } from '@/lib/validation'
+import {
+  focusFirstInvalidField,
+  getSchemaIssues,
+  getValidationIssues,
+  isValidationError,
+} from '@/lib/validation'
 import type { AxiosError } from 'axios'
 import { getCommonLanguagesOptions } from '@/lib/locale'
 import { getBrowserLocale } from '@/i18n'
@@ -55,7 +60,7 @@ const notificationsStore = useNotificationsStore()
 const loginStore = useLoginStore()
 
 const {
-  mutate: createCustomerMutate,
+  mutateAsync: createCustomerMutateAsync,
   isLoading: createCustomerLoading,
   reset: createCustomerReset,
   error: createCustomerError,
@@ -88,7 +93,7 @@ const {
 })
 
 const {
-  mutate: editCustomerMutate,
+  mutateAsync: editCustomerMutateAsync,
   isLoading: editCustomerLoading,
   reset: editCustomerReset,
   error: editCustomerError,
@@ -228,62 +233,18 @@ function clearErrors() {
   validationIssues.value = {}
 }
 
-function validateCreate(customer: CreateCustomer): boolean {
-  validationIssues.value = {}
-  const validation = v.safeParse(CreateCustomerSchema, customer)
-
-  if (validation.success) {
-    // no validation issues
-    return true
-  } else {
-    const flattenedIssues = v.flatten(validation.issues)
-
-    if (flattenedIssues.nested) {
-      const issues: Record<string, string[]> = {}
-
-      for (const key in flattenedIssues.nested) {
-        // replace dots with underscores for i18n key
-        const newKey = key.replace(/\./g, '_')
-        issues[newKey] = flattenedIssues.nested[key] ?? []
-      }
-      validationIssues.value = issues
-
-      // focus the first field with error
-
-      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-      fieldRefs[firstErrorFieldName]?.value?.focus()
-    }
-    return false
-  }
+function validate(schema: v.GenericSchema, customer: CreateCustomer): boolean {
+  validationIssues.value = getSchemaIssues(schema, customer)
+  focusFirstInvalidField(validationIssues.value, fieldRefs)
+  return !Object.keys(validationIssues.value).length
 }
 
-function validateEdit(customer: EditCustomer): boolean {
-  validationIssues.value = {}
-  const validation = v.safeParse(EditCustomerSchema, customer)
-
-  if (validation.success) {
-    // no validation issues
-    return true
-  } else {
-    const flattenedIssues = v.flatten(validation.issues)
-
-    if (flattenedIssues.nested) {
-      const issues: Record<string, string[]> = {}
-
-      for (const key in flattenedIssues.nested) {
-        // replace dots with underscores for i18n key
-        const newKey = key.replace(/\./g, '_')
-        issues[newKey] = flattenedIssues.nested[key] ?? []
-      }
-      validationIssues.value = issues
-
-      // focus the first field with error
-
-      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-      fieldRefs[firstErrorFieldName]?.value?.focus()
-    }
-    return false
-  }
+// The fields stay disabled until the mutation settles, and a disabled field
+// cannot take focus: wait for the save to end before pointing at the field the
+// backend rejected.
+async function focusFirstRejectedField() {
+  await nextTick()
+  focusFirstInvalidField(validationIssues.value, fieldRefs)
 }
 
 async function saveCustomer() {
@@ -311,11 +272,9 @@ async function saveCustomer() {
       logto_id: currentCustomer.logto_id,
     }
 
-    const isValidationOk = validateEdit(customerToEdit)
-    if (!isValidationOk) {
-      return
+    if (validate(EditCustomerSchema, customerToEdit)) {
+      editCustomerMutateAsync(customerToEdit).catch(focusFirstRejectedField)
     }
-    editCustomerMutate(customerToEdit)
   } else {
     // creating customer
 
@@ -326,11 +285,9 @@ async function saveCustomer() {
         ? { created_by_organization_id: createdByOrganizationId.value }
         : {}),
     }
-    const isValidationOk = validateCreate(customerToCreate)
-    if (!isValidationOk) {
-      return
+    if (validate(CreateCustomerSchema, customerToCreate)) {
+      createCustomerMutateAsync(customerToCreate).catch(focusFirstRejectedField)
     }
-    createCustomerMutate(customerToCreate)
   }
 }
 </script>
@@ -485,7 +442,9 @@ async function saveCustomer() {
           @blur="notes = notes.trim()"
           :label="$t('common.notes')"
           :disabled="saving"
-          :invalid-message="validationIssues.notes?.[0] ? $t(validationIssues.notes[0]) : ''"
+          :invalid-message="
+            validationIssues.custom_data_notes?.[0] ? $t(validationIssues.custom_data_notes[0]) : ''
+          "
           :optional="true"
           :optional-label="t('common.optional')"
         />
