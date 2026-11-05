@@ -24,7 +24,7 @@ import (
 	"github.com/nethesis/my/backend/services/local"
 )
 
-// GetSystemsTotals returns the total count of systems and their liveness status based on heartbeat data
+// GetSystemsTotals returns the total count of systems and their liveness status
 // Respects RBAC hierarchy - users only see totals for systems they can access
 func GetSystemsTotals(c *gin.Context) {
 	// Get current user context for hierarchical filtering
@@ -34,22 +34,8 @@ func GetSystemsTotals(c *gin.Context) {
 		return
 	}
 
-	// Get query parameter for timeout (default 15 minutes)
-	timeoutStr := c.DefaultQuery("timeout", "15")
-	timeoutMinutes, err := strconv.Atoi(timeoutStr)
-	if err != nil || timeoutMinutes <= 0 {
-		logger.Warn().
-			Str("component", "totals").
-			Str("operation", "parse_timeout").
-			Str("timeout", timeoutStr).
-			Err(err).
-			Msg("invalid timeout format, using default")
-		timeoutMinutes = 15
-	}
-
-	// Use service which handles timeout parameter properly
 	systemsService := local.NewSystemsService()
-	totals, err := systemsService.GetTotals(strings.ToLower(userOrgRole), userOrgID, timeoutMinutes)
+	totals, err := systemsService.GetTotals(strings.ToLower(userOrgRole), userOrgID)
 	if err != nil {
 		logger.Error().
 			Str("component", "totals").
@@ -74,7 +60,6 @@ func GetSystemsTotals(c *gin.Context) {
 		"unknown":           totals.Unknown,
 		"legacy":            totals.Legacy,
 		"total_with_legacy": totals.TotalWithLegacy,
-		"timeout_minutes":   totals.TimeoutMinutes,
 	}
 
 	logger.Info().
@@ -87,7 +72,6 @@ func GetSystemsTotals(c *gin.Context) {
 		Int("inactive", totals.Inactive).
 		Int("unknown", totals.Unknown).
 		Int("legacy", totals.Legacy).
-		Int("timeout_minutes", totals.TimeoutMinutes).
 		Msg("systems totals retrieved")
 
 	c.JSON(http.StatusOK, response.OK("systems totals retrieved", result))
