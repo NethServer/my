@@ -47,6 +47,15 @@ const isLoading = computed(
     applicationsState.value.status === 'pending',
 )
 
+// the rows need all three lists: with one missing the card would list a part of
+// the add-ons, or none, as if that were all
+const hasError = computed(
+  () =>
+    addonsState.value.status === 'error' ||
+    availableState.value.status === 'error' ||
+    applicationsState.value.status === 'error',
+)
+
 // Held add-ons first, in the order the tab lists statuses, and the ones the
 // cluster could still buy last.
 const rows = computed(() =>
@@ -79,7 +88,7 @@ const goToAddons = () => {
         {{ $t('system_detail.addons').toUpperCase() }}
       </NeHeading>
     </div>
-    <!-- error -->
+    <!-- errors -->
     <NeInlineNotification
       v-if="addonsState.status === 'error'"
       kind="error"
@@ -87,20 +96,36 @@ const goToAddons = () => {
       :description="addonsState.error.message"
       class="mb-6"
     />
-    <NeSkeleton v-else-if="isLoading" :lines="8" />
-    <div v-else-if="rows.length > 0" class="divide-y divide-gray-200 dark:divide-gray-700">
-      <div
-        v-for="row in rows"
-        :key="row.addon.id"
-        class="flex items-center justify-between gap-2 py-4"
-      >
-        <span class="text-primary-neutral font-medium">
-          {{ row.addon.display_name }}
-        </span>
-        <AddonStatusIcon :status="getRowStatus(row)" class="text-tertiary-neutral font-medium" />
+    <NeInlineNotification
+      v-if="availableState.status === 'error'"
+      kind="error"
+      :title="$t('addons.cannot_retrieve_available_addons')"
+      :description="availableState.error.message"
+      class="mb-6"
+    />
+    <NeInlineNotification
+      v-if="applicationsState.status === 'error'"
+      kind="error"
+      :title="$t('addons.cannot_retrieve_applications')"
+      :description="applicationsState.error.message"
+      class="mb-6"
+    />
+    <template v-if="!hasError">
+      <NeSkeleton v-if="isLoading" :lines="8" />
+      <div v-else-if="rows.length > 0" class="divide-y divide-gray-200 dark:divide-gray-700">
+        <div
+          v-for="row in rows"
+          :key="row.addon.id"
+          class="flex items-center justify-between gap-2 py-4"
+        >
+          <span class="text-primary-neutral font-medium">
+            {{ row.addon.display_name }}
+          </span>
+          <AddonStatusIcon :status="getRowStatus(row)" class="text-tertiary-neutral font-medium" />
+        </div>
       </div>
-    </div>
-    <NeEmptyState v-else :title="$t('system_detail.no_addons')" :icon="faPuzzlePiece" />
+      <NeEmptyState v-else :title="$t('system_detail.no_addons')" :icon="faPuzzlePiece" />
+    </template>
     <div v-if="!isLoading" class="flex justify-end">
       <NeButton kind="tertiary" class="mt-2" @click="goToAddons()">
         <template #prefix>
