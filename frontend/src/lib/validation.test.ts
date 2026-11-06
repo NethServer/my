@@ -4,7 +4,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AxiosError } from 'axios'
 import * as v from 'valibot'
-import { focusFirstInvalidField, getSchemaIssues, getValidationIssues } from './validation'
+import {
+  FORM_ISSUE_KEY,
+  focusFirstInvalidField,
+  getSchemaIssues,
+  getValidationIssues,
+  isValidationError,
+} from './validation'
 import { CreateResellerSchema } from './organizations/resellers'
 import translation from '@/i18n/en/translation.json'
 
@@ -15,6 +21,7 @@ const backendError = (status: number, errors: BackendFieldError[]): AxiosError =
   ({
     status,
     response: {
+      status,
       data: {
         code: status,
         message: 'validation failed',
@@ -114,8 +121,41 @@ describe('getSchemaIssues', () => {
     })
   })
 
-  it('ignores issues on the root of the data', () => {
-    expect(getSchemaIssues(v.object({}), 'not an object')).toEqual({})
+  it('keeps a check on the whole form, so it still fails validation', () => {
+    const schema = v.pipe(
+      v.object({ from: v.number(), to: v.number() }),
+      v.check(({ from, to }) => from <= to, 'range_invalid'),
+    )
+
+    expect(getSchemaIssues(schema, { from: 2, to: 1 })).toEqual({
+      [FORM_ISSUE_KEY]: ['range_invalid'],
+    })
+  })
+})
+
+// The forms hide their error notification for a validation error, trusting
+// the fields to show it: only an error the backend tied to a field may count.
+describe('isValidationError', () => {
+  it('is true for a validation status with field errors', () => {
+    expect(isValidationError(backendError(400, [{ key: 'name', message: 'reserved' }]))).toBe(true)
+  })
+
+  it.each([
+    ['no errors list', { code: 409, message: 'system reassignment in progress', data: null }],
+    ['an empty errors list', { code: 400, message: 'bad request', data: { errors: [] } }],
+    [
+      'an ad-hoc data shape',
+      { code: 409, message: 'email in use', data: { type: 'already_exists', key: 'email' } },
+    ],
+  ])('is false for a validation status with %s', (_, data) => {
+    const error = { status: data.code, response: { status: data.code, data } } as AxiosError
+
+    expect(isValidationError(error)).toBe(false)
+  })
+
+  it('is false for other statuses and for no error', () => {
+    expect(isValidationError(backendError(500, [{ key: 'name', message: 'x' }]))).toBe(false)
+    expect(isValidationError(null)).toBe(false)
   })
 })
 

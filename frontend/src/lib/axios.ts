@@ -80,9 +80,11 @@ export const configureAxios = () => {
         }
       }
 
-      // print specific error message, if available
+      // the forms show error.message, which axios leaves as "Request failed
+      // with status code N": give them the reason the backend sent instead
       if (error.response?.data?.message) {
         console.error('[interceptor]', error.response.data.message)
+        error.message = error.response.data.message
       }
 
       const config = error.config as RetriableRequestConfig | undefined
@@ -138,11 +140,6 @@ export const configureAxios = () => {
         if (method === 'get' || method === 'head') {
           router.push({ name: 'forbidden' })
         } else {
-          // the forms show error.message, which axios leaves as "Request
-          // failed with status code 403"
-          if (error.response?.data?.message) {
-            error.message = error.response.data.message
-          }
           notificationsStore.createNotificationFromAxiosError(error)
         }
       } else if (!isValidationErrorCode(error.response?.data?.code)) {

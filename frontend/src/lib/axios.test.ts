@@ -21,22 +21,25 @@ type Handler = { rejected: (error: unknown) => Promise<unknown> }
 const handlers = (axios.interceptors.response as unknown as { handlers: Handler[] }).handlers
 const onRejected = handlers[handlers.length - 1]!.rejected
 
-function forbidden(method: string, data: Record<string, unknown> = {}) {
+function rejected(status: number, method: string, data: Record<string, unknown> = {}) {
   const config = { method, url: '/api/users', headers: new AxiosHeaders() }
   return new AxiosError(
-    'Request failed with status code 403',
+    `Request failed with status code ${status}`,
     'ERR_BAD_REQUEST',
     config as InternalAxiosRequestConfig,
     null,
     {
-      status: 403,
-      statusText: 'Forbidden',
+      status,
+      statusText: '',
       headers: {},
       config: config as InternalAxiosRequestConfig,
-      data: { code: 403, ...data },
+      data: { code: status, ...data },
     },
   )
 }
+
+const forbidden = (method: string, data: Record<string, unknown> = {}) =>
+  rejected(403, method, data)
 
 describe('403 response interceptor', () => {
   beforeEach(() => {
@@ -72,5 +75,15 @@ describe('403 response interceptor', () => {
     await expect(onRejected(error)).rejects.toBe(error)
     expect(push).not.toHaveBeenCalled()
     expect(createNotificationFromAxiosError).not.toHaveBeenCalled()
+  })
+})
+
+// the forms show error.message: a conflict with no field errors reaches the
+// form's notification only through it
+describe('error message', () => {
+  it('carries the backend reason on any refused request', async () => {
+    const error = rejected(409, 'put', { message: 'system reassignment in progress' })
+    await expect(onRejected(error)).rejects.toBe(error)
+    expect(error.message).toBe('system reassignment in progress')
   })
 })

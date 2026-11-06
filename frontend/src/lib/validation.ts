@@ -17,8 +17,18 @@ export type BackendError = {
 
 export type ValidationIssue = Record<string, string[]>
 
+// Where getSchemaIssues files the issues of a check on the whole form, so they
+// still fail validation although no field claims them.
+export const FORM_ISSUE_KEY = '_form'
+
+////
+// A rejection the form shows on its fields: the backend named at least one.
+// A 400/409/422 that carries only a message (a locked resource, a record in the
+// wrong state) is not one: no field will show it, so the form's error
+// notification must.
 export const isValidationError = (error: Error | null): boolean => {
-  return isValidationErrorCode((error as AxiosError)?.response?.status)
+  const response = (error as AxiosError<BackendError>)?.response
+  return isValidationErrorCode(response?.status) && !!response?.data?.data?.errors?.length
 }
 
 ////
@@ -79,10 +89,19 @@ export const getSchemaIssues = <TSchema extends v.GenericSchema>(
   }
   const issues: ValidationIssue = {}
 
-  for (const [path, messages] of Object.entries(v.flatten(result.issues).nested ?? {})) {
+  const flatIssues = v.flatten(result.issues)
+
+  for (const [path, messages] of Object.entries(flatIssues.nested ?? {})) {
     if (messages?.length) {
       issues[path.replace(/\./g, '_')] = messages
     }
+  }
+
+  // a check on the whole form, not forwarded to a field: dropping it would let
+  // invalid data through
+  const formMessages = [...(flatIssues.root ?? []), ...(flatIssues.other ?? [])]
+  if (formMessages.length) {
+    issues[FORM_ISSUE_KEY] = formMessages
   }
   return issues
 }
