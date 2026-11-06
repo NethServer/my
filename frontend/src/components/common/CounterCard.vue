@@ -131,11 +131,7 @@ const formattedCounter = computed(() => {
             class="ml-2 align-middle"
           >
             <template #content>
-              <!-- the tooltip renders inside the card title, which is
-                   font-medium -->
-              <div class="font-normal">
-                <slot name="title-tooltip"></slot>
-              </div>
+              <slot name="title-tooltip"></slot>
             </template>
           </NeTooltip>
         </div>
