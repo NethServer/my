@@ -2,7 +2,8 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import { describe, expect, it } from 'vitest'
-import { ADDON_ID_REGEX, composeAddonId, slugifyAddonName } from './addons'
+import { ADDON_ID_REGEX, composeAddonId, CreateAddonFormSchema, slugifyAddonName } from './addons'
+import { getSchemaIssues } from '../validation'
 
 describe('slugifyAddonName', () => {
   it('lowercases and hyphenates the words', () => {
@@ -66,5 +67,35 @@ describe('slugifyAddonName composed into an id', () => {
   it('has no id to compose while the display name carries nothing usable', () => {
     expect(idFor('nsec', '', '###')).toBe('')
     expect(idFor('ns8', 'mail', '')).toBe('')
+  })
+})
+
+describe('CreateAddonFormSchema', () => {
+  const form = {
+    product: 'ns8',
+    application: '',
+    technical_name: 'trim-check',
+    display_name: 'Trim Check',
+    description: '',
+  }
+
+  it('blames only the application when a NethServer add-on has none', () => {
+    expect(getSchemaIssues(CreateAddonFormSchema, form)).toEqual({
+      application: ['addons.application_cannot_be_empty'],
+    })
+  })
+
+  it('still checks the composed id once the application is chosen', () => {
+    const issues = getSchemaIssues(CreateAddonFormSchema, {
+      ...form,
+      application: 'mail',
+      technical_name: 'Not Valid!',
+    })
+
+    expect(issues).toEqual({ technical_name: ['addons.technical_name_is_invalid'] })
+  })
+
+  it('accepts a valid NethServer add-on', () => {
+    expect(getSchemaIssues(CreateAddonFormSchema, { ...form, application: 'mail' })).toEqual({})
   })
 })

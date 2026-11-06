@@ -94,7 +94,9 @@ const formattedCounter = computed(() => {
 </script>
 
 <template>
-  <NeCard v-bind="containerAttrs">
+  <!-- a column, so the content row takes the height the grid row gives the card
+       and a slot can push its last item to the bottom -->
+  <NeCard v-bind="containerAttrs" class="flex flex-col">
     <template #title>
       <div class="flex items-start gap-3">
         <FontAwesomeIcon
@@ -102,23 +104,37 @@ const formattedCounter = computed(() => {
           :icon="icon"
           class="text-tertiary-neutral dark:text-tertiary-neutral size-5"
         />
-        <component
-          :is="titleTag"
-          v-bind="titleAttrs"
-          :class="[
-            'text-tertiary-neutral dark:text-tertiary-neutral',
-            isInteractive && 'cursor-pointer hover:underline',
-          ]"
-        >
-          <NeHeading tag="h6" class="text-inherit">
-            {{ uppercaseTitle ? title.toUpperCase() : title }}
-          </NeHeading>
-        </component>
-        <NeTooltip v-if="$slots['title-tooltip']" trigger-event="mouseenter focus" placement="auto">
-          <template #content>
-            <slot name="title-tooltip"></slot>
-          </template>
-        </NeTooltip>
+        <!--
+          The title and its tooltip flow as one line of text, so the tooltip
+          follows the last word even when the title wraps: as a separate flex
+          item it sat at the far edge of a box as wide as the free space. The
+          wrapper's nowrap forbids a break between the two, while the title
+          itself keeps wrapping between its own words.
+        -->
+        <div class="min-w-0 whitespace-nowrap">
+          <component
+            :is="titleTag"
+            v-bind="titleAttrs"
+            :class="[
+              'text-tertiary-neutral dark:text-tertiary-neutral inline whitespace-normal',
+              isInteractive && 'cursor-pointer hover:underline',
+            ]"
+          >
+            <NeHeading tag="h6" class="inline text-inherit">
+              {{ uppercaseTitle ? title.toUpperCase() : title }}
+            </NeHeading>
+          </component>
+          <NeTooltip
+            v-if="$slots['title-tooltip']"
+            trigger-event="mouseenter focus"
+            placement="auto"
+            class="ml-2 align-middle"
+          >
+            <template #content>
+              <slot name="title-tooltip"></slot>
+            </template>
+          </NeTooltip>
+        </div>
       </div>
     </template>
     <template #topRight>
@@ -147,8 +163,9 @@ const formattedCounter = computed(() => {
       </component>
     </template>
     <NeSkeleton v-if="loading" :lines="skeletonLines" class="w-full" />
-    <!-- `empty:hidden` drops the spacing when the slot renders nothing -->
-    <div v-else class="mt-2 empty:hidden">
+    <!-- `empty:hidden` drops the spacing when the slot renders nothing; padding
+         rather than margin, so the full height does not overflow the card -->
+    <div v-else class="flex h-full flex-col pt-2 empty:hidden">
       <slot></slot>
     </div>
   </NeCard>

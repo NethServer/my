@@ -172,8 +172,8 @@ const {
       },
       email_recipients: props.config?.email_recipients ?? [],
       webhook_recipients: endpoints.value.map((r) => ({
-        name: recipientName(r.url),
-        url: r.url,
+        name: recipientName(r.url.trim()),
+        url: r.url.trim(),
         severities: r.severities?.length ? r.severities : undefined,
         scope: r._scopeSpecific ? toScopePayload(r.scope) : undefined,
       })),
@@ -208,8 +208,8 @@ function validate(): boolean {
   validationIssues.value = {}
   const payload = {
     webhook_recipients: endpoints.value.map((r) => ({
-      name: recipientName(r.url),
-      url: r.url,
+      name: recipientName(r.url.trim()),
+      url: r.url.trim(),
       severities: r.severities?.length ? r.severities : undefined,
       scope: r._scopeSpecific ? toScopePayload(r.scope) : undefined,
     })),
@@ -315,6 +315,7 @@ function closeDrawer() {
               <NeTextInput
                 ref="expandedUrlRef"
                 v-model="ep.url"
+                @blur="ep.url = ep.url.trim()"
                 :label="t('alerts.endpoint')"
                 :placeholder="
                   $t('common.eg_value', { value: 'https://api.yourdomain.com/mywebhook' })

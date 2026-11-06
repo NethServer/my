@@ -199,12 +199,24 @@ export const isEnabled = (thirdPartyApp: ThirdPartyApp) => {
   return ENABLED_APPS.includes(thirdPartyApp.name)
 }
 
+// The card's heading already names the app, so the button only says "Open":
+// with the name in it, a long one wrapped the button inside a narrow card.
 export const getButtonLabel = (thirdPartyApp: ThirdPartyApp) => {
   const { t } = useI18n()
 
   if (isEnabled(thirdPartyApp)) {
-    return t('common.open_page', { page: thirdPartyApp.branding.display_name })
+    return t('common.open')
   } else {
     return t('common.coming_soon')
   }
+}
+
+// A screen reader lists the buttons apart from their cards, where a row of
+// identical "Open" would not say which app each one opens.
+export const getButtonAriaLabel = (thirdPartyApp: ThirdPartyApp) => {
+  const { t } = useI18n()
+
+  return isEnabled(thirdPartyApp)
+    ? t('common.open_page', { page: thirdPartyApp.branding.display_name })
+    : undefined
 }

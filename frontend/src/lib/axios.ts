@@ -80,9 +80,11 @@ export const configureAxios = () => {
         }
       }
 
-      // print specific error message, if available
+      // the forms show error.message, which axios leaves as "Request failed
+      // with status code N": give them the reason the backend sent instead
       if (error.response?.data?.message) {
         console.error('[interceptor]', error.response.data.message)
+        error.message = error.response.data.message
       }
 
       const config = error.config as RetriableRequestConfig | undefined
@@ -127,8 +129,18 @@ export const configureAxios = () => {
         console.warn('[interceptor]', 'Unrecoverable 401, re-authenticating')
         loginStore.forceReauth()
       } else if (error.response?.status == 403) {
-        if (error.response?.data?.data?.reason !== 'impersonation_active') {
+        if (error.response?.data?.data?.reason === 'impersonation_active') {
+          return Promise.reject(error)
+        }
+
+        // A refused read means the page itself is off limits. A refused save
+        // must not navigate away: the form would close and lose what the user
+        // typed, so stay and let the form show why.
+        const method = config?.method?.toLowerCase() ?? 'get'
+        if (method === 'get' || method === 'head') {
           router.push({ name: 'forbidden' })
+        } else {
+          notificationsStore.createNotificationFromAxiosError(error)
         }
       } else if (!isValidationErrorCode(error.response?.data?.code)) {
         // show error notification if it's not a validation error

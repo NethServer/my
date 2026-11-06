@@ -136,12 +136,16 @@ const expiryBadges = computed(() =>
       />
       <AddonsByOrganizationCard class="sm:col-span-2" />
       <AddonsByTierCard class="sm:col-span-2" />
-      <!-- the report carries the count to Nethesis only -->
-      <AddonsOverLimitCard v-if="totals?.over_limit !== undefined" class="sm:col-span-2" />
       <AddonLicensesCard
         :licenses="report.data?.licenses ?? { bought: 0, assigned: 0, addons: 0, full: 0 }"
         :loading="loading"
         class="sm:col-span-2"
+      />
+      <!-- the report carries the count to Nethesis only. Full width: its four columns and a
+           paginator with many pages do not fit in half a row on a zoomed screen -->
+      <AddonsOverLimitCard
+        v-if="totals?.over_limit !== undefined"
+        class="sm:col-span-2 2xl:col-span-4"
       />
     </div>
   </div>

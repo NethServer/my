@@ -30,7 +30,6 @@ import {
   type Distributor,
   type EditDistributor,
 } from '@/lib/organizations/distributors'
-import * as v from 'valibot'
 import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
 import {
   getThirdPartyAppIcon,
@@ -39,7 +38,12 @@ import {
 } from '@/lib/thirdPartyApps'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
-import { getValidationIssues, isValidationError } from '@/lib/validation'
+import {
+  focusFirstRejectedField,
+  getValidationIssues,
+  isValidationError,
+  validateForm,
+} from '@/lib/validation'
 import type { AxiosError } from 'axios'
 import { getCommonLanguagesOptions } from '@/lib/locale'
 import { getBrowserLocale } from '@/i18n'
@@ -59,7 +63,7 @@ const notificationsStore = useNotificationsStore()
 const loginStore = useLoginStore()
 
 const {
-  mutate: createDistributorMutate,
+  mutateAsync: createDistributorMutateAsync,
   isLoading: createDistributorLoading,
   reset: createDistributorReset,
   error: createDistributorError,
@@ -92,7 +96,7 @@ const {
 })
 
 const {
-  mutate: editDistributorMutate,
+  mutateAsync: editDistributorMutateAsync,
   isLoading: editDistributorLoading,
   reset: editDistributorReset,
   error: editDistributorError,
@@ -116,6 +120,7 @@ const {
   },
   onError: (error) => {
     console.error('Error editing distributor:', error)
+    validationIssues.value = getValidationIssues(error as AxiosError, 'organizations')
   },
   onSettled: () => {
     queryCache.invalidateQueries({ key: [DISTRIBUTORS_KEY] })
@@ -268,76 +273,18 @@ function clearErrors() {
   validationIssues.value = {}
 }
 
-function validateCreate(distributor: CreateDistributor): boolean {
-  validationIssues.value = {}
-  const validation = v.safeParse(CreateDistributorSchema, distributor)
-
-  if (validation.success) {
-    // no validation issues
-    return true
-  } else {
-    const flattenedIssues = v.flatten(validation.issues)
-
-    if (flattenedIssues.nested) {
-      const issues: Record<string, string[]> = {}
-
-      for (const key in flattenedIssues.nested) {
-        // replace dots with underscores for i18n key
-        const newKey = key.replace(/\./g, '_')
-        issues[newKey] = flattenedIssues.nested[key] ?? []
-      }
-      validationIssues.value = issues
-
-      // focus the first field with error
-
-      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-      fieldRefs[firstErrorFieldName]?.value?.focus()
-    }
-    return false
-  }
-}
-
-function validateEdit(distributor: EditDistributor): boolean {
-  validationIssues.value = {}
-  const validation = v.safeParse(EditDistributorSchema, distributor)
-
-  if (validation.success) {
-    // no validation issues
-    return true
-  } else {
-    const flattenedIssues = v.flatten(validation.issues)
-
-    if (flattenedIssues.nested) {
-      const issues: Record<string, string[]> = {}
-
-      for (const key in flattenedIssues.nested) {
-        // replace dots with underscores for i18n key
-        const newKey = key.replace(/\./g, '_')
-        issues[newKey] = flattenedIssues.nested[key] ?? []
-      }
-      validationIssues.value = issues
-
-      // focus the first field with error
-
-      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-      fieldRefs[firstErrorFieldName]?.value?.focus()
-    }
-    return false
-  }
-}
-
 async function saveDistributor() {
   clearErrors()
 
   const distributor = {
-    name: name.value,
+    name: name.value.trim(),
     custom_data: {
-      vat: vatNumber.value,
-      address: address.value,
-      city: city.value,
-      main_contact: mainContact.value,
-      email: email.value,
-      phone: combinePhoneParts(countryCode.value, phone.value),
+      vat: vatNumber.value.trim(),
+      address: address.value.trim(),
+      city: city.value.trim(),
+      main_contact: mainContact.value.trim(),
+      email: email.value.trim(),
+      phone: combinePhoneParts(countryCode.value, phone.value.trim()),
       language: language.value,
       notes: notes.value,
     },
@@ -354,20 +301,20 @@ async function saveDistributor() {
       logto_id: currentDistributor.logto_id,
     }
 
-    const isValidationOk = validateEdit(distributorToEdit)
-    if (!isValidationOk) {
-      return
+    if (validateForm(EditDistributorSchema, distributorToEdit, validationIssues, fieldRefs)) {
+      editDistributorMutateAsync(distributorToEdit).catch(() =>
+        focusFirstRejectedField(validationIssues.value, fieldRefs),
+      )
     }
-    editDistributorMutate(distributorToEdit)
   } else {
     // creating distributor
 
     const distributorToCreate: CreateDistributor = distributor
-    const isValidationOk = validateCreate(distributorToCreate)
-    if (!isValidationOk) {
-      return
+    if (validateForm(CreateDistributorSchema, distributorToCreate, validationIssues, fieldRefs)) {
+      createDistributorMutateAsync(distributorToCreate).catch(() =>
+        focusFirstRejectedField(validationIssues.value, fieldRefs),
+      )
     }
-    createDistributorMutate(distributorToCreate)
   }
 }
 </script>
@@ -526,7 +473,9 @@ async function saveDistributor() {
           @blur="notes = notes.trim()"
           :label="$t('common.notes')"
           :disabled="saving"
-          :invalid-message="validationIssues.notes?.[0] ? $t(validationIssues.notes[0]) : ''"
+          :invalid-message="
+            validationIssues.custom_data_notes?.[0] ? $t(validationIssues.custom_data_notes[0]) : ''
+          "
           :optional="true"
           :optional-label="t('common.optional')"
         />

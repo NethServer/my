@@ -18,14 +18,18 @@ import {
   type RadioOption,
 } from '@nethesis/vue-components'
 import { computed, ref, useTemplateRef, type ShallowRef } from 'vue'
-import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useI18n } from 'vue-i18n'
 import type { AxiosError } from 'axios'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faCheck, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
 import { useNotificationsStore } from '@/stores/notifications'
-import { getValidationIssues, type BackendError } from '@/lib/validation'
+import {
+  focusFirstRejectedField,
+  getValidationIssues,
+  type BackendError,
+  validateForm,
+} from '@/lib/validation'
 import { API_KEYS_KEY, CreateApiKeySchema, postApiKey, type CreateApiKey } from '@/lib/apiKeys'
 
 const { isShown = false } = defineProps<{
@@ -91,7 +95,7 @@ const modeOptions = computed<RadioOption[]>(() => [
 ])
 
 const {
-  mutate: createMutate,
+  mutateAsync: createMutateAsync,
   isLoading: createLoading,
   reset: createReset,
   error: createError,
@@ -136,22 +140,6 @@ function clearErrors() {
   validationIssues.value = {}
 }
 
-function validate(apiKey: CreateApiKey): boolean {
-  validationIssues.value = {}
-  const validation = v.safeParse(CreateApiKeySchema, apiKey)
-
-  if (validation.success) {
-    return true
-  }
-  const issues = v.flatten(validation.issues)
-  if (issues.nested) {
-    validationIssues.value = issues.nested as Record<string, string[]>
-    const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-    fieldRefs[firstErrorFieldName]?.value?.focus()
-  }
-  return false
-}
-
 async function createKey() {
   clearErrors()
 
@@ -163,13 +151,13 @@ async function createKey() {
     password: password.value,
   }
 
-  if (!validate(apiKey)) {
+  if (!validateForm(CreateApiKeySchema, apiKey, validationIssues, fieldRefs)) {
     return
   }
   // Switch to step 2 immediately and let the skeleton cover the request, so the
   // view never feels blocked while the server responds.
   step.value = 'secret'
-  createMutate(apiKey)
+  createMutateAsync(apiKey).catch(() => focusFirstRejectedField(validationIssues.value, fieldRefs))
 }
 
 function copyKeyAndCloseDrawer() {

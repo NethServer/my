@@ -31,11 +31,15 @@ import {
   type EditSystem,
   type System,
 } from '@/lib/systems/systems'
-import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
-import { getValidationIssues, isValidationError } from '../../lib/validation'
+import {
+  focusFirstRejectedField,
+  getValidationIssues,
+  isValidationError,
+  validateForm,
+} from '@/lib/validation'
 import type { AxiosError } from 'axios'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faCheck, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
@@ -56,7 +60,7 @@ const notificationsStore = useNotificationsStore()
 const loginStore = useLoginStore()
 
 const {
-  mutate: createSystemMutate,
+  mutateAsync: createSystemMutateAsync,
   isLoading: createSystemLoading,
   reset: createSystemReset,
   error: createSystemError,
@@ -80,7 +84,7 @@ const {
 })
 
 const {
-  mutate: editSystemMutate,
+  mutateAsync: editSystemMutateAsync,
   isLoading: editSystemLoading,
   reset: editSystemReset,
   error: editSystemError,
@@ -202,55 +206,11 @@ function clearErrors() {
   validationIssues.value = {}
 }
 
-function validateCreate(system: CreateSystem): boolean {
-  validationIssues.value = {}
-  const validation = v.safeParse(CreateSystemSchema, system)
-
-  if (validation.success) {
-    // no validation issues
-    return true
-  } else {
-    const issues = v.flatten(validation.issues)
-
-    if (issues.nested) {
-      validationIssues.value = issues.nested as Record<string, string[]>
-
-      // focus the first field with error
-
-      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-      fieldRefs[firstErrorFieldName]?.value?.focus()
-    }
-    return false
-  }
-}
-
-function validateEdit(system: EditSystem): boolean {
-  validationIssues.value = {}
-  const validation = v.safeParse(EditSystemSchema, system)
-
-  if (validation.success) {
-    // no validation issues
-    return true
-  } else {
-    const issues = v.flatten(validation.issues)
-
-    if (issues.nested) {
-      validationIssues.value = issues.nested as Record<string, string[]>
-
-      // focus the first field with error
-
-      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-      fieldRefs[firstErrorFieldName].value?.focus()
-    }
-    return false
-  }
-}
-
 async function saveSystem() {
   clearErrors()
 
   const system = {
-    name: name.value,
+    name: name.value.trim(),
     organization_id: organizationId.value,
     notes: notes.value,
     custom_data: {},
@@ -264,11 +224,11 @@ async function saveSystem() {
       id: currentSystem.id,
     }
 
-    const isValidationOk = validateEdit(systemToEdit)
-    if (!isValidationOk) {
-      return
+    if (validateForm(EditSystemSchema, systemToEdit, validationIssues, fieldRefs)) {
+      editSystemMutateAsync(systemToEdit).catch(() =>
+        focusFirstRejectedField(validationIssues.value, fieldRefs),
+      )
     }
-    editSystemMutate(systemToEdit)
   } else {
     // creating system
 
@@ -280,11 +240,11 @@ async function saveSystem() {
         : {}),
     }
 
-    const isValidationOk = validateCreate(systemToCreate)
-    if (!isValidationOk) {
-      return
+    if (validateForm(CreateSystemSchema, systemToCreate, validationIssues, fieldRefs)) {
+      createSystemMutateAsync(systemToCreate).catch(() =>
+        focusFirstRejectedField(validationIssues.value, fieldRefs),
+      )
     }
-    createSystemMutate(systemToCreate)
   }
 }
 
