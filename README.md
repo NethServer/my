@@ -1,7 +1,7 @@
 # My Nethesis
 
 #### Documentation
-[![User Docs Link](https://img.shields.io/badge/docs-user%20guide-blue?style=for-the-badge&label=User%20Docs%20Link)](https://nethserver.github.io/my/)
+[![User Docs Link](https://img.shields.io/badge/docs-user%20guide-blue?style=for-the-badge&label=User%20Docs%20Link)](https://docs.my.nethesis.it/)
 
 [![API Docs build](https://img.shields.io/github/actions/workflow/status/NethServer/my/docs-api.yml?style=for-the-badge&label=API%20Docs%20build)](https://github.com/NethServer/my/actions/workflows/docs-api.yml)
 [![API Docs link](https://img.shields.io/badge/docs-available-blue?style=for-the-badge&label=API%20Docs%20link)](https://api.my.nethesis.it/)
@@ -158,7 +158,7 @@ See individual component documentation for setup:
 
 ### 👥 User Documentation
 
-**Live User Guide:** https://nethserver.github.io/my/
+**Live User Guide:** https://docs.my.nethesis.it/
 
 Complete guides for end users and administrators:
 

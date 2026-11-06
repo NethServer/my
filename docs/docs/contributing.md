@@ -304,7 +304,7 @@ After running the command, strip `code.json` back to the project's own keys
 ## Deployment
 
 Pushing to `main` triggers a GitHub Actions workflow that builds the site and
-publishes it to GitHub Pages at `https://nethserver.github.io/my/`.
+publishes it to GitHub Pages at `https://docs.my.nethesis.it/`.
 
 The API reference is a separate pipeline: it is generated from
 `backend/openapi.yaml` and published to Bump.sh by its own workflow.

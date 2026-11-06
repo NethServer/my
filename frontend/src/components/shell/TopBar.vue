@@ -170,7 +170,7 @@ function openNotificationsDrawer() {
           <NeTooltip trigger-event="mouseenter focus" placement="bottom" class="flex">
             <template #trigger>
               <a
-                href="https://nethserver.github.io/my/"
+                href="https://docs.my.nethesis.it/"
                 target="_blank"
                 rel="noreferrer"
                 :class="[topBarButtonClasses, 'items-center gap-3']"

@@ -307,7 +307,7 @@ Dopo aver lanciato il comando, riduci `code.json` alle sole chiavi del progetto
 ## Deployment
 
 Il push su `main` innesca una GitHub Actions che compila il sito e lo pubblica
-su GitHub Pages, all'indirizzo `https://nethserver.github.io/my/`.
+su GitHub Pages, all'indirizzo `https://docs.my.nethesis.it/`.
 
 L'API reference è una pipeline separata: viene generata da
 `backend/openapi.yaml` e pubblicata su Bump.sh da un workflow dedicato.

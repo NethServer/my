@@ -66,7 +66,7 @@ pre-commit: type-check build audit
 # Show help
 .PHONY: help
 help:
-	@echo "User documentation (Docusaurus) - nethserver.github.io/my"
+	@echo "User documentation (Docusaurus) - docs.my.nethesis.it"
 	@echo ""
 	@echo "Available targets:"
 	@echo "  audit         - Check dependencies for known vulnerabilities"
