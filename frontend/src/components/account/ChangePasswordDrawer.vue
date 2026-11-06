@@ -19,11 +19,10 @@ import { useMutation } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import {
-  focusFirstInvalidField,
   focusFirstRejectedField,
-  getSchemaIssues,
   getValidationIssues,
   isValidationError,
+  validateForm,
 } from '@/lib/validation'
 import { useLoginStore } from '@/stores/login'
 import { ChangePasswordSchema, postChangePassword, type ChangePassword } from '@/lib/account'
@@ -174,12 +173,6 @@ function clearErrors() {
   showPasswordRequirementErrors.value = false
 }
 
-function validate(changePasswordData: ChangePassword): boolean {
-  validationIssues.value = getSchemaIssues(ChangePasswordSchema, changePasswordData)
-  focusFirstInvalidField(validationIssues.value, fieldRefs)
-  return !Object.keys(validationIssues.value).length
-}
-
 async function validateAndChangePassword() {
   clearErrors()
 
@@ -189,7 +182,12 @@ async function validateAndChangePassword() {
     confirm_password: confirmPassword.value,
   }
 
-  const isValidationOk = validate(changePasswordData)
+  const isValidationOk = validateForm(
+    ChangePasswordSchema,
+    changePasswordData,
+    validationIssues,
+    fieldRefs,
+  )
 
   if (!isNewPasswordStrongEnough.value) {
     showPasswordRequirementErrors.value = true

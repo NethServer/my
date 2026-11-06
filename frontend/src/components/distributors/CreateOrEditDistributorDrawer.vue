@@ -30,7 +30,6 @@ import {
   type Distributor,
   type EditDistributor,
 } from '@/lib/organizations/distributors'
-import * as v from 'valibot'
 import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
 import {
   getThirdPartyAppIcon,
@@ -40,11 +39,10 @@ import {
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import {
-  focusFirstInvalidField,
   focusFirstRejectedField,
-  getSchemaIssues,
   getValidationIssues,
   isValidationError,
+  validateForm,
 } from '@/lib/validation'
 import type { AxiosError } from 'axios'
 import { getCommonLanguagesOptions } from '@/lib/locale'
@@ -275,12 +273,6 @@ function clearErrors() {
   validationIssues.value = {}
 }
 
-function validate(schema: v.GenericSchema, distributor: CreateDistributor): boolean {
-  validationIssues.value = getSchemaIssues(schema, distributor)
-  focusFirstInvalidField(validationIssues.value, fieldRefs)
-  return !Object.keys(validationIssues.value).length
-}
-
 async function saveDistributor() {
   clearErrors()
 
@@ -309,7 +301,7 @@ async function saveDistributor() {
       logto_id: currentDistributor.logto_id,
     }
 
-    if (validate(EditDistributorSchema, distributorToEdit)) {
+    if (validateForm(EditDistributorSchema, distributorToEdit, validationIssues, fieldRefs)) {
       editDistributorMutateAsync(distributorToEdit).catch(() =>
         focusFirstRejectedField(validationIssues.value, fieldRefs),
       )
@@ -318,7 +310,7 @@ async function saveDistributor() {
     // creating distributor
 
     const distributorToCreate: CreateDistributor = distributor
-    if (validate(CreateDistributorSchema, distributorToCreate)) {
+    if (validateForm(CreateDistributorSchema, distributorToCreate, validationIssues, fieldRefs)) {
       createDistributorMutateAsync(distributorToCreate).catch(() =>
         focusFirstRejectedField(validationIssues.value, fieldRefs),
       )

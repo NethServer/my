@@ -25,11 +25,10 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faCheck, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
 import { useNotificationsStore } from '@/stores/notifications'
 import {
-  focusFirstInvalidField,
   focusFirstRejectedField,
-  getSchemaIssues,
   getValidationIssues,
   type BackendError,
+  validateForm,
 } from '@/lib/validation'
 import { API_KEYS_KEY, CreateApiKeySchema, postApiKey, type CreateApiKey } from '@/lib/apiKeys'
 
@@ -141,12 +140,6 @@ function clearErrors() {
   validationIssues.value = {}
 }
 
-function validate(apiKey: CreateApiKey): boolean {
-  validationIssues.value = getSchemaIssues(CreateApiKeySchema, apiKey)
-  focusFirstInvalidField(validationIssues.value, fieldRefs)
-  return !Object.keys(validationIssues.value).length
-}
-
 async function createKey() {
   clearErrors()
 
@@ -158,7 +151,7 @@ async function createKey() {
     password: password.value,
   }
 
-  if (!validate(apiKey)) {
+  if (!validateForm(CreateApiKeySchema, apiKey, validationIssues, fieldRefs)) {
     return
   }
   // Switch to step 2 immediately and let the skeleton cover the request, so the

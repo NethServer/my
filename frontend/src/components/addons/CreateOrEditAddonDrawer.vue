@@ -42,12 +42,7 @@ import {
 } from '@/lib/addons/addons'
 import { getApplicationLogo } from '@/lib/applications/applications'
 import { getProductLogo, getProductName } from '@/lib/systems/systems'
-import {
-  focusFirstInvalidField,
-  getBackendErrorMessage,
-  getSchemaIssues,
-  getValidationIssues,
-} from '@/lib/validation'
+import { getBackendErrorMessage, getValidationIssues, validateForm } from '@/lib/validation'
 import { useNotificationsStore } from '@/stores/notifications'
 
 const { isShown = false, currentAddon = undefined } = defineProps<{
@@ -242,12 +237,6 @@ function clearErrors() {
   validationIssues.value = {}
 }
 
-function validate(schema: typeof CreateAddonFormSchema | typeof EditAddonFormSchema, form: object) {
-  validationIssues.value = getSchemaIssues(schema, form)
-  focusFirstInvalidField(validationIssues.value, fieldRefs)
-  return !Object.keys(validationIssues.value).length
-}
-
 async function saveAddon() {
   clearErrors()
 
@@ -258,7 +247,7 @@ async function saveAddon() {
       description: description.value,
     }
 
-    if (!validate(EditAddonFormSchema, form)) {
+    if (!validateForm(EditAddonFormSchema, form, validationIssues, fieldRefs)) {
       return
     }
     editAddonMutate({ ...form, id: currentAddon.id, purchasable: purchasable.value })
@@ -272,7 +261,7 @@ async function saveAddon() {
       description: description.value,
     }
 
-    if (!validate(CreateAddonFormSchema, form)) {
+    if (!validateForm(CreateAddonFormSchema, form, validationIssues, fieldRefs)) {
       return
     }
 

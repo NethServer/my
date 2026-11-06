@@ -4,12 +4,15 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AxiosError } from 'axios'
 import * as v from 'valibot'
+import { ref } from 'vue'
 import {
   FORM_ISSUE_KEY,
   focusFirstInvalidField,
   getSchemaIssues,
   getValidationIssues,
   isValidationError,
+  validateForm,
+  type ValidationIssue,
 } from './validation'
 import { CreateResellerSchema } from './organizations/resellers'
 import translation from '@/i18n/en/translation.json'
@@ -188,6 +191,38 @@ describe('focusFirstInvalidField', () => {
         fieldRefs,
       ),
     ).not.toThrow()
+    expect(fieldRefs.name.value.focus).not.toHaveBeenCalled()
+  })
+})
+
+describe('validateForm', () => {
+  const schema = v.object({
+    name: v.pipe(v.string(), v.nonEmpty('name_cannot_be_empty')),
+    email: v.pipe(v.string(), v.email('email_invalid')),
+  })
+  const fieldRef = () => ({ value: { focus: vi.fn() } })
+
+  it('stores the issues, focuses the first invalid field and refuses the data', () => {
+    const issues = ref<ValidationIssue>({})
+    const fieldRefs = { name: fieldRef(), email: fieldRef() }
+
+    expect(validateForm(schema, { name: '', email: 'nope' }, issues, fieldRefs)).toBe(false)
+    expect(issues.value).toEqual({
+      name: ['name_cannot_be_empty'],
+      email: ['email_invalid'],
+    })
+    expect(fieldRefs.name.value.focus).toHaveBeenCalledOnce()
+    expect(fieldRefs.email.value.focus).not.toHaveBeenCalled()
+  })
+
+  it('clears the previous issues and accepts valid data', () => {
+    const issues = ref<ValidationIssue>({ name: ['name_cannot_be_empty'] })
+    const fieldRefs = { name: fieldRef(), email: fieldRef() }
+
+    expect(validateForm(schema, { name: 'Ada', email: 'ada@example.com' }, issues, fieldRefs)).toBe(
+      true,
+    )
+    expect(issues.value).toEqual({})
     expect(fieldRefs.name.value.focus).not.toHaveBeenCalled()
   })
 })

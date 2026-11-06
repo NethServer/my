@@ -16,12 +16,7 @@ import {
   type PostConsent,
 } from '@/lib/impersonation'
 import { ref, useTemplateRef, type ShallowRef } from 'vue'
-import {
-  focusFirstInvalidField,
-  focusFirstRejectedField,
-  getSchemaIssues,
-  getValidationIssues,
-} from '@/lib/validation'
+import { focusFirstRejectedField, getValidationIssues, validateForm } from '@/lib/validation'
 import type { AxiosError } from 'axios'
 
 const { visible = false } = defineProps<{
@@ -87,12 +82,6 @@ function clearErrors() {
   postConsentReset()
 }
 
-function validate(consent: PostConsent): boolean {
-  validationIssues.value = getSchemaIssues(PostConsentSchema, consent)
-  focusFirstInvalidField(validationIssues.value, fieldRefs)
-  return !Object.keys(validationIssues.value).length
-}
-
 async function enableConsent() {
   clearErrors()
 
@@ -101,7 +90,7 @@ async function enableConsent() {
     duration_hours: durationHours,
   }
 
-  if (validate(consent)) {
+  if (validateForm(PostConsentSchema, consent, validationIssues, fieldRefs)) {
     postConsentMutateAsync(consent).catch(() =>
       focusFirstRejectedField(validationIssues.value, fieldRefs),
     )

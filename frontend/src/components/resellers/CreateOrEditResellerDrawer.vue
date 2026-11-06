@@ -28,16 +28,14 @@ import {
   type Reseller,
   type EditReseller,
 } from '@/lib/organizations/resellers'
-import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import {
-  focusFirstInvalidField,
   focusFirstRejectedField,
-  getSchemaIssues,
   getValidationIssues,
   isValidationError,
+  validateForm,
 } from '@/lib/validation'
 import type { AxiosError } from 'axios'
 import { getCommonLanguagesOptions } from '@/lib/locale'
@@ -234,12 +232,6 @@ function clearErrors() {
   validationIssues.value = {}
 }
 
-function validate(schema: v.GenericSchema, reseller: CreateReseller): boolean {
-  validationIssues.value = getSchemaIssues(schema, reseller)
-  focusFirstInvalidField(validationIssues.value, fieldRefs)
-  return !Object.keys(validationIssues.value).length
-}
-
 async function saveReseller() {
   clearErrors()
 
@@ -265,7 +257,7 @@ async function saveReseller() {
       logto_id: currentReseller.logto_id,
     }
 
-    if (validate(EditResellerSchema, resellerToEdit)) {
+    if (validateForm(EditResellerSchema, resellerToEdit, validationIssues, fieldRefs)) {
       editResellerMutateAsync(resellerToEdit).catch(() =>
         focusFirstRejectedField(validationIssues.value, fieldRefs),
       )
@@ -280,7 +272,7 @@ async function saveReseller() {
         ? { created_by_organization_id: createdByOrganizationId.value }
         : {}),
     }
-    if (validate(CreateResellerSchema, resellerToCreate)) {
+    if (validateForm(CreateResellerSchema, resellerToCreate, validationIssues, fieldRefs)) {
       createResellerMutateAsync(resellerToCreate).catch(() =>
         focusFirstRejectedField(validationIssues.value, fieldRefs),
       )

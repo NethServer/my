@@ -6,11 +6,10 @@
 <script lang="ts" setup>
 import { ProfileInfoSchema, postChangeInfo, type ProfileInfo } from '@/lib/account'
 import {
-  focusFirstInvalidField,
   focusFirstRejectedField,
-  getSchemaIssues,
   getValidationIssues,
   isValidationError,
+  validateForm,
 } from '@/lib/validation'
 import { useLoginStore } from '@/stores/login'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -133,18 +132,12 @@ async function saveProfile() {
       phone: combinePhoneParts(countryCode.value, phone.value.trim()),
     }
 
-    if (validate(profile)) {
+    if (validateForm(ProfileInfoSchema, profile, validationIssues, fieldRefs)) {
       editUserMutateAsync(profile).catch(() =>
         focusFirstRejectedField(validationIssues.value, fieldRefs),
       )
     }
   }
-}
-
-function validate(profile: ProfileInfo): boolean {
-  validationIssues.value = getSchemaIssues(ProfileInfoSchema, profile)
-  focusFirstInvalidField(validationIssues.value, fieldRefs)
-  return !Object.keys(validationIssues.value).length
 }
 
 function onEmailVerified() {

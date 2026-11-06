@@ -28,16 +28,14 @@ import {
   type Customer,
   type EditCustomer,
 } from '@/lib/organizations/customers'
-import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import {
-  focusFirstInvalidField,
   focusFirstRejectedField,
-  getSchemaIssues,
   getValidationIssues,
   isValidationError,
+  validateForm,
 } from '@/lib/validation'
 import type { AxiosError } from 'axios'
 import { getCommonLanguagesOptions } from '@/lib/locale'
@@ -234,12 +232,6 @@ function clearErrors() {
   validationIssues.value = {}
 }
 
-function validate(schema: v.GenericSchema, customer: CreateCustomer): boolean {
-  validationIssues.value = getSchemaIssues(schema, customer)
-  focusFirstInvalidField(validationIssues.value, fieldRefs)
-  return !Object.keys(validationIssues.value).length
-}
-
 async function saveCustomer() {
   clearErrors()
 
@@ -265,7 +257,7 @@ async function saveCustomer() {
       logto_id: currentCustomer.logto_id,
     }
 
-    if (validate(EditCustomerSchema, customerToEdit)) {
+    if (validateForm(EditCustomerSchema, customerToEdit, validationIssues, fieldRefs)) {
       editCustomerMutateAsync(customerToEdit).catch(() =>
         focusFirstRejectedField(validationIssues.value, fieldRefs),
       )
@@ -280,7 +272,7 @@ async function saveCustomer() {
         ? { created_by_organization_id: createdByOrganizationId.value }
         : {}),
     }
-    if (validate(CreateCustomerSchema, customerToCreate)) {
+    if (validateForm(CreateCustomerSchema, customerToCreate, validationIssues, fieldRefs)) {
       createCustomerMutateAsync(customerToCreate).catch(() =>
         focusFirstRejectedField(validationIssues.value, fieldRefs),
       )

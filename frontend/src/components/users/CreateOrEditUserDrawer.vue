@@ -26,16 +26,14 @@ import {
   type EditUser,
   type User,
 } from '@/lib/users/users'
-import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import {
-  focusFirstInvalidField,
   focusFirstRejectedField,
-  getSchemaIssues,
   getValidationIssues,
   isValidationError,
+  validateForm,
 } from '@/lib/validation'
 import type { AxiosError } from 'axios'
 import { useQuery } from '@pinia/colada'
@@ -263,12 +261,6 @@ function clearErrors() {
   validationIssues.value = {}
 }
 
-function validate(schema: v.GenericSchema, user: CreateUser): boolean {
-  validationIssues.value = getSchemaIssues(schema, user)
-  focusFirstInvalidField(validationIssues.value, fieldRefs)
-  return !Object.keys(validationIssues.value).length
-}
-
 async function saveUser() {
   clearErrors()
 
@@ -289,7 +281,7 @@ async function saveUser() {
       logto_id: currentUser.logto_id,
     }
 
-    if (validate(EditUserSchema, userToEdit)) {
+    if (validateForm(EditUserSchema, userToEdit, validationIssues, fieldRefs)) {
       editUserMutateAsync(userToEdit).catch(() =>
         focusFirstRejectedField(validationIssues.value, fieldRefs),
       )
@@ -301,7 +293,7 @@ async function saveUser() {
       ...user,
     }
 
-    if (validate(CreateUserSchema, userToCreate)) {
+    if (validateForm(CreateUserSchema, userToCreate, validationIssues, fieldRefs)) {
       createUserMutateAsync(userToCreate).catch(() =>
         focusFirstRejectedField(validationIssues.value, fieldRefs),
       )

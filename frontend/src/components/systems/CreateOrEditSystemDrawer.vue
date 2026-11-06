@@ -31,16 +31,14 @@ import {
   type EditSystem,
   type System,
 } from '@/lib/systems/systems'
-import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import {
-  focusFirstInvalidField,
   focusFirstRejectedField,
-  getSchemaIssues,
   getValidationIssues,
   isValidationError,
+  validateForm,
 } from '@/lib/validation'
 import type { AxiosError } from 'axios'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -208,12 +206,6 @@ function clearErrors() {
   validationIssues.value = {}
 }
 
-function validate(schema: v.GenericSchema, system: CreateSystem): boolean {
-  validationIssues.value = getSchemaIssues(schema, system)
-  focusFirstInvalidField(validationIssues.value, fieldRefs)
-  return !Object.keys(validationIssues.value).length
-}
-
 async function saveSystem() {
   clearErrors()
 
@@ -232,7 +224,7 @@ async function saveSystem() {
       id: currentSystem.id,
     }
 
-    if (validate(EditSystemSchema, systemToEdit)) {
+    if (validateForm(EditSystemSchema, systemToEdit, validationIssues, fieldRefs)) {
       editSystemMutateAsync(systemToEdit).catch(() =>
         focusFirstRejectedField(validationIssues.value, fieldRefs),
       )
@@ -248,7 +240,7 @@ async function saveSystem() {
         : {}),
     }
 
-    if (validate(CreateSystemSchema, systemToCreate)) {
+    if (validateForm(CreateSystemSchema, systemToCreate, validationIssues, fieldRefs)) {
       createSystemMutateAsync(systemToCreate).catch(() =>
         focusFirstRejectedField(validationIssues.value, fieldRefs),
       )

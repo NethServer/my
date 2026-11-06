@@ -3,7 +3,7 @@
 
 import type { AxiosError } from 'axios'
 import * as v from 'valibot'
-import { nextTick } from 'vue'
+import { nextTick, type Ref } from 'vue'
 import { normalize } from './common'
 
 export type BackendError = {
@@ -119,6 +119,21 @@ export const focusFirstInvalidField = (
   if (field) {
     fieldRefs[field]?.value?.focus()
   }
+}
+
+////
+// The client-side check every form runs before saving: stores the issues where
+// the fields read them, focuses the first invalid field and tells whether the
+// data can be sent.
+export const validateForm = <TSchema extends v.GenericSchema>(
+  schema: TSchema,
+  data: unknown,
+  issues: Ref<ValidationIssue>,
+  fieldRefs: Record<string, FocusableFieldRef>,
+): boolean => {
+  issues.value = getSchemaIssues(schema, data)
+  focusFirstInvalidField(issues.value, fieldRefs)
+  return !Object.keys(issues.value).length
 }
 
 ////
