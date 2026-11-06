@@ -272,9 +272,9 @@ Entities synced with Logto (orgs, users) carry both `id` (DB UUID) and `logto_id
 
 User-facing errors are **lowercase**. Example: `"the user has revoked consent for impersonation. please exit impersonation mode."`
 
-Field validation errors (`response.ValidationError` with a 400/409/422 status) are not shown to users as written: the frontend turns each one into an i18n key, `<prefix>.<key>_<message>`, lowercased, with dots and spaces turned into underscores (`getValidationIssues` in `frontend/src/lib/validation.ts`). Therefore:
+Field validation errors (`response.ValidationError` with a 400/409/422 status) are not shown to users as written: the frontend turns each one into an i18n key, `<prefix>.<key>_<message>` (`getValidationIssues` in `frontend/src/lib/validation.ts`). The dots of a nested key become underscores (`custom_data.vat` gives `custom_data_vat`); the message is lowercased and its spaces become underscores, while any other character stays as it is. Therefore:
 
-- Keep the message a short reason that other fields can reuse, such as `cannot be empty`, `already exists`, `reserved` or `invalid`. No quotes, names or other punctuation: they end up in the key.
+- Keep the message a short reason that other fields can reuse, such as `cannot be empty`, `already exists`, `reserved` or `invalid`. No quotes, names or other punctuation: they end up in the key, and a dot would split it, since vue-i18n reads dots as nesting.
 - A new message needs its key in `frontend/src/i18n/{en,it}/translation.json`, under the prefix of every form that can receive it (for example `organizations.name_reserved`). Without it, the user sees the raw key.
 - Before rewording an existing message, check the matching key and the `openapi.yaml` examples that quote it.
 - An error about a field the client sent uses `response.ValidationFailed` (or `ValidationBadRequestMultiple`) with that field as `key`, never an ad-hoc `data` such as `{"type": "already_exists", "key": "email"}`: the frontend reads only `data.errors[]`, so anything else reaches no field.

@@ -61,7 +61,7 @@ export const getValidationIssues = (
     const validationErrors = backendError?.data?.errors || []
 
     validationErrors.forEach((err: { key: string; message: string }) => {
-      // replace dots and spaces with underscores for i18n key
+      // a nested field (custom_data.vat) must not split the i18n key
       const key = err.key.replace(/\./g, '_')
 
       if (!issues[key]) {
