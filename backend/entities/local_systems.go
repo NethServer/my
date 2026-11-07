@@ -570,58 +570,6 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(ctx context.Context
 	return systems, totalCount, nil
 }
 
-// GetTotalsByCreatedByOrganizations returns total counts and status for systems created by users in specified organizations
-func (r *LocalSystemRepository) GetTotalsByCreatedByOrganizations(allowedOrgIDs []string, timeoutMinutes int) (*models.SystemTotals, error) {
-	// nil = owner (no filter), empty = no access
-	if allowedOrgIDs != nil && len(allowedOrgIDs) == 0 {
-		return &models.SystemTotals{
-			Total:          0,
-			Active:         0,
-			Inactive:       0,
-			Unknown:        0,
-			TimeoutMinutes: timeoutMinutes,
-		}, nil
-	}
-
-	// Calculate cutoff time for active/inactive determination
-	timeout := time.Duration(timeoutMinutes) * time.Minute
-	cutoff := time.Now().Add(-timeout)
-
-	args := []interface{}{cutoff}
-	orgClause := ""
-	if allowedOrgIDs != nil {
-		args = append(args, pq.Array(allowedOrgIDs))
-		// Filter on current owning organization, not creator: a reassigned
-		// system must contribute to the new owner's totals.
-		orgClause = " AND s.organization_id = ANY($2::text[])"
-	}
-
-	query := fmt.Sprintf(`
-		SELECT
-			COUNT(*) as total,
-			COALESCE(SUM(CASE WHEN h.last_heartbeat IS NOT NULL AND h.last_heartbeat > $1 THEN 1 ELSE 0 END), 0) as active,
-			COALESCE(SUM(CASE WHEN h.last_heartbeat IS NOT NULL AND h.last_heartbeat <= $1 THEN 1 ELSE 0 END), 0) as inactive,
-			COALESCE(SUM(CASE WHEN h.last_heartbeat IS NULL THEN 1 ELSE 0 END), 0) as unknown
-		FROM systems s
-		LEFT JOIN system_heartbeats h ON s.id = h.system_id
-		WHERE s.deleted_at IS NULL%s
-	`, orgClause)
-
-	var total, active, inactive, unknown int
-	err := r.db.QueryRow(query, args...).Scan(&total, &active, &inactive, &unknown)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get systems totals: %w", err)
-	}
-
-	return &models.SystemTotals{
-		Total:          total,
-		Active:         active,
-		Inactive:       inactive,
-		Unknown:        unknown,
-		TimeoutMinutes: timeoutMinutes,
-	}, nil
-}
-
 // SuspendSystem suspends a single system by ID
 func (r *LocalSystemRepository) SuspendSystem(id string) error {
 	now := time.Now()
@@ -787,6 +735,20 @@ func (r *LocalSystemRepository) SoftDeleteSystemsByOrgID(orgID string) (int, err
 	return int(rowsAffected), nil
 }
 
+// RestoredSystemStatus is the SQL expression for the status of a system
+// coming back from soft deletion. One that had announced its unregistration
+// goes back to that terminal state: its credentials stay refused. One that
+// has ever sent a heartbeat goes back to 'inactive', not 'unknown': the
+// heartbeat monitor in collect only promotes 'unknown' on a fresh heartbeat,
+// so a restored system that stays silent would sit as pending forever, and
+// it is not pending, it reported before. If it is alive, the next monitor
+// cycle recovers it to 'active'.
+const RestoredSystemStatus = `CASE
+		        WHEN unregistered_at IS NOT NULL THEN 'unregistered'
+		        WHEN EXISTS (SELECT 1 FROM system_heartbeats h WHERE h.system_id = systems.id) THEN 'inactive'
+		        ELSE 'unknown'
+		    END`
+
 // RestoreSystemsByDeletedByOrgID restores systems that were cascade-deleted by a specific organization
 func (r *LocalSystemRepository) RestoreSystemsByDeletedByOrgID(deletedByOrgID string) (int, error) {
 	now := time.Now()
@@ -795,7 +757,7 @@ func (r *LocalSystemRepository) RestoreSystemsByDeletedByOrgID(deletedByOrgID st
 		UPDATE systems
 		SET deleted_at = NULL,
 		    deleted_by_org_id = NULL,
-		    status = CASE WHEN unregistered_at IS NOT NULL THEN 'unregistered' ELSE 'unknown' END,
+		    status = ` + RestoredSystemStatus + `,
 		    updated_at = $2
 		WHERE deleted_by_org_id = $1 AND deleted_at IS NOT NULL
 	`

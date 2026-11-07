@@ -711,14 +711,12 @@ func (s *LocalSystemsService) RestoreSystem(systemID, userID, userOrgID, userOrg
 		return fmt.Errorf("access denied: %s", reason)
 	}
 
-	// Restore system in database (set deleted_at to NULL and status to 'unknown')
-	// A restored system that had announced its unregistration goes back to that
-	// terminal state, not to 'unknown': its credentials stay refused.
+	// entities.RestoredSystemStatus explains the status a restored system gets.
 	restoreQuery := `
 		UPDATE systems
 		SET deleted_at = NULL,
 		    updated_at = NOW(),
-		    status = CASE WHEN unregistered_at IS NOT NULL THEN 'unregistered' ELSE 'unknown' END
+		    status = ` + entities.RestoredSystemStatus + `
 		WHERE id = $1 AND deleted_at IS NOT NULL`
 
 	result, err := database.DB.Exec(restoreQuery, systemID)
@@ -966,7 +964,7 @@ func (s *LocalSystemsService) RegisterSystem(systemSecret string) (*models.Regis
 }
 
 // GetTotals returns total counts and status for systems based on hierarchical RBAC
-func (s *LocalSystemsService) GetTotals(userOrgRole, userOrgID string, timeoutMinutes int) (*models.SystemTotals, error) {
+func (s *LocalSystemsService) GetTotals(userOrgRole, userOrgID string) (*models.SystemTotals, error) {
 	// Normalize role to lowercase for case-insensitive comparison
 	normalizedRole := strings.ToLower(userOrgRole)
 
@@ -989,8 +987,7 @@ func (s *LocalSystemsService) GetTotals(userOrgRole, userOrgID string, timeoutMi
 		}
 	}
 
-	// Get totals with the specified timeout based on created_by organizations
-	return s.GetTotalsByCreatedByOrganizations(allowedOrgIDs, timeoutMinutes)
+	return s.GetTotalsByCreatedByOrganizations(allowedOrgIDs)
 }
 
 // Systems can now be created by any authenticated user
@@ -1148,41 +1145,34 @@ func (s *LocalSystemsService) generateSystemSecretToken() (string, string, strin
 
 // GetTotalsByCreatedByOrganizations returns total counts and status for systems created by specified organizations
 // nil allowedOrgIDs = owner (no RBAC filter), empty = no access
-func (s *LocalSystemsService) GetTotalsByCreatedByOrganizations(allowedOrgIDs []string, timeoutMinutes int) (*models.SystemTotals, error) {
+//
+// The breakdown reads systems.status, the column the heartbeat monitor in
+// collect maintains, with the suspended exclusion of the status filter on
+// GET /systems: every count must equal the list it links to. Deriving it
+// from the heartbeat age instead disagreed with the list wherever the column
+// lags or differs (another timeout, a suspended system, a restored one).
+func (s *LocalSystemsService) GetTotalsByCreatedByOrganizations(allowedOrgIDs []string) (*models.SystemTotals, error) {
 	// nil = owner (no filter), empty = no access
 	if allowedOrgIDs != nil && len(allowedOrgIDs) == 0 {
-		return &models.SystemTotals{
-			Total:           0,
-			Active:          0,
-			Inactive:        0,
-			Unknown:         0,
-			Legacy:          0,
-			TotalWithLegacy: 0,
-			TimeoutMinutes:  timeoutMinutes,
-		}, nil
+		return &models.SystemTotals{}, nil
 	}
 
-	// Calculate cutoff time for active/inactive determination
-	timeout := time.Duration(timeoutMinutes) * time.Minute
-	cutoff := time.Now().Add(-timeout)
-
-	args := []interface{}{cutoff}
+	args := []interface{}{}
 	orgClause := ""
 	if allowedOrgIDs != nil {
 		args = append(args, pq.Array(allowedOrgIDs))
 		// Filter on current owning organization, not creator: a reassigned
 		// system must contribute to the new owner's totals.
-		orgClause = " AND s.organization_id = ANY($2::text[])"
+		orgClause = " AND s.organization_id = ANY($1::text[])"
 	}
 
 	query := fmt.Sprintf(`
 		SELECT
 			COUNT(*) as total,
-			COALESCE(SUM(CASE WHEN h.last_heartbeat IS NOT NULL AND h.last_heartbeat > $1 THEN 1 ELSE 0 END), 0) as active,
-			COALESCE(SUM(CASE WHEN h.last_heartbeat IS NOT NULL AND h.last_heartbeat <= $1 THEN 1 ELSE 0 END), 0) as inactive,
-			COALESCE(SUM(CASE WHEN h.last_heartbeat IS NULL THEN 1 ELSE 0 END), 0) as unknown
+			COUNT(*) FILTER (WHERE s.status = 'active' AND s.suspended_at IS NULL) as active,
+			COUNT(*) FILTER (WHERE s.status = 'inactive' AND s.suspended_at IS NULL) as inactive,
+			COUNT(*) FILTER (WHERE s.status = 'unknown' AND s.suspended_at IS NULL) as unknown
 		FROM systems s
-		LEFT JOIN system_heartbeats h ON s.id = h.system_id
 		WHERE s.deleted_at IS NULL%s
 	`, orgClause)
 
@@ -1225,7 +1215,6 @@ func (s *LocalSystemsService) GetTotalsByCreatedByOrganizations(allowedOrgIDs []
 		Unknown:         unknown,
 		Legacy:          legacySum.Total,
 		TotalWithLegacy: total + legacySum.Total,
-		TimeoutMinutes:  timeoutMinutes,
 	}, nil
 }
 

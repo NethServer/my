@@ -1963,15 +1963,15 @@ components:
           example: 1250
         active:
           type: integer
-          description: Number of systems that communicated within the last timeout minutes
+          description: Systems with status active, suspended ones excluded (heartbeat recent)
           example: 1100
         inactive:
           type: integer
-          description: Number of systems that communicated but not within timeout minutes
+          description: Systems with status inactive, suspended ones excluded (heartbeat stale)
           example: 100
         unknown:
           type: integer
-          description: Number of systems that were created but never communicated
+          description: Systems with status unknown, suspended ones excluded (never communicated)
           example: 50
         legacy:
           type: integer
@@ -1989,10 +1989,6 @@ components:
             for a headline figure; use total whenever the number has to agree with the
             systems list.
           example: 1430
-        timeout_minutes:
-          type: integer
-          description: Timeout used for active/inactive determination
-          example: 15
 
     UserTotals:
       type: object
@@ -11371,17 +11367,10 @@ paths:
       tags:
         - Backend - Systems Stats
       summary: /systems/totals - Get systems status summary
-      description: Get systems heartbeat status summary for dashboard (requires Admin or Support role)
-      parameters:
-        - name: timeout
-          in: query
-          description: Timeout in minutes for active/inactive determination
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 60
-            default: 15
-            example: 15
+      description: |
+        Get systems heartbeat status summary for dashboard (requires Admin or Support role).
+        Each status count equals the number of systems GET /systems returns with the same
+        status filter.
       responses:
         '200':
           description: Systems status summary retrieved successfully

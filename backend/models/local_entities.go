@@ -440,7 +440,6 @@ type SystemTotals struct {
 	Unknown         int `json:"unknown"`
 	Legacy          int `json:"legacy"`
 	TotalWithLegacy int `json:"total_with_legacy"`
-	TimeoutMinutes  int `json:"timeout_minutes"`
 }
 
 // LegacySystemCount is one organization's share of the systems still on the old
