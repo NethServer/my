@@ -208,7 +208,7 @@ func (e *PullEngine) pullOrganizations(result *PullResult) error {
 	logger.Info("Pulling organizations from Logto...")
 
 	// Fetch organizations from Logto
-	logtoOrgs, err := e.client.GetOrganizations()
+	logtoOrgs, err := e.client.GetAllOrganizations()
 	if err != nil {
 		return fmt.Errorf("failed to fetch organizations from Logto: %w", err)
 	}
