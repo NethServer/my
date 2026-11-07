@@ -264,6 +264,23 @@ format, and a full hierarchy-build example.
 
 See [openapi.yaml](openapi.yaml) for all available endpoints and expected payloads.
 
+### Logto profile names
+
+Users are created with a single display name. The backend also writes the
+Logto profile (`givenName` / `familyName`, last word = family name) on every
+create and rename, so third-party apps that only read the `given_name` /
+`family_name` claims get a proper name. Fill it for users created before this
+behaviour existed with the backfill tool, dry run by default:
+
+```bash
+go run ./cmd/profile-names --env .env.production           # plan only
+go run ./cmd/profile-names --env .env.production --apply   # write
+go run ./cmd/profile-names --env .env.qa --user <logto_id> # one user
+```
+
+Logto replaces the whole profile object on write: the tool lists any other
+profile field a write would drop.
+
 ### API Documentation
 ```bash
 # Validate OpenAPI documentation

@@ -155,6 +155,7 @@ func (s *LocalUserService) CreateUser(req *models.CreateLocalUserRequest, creato
 		Name:         req.Name,
 		PrimaryEmail: req.Email,
 		CustomData:   customData,
+		Profile:      models.UserProfileFromName(req.Name),
 	}
 
 	// Phone is already normalized at the entry point of CreateUser
@@ -682,6 +683,7 @@ func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequ
 	}
 	if req.Name != nil {
 		updateReq.Name = req.Name
+		updateReq.Profile = models.UserProfileFromName(*req.Name)
 	}
 	if req.Email != nil {
 		updateReq.PrimaryEmail = req.Email
@@ -769,6 +771,7 @@ func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequ
 			Username:     &currentUser.Username,
 			Name:         &currentUser.Name,
 			PrimaryEmail: &currentUser.Email,
+			Profile:      models.UserProfileFromName(currentUser.Name),
 		}
 		if currentUser.Phone != nil {
 			originalReq.PrimaryPhone = currentUser.Phone
@@ -801,6 +804,7 @@ func (s *LocalUserService) UpdateUser(id string, req *models.UpdateLocalUserRequ
 			Username:     &currentUser.Username,
 			Name:         &currentUser.Name,
 			PrimaryEmail: &currentUser.Email,
+			Profile:      models.UserProfileFromName(currentUser.Name),
 		}
 		if currentUser.Phone != nil {
 			originalReq.PrimaryPhone = currentUser.Phone

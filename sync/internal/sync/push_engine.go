@@ -497,6 +497,9 @@ func (e *PushEngine) pushUser(
 	if user.Phone != nil && *user.Phone != "" {
 		userData["primaryPhone"] = *user.Phone
 	}
+	if profile := client.UserProfileFromName(user.Name); profile != nil {
+		userData["profile"] = profile
+	}
 
 	created, err := e.client.CreateUser(userData)
 	if err != nil {

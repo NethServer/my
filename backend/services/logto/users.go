@@ -38,6 +38,11 @@ func (c *LogtoManagementClient) GetUserByID(userID string) (*models.LogtoUser, e
 	return decodeResponse[models.LogtoUser](resp, []int{http.StatusOK}, "fetch user")
 }
 
+// GetAllUsers fetches every user of the tenant
+func (c *LogtoManagementClient) GetAllUsers() ([]models.LogtoUser, error) {
+	return fetchAllPages[models.LogtoUser](c, "/users", "fetch users")
+}
+
 // CreateUser creates a new account in Logto
 func (c *LogtoManagementClient) CreateUser(request models.CreateUserRequest) (*models.LogtoUser, error) {
 	reqBody, err := json.Marshal(request)
