@@ -164,8 +164,6 @@ func main() {
 	router.Use(middleware.MaxBodySize(16 << 20))
 
 	// Define API group
-	api := router.Group("/api")
-
 	// CORS configuration in debug mode: restrict to local development origins (#1)
 	// Applied only to /api routes — /support-proxy handles its own CORS
 	if gin.Mode() == gin.DebugMode {
@@ -177,8 +175,16 @@ func main() {
 				strings.HasPrefix(origin, "http://127.0.0.1") ||
 				strings.HasPrefix(origin, "https://127.0.0.1")
 		}
-		api.Use(cors.New(corsConf))
+		// On the router, not the /api group: preflights match no route
+		corsHandler := cors.New(corsConf)
+		router.Use(func(c *gin.Context) {
+			if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+				corsHandler(c)
+			}
+		})
 	}
+
+	api := router.Group("/api")
 
 	// Health check endpoint
 	api.GET("/health", func(c *gin.Context) {
