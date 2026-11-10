@@ -40,6 +40,7 @@ import (
 	"github.com/nethesis/my/backend/pkg/version"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services/alerting"
+	"github.com/nethesis/my/backend/services/freshdesk"
 	"github.com/nethesis/my/backend/services/local"
 )
 
@@ -75,6 +76,10 @@ func main() {
 			Bool("success", false).
 			Err(err).
 			Msg("environment configuration not loaded (using system environment)")
+	}
+
+	if len(os.Args) > 1 && os.Args[1] == "freshdesk-contacts" {
+		os.Exit(freshdesk.RunContactsSync(os.Args[2:]))
 	}
 
 	// Init configuration
