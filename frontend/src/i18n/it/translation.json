@@ -60,7 +60,9 @@
     "add": "Aggiungi",
     "eg_value": "Es. {value}",
     "data_updated_every_seconds": "Dati aggiornati ogni {seconds} secondi",
-    "update_available": "Aggiornamento disponibile"
+    "update_available": "Aggiornamento disponibile",
+    "network_error": "Errore di rete. Controlla la connessione e ricarica la pagina.",
+    "something_went_wrong": "Si è verificato un errore."
   },
   "shell": {
     "open_sidebar": "Apri barra laterale",

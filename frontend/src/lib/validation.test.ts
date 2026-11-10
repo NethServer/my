@@ -2,12 +2,13 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import { describe, expect, it, vi } from 'vitest'
-import type { AxiosError } from 'axios'
+import { AxiosError, AxiosHeaders, type InternalAxiosRequestConfig } from 'axios'
 import * as v from 'valibot'
 import { ref } from 'vue'
 import {
   FORM_ISSUE_KEY,
   focusFirstInvalidField,
+  getBackendErrorMessage,
   getSchemaIssues,
   getValidationIssues,
   isValidationError,
@@ -16,6 +17,9 @@ import {
 } from './validation'
 import { CreateResellerSchema } from './organizations/resellers'
 import translation from '@/i18n/en/translation.json'
+
+// the key stands for the text, whatever the locale
+vi.mock('@/i18n', () => ({ default: { global: { t: (key: string) => key } } }))
 
 type BackendFieldError = { key: string; message: string; value?: string }
 
@@ -224,5 +228,47 @@ describe('validateForm', () => {
     )
     expect(issues.value).toEqual({})
     expect(fieldRefs.name.value.focus).not.toHaveBeenCalled()
+  })
+})
+
+describe('getBackendErrorMessage', () => {
+  const config = {
+    url: '/api/customers',
+    headers: new AxiosHeaders(),
+  } as InternalAxiosRequestConfig
+  const failed = (status: number, data: Record<string, unknown> = {}) =>
+    new AxiosError(`Request failed with status code ${status}`, 'ERR_BAD_REQUEST', config, null, {
+      status,
+      statusText: '',
+      headers: {},
+      config,
+      data,
+    })
+
+  it('shows the reason of a 4xx, with a capital first letter', () => {
+    const error = failed(409, { message: 'customer is already suspended' })
+    expect(getBackendErrorMessage(error)).toBe('Customer is already suspended')
+  })
+
+  it('keeps the axios message when a 4xx carries none', () => {
+    expect(getBackendErrorMessage(failed(404))).toBe('Request failed with status code 404')
+  })
+
+  it('hides the message of a server fault', () => {
+    const error = failed(500, { message: 'failed to query organizations: connection refused' })
+    expect(getBackendErrorMessage(error)).toBe('common.something_went_wrong')
+  })
+
+  it('explains a request that got no answer', () => {
+    const error = new AxiosError('Network Error', 'ERR_NETWORK', config)
+    expect(getBackendErrorMessage(error)).toBe('common.network_error')
+  })
+
+  it('leaves a canceled request and other errors alone', () => {
+    expect(getBackendErrorMessage(new AxiosError('canceled', 'ERR_CANCELED', config))).toBe(
+      'canceled',
+    )
+    expect(getBackendErrorMessage(new Error('boom'))).toBe('boom')
+    expect(getBackendErrorMessage(null)).toBe('')
   })
 })

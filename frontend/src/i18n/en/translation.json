@@ -60,7 +60,9 @@
     "add": "Add",
     "eg_value": "e.g. {value}",
     "data_updated_every_seconds": "Data updated every {seconds} seconds",
-    "update_available": "Update available"
+    "update_available": "Update available",
+    "network_error": "Network error. Check your connection and reload the page.",
+    "something_went_wrong": "Something went wrong."
   },
   "shell": {
     "open_sidebar": "Open sidebar",

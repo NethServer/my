@@ -7,6 +7,7 @@ import axios, { AxiosError, AxiosHeaders, type InternalAxiosRequestConfig } from
 const push = vi.fn()
 const createNotificationFromAxiosError = vi.fn()
 
+vi.mock('@/i18n', () => ({ default: { global: { t: (key: string) => key } } }))
 vi.mock('@/router', () => ({ default: { push: (...args: unknown[]) => push(...args) } }))
 vi.mock('@/stores/login', () => ({ useLoginStore: () => ({}) }))
 vi.mock('@/stores/notifications', () => ({
@@ -59,7 +60,7 @@ describe('403 response interceptor', () => {
       const error = forbidden(method, { message: 'access denied: only the owner role can' })
       await expect(onRejected(error)).rejects.toBe(error)
       expect(push).not.toHaveBeenCalled()
-      expect(error.message).toBe('access denied: only the owner role can')
+      expect(error.message).toBe('Access denied: only the owner role can')
       expect(createNotificationFromAxiosError).toHaveBeenCalledWith(error)
     },
   )
@@ -79,11 +80,29 @@ describe('403 response interceptor', () => {
 })
 
 // the forms show error.message: a conflict with no field errors reaches the
-// form's notification only through it
+// form's notification only through it, while a server fault or a lost
+// connection gets a fixed text
 describe('error message', () => {
   it('carries the backend reason on any refused request', async () => {
     const error = rejected(409, 'put', { message: 'system reassignment in progress' })
     await expect(onRejected(error)).rejects.toBe(error)
-    expect(error.message).toBe('system reassignment in progress')
+    expect(error.message).toBe('System reassignment in progress')
+  })
+
+  it('replaces the message of a server fault', async () => {
+    const error = rejected(500, 'get', { message: 'failed to query users: connection refused' })
+    await expect(onRejected(error)).rejects.toBe(error)
+    expect(error.message).toBe('common.something_went_wrong')
+  })
+
+  it('explains a request that got no answer', async () => {
+    const config = { method: 'get', url: '/api/users', headers: new AxiosHeaders() }
+    const error = new AxiosError(
+      'Network Error',
+      'ERR_NETWORK',
+      config as InternalAxiosRequestConfig,
+    )
+    await expect(onRejected(error)).rejects.toBe(error)
+    expect(error.message).toBe('common.network_error')
   })
 })

@@ -5,6 +5,8 @@ import type { AxiosError } from 'axios'
 import * as v from 'valibot'
 import { nextTick, type Ref } from 'vue'
 import { normalize } from './common'
+import i18n from '@/i18n'
+import upperFirst from 'lodash/upperFirst'
 
 export type BackendError = {
   code: number
@@ -32,13 +34,38 @@ export const isValidationError = (error: Error | null): boolean => {
 }
 
 ////
-// The message the backend sent, falling back to the axios one. Axios leaves
-// error.message as "Request failed with status code 409", which tells the user
-// nothing: reach for response.data.message whenever the API bothered to explain
-// itself (e.g. "catalog item is referenced by existing grants").
+// The text an error notification shows for a failed request (Nebula writing
+// guidelines, "Error messages"):
+// - a 4xx without field errors carries a reason the backend wrote for the
+//   user (a locked resource, a record in the wrong state): show it with a
+//   capital first letter. It is in English only, but rare, and often too long
+//   or variable for an i18n key. Axios's own "Request failed with status code
+//   N" stays when the backend sent no message.
+// - a server fault gets a fixed text: its message can hold internal details,
+//   and the error details modal still shows the response
+// - a request that got no answer (offline, DNS, timeout) gets a fixed text too
+// Field errors are not shown here: getValidationIssues turns them into keys.
 export const getBackendErrorMessage = (error: Error | null): string => {
-  const axiosError = error as AxiosError<{ message?: string }> | null
-  return axiosError?.response?.data?.message || axiosError?.message || ''
+  if (!error) {
+    return ''
+  }
+  const axiosError = error as AxiosError<{ message?: string }>
+
+  // not a request, or one the app canceled itself
+  if (!axiosError.isAxiosError || axiosError.code === 'ERR_CANCELED') {
+    return error.message
+  }
+  const response = axiosError.response
+
+  if (!response) {
+    return i18n.global.t('common.network_error')
+  }
+
+  if (response.status >= 500) {
+    return i18n.global.t('common.something_went_wrong')
+  }
+  const message = response.data?.message
+  return message ? upperFirst(message) : axiosError.message
 }
 
 export const isValidationErrorCode = (errorCode: number | undefined) => {

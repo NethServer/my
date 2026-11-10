@@ -278,7 +278,8 @@ Field validation errors (`response.ValidationError` with a 400/409/422 status) a
 - A new message needs its key in `frontend/src/i18n/{en,it}/translation.json`, under the prefix of every form that can receive it (for example `organizations.name_reserved`). Without it, the user sees the raw key.
 - Before rewording an existing message, check the matching key and the `openapi.yaml` examples that quote it.
 - An error about a field the client sent uses `response.ValidationFailed` (or `ValidationBadRequestMultiple`) with that field as `key`, never an ad-hoc `data` such as `{"type": "already_exists", "key": "email"}`: the frontend reads only `data.errors[]`, so anything else reaches no field.
-- A 400/409/422 without field errors is right for an error about the record's state or the URL (a locked resource, a system that is not deleted, a missing path id). The form shows its message as written in its error notification (`isValidationError` is true only when `data.errors[]` is not empty), so write it for the user.
+- A 400/409/422 without field errors is right for an error about the record's state or the URL (a locked resource, a system that is not deleted, a missing path id). The form shows its message as written, with a capital first letter, in its error notification (`isValidationError` is true only when `data.errors[]` is not empty), so write it for the user.
+- A 5xx and a request with no answer never show the backend message, which can hold internal details: `getBackendErrorMessage` in `frontend/src/lib/validation.ts`, which the axios interceptor applies to `error.message`, replaces it with `common.something_went_wrong` or `common.network_error`. The error details modal still shows the response.
 
 ### 6.3 List response format
 

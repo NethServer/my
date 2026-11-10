@@ -4,7 +4,7 @@
 import { useLoginStore } from '@/stores/login'
 import axios, { type InternalAxiosRequestConfig } from 'axios'
 import { API_URL } from './config'
-import { isValidationErrorCode } from './validation'
+import { getBackendErrorMessage, isValidationErrorCode } from './validation'
 import { useNotificationsStore } from '@/stores/notifications'
 import router from '@/router'
 
@@ -81,11 +81,12 @@ export const configureAxios = () => {
       }
 
       // the forms show error.message, which axios leaves as "Request failed
-      // with status code N": give them the reason the backend sent instead
+      // with status code N" or "Network Error": give them a text the user can
+      // read instead (see getBackendErrorMessage)
       if (error.response?.data?.message) {
         console.error('[interceptor]', error.response.data.message)
-        error.message = error.response.data.message
       }
+      error.message = getBackendErrorMessage(error)
 
       const config = error.config as RetriableRequestConfig | undefined
 
