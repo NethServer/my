@@ -293,9 +293,11 @@ Content-Type: application/json
 
 ### Frequenza
 
-**Consigliata:** ogni 6 ore (4 volte al giorno)
+**Consigliata:** una volta al giorno
 
-**Perché 6 ore?**
+NethServer 8 e NethSecurity inviano l'inventario una volta al giorno.
+
+**Perché una volta al giorno?**
 - È un compromesso tra freschezza del dato e carico di rete e storage
 - Intercetta le modifiche quotidiane
 - Contiene la crescita del database
@@ -401,11 +403,11 @@ def send_inventory():
         print(f"Invio dell'inventario fallito: {e}")
         return False
 
-# Invia l'inventario ogni 6 ore
+# Invia l'inventario una volta al giorno
 import time
 while True:
     send_inventory()
-    time.sleep(21600)  # 6 ore
+    time.sleep(86400)  # 24 ore
 ```
 
 **Bash:**
