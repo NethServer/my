@@ -302,10 +302,7 @@ NethServer 8 and NethSecurity send their inventory once a day.
 - Reduces database growth
 - Sufficient for most monitoring needs
 
-**Special cases:**
-- **After system changes**: Send immediately
-- **During updates**: Send before and after
-- **On-demand**: Admin can trigger via API
+**On-demand:** the administrator can trigger it with the specific command.
 
 ### Inventory Schema
 

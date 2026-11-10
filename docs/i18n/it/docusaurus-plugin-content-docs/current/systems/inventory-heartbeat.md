@@ -303,10 +303,7 @@ NethServer 8 e NethSecurity inviano l'inventario una volta al giorno.
 - Contiene la crescita del database
 - È sufficiente per la maggior parte delle esigenze di monitoraggio
 
-**Casi particolari:**
-- **Dopo una modifica al sistema**: invia subito
-- **Durante un aggiornamento**: invia prima e dopo
-- **Su richiesta**: l'amministratore può sollecitarlo via API
+**Su richiesta:** l'amministratore può sollecitarlo con il comando specifico.
 
 ### Schema dell'Inventario
 
