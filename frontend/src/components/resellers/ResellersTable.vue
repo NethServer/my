@@ -430,13 +430,13 @@ const goToResellerDetails = (reseller: Reseller) => {
             >
               {{ item.name }}
             </router-link>
-            <span v-else class="opacity-50">
+            <span v-else class="text-tertiary-neutral">
               {{ item.name }}
             </span>
           </NeTableCell>
           <NeTableCell
             :data-label="$t('organizations.vat_number')"
-            :class="{ 'opacity-50': item.deleted_at }"
+            :class="{ 'text-tertiary-neutral': item.deleted_at }"
           >
             {{ item.custom_data?.vat || '-' }}
           </NeTableCell>
@@ -457,7 +457,7 @@ const goToResellerDetails = (reseller: Reseller) => {
               <OrganizationIcon org-type="customer" variant="plain" size="sm" />
               {{ item.customers_count }}
             </router-link>
-            <div v-else class="flex items-center gap-2 opacity-50">
+            <div v-else class="text-tertiary-neutral flex items-center gap-2">
               <OrganizationIcon org-type="customer" variant="plain" size="sm" />
               {{ item.customers_count }}
             </div>
@@ -482,7 +482,7 @@ const goToResellerDetails = (reseller: Reseller) => {
               />
               {{ item.systems_count }}
             </router-link>
-            <div v-else class="flex items-center gap-2 opacity-50">
+            <div v-else class="text-tertiary-neutral flex items-center gap-2">
               <FontAwesomeIcon
                 :icon="faServer"
                 class="text-icon-neutral size-4"
@@ -494,7 +494,7 @@ const goToResellerDetails = (reseller: Reseller) => {
           <NeTableCell
             v-if="canSeeParentOfResellers()"
             :data-label="$t('organizations.parent_company')"
-            :class="{ 'opacity-50': item.deleted_at }"
+            :class="{ 'text-tertiary-neutral': item.deleted_at }"
           >
             <ParentCompanyLink :creator="item.created_by" />
           </NeTableCell>

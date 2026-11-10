@@ -468,7 +468,10 @@ const goToAccount = () => {
       </NeTableHead>
       <NeTableBody>
         <NeTableRow v-for="item in usersPage" :key="item.username">
-          <NeTableCell :data-label="$t('users.name')" :class="{ 'opacity-50': item.deleted_at }">
+          <NeTableCell
+            :data-label="$t('users.name')"
+            :class="{ 'text-tertiary-neutral': item.deleted_at }"
+          >
             <div class="flex items-center gap-2">
               <UserAvatar
                 :size="'sm'"
@@ -497,7 +500,7 @@ const goToAccount = () => {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('users.organization')">
-            <div :class="{ 'opacity-50': item.deleted_at }">
+            <div :class="{ 'text-tertiary-neutral': item.deleted_at }">
               <OrganizationIconAndLink
                 v-if="item.organization"
                 :organization="item.organization"
@@ -509,10 +512,10 @@ const goToAccount = () => {
           <NeTableCell :data-label="$t('users.role')">
             <span
               v-if="!item.roles || item.roles.length === 0"
-              :class="{ 'opacity-50': item.deleted_at }"
+              :class="{ 'text-tertiary-neutral': item.deleted_at }"
               >-</span
             >
-            <div v-else class="flex flex-wrap gap-1" :class="{ 'opacity-50': item.deleted_at }">
+            <div v-else class="flex flex-wrap gap-1">
               <UserRoleBadge
                 v-for="role in item.roles?.sort(sortByProperty('name'))"
                 :key="role.id"
