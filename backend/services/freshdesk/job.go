@@ -23,10 +23,11 @@ import (
 )
 
 // RunContactsSync is the entry point of `backend freshdesk-contacts`: it
-// aligns the helpdesk contact names to the Logto display names, matched by
-// email, and returns the process exit code. Freshworks copies the username
-// claim into the contact name at the first login and never updates it, so
-// the helpdesk is corrected from here.
+// renames the helpdesk contacts still named after the Logto username to the
+// display name of the my user with the same email, and returns the process
+// exit code. Freshworks copies the username claim into the contact name at
+// the first login and never updates it, so the helpdesk is corrected from
+// here.
 func RunContactsSync(args []string) int {
 	flags := flag.NewFlagSet("freshdesk-contacts", flag.ContinueOnError)
 	apply := flags.Bool("apply", false, "write the names to Freshdesk (default: log the plan only)")
@@ -57,7 +58,7 @@ func RunContactsSync(args []string) int {
 		log.Error().Err(err).Msg("cannot list Logto users")
 		return 2
 	}
-	names := NamesByEmail(users)
+	identities := IdentitiesByEmail(users)
 
 	client := NewClient(domain, apiKey)
 	var contacts []Contact
@@ -71,11 +72,11 @@ func RunContactsSync(args []string) int {
 		return 2
 	}
 
-	renames := PlanRenames(contacts, names)
+	renames := PlanRenames(contacts, identities)
 	var renamed, failed int
 	for _, rename := range renames {
 		if !*apply {
-			withRename(log.Info(), rename).Msg("contact name differs")
+			withRename(log.Info(), rename).Msg("contact to rename")
 			continue
 		}
 		if err := client.UpdateContactName(rename.Contact.ID, rename.Name); err != nil {
@@ -90,7 +91,7 @@ func RunContactsSync(args []string) int {
 
 	log.Info().
 		Bool("apply", *apply).
-		Int("users", len(names)).
+		Int("users", len(identities)).
 		Int("contacts", len(contacts)).
 		Int("to_rename", len(renames)).
 		Int("renamed", renamed).

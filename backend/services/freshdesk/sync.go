@@ -16,39 +16,54 @@ import (
 	"github.com/nethesis/my/backend/models"
 )
 
-// Rename is a contact whose name differs from the my user with the same email
+// Identity is the username and display name of a my user
+type Identity struct {
+	Username string
+	Name     string
+}
+
+// Rename is a contact still named after the username of the my user with
+// the same email
 type Rename struct {
 	Contact Contact
 	Name    string
 }
 
-// NamesByEmail indexes the display names of the users that have both an
-// email and a name; the first user wins on a duplicate email
-func NamesByEmail(users []models.LogtoUser) map[string]string {
-	names := make(map[string]string, len(users))
+// IdentitiesByEmail indexes the users that have an email, a username and a
+// name; the first user wins on a duplicate email
+func IdentitiesByEmail(users []models.LogtoUser) map[string]Identity {
+	identities := make(map[string]Identity, len(users))
 	for _, user := range users {
 		email := normalizeEmail(user.PrimaryEmail)
-		name := strings.TrimSpace(user.Name)
-		if email == "" || name == "" {
+		identity := Identity{
+			Username: strings.TrimSpace(user.Username),
+			Name:     strings.Join(strings.Fields(user.Name), " "),
+		}
+		if email == "" || identity.Username == "" || identity.Name == "" {
 			continue
 		}
-		if _, seen := names[email]; !seen {
-			names[email] = name
+		if _, seen := identities[email]; !seen {
+			identities[email] = identity
 		}
 	}
-	return names
+	return identities
 }
 
-// PlanRenames matches the contacts to the names by email and keeps the ones
-// whose name differs, ordered by email
-func PlanRenames(contacts []Contact, names map[string]string) []Rename {
+// PlanRenames keeps the contacts whose name is still the username of the my
+// user with the same email, ordered by email; a name edited by hand in the
+// helpdesk is left alone
+func PlanRenames(contacts []Contact, identities map[string]Identity) []Rename {
 	var renames []Rename
 	for _, contact := range contacts {
-		name, ok := names[normalizeEmail(contact.Email)]
-		if !ok || strings.TrimSpace(contact.Name) == name {
+		identity, ok := identities[normalizeEmail(contact.Email)]
+		if !ok {
 			continue
 		}
-		renames = append(renames, Rename{Contact: contact, Name: name})
+		name := strings.TrimSpace(contact.Name)
+		if !strings.EqualFold(name, identity.Username) || name == identity.Name {
+			continue
+		}
+		renames = append(renames, Rename{Contact: contact, Name: identity.Name})
 	}
 	sort.Slice(renames, func(i, j int) bool {
 		return normalizeEmail(renames[i].Contact.Email) < normalizeEmail(renames[j].Contact.Email)
