@@ -154,3 +154,16 @@ func TestOrganizationValidationError_Structure(t *testing.T) {
 	assert.Equal(t, "already exists", firstError.Message)
 	assert.Equal(t, "12345678901", firstError.Value)
 }
+
+func TestKeepCreatedBy(t *testing.T) {
+	stored := map[string]interface{}{"createdBy": "parent-org"}
+
+	final := map[string]interface{}{"createdBy": "attacker-org", "vat": "123"}
+	keepCreatedBy(final, stored, "caller-org")
+	assert.Equal(t, "parent-org", final["createdBy"])
+	assert.Equal(t, "123", final["vat"])
+
+	final = map[string]interface{}{"createdBy": "attacker-org"}
+	keepCreatedBy(final, map[string]interface{}{}, "caller-org")
+	assert.Equal(t, "caller-org", final["createdBy"])
+}

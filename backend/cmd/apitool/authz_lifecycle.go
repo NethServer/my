@@ -305,6 +305,21 @@ func (lc *lcRun) customerDeleteRestoreAndPromotion() error {
 	}
 	lc.routed("customer: the restore re-renders the tenant", lcr, "lc-c@", true)
 
+	// An update must not re-parent the customer.
+	if _, err := lc.expect("reseller admin updates its customer naming another parent", adminKey,
+		"PUT", "/api/customers/"+lcc,
+		map[string]interface{}{"custom_data": map[string]string{"createdBy": lc.org("d1r1")}}, "allowed"); err != nil {
+		return err
+	}
+	if _, err := lc.expect("the update did not hand the customer to the named reseller", "d1r1-admin",
+		"GET", "/api/customers/"+lcc, nil, "denied"); err != nil {
+		return err
+	}
+	if _, err := lc.expect("the customer still belongs to its reseller", adminKey,
+		"GET", "/api/customers/"+lcc, nil, "allowed"); err != nil {
+		return err
+	}
+
 	// Promotion.
 	if err := lc.saveLayer("d1-admin", []map[string]interface{}{
 		lc.recipient("lc-promo-sys", nil, []string{ls}),

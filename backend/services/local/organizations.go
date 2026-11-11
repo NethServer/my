@@ -679,6 +679,16 @@ func (s *LocalOrganizationService) CanCreateCustomer(userOrgRole, userOrgID stri
 	}
 }
 
+// keepCreatedBy pins custom_data.createdBy to the stored value: a client
+// sending its own would otherwise re-parent the organization.
+func keepCreatedBy(final, stored map[string]interface{}, fallbackOrgID string) {
+	if createdBy, ok := stored["createdBy"]; ok {
+		final["createdBy"] = createdBy
+		return
+	}
+	final["createdBy"] = fallbackOrgID
+}
+
 // ResolveCreatedByOrg determines the owning organization (custom_data.createdBy)
 // for a newly created reseller or customer.
 //
@@ -923,12 +933,7 @@ func (s *LocalOrganizationService) UpdateDistributor(id string, req *models.Upda
 	// System fields - these override any user-provided values and are always maintained
 	// CRITICAL: Preserve original type and createdBy - never change them
 	finalCustomData["type"] = "distributor"
-	if existingCreatedBy, exists := finalCustomData["createdBy"]; exists {
-		finalCustomData["createdBy"] = existingCreatedBy
-	} else {
-		// Fallback if somehow missing (should not happen)
-		finalCustomData["createdBy"] = updatedByOrgID
-	}
+	keepCreatedBy(finalCustomData, currentDistributor.CustomData, updatedByOrgID)
 	// GetByID strips createdByUser out of CustomData (ExtractOrgCreator exposes
 	// it as the top-level created_by and deletes the key), so it must be
 	// re-injected here or every update would silently wipe the creator snapshot
@@ -1156,12 +1161,7 @@ func (s *LocalOrganizationService) UpdateReseller(id string, req *models.UpdateL
 	// System fields - these override any user-provided values and are always maintained
 	// CRITICAL: Preserve original type and createdBy - never change them
 	finalCustomData["type"] = "reseller"
-	if existingCreatedBy, exists := finalCustomData["createdBy"]; exists {
-		finalCustomData["createdBy"] = existingCreatedBy
-	} else {
-		// Fallback if somehow missing (should not happen)
-		finalCustomData["createdBy"] = updatedByOrgID
-	}
+	keepCreatedBy(finalCustomData, currentReseller.CustomData, updatedByOrgID)
 	// GetByID strips createdByUser out of CustomData (ExtractOrgCreator exposes
 	// it as the top-level created_by and deletes the key), so it must be
 	// re-injected here or every update would silently wipe the creator snapshot
@@ -1382,12 +1382,7 @@ func (s *LocalOrganizationService) UpdateCustomer(id string, req *models.UpdateL
 	// System fields - these override any user-provided values and are always maintained
 	// CRITICAL: Preserve original type and createdBy - never change them
 	finalCustomData["type"] = "customer"
-	if existingCreatedBy, exists := finalCustomData["createdBy"]; exists {
-		finalCustomData["createdBy"] = existingCreatedBy
-	} else {
-		// Fallback if somehow missing (should not happen)
-		finalCustomData["createdBy"] = updatedByOrgID
-	}
+	keepCreatedBy(finalCustomData, currentCustomer.CustomData, updatedByOrgID)
 	// GetByID strips createdByUser out of CustomData (ExtractOrgCreator exposes
 	// it as the top-level created_by and deletes the key), so it must be
 	// re-injected here or every update would silently wipe the creator snapshot
