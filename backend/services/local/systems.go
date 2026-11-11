@@ -385,7 +385,8 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 	}
 	// Note: Type and SystemKey are not modifiable via update API
 	// Validate organization_id change if provided
-	previousOrgID := system.Organization.LogtoID
+	previousOrg := system.Organization
+	previousOrgID := previousOrg.LogtoID
 	var transferPlan *models.SystemTransferPlan
 	orgChanging := request.OrganizationID != "" && request.OrganizationID != previousOrgID
 	if orgChanging {
@@ -404,12 +405,7 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 			return nil, fmt.Errorf("access denied for organization change: %s", reason)
 		}
 		// Update organization with new info
-		previousOrg := system.Organization
 		system.Organization = s.getOrganizationInfo(request.OrganizationID)
-		transferPlan, err = s.planSystemTransfer(systemID, previousOrg, system.Organization, userOrgRole, userOrgID)
-		if err != nil {
-			return nil, err
-		}
 	}
 	// FQDN, IPv4Address, IPv6Address are managed by collect service, not via API updates
 	if request.CustomData != nil {
@@ -441,6 +437,13 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 			return nil, err
 		}
 		defer release()
+
+		// Planned under the lock, so a concurrent move cannot change what
+		// this one stops.
+		transferPlan, err = s.planSystemTransfer(systemID, previousOrg, system.Organization, userOrgRole, userOrgID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Copy backups onto the destination organization's S3 prefix BEFORE the
