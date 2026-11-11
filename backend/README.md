@@ -264,6 +264,35 @@ format, and a full hierarchy-build example.
 
 See [openapi.yaml](openapi.yaml) for all available endpoints and expected payloads.
 
+### Freshdesk contacts sync
+Freshworks copies the Logto `username` claim into the helpdesk contact name at
+the first SSO login and never updates it, and the mapping cannot be changed on
+their side. `backend freshdesk-contacts` finds the Freshdesk contacts still named
+after the Logto username of the my user with the same email and renames them to
+that user's display name. Contacts whose email is not a my user, or whose name
+was edited by hand in the helpdesk, are never touched: many hand-written
+helpdesk names are better than the my ones. On Render it runs hourly as the
+`my-freshdesk-contacts-prod` cron job, defined in the dashboard like the QA
+cron jobs (not in render.yaml): it pulls `ghcr.io/nethserver/my/backend:latest`
+before each run, so it follows the production releases on its own, and it is
+linked to the `logto-prod` group plus `FRESHDESK_DOMAIN` and
+`FRESHDESK_API_KEY`. The first run also fixes the contacts created before the
+job existed. It stays suspended until the release that ships the subcommand:
+an older image ignores the arguments and fails on the missing server
+configuration at every run.
+
+```bash
+# Plan only: logs every contact to rename
+FRESHDESK_DOMAIN=nethesis.freshdesk.com FRESHDESK_API_KEY=... ENV_FILE=.env.production \
+  go run main.go freshdesk-contacts
+
+# Write the names; -email limits the run to one contact
+go run main.go freshdesk-contacts -apply [-email user@example.com]
+```
+
+It needs `FRESHDESK_DOMAIN`, `FRESHDESK_API_KEY` (an agent API key) and the
+Logto Management API variables; nothing else from the server configuration.
+
 ### API Documentation
 ```bash
 # Validate OpenAPI documentation

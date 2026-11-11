@@ -40,6 +40,7 @@ import (
 	"github.com/nethesis/my/backend/pkg/version"
 	"github.com/nethesis/my/backend/response"
 	"github.com/nethesis/my/backend/services/alerting"
+	"github.com/nethesis/my/backend/services/freshdesk"
 	"github.com/nethesis/my/backend/services/local"
 )
 
@@ -75,6 +76,10 @@ func main() {
 			Bool("success", false).
 			Err(err).
 			Msg("environment configuration not loaded (using system environment)")
+	}
+
+	if code, ok := runSubcommand(os.Args[1:]); ok {
+		os.Exit(code)
 	}
 
 	// Init configuration
@@ -738,4 +743,20 @@ func main() {
 	}
 
 	logger.Info().Msg("Server exited")
+}
+
+// runSubcommand runs the maintenance command named by the first argument
+// instead of the API server and returns its exit code; ok is false when
+// there are no arguments
+func runSubcommand(args []string) (code int, ok bool) {
+	if len(args) == 0 {
+		return 0, false
+	}
+	switch args[0] {
+	case "freshdesk-contacts":
+		return freshdesk.RunContactsSync(args[1:]), true
+	default:
+		logger.Error().Str("command", args[0]).Msg("unknown command")
+		return 2, true
+	}
 }
