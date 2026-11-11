@@ -303,6 +303,10 @@ type LocalReseller struct {
 
 	// Creator snapshot (resolved from custom_data.createdByUser at read time)
 	CreatedBy *OrgCreator `json:"created_by,omitempty"`
+
+	// Parent is the organization managing the reseller (custom_data.createdBy),
+	// resolved live: the creator snapshot keeps the one it was created for.
+	Parent *ParentOrganization `json:"parent,omitempty"`
 }
 
 // ResellerPromotion reports the outcome of promoting a reseller to distributor.
@@ -358,6 +362,10 @@ type LocalCustomer struct {
 
 	// Creator snapshot (resolved from custom_data.createdByUser at read time)
 	CreatedBy *OrgCreator `json:"created_by,omitempty"`
+
+	// Parent is the organization managing the customer (custom_data.createdBy),
+	// resolved live: the creator snapshot keeps the one it was created for.
+	Parent *ParentOrganization `json:"parent,omitempty"`
 }
 
 // CustomerFilters represents filters for customer queries

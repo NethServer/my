@@ -6,7 +6,11 @@ import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 import { type Pagination } from '../common'
-import type { ImportValidationResult, ImportConfirmResult } from './organizations'
+import {
+  ParentOrganizationSchema,
+  type ImportValidationResult,
+  type ImportConfirmResult,
+} from './organizations'
 
 export const RESELLERS_KEY = 'resellers'
 export const RESELLERS_TOTAL_KEY = 'resellersTotal'
@@ -80,12 +84,15 @@ export const ResellerSchema = v.object({
       on_behalf_of: v.optional(v.boolean()),
     }),
   ),
+  // The organization managing the reseller (custom_data.createdBy), resolved
+  // live; created_by keeps the organization it was created for.
+  parent: v.optional(ParentOrganizationSchema),
 })
 
 export type CreateReseller = v.InferOutput<typeof CreateResellerSchema>
 export type EditReseller = v.InferOutput<typeof EditResellerSchema>
 export type Reseller = v.InferOutput<typeof ResellerSchema>
-// managed_by: the company in the creator snapshot, the one "Managed by" shows
+// managed_by: the company managing the reseller, the one "Managed by" shows
 export type ResellerSortBy = keyof Reseller | 'managed_by'
 
 interface ResellersResponse {

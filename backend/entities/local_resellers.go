@@ -118,8 +118,20 @@ func (r *LocalResellerRepository) GetByID(id string) (*models.LocalReseller, err
 
 	reseller.CreatedBy = models.ExtractOrgCreator(reseller.CustomData)
 	fillCreatorOrgTypes(r.db, reseller.CreatedBy)
+	fillResellerParents(r.db, reseller)
 
 	return reseller, nil
+}
+
+// fillResellerParents resolves the managing organization of each reseller.
+func fillResellerParents(db *sql.DB, resellers ...*models.LocalReseller) {
+	slots := make([]parentSlot, 0, len(resellers))
+	for _, res := range resellers {
+		if res != nil && res.LogtoID != nil {
+			slots = append(slots, parentSlot{*res.LogtoID, &res.Parent})
+		}
+	}
+	fillParentOrganizations(db, slots)
 }
 
 // Update updates a reseller in local database
@@ -246,7 +258,15 @@ const (
 var resellerCountSortFields = map[string]string{
 	"systems_count":   resellerSystemsCount,
 	"customers_count": resellerCustomersCount,
+	"managed_by":      resellerManagerName,
 }
+
+// resellerManagerName is the name of the organization managing the reseller
+// (custom_data.createdBy), the one the "Managed by" column shows. A manager
+// with no live distributor row is the Owner organization, named by the snapshot.
+const resellerManagerName = `LOWER(COALESCE(
+	(SELECT md.name FROM distributors md WHERE md.logto_id = r.custom_data->>'createdBy' AND md.deleted_at IS NULL),
+	r.custom_data->'createdByUser'->>'organization_name'))`
 
 // resellerCountColumns builds the trailing inline counter columns of the
 // reseller list query for the requested mode, empty when no counter is wanted.
@@ -509,6 +529,7 @@ func (r *LocalResellerRepository) executeResellerQuery(ctx context.Context, coun
 	}
 
 	fillCreatorOrgTypes(r.db, creatorRefsOf(resellers, func(res *models.LocalReseller) models.CreatorOrgRef { return res.CreatedBy })...)
+	fillResellerParents(r.db, resellers...)
 
 	return resellers, totalCount, nil
 }
@@ -692,6 +713,7 @@ func (r *LocalResellerRepository) GetByIDIncludeDeleted(id string) (*models.Loca
 
 	reseller.CreatedBy = models.ExtractOrgCreator(reseller.CustomData)
 	fillCreatorOrgTypes(r.db, reseller.CreatedBy)
+	fillResellerParents(r.db, reseller)
 
 	return reseller, nil
 }

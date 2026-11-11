@@ -164,6 +164,7 @@ function getKebabMenuItems() {
           </template>
           <template #data>
             <ParentCompanyLink
+              :parent="customerDetail.data.parent"
               :creator="customerDetail.data.created_by"
               icon-size="xs"
               icon-variant="plain"

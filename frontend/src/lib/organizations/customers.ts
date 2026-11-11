@@ -6,7 +6,11 @@ import { API_URL } from '../config'
 import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 import { type Pagination } from '../common'
-import type { ImportValidationResult, ImportConfirmResult } from './organizations'
+import {
+  ParentOrganizationSchema,
+  type ImportValidationResult,
+  type ImportConfirmResult,
+} from './organizations'
 
 export const CUSTOMERS_KEY = 'customers'
 export const CUSTOMERS_TOTAL_KEY = 'customersTotal'
@@ -80,12 +84,15 @@ export const CustomerSchema = v.object({
       on_behalf_of: v.optional(v.boolean()),
     }),
   ),
+  // The organization managing the customer (custom_data.createdBy), resolved
+  // live; created_by keeps the organization it was created for.
+  parent: v.optional(ParentOrganizationSchema),
 })
 
 export type CreateCustomer = v.InferOutput<typeof CreateCustomerSchema>
 export type EditCustomer = v.InferOutput<typeof EditCustomerSchema>
 export type Customer = v.InferOutput<typeof CustomerSchema>
-// managed_by: the company in the creator snapshot, the one "Managed by" shows
+// managed_by: the company managing the customer, the one "Managed by" shows
 export type CustomerSortBy = keyof Customer | 'managed_by'
 
 interface CustomersResponse {

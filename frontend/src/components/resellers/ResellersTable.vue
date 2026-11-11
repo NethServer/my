@@ -496,7 +496,7 @@ const goToResellerDetails = (reseller: Reseller) => {
             :data-label="$t('organizations.parent_company')"
             :class="{ 'opacity-50': item.deleted_at }"
           >
-            <ParentCompanyLink :creator="item.created_by" />
+            <ParentCompanyLink :parent="item.parent" :creator="item.created_by" />
           </NeTableCell>
           <NeTableCell :data-label="$t('common.status')">
             <div class="flex items-center gap-2">

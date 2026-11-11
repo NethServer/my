@@ -1380,6 +1380,10 @@ components:
           example: null
         created_by:
           $ref: '#/components/schemas/OrgCreator'
+        parent:
+          description: The organization managing this one (its custom_data.createdBy), resolved live. Resellers and customers only. It can differ from created_by.organization_id, which keeps the organization the entity was created for.
+          allOf:
+            - $ref: '#/components/schemas/ParentOrganization'
         promoted_from:
           description: Trace of the promotion that gave the organization its level. Distributors only, and only those promoted from reseller level (PATCH /resellers/{id}/promote) - omitted for an organization created at its level.
           allOf:

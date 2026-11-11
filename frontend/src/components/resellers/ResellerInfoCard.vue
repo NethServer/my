@@ -179,6 +179,7 @@ function getKebabMenuItems() {
           </template>
           <template #data>
             <ParentCompanyLink
+              :parent="resellerDetail.data.parent"
               :creator="resellerDetail.data.created_by"
               icon-size="xs"
               icon-variant="plain"

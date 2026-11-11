@@ -17,12 +17,11 @@ import type { ParentOrganization } from '@/lib/organizations/organizations'
  * The company an organization belongs to, rendered as a link to its detail
  * page.
  *
- * The parent company is the organization the entity was attributed to at
- * creation (`custom_data.createdBy`). It comes either as `parent`, resolved by
- * the systems endpoints for the company a row is assigned to, or
- * from the creator snapshot of a distributor, reseller or customer: the backend
- * stamps the attributed organization on it, so this is the same company the
- * parent company list filter matches on.
+ * The parent company is the organization managing the entity
+ * (`custom_data.createdBy`). It comes as `parent`, resolved live by the
+ * backend, with the creator snapshot as fallback: the snapshot names the
+ * organization the entity was created for, which is the parent until the
+ * entity is moved.
  *
  * OrganizationIconAndLink drops the link (and the level icon) on its own when
  * the organization has no detail page or the user may not read it, so the Owner
