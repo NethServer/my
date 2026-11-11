@@ -394,6 +394,10 @@ type OrganizationEntitlementGrant struct {
 // of a grant whose buyer no longer manages the customer after a transfer.
 const EntitlementRenewalStoppedCustomerTransferred = "customer_transferred"
 
+// EntitlementRenewalStoppedResellerTransferred is the renewal_stopped_reason
+// of a grant whose buyer no longer manages the reseller after a transfer.
+const EntitlementRenewalStoppedResellerTransferred = "reseller_transferred"
+
 // CreateSystemEntitlementRequest grants an add-on to a system. Scope narrows
 // the grant to one application instance and is only accepted for catalog
 // items with Scoped=true.

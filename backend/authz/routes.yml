@@ -745,6 +745,27 @@ routes:
       distributors, so manage:resellers must not be enough: a distributor could
       otherwise manufacture a peer. This is the strictest reading and the one the
       hierarchy implies.
+  - method: GET
+    path: /api/resellers/:id/transfer
+    intent: manage:resellers
+    org_role: owner
+    enforced_by: handler
+    object_scoped: true
+    query: organization_id=bogus
+    note: |
+      Preview of moving a reseller under another distributor. It reshapes the
+      distributor level, which only the Owner organization arranges: a
+      distributor holds manage:resellers for its own resellers but must not
+      hand one to a peer or take one from it.
+  - method: PATCH
+    path: /api/resellers/:id/transfer
+    intent: manage:resellers
+    org_role: owner
+    enforced_by: handler
+    object_scoped: true
+    body: '{"organization_id":"bogus"}'
+    note: |
+      Same rule as the preview: Owner organization only.
 
   # ===========================================================================
   # Customers. Owner, Distributor and Reseller hold read/manage; destroy is

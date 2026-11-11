@@ -27,9 +27,14 @@ var ErrSystemReassignLocked = errors.New("system reassignment is already in prog
 // another transfer of the same customer holds the lock.
 var ErrCustomerTransferLocked = errors.New("customer transfer is already in progress")
 
+// ErrResellerTransferLocked is returned by AcquireResellerTransferLock when
+// another transfer of the same reseller is still running.
+var ErrResellerTransferLocked = errors.New("reseller transfer is already in progress")
+
 const (
 	systemReassignLockKeyPrefix   = "lock:system:reassign:"
 	customerTransferLockKeyPrefix = "lock:customer:transfer:"
+	resellerTransferLockKeyPrefix = "lock:reseller:transfer:"
 )
 
 // AcquireSystemReassignLock takes a Redis SETNX-based advisory lock on the
@@ -59,6 +64,12 @@ func AcquireSystemReassignLock(ctx context.Context, systemID string, ttl time.Du
 // at different parents.
 func AcquireCustomerTransferLock(ctx context.Context, customerID string, ttl time.Duration) (func(), error) {
 	return acquireAdvisoryLock(ctx, customerTransferLockKeyPrefix+customerID, ttl, ErrCustomerTransferLocked)
+}
+
+// AcquireResellerTransferLock serializes the "managed by" transfers of one
+// reseller, like AcquireCustomerTransferLock does for a customer.
+func AcquireResellerTransferLock(ctx context.Context, resellerID string, ttl time.Duration) (func(), error) {
+	return acquireAdvisoryLock(ctx, resellerTransferLockKeyPrefix+resellerID, ttl, ErrResellerTransferLocked)
 }
 
 func acquireAdvisoryLock(ctx context.Context, key string, ttl time.Duration, lockedErr error) (func(), error) {

@@ -2980,6 +2980,47 @@ components:
           items:
             type: string
 
+    ResellerTransferPlan:
+      type: object
+      properties:
+        reseller:
+          $ref: '#/components/schemas/CustomerTransferOrganization'
+        from:
+          $ref: '#/components/schemas/CustomerTransferOrganization'
+        to:
+          $ref: '#/components/schemas/CustomerTransferOrganization'
+        customers_count:
+          type: integer
+          description: Customers of the reseller, which move with it
+          example: 12
+        systems_count:
+          type: integer
+          description: Live systems of the reseller and of its customers, which move with it
+          example: 30
+        users_count:
+          type: integer
+          description: Users of the reseller and of its customers, who keep their access
+          example: 8
+        addons:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerTransferAddon'
+        renewals_stopping:
+          type: integer
+          description: Add-ons whose renewal stops (preview) or stopped (transfer)
+          example: 1
+        assignments_count:
+          type: integer
+          description: Alerts of the reseller and of its customers assigned to users outside the new hierarchy, released by the transfer
+          example: 1
+        warnings:
+          type: array
+          description: |
+            Steps that could not be applied by the transfer:
+            `renewals_not_stopped`, `assignments_not_released`.
+          items:
+            type: string
+
     EntitlementPurchaser:
       type: object
       description: |
@@ -5213,6 +5254,30 @@ components:
           examples:
             SameOrganization:
               summary: the customer is already managed by the target
+              value:
+                code: 409
+                message: "validation failed"
+                data:
+                  type: "validation_error"
+                  errors:
+                    - key: "transfer"
+                      message: "same_organization"
+
+    ResellerTransferConflict:
+      description: |
+        The reseller cannot be transferred in its current state. `data.type`
+        is `validation_error`, on key `transfer`, with stable `message` codes:
+        `reseller_is_suspended` (reactivate it first), `reseller_not_synced`
+        (no Logto organization yet), `same_organization` (already managed by
+        the target), `target_is_suspended`, `transfer_in_progress` (another
+        transfer of the same reseller is running).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            SameOrganization:
+              summary: the reseller is already managed by the target
               value:
                 code: 409
                 message: "validation failed"
@@ -10689,6 +10754,125 @@ paths:
                       errors:
                         - key: "promote"
                           message: "organization_is_suspended"
+
+  /resellers/{id}/transfer:
+    get:
+      operationId: getResellerTransferPreview
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
+      tags:
+        - Backend - Resellers
+      summary: /resellers/{id}/transfer - Preview a reseller transfer
+      description: |
+        What moving the reseller under another distributor would do, without
+        changing anything: customers, systems and users that follow it,
+        add-ons whose shop renewal stops and alert assignments of the current
+        hierarchy that go away. Same rules and errors as the PATCH.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Reseller Logto ID
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Logto ID of the distributor that would manage the reseller
+      responses:
+        '200':
+          description: Transfer preview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "reseller transfer preview retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/ResellerTransferPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/ResellerTransferConflict'
+    patch:
+      operationId: transferReseller
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
+      tags:
+        - Backend - Resellers
+      summary: /resellers/{id}/transfer - Change the reseller manager
+      description: |
+        Move the reseller under another distributor by rewriting its
+        `custom_data.createdBy`, in Logto and locally. Allowed to the Owner
+        organization only (403 otherwise). A target that is not a distributor
+        is a 400 on key `organization_id` with message `not_a_distributor`.
+
+        Customers, systems and users stay with the reseller and follow it; the
+        reseller keeps its own alerting tenant, re-rendered from the layers of
+        its new hierarchy. What belongs to the hierarchy it leaves goes away:
+        add-ons bought by that side stop renewing (they stay valid until they
+        expire) and alerts assigned to its users are released. The response
+        carries the applied counters.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Reseller Logto ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organization_id]
+              properties:
+                organization_id:
+                  type: string
+                  description: Logto ID of the distributor that will manage the reseller
+                  example: "5j8k2m4n6p8q"
+      responses:
+        '200':
+          description: Reseller transferred
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "reseller transferred successfully"
+                  data:
+                    $ref: '#/components/schemas/ResellerTransferPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/ResellerTransferConflict'
 
   /resellers/{id}/restore:
     patch:

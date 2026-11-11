@@ -534,6 +534,9 @@ func main() {
 		// Owner-organization gate in the handler, not manage:resellers, which every
 		// distributor holds.
 		customAuthWithAudit.PATCH("/resellers/:id/promote", middleware.RequirePermission("manage:resellers"), middleware.ExtendDeadline(60*time.Second), methods.PromoteReseller) // Promote reseller to distributor keeping its hierarchy (slow: one Logto role switch per member); the handler additionally requires the Owner organization
+		// Reseller transfer to another distributor (manage:resellers; Owner organization only, enforced in handler)
+		customAuthWithAudit.GET("/resellers/:id/transfer", middleware.RequirePermission("manage:resellers"), methods.GetResellerTransferPreview)
+		customAuthWithAudit.PATCH("/resellers/:id/transfer", middleware.RequirePermission("manage:resellers"), methods.TransferReseller)
 
 		// Customers - resource-based permission validation (read:customers for GET, manage:customers for POST/PUT/DELETE)
 		// Self-access: GET on own organization ID is always allowed (object-level RBAC in handlers)
