@@ -1,12 +1,12 @@
 {
-  "version": "0.10.4",
+  "version": "0.10.5",
   "name": "My Nethesis",
   "components": {
-    "backend": "0.10.4",
-    "sync": "0.10.4",
-    "collect": "0.10.4",
-    "frontend": "0.10.4",
-    "proxy": "0.10.4",
-    "services/mimir": "0.10.4"
+    "backend": "0.10.5",
+    "sync": "0.10.5",
+    "collect": "0.10.5",
+    "frontend": "0.10.5",
+    "proxy": "0.10.5",
+    "services/mimir": "0.10.5"
   }
 }
