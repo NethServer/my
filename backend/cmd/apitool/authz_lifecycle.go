@@ -62,6 +62,7 @@ func (a *authzRunner) runLifecycleLayer(mimirURL string) error {
 		lc.systemMoves,
 		lc.systemDeleteRestore,
 		lc.customerDeleteRestoreAndPromotion,
+		lc.customerTransfer,
 	}
 	for _, step := range steps {
 		if err := step(); err != nil {
@@ -396,6 +397,116 @@ func (lc *lcRun) customerDeleteRestoreAndPromotion() error {
 // Checks
 // ---------------------------------------------------------------------------
 
+// customerTransfer moves a throwaway customer between two resellers of d1 and
+// back: access, the alert route and the handover silence must follow it.
+func (lc *lcRun) customerTransfer() error {
+	stamp := time.Now().UTC().Format("150405")
+	from, err := lc.createOrg("d1-admin", "resellers", "authz-lc-tf-a-"+stamp)
+	if err != nil {
+		return err
+	}
+	to, err := lc.createOrg("d1-admin", "resellers", "authz-lc-tf-b-"+stamp)
+	if err != nil {
+		return err
+	}
+	fromAdmin, err := lc.createAdmin(from, "lc-tf-a-"+stamp)
+	if err != nil {
+		return err
+	}
+	toAdmin, err := lc.createAdmin(to, "lc-tf-b-"+stamp)
+	if err != nil {
+		return err
+	}
+	cust, err := lc.createOrg(fromAdmin, "customers", "authz-lc-tf-c-"+stamp)
+	if err != nil {
+		return err
+	}
+	sys, err := lc.createRegisteredSystem(fromAdmin, cust, "authz-lc-transfer")
+	if err != nil {
+		return err
+	}
+	if err := lc.saveLayer("d1-admin", []map[string]interface{}{
+		lc.recipient("lc-tf", nil, []string{sys}),
+	}); err != nil {
+		return err
+	}
+	lc.routed("transfer: before, the route is in the managing reseller's tenant", from, "lc-tf@", true)
+
+	path := "/api/customers/" + cust + "/transfer"
+	move := func(target string) map[string]string { return map[string]string{"organization_id": target} }
+	for _, c := range []struct{ name, as, to string }{
+		{"a reseller cannot hand its customer to a peer", fromAdmin, to},
+		{"a reseller cannot take a peer's customer", toAdmin, to},
+		{"another distributor cannot transfer the customer", "d2-admin", lc.org("d2r1")},
+	} {
+		if _, err := lc.expect(c.name, c.as, "PATCH", path, move(c.to), "denied"); err != nil {
+			return err
+		}
+	}
+	res, err := lc.call("d1-admin", "PATCH", path, move(lc.org("d2r1")))
+	if err != nil {
+		return err
+	}
+	lc.state("a distributor cannot transfer a customer out of its hierarchy",
+		res.status == 400 && strings.Contains(res.body, "not_in_hierarchy"), vFailOpen,
+		fmt.Sprintf("%d %s", res.status, truncBody(res.body)))
+	lc.handover("transfer: refused moves leave no handover silence", from, cust, false)
+
+	if _, err := lc.expect("distributor admin transfers a customer between its resellers", "d1-admin",
+		"PATCH", path, move(to), "allowed"); err != nil {
+		return err
+	}
+	for _, c := range []struct{ name, as, path, expect string }{
+		{"the reseller that lost the customer can no longer read it", fromAdmin, "/api/customers/" + cust, "denied"},
+		{"the reseller that lost the customer can no longer read its system", fromAdmin, "/api/systems/" + sys, "denied"},
+		{"the receiving reseller reads the customer", toAdmin, "/api/customers/" + cust, "allowed"},
+		{"the receiving reseller reads its system", toAdmin, "/api/systems/" + sys, "allowed"},
+		{"the distributor still reads the customer", "d1-admin", "/api/customers/" + cust, "allowed"},
+	} {
+		if _, err := lc.expect(c.name, c.as, "GET", c.path, nil, c.expect); err != nil {
+			return err
+		}
+	}
+	lc.routed("transfer: the route leaves the old tenant", from, "lc-tf@", false)
+	lc.routed("transfer: the route joins the new tenant", to, "lc-tf@", true)
+	lc.handover("transfer: the old tenant mutes what the customer left firing", from, cust, true)
+	lc.handover("transfer: the new tenant is not muted", to, cust, false)
+
+	if _, err := lc.expect("owner transfers the customer back", "owner",
+		"PATCH", path, move(from), "allowed"); err != nil {
+		return err
+	}
+	lc.routed("transfer back: the route returns", from, "lc-tf@", true)
+	lc.handover("transfer back: the mute is lifted where the customer returns", from, cust, false)
+	lc.handover("transfer back: the tenant it left again is muted", to, cust, true)
+	return nil
+}
+
+// handover checks whether tenant holds an active handover silence for orgID.
+// A missing one lets expiring alerts reach the history as resolved; a stale
+// one mutes the alerts of an organization the tenant manages.
+func (lc *lcRun) handover(name, tenant, orgID string, present bool) {
+	out := checkResult{Layer: "lifecycle", Persona: "-", Target: name}
+	if present {
+		out.Expected = "muted in " + tenant
+	} else {
+		out.Expected = "not muted in " + tenant
+	}
+	if !lc.mimirOK {
+		out.Verdict, out.Got, out.Detail = vSkip, "mimir unreachable", lc.mimirURL
+		lc.a.record(out)
+		return
+	}
+	if lc.mimirHandoverSilence(tenant, orgID) == present {
+		out.Verdict, out.Got = vPass, out.Expected
+	} else {
+		out.Got = "the opposite"
+		out.Verdict = vFailClosed
+		out.Detail = orgID
+	}
+	lc.a.record(out)
+}
+
 func (lc *lcRun) persona(key string) (*persona, error) {
 	p, ok := lc.a.byKey[key]
 	if !ok {
@@ -514,6 +625,43 @@ func (lc *lcRun) routed(name, tenant, needle string, present bool) {
 	}
 	out.Detail = needle
 	lc.a.record(out)
+}
+
+func (lc *lcRun) mimirHandoverSilence(tenant, orgID string) bool {
+	req, err := http.NewRequest("GET", lc.mimirURL+"/alertmanager/api/v2/silences", nil)
+	if err != nil {
+		return false
+	}
+	req.Header.Set("X-Scope-OrgID", tenant)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var silences []struct {
+		CreatedBy string `json:"createdBy"`
+		Status    struct {
+			State string `json:"state"`
+		} `json:"status"`
+		Matchers []struct {
+			Name  string `json:"name"`
+			Value string `json:"value"`
+		} `json:"matchers"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&silences); err != nil {
+		return false
+	}
+	for _, s := range silences {
+		if s.CreatedBy != "my-organization-handover" || s.Status.State == "expired" {
+			continue
+		}
+		for _, m := range s.Matchers {
+			if m.Name == "organization_id" && m.Value == orgID {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ---------------------------------------------------------------------------
