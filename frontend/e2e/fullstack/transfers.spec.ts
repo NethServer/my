@@ -23,6 +23,12 @@ import {
   type OrgType,
   type Organization,
 } from '../fixtures/organizations'
+import {
+  createE2eSystem,
+  destroyE2eSystem,
+  registerE2eSystem,
+  type System,
+} from '../fixtures/systems'
 
 type WithParent = Organization & { parent?: { logto_id: string; name: string } }
 
@@ -35,6 +41,7 @@ let otherReseller: Organization
 let customers: Organization[] = []
 /** Shared by the three customers and nothing else, to filter the table on. */
 let customerTag: string
+let movedSystem: System | undefined
 
 async function createOrg(type: OrgType, name: string, parent?: Organization) {
   created.push(name)
@@ -59,6 +66,9 @@ test.beforeAll(async () => {
 })
 
 test.afterAll(async () => {
+  if (movedSystem) {
+    await destroyE2eSystem(movedSystem)
+  }
   for (const type of ['distributors', 'resellers', 'customers'] as OrgType[]) {
     for (const org of await listE2eOrganizations(type)) {
       if (created.includes(org.name)) {
@@ -177,6 +187,49 @@ test.describe('as the owner', () => {
     await expect(rowOf(page, otherReseller.name)).toContainText(otherDistributor.name, {
       timeout: 30_000,
     })
+  })
+
+  test('warns about the add-ons that stop renewing when a system changes company', async ({
+    page,
+  }) => {
+    const [from, to] = customers
+    movedSystem = await createE2eSystem(from.logto_id)
+    await registerE2eSystem(movedSystem.system_secret)
+    // no buyer on record: the renewal cannot follow the system
+    const validUntil = new Date(Date.now() + 200 * 24 * 60 * 60 * 1000).toISOString()
+    await apiPost(`/systems/${movedSystem.id}/entitlements`, {
+      entitlement: 'nsec-ha',
+      valid_until: validUntil,
+    })
+
+    await openAs(page, '/systems', /\/api\/systems(\?|$)/)
+    await page.getByPlaceholder(t('systems.filter_systems')).fill(movedSystem.name)
+    const row = rowOf(page, movedSystem.name)
+    await expect(row).toBeVisible({ timeout: 30_000 })
+    await row.getByRole('button', { name: /menu/i }).click()
+    await page.getByRole('menuitem', { name: t('common.edit') }).click()
+
+    const drawer = page.locator('form').filter({ has: page.getByLabel(t('systems.organization')) })
+    await expect(drawer).toBeVisible()
+    const warning = drawer.getByText(t('customers.addons_renewal_stop_title').split(' | ')[0])
+    await expect(warning).toHaveCount(0)
+
+    await chooseManager(page, drawer, to.name)
+    await expect(warning).toBeVisible({ timeout: 30_000 })
+
+    await drawer.getByRole('button', { name: t('common.save') }).click()
+    await expect(drawer).toBeHidden({ timeout: 30_000 })
+
+    const stored = await apiGet<{ organization: { logto_id: string } }>(
+      `/systems/${movedSystem.id}`,
+    )
+    expect(stored.organization.logto_id).toBe(to.logto_id)
+    const { entitlements } = await apiGet<{
+      entitlements: { entitlement: string; renewal_stopped_reason?: string }[]
+    }>(`/systems/${movedSystem.id}/entitlements`)
+    expect(entitlements.find((g) => g.entitlement === 'nsec-ha')?.renewal_stopped_reason).toBe(
+      'system_transferred',
+    )
   })
 })
 
