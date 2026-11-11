@@ -2975,7 +2975,8 @@ components:
           description: |
             Steps that could not be checked or applied: `silences_unavailable`
             (preview), `renewals_not_stopped`, `assignments_not_released`,
-            `silences_not_cleared` (transfer).
+            `silences_not_cleared`, `handover_not_silenced`,
+            `handover_not_cleared` (transfer).
           items:
             type: string
 

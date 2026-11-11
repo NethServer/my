@@ -427,6 +427,58 @@ func CleanupSilencesForSystems(tenantOrgID string, systemKeys []string) (int, er
 	return deleted, firstErr
 }
 
+// handoverSilenceCreator marks the silences this backend sets on an
+// organization that left a tenant, so they can be told apart and removed.
+const handoverSilenceCreator = "my-organization-handover"
+
+// handoverSilenceDuration outlasts resolve_timeout: an alert sent without an
+// end time lingers that long before the tenant considers it resolved.
+const handoverSilenceDuration = 24 * time.Hour
+
+// SilenceOrganizationHandover mutes the alerts an organization still holds in
+// the tenant it just left. Nothing refreshes them there any more, so they
+// expire and the tenant would report each one as resolved while it is still
+// firing in the new tenant.
+func SilenceOrganizationHandover(tenantOrgID, organizationID string) error {
+	now := time.Now().UTC()
+	_, err := CreateSilence(tenantOrgID, &models.AlertmanagerSilenceRequest{
+		Matchers:  []models.AlertmanagerMatcher{{Name: "organization_id", Value: organizationID}},
+		StartsAt:  now.Format(time.RFC3339),
+		EndsAt:    now.Add(handoverSilenceDuration).Format(time.RFC3339),
+		Comment:   "organization moved to another tenant",
+		CreatedBy: handoverSilenceCreator,
+	})
+	return err
+}
+
+// ClearOrganizationHandover removes the handover silences of an organization
+// from the tenant it enters: one left by an earlier move out of that tenant
+// would mute its alerts now that they are back.
+func ClearOrganizationHandover(tenantOrgID, organizationID string) (int, error) {
+	silences, err := GetSilences(tenantOrgID)
+	if err != nil {
+		return 0, fmt.Errorf("list silences in org %s: %w", tenantOrgID, err)
+	}
+	deleted := 0
+	var firstErr error
+	for _, s := range silences {
+		if s.CreatedBy != handoverSilenceCreator || (s.Status != nil && s.Status.State == "expired") {
+			continue
+		}
+		if len(s.Matchers) != 1 || s.Matchers[0].Name != "organization_id" || s.Matchers[0].Value != organizationID {
+			continue
+		}
+		if err := DeleteSilence(tenantOrgID, s.ID); err != nil {
+			if !errors.Is(err, ErrSilenceNotFound) && firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		deleted++
+	}
+	return deleted, firstErr
+}
+
 // silenceTargetsSystem reports whether the silence is *exclusively* scoped
 // to the given system. We require exactly one matcher equal to
 // `system_key=<key>`, non-regex, non-negated. A silence with extra matchers

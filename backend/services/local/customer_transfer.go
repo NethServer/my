@@ -274,6 +274,17 @@ func (s *LocalOrganizationService) TransferCustomer(customerID, targetOrgID stri
 	}
 	applied.SilencesCount = cleared
 
+	// Mute what the customer leaves firing in the old tenant, and lift the
+	// mute a previous move out of the new one may have left there.
+	if err := alerting.SilenceOrganizationHandover(plan.From.ID, plan.Customer.ID); err != nil {
+		logger.Warn().Err(err).Str("customer_id", plan.Customer.ID).Str("tenant", plan.From.ID).Msg("Failed to silence the customer's alerts in the tenant it left")
+		applied.Warnings = append(applied.Warnings, "handover_not_silenced")
+	}
+	if _, err := alerting.ClearOrganizationHandover(plan.To.ID, plan.Customer.ID); err != nil {
+		logger.Warn().Err(err).Str("customer_id", plan.Customer.ID).Str("tenant", plan.To.ID).Msg("Failed to clear the handover silence in the customer's new tenant")
+		applied.Warnings = append(applied.Warnings, "handover_not_cleared")
+	}
+
 	audit := &entities.CustomerOrgTransfer{
 		CustomerID:          plan.Customer.ID,
 		FromOrgID:           plan.From.ID,
