@@ -63,6 +63,7 @@ func (a *authzRunner) runLifecycleLayer(mimirURL string) error {
 		lc.systemDeleteRestore,
 		lc.customerDeleteRestoreAndPromotion,
 		lc.customerTransfer,
+		lc.resellerTransfer,
 	}
 	for _, step := range steps {
 		if err := step(); err != nil {
@@ -479,6 +480,84 @@ func (lc *lcRun) customerTransfer() error {
 	lc.routed("transfer back: the route returns", from, "lc-tf@", true)
 	lc.handover("transfer back: the mute is lifted where the customer returns", from, cust, false)
 	lc.handover("transfer back: the tenant it left again is muted", to, cust, true)
+	return nil
+}
+
+// resellerTransfer moves a throwaway reseller of d1 under d2 and back: its
+// customer and system follow it, and so does the reach of each distributor.
+func (lc *lcRun) resellerTransfer() error {
+	stamp := time.Now().UTC().Format("150405")
+	res, err := lc.createOrg("d1-admin", "resellers", "authz-lc-rt-r-"+stamp)
+	if err != nil {
+		return err
+	}
+	admin, err := lc.createAdmin(res, "lc-rt-"+stamp)
+	if err != nil {
+		return err
+	}
+	cust, err := lc.createOrg(admin, "customers", "authz-lc-rt-c-"+stamp)
+	if err != nil {
+		return err
+	}
+	sys, err := lc.createRegisteredSystem(admin, cust, "authz-lc-reseller-transfer")
+	if err != nil {
+		return err
+	}
+	if err := lc.saveLayer("d1-admin", []map[string]interface{}{
+		lc.recipient("lc-rt", nil, []string{sys}),
+	}); err != nil {
+		return err
+	}
+	lc.routed("reseller transfer: before, the distributor's route is in the reseller tenant", res, "lc-rt@", true)
+
+	path := "/api/resellers/" + res + "/transfer"
+	move := func(target string) map[string]string { return map[string]string{"organization_id": target} }
+	for _, c := range []struct{ name, as string }{
+		{"a distributor cannot hand its reseller to a peer", "d1-admin"},
+		{"a distributor cannot take a peer's reseller", "d2-admin"},
+		{"a reseller cannot move itself", admin},
+	} {
+		if _, err := lc.expect(c.name, c.as, "PATCH", path, move(lc.org("d2")), "denied"); err != nil {
+			return err
+		}
+	}
+	bad, err := lc.call("owner", "PATCH", path, move(lc.org("d1r1")))
+	if err != nil {
+		return err
+	}
+	lc.state("a reseller can only move under a distributor",
+		bad.status == 400 && strings.Contains(bad.body, "not_a_distributor"), vFailOpen,
+		fmt.Sprintf("%d %s", bad.status, truncBody(bad.body)))
+
+	if _, err := lc.expect("staff moves a reseller under another distributor", "owner-staff",
+		"PATCH", path, move(lc.org("d2")), "allowed"); err != nil {
+		return err
+	}
+	for _, c := range []struct{ name, as, path, expect string }{
+		{"the distributor that lost the reseller can no longer read it", "d1-admin", "/api/resellers/" + res, "denied"},
+		{"the distributor that lost the reseller can no longer read its customer", "d1-admin", "/api/customers/" + cust, "denied"},
+		{"the distributor that lost the reseller can no longer read its system", "d1-admin", "/api/systems/" + sys, "denied"},
+		{"the receiving distributor reads the reseller", "d2-admin", "/api/resellers/" + res, "allowed"},
+		{"the receiving distributor reads its customer", "d2-admin", "/api/customers/" + cust, "allowed"},
+		{"the receiving distributor reads its system", "d2-admin", "/api/systems/" + sys, "allowed"},
+		{"the moved reseller still reads its customer", admin, "/api/customers/" + cust, "allowed"},
+		{"the moved reseller still reads its system", admin, "/api/systems/" + sys, "allowed"},
+	} {
+		if _, err := lc.expect(c.name, c.as, "GET", c.path, nil, c.expect); err != nil {
+			return err
+		}
+	}
+	lc.routed("reseller transfer: the old distributor's route leaves the reseller tenant", res, "lc-rt@", false)
+
+	if _, err := lc.expect("owner moves the reseller back", "owner",
+		"PATCH", path, move(lc.org("d1")), "allowed"); err != nil {
+		return err
+	}
+	if _, err := lc.expect("the distributor reads its reseller again", "d1-admin",
+		"GET", "/api/resellers/"+res, nil, "allowed"); err != nil {
+		return err
+	}
+	lc.routed("reseller transfer back: the distributor's route returns", res, "lc-rt@", true)
 	return nil
 }
 
