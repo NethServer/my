@@ -31,6 +31,7 @@ del proprietario precedente:
 | **Storico allarmi** | Lo storico completo segue il sistema, così il nuovo proprietario vede ciò che stava accadendo prima del passaggio di consegne. |
 | **Silence specifiche del sistema** | I silence a singolo scopo (che silenziano tutti gli allarmi di quel solo sistema) vengono rimossi — il nuovo proprietario può riconfigurarli se gli servono. I silence più ampi creati dal precedente proprietario (ad esempio "silenzia gli allarmi disco pieno su questo sistema durante una manutenzione") restano dove sono e scadono per conto loro. |
 | **Allarmi attivi** | Gli allarmi in corso restano attivi sotto il nuovo proprietario. Le copie rimaste sotto il precedente vengono silenziate, così si spengono senza essere registrate come risolte. |
+| **Add-on** | Restano sul sistema e continuano a funzionare fino alla scadenza. Il rinnovo prosegue solo se l'add-on è stato acquistato dalla nuova organizzazione o da una sopra di essa; altrimenti si ferma e il nuovo proprietario lo riacquista dallo shop. |
 | **Assegnazioni delle applicazioni** | Tutte le assegnazioni app→organizzazione sul sistema vengono azzerate. Il nuovo proprietario riassegna le app che gli interessano dalla normale vista Applicazioni. |
 | **Inventory, heartbeat, identità del sistema** | Intatti — `system_key`, il secret e l'intero storico inventari restano. Le appliance non devono ri-registrarsi. |
 
@@ -47,6 +48,8 @@ non influenzano in alcun modo la vista del nuovo proprietario.
 1. Apri la pagina di dettaglio del sistema.
 2. Modifica il sistema e seleziona una **Organizzazione** diversa dal
    menu a tendina.
+   Se il sistema ha add-on il cui rinnovo si fermerebbe, un avviso li
+   elenca prima del salvataggio.
 3. Salva. In pochi secondi il sistema mostra il nuovo proprietario e
    tutti i dati di cui sopra sono già in posizione.
 
