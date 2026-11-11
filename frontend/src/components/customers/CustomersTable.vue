@@ -35,6 +35,7 @@ import {
   NeTableCell,
   NePaginator,
   NeButton,
+  NeCheckbox,
   NeEmptyState,
   NeInlineNotification,
   NeTextInput,
@@ -54,6 +55,7 @@ import ReactivateCustomerModal from './ReactivateCustomerModal.vue'
 import RestoreCustomerModal from './RestoreCustomerModal.vue'
 import DestroyCustomerModal from './DestroyCustomerModal.vue'
 import TransferCustomerDrawer from './TransferCustomerDrawer.vue'
+import BulkTransferCustomersDrawer from './BulkTransferCustomersDrawer.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useCustomers } from '@/queries/organizations/customers'
 import { canManageCustomers, canDestroyCustomers, canTransferCustomers } from '@/lib/permissions'
@@ -93,6 +95,10 @@ const isShownReactivateCustomerModal = ref(false)
 const isShownRestoreCustomerModal = ref(false)
 const isShownDestroyCustomerModal = ref(false)
 const isShownTransferCustomerDrawer = ref(false)
+const isShownBulkTransferDrawer = ref(false)
+
+// customers picked for a bulk change of manager, kept across pages and filters
+const selectedCustomers = ref(new Map<string, Customer>())
 
 const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
   {
@@ -112,6 +118,37 @@ const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
 const customersPage = computed(() => {
   return state.value.data?.customers
 })
+
+const selectedCustomersList = computed(() => [...selectedCustomers.value.values()])
+
+// only an active customer can change manager
+const selectableCustomersPage = computed(() =>
+  (customersPage.value ?? []).filter((customer) => !customer.deleted_at && !customer.suspended_at),
+)
+
+const isPageSelected = computed(
+  () =>
+    selectableCustomersPage.value.length > 0 &&
+    selectableCustomersPage.value.every((customer) =>
+      selectedCustomers.value.has(customer.logto_id),
+    ),
+)
+
+function toggleCustomer(customer: Customer, selected: boolean) {
+  if (selected) {
+    selectedCustomers.value.set(customer.logto_id, customer)
+  } else {
+    selectedCustomers.value.delete(customer.logto_id)
+  }
+}
+
+function togglePage(selected: boolean) {
+  selectableCustomersPage.value.forEach((customer) => toggleCustomer(customer, selected))
+}
+
+function clearSelection() {
+  selectedCustomers.value.clear()
+}
 
 const pagination = computed(() => {
   return state.value.data?.pagination
@@ -362,6 +399,31 @@ const goToCustomerDetails = (customer: Customer) => {
         <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
       </div>
     </div>
+    <!-- bulk selection -->
+    <div
+      v-if="selectedCustomers.size"
+      class="mb-6 flex flex-wrap items-center gap-4"
+      aria-live="polite"
+    >
+      <span class="font-medium">
+        {{
+          $t(
+            'customers.customers_selected',
+            { count: selectedCustomers.size },
+            selectedCustomers.size,
+          )
+        }}
+      </span>
+      <NeButton kind="secondary" @click="isShownBulkTransferDrawer = true">
+        <template #prefix>
+          <FontAwesomeIcon :icon="faShuffle" aria-hidden="true" />
+        </template>
+        {{ $t('customers.change_manager') }}
+      </NeButton>
+      <NeButton kind="tertiary" @click="clearSelection">
+        {{ $t('customers.clear_selection') }}
+      </NeButton>
+    </div>
     <!-- empty state -->
     <NeEmptyState
       v-if="isNoDataEmptyStateShown"
@@ -379,6 +441,17 @@ const goToCustomerDetails = (customer: Customer) => {
     >
       <NeButton kind="tertiary" @click="resetFilters"> {{ $t('common.reset_filters') }}</NeButton>
     </NeEmptyState>
+    <!-- select the whole page: the card layout has no table head to hold it -->
+    <div
+      v-if="noEmptyStateShown && canTransferCustomers() && selectableCustomersPage.length"
+      class="mb-4 2xl:hidden"
+    >
+      <NeCheckbox
+        :model-value="isPageSelected"
+        :label="$t('customers.select_all_customers')"
+        @update:model-value="togglePage"
+      />
+    </div>
     <NeTable
       v-if="noEmptyStateShown"
       :sort-key="sortBy"
@@ -386,10 +459,19 @@ const goToCustomerDetails = (customer: Customer) => {
       :aria-label="$t('customers.title')"
       card-breakpoint="2xl"
       :loading="state.status === 'pending'"
-      :skeleton-columns="5"
+      :skeleton-columns="canTransferCustomers() ? 6 : 5"
       :skeleton-rows="7"
     >
       <NeTableHead>
+        <NeTableHeadCell v-if="canTransferCustomers()">
+          <NeCheckbox
+            :model-value="isPageSelected"
+            :disabled="!selectableCustomersPage.length"
+            @update:model-value="togglePage"
+          >
+            <span class="sr-only">{{ $t('customers.select_all_customers') }}</span>
+          </NeCheckbox>
+        </NeTableHeadCell>
         <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
           $t('organizations.name')
         }}</NeTableHeadCell>
@@ -413,6 +495,17 @@ const goToCustomerDetails = (customer: Customer) => {
       </NeTableHead>
       <NeTableBody>
         <NeTableRow v-for="item in customersPage" :key="item.logto_id">
+          <NeTableCell v-if="canTransferCustomers()" :data-label="$t('customers.change_manager')">
+            <NeCheckbox
+              :model-value="selectedCustomers.has(item.logto_id)"
+              :disabled="!!item.deleted_at || !!item.suspended_at"
+              @update:model-value="toggleCustomer(item, $event)"
+            >
+              <span class="sr-only">{{
+                $t('customers.select_customer', { name: item.name })
+              }}</span>
+            </NeCheckbox>
+          </NeTableCell>
           <NeTableCell :data-label="$t('organizations.name')">
             <router-link
               v-if="!item.deleted_at"
@@ -570,6 +663,13 @@ const goToCustomerDetails = (customer: Customer) => {
       :visible="isShownRestoreCustomerModal"
       :customer="currentCustomer"
       @close="isShownRestoreCustomerModal = false"
+    />
+    <!-- bulk transfer drawer -->
+    <BulkTransferCustomersDrawer
+      :is-shown="isShownBulkTransferDrawer"
+      :customers="selectedCustomersList"
+      @close="isShownBulkTransferDrawer = false"
+      @transferred="clearSelection"
     />
     <!-- transfer customer drawer -->
     <TransferCustomerDrawer

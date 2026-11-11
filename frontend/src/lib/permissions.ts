@@ -159,6 +159,10 @@ export const canReadAlerts = () => {
 // same Owner-organization threshold.
 export const canPromoteOrganizations = () => hasOwnerLevelAuthority()
 
+// Moving a reseller under another distributor reshapes the distributor level:
+// the Owner organization only, matching the backend transfer gate.
+export const canTransferResellers = () => canManageResellers() && hasOwnerLevelAuthority()
+
 export const canReadAddons = () => {
   const loginStore = useLoginStore()
   return loginStore.permissions.includes(READ_ADDONS)
