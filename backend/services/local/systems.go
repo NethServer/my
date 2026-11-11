@@ -386,6 +386,7 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 	// Note: Type and SystemKey are not modifiable via update API
 	// Validate organization_id change if provided
 	previousOrgID := system.Organization.LogtoID
+	var transferPlan *models.SystemTransferPlan
 	orgChanging := request.OrganizationID != "" && request.OrganizationID != previousOrgID
 	if orgChanging {
 		// Cross-org migration touches per-system resources (S3 backup prefix,
@@ -403,7 +404,12 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 			return nil, fmt.Errorf("access denied for organization change: %s", reason)
 		}
 		// Update organization with new info
+		previousOrg := system.Organization
 		system.Organization = s.getOrganizationInfo(request.OrganizationID)
+		transferPlan, err = s.planSystemTransfer(systemID, previousOrg, system.Organization, userOrgRole, userOrgID)
+		if err != nil {
+			return nil, err
+		}
 	}
 	// FQDN, IPv4Address, IPv6Address are managed by collect service, not via API updates
 	if request.CustomData != nil {
@@ -558,6 +564,22 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 		} else {
 			appsUnassigned = int(rows)
 			cache.GetAppsCache().InvalidateAll()
+		}
+
+		// Add-ons bought by a side that no longer manages the system stay
+		// valid until they expire, then are not renewed.
+		renewalsStopped, err := entities.NewLocalSystemEntitlementRepository().StopRenewals(transferPlan.StoppingEntitlements(), models.EntitlementRenewalStoppedSystemTransferred)
+		if err != nil {
+			logger.Error().Err(err).
+				Str("system_id", systemID).
+				Str("previous_org_id", previousOrgID).
+				Msg("failed to stop add-on renewals after org change")
+		} else if renewalsStopped > 0 {
+			logger.Info().
+				Str("system_id", systemID).
+				Str("previous_org_id", previousOrgID).
+				Int("renewals_stopped", renewalsStopped).
+				Msg("add-on renewals stopped after org change")
 		}
 
 		// Append the immutable audit row last, so a forensic query has both

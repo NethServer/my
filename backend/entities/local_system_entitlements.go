@@ -722,16 +722,25 @@ func (r *LocalSystemEntitlementRepository) FindSystemIDByKey(systemKey string) (
 // systems of an organization (not revoked, not expired), with the system
 // name and the catalog display name.
 func (r *LocalSystemEntitlementRepository) ListLiveForOrganization(orgID string) ([]*models.OrganizationEntitlementGrant, error) {
+	return r.listLive("s.organization_id = $1", orgID)
+}
+
+// ListLiveForSystem is ListLiveForOrganization narrowed to one system.
+func (r *LocalSystemEntitlementRepository) ListLiveForSystem(systemID string) ([]*models.OrganizationEntitlementGrant, error) {
+	return r.listLive("s.id = $1", systemID)
+}
+
+func (r *LocalSystemEntitlementRepository) listLive(where, arg string) ([]*models.OrganizationEntitlementGrant, error) {
 	rows, err := r.db.Query(
 		`SELECT e.id, e.system_id, s.name, e.entitlement, COALESCE(c.display_name, e.entitlement), e.scope,
 		        e.valid_until, e.purchased_by, e.renewal_stopped_at
 		 FROM system_entitlements e
 		 JOIN systems s ON s.id = e.system_id
 		 LEFT JOIN entitlement_catalog c ON c.id = e.entitlement
-		 WHERE s.organization_id = $1 AND s.deleted_at IS NULL
+		 WHERE `+where+` AND s.deleted_at IS NULL
 		   AND e.revoked_at IS NULL AND (e.valid_until IS NULL OR e.valid_until > NOW())
 		 ORDER BY s.name, e.entitlement, e.scope`,
-		orgID)
+		arg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list organization grants: %w", err)
 	}

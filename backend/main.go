@@ -257,6 +257,9 @@ func main() {
 			systemsGroup.PUT("/:id", methods.UpdateSystem)    // Update system (manage:systems required)
 			systemsGroup.DELETE("/:id", methods.DeleteSystem) // Soft-delete system (manage:systems required)
 
+			// What assigning the system to another organization does to its add-ons
+			systemsGroup.GET("/:id/transfer", middleware.RequirePermission("manage:systems"), methods.GetSystemTransferPreview)
+
 			// Restore and destroy endpoints
 			systemsGroup.PATCH("/:id/restore", methods.RestoreSystem)                                                   // Restore soft-deleted system (manage:systems required)
 			systemsGroup.DELETE("/:id/destroy", middleware.RequirePermission("destroy:systems"), methods.DestroySystem) // Permanently delete system (destroy:systems required)

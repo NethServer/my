@@ -1459,4 +1459,4 @@ COMMENT ON COLUMN entitlement_seats.released_at     IS 'Set when the seat is fre
 COMMENT ON COLUMN entitlement_seats.released_reason IS 'manual (freed by a user) | instance_removed (the instance left the inventory: removed, or moved to another node under a new id)';
 COMMENT ON COLUMN entitlement_seats.released_by     IS 'Actor snapshot of the user that freed the seat; NULL when collect freed it';
 COMMENT ON COLUMN system_entitlements.renewal_stopped_at IS 'The shop must not renew this grant any more: it stays valid until valid_until. Cleared by an activation from a buyer that manages the system';
-COMMENT ON COLUMN system_entitlements.renewal_stopped_reason IS 'Why the renewal stopped: customer_transferred (the buyer organization no longer manages the customer). NULL when renewing normally';
+COMMENT ON COLUMN system_entitlements.renewal_stopped_reason IS 'Why the renewal stopped: customer_transferred, reseller_transferred or system_transferred (the buyer organization no longer manages what moved). NULL when renewing normally';

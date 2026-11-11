@@ -489,3 +489,8 @@ type UpdateSystemEntitlementRequest struct {
 	// Seats changes the number of seats of a seated add-on.
 	Seats *int `json:"seats,omitempty"`
 }
+
+// EntitlementRenewalStoppedSystemTransferred is the renewal_stopped_reason
+// of a grant whose buyer no longer manages the system after it changed
+// organization.
+const EntitlementRenewalStoppedSystemTransferred = "system_transferred"

@@ -3021,6 +3021,22 @@ components:
           items:
             type: string
 
+    SystemTransferPlan:
+      type: object
+      properties:
+        from:
+          $ref: '#/components/schemas/CustomerTransferOrganization'
+        to:
+          $ref: '#/components/schemas/CustomerTransferOrganization'
+        addons:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerTransferAddon'
+        renewals_stopping:
+          type: integer
+          description: Add-ons of the system whose renewal stops with the change
+          example: 1
+
     EntitlementPurchaser:
       type: object
       description: |
@@ -11314,7 +11330,13 @@ paths:
       tags:
         - Backend - Systems
       summary: /systems/{id} - Update system
-      description: Update a system. All fields are optional. Users can update systems created by their organization based on hierarchical permissions.
+      description: |
+        Update a system. All fields are optional. Users can update systems created by their organization based on hierarchical permissions.
+
+        Changing `organization_id` moves the system and its data to the new
+        organization. Add-ons bought by an organization that is neither the
+        new one nor above it stay valid until they expire, then are not
+        renewed: `GET /systems/{id}/transfer` previews them.
       parameters:
         - name: id
           in: path
@@ -11388,6 +11410,61 @@ paths:
                   data:
                     type: object
                     nullable: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/transfer:
+    get:
+      operationId: getSystemTransferPreview
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
+      tags:
+        - Backend - Systems
+      summary: /systems/{id}/transfer - Preview a change of organization
+      description: |
+        What assigning the system to another organization would do to its
+        add-ons, without changing anything. The change itself is a
+        `PUT /systems/{id}` with the new `organization_id`: an add-on bought
+        by an organization that is neither the new one nor above it stays
+        valid until it expires, then is not renewed. An organization the
+        caller cannot assign systems to is a 400 on key `organization_id`
+        with message `not_in_hierarchy`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: System ID
+        - name: organization_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Logto ID of the organization the system would be assigned to
+      responses:
+        '200':
+          description: Transfer preview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "system transfer preview retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/SystemTransferPlan'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':

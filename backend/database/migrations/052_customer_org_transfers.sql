@@ -29,4 +29,4 @@ ALTER TABLE system_entitlements ADD COLUMN IF NOT EXISTS renewal_stopped_at TIME
 ALTER TABLE system_entitlements ADD COLUMN IF NOT EXISTS renewal_stopped_reason VARCHAR(50);
 
 COMMENT ON COLUMN system_entitlements.renewal_stopped_at IS 'The shop must not renew this grant any more: it stays valid until valid_until. Cleared by an activation from a buyer that manages the system';
-COMMENT ON COLUMN system_entitlements.renewal_stopped_reason IS 'Why the renewal stopped: customer_transferred (the buyer organization no longer manages the customer). NULL when renewing normally';
+COMMENT ON COLUMN system_entitlements.renewal_stopped_reason IS 'Why the renewal stopped: customer_transferred, reseller_transferred or system_transferred (the buyer organization no longer manages what moved). NULL when renewing normally';

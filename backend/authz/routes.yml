@@ -218,6 +218,13 @@ routes:
   - method: PUT
     path: /api/systems/:id
     intent: manage:systems
+  - method: GET
+    path: /api/systems/:id/transfer
+    intent: manage:systems
+    query: organization_id=bogus
+    note: |
+      Preview of what assigning the system to another organization does to
+      its add-ons. Same gate as the PUT that performs the change.
   - method: DELETE
     path: /api/systems/:id
     intent: manage:systems
