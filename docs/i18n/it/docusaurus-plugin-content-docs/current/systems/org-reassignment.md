@@ -30,6 +30,7 @@ del proprietario precedente:
 | **Backup di configurazione** | Copiati nell'area di storage del nuovo proprietario prima che il cambio sia confermato; le copie del precedente proprietario vengono rimosse. |
 | **Storico allarmi** | Lo storico completo segue il sistema, così il nuovo proprietario vede ciò che stava accadendo prima del passaggio di consegne. |
 | **Silence specifiche del sistema** | I silence a singolo scopo (che silenziano tutti gli allarmi di quel solo sistema) vengono rimossi — il nuovo proprietario può riconfigurarli se gli servono. I silence più ampi creati dal precedente proprietario (ad esempio "silenzia gli allarmi disco pieno su questo sistema durante una manutenzione") restano dove sono e scadono per conto loro. |
+| **Allarmi attivi** | Gli allarmi in corso restano attivi sotto il nuovo proprietario. Le copie rimaste sotto il precedente vengono silenziate, così si spengono senza essere registrate come risolte. |
 | **Assegnazioni delle applicazioni** | Tutte le assegnazioni app→organizzazione sul sistema vengono azzerate. Il nuovo proprietario riassegna le app che gli interessano dalla normale vista Applicazioni. |
 | **Inventory, heartbeat, identità del sistema** | Intatti — `system_key`, il secret e l'intero storico inventari restano. Le appliance non devono ri-registrarsi. |
 

@@ -498,15 +498,38 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 		// quota check on either side recomputes from S3.
 		cache.InvalidateOrgBackupUsage(ctx, previousOrgID)
 		cache.InvalidateOrgBackupUsage(ctx, system.Organization.LogtoID)
-		if cleared, err := alerting.CleanupSystemSilences(previousOrgID, system.SystemKey); err != nil {
+		// A customer's alerts live in its manager's tenant.
+		fromTenant, toTenant := previousOrgID, system.Organization.LogtoID
+		if t, err := alerting.TenantForOrg(previousOrgID); err == nil {
+			fromTenant = t
+		}
+		if t, err := alerting.TenantForOrg(system.Organization.LogtoID); err == nil {
+			toTenant = t
+		}
+		cleared, err := alerting.CleanupSystemSilences(fromTenant, system.SystemKey)
+		if err != nil {
 			logger.Warn().Err(err).
 				Str("system_id", systemID).
 				Str("system_key", system.SystemKey).
-				Str("previous_org_id", previousOrgID).
+				Str("tenant", fromTenant).
 				Msg("source-org silence cleanup failed after reassignment; donor-tenant silences will expire naturally")
-			silencesCleared = cleared
-		} else {
-			silencesCleared = cleared
+		}
+		silencesCleared = cleared
+		// Mute what the system leaves firing under the old organization, and
+		// lift the mute an earlier move out of the new one may have left.
+		if err := alerting.SilenceSystemHandover(fromTenant, previousOrgID, system.SystemKey); err != nil {
+			logger.Warn().Err(err).
+				Str("system_id", systemID).
+				Str("system_key", system.SystemKey).
+				Str("tenant", fromTenant).
+				Msg("failed to silence the system's alerts under the organization it left")
+		}
+		if _, err := alerting.ClearSystemHandover(toTenant, system.Organization.LogtoID, system.SystemKey); err != nil {
+			logger.Warn().Err(err).
+				Str("system_id", systemID).
+				Str("system_key", system.SystemKey).
+				Str("tenant", toTenant).
+				Msg("failed to clear the handover silence under the system's new organization")
 		}
 		// Move alert_history rows to the new organization so the new owner
 		// sees the system's full history and the donor — which no longer

@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -440,21 +441,53 @@ const handoverSilenceDuration = 24 * time.Hour
 // expire and the tenant would report each one as resolved while it is still
 // firing in the new tenant.
 func SilenceOrganizationHandover(tenantOrgID, organizationID string) error {
-	now := time.Now().UTC()
-	_, err := CreateSilence(tenantOrgID, &models.AlertmanagerSilenceRequest{
-		Matchers:  []models.AlertmanagerMatcher{{Name: "organization_id", Value: organizationID}},
-		StartsAt:  now.Format(time.RFC3339),
-		EndsAt:    now.Add(handoverSilenceDuration).Format(time.RFC3339),
-		Comment:   "organization moved to another tenant",
-		CreatedBy: handoverSilenceCreator,
-	})
-	return err
+	return silenceHandover(tenantOrgID, organizationHandoverMatchers(organizationID), "organization moved to another tenant")
 }
 
 // ClearOrganizationHandover removes the handover silences of an organization
 // from the tenant it enters: one left by an earlier move out of that tenant
 // would mute its alerts now that they are back.
 func ClearOrganizationHandover(tenantOrgID, organizationID string) (int, error) {
+	return clearHandover(tenantOrgID, organizationHandoverMatchers(organizationID))
+}
+
+// SilenceSystemHandover mutes the alerts a system still holds under the
+// organization it just left: its new alerts carry the new organization_id,
+// so the old copies expire and would be reported as resolved.
+func SilenceSystemHandover(tenantOrgID, organizationID, systemKey string) error {
+	return silenceHandover(tenantOrgID, systemHandoverMatchers(organizationID, systemKey), "system moved to another organization")
+}
+
+// ClearSystemHandover removes the handover silences left by an earlier move
+// of the system out of the organization it now enters.
+func ClearSystemHandover(tenantOrgID, organizationID, systemKey string) (int, error) {
+	return clearHandover(tenantOrgID, systemHandoverMatchers(organizationID, systemKey))
+}
+
+func organizationHandoverMatchers(organizationID string) []models.AlertmanagerMatcher {
+	return []models.AlertmanagerMatcher{{Name: "organization_id", Value: organizationID}}
+}
+
+func systemHandoverMatchers(organizationID, systemKey string) []models.AlertmanagerMatcher {
+	return []models.AlertmanagerMatcher{
+		{Name: "system_key", Value: systemKey},
+		{Name: "organization_id", Value: organizationID},
+	}
+}
+
+func silenceHandover(tenantOrgID string, matchers []models.AlertmanagerMatcher, comment string) error {
+	now := time.Now().UTC()
+	_, err := CreateSilence(tenantOrgID, &models.AlertmanagerSilenceRequest{
+		Matchers:  matchers,
+		StartsAt:  now.Format(time.RFC3339),
+		EndsAt:    now.Add(handoverSilenceDuration).Format(time.RFC3339),
+		Comment:   comment,
+		CreatedBy: handoverSilenceCreator,
+	})
+	return err
+}
+
+func clearHandover(tenantOrgID string, matchers []models.AlertmanagerMatcher) (int, error) {
 	silences, err := GetSilences(tenantOrgID)
 	if err != nil {
 		return 0, fmt.Errorf("list silences in org %s: %w", tenantOrgID, err)
@@ -465,7 +498,7 @@ func ClearOrganizationHandover(tenantOrgID, organizationID string) (int, error) 
 		if s.CreatedBy != handoverSilenceCreator || (s.Status != nil && s.Status.State == "expired") {
 			continue
 		}
-		if len(s.Matchers) != 1 || s.Matchers[0].Name != "organization_id" || s.Matchers[0].Value != organizationID {
+		if !sameMatchers(s.Matchers, matchers) {
 			continue
 		}
 		if err := DeleteSilence(tenantOrgID, s.ID); err != nil {
@@ -477,6 +510,20 @@ func ClearOrganizationHandover(tenantOrgID, organizationID string) (int, error) 
 		deleted++
 	}
 	return deleted, firstErr
+}
+
+// sameMatchers compares two matcher sets regardless of order: Alertmanager
+// does not guarantee to return them as they were sent.
+func sameMatchers(a, b []models.AlertmanagerMatcher) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for _, m := range a {
+		if !slices.Contains(b, m) {
+			return false
+		}
+	}
+	return true
 }
 
 // silenceTargetsSystem reports whether the silence is *exclusively* scoped
