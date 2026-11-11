@@ -7,11 +7,16 @@ import { useLoginStore } from '@/stores/login'
 import * as v from 'valibot'
 import { downloadFile, exportFileName, type Pagination } from '../common'
 import { ParentOrganizationSchema } from '@/lib/organizations/organizations'
+import type {
+  CustomerTransferAddon,
+  CustomerTransferOrganization,
+} from '@/lib/organizations/customers'
 import Ns8Logo from '@/assets/system_logos/nethserver.svg'
 import NsecLogo from '@/assets/system_logos/nethsecurity.svg'
 
 export const SYSTEMS_KEY = 'systems'
 export const SYSTEMS_TOTAL_KEY = 'systemsTotal'
+export const SYSTEM_TRANSFER_PREVIEW_KEY = 'systemTransferPreview'
 export const SYSTEMS_TABLE_ID = 'systemsTable'
 export const SYSTEM_REACHABILITY_KEY = 'systemReachability'
 
@@ -321,6 +326,28 @@ export const putSystem = (system: EditSystem) => {
   return axios.put<PostSystemResponse>(`${API_URL}/systems/${system.id}`, system, {
     headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
   })
+}
+
+// What assigning a system to another organization does to its add-ons
+export interface SystemTransferPlan {
+  from: CustomerTransferOrganization
+  to: CustomerTransferOrganization
+  addons: CustomerTransferAddon[]
+  renewals_stopping: number
+}
+
+export const getSystemTransferPreview = (systemId: string, organizationId: string) => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .get<{ code: number; message: string; data: SystemTransferPlan }>(
+      `${API_URL}/systems/${systemId}/transfer`,
+      {
+        headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+        params: { organization_id: organizationId },
+      },
+    )
+    .then((res) => res.data.data)
 }
 
 export const deleteSystem = (system: System) => {
