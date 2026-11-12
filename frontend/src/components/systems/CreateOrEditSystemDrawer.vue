@@ -372,28 +372,29 @@ function copySecretAndCloseDrawer() {
             :disabled="saving"
           />
           <!-- add-ons that stop renewing with the new organization -->
-          <NeInlineNotification
-            v-if="transferPlan && stoppingAddons.length"
-            kind="warning"
-            :title="$t('customers.addons_renewal_stop_title', stoppingAddons.length)"
-          >
-            <template #description>
-              <p>
-                {{
-                  $t(
-                    'customers.addons_renewal_stop_description',
-                    { to: transferPlan.to.name, count: stoppingAddons.length },
-                    stoppingAddons.length,
-                  )
-                }}
-              </p>
-              <ul class="mt-2 list-disc pl-5">
-                <li
-                  v-for="addon in stoppingAddons"
-                  :key="`${addon.entitlement}-${addon.scope ?? ''}`"
-                >
+          <div v-if="transferPlan && stoppingAddons.length" class="space-y-3">
+            <NeInlineNotification
+              kind="warning"
+              :title="$t('customers.addons_renewal_stop_title', stoppingAddons.length)"
+              :description="
+                $t(
+                  'customers.addons_renewal_stop_description',
+                  { to: transferPlan.to.name, count: stoppingAddons.length },
+                  stoppingAddons.length,
+                )
+              "
+            />
+            <ul class="space-y-2">
+              <li
+                v-for="addon in stoppingAddons"
+                :key="`${addon.entitlement}-${addon.scope ?? ''}`"
+              >
+                <span class="font-medium">
                   {{ addon.display_name
-                  }}<template v-if="addon.scope"> ({{ addon.scope }})</template>:
+                  }}<template v-if="addon.scope"> ({{ addon.scope }})</template>
+                </span>
+                <span class="text-tertiary-neutral">
+                  ·
                   {{
                     $t('customers.addon_renewal_stops', {
                       date: addon.valid_until
@@ -401,10 +402,10 @@ function copySecretAndCloseDrawer() {
                         : '',
                     })
                   }}
-                </li>
-              </ul>
-            </template>
-          </NeInlineNotification>
+                </span>
+              </li>
+            </ul>
+          </div>
           <!-- notes -->
           <NeTextArea
             ref="notesRef"

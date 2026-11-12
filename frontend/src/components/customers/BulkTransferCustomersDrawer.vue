@@ -27,7 +27,7 @@ import {
   type CustomerTransferPlan,
 } from '@/lib/organizations/customers'
 import { SYSTEMS_KEY, SYSTEMS_TOTAL_KEY } from '@/lib/systems/systems'
-import { getValidationIssues } from '@/lib/validation'
+import { describeRequestError, getValidationIssues } from '@/lib/validation'
 import OrganizationCombobox from '@/components/organizations/OrganizationCombobox.vue'
 
 /**
@@ -104,7 +104,7 @@ function errorMessage(error: unknown) {
   if (issues.length > 0) {
     return issues.map((issue) => t(issue)).join(' ')
   }
-  return axiosError.message
+  return describeRequestError(axiosError, t)
 }
 
 async function analyze() {

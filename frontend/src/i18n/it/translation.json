@@ -1,5 +1,7 @@
 {
   "common": {
+    "network_error_description": "Errore di rete. Controlla la connessione e ricarica la pagina.",
+    "something_went_wrong": "Qualcosa è andato storto.",
     "access_denied": "Accesso negato",
     "this_section_is_accessible_only_by_owner": "Questa sezione è accessibile solo dall'organizzazione owner.",
     "breadcrumb": "Percorso di navigazione",
@@ -188,7 +190,7 @@
     "transfer_same_organization": "Il rivenditore è già gestito da questa azienda.",
     "transfer_target_is_suspended": "L'azienda selezionata è sospesa.",
     "transfer_transfer_in_progress": "È in corso un altro cambio di gestore per questo rivenditore, riprova più tardi.",
-    "organization_id_not_a_distributor": "Seleziona un distributore."
+    "organization_id_not_a_distributor": "Seleziona un distributore"
   },
   "customers": {
     "title": "Clienti",
@@ -235,7 +237,7 @@
     "addon_renewal_perpetual": "Nessuna scadenza",
     "addon_purchased_by": "Acquistato da {name}",
     "addons_renewal_stop_title": "Il rinnovo dell'add-on si interrompe | Il rinnovo degli add-on si interrompe",
-    "addons_renewal_stop_description": "L'add-on che non verrà rinnovato resta attivo fino alla scadenza, poi smette di funzionare. {to} dovrà riacquistarlo dallo shop. | I {count} add-on che non verranno rinnovati restano attivi fino alla scadenza, poi smettono di funzionare. {to} dovrà riacquistarli dallo shop.",
+    "addons_renewal_stop_description": "Per mantenere l'add-on dopo la scadenza, {to} dovrà riacquistarlo su NethShop. | Per mantenere questi {count} add-on dopo la scadenza, {to} dovrà riacquistarli su NethShop.",
     "silences_unavailable": "Silenzi non disponibili",
     "silences_unavailable_description": "Non è stato possibile leggere i silenzi del gestore attuale: quelli su questi sistemi verranno comunque rimossi.",
     "transfer_confirm_label": "Ho capito gli effetti dello spostamento di questo cliente a {name}",
@@ -247,12 +249,13 @@
     "transfer_same_organization": "Il cliente è già gestito da questa azienda.",
     "transfer_target_is_suspended": "L'azienda selezionata è sospesa.",
     "transfer_transfer_in_progress": "È in corso un altro cambio di gestore per questo cliente, riprova più tardi.",
-    "organization_id_not_in_hierarchy": "L'azienda selezionata è fuori dalla tua gerarchia.",
-    "organization_id_not_a_manager": "Seleziona un rivenditore o un distributore.",
+    "organization_id_not_in_hierarchy": "L'azienda selezionata è fuori dalla tua gerarchia",
+    "organization_id_not_a_manager": "Seleziona un rivenditore o un distributore",
+    "selection": "Selezione",
     "select_customer": "Seleziona {name}",
     "select_all_customers": "Seleziona tutti i clienti di questa pagina",
     "customers_selected": "Nessun cliente selezionato | {count} cliente selezionato | {count} clienti selezionati",
-    "clear_selection": "Annulla selezione",
+    "clear_selection": "Azzera selezione",
     "bulk_change_manager_description": "Sposta i clienti selezionati sotto un altro rivenditore o distributore. I loro sistemi e utenti si spostano con loro.",
     "bulk_new_manager_helper": "Il rivenditore o distributore che gestirà questi clienti",
     "bulk_analyzing": "Verifica del cliente {current} di {total}",

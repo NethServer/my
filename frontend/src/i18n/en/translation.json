@@ -1,5 +1,7 @@
 {
   "common": {
+    "network_error_description": "Network error. Check your connection and reload the page.",
+    "something_went_wrong": "Something went wrong.",
     "access_denied": "Access denied",
     "this_section_is_accessible_only_by_owner": "This section is accessible only by the owner organization.",
     "breadcrumb": "Breadcrumb",
@@ -188,7 +190,7 @@
     "transfer_same_organization": "The reseller is already managed by this company.",
     "transfer_target_is_suspended": "The selected company is suspended.",
     "transfer_transfer_in_progress": "Another change of manager for this reseller is in progress, try again later.",
-    "organization_id_not_a_distributor": "Select a distributor."
+    "organization_id_not_a_distributor": "Select a distributor"
   },
   "customers": {
     "title": "Customers",
@@ -235,7 +237,7 @@
     "addon_renewal_perpetual": "No expiry",
     "addon_purchased_by": "Purchased by {name}",
     "addons_renewal_stop_title": "Add-on renewal stops | Add-on renewals stop",
-    "addons_renewal_stop_description": "The add-on that will not be renewed stays active until it expires, then stops working. {to} will have to purchase it again from the shop. | The {count} add-ons that will not be renewed stay active until they expire, then stop working. {to} will have to purchase them again from the shop.",
+    "addons_renewal_stop_description": "To keep the add-on after it expires, {to} will have to purchase it again on NethShop. | To keep these {count} add-ons after they expire, {to} will have to purchase them again on NethShop.",
     "silences_unavailable": "Silences not available",
     "silences_unavailable_description": "The silences of the current manager could not be read: the ones on these systems will be removed anyway.",
     "transfer_confirm_label": "I understand the effects of moving this customer to {name}",
@@ -247,8 +249,9 @@
     "transfer_same_organization": "The customer is already managed by this company.",
     "transfer_target_is_suspended": "The selected company is suspended.",
     "transfer_transfer_in_progress": "Another change of manager for this customer is in progress, try again later.",
-    "organization_id_not_in_hierarchy": "The selected company is outside your hierarchy.",
-    "organization_id_not_a_manager": "Select a reseller or a distributor.",
+    "organization_id_not_in_hierarchy": "The selected company is outside your hierarchy",
+    "organization_id_not_a_manager": "Select a reseller or a distributor",
+    "selection": "Selection",
     "select_customer": "Select {name}",
     "select_all_customers": "Select all customers on this page",
     "customers_selected": "No customers selected | {count} customer selected | {count} customers selected",

@@ -495,7 +495,7 @@ const goToCustomerDetails = (customer: Customer) => {
       </NeTableHead>
       <NeTableBody>
         <NeTableRow v-for="item in customersPage" :key="item.logto_id">
-          <NeTableCell v-if="canTransferCustomers()" :data-label="$t('customers.change_manager')">
+          <NeTableCell v-if="canTransferCustomers()" :data-label="$t('customers.selection')">
             <NeCheckbox
               :model-value="selectedCustomers.has(item.logto_id)"
               :disabled="!!item.deleted_at || !!item.suspended_at"

@@ -35,7 +35,7 @@ import {
   type CustomerTransferAddon,
 } from '@/lib/organizations/customers'
 import { SYSTEMS_KEY, SYSTEMS_TOTAL_KEY } from '@/lib/systems/systems'
-import { getValidationIssues, type ValidationIssue } from '@/lib/validation'
+import { describeRequestError, getValidationIssues, type ValidationIssue } from '@/lib/validation'
 import { formatDateNoTime } from '@/lib/dateTime'
 import { useLoginStore } from '@/stores/login'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -82,12 +82,27 @@ const {
 
 const plan = computed(() => (targetOrganizationId.value ? preview.value.data : undefined))
 
-const previewIssues = computed(() => {
-  if (!previewError.value) {
-    return []
+const previewIssues = computed<ValidationIssue>(() =>
+  previewError.value ? getValidationIssues(previewError.value as AxiosError, 'customers') : {},
+)
+
+function describeError(error: Error | null, issues: ValidationIssue) {
+  if (!error || issues.organization_id?.length) {
+    return ''
   }
-  return Object.values(getValidationIssues(previewError.value as AxiosError, 'customers')).flat()
+  const others = Object.values(issues).flat()
+  return others.length ? others.map((issue) => t(issue)).join(' ') : describeRequestError(error, t)
+}
+
+const targetInvalidMessage = computed(() => {
+  const issue =
+    validationIssues.value.organization_id?.[0] ?? previewIssues.value.organization_id?.[0]
+  return issue ? t(issue) : ''
 })
+
+const previewErrorDescription = computed(() =>
+  describeError(previewError.value, previewIssues.value),
+)
 
 const {
   mutate: transferMutate,
@@ -120,13 +135,9 @@ const {
   },
 })
 
-const transferErrorDescription = computed(() => {
-  const issues = Object.values(validationIssues.value).flat()
-  if (issues.length > 0) {
-    return issues.map((issue) => t(issue)).join(' ')
-  }
-  return transferError.value?.message
-})
+const transferErrorDescription = computed(() =>
+  describeError(transferError.value, validationIssues.value),
+)
 
 const canTransfer = computed(
   () => !!plan.value && confirmed.value && !transferLoading.value && !previewError.value,
@@ -202,22 +213,19 @@ function closeDrawer() {
           :helper-text="$t('customers.new_manager_helper')"
           :allowed-types="managerTypes"
           :exclude-organization-ids="excludeOrganizationIds"
+          :invalid-message="targetInvalidMessage"
           :disabled="transferLoading"
           @update:model-value="onTargetChange"
         />
         <!-- preview -->
         <NeSkeleton v-if="targetOrganizationId && previewStatus === 'loading'" :lines="8" />
         <NeInlineNotification
-          v-else-if="previewError"
+          v-else-if="previewErrorDescription"
           kind="error"
           :title="$t('customers.cannot_transfer_customer')"
-          :description="
-            previewIssues.length
-              ? previewIssues.map((issue) => $t(issue)).join(' ')
-              : previewError.message
-          "
+          :description="previewErrorDescription"
         />
-        <template v-else-if="plan">
+        <template v-else-if="plan && !previewError">
           <div>
             <NeHeading tag="h6" class="mb-4">
               {{ $t('customers.what_changes') }}
