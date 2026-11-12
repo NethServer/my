@@ -1637,12 +1637,12 @@
     "activity_connected": "Connesso",
     "activity_recent": "Attivo di recente",
     "ssh_auth_title": "Accesso SSH",
-    "ssh_auth_intro": "Hai lanciato ssh verso {target} con il comando copiato da my. Autorizza se la richiesta è tua: i dati qui sotto devono corrispondere.",
+    "ssh_auth_intro": "Hai lanciato ssh verso {target} con il comando copiato da My Nethesis. Autorizza la richiesta solo se è tua e i dati qui sotto corrispondono.",
     "ssh_auth_target_node": "{name} (nodo {node})",
     "ssh_auth_system": "Sistema",
     "ssh_auth_client_ip": "IP di provenienza",
     "ssh_auth_requested_at": "Richiesto il",
-    "ssh_auth_warning": "L'accesso vale per questa sessione di supporto, al massimo 4 ore, finché non esci da My o perdi i permessi.",
+    "ssh_auth_warning": "L'accesso vale per questa sessione di supporto, al massimo 4 ore, finché non esci da My Nethesis o perdi i permessi.",
     "ssh_auth_approve": "Autorizza",
     "ssh_auth_deny": "Rifiuta",
     "ssh_auth_approved_title": "Accesso autorizzato",
@@ -1650,8 +1650,7 @@
     "ssh_auth_denied_title": "Accesso rifiutato",
     "ssh_auth_not_found": "Richiesta non trovata o scaduta: rilancia ssh per crearne una nuova.",
     "ssh_auth_no_session": "Nessuna sessione di supporto attiva su questo sistema.",
-    "ssh_auth_error": "Impossibile completare la richiesta.",
-    "ssh": "SSH",
+    "ssh_auth_error": "Si è verificato un errore.",
     "ssh_copied": "Comando SSH copiato",
     "ssh_copy_hint": "Copia il comando ssh da incollare nel terminale (serve websocat)",
     "ssh_copy_node": "Nodo {node}",
@@ -1666,7 +1665,10 @@
     "activity_ssh": "SSH",
     "activity_opened_ssh": "{name} ha aperto una connessione SSH",
     "activity_closed_ssh": "{name} ha chiuso la connessione SSH",
-    "activity_from": "da {ip}"
+    "activity_from": "da {ip}",
+    "ssh_auth_error_title": "Impossibile completare la richiesta di accesso SSH",
+    "ssh_auth_no_session_title": "Nessuna sessione di supporto attiva",
+    "ssh_copy": "Copia comando SSH"
   },
   "support_workspace": {
     "title": "Supporto"

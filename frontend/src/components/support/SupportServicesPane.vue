@@ -9,6 +9,7 @@ import { useI18n } from 'vue-i18n'
 import {
   faChevronDown,
   faChevronUp,
+  faCopy,
   faCirclePlus,
   faTerminal,
   faTrash,
@@ -169,9 +170,9 @@ const domainUsername = computed(() => props.data?.credentials?.domainUsers[0]?.u
         <template #button>
           <NeButton kind="secondary" size="sm" :title="t('support.ssh_copy_hint')">
             <template #prefix>
-              <FontAwesomeIcon :icon="faTerminal" aria-hidden="true" />
+              <FontAwesomeIcon :icon="faCopy" aria-hidden="true" />
             </template>
-            {{ t('support.ssh') }}
+            {{ t('support.ssh_copy') }}
             <template #suffix>
               <FontAwesomeIcon :icon="faChevronDown" aria-hidden="true" />
             </template>
@@ -186,9 +187,9 @@ const domainUsername = computed(() => props.data?.credentials?.domainUsers[0]?.u
         @click="copySSH(terminals[0].nodeId)"
       >
         <template #prefix>
-          <FontAwesomeIcon :icon="faTerminal" aria-hidden="true" />
+          <FontAwesomeIcon :icon="faCopy" aria-hidden="true" />
         </template>
-        {{ t('support.ssh') }}
+        {{ t('support.ssh_copy') }}
       </NeButton>
     </div>
     <template v-if="data && !loading">

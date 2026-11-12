@@ -11,7 +11,7 @@ import {
   faXmark,
   faMagnifyingGlass,
   faWindowMaximize,
-  faTerminal,
+  faCopy,
   faChevronDown,
 } from '@fortawesome/free-solid-svg-icons'
 import {
@@ -471,9 +471,9 @@ async function handleCloseGroup(group: SystemSessionGroup) {
                   <template #button>
                     <NeButton kind="tertiary" size="sm" :title="$t('support.ssh_copy_hint')">
                       <template #prefix>
-                        <FontAwesomeIcon :icon="faTerminal" aria-hidden="true" />
+                        <FontAwesomeIcon :icon="faCopy" aria-hidden="true" />
                       </template>
-                      {{ $t('support.ssh') }}
+                      {{ $t('support.ssh_copy') }}
                       <template #suffix>
                         <FontAwesomeIcon :icon="faChevronDown" aria-hidden="true" />
                       </template>
@@ -491,9 +491,9 @@ async function handleCloseGroup(group: SystemSessionGroup) {
                     aria-hidden="true"
                   >
                     <template #prefix>
-                      <FontAwesomeIcon :icon="faTerminal" />
+                      <FontAwesomeIcon :icon="faCopy" />
                     </template>
-                    {{ $t('support.ssh') }}
+                    {{ $t('support.ssh_copy') }}
                     <template #suffix>
                       <FontAwesomeIcon :icon="faChevronDown" />
                     </template>
@@ -506,9 +506,9 @@ async function handleCloseGroup(group: SystemSessionGroup) {
                     @click="copySSHCommand(group)"
                   >
                     <template #prefix>
-                      <FontAwesomeIcon :icon="faTerminal" aria-hidden="true" />
+                      <FontAwesomeIcon :icon="faCopy" aria-hidden="true" />
                     </template>
-                    {{ $t('support.ssh') }}
+                    {{ $t('support.ssh_copy') }}
                   </NeButton>
                 </div>
                 <NeButton
