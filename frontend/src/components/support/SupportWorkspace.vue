@@ -159,6 +159,12 @@ function onVisible() {
 const activeSessions = computed(() => sessions.value.filter((s) => s.status === 'active'))
 const isMultiNode = computed(() => activeSessions.value.filter((s) => s.node_id).length > 1)
 
+function terminalPhaseLabel(phase: TerminalPhase): string {
+  if (phase === 'connected') return t('support.terminal_connected')
+  if (phase === 'connecting') return t('support.terminal_connecting')
+  return t('support.terminal_connection_error')
+}
+
 function terminalLabel(sessionId: string): string {
   const nodeId = sessions.value.find((s) => s.id === sessionId)?.node_id
   return isMultiNode.value && nodeId
@@ -586,6 +592,7 @@ onBeforeUnmount(() => {
           v-if="mode === 'app'"
           class="rounded p-1.5 text-gray-400 hover:bg-gray-700 hover:text-gray-200"
           :title="t('support.workspace_minimize')"
+          :aria-label="t('support.workspace_minimize')"
           @click="emit('minimize')"
         >
           <FontAwesomeIcon :icon="faWindowMinimize" class="h-4 w-4" aria-hidden="true" />
@@ -594,6 +601,7 @@ onBeforeUnmount(() => {
           v-if="mode === 'app'"
           class="rounded p-1.5 text-gray-400 hover:bg-gray-700 hover:text-gray-200"
           :title="t('support.workspace_detach')"
+          :aria-label="t('support.workspace_detach')"
           @click="handleMove('detach')"
         >
           <FontAwesomeIcon :icon="faUpRightFromSquare" class="h-4 w-4" aria-hidden="true" />
@@ -608,7 +616,8 @@ onBeforeUnmount(() => {
         </button>
         <button
           class="rounded p-1.5 text-gray-400 hover:bg-gray-700 hover:text-gray-200"
-          :title="t('common.close')"
+          :title="t('support.workspace_close')"
+          :aria-label="t('support.workspace_close')"
           @click="handleClose"
         >
           <FontAwesomeIcon :icon="faXmark" class="h-5 w-5" aria-hidden="true" />
@@ -620,30 +629,35 @@ onBeforeUnmount(() => {
     <div class="flex h-9 shrink-0 items-center border-b border-gray-700 bg-gray-800 px-2">
       <div class="flex min-w-0 items-center overflow-x-auto">
         <!-- diagnostics: always first, never closed or moved -->
-        <div
-          class="flex shrink-0 cursor-pointer items-center gap-1.5 px-3 py-1.5 text-xs"
+        <button
+          type="button"
+          class="flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs"
           :class="
             activeTabId === 0
               ? 'rounded-t bg-gray-900 text-gray-100'
               : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'
           "
+          :aria-pressed="activeTabId === 0"
           @click="activeTabId = 0"
         >
-          <FontAwesomeIcon :icon="faHeartPulse" class="h-3 w-3 shrink-0 text-sky-400" />
+          <FontAwesomeIcon
+            :icon="faHeartPulse"
+            class="h-3 w-3 shrink-0 text-sky-400"
+            aria-hidden="true"
+          />
           <span>{{ t('support.diagnostics') }}</span>
-        </div>
+        </button>
         <div
           v-for="tab in orderedTabs"
           :key="tab.id"
           draggable="true"
-          class="group relative flex max-w-60 shrink-0 cursor-pointer items-center gap-1.5 px-3 py-1.5 text-xs"
+          class="group relative flex max-w-60 shrink-0 items-center gap-1 pr-1 text-xs"
           :class="[
             tab.id === activeTabId
               ? 'rounded-t bg-gray-900 text-gray-100'
               : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200',
             { 'opacity-40': tab.id === draggedTabId },
           ]"
-          @click="activeTabId = tab.id"
           @dragstart="onTabDragStart($event, tab.id)"
           @dragover="onTabDragOver($event, tab.id)"
           @drop.prevent="onTabDrop"
@@ -664,23 +678,43 @@ onBeforeUnmount(() => {
             class="bg-primary-500 absolute inset-y-1 -right-px w-0.5 rounded"
             aria-hidden="true"
           ></span>
-          <span
-            v-if="tab.spec.kind === 'terminal'"
-            class="h-1.5 w-1.5 shrink-0 rounded-full"
-            :class="{
-              'bg-green-400': tab.phase === 'connected',
-              'animate-pulse bg-yellow-400': tab.phase === 'connecting',
-              'bg-red-400': tab.phase === 'error',
-            }"
-          ></span>
-          <FontAwesomeIcon v-else :icon="faGlobe" class="h-3 w-3 shrink-0 text-amber-500" />
-          <span class="truncate">{{
-            tab.spec.kind === 'terminal' ? terminalLabel(tab.spec.sessionId) + tab.label : tab.label
-          }}</span>
           <button
-            class="ml-1 shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-gray-600"
+            type="button"
+            class="flex min-w-0 items-center gap-1.5 py-1.5 pl-3"
+            :aria-pressed="tab.id === activeTabId"
+            @click="activeTabId = tab.id"
+          >
+            <span
+              v-if="tab.spec.kind === 'terminal'"
+              class="h-1.5 w-1.5 shrink-0 rounded-full"
+              :class="{
+                'bg-green-400': tab.phase === 'connected',
+                'animate-pulse bg-yellow-400': tab.phase === 'connecting',
+                'bg-red-400': tab.phase === 'error',
+              }"
+              aria-hidden="true"
+            ></span>
+            <FontAwesomeIcon
+              v-else
+              :icon="faGlobe"
+              class="h-3 w-3 shrink-0 text-amber-500"
+              aria-hidden="true"
+            />
+            <span class="truncate">{{
+              tab.spec.kind === 'terminal'
+                ? terminalLabel(tab.spec.sessionId) + tab.label
+                : tab.label
+            }}</span>
+            <span v-if="tab.spec.kind === 'terminal' && tab.phase" class="sr-only">{{
+              terminalPhaseLabel(tab.phase)
+            }}</span>
+          </button>
+          <button
+            type="button"
+            class="shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-gray-600 focus-visible:opacity-100"
             :class="{ 'opacity-100': tab.id === activeTabId }"
-            :title="t('common.close')"
+            :title="t('support.close_tab')"
+            :aria-label="t('support.close_tab')"
             @click.stop="closeTab(tab.id)"
           >
             <FontAwesomeIcon :icon="faXmark" class="h-3 w-3" aria-hidden="true" />
@@ -692,6 +726,8 @@ onBeforeUnmount(() => {
         <button
           class="ml-1 rounded p-1 text-gray-500 hover:bg-gray-700 hover:text-gray-300"
           :title="t('support.workspace_new_tab')"
+          :aria-label="t('support.workspace_new_tab')"
+          :aria-expanded="menuOpen"
           @click="menuOpen = !menuOpen"
         >
           <FontAwesomeIcon :icon="faPlus" class="h-3.5 w-3.5" aria-hidden="true" />
@@ -721,7 +757,11 @@ onBeforeUnmount(() => {
                 @mouseenter="menuIndex = menuItemIndex(`t:${session.id}`)"
                 @click="openTerminal(session)"
               >
-                <FontAwesomeIcon :icon="faTerminal" class="h-3 w-3 text-green-600" />
+                <FontAwesomeIcon
+                  :icon="faTerminal"
+                  class="h-3 w-3 text-green-600"
+                  aria-hidden="true"
+                />
                 {{ terminalLabel(session.id) }}
               </button>
             </template>
@@ -740,12 +780,16 @@ onBeforeUnmount(() => {
                 @mouseenter="menuIndex = menuItemIndex(`s:${svc.name}`)"
                 @click="openService(svc)"
               >
-                <FontAwesomeIcon :icon="faGlobe" class="h-3 w-3 text-amber-500" />
+                <FontAwesomeIcon
+                  :icon="faGlobe"
+                  class="h-3 w-3 text-amber-500"
+                  aria-hidden="true"
+                />
                 {{ svc.label || svc.name }}
               </button>
               <div v-for="mg in menuModules" :key="mg.moduleId">
                 <div
-                  class="px-3 pt-2 pb-1 text-xs font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400"
+                  class="px-3 pt-2 pb-1 text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400"
                 >
                   {{ mg.moduleLabel || mg.moduleId }}
                   <span v-if="mg.nodeId" class="font-normal normal-case"
@@ -763,13 +807,17 @@ onBeforeUnmount(() => {
                   @mouseenter="menuIndex = menuItemIndex(`s:${svc.name}`)"
                   @click="openService(svc)"
                 >
-                  <FontAwesomeIcon :icon="faGlobe" class="h-3 w-3 shrink-0 text-amber-500" />
+                  <FontAwesomeIcon
+                    :icon="faGlobe"
+                    class="h-3 w-3 shrink-0 text-amber-500"
+                    aria-hidden="true"
+                  />
                   <span class="truncate">{{ serviceDisplayName(svc) }}</span>
                 </button>
               </div>
               <template v-if="menuCustomServices.length">
                 <div
-                  class="px-3 pt-2 pb-1 text-xs font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400"
+                  class="px-3 pt-2 pb-1 text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400"
                 >
                   {{ t('support.custom_services') }}
                 </div>
@@ -784,7 +832,11 @@ onBeforeUnmount(() => {
                   @mouseenter="menuIndex = menuItemIndex(`s:${svc.name}`)"
                   @click="openService(svc)"
                 >
-                  <FontAwesomeIcon :icon="faGlobe" class="h-3 w-3 shrink-0 text-amber-500" />
+                  <FontAwesomeIcon
+                    :icon="faGlobe"
+                    class="h-3 w-3 shrink-0 text-amber-500"
+                    aria-hidden="true"
+                  />
                   <span class="truncate">{{ svc.label || svc.name }}</span>
                 </button>
               </template>
@@ -862,6 +914,9 @@ onBeforeUnmount(() => {
               : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200'
           "
           :title="t(item.label)"
+          :aria-label="
+            item.id === 'notes' && notesCount ? `${t(item.label)} (${notesCount})` : t(item.label)
+          "
           :aria-pressed="panelOpen && panelSection === item.id"
           @click="togglePanel(item.id)"
         >
@@ -869,10 +924,12 @@ onBeforeUnmount(() => {
           <span
             v-if="panelOpen && panelSection === item.id"
             class="bg-primary-600 dark:bg-primary-400 absolute top-1.5 -right-1.5 h-6 w-0.5 rounded-full"
+            aria-hidden="true"
           />
           <span
             v-if="item.id === 'notes' && notesCount"
-            class="absolute -top-0.5 -right-0.5 min-w-3.5 rounded-full bg-amber-400 px-0.5 text-[9px] leading-3.5 font-semibold text-gray-900"
+            class="absolute -top-1 -right-1 min-w-4 rounded-full bg-amber-400 px-1 text-xs leading-4 font-medium text-gray-900"
+            aria-hidden="true"
             >{{ notesCount > 99 ? '99+' : notesCount }}</span
           >
         </button>
@@ -904,14 +961,14 @@ onBeforeUnmount(() => {
         :visible="showCloseConfirm"
         :title="t('support.workspace_close')"
         kind="warning"
-        :primary-label="t('support.workspace_close')"
+        :primary-label="t('common.close')"
         :cancel-label="t('common.cancel')"
         primary-button-kind="danger"
         :close-aria-label="t('common.close')"
         @close="showCloseConfirm = false"
         @primary-click="doClose"
       >
-        <p>{{ t('support.workspace_close_confirm', { count: tabs.length }) }}</p>
+        <p>{{ t('support.workspace_close_confirm', { n: tabs.length }, tabs.length) }}</p>
       </NeModal>
       <SupportAddServiceModal
         :visible="addServiceOpen"

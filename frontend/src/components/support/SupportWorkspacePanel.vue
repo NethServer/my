@@ -8,6 +8,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { faArrowsRotate } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { NeButton } from '@nethesis/vue-components'
 import {
   getSupportActivity,
   getSupportNotes,
@@ -154,18 +155,20 @@ onBeforeUnmount(() => {
     <div
       class="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-gray-200 px-4 dark:border-gray-700"
     >
-      <h3 class="min-w-0 truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+      <h3 class="min-w-0 truncate text-sm font-medium text-gray-900 dark:text-gray-100">
         {{ t(WORKSPACE_PANEL_SECTIONS.find((item) => item.id === section)?.label || '') }}
       </h3>
       <div class="flex shrink-0 items-center gap-1">
-        <button
-          class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+        <NeButton
+          kind="tertiary"
+          size="xs"
           :title="t('support.workspace_reload')"
+          :aria-label="t('support.workspace_reload')"
           :disabled="loading"
           @click="refresh"
         >
-          <FontAwesomeIcon :icon="faArrowsRotate" class="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
+          <FontAwesomeIcon :icon="faArrowsRotate" aria-hidden="true" />
+        </NeButton>
       </div>
     </div>
     <!-- the system's history spans its sessions: say how far it goes -->

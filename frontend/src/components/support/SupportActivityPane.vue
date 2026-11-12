@@ -7,24 +7,24 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
+  faArrowRightToBracket,
   faChevronDown,
-  faChevronRight,
+  faChevronUp,
+  faCircleMinus,
+  faCirclePlus,
   faCirclePlay,
   faCircleStop,
   faClockRotateLeft,
   faEye,
   faGlobe,
   faKey,
-  faRightToBracket,
-  faMinus,
   faNoteSticky,
-  faPlus,
   faTerminal,
   faUser,
   type IconDefinition,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { NeInlineNotification, NeSpinner } from '@nethesis/vue-components'
+import { NeButton, NeInlineNotification, NeSpinner } from '@nethesis/vue-components'
 import {
   type SupportActivity,
   type SupportActivityLog,
@@ -260,7 +260,7 @@ function logItem(log: SupportActivityLog): TimelineItem {
     case 'cluster_login':
       return {
         ...base,
-        icon: faRightToBracket,
+        icon: faArrowRightToBracket,
         text: t('support.activity_cluster_login', { name, service: meta.service || '' }),
       }
     case 'session_extend':
@@ -279,13 +279,13 @@ function logItem(log: SupportActivityLog): TimelineItem {
     case 'service_add':
       return {
         ...base,
-        icon: faPlus,
+        icon: faCirclePlus,
         text: t('support.activity_service_added', { name, service: meta.service || '' }),
       }
     case 'service_remove':
       return {
         ...base,
-        icon: faMinus,
+        icon: faCircleMinus,
         text: t('support.activity_service_removed', { name, service: meta.service || '' }),
       }
     default:
@@ -436,7 +436,7 @@ function toneClass(tone: TimelineItem['tone']) {
     <template v-else-if="activity">
       <!-- who is on the system now and who worked on it lately -->
       <section class="shrink-0 rounded-md border border-gray-200 p-3 dark:border-gray-700">
-        <h4 class="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <h4 class="mb-2 text-sm font-medium text-gray-900 dark:text-gray-100">
           {{ t('support.activity_connected_now') }}
         </h4>
         <p
@@ -452,15 +452,28 @@ function toneClass(tone: TimelineItem['tone']) {
             class="text-sm"
           >
             <div class="flex items-center gap-2">
-              <span v-if="presence.connected.includes(op)" class="relative flex h-2 w-2 shrink-0">
+              <span
+                v-if="presence.connected.includes(op)"
+                class="relative flex h-2 w-2 shrink-0"
+                aria-hidden="true"
+              >
                 <span
                   class="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"
                 />
                 <span class="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
               </span>
-              <span v-else class="inline-flex h-2 w-2 shrink-0 rounded-full bg-amber-400" />
+              <span
+                v-else
+                class="inline-flex h-2 w-2 shrink-0 rounded-full bg-amber-400"
+                aria-hidden="true"
+              />
               <span class="truncate font-medium text-gray-900 dark:text-gray-100">{{
                 op.name
+              }}</span>
+              <span class="sr-only">{{
+                presence.connected.includes(op)
+                  ? t('support.activity_connected')
+                  : t('support.activity_recent')
               }}</span>
             </div>
             <!-- one line per terminal or web interface -->
@@ -484,9 +497,11 @@ function toneClass(tone: TimelineItem['tone']) {
                 <span class="min-w-0 truncate" :title="activity.text">{{ activity.text }}</span>
               </li>
             </ul>
-            <button
+            <NeButton
               v-if="op.activities.length > PRESENCE_FOLD"
-              class="text-primary-600 dark:text-primary-400 mt-1 ml-9 text-xs hover:underline"
+              kind="tertiary"
+              size="xs"
+              class="mt-1 ml-6"
               @click="toggleFold(op.operatorId)"
             >
               {{
@@ -494,7 +509,7 @@ function toneClass(tone: TimelineItem['tone']) {
                   ? t('support.activity_show_less')
                   : t('support.activity_show_more', { n: op.activities.length - PRESENCE_FOLD })
               }}
-            </button>
+            </NeButton>
           </li>
         </ul>
       </section>
@@ -507,21 +522,27 @@ function toneClass(tone: TimelineItem['tone']) {
       >
         <button
           class="flex w-full items-start gap-2 px-3 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
+          :aria-expanded="expanded.has(group.episode.id)"
           @click="toggle(group.episode.id)"
         >
           <FontAwesomeIcon
-            :icon="expanded.has(group.episode.id) ? faChevronDown : faChevronRight"
+            :icon="expanded.has(group.episode.id) ? faChevronUp : faChevronDown"
             class="mt-1 h-3 w-3 shrink-0 text-gray-500 dark:text-gray-400"
+            aria-hidden="true"
           />
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2">
-              <span class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+              <span class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
                 {{ episodeTitle(group.episode) }}
               </span>
               <span
                 v-if="group.episode.live"
                 class="inline-flex h-2 w-2 shrink-0 rounded-full bg-amber-400"
+                aria-hidden="true"
               />
+              <span v-if="group.episode.live" class="sr-only">{{
+                t('support.activity_in_progress')
+              }}</span>
             </div>
             <div class="text-xs text-gray-500 dark:text-gray-400">
               {{ stampOf(group.episode.startedAt) }}

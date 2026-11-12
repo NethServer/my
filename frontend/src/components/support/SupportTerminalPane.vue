@@ -9,6 +9,7 @@ import { useI18n } from 'vue-i18n'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
+import { NeInlineNotification } from '@nethesis/vue-components'
 import { API_URL } from '@/lib/config'
 import { getTerminalTicket } from '@/lib/support/support'
 
@@ -41,7 +42,8 @@ let ws: WebSocket | null = null
 let resizeObserver: ResizeObserver | null = null
 
 const terminalTheme = {
-  background: '#1e1e2e',
+  // gray-950, the background of the pane
+  background: '#030712',
   foreground: '#cdd6f4',
   cursor: '#f5e0dc',
   selectionBackground: '#585b70',
@@ -158,7 +160,7 @@ async function start() {
 
   ws.onclose = () => {
     if (phase.value === 'connected') {
-      terminal?.write('\r\n\x1b[33mConnection closed.\x1b[0m\r\n')
+      terminal?.write(`\r\n\x1b[33m${t('support.terminal_connection_closed')}\x1b[0m\r\n`)
       errorMessage.value = t('support.terminal_connection_closed')
       setPhase('error')
     }
@@ -216,31 +218,20 @@ onBeforeUnmount(() => cleanup())
 </script>
 
 <template>
-  <div class="absolute inset-0 flex flex-col bg-[#1e1e2e]">
+  <div class="absolute inset-0 flex flex-col bg-gray-950">
     <div v-if="phase === 'connecting'" class="absolute inset-0 flex items-center justify-center">
       <p class="text-gray-400">{{ t('support.terminal_connecting') }}</p>
     </div>
     <div ref="containerRef" class="min-h-0 flex-1 p-1"></div>
-    <div
+    <NeInlineNotification
       v-if="phase === 'error'"
-      class="absolute inset-x-0 bottom-0 flex items-center justify-between bg-red-900/90 px-4 py-3"
-    >
-      <span class="text-sm text-red-200">{{ errorMessage }}</span>
-      <!-- light buttons: the library's ones are blue on this red bar -->
-      <div class="flex gap-2">
-        <button
-          class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-red-900 hover:bg-red-50"
-          @click="retry"
-        >
-          {{ t('support.terminal_retry') }}
-        </button>
-        <button
-          class="rounded-md border border-white/60 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/10"
-          @click="emit('close')"
-        >
-          {{ t('common.close') }}
-        </button>
-      </div>
-    </div>
+      kind="error"
+      class="absolute inset-x-4 bottom-4"
+      :title="errorMessage"
+      :primary-button-label="t('support.terminal_retry')"
+      :secondary-button-label="t('common.close')"
+      @primary-click="retry"
+      @secondary-click="emit('close')"
+    />
   </div>
 </template>

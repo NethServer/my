@@ -7,6 +7,7 @@
 import { ref } from 'vue'
 import { faCheck, faCopy } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { NeButton } from '@nethesis/vue-components'
 
 const props = defineProps<{
   label: string
@@ -26,16 +27,20 @@ async function copy() {
 
 <template>
   <div class="flex items-center justify-between gap-2 text-sm">
-    <span class="shrink-0 text-gray-500 dark:text-gray-400">{{ label }}:</span>
+    <span class="shrink-0 text-gray-500 dark:text-gray-400">{{ label }}</span>
     <div class="flex min-w-0 items-center gap-1">
       <code class="truncate text-gray-900 dark:text-gray-100">{{ value }}</code>
-      <button
-        class="shrink-0 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-        :title="$t('common.click_to_copy')"
+      <NeButton
+        kind="tertiary"
+        size="xs"
+        class="shrink-0"
+        :title="$t('support.copy_item', { item: label.toLowerCase() })"
+        :aria-label="$t('support.copy_item', { item: label.toLowerCase() })"
         @click.stop="copy"
       >
-        <FontAwesomeIcon :icon="copied ? faCheck : faCopy" class="h-3 w-3" aria-hidden="true" />
-      </button>
+        <FontAwesomeIcon :icon="copied ? faCheck : faCopy" aria-hidden="true" />
+      </NeButton>
+      <span class="sr-only" aria-live="polite">{{ copied ? $t('support.copied') : '' }}</span>
     </div>
   </div>
 </template>

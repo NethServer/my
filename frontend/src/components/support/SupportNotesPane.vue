@@ -6,7 +6,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { faPen, faTrashCan, faUpRightFromSquare } from '@fortawesome/free-solid-svg-icons'
+import { faPenToSquare, faTrash, faUpRightFromSquare } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   NeButton,
@@ -25,6 +25,7 @@ import {
   type SupportNote,
 } from '@/lib/support/support'
 import { useLoginStore } from '@/stores/login'
+import DeleteObjectModal from '@/components/common/DeleteObjectModal.vue'
 
 const props = defineProps<{
   systemId: string
@@ -129,14 +130,27 @@ async function saveEdit(note: SupportNote) {
   }
 }
 
-async function remove(note: SupportNote) {
-  deletingId.value = null
-  saveError.value = ''
+const deletingNote = computed(() => props.notes.find((note) => note.id === deletingId.value))
+const deleteLoading = ref(false)
+const deleteError = ref('')
+
+function askDelete(note: SupportNote) {
+  deleteError.value = ''
+  deletingId.value = note.id
+}
+
+async function remove() {
+  if (!deletingId.value) return
+  deleteLoading.value = true
+  deleteError.value = ''
   try {
-    await deleteSupportNote(note.id)
+    await deleteSupportNote(deletingId.value)
+    deletingId.value = null
     emit('changed')
   } catch {
-    saveError.value = t('support.notes_save_error')
+    deleteError.value = t('support.notes_delete_error_description')
+  } finally {
+    deleteLoading.value = false
   }
 }
 
@@ -190,7 +204,7 @@ function onKeydown(event: KeyboardEvent, save: () => void) {
       </p>
       <template v-for="group in groups" :key="group.episode?.id || 'other'">
         <h4
-          class="shrink-0 text-xs font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400"
+          class="shrink-0 text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400"
         >
           {{ groupTitle(group.episode) }}
         </h4>
@@ -201,47 +215,31 @@ function onKeydown(event: KeyboardEvent, save: () => void) {
         >
           <div class="mb-1.5 flex items-start justify-between gap-2">
             <div class="min-w-0 text-xs text-gray-500 dark:text-gray-400">
-              <span class="font-semibold text-gray-900 dark:text-gray-100">
+              <span class="font-medium text-gray-900 dark:text-gray-100">
                 {{ note.author_name || t('support.notes_unknown_author') }}
               </span>
               · {{ formatTime(note.created_at) }}
               <span v-if="edited(note)">· {{ t('support.notes_edited') }}</span>
             </div>
-            <div
-              v-if="isMine(note) && deletingId === note.id"
-              class="flex shrink-0 items-center gap-1 text-xs"
-            >
-              <span class="text-gray-500 dark:text-gray-400">{{
-                t('support.notes_delete_confirm')
-              }}</span>
-              <button
-                class="font-semibold text-red-600 hover:underline dark:text-red-400"
-                @click="remove(note)"
-              >
-                {{ t('common.delete') }}
-              </button>
-              <button
-                class="text-gray-500 hover:underline dark:text-gray-400"
-                @click="deletingId = null"
-              >
-                {{ t('common.cancel') }}
-              </button>
-            </div>
-            <div v-else-if="isMine(note) && editingId !== note.id" class="flex shrink-0 gap-0.5">
-              <button
-                class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-                :title="t('common.edit')"
+            <div v-if="isMine(note) && editingId !== note.id" class="flex shrink-0 gap-0.5">
+              <NeButton
+                kind="tertiary"
+                size="xs"
+                :title="t('support.notes_edit')"
+                :aria-label="t('support.notes_edit')"
                 @click="startEdit(note)"
               >
-                <FontAwesomeIcon :icon="faPen" class="h-3 w-3" aria-hidden="true" />
-              </button>
-              <button
-                class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-red-500 dark:hover:bg-gray-800 dark:hover:text-red-400"
-                :title="t('common.delete')"
-                @click="deletingId = note.id"
+                <FontAwesomeIcon :icon="faPenToSquare" aria-hidden="true" />
+              </NeButton>
+              <NeButton
+                kind="tertiary"
+                size="xs"
+                :title="t('support.notes_delete')"
+                :aria-label="t('support.notes_delete')"
+                @click="askDelete(note)"
               >
-                <FontAwesomeIcon :icon="faTrashCan" class="h-3 w-3" aria-hidden="true" />
-              </button>
+                <FontAwesomeIcon :icon="faTrash" aria-hidden="true" />
+              </NeButton>
             </div>
           </div>
           <template v-if="editingId === note.id">
@@ -257,7 +255,7 @@ function onKeydown(event: KeyboardEvent, save: () => void) {
                 {{ t('common.cancel') }}
               </NeButton>
               <NeButton
-                kind="primary"
+                kind="secondary"
                 size="sm"
                 :disabled="!editDraft.trim() || saving"
                 :loading="saving"
@@ -291,5 +289,18 @@ function onKeydown(event: KeyboardEvent, save: () => void) {
         </div>
       </template>
     </div>
+    <Teleport to="body">
+      <DeleteObjectModal
+        :visible="!!deletingNote"
+        :title="t('support.notes_delete')"
+        :primary-label="t('common.delete')"
+        :deleting="deleteLoading"
+        :confirmation-message="t('support.notes_delete_confirm')"
+        :error-title="t('support.notes_delete_error')"
+        :error-description="deleteError"
+        @close="deletingId = null"
+        @primary-click="remove"
+      />
+    </Teleport>
   </div>
 </template>

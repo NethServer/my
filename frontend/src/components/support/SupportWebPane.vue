@@ -215,8 +215,12 @@ defineExpose({ reload: load })
     <div
       class="flex h-11 shrink-0 items-center gap-3 border-b-2 border-amber-500/70 bg-gray-100 px-3 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300"
     >
-      <FontAwesomeIcon :icon="faGlobe" class="h-3.5 w-3.5 shrink-0 text-amber-600" />
-      <span class="shrink-0 font-semibold text-amber-700 dark:text-amber-400">
+      <FontAwesomeIcon
+        :icon="faGlobe"
+        class="h-3.5 w-3.5 shrink-0 text-amber-600"
+        aria-hidden="true"
+      />
+      <span class="shrink-0 font-medium text-amber-700 dark:text-amber-400">
         {{ t('support.workspace_remote_content') }}
       </span>
       <span class="min-w-0 truncate">{{ systemName }} · {{ host || service }}</span>
@@ -224,7 +228,7 @@ defineExpose({ reload: load })
         v-if="expiryState !== 'ok'"
         class="flex shrink-0 items-center gap-1 text-amber-700 dark:text-amber-400"
       >
-        <FontAwesomeIcon :icon="faTriangleExclamation" class="h-3 w-3" />
+        <FontAwesomeIcon :icon="faTriangleExclamation" class="h-3 w-3" aria-hidden="true" />
         {{
           expiryState === 'expired'
             ? t('support.workspace_access_expired')

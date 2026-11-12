@@ -6,7 +6,8 @@
 <script setup lang="ts">
 import {
   faHeadset,
-  faClockRotateLeft,
+  faEye,
+  faHourglassHalf,
   faXmark,
   faMagnifyingGlass,
   faWindowMaximize,
@@ -22,7 +23,7 @@ import {
   NeButton,
   NeEmptyState,
   NeInlineNotification,
-  NeBadge,
+  NeBadgeV2,
   NeTextInput,
   NeDropdownFilterV2,
   NeSortDropdown,
@@ -130,15 +131,11 @@ const closingSessionId = ref<string | null>(null)
 function getStatusBadgeKind(status: SupportSessionStatus) {
   switch (status) {
     case 'active':
-      return 'success'
+      return 'green'
     case 'pending':
-      return 'warning'
-    case 'expired':
-      return 'secondary'
-    case 'closed':
-      return 'secondary'
+      return 'amber'
     default:
-      return 'secondary'
+      return 'gray'
   }
 }
 
@@ -334,13 +331,14 @@ async function handleCloseGroup(group: SystemSessionGroup) {
                   :system-name="group.system_name || group.system_key"
                   :system-type="group.system_type"
                 />
-                <NeBadge
+                <NeBadgeV2
                   v-if="group.node_count > 1"
                   class="shrink-0 whitespace-nowrap"
-                  :text="$t('support.node_count', { count: group.node_count })"
-                  kind="secondary"
+                  kind="gray"
                   size="sm"
-                />
+                >
+                  {{ $t('support.node_count', { count: group.node_count }) }}
+                </NeBadgeV2>
               </div>
             </NeTableCell>
             <NeTableCell :data-label="$t('systems.organization')">
@@ -371,10 +369,9 @@ async function handleCloseGroup(group: SystemSessionGroup) {
               }}
             </NeTableCell>
             <NeTableCell :data-label="$t('support.status')">
-              <NeBadge
-                :text="$t(`support.status_${group.status}`)"
-                :kind="getStatusBadgeKind(group.status)"
-              />
+              <NeBadgeV2 :kind="getStatusBadgeKind(group.status)">
+                {{ $t(`support.status_${group.status}`) }}
+              </NeBadgeV2>
             </NeTableCell>
             <NeTableCell v-if="canConnectSystems()" :data-label="$t('common.actions')">
               <div class="-ml-2.5 flex flex-wrap gap-2 2xl:ml-0 2xl:flex-nowrap 2xl:justify-end">
@@ -396,7 +393,7 @@ async function handleCloseGroup(group: SystemSessionGroup) {
                   @click="handleExtendGroup(group)"
                 >
                   <template #prefix>
-                    <FontAwesomeIcon :icon="faClockRotateLeft" aria-hidden="true" />
+                    <FontAwesomeIcon :icon="faHourglassHalf" aria-hidden="true" />
                   </template>
                   {{ $t('support.extend') }}
                 </NeButton>
@@ -420,9 +417,10 @@ async function handleCloseGroup(group: SystemSessionGroup) {
                   @click="handleShowHistory(group)"
                 >
                   <template #prefix>
-                    <FontAwesomeIcon :icon="faClockRotateLeft" aria-hidden="true" />
+                    <FontAwesomeIcon :icon="faEye" aria-hidden="true" />
                   </template>
                   {{ $t('common.details') }}
+                  <span class="sr-only">{{ group.system_name || group.system_key }}</span>
                 </NeButton>
               </div>
             </NeTableCell>

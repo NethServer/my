@@ -9,8 +9,10 @@ import { useI18n } from 'vue-i18n'
 import { faArrowsRotate } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
+  NeBadgeV2,
   NeButton,
   NeInlineNotification,
+  type NeBadgeV2Kind,
   NeSpinner,
   formatDateTimeNoSeconds,
 } from '@nethesis/vue-components'
@@ -55,16 +57,16 @@ async function load() {
   }
 }
 
-const statusClasses: Record<string, string> = {
-  ok: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
-  warning: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-  critical: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-  error: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-  timeout: 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+const statusKinds: Record<string, NeBadgeV2Kind> = {
+  ok: 'green',
+  warning: 'amber',
+  critical: 'rose',
+  error: 'rose',
+  timeout: 'gray',
 }
 
-function statusClass(status: string | undefined): string {
-  return statusClasses[status || ''] || statusClasses.timeout
+function statusKind(status: string | undefined): NeBadgeV2Kind {
+  return statusKinds[status || ''] || 'gray'
 }
 
 function statusLabel(status: string | undefined): string {
@@ -177,13 +179,9 @@ defineExpose({ reload: load })
           <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">
             {{ t('support.diagnostics') }}
           </h3>
-          <span
-            v-if="diagnostics"
-            class="rounded-full px-2.5 py-0.5 text-xs font-medium"
-            :class="statusClass(diagnostics.overall_status)"
-          >
+          <NeBadgeV2 v-if="diagnostics" :kind="statusKind(diagnostics.overall_status)">
             {{ statusLabel(diagnostics.overall_status) }}
-          </span>
+          </NeBadgeV2>
         </div>
         <div
           v-for="node in diagnostics?.nodes || []"
@@ -195,13 +193,13 @@ defineExpose({ reload: load })
               node.node_id ? nodeName(node.node_id) : t('support.diagnostics_node', { node: '-' })
             }}
           </span>
-          <span
+          <NeBadgeV2
             v-if="node.diagnostics && multiNode"
-            class="rounded-full px-2 py-0.5 font-medium"
-            :class="statusClass(node.diagnostics.overall_status)"
+            :kind="statusKind(node.diagnostics.overall_status)"
+            size="xs"
           >
             {{ statusLabel(node.diagnostics.overall_status) }}
-          </span>
+          </NeBadgeV2>
           <span v-if="node.diagnostics">
             {{
               t('support.diagnostics_collected', {
@@ -258,12 +256,9 @@ defineExpose({ reload: load })
               <span v-if="card.plugin.summary" class="text-xs text-gray-500 dark:text-gray-400">
                 {{ card.plugin.summary }}
               </span>
-              <span
-                class="rounded-full px-2 py-0.5 text-xs font-medium"
-                :class="statusClass(card.plugin.status)"
-              >
+              <NeBadgeV2 :kind="statusKind(card.plugin.status)" size="xs">
                 {{ statusLabel(card.plugin.status) }}
-              </span>
+              </NeBadgeV2>
             </div>
           </div>
           <ul class="divide-y divide-gray-100 dark:divide-gray-800">
@@ -278,7 +273,9 @@ defineExpose({ reload: load })
                     'bg-gray-400': check.status === 'timeout',
                   }"
                   :title="statusLabel(check.status)"
+                  aria-hidden="true"
                 ></span>
+                <span class="sr-only">{{ statusLabel(check.status) }}</span>
                 <span class="text-gray-700 dark:text-gray-300">{{ label(check.name) }}</span>
                 <span
                   class="ml-auto min-w-0 truncate text-right font-medium text-gray-900 dark:text-gray-100"
