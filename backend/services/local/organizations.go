@@ -3243,7 +3243,7 @@ func rejectReservedOrganizationName(name string) error {
 			Errors: []response.ValidationError{
 				{
 					Key:     "name",
-					Message: "the name 'Owner' is reserved",
+					Message: "reserved",
 					Value:   name,
 				},
 			},

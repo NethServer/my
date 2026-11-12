@@ -117,7 +117,7 @@ function closeAddon() {
     <!-- get available add-ons error notification -->
     <NeInlineNotification
       v-if="availableState.status === 'error'"
-      kind="warning"
+      kind="error"
       :title="$t('addons.cannot_retrieve_available_addons')"
       :description="availableState.error.message"
       class="mb-6"
@@ -125,7 +125,7 @@ function closeAddon() {
     <!-- get applications error notification -->
     <NeInlineNotification
       v-if="applicationsState.status === 'error'"
-      kind="warning"
+      kind="error"
       :title="$t('addons.cannot_retrieve_applications')"
       :description="applicationsState.error.message"
       class="mb-6"

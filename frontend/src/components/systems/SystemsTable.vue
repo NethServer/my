@@ -560,7 +560,7 @@ function onCloseSecretRegeneratedModal() {
       <NeTableBody>
         <NeTableRow v-for="item in systemsPage" :key="item.id">
           <NeTableCell :data-label="$t('systems.name')">
-            <div :class="{ 'opacity-50': item.status === 'deleted' }">
+            <div :class="{ 'text-tertiary-neutral': item.status === 'deleted' }">
               <SystemLogoAndLink
                 :system-id="item.status === 'deleted' ? '' : item.id"
                 :system-name="item.name"
@@ -571,7 +571,7 @@ function onCloseSecretRegeneratedModal() {
           <NeTableCell :data-label="$t('systems.version')" class="wrap-anywhere">
             <div
               class="flex items-center gap-2"
-              :class="{ 'opacity-50': item.status === 'deleted' }"
+              :class="{ 'text-tertiary-neutral': item.status === 'deleted' }"
             >
               {{ item.version || '-' }}
               <UpdateAvailableIcon v-if="item.update_available" />
@@ -580,7 +580,7 @@ function onCloseSecretRegeneratedModal() {
           <NeTableCell :data-label="$t('systems.fqdn_ip_address')" class="wrap-anywhere">
             <div
               class="flex flex-col items-start space-y-0.5"
-              :class="{ 'opacity-50': item.status === 'deleted' }"
+              :class="{ 'text-tertiary-neutral': item.status === 'deleted' }"
             >
               <ClickToCopy v-if="item.fqdn" :text="item.fqdn" tooltip-placement="top" />
               <ClickToCopy
@@ -595,7 +595,7 @@ function onCloseSecretRegeneratedModal() {
             </div>
           </NeTableCell>
           <NeTableCell :data-label="$t('systems.organization')">
-            <div :class="{ 'opacity-50': item.status === 'deleted' }">
+            <div :class="{ 'text-tertiary-neutral': item.status === 'deleted' }">
               <OrganizationIconAndLink v-if="item.organization" :organization="item.organization" />
               <span v-else>-</span>
             </div>
@@ -604,7 +604,7 @@ function onCloseSecretRegeneratedModal() {
             v-if="canSeeParentOfCustomers()"
             :data-label="$t('organizations.parent_company')"
           >
-            <div :class="{ 'opacity-50': item.status === 'deleted' }">
+            <div :class="{ 'text-tertiary-neutral': item.status === 'deleted' }">
               <ParentCompanyLink
                 v-if="getManagedBy(item.organization)"
                 :parent="getManagedBy(item.organization)"

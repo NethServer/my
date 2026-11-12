@@ -26,11 +26,15 @@ import {
   type EditUser,
   type User,
 } from '@/lib/users/users'
-import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
-import { getValidationIssues, isValidationError } from '../../lib/validation'
+import {
+  focusFirstRejectedField,
+  getValidationIssues,
+  isValidationError,
+  validateForm,
+} from '@/lib/validation'
 import type { AxiosError } from 'axios'
 import { useQuery } from '@pinia/colada'
 import { useLoginStore } from '@/stores/login'
@@ -59,7 +63,7 @@ const { state: allUserRoles } = useQuery({
 })
 
 const {
-  mutate: createUserMutate,
+  mutateAsync: createUserMutateAsync,
   isLoading: createUserLoading,
   reset: createUserReset,
   error: createUserError,
@@ -93,7 +97,7 @@ const {
 })
 
 const {
-  mutate: editUserMutate,
+  mutateAsync: editUserMutateAsync,
   isLoading: editUserLoading,
   reset: editUserReset,
   error: editUserError,
@@ -138,11 +142,14 @@ const phoneRef = useTemplateRef<HTMLInputElement>('phoneRef')
 const countryCode = ref('')
 const validationIssues = ref<Record<string, string[]>>({})
 
+// In form order. The username is derived from the email, so its errors point
+// at the email field.
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
-  email: emailRef,
   name: nameRef,
-  organizationId: organizationIdRef,
-  userRoleIds: userRoleIdsRef,
+  email: emailRef,
+  username: emailRef,
+  organization_id: organizationIdRef,
+  user_role_ids: userRoleIdsRef,
   phone: phoneRef,
 }
 
@@ -254,59 +261,15 @@ function clearErrors() {
   validationIssues.value = {}
 }
 
-function validateCreate(user: CreateUser): boolean {
-  validationIssues.value = {}
-  const validation = v.safeParse(CreateUserSchema, user)
-
-  if (validation.success) {
-    // no validation issues
-    return true
-  } else {
-    const issues = v.flatten(validation.issues)
-
-    if (issues.nested) {
-      validationIssues.value = issues.nested as Record<string, string[]>
-
-      // focus the first field with error
-
-      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-      fieldRefs[firstErrorFieldName]?.value?.focus()
-    }
-    return false
-  }
-}
-
-function validateEdit(user: EditUser): boolean {
-  validationIssues.value = {}
-  const validation = v.safeParse(EditUserSchema, user)
-
-  if (validation.success) {
-    // no validation issues
-    return true
-  } else {
-    const issues = v.flatten(validation.issues)
-
-    if (issues.nested) {
-      validationIssues.value = issues.nested as Record<string, string[]>
-
-      // focus the first field with error
-
-      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-      fieldRefs[firstErrorFieldName].value?.focus()
-    }
-    return false
-  }
-}
-
 async function saveUser() {
   clearErrors()
 
   const user = {
-    email: email.value,
-    name: name.value,
+    email: email.value.trim(),
+    name: name.value.trim(),
     user_role_ids: userRoles.value ? [userRoles.value] : [],
     organization_id: organizationId.value,
-    phone: combinePhoneParts(countryCode.value, phone.value),
+    phone: combinePhoneParts(countryCode.value, phone.value.trim()),
     custom_data: {},
   }
 
@@ -318,11 +281,11 @@ async function saveUser() {
       logto_id: currentUser.logto_id,
     }
 
-    const isValidationOk = validateEdit(userToEdit)
-    if (!isValidationOk) {
-      return
+    if (validateForm(EditUserSchema, userToEdit, validationIssues, fieldRefs)) {
+      editUserMutateAsync(userToEdit).catch(() =>
+        focusFirstRejectedField(validationIssues.value, fieldRefs),
+      )
     }
-    editUserMutate(userToEdit)
   } else {
     // creating user
 
@@ -330,11 +293,11 @@ async function saveUser() {
       ...user,
     }
 
-    const isValidationOk = validateCreate(userToCreate)
-    if (!isValidationOk) {
-      return
+    if (validateForm(CreateUserSchema, userToCreate, validationIssues, fieldRefs)) {
+      createUserMutateAsync(userToCreate).catch(() =>
+        focusFirstRejectedField(validationIssues.value, fieldRefs),
+      )
     }
-    createUserMutate(userToCreate)
   }
 }
 
@@ -343,8 +306,6 @@ function getEmailInvalidMessage(): string {
     return t(validationIssues.value.email[0])
   } else if (validationIssues.value.username?.[0]) {
     return t(validationIssues.value.username[0])
-  } else if (validationIssues.value.name?.[0]) {
-    return t(validationIssues.value.name[0])
   } else {
     return ''
   }
@@ -365,7 +326,8 @@ function getEmailInvalidMessage(): string {
           ref="nameRef"
           v-model="name"
           @blur="name = name.trim()"
-          :label="$t('users.name')"
+          :label="$t('users.full_name')"
+          :invalid-message="validationIssues.name?.[0] ? $t(validationIssues.name[0]) : ''"
           :disabled="saving"
         />
         <!-- email -->

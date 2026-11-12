@@ -403,13 +403,13 @@ const goToCustomerDetails = (customer: Customer) => {
             >
               {{ item.name }}
             </router-link>
-            <span v-else class="opacity-50">
+            <span v-else class="text-tertiary-neutral">
               {{ item.name }}
             </span>
           </NeTableCell>
           <NeTableCell
             :data-label="$t('organizations.vat_number')"
-            :class="{ 'opacity-50': item.deleted_at }"
+            :class="{ 'text-tertiary-neutral': item.deleted_at }"
           >
             {{ item.custom_data?.vat || '-' }}
           </NeTableCell>
@@ -430,7 +430,7 @@ const goToCustomerDetails = (customer: Customer) => {
               />
               {{ item.systems_count }}
             </router-link>
-            <div v-else class="flex items-center gap-2 opacity-50">
+            <div v-else class="text-tertiary-neutral flex items-center gap-2">
               <FontAwesomeIcon
                 :icon="faServer"
                 class="text-icon-neutral size-4"
@@ -442,7 +442,7 @@ const goToCustomerDetails = (customer: Customer) => {
           <NeTableCell
             v-if="canSeeParentOfCustomers()"
             :data-label="$t('organizations.parent_company')"
-            :class="{ 'opacity-50': item.deleted_at }"
+            :class="{ 'text-tertiary-neutral': item.deleted_at }"
           >
             <ParentCompanyLink :parent="item.parent" :creator="item.created_by" />
           </NeTableCell>

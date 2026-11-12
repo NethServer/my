@@ -62,8 +62,14 @@ const getNodeForegroundStyle = (node: ClusterNode) => {
     />
     <NeSkeleton v-else-if="latestInventory.status === 'pending'" :lines="8" />
     <!-- cluster nodes -->
-    <div v-else-if="nodes.length" class="mt-8 mb-6 flex flex-wrap justify-center gap-16">
-      <div class="flex flex-col items-center" v-for="node in nodes" :key="node.id">
+    <div v-else-if="nodes.length" class="mt-8 mb-6 flex flex-wrap justify-center gap-x-10 gap-y-12">
+      <!-- a long node name or FQDN wraps instead of widening the card past a
+           narrow column -->
+      <div
+        class="flex max-w-full min-w-0 flex-col items-center text-center"
+        v-for="node in nodes"
+        :key="node.id"
+      >
         <!-- icon -->
         <div
           :class="`flex size-16 shrink-0 items-center justify-center rounded-full ${getNodeBackgroundStyle(node)}`"
@@ -75,11 +81,11 @@ const getNodeForegroundStyle = (node: ClusterNode) => {
           />
         </div>
         <!-- name -->
-        <div class="mt-2 text-base font-medium">
+        <div class="mt-2 text-base font-medium wrap-anywhere">
           {{ ns8NodeName(node, t) }}
         </div>
         <!-- fqdn -->
-        <div class="text-tertiary-neutral dark:text-tertiary-neutral mt-1">
+        <div class="text-tertiary-neutral dark:text-tertiary-neutral mt-1 wrap-anywhere">
           {{ node.fqdn || '-' }}
         </div>
         <!-- role -->

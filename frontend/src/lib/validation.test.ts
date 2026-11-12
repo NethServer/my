@@ -1,10 +1,25 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { describe, expect, it } from 'vitest'
-import type { AxiosError } from 'axios'
-import { getValidationIssues } from './validation'
+import { describe, expect, it, vi } from 'vitest'
+import { AxiosError, AxiosHeaders, type InternalAxiosRequestConfig } from 'axios'
+import * as v from 'valibot'
+import { ref } from 'vue'
+import {
+  FORM_ISSUE_KEY,
+  focusFirstInvalidField,
+  getBackendErrorMessage,
+  getSchemaIssues,
+  getValidationIssues,
+  isValidationError,
+  validateForm,
+  type ValidationIssue,
+} from './validation'
+import { CreateResellerSchema } from './organizations/resellers'
 import translation from '@/i18n/en/translation.json'
+
+// the key stands for the text, whatever the locale
+vi.mock('@/i18n', () => ({ default: { global: { t: (key: string) => key } } }))
 
 type BackendFieldError = { key: string; message: string; value?: string }
 
@@ -13,6 +28,7 @@ const backendError = (status: number, errors: BackendFieldError[]): AxiosError =
   ({
     status,
     response: {
+      status,
       data: {
         code: status,
         message: 'validation failed',
@@ -57,6 +73,21 @@ describe('promotion error codes', () => {
   })
 })
 
+// The backend rejects a blank user name with its own key: the client schemas
+// must use the key it maps to, or the message shows as a raw i18n key.
+describe('user name error', () => {
+  it('maps the backend blank name to a translated key', () => {
+    const issues = getValidationIssues(
+      backendError(400, [{ key: 'name', message: 'cannot_be_empty' }]),
+      'users',
+    )
+    const usersTranslations: Record<string, string> = translation.users
+
+    expect(issues).toEqual({ name: ['users.name_cannot_be_empty'] })
+    expect(usersTranslations.name_cannot_be_empty).toBeTruthy()
+  })
+})
+
 describe('getValidationIssues', () => {
   it('returns no issues for a conflict with no field errors', () => {
     const error = {
@@ -71,5 +102,173 @@ describe('getValidationIssues', () => {
     const error = backendError(500, [{ key: 'promote', message: 'organization_is_suspended' }])
 
     expect(getValidationIssues(error, 'organizations')).toEqual({})
+  })
+})
+
+describe('getSchemaIssues', () => {
+  const reseller = {
+    name: 'Acme',
+    custom_data: { vat: '12345678901', email: '', phone: '' },
+  }
+
+  it('returns no issues for valid data', () => {
+    expect(getSchemaIssues(CreateResellerSchema, reseller)).toEqual({})
+  })
+
+  it('keys nested issues the way the backend does', () => {
+    const issues = getSchemaIssues(CreateResellerSchema, {
+      name: '',
+      custom_data: { ...reseller.custom_data, vat: '', email: 'not-an-email' },
+    })
+
+    expect(issues).toEqual({
+      name: ['organizations.name_cannot_be_empty'],
+      custom_data_vat: ['organizations.custom_data_vat_cannot_be_empty'],
+      custom_data_email: ['organizations.custom_data_email_invalid'],
+    })
+  })
+
+  it('keeps a check on the whole form, so it still fails validation', () => {
+    const schema = v.pipe(
+      v.object({ from: v.number(), to: v.number() }),
+      v.check(({ from, to }) => from <= to, 'range_invalid'),
+    )
+
+    expect(getSchemaIssues(schema, { from: 2, to: 1 })).toEqual({
+      [FORM_ISSUE_KEY]: ['range_invalid'],
+    })
+  })
+})
+
+// The forms hide their error notification for a validation error, trusting
+// the fields to show it: only an error the backend tied to a field may count.
+describe('isValidationError', () => {
+  it('is true for a validation status with field errors', () => {
+    expect(isValidationError(backendError(400, [{ key: 'name', message: 'reserved' }]))).toBe(true)
+  })
+
+  it.each([
+    ['no errors list', { code: 409, message: 'system reassignment in progress', data: null }],
+    ['an empty errors list', { code: 400, message: 'bad request', data: { errors: [] } }],
+    [
+      'an ad-hoc data shape',
+      { code: 409, message: 'email in use', data: { type: 'already_exists', key: 'email' } },
+    ],
+  ])('is false for a validation status with %s', (_, data) => {
+    const error = { status: data.code, response: { status: data.code, data } } as AxiosError
+
+    expect(isValidationError(error)).toBe(false)
+  })
+
+  it('is false for other statuses and for no error', () => {
+    expect(isValidationError(backendError(500, [{ key: 'name', message: 'x' }]))).toBe(false)
+    expect(isValidationError(null)).toBe(false)
+  })
+})
+
+describe('focusFirstInvalidField', () => {
+  const fieldRef = () => ({ value: { focus: vi.fn() } })
+
+  it('focuses the first invalid field in form order, not issue order', () => {
+    const fieldRefs = {
+      name: fieldRef(),
+      custom_data_vat: fieldRef(),
+      custom_data_email: fieldRef(),
+    }
+
+    focusFirstInvalidField(
+      { custom_data_email: ['invalid'], custom_data_vat: ['already_exists'] },
+      fieldRefs,
+    )
+
+    expect(fieldRefs.custom_data_vat.value.focus).toHaveBeenCalledOnce()
+    expect(fieldRefs.custom_data_email.value.focus).not.toHaveBeenCalled()
+    expect(fieldRefs.name.value.focus).not.toHaveBeenCalled()
+  })
+
+  it('does nothing when no invalid field has a ref', () => {
+    const fieldRefs = { name: fieldRef(), unmounted: { value: null } }
+
+    expect(() =>
+      focusFirstInvalidField(
+        { unmounted: ['invalid'], created_by_organization_id: ['x'] },
+        fieldRefs,
+      ),
+    ).not.toThrow()
+    expect(fieldRefs.name.value.focus).not.toHaveBeenCalled()
+  })
+})
+
+describe('validateForm', () => {
+  const schema = v.object({
+    name: v.pipe(v.string(), v.nonEmpty('name_cannot_be_empty')),
+    email: v.pipe(v.string(), v.email('email_invalid')),
+  })
+  const fieldRef = () => ({ value: { focus: vi.fn() } })
+
+  it('stores the issues, focuses the first invalid field and refuses the data', () => {
+    const issues = ref<ValidationIssue>({})
+    const fieldRefs = { name: fieldRef(), email: fieldRef() }
+
+    expect(validateForm(schema, { name: '', email: 'nope' }, issues, fieldRefs)).toBe(false)
+    expect(issues.value).toEqual({
+      name: ['name_cannot_be_empty'],
+      email: ['email_invalid'],
+    })
+    expect(fieldRefs.name.value.focus).toHaveBeenCalledOnce()
+    expect(fieldRefs.email.value.focus).not.toHaveBeenCalled()
+  })
+
+  it('clears the previous issues and accepts valid data', () => {
+    const issues = ref<ValidationIssue>({ name: ['name_cannot_be_empty'] })
+    const fieldRefs = { name: fieldRef(), email: fieldRef() }
+
+    expect(validateForm(schema, { name: 'Ada', email: 'ada@example.com' }, issues, fieldRefs)).toBe(
+      true,
+    )
+    expect(issues.value).toEqual({})
+    expect(fieldRefs.name.value.focus).not.toHaveBeenCalled()
+  })
+})
+
+describe('getBackendErrorMessage', () => {
+  const config = {
+    url: '/api/customers',
+    headers: new AxiosHeaders(),
+  } as InternalAxiosRequestConfig
+  const failed = (status: number, data: Record<string, unknown> = {}) =>
+    new AxiosError(`Request failed with status code ${status}`, 'ERR_BAD_REQUEST', config, null, {
+      status,
+      statusText: '',
+      headers: {},
+      config,
+      data,
+    })
+
+  it('shows the reason of a 4xx, with a capital first letter', () => {
+    const error = failed(409, { message: 'customer is already suspended' })
+    expect(getBackendErrorMessage(error)).toBe('Customer is already suspended')
+  })
+
+  it('keeps the axios message when a 4xx carries none', () => {
+    expect(getBackendErrorMessage(failed(404))).toBe('Request failed with status code 404')
+  })
+
+  it('hides the message of a server fault', () => {
+    const error = failed(500, { message: 'failed to query organizations: connection refused' })
+    expect(getBackendErrorMessage(error)).toBe('common.something_went_wrong')
+  })
+
+  it('explains a request that got no answer', () => {
+    const error = new AxiosError('Network Error', 'ERR_NETWORK', config)
+    expect(getBackendErrorMessage(error)).toBe('common.network_error')
+  })
+
+  it('leaves a canceled request and other errors alone', () => {
+    expect(getBackendErrorMessage(new AxiosError('canceled', 'ERR_CANCELED', config))).toBe(
+      'canceled',
+    )
+    expect(getBackendErrorMessage(new Error('boom'))).toBe('boom')
+    expect(getBackendErrorMessage(null)).toBe('')
   })
 })
