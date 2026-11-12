@@ -81,7 +81,7 @@ The sync tool loads environment variables from a `.env` file by default. You can
 # Use custom environment file
 ./build/sync sync --env-file .env.production
 ./build/sync init --env-file .env.staging
-./build/sync pull --env-file .env.production
+./build/sync pull --env-file .env.staging
 ```
 
 #### Required Environment Variables
@@ -181,6 +181,10 @@ Reverse sync from Logto to local database (disaster recovery):
 ./build/sync pull --verbose
 ./build/sync pull --dry-run
 ```
+
+`--organizations-only`, `--users-only` and `--resources-only` limit the pull to one part. A pull that is not a dry run ends by refreshing the `unified_organizations` view, so the backend shows the right company names without a restart.
+
+> **Warning:** do not run `sync pull` on production. It upserts every organization in Logto: it replaces `custom_data` as a whole, re-inserts organizations deleted locally but still in Logto, and treats an organization without a `type` as a customer. On production Logto is not the source of truth for `custom_data`, which has drifted from the database. Use it on local and development environments.
 
 ### prune
 
