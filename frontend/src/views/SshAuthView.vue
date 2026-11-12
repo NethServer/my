@@ -92,7 +92,12 @@ const target = computed(() => {
     </NeHeading>
 
     <NeSkeleton v-if="loading" :lines="6" />
-    <NeInlineNotification v-else-if="error" kind="error" :title="error" />
+    <NeInlineNotification
+      v-else-if="error"
+      kind="error"
+      :title="t('support.ssh_auth_error_title')"
+      :description="error"
+    />
     <NeInlineNotification
       v-else-if="outcome === 'approved'"
       kind="success"
@@ -111,32 +116,36 @@ const target = computed(() => {
       <p class="text-sm text-gray-700 dark:text-gray-300">
         {{ t('support.ssh_auth_intro', { target }) }}
       </p>
-      <dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
+      <dl class="grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-3 sm:gap-y-2">
         <dt class="text-gray-500 dark:text-gray-400">{{ t('support.ssh_auth_system') }}</dt>
-        <dd class="font-medium text-gray-900 dark:text-gray-100">{{ target }}</dd>
+        <dd class="font-medium text-gray-900 sm:col-span-2 dark:text-gray-100">{{ target }}</dd>
         <template v-if="request.organization_name">
           <dt class="text-gray-500 dark:text-gray-400">{{ t('support.ssh_auth_organization') }}</dt>
-          <dd class="text-gray-900 dark:text-gray-100">{{ request.organization_name }}</dd>
+          <dd class="text-gray-900 sm:col-span-2 dark:text-gray-100">
+            {{ request.organization_name }}
+          </dd>
         </template>
         <dt class="text-gray-500 dark:text-gray-400">{{ t('support.ssh_auth_system_key') }}</dt>
-        <dd class="font-mono text-xs break-all text-gray-900 dark:text-gray-100">
+        <dd class="font-mono text-xs break-all text-gray-900 sm:col-span-2 dark:text-gray-100">
           {{ request.system_key }}
         </dd>
         <dt class="text-gray-500 dark:text-gray-400">{{ t('support.ssh_auth_client_ip') }}</dt>
-        <dd class="font-mono text-gray-900 dark:text-gray-100">{{ request.client_ip }}</dd>
+        <dd class="font-mono text-gray-900 sm:col-span-2 dark:text-gray-100">
+          {{ request.client_ip }}
+        </dd>
         <dt class="text-gray-500 dark:text-gray-400">{{ t('support.ssh_auth_key') }}</dt>
-        <dd class="font-mono text-xs break-all text-gray-900 dark:text-gray-100">
+        <dd class="font-mono text-xs break-all text-gray-900 sm:col-span-2 dark:text-gray-100">
           {{ request.fingerprint || t('support.ssh_auth_no_key') }}
         </dd>
         <dt class="text-gray-500 dark:text-gray-400">{{ t('support.ssh_auth_requested_at') }}</dt>
-        <dd class="text-gray-900 dark:text-gray-100">
+        <dd class="text-gray-900 sm:col-span-2 dark:text-gray-100">
           {{ formatDateTimeNoSeconds(new Date(request.created_at), locale) }}
         </dd>
       </dl>
       <NeInlineNotification
         v-if="!request.has_session"
         kind="warning"
-        :title="t('support.ssh_auth_no_session')"
+        :title="t('support.ssh_auth_no_session_title')"
       />
       <p class="text-xs text-gray-500 dark:text-gray-400">
         {{ t('support.ssh_auth_warning') }}
