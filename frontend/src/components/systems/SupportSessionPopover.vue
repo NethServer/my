@@ -6,7 +6,12 @@
 <script setup lang="ts">
 import { faHeadset, faWindowMaximize } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { NeButton, NeSpinner, formatDateTimeNoSeconds } from '@nethesis/vue-components'
+import {
+  NeButton,
+  NeInlineNotification,
+  NeSpinner,
+  formatDateTimeNoSeconds,
+} from '@nethesis/vue-components'
 import { ref, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getSystemActiveSessions, type SystemSessionGroup } from '@/lib/support/support'
@@ -86,13 +91,16 @@ onBeforeUnmount(() => {
 <template>
   <button
     ref="triggerEl"
-    class="relative flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center focus:outline-none"
+    class="focus-visible:ring-primary-500 relative flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-full focus:outline-none focus-visible:ring-2"
     :title="t('systems.support_session_active')"
     :aria-label="t('systems.support_session_active')"
     @click.stop="toggle"
   >
-    <span class="absolute inline-flex h-3 w-3 animate-ping rounded-full bg-amber-400 opacity-75" />
-    <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-400" />
+    <span
+      class="absolute inline-flex h-3 w-3 animate-ping rounded-full bg-amber-400 opacity-75"
+      aria-hidden="true"
+    />
+    <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-400" aria-hidden="true" />
   </button>
   <Teleport to="body">
     <div
@@ -104,9 +112,11 @@ onBeforeUnmount(() => {
       <div v-if="loading" class="flex items-center justify-center py-2">
         <NeSpinner />
       </div>
-      <div v-else-if="error" class="text-sm text-red-600 dark:text-red-400">
-        {{ t('systems.cannot_load_support_session') }}
-      </div>
+      <NeInlineNotification
+        v-else-if="error"
+        kind="error"
+        :title="t('systems.cannot_load_support_session')"
+      />
       <div v-else-if="group" class="space-y-3 text-sm">
         <div class="flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
           <FontAwesomeIcon
@@ -117,8 +127,11 @@ onBeforeUnmount(() => {
           {{ t('systems.support_session_active') }}
         </div>
         <div class="text-xs text-gray-500 dark:text-gray-400">
-          {{ t('support.expires_at') }}:
-          {{ formatDateTimeNoSeconds(new Date(group.expires_at), locale) }}
+          {{
+            t('systems.support_session_expires', {
+              date: formatDateTimeNoSeconds(new Date(group.expires_at), locale),
+            })
+          }}
         </div>
         <NeButton kind="primary" size="sm" class="w-full" @click="openWorkspace">
           <template #prefix>

@@ -90,7 +90,7 @@ async function extend() {
     error.value =
       axios.isAxiosError(e) && e.response?.status === 409
         ? t('support.extend_too_long')
-        : t('support.extend_error')
+        : t('support.extend_error_description')
   } finally {
     loading.value = false
   }
@@ -100,7 +100,7 @@ async function extend() {
 <template>
   <NeModal
     :visible="!!group"
-    :title="t('support.extend_title', { name: group?.system_name || group?.system_key })"
+    :title="t('support.extend_title')"
     :primary-label="t('support.extend')"
     :cancel-label="t('common.cancel')"
     :primary-button-loading="loading"
@@ -110,7 +110,15 @@ async function extend() {
     @primary-click="extend"
   >
     <div class="flex flex-col gap-4">
-      <NeInlineNotification v-if="error" kind="error" :title="error" />
+      <p class="text-sm text-gray-600 dark:text-gray-300">
+        {{ t('support.extend_description', { name: group?.system_name || group?.system_key }) }}
+      </p>
+      <NeInlineNotification
+        v-if="error"
+        kind="error"
+        :title="t('support.extend_error')"
+        :description="error"
+      />
       <NeInlineNotification
         v-if="maxHours < 1"
         kind="warning"
@@ -124,17 +132,20 @@ async function extend() {
           card
           grid-style="grid-cols-3 gap-2"
         />
-        <p class="text-sm text-gray-600 dark:text-gray-300">
-          {{ t('support.extend_current') }}:
-          <span class="font-medium text-gray-900 dark:text-gray-100">{{
-            group ? formatDateTimeNoSeconds(new Date(group.expires_at), locale) : ''
-          }}</span>
-          <br />
-          {{ t('support.extend_new') }}:
-          <span class="font-medium text-gray-900 dark:text-gray-100">{{
-            newExpiry ? formatDateTimeNoSeconds(newExpiry, locale) : ''
-          }}</span>
-        </p>
+        <dl class="flex flex-col gap-1 text-sm">
+          <div class="flex justify-between gap-4">
+            <dt class="text-gray-600 dark:text-gray-300">{{ t('support.extend_current') }}</dt>
+            <dd class="font-medium text-gray-900 dark:text-gray-100">
+              {{ group ? formatDateTimeNoSeconds(new Date(group.expires_at), locale) : '' }}
+            </dd>
+          </div>
+          <div class="flex justify-between gap-4">
+            <dt class="text-gray-600 dark:text-gray-300">{{ t('support.extend_new') }}</dt>
+            <dd class="font-medium text-gray-900 dark:text-gray-100">
+              {{ newExpiry ? formatDateTimeNoSeconds(newExpiry, locale) : '' }}
+            </dd>
+          </div>
+        </dl>
         <p class="text-xs text-gray-500 dark:text-gray-400">
           {{ t('support.extend_limit_hint') }}
         </p>

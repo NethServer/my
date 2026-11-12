@@ -8,16 +8,16 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   faChevronDown,
-  faChevronRight,
-  faPlug,
+  faChevronUp,
+  faCirclePlus,
   faTerminal,
-  faTrashCan,
+  faTrash,
   faUpRightFromSquare,
   faWindowMaximize,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
-  NeBadge,
+  NeBadgeV2,
   NeButton,
   NeDropdown,
   NeSpinner,
@@ -143,7 +143,7 @@ const domainUsername = computed(() => props.data?.credentials?.domainUsers[0]?.u
         v-if="data.credentials?.clusterAdmin"
         class="shrink-0 rounded-md border border-gray-200 p-3 dark:border-gray-700"
       >
-        <h4 class="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <h4 class="mb-2 text-sm font-medium text-gray-900 dark:text-gray-100">
           {{ t('support.cluster_admin') }}
         </h4>
         <SupportCredentialRow
@@ -154,49 +154,45 @@ const domainUsername = computed(() => props.data?.credentials?.domainUsers[0]?.u
           :label="t('support.password')"
           :value="data.credentials.clusterAdmin.password"
         />
-        <div v-if="clusterAdminUi" class="mt-2 flex gap-3 text-sm">
-          <button
-            class="text-primary-600 dark:text-primary-400 flex items-center gap-1.5 hover:underline"
-            @click="emit('open', clusterAdminUi)"
-          >
-            <FontAwesomeIcon :icon="faWindowMaximize" class="h-3 w-3" aria-hidden="true" />
+        <div v-if="clusterAdminUi" class="mt-2 -ml-2.5 flex flex-wrap gap-1">
+          <NeButton kind="tertiary" size="sm" @click="emit('open', clusterAdminUi)">
+            <template #prefix>
+              <FontAwesomeIcon :icon="faWindowMaximize" aria-hidden="true" />
+            </template>
             {{ t('support.workspace_open_here') }}
-          </button>
-          <button
-            class="flex items-center gap-1.5 text-gray-500 hover:underline dark:text-gray-400"
-            @click="emit('openExternal', clusterAdminUi)"
-          >
-            <FontAwesomeIcon :icon="faUpRightFromSquare" class="h-3 w-3" aria-hidden="true" />
+          </NeButton>
+          <NeButton kind="tertiary" size="sm" @click="emit('openExternal', clusterAdminUi)">
+            <template #prefix>
+              <FontAwesomeIcon :icon="faUpRightFromSquare" aria-hidden="true" />
+            </template>
             {{ t('support.workspace_open_new_tab') }}
-          </button>
+          </NeButton>
         </div>
       </div>
       <div
         v-if="data.credentials?.localUsers.length"
         class="shrink-0 rounded-md border border-gray-200 p-3 dark:border-gray-700"
       >
-        <h4 class="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <h4 class="mb-2 text-sm font-medium text-gray-900 dark:text-gray-100">
           {{ t('support.local_users') }}
         </h4>
         <div v-for="lu in data.credentials.localUsers" :key="lu.username">
           <SupportCredentialRow :label="t('support.username')" :value="lu.username" />
           <SupportCredentialRow :label="t('support.password')" :value="lu.password" />
         </div>
-        <div v-if="nethsecurityUi" class="mt-2 flex gap-3 text-sm">
-          <button
-            class="text-primary-600 dark:text-primary-400 flex items-center gap-1.5 hover:underline"
-            @click="emit('open', nethsecurityUi)"
-          >
-            <FontAwesomeIcon :icon="faWindowMaximize" class="h-3 w-3" aria-hidden="true" />
+        <div v-if="nethsecurityUi" class="mt-2 -ml-2.5 flex flex-wrap gap-1">
+          <NeButton kind="tertiary" size="sm" @click="emit('open', nethsecurityUi)">
+            <template #prefix>
+              <FontAwesomeIcon :icon="faWindowMaximize" aria-hidden="true" />
+            </template>
             {{ t('support.workspace_open_here') }}
-          </button>
-          <button
-            class="flex items-center gap-1.5 text-gray-500 hover:underline dark:text-gray-400"
-            @click="emit('openExternal', nethsecurityUi)"
-          >
-            <FontAwesomeIcon :icon="faUpRightFromSquare" class="h-3 w-3" aria-hidden="true" />
+          </NeButton>
+          <NeButton kind="tertiary" size="sm" @click="emit('openExternal', nethsecurityUi)">
+            <template #prefix>
+              <FontAwesomeIcon :icon="faUpRightFromSquare" aria-hidden="true" />
+            </template>
             {{ t('support.workspace_open_new_tab') }}
-          </button>
+          </NeButton>
         </div>
       </div>
       <!-- modules: their services and the credentials they take -->
@@ -207,26 +203,25 @@ const domainUsername = computed(() => props.data?.credentials?.domainUsers[0]?.u
       >
         <button
           class="flex w-full items-center gap-2 px-3 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
+          :aria-expanded="expanded.has(mg.moduleId)"
           @click="toggle(mg.moduleId)"
         >
           <FontAwesomeIcon
-            :icon="expanded.has(mg.moduleId) ? faChevronDown : faChevronRight"
+            :icon="expanded.has(mg.moduleId) ? faChevronUp : faChevronDown"
             class="h-3 w-3 shrink-0 text-gray-500 dark:text-gray-400"
+            aria-hidden="true"
           />
           <span
-            class="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900 dark:text-gray-100"
+            class="min-w-0 flex-1 truncate text-sm font-medium text-gray-900 dark:text-gray-100"
           >
             {{ mg.moduleId }}
             <span v-if="mg.moduleLabel" class="font-normal text-gray-500 dark:text-gray-400">
               ({{ mg.moduleLabel }})
             </span>
           </span>
-          <NeBadge
-            v-if="mg.nodeId"
-            :text="nodeDisplayName(t, mg.nodeId, data?.nodeLabels)"
-            kind="secondary"
-            size="xs"
-          />
+          <NeBadgeV2 v-if="mg.nodeId" kind="gray" size="xs">
+            {{ nodeDisplayName(t, mg.nodeId, data?.nodeLabels) }}
+          </NeBadgeV2>
         </button>
         <div
           v-if="expanded.has(mg.moduleId)"
@@ -268,22 +263,26 @@ const domainUsername = computed(() => props.data?.credentials?.domainUsers[0]?.u
               :title="t('support.workspace_open_here')"
               @click="emit('open', svc)"
             >
-              <FontAwesomeIcon :icon="faWindowMaximize" class="h-3 w-3 shrink-0" />
-              <span class="min-w-0 truncate">{{ serviceDisplayName(svc) }}</span>
-              <NeBadge
-                v-if="svc.clusterAuth"
-                :text="t('support.cluster_admin')"
-                kind="secondary"
-                size="xs"
+              <FontAwesomeIcon
+                :icon="faWindowMaximize"
+                class="h-3 w-3 shrink-0"
+                aria-hidden="true"
               />
+              <span class="min-w-0 truncate">{{ serviceDisplayName(svc) }}</span>
+              <NeBadgeV2 v-if="svc.clusterAuth" kind="gray" size="xs">
+                {{ t('support.cluster_admin') }}
+              </NeBadgeV2>
             </button>
-            <button
-              class="shrink-0 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+            <NeButton
+              kind="tertiary"
+              size="xs"
+              class="shrink-0"
               :title="t('support.workspace_open_new_tab')"
+              :aria-label="t('support.workspace_open_new_tab')"
               @click="emit('openExternal', svc)"
             >
-              <FontAwesomeIcon :icon="faUpRightFromSquare" class="h-3 w-3" aria-hidden="true" />
-            </button>
+              <FontAwesomeIcon :icon="faUpRightFromSquare" aria-hidden="true" />
+            </NeButton>
           </div>
         </div>
       </div>
@@ -292,7 +291,7 @@ const domainUsername = computed(() => props.data?.credentials?.domainUsers[0]?.u
         v-if="customServices.length"
         class="shrink-0 rounded-md border border-gray-200 p-3 dark:border-gray-700"
       >
-        <h4 class="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <h4 class="mb-2 text-sm font-medium text-gray-900 dark:text-gray-100">
           {{ t('support.custom_services') }}
         </h4>
         <div
@@ -305,7 +304,11 @@ const domainUsername = computed(() => props.data?.credentials?.domainUsers[0]?.u
             @click="emit('open', svc)"
           >
             <span class="text-primary-600 dark:text-primary-400 flex items-center gap-1.5">
-              <FontAwesomeIcon :icon="faWindowMaximize" class="h-3 w-3 shrink-0" />
+              <FontAwesomeIcon
+                :icon="faWindowMaximize"
+                class="h-3 w-3 shrink-0"
+                aria-hidden="true"
+              />
               <span class="min-w-0 truncate">{{ svc.label || svc.name }}</span>
             </span>
             <!-- remembered for the next sessions: by whom and until when -->
@@ -316,7 +319,7 @@ const domainUsername = computed(() => props.data?.credentials?.domainUsers[0]?.u
               class="min-w-0"
             >
               <template #trigger>
-                <span class="block truncate pl-[18px] text-xs text-gray-500 dark:text-gray-400">{{
+                <span class="block truncate pl-4.5 text-xs text-gray-500 dark:text-gray-400">{{
                   savedNote(svc.saved)
                 }}</span>
               </template>
@@ -325,20 +328,26 @@ const domainUsername = computed(() => props.data?.credentials?.domainUsers[0]?.u
               </template>
             </NeTooltip>
           </button>
-          <button
-            class="shrink-0 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+          <NeButton
+            kind="tertiary"
+            size="xs"
+            class="shrink-0"
             :title="t('support.workspace_open_new_tab')"
+            :aria-label="t('support.workspace_open_new_tab')"
             @click="emit('openExternal', svc)"
           >
-            <FontAwesomeIcon :icon="faUpRightFromSquare" class="h-3 w-3" aria-hidden="true" />
-          </button>
-          <button
-            class="shrink-0 p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400"
-            :title="t('common.delete')"
+            <FontAwesomeIcon :icon="faUpRightFromSquare" aria-hidden="true" />
+          </NeButton>
+          <NeButton
+            kind="tertiary"
+            size="xs"
+            class="shrink-0"
+            :title="t('support.delete_service')"
+            :aria-label="t('support.delete_service')"
             @click="emit('remove', svc)"
           >
-            <FontAwesomeIcon :icon="faTrashCan" class="h-3 w-3" aria-hidden="true" />
-          </button>
+            <FontAwesomeIcon :icon="faTrash" aria-hidden="true" />
+          </NeButton>
         </div>
       </div>
       <p
@@ -351,7 +360,7 @@ const domainUsername = computed(() => props.data?.credentials?.domainUsers[0]?.u
       <div class="shrink-0">
         <NeButton kind="tertiary" size="sm" @click="emit('add')">
           <template #prefix>
-            <FontAwesomeIcon :icon="faPlug" aria-hidden="true" />
+            <FontAwesomeIcon :icon="faCirclePlus" aria-hidden="true" />
           </template>
           {{ t('support.add_service') }}
         </NeButton>

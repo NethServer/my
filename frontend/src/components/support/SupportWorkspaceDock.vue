@@ -212,7 +212,7 @@ function detach(systemId: string, tabs: WorkspaceTabSpec[]) {
     <!-- minimized windows: a bar of their own, apart from the page -->
     <div
       v-if="store.hasMinimized"
-      class="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-gray-50/95 px-4 py-2.5 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:px-6 lg:left-72 lg:px-8 lg:py-3 dark:border-gray-700 dark:bg-gray-900/95 dark:shadow-[0_-4px_12px_rgba(0,0,0,0.4)]"
+      class="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-gray-50/95 px-4 py-2.5 shadow-lg backdrop-blur-sm sm:px-6 lg:left-72 lg:px-8 lg:py-3 dark:border-gray-700 dark:bg-gray-900/95"
     >
       <div class="flex items-center gap-4">
         <span
@@ -230,7 +230,12 @@ function detach(systemId: string, tabs: WorkspaceTabSpec[]) {
             @click="store.restore(w.systemId)"
           >
             <span class="flex size-8 shrink-0 items-center justify-center">
-              <FontAwesomeIcon v-if="w.waking" :icon="faSpinner" class="size-4 animate-spin" />
+              <FontAwesomeIcon
+                v-if="w.waking"
+                :icon="faSpinner"
+                class="size-4 animate-spin"
+                aria-hidden="true"
+              />
               <SystemLogo v-else-if="w.systemType" :system="w.systemType" size="sm" />
             </span>
             <span class="flex min-w-0 flex-1 flex-col gap-1">
@@ -279,16 +284,23 @@ function detach(systemId: string, tabs: WorkspaceTabSpec[]) {
                 <FontAwesomeIcon
                   :icon="faTerminal"
                   class="size-3 text-green-600 dark:text-green-400"
+                  aria-hidden="true"
                 />
-                {{ tabCount(w, 'terminal') }}
+                <span aria-hidden="true">{{ tabCount(w, 'terminal') }}</span>
+                <span class="sr-only">{{
+                  t('support.workspace_open_terminals', tabCount(w, 'terminal'))
+                }}</span>
               </span>
               <span
                 v-if="tabCount(w, 'web')"
                 class="flex items-center gap-1.5"
                 :title="t('support.workspace_open_web', tabCount(w, 'web'))"
               >
-                <FontAwesomeIcon :icon="faGlobe" class="size-3 text-amber-500" />
-                {{ tabCount(w, 'web') }}
+                <FontAwesomeIcon :icon="faGlobe" class="size-3 text-amber-500" aria-hidden="true" />
+                <span aria-hidden="true">{{ tabCount(w, 'web') }}</span>
+                <span class="sr-only">{{
+                  t('support.workspace_open_web', tabCount(w, 'web'))
+                }}</span>
               </span>
             </span>
           </button>

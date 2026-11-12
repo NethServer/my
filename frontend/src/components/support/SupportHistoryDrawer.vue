@@ -6,8 +6,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { NeSideDrawer } from '@nethesis/vue-components'
+import { NeSideDrawer, NeTabs } from '@nethesis/vue-components'
 import {
   getSupportActivity,
   getSupportNotes,
@@ -33,7 +32,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const sections = WORKSPACE_PANEL_SECTIONS.filter((item) => item.id !== 'services')
 const section = ref<'activity' | 'notes'>('activity')
 const activity = ref<SupportActivity | null>(null)
 const notes = ref<SupportNote[]>([])
@@ -42,6 +40,16 @@ const error = ref('')
 const fetchedAt = ref(Date.now())
 // the services of a closed session are gone: names come from the log
 const serviceNames = new Map<string, string>()
+
+const tabs = computed(() =>
+  WORKSPACE_PANEL_SECTIONS.filter((item) => item.id !== 'services').map((item) => ({
+    name: item.id,
+    label:
+      item.id === 'notes' && notes.value.length
+        ? `${t(item.label)} (${notes.value.length})`
+        : t(item.label),
+  })),
+)
 
 const episodes = computed(() => groupSupportEpisodes(activity.value?.sessions || []))
 
@@ -77,34 +85,22 @@ watch(
 <template>
   <NeSideDrawer
     :is-shown="isShown"
-    :title="t('support.history_drawer_title', { name: group?.system_name || group?.system_key })"
+    :title="t('support.history_drawer_title')"
     :close-aria-label="t('shell.close_side_drawer')"
     @close="emit('close')"
   >
     <div class="flex h-full flex-col">
-      <div class="mb-4 flex gap-2" role="tablist">
-        <button
-          v-for="item in sections"
-          :key="item.id"
-          role="tab"
-          :aria-selected="section === item.id"
-          class="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium"
-          :class="
-            section === item.id
-              ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50'
-              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'
-          "
-          @click="section = item.id as 'activity' | 'notes'"
-        >
-          <FontAwesomeIcon :icon="item.icon" class="h-3.5 w-3.5" aria-hidden="true" />
-          {{ t(item.label) }}
-          <span
-            v-if="item.id === 'notes' && notes.length"
-            class="rounded-full bg-amber-400 px-1.5 text-[10px] leading-4 font-semibold text-gray-900"
-            >{{ notes.length }}</span
-          >
-        </button>
-      </div>
+      <p class="mb-4 text-sm text-gray-600 dark:text-gray-300">
+        {{ group?.system_name || group?.system_key }}
+      </p>
+      <NeTabs
+        :tabs="tabs"
+        :selected="section"
+        :sr-tabs-label="t('ne_tabs.tabs')"
+        :sr-select-tab-label="t('ne_tabs.select_a_tab')"
+        class="mb-4"
+        @select-tab="section = $event"
+      />
       <SupportActivityPane
         v-if="section === 'activity'"
         :activity="activity"
