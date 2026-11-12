@@ -675,12 +675,6 @@
     "total_legacy_systems_tooltip": "Sistemi NethServer 7 e precedenti associati a questa azienda e alle sue consociate. Puoi accedere alle informazioni su questi sistemi all'indirizzo {url}.",
     "open_legacy_my": "Apri My Nethesis legacy",
     "organization_systems": "Sistemi",
-    "count_active": "{count} attivo | {count} attivi",
-    "count_inactive": "{count} inattivo | {count} inattivi",
-    "count_pending": "{count} in attesa",
-    "show_active_systems": "Mostra sistemi attivi",
-    "show_inactive_systems": "Mostra sistemi inattivi",
-    "show_pending_systems": "Mostra sistemi in attesa",
     "organization_id_system_not_registered": "L'azienda non può essere modificata finché il sistema non è registrato. Per modificarla ora, elimina e ricrea il sistema."
   },
   "system_detail": {

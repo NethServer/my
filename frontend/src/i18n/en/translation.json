@@ -757,12 +757,6 @@
     "total_legacy_systems_tooltip": "NethServer 7 and older systems associated with this company and its descendants. You can access information about these systems at {url}.",
     "open_legacy_my": "Open legacy My Nethesis",
     "organization_systems": "Systems",
-    "count_active": "{count} active",
-    "count_inactive": "{count} inactive",
-    "count_pending": "{count} pending",
-    "show_active_systems": "Show active systems",
-    "show_inactive_systems": "Show inactive systems",
-    "show_pending_systems": "Show pending systems",
     "organization_id_system_not_registered": "Company cannot be changed until the system is registered. To change it now, delete and re-create the system."
   },
   "system_detail": {
