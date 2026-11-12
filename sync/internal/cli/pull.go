@@ -72,20 +72,13 @@ func init() {
 	pullCmd.Flags().Bool("organizations-only", false, "pull organizations and organization roles only")
 	pullCmd.Flags().Bool("users-only", false, "pull users and user roles only")
 	pullCmd.Flags().Bool("resources-only", false, "pull resources and permissions only")
-	pullCmd.Flags().StringVar(&pullConflictStrategy, "conflict-strategy", "skip", "conflict resolution strategy (skip, overwrite, merge)")
+	pullCmd.Flags().String("conflict-strategy", "skip", "conflict resolution strategy (skip, overwrite, merge)")
 	pullCmd.Flags().Bool("overwrite-all", false, "overwrite all local data with Logto configuration (DANGEROUS)")
 	pullCmd.Flags().Bool("force", false, "force pull even if validation fails")
 
-	// Bind flags to viper
-	_ = viper.BindPFlag("organizations-only", pullCmd.Flags().Lookup("organizations-only"))
-	_ = viper.BindPFlag("users-only", pullCmd.Flags().Lookup("users-only"))
-	_ = viper.BindPFlag("resources-only", pullCmd.Flags().Lookup("resources-only"))
-	_ = viper.BindPFlag("conflict-strategy", pullCmd.Flags().Lookup("conflict-strategy"))
-	_ = viper.BindPFlag("overwrite-all", pullCmd.Flags().Lookup("overwrite-all"))
-	_ = viper.BindPFlag("force", pullCmd.Flags().Lookup("force"))
+	// Not bound to viper: push and sync bind flags with the same names, and
+	// viper keeps one binding per key, so runPull reads them from the command
 }
-
-var pullConflictStrategy string
 
 func runPull(cmd *cobra.Command, args []string) error {
 	// Log environment file being used
@@ -109,7 +102,11 @@ func runPull(cmd *cobra.Command, args []string) error {
 	}
 
 	// Validate pull-specific flags
-	if err := pullcmd.ValidatePullFlags(); err != nil {
+	flags, err := pullcmd.FlagsFromCommand(cmd)
+	if err != nil {
+		return err
+	}
+	if err := pullcmd.ValidatePullFlags(flags); err != nil {
 		return err
 	}
 
@@ -136,12 +133,12 @@ func runPull(cmd *cobra.Command, args []string) error {
 	pullEngine := sync.NewPullEngine(logtoClient, &sync.PullOptions{
 		DryRun:            viper.GetBool("dry-run"),
 		Verbose:           viper.GetBool("verbose"),
-		OrganizationsOnly: viper.GetBool("organizations-only"),
-		UsersOnly:         viper.GetBool("users-only"),
-		ResourcesOnly:     viper.GetBool("resources-only"),
-		ConflictStrategy:  viper.GetString("conflict-strategy"),
-		OverwriteAll:      viper.GetBool("overwrite-all"),
-		Force:             viper.GetBool("force"),
+		OrganizationsOnly: flags.OrganizationsOnly,
+		UsersOnly:         flags.UsersOnly,
+		ResourcesOnly:     flags.ResourcesOnly,
+		ConflictStrategy:  flags.ConflictStrategy,
+		OverwriteAll:      flags.OverwriteAll,
+		Force:             flags.Force,
 		APIBaseURL:        syncmd.GetAPIBaseURL(),
 	})
 

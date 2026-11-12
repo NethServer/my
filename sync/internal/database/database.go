@@ -62,6 +62,19 @@ func Close() error {
 	return nil
 }
 
+// RefreshUnifiedOrganizations rebuilds the unified_organizations materialized
+// view the backend lists companies from. CONCURRENTLY keeps it readable during
+// the refresh.
+func RefreshUnifiedOrganizations() error {
+	if DB == nil {
+		return fmt.Errorf("database connection not initialized")
+	}
+	if _, err := DB.Exec("REFRESH MATERIALIZED VIEW CONCURRENTLY unified_organizations"); err != nil {
+		return fmt.Errorf("failed to refresh unified_organizations: %w", err)
+	}
+	return nil
+}
+
 // HealthCheck performs a database health check
 func HealthCheck() error {
 	if DB == nil {
