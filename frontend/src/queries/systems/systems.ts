@@ -36,6 +36,8 @@ export const useSystems = defineQuery(() => {
   // these organizations (ANDed with organizationFilter)
   const parentOrganizationFilter = ref<NeDropdownFilterV2Option[]>([])
   const addonFilter = ref<NeDropdownFilterV2Option[]>([])
+  // only the systems with a live remote support session (support staff only)
+  const supportSessionFilter = ref(false)
   const sortBy = ref<SystemSortBy>('name')
   const sortDescending = ref(false)
 
@@ -52,6 +54,7 @@ export const useSystems = defineQuery(() => {
         organizationFilter: organizationFilter.value.map((o) => o.id),
         parentOrganizationFilter: parentOrganizationFilter.value.map((o) => o.id),
         addonFilter: addonFilter.value.map((o) => o.id),
+        supportSessionFilter: supportSessionFilter.value,
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -71,6 +74,7 @@ export const useSystems = defineQuery(() => {
         sortBy.value,
         sortDescending.value,
         parentOrganizationFilter.value.map((o) => o.id),
+        supportSessionFilter.value,
       ),
   })
 
@@ -82,6 +86,7 @@ export const useSystems = defineQuery(() => {
       organizationFilter.value.length === 0 &&
       parentOrganizationFilter.value.length === 0 &&
       addonFilter.value.length === 0 &&
+      !supportSessionFilter.value &&
       statusFilter.value.length === 4 &&
       statusFilter.value.some((o) => o.id === 'active') &&
       statusFilter.value.some((o) => o.id === 'inactive') &&
@@ -155,9 +160,9 @@ export const useSystems = defineQuery(() => {
     },
   )
 
-  // reset to first page when add-on filter changes
+  // reset to first page when add-on or support session filter changes
   watch(
-    () => addonFilter.value,
+    () => [addonFilter.value, supportSessionFilter.value],
     () => {
       pageNum.value = 1
     },
@@ -179,6 +184,7 @@ export const useSystems = defineQuery(() => {
     organizationFilter.value = []
     parentOrganizationFilter.value = []
     addonFilter.value = []
+    supportSessionFilter.value = false
     resetStatusFilter()
   }
 
@@ -204,6 +210,7 @@ export const useSystems = defineQuery(() => {
     organizationFilter,
     parentOrganizationFilter,
     addonFilter,
+    supportSessionFilter,
     debouncedTextFilter,
     sortBy,
     sortDescending,

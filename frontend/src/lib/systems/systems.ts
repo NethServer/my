@@ -63,6 +63,7 @@ export const SystemSchema = v.object({
   // them only when asked with include_addons, and omits the key for a system
   // holding none.
   addons: v.optional(v.array(v.string())),
+  support_session_id: v.optional(v.nullable(v.string())),
   organization: v.object({
     id: v.string(),
     logto_id: v.string(),
@@ -146,6 +147,7 @@ export const getQueryStringParams = (
   sortBy: string | null,
   sortDescending: boolean,
   parentOrganizationFilter: string[] = [],
+  supportSessionOnly = false,
 ) => {
   const searchParams = new URLSearchParams({
     page: pageNum.toString(),
@@ -186,6 +188,11 @@ export const getQueryStringParams = (
   addonFilter.forEach((addon) => {
     searchParams.append('addon', addon)
   })
+
+  // only the systems with a live remote support session
+  if (supportSessionOnly) {
+    searchParams.append('support_session', 'active')
+  }
   return searchParams.toString()
 }
 
@@ -280,6 +287,7 @@ export const getSystems = (
   sortBy: string,
   sortDescending: boolean,
   parentOrganizationFilter: string[] = [],
+  supportSessionOnly = false,
 ) => {
   const loginStore = useLoginStore()
   const params = getQueryStringParams(
@@ -295,6 +303,7 @@ export const getSystems = (
     sortBy,
     sortDescending,
     parentOrganizationFilter,
+    supportSessionOnly,
   )
 
   return axios

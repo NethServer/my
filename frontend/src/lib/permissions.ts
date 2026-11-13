@@ -1,4 +1,4 @@
-//  Copyright (C) 2025 Nethesis S.r.l.
+//  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 import { useLoginStore } from '@/stores/login'
@@ -41,6 +41,8 @@ const hasOwnerLevelAuthority = () => {
 // Administrative surface (catalog, manual grants, fleet view): Owner
 // organization only — matches the backend isEntitlementAdmin gate.
 export const isEntitlementAdmin = () => hasOwnerLevelAuthority()
+
+const CONNECT_SYSTEMS = 'connect:systems'
 
 export const canReadDistributors = () => {
   const loginStore = useLoginStore()
@@ -215,4 +217,11 @@ export const canReadOrganizationDetail = (organizationType: string, logtoId?: st
     default:
       return false
   }
+}
+
+// Remote support is Nethesis staff only: the backend also requires the Owner
+// organization on top of connect:systems
+export const canConnectSystems = () => {
+  const loginStore = useLoginStore()
+  return loginStore.isOwner && loginStore.permissions.includes(CONNECT_SYSTEMS)
 }

@@ -103,6 +103,9 @@ type System struct {
 	FirstHeartbeat *time.Time `json:"first_heartbeat,omitempty"` // First heartbeat received
 	FirstInventory *time.Time `json:"first_inventory,omitempty"` // First inventory received
 
+	// Support session info (populated by query)
+	SupportSessionID *string `json:"support_session_id"`
+
 	// Rebranding info (populated by handler)
 	RebrandingEnabled bool    `json:"rebranding_enabled"`
 	RebrandingOrgID   *string `json:"rebranding_org_id,omitempty"`
@@ -128,6 +131,7 @@ type SystemListFilters struct {
 	ParentOrganizationIDs []string // "Managed by": owning organization within these subtrees
 	Statuses              []string // unified status, including suspended/no_inventory
 	Addons                []string // catalog ids of add-ons the system must hold
+	SupportSession        bool     // only systems with a live (pending or active) support session
 }
 
 // IsSuspended returns true if the system is suspended

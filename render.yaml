@@ -67,6 +67,8 @@ envVarGroups:
     envVars:
       - key: ALERTING_HISTORY_WEBHOOK_SECRET
         sync: false
+      - key: SUPPORT_INTERNAL_SECRET
+        sync: false  # backend <-> support HMAC and credential encryption key
 
   - name: logto-prod
     envVars:
@@ -130,6 +132,8 @@ envVarGroups:
     envVars:
       - key: ALERTING_HISTORY_WEBHOOK_SECRET
         sync: false
+      - key: SUPPORT_INTERNAL_SECRET
+        sync: false  # backend <-> support HMAC and credential encryption key
 
   - name: logto-qa
     envVars:
@@ -261,6 +265,14 @@ services:
       - key: ALERTING_HISTORY_WEBHOOK_URL
         sync: false
 
+      # Support service URL
+      - key: SUPPORT_SERVICE_URL
+        value: http://my-support-prod:10000
+
+      # Wildcard domain for {label}--{session}.support.{domain} proxy
+      - key: SUPPORT_PROXY_DOMAIN
+        value: my.nethesis.it
+
   # Production Collect Service (Private Service)
   - type: pserv
     name: my-collect-prod
@@ -326,6 +338,47 @@ services:
       - key: SYSTEM_AUTH_CACHE_TTL
         value: 1h
 
+  # Production Support Service (Private Service)
+  - type: pserv
+    name: my-support-prod
+    runtime: image
+    plan: starter
+    region: frankfurt
+    image:
+      url: ghcr.io/nethserver/my/support:v0.10.3
+    envVars:
+      - fromGroup: app-secrets-prod
+
+      # Server Configuration
+      - key: GIN_MODE
+        value: release
+      - key: LISTEN_ADDRESS
+        value: 0.0.0.0:10000
+      - key: LOG_LEVEL
+        value: info
+      - key: LOG_FORMAT
+        value: json
+
+      # Redis Configuration
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: my-redis-prod
+          property: connectionString
+      - key: REDIS_DB
+        value: 2
+
+      # PostgreSQL Configuration
+      - key: DATABASE_URL
+        fromDatabase:
+          name: my-postgres-prod
+          property: connectionString
+
+      # System auth cache; suspend, delete and secret regeneration
+      # invalidate the entry at once, so a longer TTL delays no revoke.
+      - key: SYSTEM_AUTH_CACHE_TTL
+        value: 1h
+
   # Production Frontend (Private Service)
   - type: pserv
     name: my-frontend-prod
@@ -369,6 +422,8 @@ services:
         value: my-backend-prod
       - key: COLLECT_SERVICE_NAME
         value: my-collect-prod
+      - key: SUPPORT_SERVICE_NAME
+        value: my-support-prod
       - key: FRONTEND_SERVICE_NAME
         value: my-frontend-prod
 
@@ -386,8 +441,9 @@ services:
       # from Google (s2/favicons redirects to *.gstatic.com)
       - key: THIRD_PARTY_SCRIPT_SRC
         value: https://widget.kapa.ai https://www.google.com https://www.gstatic.com
+      # reCAPTCHA, and the support proxy for the support workspace tabs
       - key: THIRD_PARTY_FRAME_SRC
-        value: https://www.google.com
+        value: https://www.google.com https://*.support.my.nethesis.it
       - key: THIRD_PARTY_IMG_SRC
         value: https://www.google.com https://*.gstatic.com
 
@@ -479,6 +535,14 @@ services:
       - key: ALERTING_HISTORY_WEBHOOK_URL
         sync: false
 
+      # Support service URL
+      - key: SUPPORT_SERVICE_URL
+        value: http://my-support-qa:10000
+
+      # Wildcard domain for {label}--{session}.support.{domain} proxy
+      - key: SUPPORT_PROXY_DOMAIN
+        value: qa.my.nethesis.it
+
     autoDeploy: true   # Auto-deploy on every commit
     branch: main
     pullRequestPreviewsEnabled: true  # PR previews enabled
@@ -551,6 +615,50 @@ services:
     branch: main
     pullRequestPreviewsEnabled: true  # PR previews enabled
 
+  # QA Support Service (Private Service)
+  - type: pserv
+    name: my-support-qa
+    runtime: docker
+    plan: starter
+    rootDir: services/support
+    dockerfilePath: Containerfile
+    envVars:
+      - fromGroup: app-secrets-qa
+
+      # Server Configuration
+      - key: GIN_MODE
+        value: debug
+      - key: LISTEN_ADDRESS
+        value: 0.0.0.0:10000
+      - key: LOG_LEVEL
+        value: debug
+      - key: LOG_FORMAT
+        value: json
+
+      # Redis Configuration
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: my-redis-qa
+          property: connectionString
+      - key: REDIS_DB
+        value: 2
+
+      # PostgreSQL Configuration
+      - key: DATABASE_URL
+        fromDatabase:
+          name: my-postgres-qa
+          property: connectionString
+
+      # System auth cache; suspend, delete and secret regeneration
+      # invalidate the entry at once, so a longer TTL delays no revoke.
+      - key: SYSTEM_AUTH_CACHE_TTL
+        value: 1h
+
+    autoDeploy: true
+    branch: main
+    pullRequestPreviewsEnabled: true
+
   # QA Frontend (Private Service)
   - type: pserv
     name: my-frontend-qa
@@ -602,6 +710,11 @@ services:
           name: my-collect-qa
           type: pserv
           property: host
+      - key: SUPPORT_SERVICE_NAME
+        fromService:
+          name: my-support-qa
+          type: pserv
+          property: host
       - key: FRONTEND_SERVICE_NAME
         fromService:
           name: my-frontend-qa
@@ -615,6 +728,10 @@ services:
       # Third-party app origins allowed in the CSP connect-src (info_url widgets)
       - key: THIRD_PARTY_CONNECT_SRC
         value: https://nethshop2.nethesis.it https://my.staging.nethspot.com https://formazione.nethesis.it
+
+      # Support proxy, for the support workspace tabs
+      - key: THIRD_PARTY_FRAME_SRC
+        value: https://*.support.qa.my.nethesis.it
     autoDeploy: true   # Auto-deploy on every commit
     branch: main
     pullRequestPreviewsEnabled: true  # PR previews enabled
