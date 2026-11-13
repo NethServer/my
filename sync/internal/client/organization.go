@@ -189,24 +189,6 @@ type LogtoOrganization struct {
 	CustomData  map[string]interface{} `json:"customData,omitempty"`
 }
 
-// GetOrganizations retrieves all organizations (first page only)
-func (c *LogtoClient) GetOrganizations() ([]LogtoOrganization, error) {
-	logger.Debug("Fetching organizations")
-
-	resp, err := c.makeRequest("GET", "/api/organizations", nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get organizations: %w", err)
-	}
-
-	var organizations []LogtoOrganization
-	if err := c.handlePaginatedResponse(resp, &organizations); err != nil {
-		return nil, fmt.Errorf("failed to parse organizations response: %w", err)
-	}
-
-	logger.Debug("Retrieved %d organizations", len(organizations))
-	return organizations, nil
-}
-
 // GetAllOrganizations retrieves all organizations across all pages
 func (c *LogtoClient) GetAllOrganizations() ([]LogtoOrganization, error) {
 	logger.Debug("Fetching all organizations")

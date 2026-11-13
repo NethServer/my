@@ -177,7 +177,7 @@ function onTopicIdInput(ch: TelegramFormEntry, value: string) {
 function toRecipient(ch: TelegramFormEntry): TelegramRecipient {
   return {
     chat_id: ch.chat_id,
-    bot_token: ch.bot_token,
+    bot_token: ch.bot_token.trim(),
     message_thread_id: ch.message_thread_id,
     severities: ch.severities?.length ? ch.severities : undefined,
     scope: ch._scopeSpecific ? toScopePayload(ch.scope) : undefined,
@@ -359,6 +359,7 @@ function closeDrawer() {
                 <NeTextInput
                   ref="expandedBotTokenRef"
                   v-model="ch.bot_token"
+                  @blur="ch.bot_token = ch.bot_token.trim()"
                   :label="t('alerts.telegram_bot_input')"
                   :placeholder="$t('common.eg_value', { value: '1234567890:ABCDEFGHIJKLMNOP' })"
                   :invalid-message="

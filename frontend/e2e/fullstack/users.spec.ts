@@ -124,7 +124,7 @@ test.describe('user lifecycle', () => {
     const drawer = drawerOf(page)
     await expect(drawer).toBeVisible()
 
-    await drawer.getByLabel(t('users.name'), { exact: true }).fill(name)
+    await drawer.getByLabel(t('users.full_name'), { exact: true }).fill(name)
     await drawer.getByLabel(t('users.email'), { exact: true }).fill(email)
     await chooseCompany(page, ORG_NAME)
     await chooseRole(page, t('user_roles.reader'))
@@ -213,7 +213,7 @@ test('refuses a user with no role assigned', async ({ page }) => {
   await page.getByRole('button', { name: t('users.create_user') }).click()
 
   const drawer = drawerOf(page)
-  await drawer.getByLabel(t('users.name'), { exact: true }).fill(name)
+  await drawer.getByLabel(t('users.full_name'), { exact: true }).fill(name)
   await drawer.getByLabel(t('users.email'), { exact: true }).fill(email)
   await chooseCompany(page, ORG_NAME)
   // Role deliberately left unset

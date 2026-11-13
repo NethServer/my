@@ -142,6 +142,15 @@ func (e *PullEngine) Pull() (*PullResult, error) {
 		if err := e.pullOrganizationRoles(result); err != nil {
 			result.Errors = append(result.Errors, fmt.Sprintf("Organization roles pull failed: %v", err))
 		}
+
+		// the backend reads company names from this view and refreshes it only
+		// at startup and after its own writes: without this, users would show
+		// under a stale company until the next backend restart
+		if !e.options.DryRun {
+			if err := database.RefreshUnifiedOrganizations(); err != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("Organizations view refresh failed: %v", err))
+			}
+		}
 	}
 
 	// Pull users and user roles
@@ -208,7 +217,7 @@ func (e *PullEngine) pullOrganizations(result *PullResult) error {
 	logger.Info("Pulling organizations from Logto...")
 
 	// Fetch organizations from Logto
-	logtoOrgs, err := e.client.GetOrganizations()
+	logtoOrgs, err := e.client.GetAllOrganizations()
 	if err != nil {
 		return fmt.Errorf("failed to fetch organizations from Logto: %w", err)
 	}

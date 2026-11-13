@@ -1,6 +1,6 @@
 {
   "name": "my-nethesis-ui",
-  "version": "0.10.5",
+  "version": "0.10.6",
   "private": true,
   "type": "module",
   "engines": {
@@ -36,7 +36,7 @@
     "@logto/vue": "^3.0.8",
     "@nethesis/nethesis-light-svg-icons": "github:nethesis/Font-Awesome#ns-light",
     "@nethesis/nethesis-solid-svg-icons": "github:nethesis/Font-Awesome#ns-solid",
-    "@nethesis/vue-components": "^3.15.1",
+    "@nethesis/vue-components": "^3.16.0",
     "@pinia/colada": "^1.4.7",
     "@pinia/colada-plugin-auto-refetch": "^0.2.7",
     "@tailwindcss/vite": "^4.1.10",

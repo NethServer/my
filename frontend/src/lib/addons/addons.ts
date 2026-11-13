@@ -226,8 +226,11 @@ export const CreateAddonFormSchema = v.pipe(
     ['application'],
   ),
   v.forward(
+    // without an application a NethServer id cannot be composed: the
+    // application error says what is missing, the technical name may be fine
     v.check(
-      (form) => ADDON_ID_REGEX.test(composeAddonId(form)),
+      (form) =>
+        (form.product === 'ns8' && !form.application) || ADDON_ID_REGEX.test(composeAddonId(form)),
       'addons.technical_name_is_invalid',
     ),
     ['technical_name'],

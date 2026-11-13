@@ -16,9 +16,8 @@ import {
   type PostConsent,
 } from '@/lib/impersonation'
 import { ref, useTemplateRef, type ShallowRef } from 'vue'
-import { getValidationIssues } from '@/lib/validation'
+import { focusFirstRejectedField, getValidationIssues, validateForm } from '@/lib/validation'
 import type { AxiosError } from 'axios'
-import * as v from 'valibot'
 
 const { visible = false } = defineProps<{
   visible: boolean
@@ -37,7 +36,7 @@ const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> =
   duration_hours: durationRef,
 }
 const {
-  mutate: postConsentMutate,
+  mutateAsync: postConsentMutateAsync,
   isLoading: postConsentLoading,
   reset: postConsentReset,
   error: postConsentError,
@@ -83,28 +82,6 @@ function clearErrors() {
   postConsentReset()
 }
 
-function validate(consent: PostConsent): boolean {
-  validationIssues.value = {}
-  const validation = v.safeParse(PostConsentSchema, consent)
-
-  if (validation.success) {
-    // no validation issues
-    return true
-  } else {
-    const issues = v.flatten(validation.issues)
-
-    if (issues.nested) {
-      validationIssues.value = issues.nested as Record<string, string[]>
-
-      // focus the first field with error
-
-      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-      fieldRefs[firstErrorFieldName].value?.focus()
-    }
-    return false
-  }
-}
-
 async function enableConsent() {
   clearErrors()
 
@@ -113,11 +90,11 @@ async function enableConsent() {
     duration_hours: durationHours,
   }
 
-  const isValidationOk = validate(consent)
-  if (!isValidationOk) {
-    return
+  if (validateForm(PostConsentSchema, consent, validationIssues, fieldRefs)) {
+    postConsentMutateAsync(consent).catch(() =>
+      focusFirstRejectedField(validationIssues.value, fieldRefs),
+    )
   }
-  postConsentMutate(consent)
 }
 </script>
 

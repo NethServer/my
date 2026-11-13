@@ -15,11 +15,15 @@ import {
   type NePasswordRequirement,
 } from '@nethesis/vue-components'
 import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
-import * as v from 'valibot'
 import { useMutation } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
-import { getValidationIssues, isValidationError } from '../../lib/validation'
+import {
+  focusFirstRejectedField,
+  getValidationIssues,
+  isValidationError,
+  validateForm,
+} from '@/lib/validation'
 import { useLoginStore } from '@/stores/login'
 import { ChangePasswordSchema, postChangePassword, type ChangePassword } from '@/lib/account'
 import {
@@ -48,7 +52,7 @@ const isFirstAccess = computed(() => {
 })
 
 const {
-  mutate: changePasswordMutate,
+  mutateAsync: changePasswordMutateAsync,
   isLoading: changePasswordLoading,
   reset: changePasswordReset,
   error: changePasswordError,
@@ -141,9 +145,9 @@ const newPasswordInvalidMessage = computed(() => {
 })
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
-  currentPassword: currentPasswordRef,
-  newPassword: newPasswordRef,
-  confirmPassword: confirmPasswordRef,
+  current_password: currentPasswordRef,
+  new_password: newPasswordRef,
+  confirm_password: confirmPasswordRef,
 }
 
 watch(
@@ -169,28 +173,6 @@ function clearErrors() {
   showPasswordRequirementErrors.value = false
 }
 
-function validate(changePasswordData: ChangePassword): boolean {
-  validationIssues.value = {}
-  const validation = v.safeParse(ChangePasswordSchema, changePasswordData)
-
-  if (validation.success) {
-    // no validation issues
-    return true
-  } else {
-    const issues = v.flatten(validation.issues)
-
-    if (issues.nested) {
-      validationIssues.value = issues.nested as Record<string, string[]>
-
-      // focus the first field with error
-
-      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-      fieldRefs[firstErrorFieldName]?.value?.focus()
-    }
-    return false
-  }
-}
-
 async function validateAndChangePassword() {
   clearErrors()
 
@@ -200,7 +182,12 @@ async function validateAndChangePassword() {
     confirm_password: confirmPassword.value,
   }
 
-  const isValidationOk = validate(changePasswordData)
+  const isValidationOk = validateForm(
+    ChangePasswordSchema,
+    changePasswordData,
+    validationIssues,
+    fieldRefs,
+  )
 
   if (!isNewPasswordStrongEnough.value) {
     showPasswordRequirementErrors.value = true
@@ -215,7 +202,9 @@ async function validateAndChangePassword() {
   if (!isValidationOk) {
     return
   }
-  changePasswordMutate(changePasswordData)
+  changePasswordMutateAsync(changePasswordData).catch(() =>
+    focusFirstRejectedField(validationIssues.value, fieldRefs),
+  )
 }
 </script>
 

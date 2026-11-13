@@ -266,18 +266,16 @@ func TestLocalUserActiveMethods(t *testing.T) {
 
 func TestSystemTotalsStructure(t *testing.T) {
 	totals := SystemTotals{
-		Total:          100,
-		Active:         80,
-		Inactive:       15,
-		Unknown:        5,
-		TimeoutMinutes: 30,
+		Total:    100,
+		Active:   80,
+		Inactive: 15,
+		Unknown:  5,
 	}
 
 	assert.Equal(t, 100, totals.Total)
 	assert.Equal(t, 80, totals.Active)
 	assert.Equal(t, 15, totals.Inactive)
 	assert.Equal(t, 5, totals.Unknown)
-	assert.Equal(t, 30, totals.TimeoutMinutes)
 }
 
 func TestCreateLocalDistributorRequest(t *testing.T) {

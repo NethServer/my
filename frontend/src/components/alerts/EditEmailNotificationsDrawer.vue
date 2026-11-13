@@ -168,7 +168,7 @@ const {
         email: emailEnabled.value,
       },
       email_recipients: recipients.value.map((r) => ({
-        address: r.address,
+        address: r.address.trim(),
         severities: r.severities?.length ? r.severities : undefined,
         language: r.language,
         format: r.format,
@@ -206,7 +206,7 @@ function validate(): boolean {
   validationIssues.value = {}
   const payload = {
     email_recipients: recipients.value.map((r) => ({
-      address: r.address,
+      address: r.address.trim(),
       severities: r.severities?.length ? r.severities : undefined,
       language: r.language,
       format: r.format,
@@ -314,6 +314,7 @@ function closeDrawer() {
               <NeTextInput
                 ref="expandedAddressRef"
                 v-model="recipient.address"
+                @blur="recipient.address = recipient.address.trim()"
                 :label="t('alerts.email_address')"
                 :placeholder="$t('common.eg_value', { value: 'user@example.com' })"
                 :invalid-message="

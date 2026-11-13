@@ -19,7 +19,6 @@ import {
 } from '@nethesis/vue-components'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import type { AxiosError } from 'axios'
-import * as v from 'valibot'
 import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -43,7 +42,7 @@ import {
 } from '@/lib/addons/addons'
 import { getApplicationLogo } from '@/lib/applications/applications'
 import { getProductLogo, getProductName } from '@/lib/systems/systems'
-import { getBackendErrorMessage, getValidationIssues } from '@/lib/validation'
+import { getBackendErrorMessage, getValidationIssues, validateForm } from '@/lib/validation'
 import { useNotificationsStore } from '@/stores/notifications'
 
 const { isShown = false, currentAddon = undefined } = defineProps<{
@@ -139,8 +138,8 @@ const validationIssues = ref<Record<string, string[]>>({})
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
   application: applicationRef,
-  technical_name: technicalNameRef,
   display_name: displayNameRef,
+  technical_name: technicalNameRef,
   description: descriptionRef,
 }
 
@@ -165,7 +164,7 @@ const composedId = computed(() =>
   composeAddonId({
     product: product.value,
     application: application.value,
-    technical_name: technicalName.value,
+    technical_name: technicalName.value.trim(),
   }),
 )
 
@@ -238,45 +237,17 @@ function clearErrors() {
   validationIssues.value = {}
 }
 
-function validate(schema: typeof CreateAddonFormSchema | typeof EditAddonFormSchema, form: object) {
-  validationIssues.value = {}
-  const validation = v.safeParse(schema, form)
-
-  if (validation.success) {
-    // no validation issues
-    return true
-  } else {
-    const flattenedIssues = v.flatten(validation.issues)
-
-    if (flattenedIssues.nested) {
-      const issues: Record<string, string[]> = {}
-
-      for (const key in flattenedIssues.nested) {
-        // replace dots with underscores for i18n key
-        const newKey = key.replace(/\./g, '_')
-        issues[newKey] = flattenedIssues.nested[key] ?? []
-      }
-      validationIssues.value = issues
-
-      // focus the first field with error
-      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-      fieldRefs[firstErrorFieldName]?.value?.focus()
-    }
-    return false
-  }
-}
-
 async function saveAddon() {
   clearErrors()
 
   if (currentAddon) {
     // editing add-on: the backend accepts the display fields only
     const form = {
-      display_name: displayName.value,
+      display_name: displayName.value.trim(),
       description: description.value,
     }
 
-    if (!validate(EditAddonFormSchema, form)) {
+    if (!validateForm(EditAddonFormSchema, form, validationIssues, fieldRefs)) {
       return
     }
     editAddonMutate({ ...form, id: currentAddon.id, purchasable: purchasable.value })
@@ -285,12 +256,12 @@ async function saveAddon() {
     const form: AddonForm = {
       product: product.value,
       application: application.value,
-      technical_name: technicalName.value,
-      display_name: displayName.value,
+      technical_name: technicalName.value.trim(),
+      display_name: displayName.value.trim(),
       description: description.value,
     }
 
-    if (!validate(CreateAddonFormSchema, form)) {
+    if (!validateForm(CreateAddonFormSchema, form, validationIssues, fieldRefs)) {
       return
     }
 

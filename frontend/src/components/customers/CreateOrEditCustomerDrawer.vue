@@ -28,11 +28,15 @@ import {
   type Customer,
   type EditCustomer,
 } from '@/lib/organizations/customers'
-import * as v from 'valibot'
 import { useMutation, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
-import { getValidationIssues, isValidationError } from '@/lib/validation'
+import {
+  focusFirstRejectedField,
+  getValidationIssues,
+  isValidationError,
+  validateForm,
+} from '@/lib/validation'
 import type { AxiosError } from 'axios'
 import { getCommonLanguagesOptions } from '@/lib/locale'
 import { getBrowserLocale } from '@/i18n'
@@ -55,7 +59,7 @@ const notificationsStore = useNotificationsStore()
 const loginStore = useLoginStore()
 
 const {
-  mutate: createCustomerMutate,
+  mutateAsync: createCustomerMutateAsync,
   isLoading: createCustomerLoading,
   reset: createCustomerReset,
   error: createCustomerError,
@@ -88,7 +92,7 @@ const {
 })
 
 const {
-  mutate: editCustomerMutate,
+  mutateAsync: editCustomerMutateAsync,
   isLoading: editCustomerLoading,
   reset: editCustomerReset,
   error: editCustomerError,
@@ -112,6 +116,7 @@ const {
   },
   onError: (error) => {
     console.error('Error editing customer:', error)
+    validationIssues.value = getValidationIssues(error as AxiosError, 'organizations')
   },
   onSettled: () => queryCache.invalidateQueries({ key: [CUSTOMERS_KEY] }),
 })
@@ -227,76 +232,18 @@ function clearErrors() {
   validationIssues.value = {}
 }
 
-function validateCreate(customer: CreateCustomer): boolean {
-  validationIssues.value = {}
-  const validation = v.safeParse(CreateCustomerSchema, customer)
-
-  if (validation.success) {
-    // no validation issues
-    return true
-  } else {
-    const flattenedIssues = v.flatten(validation.issues)
-
-    if (flattenedIssues.nested) {
-      const issues: Record<string, string[]> = {}
-
-      for (const key in flattenedIssues.nested) {
-        // replace dots with underscores for i18n key
-        const newKey = key.replace(/\./g, '_')
-        issues[newKey] = flattenedIssues.nested[key] ?? []
-      }
-      validationIssues.value = issues
-
-      // focus the first field with error
-
-      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-      fieldRefs[firstErrorFieldName]?.value?.focus()
-    }
-    return false
-  }
-}
-
-function validateEdit(customer: EditCustomer): boolean {
-  validationIssues.value = {}
-  const validation = v.safeParse(EditCustomerSchema, customer)
-
-  if (validation.success) {
-    // no validation issues
-    return true
-  } else {
-    const flattenedIssues = v.flatten(validation.issues)
-
-    if (flattenedIssues.nested) {
-      const issues: Record<string, string[]> = {}
-
-      for (const key in flattenedIssues.nested) {
-        // replace dots with underscores for i18n key
-        const newKey = key.replace(/\./g, '_')
-        issues[newKey] = flattenedIssues.nested[key] ?? []
-      }
-      validationIssues.value = issues
-
-      // focus the first field with error
-
-      const firstErrorFieldName = Object.keys(validationIssues.value)[0]
-      fieldRefs[firstErrorFieldName]?.value?.focus()
-    }
-    return false
-  }
-}
-
 async function saveCustomer() {
   clearErrors()
 
   const customer = {
-    name: name.value,
+    name: name.value.trim(),
     custom_data: {
-      vat: vatNumber.value,
-      address: address.value,
-      city: city.value,
-      main_contact: mainContact.value,
-      email: email.value,
-      phone: combinePhoneParts(countryCode.value, phone.value),
+      vat: vatNumber.value.trim(),
+      address: address.value.trim(),
+      city: city.value.trim(),
+      main_contact: mainContact.value.trim(),
+      email: email.value.trim(),
+      phone: combinePhoneParts(countryCode.value, phone.value.trim()),
       language: language.value,
       notes: notes.value,
     },
@@ -310,11 +257,11 @@ async function saveCustomer() {
       logto_id: currentCustomer.logto_id,
     }
 
-    const isValidationOk = validateEdit(customerToEdit)
-    if (!isValidationOk) {
-      return
+    if (validateForm(EditCustomerSchema, customerToEdit, validationIssues, fieldRefs)) {
+      editCustomerMutateAsync(customerToEdit).catch(() =>
+        focusFirstRejectedField(validationIssues.value, fieldRefs),
+      )
     }
-    editCustomerMutate(customerToEdit)
   } else {
     // creating customer
 
@@ -325,11 +272,11 @@ async function saveCustomer() {
         ? { created_by_organization_id: createdByOrganizationId.value }
         : {}),
     }
-    const isValidationOk = validateCreate(customerToCreate)
-    if (!isValidationOk) {
-      return
+    if (validateForm(CreateCustomerSchema, customerToCreate, validationIssues, fieldRefs)) {
+      createCustomerMutateAsync(customerToCreate).catch(() =>
+        focusFirstRejectedField(validationIssues.value, fieldRefs),
+      )
     }
-    createCustomerMutate(customerToCreate)
   }
 }
 </script>
@@ -484,7 +431,9 @@ async function saveCustomer() {
           @blur="notes = notes.trim()"
           :label="$t('common.notes')"
           :disabled="saving"
-          :invalid-message="validationIssues.notes?.[0] ? $t(validationIssues.notes[0]) : ''"
+          :invalid-message="
+            validationIssues.custom_data_notes?.[0] ? $t(validationIssues.custom_data_notes[0]) : ''
+          "
           :optional="true"
           :optional-label="t('common.optional')"
         />
