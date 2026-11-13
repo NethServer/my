@@ -22,6 +22,7 @@ import {
   faRotateLeft,
   faBomb,
   faCircleUp,
+  faShuffle,
   faServer,
   faEye,
 } from '@fortawesome/free-solid-svg-icons'
@@ -54,9 +55,15 @@ import ReactivateResellerModal from './ReactivateResellerModal.vue'
 import RestoreResellerModal from './RestoreResellerModal.vue'
 import DestroyResellerModal from './DestroyResellerModal.vue'
 import PromoteResellerModal from './PromoteResellerModal.vue'
+import TransferResellerDrawer from './TransferResellerDrawer.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useResellers } from '@/queries/organizations/resellers'
-import { canManageResellers, canDestroyResellers, canPromoteOrganizations } from '@/lib/permissions'
+import {
+  canManageResellers,
+  canDestroyResellers,
+  canPromoteOrganizations,
+  canTransferResellers,
+} from '@/lib/permissions'
 import router from '@/router'
 import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
@@ -94,6 +101,7 @@ const isShownReactivateResellerModal = ref(false)
 const isShownRestoreResellerModal = ref(false)
 const isShownDestroyResellerModal = ref(false)
 const isShownPromoteResellerModal = ref(false)
+const isShownTransferResellerDrawer = ref(false)
 
 const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
   {
@@ -183,6 +191,11 @@ function showDestroyResellerModal(reseller: Reseller) {
   isShownDestroyResellerModal.value = true
 }
 
+function showTransferResellerDrawer(reseller: Reseller) {
+  currentReseller.value = reseller
+  isShownTransferResellerDrawer.value = true
+}
+
 function showPromoteResellerModal(reseller: Reseller) {
   currentReseller.value = reseller
   isShownPromoteResellerModal.value = true
@@ -202,6 +215,16 @@ function getKebabMenuItems(reseller: Reseller) {
       label: t('common.edit'),
       icon: faPenToSquare,
       action: () => showEditResellerDrawer(reseller),
+      disabled: asyncStatus.value === 'loading',
+    })
+  }
+
+  if (canTransferResellers() && !reseller.deleted_at && !reseller.suspended_at) {
+    items.push({
+      id: 'transferReseller',
+      label: t('resellers.change_manager'),
+      icon: faShuffle,
+      action: () => showTransferResellerDrawer(reseller),
       disabled: asyncStatus.value === 'loading',
     })
   }
@@ -610,6 +633,12 @@ const goToResellerDetails = (reseller: Reseller) => {
       :visible="isShownDestroyResellerModal"
       :reseller="currentReseller"
       @close="isShownDestroyResellerModal = false"
+    />
+    <!-- transfer reseller drawer -->
+    <TransferResellerDrawer
+      :is-shown="isShownTransferResellerDrawer"
+      :reseller="currentReseller"
+      @close="isShownTransferResellerDrawer = false"
     />
     <!-- promote reseller modal -->
     <PromoteResellerModal

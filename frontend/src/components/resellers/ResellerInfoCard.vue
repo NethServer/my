@@ -20,7 +20,11 @@ import DataItem from '../common/DataItem.vue'
 import { computed, ref } from 'vue'
 import NotesModal from '../common/NotesModal.vue'
 import EnabledStatus from '../common/EnabledStatus.vue'
-import { canManageResellers, canPromoteOrganizations } from '@/lib/permissions'
+import {
+  canManageResellers,
+  canPromoteOrganizations,
+  canTransferResellers,
+} from '@/lib/permissions'
 import {
   faPenToSquare,
   faCirclePause,
@@ -28,12 +32,14 @@ import {
   faCircleCheck,
   faBoxArchive,
   faCircleUp,
+  faShuffle,
 } from '@fortawesome/free-solid-svg-icons'
 import { useI18n } from 'vue-i18n'
 import CreateOrEditResellerDrawer from './CreateOrEditResellerDrawer.vue'
 import SuspendResellerModal from './SuspendResellerModal.vue'
 import ReactivateResellerModal from './ReactivateResellerModal.vue'
 import PromoteResellerModal from './PromoteResellerModal.vue'
+import TransferResellerDrawer from './TransferResellerDrawer.vue'
 import UserAvatar from '../users/UserAvatar.vue'
 import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
@@ -48,6 +54,7 @@ const isShownCreateOrEditResellerDrawer = ref(false)
 const isShownSuspendResellerModal = ref(false)
 const isShownReactivateResellerModal = ref(false)
 const isShownPromoteResellerModal = ref(false)
+const isShownTransferResellerDrawer = ref(false)
 
 function getKebabMenuItems() {
   const items: NeDropdownItem[] = []
@@ -59,6 +66,16 @@ function getKebabMenuItems() {
       label: t('common.edit'),
       icon: faPenToSquare,
       action: () => (isShownCreateOrEditResellerDrawer.value = true),
+      disabled: asyncStatus.value === 'loading',
+    })
+  }
+
+  if (canTransferResellers() && reseller && !reseller.deleted_at && !reseller.suspended_at) {
+    items.push({
+      id: 'transferReseller',
+      label: t('resellers.change_manager'),
+      icon: faShuffle,
+      action: () => (isShownTransferResellerDrawer.value = true),
       disabled: asyncStatus.value === 'loading',
     })
   }
@@ -254,6 +271,12 @@ function getKebabMenuItems() {
       :visible="isShownReactivateResellerModal"
       :reseller="resellerDetail.data ?? undefined"
       @close="isShownReactivateResellerModal = false"
+    />
+    <!-- transfer reseller drawer -->
+    <TransferResellerDrawer
+      :is-shown="isShownTransferResellerDrawer"
+      :reseller="resellerDetail.data ?? undefined"
+      @close="isShownTransferResellerDrawer = false"
     />
     <!-- promote reseller modal -->
     <PromoteResellerModal

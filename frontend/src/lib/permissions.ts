@@ -72,6 +72,16 @@ export const canManageCustomers = () => {
   return loginStore.permissions.includes(MANAGE_CUSTOMERS)
 }
 
+// Changing a customer's manager is a decision above the reseller level: the
+// Owner organization and distributors only, matching the backend transfer gate.
+export const canTransferCustomers = () => {
+  const loginStore = useLoginStore()
+  return (
+    canManageCustomers() &&
+    (hasOwnerLevelAuthority() || loginStore.userInfo?.org_role?.toLowerCase() === 'distributor')
+  )
+}
+
 export const canReadUsers = () => {
   const loginStore = useLoginStore()
   return loginStore.permissions.includes(READ_USERS)
@@ -148,6 +158,10 @@ export const canReadAlerts = () => {
 // the button: the backend gate on PATCH /resellers/:id/promote enforces the
 // same Owner-organization threshold.
 export const canPromoteOrganizations = () => hasOwnerLevelAuthority()
+
+// Moving a reseller under another distributor reshapes the distributor level:
+// the Owner organization only, matching the backend transfer gate.
+export const canTransferResellers = () => canManageResellers() && hasOwnerLevelAuthority()
 
 export const canReadAddons = () => {
   const loginStore = useLoginStore()

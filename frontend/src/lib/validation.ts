@@ -68,6 +68,20 @@ export const getBackendErrorMessage = (error: Error | null): string => {
   return message ? upperFirst(message) : axiosError.message
 }
 
+// Text for an error with no field: the backend message for a 4xx, a fixed
+// translated text for a network error or a server fault.
+export const describeRequestError = (error: Error | null, t: (key: string) => string): string => {
+  const response = (error as AxiosError<{ message?: string }> | null)?.response
+  if (!response) {
+    return t('common.network_error_description')
+  }
+  const message = response.status < 500 ? response.data?.message : ''
+  if (!message) {
+    return t('common.something_went_wrong')
+  }
+  return message.charAt(0).toUpperCase() + message.slice(1)
+}
+
 export const isValidationErrorCode = (errorCode: number | undefined) => {
   if (!errorCode) {
     return false

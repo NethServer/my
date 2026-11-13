@@ -253,6 +253,42 @@ Requirements:
 Promotion is a hierarchy change, not a cosmetic one. The previous distributor loses visibility on that reseller and on everything beneath it.
 :::
 
+### Changing a Customer's Manager
+
+A customer can be moved under another reseller or distributor. Use the **Change manager** action in the customer's kebab menu or on its detail card: the drawer previews every effect for the selected company before anything changes.
+
+The change:
+
+- **Moves the customer's systems and users with it**: the new manager sees and manages them, the previous one no longer does
+- **Keeps alert history and backups** with the customer
+- **Switches branding and alert notifications** to those of the new manager
+- **Removes the previous manager's silences** on the customer's systems and releases the alerts assigned to its users
+- **Stops the renewal of add-ons bought by the previous manager**: they stay active until they expire, then the new manager purchases them again from the shop. Add-ons bought within the new hierarchy keep renewing, perpetual ones are untouched
+- Keeps **Created by** as it was: it records who created the customer, while **Managed by** shows its current manager
+
+Requirements:
+
+- Owner organization or distributor, with `manage:customers`: a reseller cannot hand its customers to another company
+- A distributor moves only customers of its hierarchy, to itself or to one of its resellers
+- The customer must be **active** and the selected company a reseller or distributor that is not suspended
+
+:::warning
+Changing the manager is a hierarchy change. The previous manager loses every access to the customer, and the add-ons it purchased are not renewed.
+:::
+
+To move several customers at once, select them in the customers list (the selection is kept across pages and filters) and choose **Change manager**: the drawer checks every selected customer first, totals what the move does and lists the ones that cannot move, then moves them one by one showing the progress. Keep the page open until it finishes; **Stop** ends the run after the customer in progress.
+
+### Changing a Reseller's Manager
+
+A reseller can be moved under another distributor with the **Change manager** action in its kebab menu or on its detail card. Its customers, systems and users follow it: the distributor it leaves no longer sees them, the new one does.
+
+- The reseller keeps managing its customers, with its own alert history, backups and silences
+- **Alert notifications** configured by the distributor it leaves stop reaching its systems, the ones configured by the new distributor start
+- **Branding** follows the new distributor, unless the reseller has its own
+- Alerts assigned to users of the distributor it leaves are released, and **add-ons bought by that side stop renewing** as for a customer
+
+Only the Owner organization (the Owner account and Staff) can move a reseller, and only under a distributor that is not suspended.
+
 ## Organization Statistics
 
 ### Viewing Statistics

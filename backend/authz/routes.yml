@@ -22,8 +22,9 @@
 # Extras:
 #   intent_any        any one of the listed permissions is enough
 #   self_org_get      a user may always read its own organization
-#   org_role          narrows the intent to one organization role, ANDed with the
-#                     permission ("manage:rebranding, from the owner org only")
+#   org_role          narrows the intent to one organization role (or a comma-
+#                     separated list), ANDed with the permission
+#                     ("manage:rebranding, from the owner org only")
 #   or_user_role      widens org_role with a technical role that satisfies it from
 #                     any organization ("the owner org member, Owner or Staff")
 #   enforced_by       where the decision is expected to live; "handler" means a
@@ -217,6 +218,13 @@ routes:
   - method: PUT
     path: /api/systems/:id
     intent: manage:systems
+  - method: GET
+    path: /api/systems/:id/transfer
+    intent: manage:systems
+    query: organization_id=bogus
+    note: |
+      Preview of what assigning the system to another organization does to
+      its add-ons. Same gate as the PUT that performs the change.
   - method: DELETE
     path: /api/systems/:id
     intent: manage:systems
@@ -744,6 +752,27 @@ routes:
       distributors, so manage:resellers must not be enough: a distributor could
       otherwise manufacture a peer. This is the strictest reading and the one the
       hierarchy implies.
+  - method: GET
+    path: /api/resellers/:id/transfer
+    intent: manage:resellers
+    org_role: owner
+    enforced_by: handler
+    object_scoped: true
+    query: organization_id=bogus
+    note: |
+      Preview of moving a reseller under another distributor. It reshapes the
+      distributor level, which only the Owner organization arranges: a
+      distributor holds manage:resellers for its own resellers but must not
+      hand one to a peer or take one from it.
+  - method: PATCH
+    path: /api/resellers/:id/transfer
+    intent: manage:resellers
+    org_role: owner
+    enforced_by: handler
+    object_scoped: true
+    body: '{"organization_id":"bogus"}'
+    note: |
+      Same rule as the preview: Owner organization only.
 
   # ===========================================================================
   # Customers. Owner, Distributor and Reseller hold read/manage; destroy is
@@ -777,6 +806,29 @@ routes:
   - method: PATCH
     path: /api/customers/:id/reactivate
     intent: manage:customers
+  - method: GET
+    path: /api/customers/:id/transfer
+    intent: manage:customers
+    org_role: owner,distributor
+    enforced_by: handler
+    object_scoped: true
+    query: organization_id=bogus
+    note: |
+      Preview of a "managed by" transfer. Moving a customer between managers is
+      a commercial-hierarchy decision above the reseller level: a reseller holds
+      manage:customers for its own customers but must not hand one to a peer or
+      take one from it. A distributor moves only customers and targets inside
+      its hierarchy, so a refusal on another tenant's customer is expected.
+  - method: PATCH
+    path: /api/customers/:id/transfer
+    intent: manage:customers
+    org_role: owner,distributor
+    enforced_by: handler
+    object_scoped: true
+    body: '{"organization_id":"bogus"}'
+    note: |
+      Same rules as the preview: Owner organization and distributors only,
+      within their hierarchy.
   - method: GET
     path: /api/customers/totals
     intent: read:customers

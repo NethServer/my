@@ -684,6 +684,26 @@ func ActivateEntitlement(c *gin.Context) {
 		"channel":           "shop",
 	}
 
+	// A grant whose renewal stopped (its customer moved to another manager)
+	// renews only for a known buyer: checkBuyer already refused one that
+	// cannot reach the system, and an order whose buyer is not a my user
+	// cannot be told apart from one cloned for the previous manager.
+	if existing, err := repo.Get(systemID, item.ID, req.Scope); err == nil && existing.RenewalStoppedAt != nil {
+		if buyerOrgID, _ := purchaser["organization_id"].(string); buyerOrgID == "" {
+			logger.RequestLogger(c, "entitlements").Warn().
+				Str("operation", "activate_entitlement_refused").
+				Str("system_key", req.SystemKey).
+				Str("entitlement", item.ID).
+				Str("source_ref", req.SourceRef).
+				Msg("Renewal refused: stopped renewal and the buyer is not a my user")
+			c.JSON(http.StatusConflict, response.Error(http.StatusConflict, "validation failed", response.ErrorData{
+				Type:   "validation_error",
+				Errors: []response.ValidationError{{Key: "renewal", Message: "renewal_stopped"}},
+			}))
+			return
+		}
+	}
+
 	// The tier of a measured add-on sets its limit, a tier without one (an
 	// NS8 cluster) included; an activation that names no tier keeps it.
 	limitFromTier := item.UsageMetric != "" && req.Variant != nil
@@ -929,13 +949,14 @@ func grantsFilter(c *gin.Context) (*models.User, []string, entities.GrantsReport
 	}
 
 	filter := entities.GrantsReportFilter{
-		Entitlement:    c.Query("entitlement"),
-		OrganizationID: c.Query("organization_id"),
-		Source:         c.Query("source"),
-		ActiveOnly:     c.Query("active") == "true",
-		OrgScope:       scope,
-		OverLimit:      c.Query("over_limit") == "true" && IsOwnerOrgMember(u),
-		Search:         strings.TrimSpace(c.Query("search")),
+		Entitlement:        c.Query("entitlement"),
+		OrganizationID:     c.Query("organization_id"),
+		Source:             c.Query("source"),
+		ActiveOnly:         c.Query("active") == "true",
+		RenewalStoppedOnly: c.Query("renewal_stopped") == "true",
+		OrgScope:           scope,
+		OverLimit:          c.Query("over_limit") == "true" && IsOwnerOrgMember(u),
+		Search:             strings.TrimSpace(c.Query("search")),
 	}
 	if v := c.Query("expiring_before"); v != "" {
 		t, err := time.Parse(time.RFC3339, v)
