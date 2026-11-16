@@ -179,6 +179,36 @@ func TestConfigurableDiffer_IsSignificantChange(t *testing.T) {
 			to:         nil,
 			expected:   false,
 		},
+		{
+			name:       "never significant arp macs",
+			fieldPath:  "facts.arp_macs",
+			changeType: "update",
+			category:   "system",
+			severity:   "medium",
+			from:       42,
+			to:         57,
+			expected:   false,
+		},
+		{
+			name:       "never significant rpcd users count",
+			fieldPath:  "facts.features.rpcd_users.count",
+			changeType: "update",
+			category:   "features",
+			severity:   "medium",
+			from:       1,
+			to:         2,
+			expected:   false,
+		},
+		{
+			name:       "never significant rpcd users removed",
+			fieldPath:  "facts.features.rpcd_users",
+			changeType: "delete",
+			category:   "features",
+			severity:   "critical",
+			from:       "{}",
+			to:         nil,
+			expected:   false,
+		},
 
 		// Time filtered tests
 		{

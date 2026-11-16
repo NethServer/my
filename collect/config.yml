@@ -244,6 +244,9 @@ differ:
       - "\\.nethvoice_"
       # Traefik bookkeeping counters that appear/disappear between inventories
       - "^facts\\.modules\\.[^.]+\\.(acme_auto_certificates|acme_manual_certificates|acme_failed_certificates|custom_certificates|custom_host_routes|custom_path_routes|name_module_map)$"
+      # NethSecurity counters: devices in the ARP table and rpcd users
+      - "^facts\\.arp_macs$"
+      - "^facts\\.features\\.rpcd_users(\\.|$)"
 
     # Time-based significance
     time_filters:
