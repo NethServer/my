@@ -37,6 +37,7 @@ import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import {
+  describeRequestError,
   focusFirstRejectedField,
   getValidationIssues,
   isValidationError,
@@ -140,7 +141,11 @@ const isOrganizationChanging = computed(
     organizationId.value !== (currentSystem.organization.logto_id || ''),
 )
 
-const { state: transferPreview } = useQuery({
+const {
+  state: transferPreview,
+  asyncStatus: transferPreviewStatus,
+  error: transferPreviewError,
+} = useQuery({
   key: () => [SYSTEM_TRANSFER_PREVIEW_KEY, currentSystem?.id ?? '', organizationId.value],
   enabled: () => !!loginStore.jwtToken && isShown && isOrganizationChanging.value,
   query: () => getSystemTransferPreview(currentSystem?.id ?? '', organizationId.value),
@@ -150,6 +155,19 @@ const { state: transferPreview } = useQuery({
 
 const transferPlan = computed(() =>
   isOrganizationChanging.value ? transferPreview.value.data : undefined,
+)
+
+// The warning depends on this preview: while it loads, and if it fails, say so
+// instead of showing nothing, or the system could be saved without the user
+// learning that some add-ons stop renewing
+const isTransferPreviewLoading = computed(
+  () => isOrganizationChanging.value && transferPreviewStatus.value === 'loading',
+)
+
+const transferPreviewErrorDescription = computed(() =>
+  isOrganizationChanging.value && transferPreviewError.value
+    ? describeRequestError(transferPreviewError.value, t)
+    : '',
 )
 
 const stoppingAddons = computed(
@@ -332,7 +350,14 @@ function copySecretAndCloseDrawer() {
             :disabled="saving"
           />
           <!-- add-ons that stop renewing with the new organization -->
-          <div v-if="transferPlan && stoppingAddons.length" class="space-y-3">
+          <NeSkeleton v-if="isTransferPreviewLoading" :lines="2" />
+          <NeInlineNotification
+            v-else-if="transferPreviewErrorDescription"
+            kind="error"
+            :title="$t('systems.cannot_check_addon_renewals')"
+            :description="transferPreviewErrorDescription"
+          />
+          <div v-else-if="transferPlan && stoppingAddons.length" class="space-y-3">
             <NeInlineNotification
               kind="warning"
               :title="$t('customers.addons_renewal_stop_title', stoppingAddons.length)"

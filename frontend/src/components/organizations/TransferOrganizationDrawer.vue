@@ -23,7 +23,7 @@ import {
   faServer,
   faUserGroup,
 } from '@fortawesome/free-solid-svg-icons'
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
 import type { AxiosError } from 'axios'
@@ -153,6 +153,15 @@ function describeError(error: Error | null, issues: ValidationIssue) {
   return others.length ? others.map((issue) => t(issue)).join(' ') : describeRequestError(error, t)
 }
 
+const comboboxRef = useTemplateRef<InstanceType<typeof OrganizationCombobox>>('comboboxRef')
+const confirmRef = useTemplateRef<InstanceType<typeof NeCheckbox>>('confirmRef')
+const submitRef = useTemplateRef<InstanceType<typeof NeButton>>('submitRef')
+
+// NeCheckbox does not expose focus: its input is inside the root element
+function focusConfirm() {
+  ;(confirmRef.value?.$el as HTMLElement | undefined)?.querySelector('input')?.focus()
+}
+
 const targetInvalidMessage = computed(() => {
   if (targetRequiredMessage.value) {
     return targetRequiredMessage.value
@@ -167,7 +176,7 @@ const previewErrorDescription = computed(() =>
 )
 
 const {
-  mutate: transferMutate,
+  mutateAsync: transferMutateAsync,
   isLoading: transferLoading,
   reset: transferReset,
   error: transferError,
@@ -219,6 +228,7 @@ watch(confirmed, (value) => {
 function submit() {
   if (!targetOrganizationId.value) {
     targetRequiredMessage.value = t(texts.value.newManagerRequired)
+    comboboxRef.value?.focus()
     return
   }
   // the preview is still loading or failed: it shows its own state
@@ -227,13 +237,26 @@ function submit() {
   }
   if (!confirmed.value) {
     confirmInvalidMessage.value = t('organizations.transfer_confirm_required')
+    focusConfirm()
     return
   }
-  transferMutate({
+  transferMutateAsync({
     id: organization.logto_id,
     name: organization.name,
     targetId: targetOrganizationId.value,
-  })
+  }).catch(focusAfterRejection)
+}
+
+// The disabled button lost focus while the request ran. The promise rejects
+// once the mutation is idle, so the fields are enabled again by the next tick:
+// focus the field in error, or the button
+async function focusAfterRejection() {
+  await nextTick()
+  if (targetInvalidMessage.value) {
+    comboboxRef.value?.focus()
+  } else {
+    ;(submitRef.value?.$el as HTMLElement | undefined)?.focus()
+  }
 }
 
 function renewalLabel(addon: CustomerTransferAddon) {
@@ -296,6 +319,7 @@ function closeDrawer() {
         </div>
         <!-- new manager -->
         <OrganizationCombobox
+          ref="comboboxRef"
           active-only
           :model-value="targetOrganizationId"
           :is-shown="isShown"
@@ -467,6 +491,7 @@ function closeDrawer() {
             "
           />
           <NeCheckbox
+            ref="confirmRef"
             v-model="confirmed"
             :invalid-message="confirmInvalidMessage"
             :label="$t(texts.confirm, { name: plan.to.name })"
@@ -494,6 +519,7 @@ function closeDrawer() {
           {{ $t('common.cancel') }}
         </NeButton>
         <NeButton
+          ref="submitRef"
           type="submit"
           kind="primary"
           size="lg"

@@ -73,6 +73,9 @@ export interface BulkTransferEffects {
   renewalsStopping: number
   silencesCount: number
   assignmentsCount: number
+  // codes the preview could not settle, such as silences_unavailable when the
+  // alerting service did not answer
+  warnings: string[]
 }
 
 interface TransferApi {
@@ -103,6 +106,7 @@ const toEffects = (plan: TransferPlan): BulkTransferEffects => ({
   renewalsStopping: plan.renewals_stopping,
   silencesCount: plan.silences_count ?? 0,
   assignmentsCount: plan.assignments_count,
+  warnings: plan.warnings ?? [],
 })
 
 export const transferApi: Record<TransferEntity, TransferApi> = {
@@ -116,6 +120,8 @@ export const transferApi: Record<TransferEntity, TransferApi> = {
         1,
         BULK_TRANSFER_LIMIT,
         filters.text,
+        // the ids come from the table's own status options, which are exactly
+        // the CustomerStatus values; the filter state types them as strings
         filters.status as CustomerStatus[],
         [],
         filters.organizationIds,
@@ -142,6 +148,8 @@ export const transferApi: Record<TransferEntity, TransferApi> = {
         1,
         BULK_TRANSFER_LIMIT,
         filters.text,
+        // the ids come from the table's own status options, which are exactly
+        // the ResellerStatus values; the filter state types them as strings
         filters.status as ResellerStatus[],
         [],
         filters.organizationIds,

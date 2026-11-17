@@ -7,7 +7,6 @@
 import {
   NeButton,
   NeCheckbox,
-  NeExpandable,
   NeHeading,
   NeInlineNotification,
   NeProgressBar,
@@ -15,14 +14,8 @@ import {
   NeSkeleton,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import {
-  faBell,
-  faBuilding,
-  faChevronDown,
-  faChevronUp,
-  faServer,
-} from '@fortawesome/free-solid-svg-icons'
-import { computed, ref, watch } from 'vue'
+import { faBell, faBuilding, faServer } from '@fortawesome/free-solid-svg-icons'
+import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useQueryCache } from '@pinia/colada'
 import type { AxiosError } from 'axios'
@@ -40,6 +33,7 @@ import {
 import { describeRequestError, getValidationIssues } from '@/lib/validation'
 import OrganizationCombobox from '@/components/organizations/OrganizationCombobox.vue'
 import { getOrganizationIcon } from '@/lib/organizations/organizations'
+import ExpandableHeading from '@/components/common/ExpandableHeading.vue'
 
 /**
  * Moves the companies that match the table filters under one manager, one
@@ -87,10 +81,70 @@ interface TransferOutcome {
   problems?: string
 }
 
+// The texts that differ by company type, written out so every key stays
+// searchable
+const TEXTS = {
+  customers: {
+    changeManager: 'customers.change_manager',
+    description: 'customers.bulk_change_manager_description',
+    filterRequiredTitle: 'customers.bulk_filter_required_title',
+    filterRequiredDescription: 'customers.bulk_filter_required_description',
+    cannotRetrieve: 'customers.cannot_retrieve_customers',
+    tooManyTitle: 'customers.bulk_too_many_title',
+    tooManyDescription: 'customers.bulk_too_many_description',
+    noneEligibleTitle: 'customers.bulk_none_eligible_title',
+    noneEligibleDescription: 'customers.bulk_none_eligible_description',
+    toMove: 'customers.bulk_to_move',
+    excluded: 'customers.bulk_excluded',
+    newManagerHelper: 'customers.bulk_new_manager_helper',
+    newManagerRequired: 'customers.new_manager_required',
+    analyzing: 'customers.bulk_analyzing',
+    summaryMovable: 'customers.bulk_summary_movable',
+    summarySystems: 'customers.bulk_summary_systems',
+    summaryAlerts: 'customers.bulk_summary_alerts',
+    skippedTitle: 'customers.bulk_skipped_title',
+    confirm: 'customers.bulk_confirm_label',
+    transferring: 'customers.bulk_transferring',
+    doneTitle: 'customers.bulk_done_title',
+    stoppedDescription: 'customers.bulk_stopped_description',
+    failedTitle: 'customers.bulk_failed_title',
+    problemsTitle: 'customers.bulk_problems_title',
+    stop: 'customers.bulk_stop',
+  },
+  resellers: {
+    changeManager: 'resellers.change_manager',
+    description: 'resellers.bulk_change_manager_description',
+    filterRequiredTitle: 'resellers.bulk_filter_required_title',
+    filterRequiredDescription: 'resellers.bulk_filter_required_description',
+    cannotRetrieve: 'resellers.cannot_retrieve_resellers',
+    tooManyTitle: 'resellers.bulk_too_many_title',
+    tooManyDescription: 'resellers.bulk_too_many_description',
+    noneEligibleTitle: 'resellers.bulk_none_eligible_title',
+    noneEligibleDescription: 'resellers.bulk_none_eligible_description',
+    toMove: 'resellers.bulk_to_move',
+    excluded: 'resellers.bulk_excluded',
+    newManagerHelper: 'resellers.bulk_new_manager_helper',
+    newManagerRequired: 'resellers.new_manager_required',
+    analyzing: 'resellers.bulk_analyzing',
+    summaryMovable: 'resellers.bulk_summary_movable',
+    summarySystems: 'resellers.bulk_summary_systems',
+    summaryAlerts: 'resellers.bulk_summary_alerts',
+    skippedTitle: 'resellers.bulk_skipped_title',
+    confirm: 'resellers.bulk_confirm_label',
+    transferring: 'resellers.bulk_transferring',
+    doneTitle: 'resellers.bulk_done_title',
+    stoppedDescription: 'resellers.bulk_stopped_description',
+    failedTitle: 'resellers.bulk_failed_title',
+    problemsTitle: 'resellers.bulk_problems_title',
+    stop: 'resellers.bulk_stop',
+  },
+} as const
+
 const { t, locale } = useI18n()
 const queryCache = useQueryCache()
 
 const api = computed(() => transferApi[entity])
+const texts = computed(() => TEXTS[entity])
 // the icon of the companies being moved, as the side menu shows them
 const movedIcon = computed(() =>
   getOrganizationIcon(entity === 'resellers' ? 'reseller' : 'customer'),
@@ -107,8 +161,21 @@ const outcomes = ref<TransferOutcome[]>([])
 const progressCurrent = ref(0)
 const progressTotal = ref(0)
 const confirmed = ref(false)
-const isSkippedExpanded = ref(false)
-const isProblemsExpanded = ref(false)
+// What a screen reader announces: the start and the end of each pass, never
+// every company in between, which would read out up to a hundred updates
+const liveMessage = ref('')
+const comboboxRef = useTemplateRef<InstanceType<typeof OrganizationCombobox>>('comboboxRef')
+const confirmRef = useTemplateRef<InstanceType<typeof NeCheckbox>>('confirmRef')
+const stopRef = useTemplateRef<InstanceType<typeof NeButton>>('stopRef')
+const closeRef = useTemplateRef<InstanceType<typeof NeButton>>('closeRef')
+
+// NeButton renders a button and NeCheckbox wraps its input: neither exposes
+// focus, so reach the element
+function focusElement(component: { $el?: unknown } | null, selector?: string) {
+  const root = component?.$el as HTMLElement | undefined
+  const target = selector ? root?.querySelector<HTMLElement>(selector) : root
+  target?.focus()
+}
 // set by a click on Change manager with the form incomplete
 const targetRequiredMessage = ref('')
 const confirmInvalidMessage = ref('')
@@ -134,6 +201,25 @@ const assignmentsCount = computed(() => total((effects) => effects.assignmentsCo
 const moved = computed(() => outcomes.value.filter((outcome) => !outcome.error))
 const failed = computed(() => outcomes.value.filter((outcome) => outcome.error))
 const movedWithProblems = computed(() => moved.value.filter((outcome) => outcome.problems))
+
+// the preview could not count the muted alerts of some companies: the move
+// will try to unmute them anyway
+const isMutedAlertsCountMissing = computed(() =>
+  movable.value.some((entry) => entry.effects?.warnings.includes('silences_unavailable')),
+)
+
+// The outcome as a whole: nothing moved is an error when moves failed, a
+// failure or a step left undone next to successful moves is a warning
+const outcomeKind = computed(() => {
+  if (!moved.value.length) {
+    return failed.value.length ? 'error' : 'info'
+  }
+  return failed.value.length || movedWithProblems.value.length ? 'warning' : 'success'
+})
+
+const doneTitle = computed(() =>
+  t(texts.value.doneTitle, { count: moved.value.length, to: targetName.value }, moved.value.length),
+)
 
 const progress = computed(() =>
   progressTotal.value ? Math.round((progressCurrent.value / progressTotal.value) * 100) : 0,
@@ -189,7 +275,6 @@ async function analyze() {
   analyzed.value = []
   outcomes.value = []
   confirmed.value = false
-  isSkippedExpanded.value = false
   progressCurrent.value = 0
   progressTotal.value = selection.length
 
@@ -208,6 +293,11 @@ async function analyze() {
   }
   analyzed.value = results
   phase.value = 'ready'
+  liveMessage.value = t(
+    texts.value.summaryMovable,
+    { count: movable.value.length, to: targetName.value },
+    movable.value.length,
+  )
 }
 
 async function transferAll() {
@@ -216,10 +306,12 @@ async function transferAll() {
   const queue = movable.value.map((entry) => entry.candidate)
   phase.value = 'transferring'
   stopRequested.value = false
-  isProblemsExpanded.value = false
   outcomes.value = []
   progressCurrent.value = 0
   progressTotal.value = queue.length
+  // the focused button is now disabled: give focus to the one that stops
+  await nextTick()
+  focusElement(stopRef.value)
 
   for (const candidate of queue) {
     if (stopRequested.value || currentRun !== runId) {
@@ -238,7 +330,13 @@ async function transferAll() {
   }
 
   phase.value = 'done'
+  liveMessage.value = doneTitle.value
   api.value.cacheKeys.forEach((key) => queryCache.invalidateQueries({ key: [key] }))
+  // Stop is gone: move focus to Close, unless the drawer was closed meanwhile
+  if (currentRun === runId) {
+    await nextTick()
+    focusElement(closeRef.value)
+  }
 }
 
 watch(confirmed, (value) => {
@@ -250,7 +348,8 @@ watch(confirmed, (value) => {
 // The button stays enabled: a click on an incomplete form says what is missing
 function submit() {
   if (!targetOrganizationId.value) {
-    targetRequiredMessage.value = t(`${entity}.new_manager_required`)
+    targetRequiredMessage.value = t(texts.value.newManagerRequired)
+    comboboxRef.value?.focus()
     return
   }
   // the preview pass is still running, or left nothing to move: both show
@@ -260,6 +359,7 @@ function submit() {
   }
   if (!confirmed.value) {
     confirmInvalidMessage.value = t('organizations.transfer_confirm_required')
+    focusElement(confirmRef.value, 'input')
     return
   }
   transferAll()
@@ -296,6 +396,7 @@ function onShow() {
   stopRequested.value = false
   targetRequiredMessage.value = ''
   confirmInvalidMessage.value = ''
+  liveMessage.value = ''
 
   if (isBulkTransferFiltered(filters)) {
     loadCandidates()
@@ -317,61 +418,61 @@ function closeDrawer() {
 <template>
   <NeSideDrawer
     :is-shown="isShown"
-    :title="$t(`${entity}.change_manager`)"
+    :title="$t(texts.changeManager)"
     :close-aria-label="$t('shell.close_side_drawer')"
     @show="onShow"
     @close="closeDrawer"
   >
     <form @submit.prevent>
+      <!-- the start and the end of each pass, for screen readers -->
+      <p class="sr-only" aria-live="polite">{{ liveMessage }}</p>
       <div class="space-y-6">
-        <p>{{ $t(`${entity}.bulk_change_manager_description`) }}</p>
+        <p>{{ $t(texts.description) }}</p>
         <!-- the filtered list -->
         <NeSkeleton v-if="phase === 'loading'" :lines="4" />
         <NeInlineNotification
           v-else-if="phase === 'unfiltered'"
           kind="info"
-          :title="$t(`${entity}.bulk_filter_required_title`)"
-          :description="$t(`${entity}.bulk_filter_required_description`)"
+          :title="$t(texts.filterRequiredTitle)"
+          :description="$t(texts.filterRequiredDescription)"
         />
         <NeInlineNotification
           v-else-if="phase === 'load_error'"
           kind="error"
-          :title="$t(`${entity}.cannot_retrieve_${entity}`)"
+          :title="$t(texts.cannotRetrieve)"
           :description="loadError"
         />
         <NeInlineNotification
           v-else-if="phase === 'too_many'"
           kind="info"
-          :title="$t(`${entity}.bulk_too_many_title`)"
+          :title="$t(texts.tooManyTitle)"
           :description="
-            $t(`${entity}.bulk_too_many_description`, {
-              limit: BULK_TRANSFER_LIMIT,
-              count: matchingCount,
-            })
+            $t(texts.tooManyDescription, { limit: BULK_TRANSFER_LIMIT, count: matchingCount })
           "
         />
         <NeInlineNotification
           v-else-if="phase === 'none_eligible'"
           kind="info"
-          :title="$t(`${entity}.bulk_none_eligible_title`)"
-          :description="$t(`${entity}.bulk_none_eligible_description`)"
+          :title="$t(texts.noneEligibleTitle)"
+          :description="$t(texts.noneEligibleDescription)"
         />
         <template v-if="isSelectionShown">
           <div class="space-y-1">
             <p class="font-medium">
-              {{ $t(`${entity}.bulk_to_move`, { count: candidates.length }, candidates.length) }}
+              {{ $t(texts.toMove, { count: candidates.length }, candidates.length) }}
             </p>
             <p v-if="excludedCount" class="text-tertiary-neutral">
-              {{ $t(`${entity}.bulk_excluded`, { count: excludedCount }, excludedCount) }}
+              {{ $t(texts.excluded, { count: excludedCount }, excludedCount) }}
             </p>
           </div>
           <!-- new manager -->
           <OrganizationCombobox
+            ref="comboboxRef"
             active-only
             :model-value="targetOrganizationId"
             :is-shown="isShown"
             :label="$t('customers.new_manager')"
-            :helper-text="$t(`${entity}.bulk_new_manager_helper`)"
+            :helper-text="$t(texts.newManagerHelper)"
             :allowed-types="api.managerTypes"
             :invalid-message="targetRequiredMessage"
             :disabled="phase === 'transferring'"
@@ -379,17 +480,17 @@ function closeDrawer() {
           />
         </template>
         <!-- preview pass -->
-        <div v-if="phase === 'analyzing'" class="space-y-2" aria-live="polite">
-          <p>
-            {{
-              $t(`${entity}.bulk_analyzing`, {
-                current: Math.min(progressCurrent + 1, progressTotal),
-                total: progressTotal,
-              })
-            }}
-          </p>
-          <NeProgressBar :progress="progress" size="sm" />
-        </div>
+        <NeProgressBar
+          v-if="phase === 'analyzing'"
+          :progress="progress"
+          :label="
+            $t(texts.analyzing, {
+              current: Math.min(progressCurrent + 1, progressTotal),
+              total: progressTotal,
+            })
+          "
+          size="sm"
+        />
         <!-- what the move does -->
         <template v-if="phase === 'ready' || phase === 'transferring'">
           <div>
@@ -405,7 +506,7 @@ function closeDrawer() {
                 />
                 <span>{{
                   $t(
-                    `${entity}.bulk_summary_movable`,
+                    texts.summaryMovable,
                     { count: movable.length, to: targetName },
                     movable.length,
                   )
@@ -418,7 +519,11 @@ function closeDrawer() {
                   aria-hidden="true"
                 />
                 <span>{{
-                  $t('resellers.bulk_summary_customers', { count: customersCount }, customersCount)
+                  $t(
+                    'resellers.bulk_summary_customers',
+                    { count: customersCount, to: targetName },
+                    customersCount,
+                  )
                 }}</span>
               </li>
               <li v-if="movable.length" class="flex gap-3">
@@ -428,7 +533,7 @@ function closeDrawer() {
                   aria-hidden="true"
                 />
                 <span>{{
-                  $t(`${entity}.bulk_summary_systems`, { count: systemsCount }, systemsCount)
+                  $t(texts.summarySystems, { count: systemsCount, to: targetName }, systemsCount)
                 }}</span>
               </li>
               <li v-if="movable.length" class="flex gap-3">
@@ -438,7 +543,7 @@ function closeDrawer() {
                   aria-hidden="true"
                 />
                 <div class="space-y-1">
-                  <div>{{ $t(`${entity}.bulk_summary_alerts`, { to: targetName }) }}</div>
+                  <div>{{ $t(texts.summaryAlerts, { to: targetName }) }}</div>
                   <div v-if="silencesCount" class="text-tertiary-neutral">
                     {{
                       $t('customers.bulk_summary_silences', { count: silencesCount }, silencesCount)
@@ -469,109 +574,77 @@ function closeDrawer() {
               )
             "
           />
+          <NeInlineNotification
+            v-if="isMutedAlertsCountMissing"
+            kind="info"
+            :title="$t('customers.silences_unavailable')"
+            :description="$t('customers.bulk_silences_unavailable_description')"
+          />
           <!-- companies set aside by the preview -->
-          <NeExpandable v-if="skipped.length" @set-expanded="isSkippedExpanded = $event">
-            <!-- the heading stays a heading: the button inside it keeps the
-                 toggle reachable with the keyboard, its click reaches the
-                 expandable's own handler -->
-            <template #trigger>
-              <NeHeading tag="h6">
-                <button
-                  type="button"
-                  :aria-expanded="isSkippedExpanded"
-                  class="focus:ring-primary-500 dark:focus:ring-primary-300 flex items-center gap-2 rounded-sm text-left focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:outline-hidden dark:focus:ring-offset-gray-900"
-                >
-                  {{
-                    $t(`${entity}.bulk_skipped_title`, { count: skipped.length }, skipped.length)
-                  }}
-                  <FontAwesomeIcon
-                    :icon="isSkippedExpanded ? faChevronUp : faChevronDown"
-                    class="size-3 shrink-0"
-                    aria-hidden="true"
-                  />
-                </button>
-              </NeHeading>
-            </template>
+          <ExpandableHeading
+            v-if="skipped.length"
+            :label="$t(texts.skippedTitle, { count: skipped.length }, skipped.length)"
+          >
             <ul class="space-y-2">
               <li v-for="entry in skipped" :key="entry.candidate.logto_id">
                 <span class="font-medium">{{ entry.candidate.name }}</span>
                 <span class="text-tertiary-neutral"> · {{ entry.issue }}</span>
               </li>
             </ul>
-          </NeExpandable>
+          </ExpandableHeading>
           <NeCheckbox
             v-if="movable.length"
+            ref="confirmRef"
             v-model="confirmed"
             :invalid-message="confirmInvalidMessage"
-            :label="$t(`${entity}.bulk_confirm_label`, { name: targetName })"
+            :label="$t(texts.confirm, { name: targetName })"
             :disabled="phase === 'transferring'"
           />
         </template>
         <!-- transfers running -->
-        <div v-if="phase === 'transferring'" class="space-y-2" aria-live="polite">
-          <p>
-            {{
-              $t(`${entity}.bulk_transferring`, {
-                current: Math.min(progressCurrent + 1, progressTotal),
-                total: progressTotal,
-              })
-            }}
-          </p>
-          <NeProgressBar :progress="progress" size="sm" />
-        </div>
+        <NeProgressBar
+          v-if="phase === 'transferring'"
+          :progress="progress"
+          :label="
+            $t(texts.transferring, {
+              current: Math.min(progressCurrent + 1, progressTotal),
+              total: progressTotal,
+            })
+          "
+          size="sm"
+        />
         <!-- outcome -->
         <template v-if="phase === 'done'">
           <NeInlineNotification
-            :kind="moved.length ? (movedWithProblems.length ? 'warning' : 'success') : 'info'"
-            :title="
-              $t(`${entity}.bulk_done_title`, { count: moved.length, to: targetName }, moved.length)
-            "
-            :description="
-              outcomes.length < movable.length ? $t(`${entity}.bulk_stopped_description`) : ''
-            "
+            :kind="outcomeKind"
+            :title="doneTitle"
+            :description="outcomes.length < movable.length ? $t(texts.stoppedDescription) : ''"
           />
-          <div v-if="failed.length">
-            <NeHeading tag="h6" class="mb-4">
-              {{ $t(`${entity}.bulk_failed_title`, { count: failed.length }, failed.length) }}
-            </NeHeading>
+          <ExpandableHeading
+            v-if="failed.length"
+            :label="$t(texts.failedTitle, { count: failed.length }, failed.length)"
+          >
             <ul class="space-y-2">
               <li v-for="outcome in failed" :key="outcome.candidate.logto_id">
                 <span class="font-medium">{{ outcome.candidate.name }}</span>
                 <span class="text-tertiary-neutral"> · {{ outcome.error }}</span>
               </li>
             </ul>
-          </div>
-          <!-- moved, but with steps left undone: same trigger as the skipped list -->
-          <NeExpandable v-if="movedWithProblems.length" @set-expanded="isProblemsExpanded = $event">
-            <template #trigger>
-              <NeHeading tag="h6">
-                <button
-                  type="button"
-                  :aria-expanded="isProblemsExpanded"
-                  class="focus:ring-primary-500 dark:focus:ring-primary-300 flex items-center gap-2 rounded-sm text-left focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:outline-hidden dark:focus:ring-offset-gray-900"
-                >
-                  {{
-                    $t(
-                      `${entity}.bulk_problems_title`,
-                      { count: movedWithProblems.length },
-                      movedWithProblems.length,
-                    )
-                  }}
-                  <FontAwesomeIcon
-                    :icon="isProblemsExpanded ? faChevronUp : faChevronDown"
-                    class="size-3 shrink-0"
-                    aria-hidden="true"
-                  />
-                </button>
-              </NeHeading>
-            </template>
+          </ExpandableHeading>
+          <!-- moved, but with steps left undone -->
+          <ExpandableHeading
+            v-if="movedWithProblems.length"
+            :label="
+              $t(texts.problemsTitle, { count: movedWithProblems.length }, movedWithProblems.length)
+            "
+          >
             <ul class="space-y-2">
               <li v-for="outcome in movedWithProblems" :key="outcome.candidate.logto_id">
                 <span class="font-medium">{{ outcome.candidate.name }}</span>
                 <span class="text-tertiary-neutral"> · {{ outcome.problems }}</span>
               </li>
             </ul>
-          </NeExpandable>
+          </ExpandableHeading>
         </template>
       </div>
       <!-- footer -->
@@ -579,6 +652,7 @@ function closeDrawer() {
       <div class="flex justify-end">
         <NeButton
           v-if="phase === 'done' || isBlocked"
+          ref="closeRef"
           kind="primary"
           size="lg"
           @click.prevent="closeDrawer"
@@ -588,13 +662,14 @@ function closeDrawer() {
         <template v-else>
           <NeButton
             v-if="phase === 'transferring'"
+            ref="stopRef"
             kind="tertiary"
             size="lg"
             class="mr-3"
-            :disabled="stopRequested"
+            :loading="stopRequested"
             @click.prevent="stopRequested = true"
           >
-            {{ $t(`${entity}.bulk_stop`) }}
+            {{ $t(texts.stop) }}
           </NeButton>
           <NeButton v-else kind="tertiary" size="lg" class="mr-3" @click.prevent="closeDrawer">
             {{ $t('common.cancel') }}
@@ -607,7 +682,7 @@ function closeDrawer() {
             :loading="phase === 'transferring'"
             @click.prevent="submit()"
           >
-            {{ $t(`${entity}.change_manager`) }}
+            {{ $t(texts.changeManager) }}
           </NeButton>
         </template>
       </div>
