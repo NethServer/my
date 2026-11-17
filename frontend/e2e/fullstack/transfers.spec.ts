@@ -7,13 +7,15 @@
  * The hierarchy these specs move around is created over the API under the
  * reserved `e2e-` prefix and destroyed afterwards: two distributors, two
  * resellers under the first one and three customers under the first reseller.
- * The fixture organizations are never moved.
+ * The fixture organizations are never moved; the visibility tests move e2e
+ * companies under them, so the admins of the fixture managers can check what
+ * the move gives and takes away.
  */
 
 import { test, expect, type Locator, type Page } from '@playwright/test'
-import { owner, persona, storageStatePath } from '../fixtures/personas'
+import { fixtureOrg, owner, persona, storageStatePath } from '../fixtures/personas'
 import { openAs } from '../fixtures/auth'
-import { apiGet, apiPost } from '../fixtures/api'
+import { apiGet, apiGetAs, apiPost } from '../fixtures/api'
 import { t } from '../fixtures/i18n'
 import {
   destroyE2eOrganization,
@@ -29,10 +31,19 @@ import {
   registerE2eSystem,
   type System,
 } from '../fixtures/systems'
+import {
+  destroyE2eUser,
+  e2eUserEmail,
+  e2eUserName,
+  roleIdByName,
+  type User,
+} from '../fixtures/users'
 
 type WithParent = Organization & { parent?: { logto_id: string; name: string } }
 
 const created: string[] = []
+const createdSystems: System[] = []
+const createdUsers: User[] = []
 
 let distributor: Organization
 let otherDistributor: Organization
@@ -69,6 +80,12 @@ test.afterAll(async () => {
   if (movedSystem) {
     await destroyE2eSystem(movedSystem)
   }
+  for (const system of createdSystems) {
+    await destroyE2eSystem(system)
+  }
+  for (const user of createdUsers) {
+    await destroyE2eUser(user)
+  }
   for (const type of ['distributors', 'resellers', 'customers'] as OrgType[]) {
     for (const org of await listE2eOrganizations(type)) {
       if (created.includes(org.name)) {
@@ -82,9 +99,14 @@ function rowOf(page: Page, name: string): Locator {
   return page.getByRole('row').filter({ hasText: name })
 }
 
-/** The open change-manager drawer, identified by the field only it has. */
+/**
+ * The open change-manager drawer: the form inside the dialog with that title.
+ * The bulk drawer hides the New manager field once the move is done, so the
+ * field cannot identify it; and the dialog element itself has no size, so it
+ * would always read as hidden. Customers and resellers share the title text.
+ */
 function drawerOf(page: Page): Locator {
-  return page.locator('form').filter({ has: page.getByLabel(t('customers.new_manager')) })
+  return page.getByRole('dialog', { name: t('customers.change_manager') }).locator('form')
 }
 
 /** The field searches the backend as you type: the option exists once it answers. */
@@ -108,6 +130,43 @@ async function chooseManager(page: Page, drawer: Locator, name: string) {
   await expect(option).toBeVisible({ timeout: 30_000 })
   await option.click()
 }
+
+/** Something moved along with a company, and where a manager would find it. */
+type Reachable = {
+  label: string
+  /** The detail endpoint: 200 when the manager may open it. */
+  detail: string
+  /** A search that lists it, and the key of the list in the response. */
+  list: string
+  listKey: 'customers' | 'resellers' | 'systems' | 'users'
+  id: string
+}
+
+/**
+ * What a fixture manager can reach, through the detail endpoint and through a
+ * list, as its admin: the backend scopes both, along different code paths, so
+ * a move must show up in each.
+ */
+async function expectReach(personaKey: string, objects: Reachable[], visible: boolean) {
+  const verb = visible ? 'should' : 'should not'
+  for (const object of objects) {
+    const detail = await apiGetAs(persona(personaKey).key, object.detail)
+    expect(detail.status === 200, `${personaKey} ${verb} open ${object.label}`).toBe(visible)
+
+    const list = await apiGetAs<Record<string, { id?: string; logto_id?: string }[]>>(
+      personaKey,
+      object.list,
+    )
+    const listed = (list.data?.[object.listKey] ?? []).some(
+      (row) => row.id === object.id || row.logto_id === object.id,
+    )
+    expect(listed, `${personaKey} ${verb} list ${object.label}`).toBe(visible)
+  }
+}
+
+const asParent = (logtoId: string): Organization => ({ id: '', logto_id: logtoId, name: '' })
+
+const search = (path: string, name: string) => `${path}?search=${encodeURIComponent(name)}`
 
 test.describe('as the owner', () => {
   test.use({ storageState: storageStatePath(owner.key) })
@@ -167,9 +226,14 @@ test.describe('as the owner', () => {
     const drawer = drawerOf(page)
     await chooseManager(page, drawer, otherReseller.name)
 
-    await expect(drawer.getByText(t('customers.transfer_same_organization')).first()).toBeVisible({
-      timeout: 60_000,
+    // the reasons sit in an expandable list, closed until asked for
+    const skipped = drawer.getByRole('button', {
+      name: plural('customers.bulk_skipped_title', customers.length),
     })
+    await expect(skipped).toBeVisible({ timeout: 60_000 })
+    await skipped.click()
+    await expect(skipped).toHaveAttribute('aria-expanded', 'true')
+    await expect(drawer.getByText(t('customers.transfer_same_organization')).first()).toBeVisible()
     // nothing to move: no confirmation to give, and the button moves nothing
     await expect(drawer.getByRole('checkbox')).toHaveCount(0)
     await drawer.getByRole('button', { name: t('customers.change_manager') }).click()
@@ -261,6 +325,130 @@ test.describe('as the owner', () => {
     expect(entitlements.find((g) => g.entitlement === 'nsec-ha')?.renewal_stopped_reason).toBe(
       'system_transferred',
     )
+  })
+})
+
+test.describe('what the managers reach after a move', () => {
+  test.use({ storageState: storageStatePath(owner.key) })
+
+  test('a customer moved to another reseller takes its systems and users along', async ({
+    page,
+  }) => {
+    const from = fixtureOrg('d1r1')
+    const to = fixtureOrg('d1r2')
+    const customer = await createOrg('customers', e2eOrgName('tf-vis'), asParent(from.logtoId))
+    const system = await createE2eSystem(customer.logto_id)
+    createdSystems.push(system)
+    const user = await apiPost<User>('/users', {
+      email: e2eUserEmail(),
+      name: e2eUserName(),
+      organization_id: customer.logto_id,
+      user_role_ids: [await roleIdByName('Reader')],
+    })
+    createdUsers.push(user)
+
+    const moved: Reachable[] = [
+      {
+        label: 'the customer',
+        detail: `/customers/${customer.logto_id}`,
+        list: search('/customers', customer.name),
+        listKey: 'customers',
+        id: customer.logto_id,
+      },
+      {
+        label: 'its system',
+        detail: `/systems/${system.id}`,
+        list: search('/systems', system.name),
+        listKey: 'systems',
+        id: system.id,
+      },
+      {
+        label: 'its user',
+        detail: `/users/${user.logto_id}`,
+        list: search('/users', user.name),
+        listKey: 'users',
+        id: user.logto_id,
+      },
+    ]
+    await expectReach('authz-d1r1-admin', moved, true)
+    await expectReach('authz-d1r2-admin', moved, false)
+
+    await openAs(page, '/customers', /\/api\/customers/)
+    await page.getByPlaceholder(t('customers.filter_customers')).fill(customer.name)
+    const row = rowOf(page, customer.name)
+    await expect(row).toBeVisible({ timeout: 30_000 })
+    await row.getByRole('button', { name: /menu/i }).click()
+    await page.getByRole('menuitem', { name: t('customers.change_manager') }).click()
+
+    const drawer = drawerOf(page)
+    await chooseManager(page, drawer, to.name)
+    const confirm = drawer.getByRole('checkbox', {
+      name: t('customers.transfer_confirm_label', { name: to.name }),
+    })
+    await expect(confirm).toBeVisible({ timeout: 30_000 })
+    await confirm.check()
+    await drawer.getByRole('button', { name: t('customers.change_manager') }).click()
+    await expect(drawer).toBeHidden({ timeout: 30_000 })
+
+    await expectReach('authz-d1r2-admin', moved, true)
+    await expectReach('authz-d1r1-admin', moved, false)
+  })
+
+  test('a reseller moved to another distributor takes its customers and systems along', async ({
+    page,
+  }) => {
+    const from = fixtureOrg('d1')
+    const to = fixtureOrg('d2')
+    const movedReseller = await createOrg('resellers', e2eOrgName('tf-vis'), asParent(from.logtoId))
+    const customer = await createOrg('customers', e2eOrgName('tf-vis'), movedReseller)
+    const system = await createE2eSystem(customer.logto_id)
+    createdSystems.push(system)
+
+    const moved: Reachable[] = [
+      {
+        label: 'the reseller',
+        detail: `/resellers/${movedReseller.logto_id}`,
+        list: search('/resellers', movedReseller.name),
+        listKey: 'resellers',
+        id: movedReseller.logto_id,
+      },
+      {
+        label: "the reseller's customer",
+        detail: `/customers/${customer.logto_id}`,
+        list: search('/customers', customer.name),
+        listKey: 'customers',
+        id: customer.logto_id,
+      },
+      {
+        label: "that customer's system",
+        detail: `/systems/${system.id}`,
+        list: search('/systems', system.name),
+        listKey: 'systems',
+        id: system.id,
+      },
+    ]
+    await expectReach('authz-d1-admin', moved, true)
+    await expectReach('authz-d2-admin', moved, false)
+
+    await openAs(page, '/resellers', /\/api\/resellers/)
+    await page.getByPlaceholder(t('resellers.filter_resellers')).fill(movedReseller.name)
+    const row = rowOf(page, movedReseller.name)
+    await expect(row).toBeVisible({ timeout: 30_000 })
+    await row.getByRole('button', { name: /menu/i }).click()
+    await page.getByRole('menuitem', { name: t('resellers.change_manager') }).click()
+
+    const drawer = drawerOf(page)
+    await chooseManager(page, drawer, to.name)
+    const confirm = drawer.getByRole('checkbox', {
+      name: t('resellers.transfer_confirm_label', { name: to.name }),
+    })
+    await expect(confirm).toBeVisible({ timeout: 30_000 })
+    await confirm.check()
+    await drawer.getByRole('button', { name: t('resellers.change_manager') }).click()
+    await expect(drawer).toBeHidden({ timeout: 30_000 })
+
+    await expectReach('authz-d2-admin', moved, true)
+    await expectReach('authz-d1-admin', moved, false)
   })
 })
 

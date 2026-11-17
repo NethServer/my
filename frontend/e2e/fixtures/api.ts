@@ -25,12 +25,12 @@ export const API_URL = registryConfig.backend_url
 let cachedToken: string | undefined
 let minting: Promise<string> | undefined
 
-async function mint(): Promise<string> {
+async function mint(key = 'owner'): Promise<string> {
   try {
     // apitool prints progress first and the token last. Spawned asynchronously:
     // the synchronous variant would block the worker's event loop for as long as
     // the sign-in takes, stalling Playwright's own protocol traffic and timers.
-    const { stdout } = await run('./apitool', ['token', 'owner'], {
+    const { stdout } = await run('./apitool', ['token', key], {
       cwd: BACKEND_DIR,
       encoding: 'utf8',
       timeout: 120_000,
@@ -43,7 +43,7 @@ async function mint(): Promise<string> {
     return token
   } catch (cause) {
     throw new Error(
-      'Cannot mint an owner token. Is the backend running on :8080 and the fixture provisioned?\n' +
+      `Cannot mint a token for "${key}". Is the backend running on :8080 and the fixture provisioned?\n` +
         '  cd backend && make run\n' +
         '  cd backend && ./apitool authz provision',
       { cause },
@@ -145,4 +145,29 @@ export async function apiPostPublic<T>(path: string, body: unknown): Promise<T> 
 /** Returns the HTTP status rather than throwing: teardown tolerates a 404. */
 export async function apiDelete(path: string): Promise<number> {
   return (await request('DELETE', path)).status
+}
+
+const personaTokens = new Map<string, Promise<string>>()
+
+/**
+ * A GET made as a fixture persona, for asserting what that user can and cannot
+ * reach: the status (200 when it sees the object, 403 or 404 when it does not)
+ * and, on success, the data. The token is minted once per persona and kept for
+ * the run.
+ */
+export async function apiGetAs<T>(
+  personaKey: string,
+  path: string,
+): Promise<{ status: number; data?: T }> {
+  let token = personaTokens.get(personaKey)
+  if (!token) {
+    token = mint(personaKey)
+    personaTokens.set(personaKey, token)
+  }
+  const res = await send('GET', path, undefined, await token)
+  if (!res.ok) {
+    return { status: res.status }
+  }
+  const json = (await res.json()) as { data: T }
+  return { status: res.status, data: json.data }
 }
