@@ -362,7 +362,6 @@ services:
       url: ghcr.io/nethserver/my/proxy:v0.10.8
     domains:
       - my.nethesis.it
-      - beta.my.nethesis.it  # beta-program alias, remove after the cutover
     envVars:
       # Service names for automatic URL generation
       - key: BACKEND_SERVICE_NAME
