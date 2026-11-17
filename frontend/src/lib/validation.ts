@@ -73,7 +73,7 @@ export const getBackendErrorMessage = (error: Error | null): string => {
 export const describeRequestError = (error: Error | null, t: (key: string) => string): string => {
   const response = (error as AxiosError<{ message?: string }> | null)?.response
   if (!response) {
-    return t('common.network_error_description')
+    return t('common.network_error')
   }
   const message = response.status < 500 ? response.data?.message : ''
   if (!message) {

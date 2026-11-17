@@ -39,7 +39,7 @@ import CreateOrEditResellerDrawer from './CreateOrEditResellerDrawer.vue'
 import SuspendResellerModal from './SuspendResellerModal.vue'
 import ReactivateResellerModal from './ReactivateResellerModal.vue'
 import PromoteResellerModal from './PromoteResellerModal.vue'
-import TransferResellerDrawer from './TransferResellerDrawer.vue'
+import TransferOrganizationDrawer from '@/components/organizations/TransferOrganizationDrawer.vue'
 import UserAvatar from '../users/UserAvatar.vue'
 import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
@@ -273,9 +273,10 @@ function getKebabMenuItems() {
       @close="isShownReactivateResellerModal = false"
     />
     <!-- transfer reseller drawer -->
-    <TransferResellerDrawer
+    <TransferOrganizationDrawer
+      entity="resellers"
       :is-shown="isShownTransferResellerDrawer"
-      :reseller="resellerDetail.data ?? undefined"
+      :organization="resellerDetail.data ?? undefined"
       @close="isShownTransferResellerDrawer = false"
     />
     <!-- promote reseller modal -->

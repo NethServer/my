@@ -7,6 +7,7 @@
 import {
   NeButton,
   NeCheckbox,
+  NeFormItemLabel,
   NeHeading,
   NeInlineNotification,
   NeSideDrawer,
@@ -16,57 +17,113 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   faBell,
   faBuilding,
+  faClockRotateLeft,
   faPalette,
   faPuzzlePiece,
   faServer,
   faUserGroup,
 } from '@fortawesome/free-solid-svg-icons'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
 import type { AxiosError } from 'axios'
 import {
-  RESELLER_TRANSFER_PREVIEW_KEY,
-  RESELLERS_KEY,
-  RESELLERS_TOTAL_KEY,
-  getResellerTransferPreview,
-  transferReseller,
-  type Reseller,
-} from '@/lib/organizations/resellers'
-import {
-  CUSTOMERS_KEY,
-  CUSTOMERS_TOTAL_KEY,
-  type CustomerTransferAddon,
-} from '@/lib/organizations/customers'
-import { SYSTEMS_KEY, SYSTEMS_TOTAL_KEY } from '@/lib/systems/systems'
+  transferApi,
+  transferProblems,
+  type TransferEntity,
+} from '@/lib/organizations/organizationTransfer'
+import type { CustomerTransferAddon } from '@/lib/organizations/customers'
+import type { ParentOrganization } from '@/lib/organizations/organizations'
 import { describeRequestError, getValidationIssues, type ValidationIssue } from '@/lib/validation'
 import { formatDateNoTime } from '@/lib/dateTime'
 import { useLoginStore } from '@/stores/login'
 import { useNotificationsStore } from '@/stores/notifications'
 import OrganizationCombobox from '@/components/organizations/OrganizationCombobox.vue'
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
-import DataItem from '@/components/common/DataItem.vue'
 
-const { isShown = false, reseller = undefined } = defineProps<{
+/**
+ * Moves one customer or one reseller under another manager: a preview of what
+ * the move does, a confirmation, then the transfer.
+ */
+const {
+  isShown = false,
+  entity,
+  organization = undefined,
+} = defineProps<{
   isShown: boolean
-  reseller: Reseller | undefined
+  entity: TransferEntity
+  organization:
+    | {
+        logto_id: string
+        name: string
+        parent?: ParentOrganization
+        created_by?: {
+          organization_id: string
+          organization_name: string
+          organization_type?: string
+        }
+      }
+    | undefined
 }>()
 
-const emit = defineEmits(['close'])
+const emit = defineEmits<{
+  close: []
+}>()
+
+// The texts that differ by company type, written out so every key stays
+// searchable
+const TEXTS = {
+  customers: {
+    changeManager: 'customers.change_manager',
+    description: 'customers.change_manager_description',
+    newManagerHelper: 'customers.new_manager_helper',
+    newManagerRequired: 'customers.new_manager_required',
+    cannotTransfer: 'customers.cannot_transfer_customer',
+    effectSystems: 'customers.transfer_effect_systems',
+    effectUsers: 'customers.transfer_effect_users',
+    effectRebranding: 'customers.transfer_effect_rebranding',
+    effectAlerts: 'customers.transfer_effect_alerts',
+    effectHistory: 'customers.transfer_effect_history',
+    noAddons: 'customers.transfer_no_addons',
+    confirm: 'customers.transfer_confirm_label',
+    transferred: 'customers.customer_transferred',
+    transferredDescription: 'customers.customer_transferred_description',
+  },
+  resellers: {
+    changeManager: 'resellers.change_manager',
+    description: 'resellers.change_manager_description',
+    newManagerHelper: 'resellers.new_manager_helper',
+    newManagerRequired: 'resellers.new_manager_required',
+    cannotTransfer: 'resellers.cannot_transfer_reseller',
+    effectSystems: 'resellers.transfer_effect_systems',
+    effectUsers: 'resellers.transfer_effect_users',
+    effectRebranding: 'resellers.transfer_effect_rebranding',
+    effectAlerts: 'resellers.transfer_effect_alerts',
+    effectHistory: 'resellers.transfer_effect_history',
+    noAddons: 'resellers.transfer_no_addons',
+    confirm: 'resellers.transfer_confirm_label',
+    transferred: 'resellers.reseller_transferred',
+    transferredDescription: 'resellers.reseller_transferred_description',
+  },
+} as const
 
 const { t, locale } = useI18n()
 const loginStore = useLoginStore()
 const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
 
+const api = computed(() => transferApi[entity])
+const texts = computed(() => TEXTS[entity])
+
 const targetOrganizationId = ref('')
 const confirmed = ref(false)
+// set by a click on Change manager with the form incomplete
+const targetRequiredMessage = ref('')
+const confirmInvalidMessage = ref('')
 const validationIssues = ref<ValidationIssue>({})
 
-const managerTypes = ['distributor']
-
 const excludeOrganizationIds = computed(() =>
-  reseller?.parent?.logto_id ? [reseller.parent.logto_id] : [],
+  organization?.parent?.logto_id ? [organization.parent.logto_id] : [],
 )
 
 const {
@@ -74,10 +131,10 @@ const {
   asyncStatus: previewStatus,
   error: previewError,
 } = useQuery({
-  key: () => [RESELLER_TRANSFER_PREVIEW_KEY, reseller?.logto_id ?? '', targetOrganizationId.value],
+  key: () => [api.value.previewKey, organization?.logto_id ?? '', targetOrganizationId.value],
   enabled: () =>
-    !!loginStore.jwtToken && isShown && !!reseller?.logto_id && !!targetOrganizationId.value,
-  query: () => getResellerTransferPreview(reseller?.logto_id ?? '', targetOrganizationId.value),
+    !!loginStore.jwtToken && isShown && !!organization?.logto_id && !!targetOrganizationId.value,
+  query: () => api.value.plan(organization?.logto_id ?? '', targetOrganizationId.value),
   staleTime: 0,
   gcTime: 0,
 })
@@ -85,7 +142,7 @@ const {
 const plan = computed(() => (targetOrganizationId.value ? preview.value.data : undefined))
 
 const previewIssues = computed<ValidationIssue>(() =>
-  previewError.value ? getValidationIssues(previewError.value as AxiosError, 'resellers') : {},
+  previewError.value ? getValidationIssues(previewError.value as AxiosError, entity) : {},
 )
 
 function describeError(error: Error | null, issues: ValidationIssue) {
@@ -97,6 +154,9 @@ function describeError(error: Error | null, issues: ValidationIssue) {
 }
 
 const targetInvalidMessage = computed(() => {
+  if (targetRequiredMessage.value) {
+    return targetRequiredMessage.value
+  }
   const issue =
     validationIssues.value.organization_id?.[0] ?? previewIssues.value.organization_id?.[0]
   return issue ? t(issue) : ''
@@ -112,30 +172,36 @@ const {
   reset: transferReset,
   error: transferError,
 } = useMutation({
-  mutation: () => transferReseller(reseller?.logto_id ?? '', targetOrganizationId.value),
-  onSuccess(data) {
+  mutation: (vars: { id: string; name: string; targetId: string }) =>
+    api.value.transfer(vars.id, vars.targetId),
+  onSuccess(data, vars) {
+    const summary = t(texts.value.transferredDescription, {
+      name: vars.name,
+      manager: data.to.name,
+    })
+    // the move is done either way: the warnings name what it left behind
+    const problems = transferProblems(data, locale.value, t)
     setTimeout(() => {
-      notificationsStore.createNotification({
-        kind: 'success',
-        title: t('resellers.reseller_transferred'),
-        description: t('resellers.reseller_transferred_description', {
-          name: data.reseller.name,
-          manager: data.to.name,
-        }),
-      })
+      notificationsStore.createNotification(
+        problems
+          ? {
+              kind: 'warning',
+              title: t('organizations.transfer_done_with_problems'),
+              description: t('organizations.transfer_done_with_problems_description', {
+                summary,
+                problems,
+              }),
+            }
+          : { kind: 'success', title: t(texts.value.transferred), description: summary },
+      )
     }, 500)
     emit('close')
   },
   onError: (error) => {
-    validationIssues.value = getValidationIssues(error as AxiosError, 'resellers')
+    validationIssues.value = getValidationIssues(error as AxiosError, entity)
   },
   onSettled: () => {
-    queryCache.invalidateQueries({ key: [RESELLERS_KEY] })
-    queryCache.invalidateQueries({ key: [RESELLERS_TOTAL_KEY] })
-    queryCache.invalidateQueries({ key: [CUSTOMERS_KEY] })
-    queryCache.invalidateQueries({ key: [CUSTOMERS_TOTAL_KEY] })
-    queryCache.invalidateQueries({ key: [SYSTEMS_KEY] })
-    queryCache.invalidateQueries({ key: [SYSTEMS_TOTAL_KEY] })
+    api.value.cacheKeys.forEach((key) => queryCache.invalidateQueries({ key: [key] }))
   },
 })
 
@@ -143,9 +209,32 @@ const transferErrorDescription = computed(() =>
   describeError(transferError.value, validationIssues.value),
 )
 
-const canTransfer = computed(
-  () => !!plan.value && confirmed.value && !transferLoading.value && !previewError.value,
-)
+watch(confirmed, (value) => {
+  if (value) {
+    confirmInvalidMessage.value = ''
+  }
+})
+
+// The button stays enabled: a click on an incomplete form says what is missing
+function submit() {
+  if (!targetOrganizationId.value) {
+    targetRequiredMessage.value = t(texts.value.newManagerRequired)
+    return
+  }
+  // the preview is still loading or failed: it shows its own state
+  if (!plan.value || previewError.value || !organization) {
+    return
+  }
+  if (!confirmed.value) {
+    confirmInvalidMessage.value = t('organizations.transfer_confirm_required')
+    return
+  }
+  transferMutate({
+    id: organization.logto_id,
+    name: organization.name,
+    targetId: targetOrganizationId.value,
+  })
+}
 
 function renewalLabel(addon: CustomerTransferAddon) {
   const date = addon.valid_until ? formatDateNoTime(new Date(addon.valid_until), locale.value) : ''
@@ -161,18 +250,27 @@ function renewalLabel(addon: CustomerTransferAddon) {
   }
 }
 
-function onTargetChange(value: string) {
-  targetOrganizationId.value = value
+function resetForm() {
   confirmed.value = false
+  targetRequiredMessage.value = ''
+  confirmInvalidMessage.value = ''
   validationIssues.value = {}
   transferReset()
 }
 
+function onTargetChange(value: string) {
+  // the combobox can report the selection it already holds: nothing changed,
+  // so keep the preview, the confirmation and any message shown
+  if (value === targetOrganizationId.value) {
+    return
+  }
+  targetOrganizationId.value = value
+  resetForm()
+}
+
 function onShow() {
   targetOrganizationId.value = ''
-  confirmed.value = false
-  validationIssues.value = {}
-  transferReset()
+  resetForm()
 }
 
 function closeDrawer() {
@@ -183,35 +281,27 @@ function closeDrawer() {
 <template>
   <NeSideDrawer
     :is-shown="isShown"
-    :title="$t('resellers.change_manager')"
+    :title="$t(texts.changeManager)"
     :close-aria-label="$t('shell.close_side_drawer')"
     @show="onShow"
     @close="closeDrawer"
   >
     <form @submit.prevent>
       <div class="space-y-6">
-        <p>{{ $t('resellers.change_manager_description', { name: reseller?.name }) }}</p>
+        <p>{{ $t(texts.description, { name: organization?.name }) }}</p>
         <!-- current manager -->
-        <DataItem>
-          <template #label>
-            {{ $t('customers.current_manager') }}
-          </template>
-          <template #data>
-            <ParentCompanyLink
-              :parent="reseller?.parent"
-              :creator="reseller?.created_by"
-              icon-size="xs"
-              icon-variant="plain"
-            />
-          </template>
-        </DataItem>
+        <div>
+          <NeFormItemLabel>{{ $t('organizations.currently_managed_by') }}</NeFormItemLabel>
+          <ParentCompanyLink :parent="organization?.parent" :creator="organization?.created_by" />
+        </div>
         <!-- new manager -->
         <OrganizationCombobox
+          active-only
           :model-value="targetOrganizationId"
           :is-shown="isShown"
           :label="$t('customers.new_manager')"
-          :helper-text="$t('resellers.new_manager_helper')"
-          :allowed-types="managerTypes"
+          :helper-text="$t(texts.newManagerHelper)"
+          :allowed-types="api.managerTypes"
           :exclude-organization-ids="excludeOrganizationIds"
           :invalid-message="targetInvalidMessage"
           :disabled="transferLoading"
@@ -222,7 +312,7 @@ function closeDrawer() {
         <NeInlineNotification
           v-else-if="previewErrorDescription"
           kind="error"
-          :title="$t('resellers.cannot_transfer_reseller')"
+          :title="$t(texts.cannotTransfer)"
           :description="previewErrorDescription"
         />
         <template v-else-if="plan && !previewError">
@@ -231,7 +321,8 @@ function closeDrawer() {
               {{ $t('customers.what_changes') }}
             </NeHeading>
             <ul class="space-y-4">
-              <li class="flex gap-3">
+              <!-- a reseller moves with its customers -->
+              <li v-if="plan.customers_count !== undefined" class="flex gap-3">
                 <FontAwesomeIcon
                   :icon="faBuilding"
                   class="text-icon-neutral mt-0.5 size-4 shrink-0"
@@ -253,7 +344,7 @@ function closeDrawer() {
                 />
                 <span>{{
                   $t(
-                    'resellers.transfer_effect_systems',
+                    texts.effectSystems,
                     { from: plan.from.name, to: plan.to.name },
                     plan.systems_count,
                   )
@@ -265,9 +356,7 @@ function closeDrawer() {
                   class="text-icon-neutral mt-0.5 size-4 shrink-0"
                   aria-hidden="true"
                 />
-                <span>{{
-                  $t('resellers.transfer_effect_users', { from: plan.from.name }, plan.users_count)
-                }}</span>
+                <span>{{ $t(texts.effectUsers, { from: plan.from.name }, plan.users_count) }}</span>
               </li>
               <li class="flex gap-3">
                 <FontAwesomeIcon
@@ -275,7 +364,7 @@ function closeDrawer() {
                   class="text-icon-neutral mt-0.5 size-4 shrink-0"
                   aria-hidden="true"
                 />
-                <span>{{ $t('resellers.transfer_effect_rebranding', { to: plan.to.name }) }}</span>
+                <span>{{ $t(texts.effectRebranding, { to: plan.to.name }) }}</span>
               </li>
               <li class="flex gap-3">
                 <FontAwesomeIcon
@@ -285,11 +374,16 @@ function closeDrawer() {
                 />
                 <div class="space-y-1">
                   <div>
+                    {{ $t(texts.effectAlerts, { from: plan.from.name, to: plan.to.name }) }}
+                  </div>
+                  <!-- only a customer's systems change alerting tenant -->
+                  <div v-if="plan.silences_count" class="text-tertiary-neutral">
                     {{
-                      $t('resellers.transfer_effect_alerts', {
-                        from: plan.from.name,
-                        to: plan.to.name,
-                      })
+                      $t(
+                        'customers.transfer_effect_silences',
+                        { from: plan.from.name },
+                        plan.silences_count,
+                      )
                     }}
                   </div>
                   <div v-if="plan.assignments_count" class="text-tertiary-neutral">
@@ -303,14 +397,25 @@ function closeDrawer() {
                   </div>
                 </div>
               </li>
+              <li class="flex gap-3">
+                <FontAwesomeIcon
+                  :icon="faClockRotateLeft"
+                  class="text-icon-neutral mt-0.5 size-4 shrink-0"
+                  aria-hidden="true"
+                />
+                <span>{{ $t(texts.effectHistory) }}</span>
+              </li>
             </ul>
           </div>
           <!-- add-ons -->
-          <div v-if="plan.addons.length">
+          <div>
             <NeHeading tag="h6" class="mb-4">
               {{ $t('customers.transfer_addons') }}
             </NeHeading>
-            <ul class="space-y-4">
+            <p v-if="!plan.addons.length" class="text-tertiary-neutral">
+              {{ $t(texts.noAddons) }}
+            </p>
+            <ul v-else class="space-y-4">
               <li
                 v-for="addon in plan.addons"
                 :key="`${addon.system_id}-${addon.entitlement}-${addon.scope ?? ''}`"
@@ -353,9 +458,18 @@ function closeDrawer() {
               )
             "
           />
+          <NeInlineNotification
+            v-if="plan.warnings?.includes('silences_unavailable')"
+            kind="info"
+            :title="$t('customers.silences_unavailable')"
+            :description="
+              $t('customers.silences_unavailable_description', { from: plan.from.name })
+            "
+          />
           <NeCheckbox
             v-model="confirmed"
-            :label="$t('resellers.transfer_confirm_label', { name: plan.to.name })"
+            :invalid-message="confirmInvalidMessage"
+            :label="$t(texts.confirm, { name: plan.to.name })"
             :disabled="transferLoading"
           />
         </template>
@@ -363,7 +477,7 @@ function closeDrawer() {
         <NeInlineNotification
           v-if="transferErrorDescription"
           kind="error"
-          :title="$t('resellers.cannot_transfer_reseller')"
+          :title="$t(texts.cannotTransfer)"
           :description="transferErrorDescription"
         />
       </div>
@@ -383,11 +497,11 @@ function closeDrawer() {
           type="submit"
           kind="primary"
           size="lg"
-          :disabled="!canTransfer"
+          :disabled="transferLoading"
           :loading="transferLoading"
-          @click.prevent="transferMutate()"
+          @click.prevent="submit()"
         >
-          {{ $t('resellers.change_manager') }}
+          {{ $t(texts.changeManager) }}
         </NeButton>
       </div>
     </form>

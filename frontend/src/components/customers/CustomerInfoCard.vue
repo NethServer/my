@@ -33,7 +33,7 @@ import { useI18n } from 'vue-i18n'
 import CreateOrEditCustomerDrawer from './CreateOrEditCustomerDrawer.vue'
 import SuspendCustomerModal from './SuspendCustomerModal.vue'
 import ReactivateCustomerModal from './ReactivateCustomerModal.vue'
-import TransferCustomerDrawer from './TransferCustomerDrawer.vue'
+import TransferOrganizationDrawer from '@/components/organizations/TransferOrganizationDrawer.vue'
 import UserAvatar from '../users/UserAvatar.vue'
 import CreatorOrganization from '@/components/organizations/CreatorOrganization.vue'
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
@@ -248,9 +248,10 @@ function getKebabMenuItems() {
       @close="isShownSuspendCustomerModal = false"
     />
     <!-- transfer customer drawer -->
-    <TransferCustomerDrawer
+    <TransferOrganizationDrawer
+      entity="customers"
       :is-shown="isShownTransferCustomerDrawer"
-      :customer="customerDetail.data ?? undefined"
+      :organization="customerDetail.data ?? undefined"
       @close="isShownTransferCustomerDrawer = false"
     />
     <!-- reactivate customer modal -->

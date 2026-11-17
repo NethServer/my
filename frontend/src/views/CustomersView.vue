@@ -7,16 +7,18 @@
 import { NeButton, NeDropdown, NeHeading } from '@nethesis/vue-components'
 import CustomersTable from '@/components/customers/CustomersTable.vue'
 import ImportOrganizationsModal from '@/components/organizations/ImportOrganizationsModal.vue'
-import { ref } from 'vue'
+import BulkTransferOrganizationsDrawer from '@/components/organizations/BulkTransferOrganizationsDrawer.vue'
+import { computed, ref } from 'vue'
 import {
   faChevronDown,
   faCircleArrowUp,
   faCirclePlus,
   faFileCsv,
   faFilePdf,
+  faShuffle,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { canManageCustomers } from '@/lib/permissions'
+import { canManageCustomers, canTransferCustomers } from '@/lib/permissions'
 import { useCustomers } from '@/queries/organizations/customers'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
@@ -30,6 +32,7 @@ import {
   type CustomerStatus,
 } from '@/lib/organizations/customers'
 import { downloadFile, exportFileName, getExportLimitError } from '@/lib/common'
+import type { BulkTransferFilters } from '@/lib/organizations/organizationTransfer'
 import { useRoute, useRouter } from 'vue-router'
 
 const { t } = useI18n()
@@ -63,6 +66,16 @@ if (typeof orgId === 'string' && orgId && typeof orgName === 'string' && orgName
 
 const isShownCreateCustomerDrawer = ref(false)
 const isShownImportCustomersModal = ref(false)
+const isShownBulkTransferDrawer = ref(false)
+
+// the bulk change of manager runs on the list as the table shows it
+const bulkTransferFilters = computed<BulkTransferFilters>(() => ({
+  text: debouncedTextFilter.value,
+  status: statusFilter.value.map((o) => o.id),
+  organizationIds: organizationFilter.value.map((o) => o.id),
+  sortBy: sortBy.value,
+  sortDescending: sortDescending.value,
+}))
 
 function getBulkActionsMenuItems() {
   return [
@@ -73,6 +86,17 @@ function getBulkActionsMenuItems() {
             label: t('customers.import_customers'),
             icon: faCircleArrowUp,
             action: () => (isShownImportCustomersModal.value = true),
+          },
+        ]
+      : []),
+    ...(canTransferCustomers()
+      ? [
+          {
+            id: 'changeManager',
+            label: t('customers.change_manager'),
+            icon: faShuffle,
+            action: () => (isShownBulkTransferDrawer.value = true),
+            disabled: !state.value.data?.customers.length,
           },
         ]
       : []),
@@ -181,6 +205,13 @@ async function exportCustomers(format: 'pdf' | 'csv') {
         confirm: confirmCustomersImport,
       }"
       @close="isShownImportCustomersModal = false"
+    />
+    <!-- bulk change of manager -->
+    <BulkTransferOrganizationsDrawer
+      :is-shown="isShownBulkTransferDrawer"
+      entity="customers"
+      :filters="bulkTransferFilters"
+      @close="isShownBulkTransferDrawer = false"
     />
   </div>
 </template>

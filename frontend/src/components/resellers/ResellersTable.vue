@@ -55,7 +55,7 @@ import ReactivateResellerModal from './ReactivateResellerModal.vue'
 import RestoreResellerModal from './RestoreResellerModal.vue'
 import DestroyResellerModal from './DestroyResellerModal.vue'
 import PromoteResellerModal from './PromoteResellerModal.vue'
-import TransferResellerDrawer from './TransferResellerDrawer.vue'
+import TransferOrganizationDrawer from '@/components/organizations/TransferOrganizationDrawer.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useResellers } from '@/queries/organizations/resellers'
 import {
@@ -635,9 +635,10 @@ const goToResellerDetails = (reseller: Reseller) => {
       @close="isShownDestroyResellerModal = false"
     />
     <!-- transfer reseller drawer -->
-    <TransferResellerDrawer
+    <TransferOrganizationDrawer
+      entity="resellers"
       :is-shown="isShownTransferResellerDrawer"
-      :reseller="currentReseller"
+      :organization="currentReseller"
       @close="isShownTransferResellerDrawer = false"
     />
     <!-- promote reseller modal -->

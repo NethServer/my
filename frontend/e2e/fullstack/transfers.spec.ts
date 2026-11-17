@@ -88,6 +88,18 @@ function drawerOf(page: Page): Locator {
 }
 
 /** The field searches the backend as you type: the option exists once it answers. */
+/** Opens the bulk change of manager from the Actions menu of the page header. */
+async function openBulkChangeManager(page: Page, entity: 'customers' | 'resellers') {
+  await page.getByRole('button', { name: t('common.actions'), exact: true }).click()
+  await page.getByRole('menuitem', { name: t(`${entity}.change_manager`) }).click()
+}
+
+/** The plural form of a `none | one | many` message, filled for `count`. */
+function plural(key: string, count: number, params: Record<string, string> = {}): string {
+  const forms = t(key, { count: String(count), ...params }).split(' | ')
+  return forms[Math.min(count, forms.length - 1)]
+}
+
 async function chooseManager(page: Page, drawer: Locator, name: string) {
   const field = drawer.getByRole('combobox')
   await field.click()
@@ -109,11 +121,14 @@ test.describe('as the owner', () => {
       await expect(rowOf(page, customer.name)).toContainText(reseller.name)
     }
 
-    await page.getByRole('checkbox', { name: t('customers.select_all_customers') }).check()
-    await page.getByRole('button', { name: t('customers.change_manager') }).click()
+    await openBulkChangeManager(page, 'customers')
 
+    // the move covers the filtered customers, all of them and nothing else
     const drawer = drawerOf(page)
     await expect(drawer).toBeVisible()
+    await expect(drawer.getByText(plural('customers.bulk_to_move', customers.length))).toBeVisible({
+      timeout: 30_000,
+    })
     await chooseManager(page, drawer, otherReseller.name)
 
     // the preview pass ran for every customer before the move can be confirmed
@@ -147,8 +162,7 @@ test.describe('as the owner', () => {
 
     await page.getByPlaceholder(t('customers.filter_customers')).fill(customerTag)
     await expect(rowOf(page, customers[0].name)).toBeVisible({ timeout: 30_000 })
-    await page.getByRole('checkbox', { name: t('customers.select_all_customers') }).check()
-    await page.getByRole('button', { name: t('customers.change_manager') }).click()
+    await openBulkChangeManager(page, 'customers')
 
     const drawer = drawerOf(page)
     await chooseManager(page, drawer, otherReseller.name)
@@ -156,7 +170,24 @@ test.describe('as the owner', () => {
     await expect(drawer.getByText(t('customers.transfer_same_organization')).first()).toBeVisible({
       timeout: 60_000,
     })
-    await expect(drawer.getByRole('button', { name: t('customers.change_manager') })).toBeDisabled()
+    // nothing to move: no confirmation to give, and the button moves nothing
+    await expect(drawer.getByRole('checkbox')).toHaveCount(0)
+    await drawer.getByRole('button', { name: t('customers.change_manager') }).click()
+    await expect(drawer.getByText(t('customers.transfer_same_organization')).first()).toBeVisible()
+  })
+
+  test('refuses a bulk change of manager on the unfiltered list', async ({ page }) => {
+    await openAs(page, '/customers', /\/api\/customers/)
+    await expect(page.getByRole('row').nth(1)).toBeVisible({ timeout: 30_000 })
+
+    await openBulkChangeManager(page, 'customers')
+
+    const drawer = page
+      .locator('form')
+      .filter({ hasText: t('customers.bulk_change_manager_description') })
+    await expect(drawer.getByText(t('customers.bulk_filter_required_title'))).toBeVisible()
+    await expect(drawer.getByRole('combobox')).toHaveCount(0)
+    await expect(drawer.getByRole('button', { name: t('customers.change_manager') })).toHaveCount(0)
   })
 
   test('moves a reseller under another distributor', async ({ page }) => {
@@ -240,8 +271,10 @@ test.describe('as a reseller admin', () => {
     await openAs(page, '/customers', /\/api\/customers/)
 
     await expect(page.getByRole('row').nth(1)).toBeVisible({ timeout: 30_000 })
+    await page.getByRole('button', { name: t('common.actions'), exact: true }).click()
     await expect(
-      page.getByRole('checkbox', { name: t('customers.select_all_customers') }),
-    ).toHaveCount(0)
+      page.getByRole('menuitem', { name: t('customers.export_customers_to_csv') }),
+    ).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: t('customers.change_manager') })).toHaveCount(0)
   })
 })

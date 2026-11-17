@@ -28,8 +28,15 @@ interface OrganizationsSearchResponse {
  *   reseller, customer); the values are OR-ed. Scoping server-side keeps the
  *   paginated option list meaningful: filtering by type on the client would drop
  *   entries from an already-truncated page.
+ * @param activeOnly leaves out the suspended companies, for a choice the backend
+ *   refuses them in, such as the new manager of a company. Server-side for the
+ *   same reason as the types.
  */
-export const getOrganizationsSearchQueryString = (search: string, types?: string[]): string => {
+export const getOrganizationsSearchQueryString = (
+  search: string,
+  types?: string[],
+  activeOnly = false,
+): string => {
   const params = new URLSearchParams({
     page: '1',
     page_size: OPTIONS_PAGE_SIZE.toString(),
@@ -48,12 +55,16 @@ export const getOrganizationsSearchQueryString = (search: string, types?: string
     params.append('type', type)
   }
 
+  if (activeOnly) {
+    params.append('status', 'enabled')
+  }
+
   return params.toString()
 }
 
-export const searchOrganizations = (search: string, types?: string[]) => {
+export const searchOrganizations = (search: string, types?: string[], activeOnly = false) => {
   const loginStore = useLoginStore()
-  const params = getOrganizationsSearchQueryString(search, types)
+  const params = getOrganizationsSearchQueryString(search, types, activeOnly)
 
   return axios
     .get<OrganizationsSearchResponse>(`${API_URL}/organizations?${params}`, {

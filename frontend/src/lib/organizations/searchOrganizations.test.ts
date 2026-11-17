@@ -5,8 +5,8 @@ import { describe, expect, it } from 'vitest'
 import { getOrganizationsSearchQueryString } from './searchOrganizations'
 import { OPTIONS_PAGE_SIZE } from '../common'
 
-const build = (search = '', types?: string[]) =>
-  new URLSearchParams(getOrganizationsSearchQueryString(search, types))
+const build = (search = '', types?: string[], activeOnly?: boolean) =>
+  new URLSearchParams(getOrganizationsSearchQueryString(search, types, activeOnly))
 
 describe('getOrganizationsSearchQueryString', () => {
   it('always asks for the first page of options', () => {
@@ -34,5 +34,10 @@ describe('getOrganizationsSearchQueryString', () => {
   it('omits the type parameter when no type is requested', () => {
     expect(build('', []).getAll('type')).toEqual([])
     expect(build('acme').getAll('type')).toEqual([])
+  })
+
+  it('asks for enabled companies only when suspended ones must be left out', () => {
+    expect(build('', ['reseller'], true).getAll('status')).toEqual(['enabled'])
+    expect(build('', ['reseller']).getAll('status')).toEqual([])
   })
 })
