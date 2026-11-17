@@ -68,6 +68,16 @@ function rowOf(page: Page, name: string): Locator {
   return page.getByRole('row').filter({ hasText: name })
 }
 
+/**
+ * The row of a distributor, after searching for it: the list shows one page at
+ * a time, and on a database with more distributors than a page holds the new
+ * one can sort past the first.
+ */
+async function findDistributorRow(page: Page, name: string): Promise<Locator> {
+  await page.getByPlaceholder(t('distributors.filter_distributors')).fill(name)
+  return rowOf(page, name)
+}
+
 test('creates a distributor and lists it', async ({ page }) => {
   await openAs(page, '/distributors', /\/api\/distributors/)
 
@@ -82,8 +92,9 @@ test('creates a distributor and lists it', async ({ page }) => {
 
   // The drawer closes on success, and the list query is invalidated.
   await expect(drawer).toBeHidden({ timeout: 30_000 })
-  await expect(rowOf(page, name)).toBeVisible({ timeout: 30_000 })
-  await expect(rowOf(page, name)).toContainText(vat)
+  const row = await findDistributorRow(page, name)
+  await expect(row).toBeVisible({ timeout: 30_000 })
+  await expect(row).toContainText(vat)
 
   // It is really in the backend, not only on screen.
   const stored = (await listE2eOrganizations('distributors')).find((o) => o.name === name)
@@ -124,7 +135,7 @@ test('edits a distributor and keeps the change', async ({ page }) => {
   await createDrawer.getByRole('button', { name: t('distributors.create_distributor') }).click()
   await expect(createDrawer).toBeHidden({ timeout: 30_000 })
 
-  const row = rowOf(page, name)
+  const row = await findDistributorRow(page, name)
   await expect(row).toBeVisible({ timeout: 30_000 })
 
   await row.getByRole('button', { name: /menu/i }).click()
