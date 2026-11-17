@@ -10,6 +10,7 @@
 package models
 
 import (
+	"strings"
 	"time"
 )
 
@@ -95,6 +96,28 @@ type OrganizationFilters struct {
 	Types       []string `json:"types,omitempty"`       // from customData.type; multiple values are OR-ed
 	CreatedBy   string   `json:"created_by,omitempty"`  // from customData.createdBy
 	Search      string   `json:"search,omitempty"`      // general search term
+	// Statuses keeps the organizations in these states, OR-ed: "enabled" (not
+	// suspended) and "suspended". Empty keeps both; archived ones never appear.
+	Statuses []string `json:"statuses,omitempty"`
+}
+
+// OnlyEnabled and OnlySuspended tell whether the status filter keeps one
+// state alone; any other combination keeps both.
+func (f OrganizationFilters) OnlyEnabled() bool {
+	return hasStatus(f.Statuses, "enabled") && !hasStatus(f.Statuses, "suspended")
+}
+
+func (f OrganizationFilters) OnlySuspended() bool {
+	return hasStatus(f.Statuses, "suspended") && !hasStatus(f.Statuses, "enabled")
+}
+
+func hasStatus(statuses []string, status string) bool {
+	for _, s := range statuses {
+		if strings.EqualFold(s, status) {
+			return true
+		}
+	}
+	return false
 }
 
 // PaginatedOrganizations represents a paginated response of organizations

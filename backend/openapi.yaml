@@ -10212,6 +10212,23 @@ paths:
           description: Filter by creator user ID
           schema:
             type: string
+        - name: status
+          in: query
+          required: false
+          description: |
+            Filter by status (repeatable; multiple values are OR-ed). Without it,
+            both enabled and suspended organizations are returned; archived
+            organizations are never returned. The synthetic Owner entry counts
+            as enabled.
+
+            - enabled: not suspended
+            - suspended: suspended
+          explode: true
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [enabled, suspended]
       responses:
         '200':
           description: Organizations retrieved successfully
