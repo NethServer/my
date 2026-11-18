@@ -255,6 +255,20 @@ export const closeSupportSession = (id: string) => {
     .then((res) => res.data)
 }
 
+export const closeAllSupportSessions = () => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .post<{ data: { closed: number } }>(
+      `${API_URL}/support-sessions/close-all`,
+      {},
+      {
+        headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+      },
+    )
+    .then((res) => res.data.data)
+}
+
 export interface SupportServiceItem {
   name: string
   label: string

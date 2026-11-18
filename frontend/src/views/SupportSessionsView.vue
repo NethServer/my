@@ -4,12 +4,26 @@
 -->
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { NeExpandable, NeHeading } from '@nethesis/vue-components'
+import { computed, ref } from 'vue'
+import { NeButton, NeExpandable, NeHeading } from '@nethesis/vue-components'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { faXmark } from '@fortawesome/free-solid-svg-icons'
 import SupportSessionsTable from '@/components/support/SupportSessionsTable.vue'
-import { useSupportSessionsHistory } from '@/queries/support/supportSessions'
+import CloseAllSessionsModal from '@/components/support/CloseAllSessionsModal.vue'
+import {
+  useLiveSupportSessions,
+  useSupportSessionsHistory,
+} from '@/queries/support/supportSessions'
 
 const { isEnabled: isHistoryEnabled } = useSupportSessionsHistory()
+const { state: liveState, areDefaultFiltersApplied } = useLiveSupportSessions()
+
+const isCloseAllShown = ref(false)
+
+// a filtered empty list may still hide live sessions
+const hasNoLiveSessions = computed(
+  () => areDefaultFiltersApplied.value && liveState.value.data?.pagination?.total_count === 0,
+)
 
 // the history loads only once its section is opened
 const isHistoryExpanded = ref(false)
@@ -30,9 +44,22 @@ function onSetExpanded(expanded: boolean) {
     </div>
     <div class="space-y-10">
       <section>
-        <h4 class="mb-6 text-base font-medium text-gray-900 dark:text-gray-100">
-          {{ $t('support.live_sessions_title') }}
-        </h4>
+        <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <h4 class="text-base font-medium text-gray-900 dark:text-gray-100">
+            {{ $t('support.live_sessions_title') }}
+          </h4>
+          <NeButton
+            kind="secondary"
+            size="sm"
+            :disabled="hasNoLiveSessions"
+            @click="isCloseAllShown = true"
+          >
+            <template #prefix>
+              <FontAwesomeIcon :icon="faXmark" aria-hidden="true" />
+            </template>
+            {{ $t('support.close_all_sessions') }}
+          </NeButton>
+        </div>
         <SupportSessionsTable scope="live" />
       </section>
       <NeExpandable
@@ -43,5 +70,6 @@ function onSetExpanded(expanded: boolean) {
         <SupportSessionsTable v-if="isHistoryExpanded" scope="history" class="mt-6" />
       </NeExpandable>
     </div>
+    <CloseAllSessionsModal :visible="isCloseAllShown" @close="isCloseAllShown = false" />
   </div>
 </template>
