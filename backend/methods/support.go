@@ -238,20 +238,7 @@ func CloseSupportSession(c *gin.Context) {
 		return
 	}
 
-	// Notify support service via Redis pub/sub to disconnect the tunnel.
-	// Fix #2: message is signed with SUPPORT_INTERNAL_SECRET so the support service
-	// can verify it was not injected by a third party with Redis access.
-	if redisClient := cache.GetRedisClient(); redisClient != nil {
-		cmd := map[string]string{
-			"action":     "close",
-			"session_id": sessionID,
-		}
-		payload, _ := json.Marshal(cmd)
-		envelope := signAndMarshal(payload)
-		if err := redisClient.Publish("support:commands", string(envelope)); err != nil {
-			logger.Warn().Err(err).Str("session_id", sessionID).Msg("failed to publish close command to support service")
-		}
-	}
+	publishSessionClose(sessionID)
 
 	logger.LogBusinessOperation(c, "support", "close", "session", sessionID, true, nil)
 	logAccessWithMetadata(c, sessionID, "session_close", map[string]string{})
@@ -259,6 +246,51 @@ func CloseSupportSession(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("support session closed successfully", gin.H{
 		"session_id": sessionID,
 	}))
+}
+
+// CloseAllSupportSessions handles POST /api/support-sessions/close-all:
+// closes every live session in the caller's scope and drops their tunnels
+func CloseAllSupportSessions(c *gin.Context) {
+	_, userOrgID, userOrgRole, _ := helpers.GetUserContextExtended(c)
+
+	repo := entities.NewSupportRepository()
+	ids, err := repo.CloseLiveSessions(userOrgRole, userOrgID)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to close support sessions")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to close support sessions", nil))
+		return
+	}
+
+	for _, sessionID := range ids {
+		forgetProxySession(sessionID)
+		publishSessionClose(sessionID)
+		logAccessWithMetadata(c, sessionID, "session_close", map[string]string{"scope": "all"})
+	}
+
+	logger.LogBusinessOperationDetails(c, "support", "close_all", "session", "", true, nil, map[string]interface{}{
+		"closed": len(ids),
+	})
+
+	c.JSON(http.StatusOK, response.OK("support sessions closed successfully", gin.H{
+		"closed": len(ids),
+	}))
+}
+
+// publishSessionClose asks the support service to drop the session's tunnel.
+// Signed with SUPPORT_INTERNAL_SECRET so the support service can verify it
+// was not injected by a third party with Redis access.
+func publishSessionClose(sessionID string) {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return
+	}
+	payload, _ := json.Marshal(map[string]string{
+		"action":     "close",
+		"session_id": sessionID,
+	})
+	if err := redisClient.Publish("support:commands", string(signAndMarshal(payload))); err != nil {
+		logger.Warn().Err(err).Str("session_id", sessionID).Msg("failed to publish close command to support service")
+	}
 }
 
 // GetSupportSessionLogs handles GET /api/support-sessions/:id/logs

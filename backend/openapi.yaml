@@ -20548,6 +20548,43 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /support-sessions/close-all:
+    post:
+      operationId: closeAllSupportSessions
+      tags:
+        - Backend - Support Sessions
+      summary: Close all support sessions
+      description: Force-close every pending or active support session in the caller's scope and disconnect their tunnels
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Support sessions closed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: support sessions closed successfully
+                  data:
+                    type: object
+                    properties:
+                      closed:
+                        type: integer
+                        description: Number of sessions closed
+                        example: 3
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /support-sessions/{id}/extend:
     patch:
       operationId: extendSupportSession

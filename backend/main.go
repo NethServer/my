@@ -722,6 +722,7 @@ func main() {
 			supportGroup.GET("", methods.GetSupportSessions)
 			supportGroup.GET("/diagnostics", methods.GetSystemSessionsDiagnostics)
 			supportGroup.GET("/activity", methods.GetSupportActivity)
+			supportGroup.POST("/close-all", methods.CloseAllSupportSessions)
 			supportGroup.GET("/:id", methods.GetSupportSession)
 			supportGroup.PATCH("/:id/extend", methods.ExtendSupportSession)
 			supportGroup.DELETE("/:id", methods.CloseSupportSession)

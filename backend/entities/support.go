@@ -751,6 +751,38 @@ func (r *SupportRepository) CloseSession(sessionID string) error {
 	return nil
 }
 
+// CloseLiveSessions closes every pending or active session in the caller's
+// scope and returns their IDs
+func (r *SupportRepository) CloseLiveSessions(userOrgRole, userOrgID string) ([]string, error) {
+	conditions := []string{"ss.system_id = s.id", "ss.status IN ('pending', 'active')"}
+	rbacCondition, rbacArgs, _ := buildRBACFilter(userOrgRole, userOrgID, 1)
+	if rbacCondition != "" {
+		conditions = append(conditions, rbacCondition)
+	}
+
+	query := fmt.Sprintf(`UPDATE support_sessions ss
+		 SET status = 'closed', closed_at = NOW(), closed_by = 'operator', users = NULL, users_at = NULL, updated_at = NOW()
+		 FROM systems s
+		 WHERE %s
+		 RETURNING ss.id`, strings.Join(conditions, " AND "))
+
+	rows, err := r.db.Query(query, rbacArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to close sessions: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan closed session: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // InsertAccessLog inserts a new access log entry and returns its ID
 func (r *SupportRepository) InsertAccessLog(sessionID, operatorID, operatorName, accessType, metadata string) (string, error) {
 	var logID string

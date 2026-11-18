@@ -350,6 +350,11 @@ routes:
     path: /api/support-sessions/activity
     intent: connect:systems
 
+  - method: POST
+    path: /api/support-sessions/close-all
+    intent: connect:systems
+    skip: no id and no body to invalidate, an authorized call would close every live session
+
   - method: GET
     path: /api/support-notes
     intent: connect:systems
