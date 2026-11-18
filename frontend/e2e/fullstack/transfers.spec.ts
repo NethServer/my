@@ -14,7 +14,7 @@
 
 import { test, expect, type Locator, type Page } from '@playwright/test'
 import { fixtureOrg, owner, persona, storageStatePath } from '../fixtures/personas'
-import { openAs } from '../fixtures/auth'
+import { apiResponse, openAs } from '../fixtures/auth'
 import { apiGet, apiGetAs, apiPost } from '../fixtures/api'
 import { t } from '../fixtures/i18n'
 import {
@@ -109,7 +109,18 @@ function drawerOf(page: Page): Locator {
   return page.getByRole('dialog', { name: t('customers.change_manager') }).locator('form')
 }
 
-/** The field searches the backend as you type: the option exists once it answers. */
+/**
+ * Searches the customers list and waits for the list to answer. The bulk change
+ * of manager takes the search the table applied, which follows the typing after
+ * a pause: the rows can already be on the unfiltered first page, visible before
+ * the search runs.
+ */
+async function searchCustomers(page: Page, text: string) {
+  const searched = apiResponse(page, new RegExp(`/api/customers\\?.*search=${text}`))
+  await page.getByPlaceholder(t('customers.filter_customers')).fill(text)
+  await searched
+}
+
 /** Opens the bulk change of manager from the Actions menu of the page header. */
 async function openBulkChangeManager(page: Page, entity: 'customers' | 'resellers') {
   await page.getByRole('button', { name: t('common.actions'), exact: true }).click()
@@ -122,6 +133,7 @@ function plural(key: string, count: number, params: Record<string, string> = {})
   return forms[Math.min(count, forms.length - 1)]
 }
 
+/** The field searches the backend as you type: the option exists once it answers. */
 async function chooseManager(page: Page, drawer: Locator, name: string) {
   const field = drawer.getByRole('combobox')
   await field.click()
@@ -174,7 +186,7 @@ test.describe('as the owner', () => {
   test('moves several customers under another reseller at once', async ({ page }) => {
     await openAs(page, '/customers', /\/api\/customers/)
 
-    await page.getByPlaceholder(t('customers.filter_customers')).fill(customerTag)
+    await searchCustomers(page, customerTag)
     for (const customer of customers) {
       await expect(rowOf(page, customer.name)).toBeVisible({ timeout: 30_000 })
       await expect(rowOf(page, customer.name)).toContainText(reseller.name)
@@ -219,7 +231,7 @@ test.describe('as the owner', () => {
     // runs after the bulk move: the three customers now sit under otherReseller
     await openAs(page, '/customers', /\/api\/customers/)
 
-    await page.getByPlaceholder(t('customers.filter_customers')).fill(customerTag)
+    await searchCustomers(page, customerTag)
     await expect(rowOf(page, customers[0].name)).toBeVisible({ timeout: 30_000 })
     await openBulkChangeManager(page, 'customers')
 
