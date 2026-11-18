@@ -15,7 +15,7 @@ import {
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
-  faBell,
+  faTriangleExclamation,
   faBuilding,
   faClockRotateLeft,
   faPalette,
@@ -392,7 +392,7 @@ function closeDrawer() {
               </li>
               <li class="flex gap-3">
                 <FontAwesomeIcon
-                  :icon="faBell"
+                  :icon="faTriangleExclamation"
                   class="text-icon-neutral mt-0.5 size-4 shrink-0"
                   aria-hidden="true"
                 />

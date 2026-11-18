@@ -14,7 +14,7 @@ import {
   NeSkeleton,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faBell, faBuilding, faServer } from '@fortawesome/free-solid-svg-icons'
+import { faTriangleExclamation, faBuilding, faServer } from '@fortawesome/free-solid-svg-icons'
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useQueryCache } from '@pinia/colada'
@@ -538,7 +538,7 @@ function closeDrawer() {
               </li>
               <li v-if="movable.length" class="flex gap-3">
                 <FontAwesomeIcon
-                  :icon="faBell"
+                  :icon="faTriangleExclamation"
                   class="text-icon-neutral mt-0.5 size-4 shrink-0"
                   aria-hidden="true"
                 />
