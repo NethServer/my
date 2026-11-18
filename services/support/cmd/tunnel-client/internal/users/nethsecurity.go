@@ -99,20 +99,27 @@ const nethsecScript = `
 import json, sys
 from nethsec import users
 from euci import EUci
+from nethsec.utils import ValidationError
 req = json.load(sys.stdin)
 u = EUci()
 op = req["op"]
 name = req["username"]
-if op == "add":
-    users.add_local_user(u, name, req["password"], "Support Session", "main")
-elif op == "set_admin":
-    users.set_admin(u, name, "main")
-elif op == "remove_admin":
-    users.remove_admin(u, name)
-elif op == "delete":
-    users.delete_local_user(u, name, "main")
-else:
-    sys.exit("unknown op")
+try:
+    if op == "add":
+        users.add_local_user(u, name, req["password"], "Support Session", "main")
+    elif op == "set_admin":
+        users.set_admin(u, name, "main")
+    elif op == "remove_admin":
+        users.remove_admin(u, name)
+    elif op == "delete":
+        users.delete_local_user(u, name, "main")
+    else:
+        sys.exit("unknown op")
+except ValidationError as e:
+    # a user already gone is removed: a stale state file must not block cleanup
+    if op in ("remove_admin", "delete") and e.args[1:2] in (("admin_user_not_found",), ("user_not_found",)):
+        sys.exit(0)
+    raise
 `
 
 func (p *NethSecurityProvisioner) addLocalUser(username, password string) error {
