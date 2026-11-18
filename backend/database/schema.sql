@@ -261,7 +261,7 @@ CREATE TABLE IF NOT EXISTS systems (
     organization_id VARCHAR(255) NOT NULL,  -- Logto organization ID that owns this system
 
     -- Authentication credentials
-    system_key VARCHAR(255) UNIQUE NOT NULL,     -- Unique system key for identification
+    system_key VARCHAR(255) NOT NULL,            -- Unique system key for identification (idx_systems_system_key)
     system_secret_public VARCHAR(64),            -- Public part of token (my_<public>.<secret>) for fast lookup
     system_secret_sha256 VARCHAR(128),           -- SHA256 hash of secret part (hex_salt:hex_hash)
     system_key_hash VARCHAR(64),                         -- sha256(system_key:token), Bearer credential for /auth-hash only

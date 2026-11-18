@@ -438,7 +438,8 @@ make build-all    # linux/darwin/windows × amd64/arm64
 ## 9. Database
 
 - **Master schema**: `backend/database/schema.sql` — complete current structure, used by fresh deployments.
-- **Migrations**: `backend/database/migrations/NNN_description.sql` + `NNN_description_rollback.sql`. Latest: **019_add_alert_history** (includes `organization_id` column for tenant scoping).
+- **Migrations**: `backend/database/migrations/NNN_description.sql` + `NNN_description_rollback.sql`. Number = highest on `main` + 1 (never fill a gap; 022, 048, 054–059 are skipped), checked again right before merging. Never renumber a migration already on `main`: QA and production record the numbers in `schema_migrations`.
+- Production and QA do not run migrations on deploy: apply them by hand before the deploy, then register them in `schema_migrations` (number, description, sha256 of the file).
 - Any DB change MUST update BOTH the migration AND `schema.sql`. Fresh deployments use `schema.sql`; upgrades apply migrations.
 - Models under `backend/models/` and affected SQL queries must be updated alongside.
 - OpenAPI spec must be updated if response shapes change.
