@@ -16,6 +16,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"time"
@@ -337,6 +338,10 @@ func GetSessionByID(sessionID string) (*models.SupportSession, error) {
 	return &session, nil
 }
 
+// ErrSessionNotLive is returned when the session to close is already closed,
+// expired or missing
+var ErrSessionNotLive = errors.New("session not found or already closed")
+
 // CloseSession closes a support session and clears ephemeral credentials
 func CloseSession(sessionID, closedBy string) error {
 	result, err := database.DB.Exec(
@@ -351,7 +356,7 @@ func CloseSession(sessionID, closedBy string) error {
 
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
-		return fmt.Errorf("session not found or already closed")
+		return ErrSessionNotLive
 	}
 
 	logger.ComponentLogger("session").Info().

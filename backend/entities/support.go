@@ -8,6 +8,7 @@ package entities
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -704,20 +705,21 @@ var ErrSessionTooLong = fmt.Errorf("extension would exceed maximum session durat
 
 // ExtendSession extends the expiration of a session atomically.
 // Rejects extensions that would push the total session duration beyond 30 days.
-func (r *SupportRepository) ExtendSession(sessionID string, hours int) error {
-	result, err := r.db.Exec(
+func (r *SupportRepository) ExtendSession(sessionID string, hours int) (time.Time, error) {
+	var expiresAt time.Time
+	err := r.db.QueryRow(
 		`UPDATE support_sessions
 		 SET expires_at = expires_at + $2 * INTERVAL '1 hour', updated_at = NOW()
 		 WHERE id = $1 AND status IN ('pending', 'active')
-		   AND (expires_at + $2 * INTERVAL '1 hour') - started_at <= $3 * INTERVAL '1 hour'`,
+		   AND (expires_at + $2 * INTERVAL '1 hour') - started_at <= $3 * INTERVAL '1 hour'
+		 RETURNING expires_at`,
 		sessionID, hours, maxSessionDuration,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to extend session: %w", err)
+	).Scan(&expiresAt)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return time.Time{}, fmt.Errorf("failed to extend session: %w", err)
 	}
 
-	rows, _ := result.RowsAffected()
-	if rows == 0 {
+	if errors.Is(err, sql.ErrNoRows) {
 		// Distinguish between "not found" and "would exceed max duration"
 		var exists bool
 		_ = r.db.QueryRow(
@@ -725,11 +727,11 @@ func (r *SupportRepository) ExtendSession(sessionID string, hours int) error {
 			sessionID,
 		).Scan(&exists)
 		if exists {
-			return ErrSessionTooLong
+			return time.Time{}, ErrSessionTooLong
 		}
-		return fmt.Errorf("session not found or not extendable")
+		return time.Time{}, fmt.Errorf("session not found or not extendable")
 	}
-	return nil
+	return expiresAt, nil
 }
 
 // CloseSession force-closes a session and clears ephemeral credentials

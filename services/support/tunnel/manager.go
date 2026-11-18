@@ -696,6 +696,7 @@ type CommandPayload struct {
 	Action       string                 `json:"action"`
 	Services     map[string]ServiceInfo `json:"services,omitempty"`
 	ServiceNames []string               `json:"service_names,omitempty"`
+	ExpiresAt    *time.Time             `json:"expires_at,omitempty"`
 }
 
 // RemoveServicesBySessionID removes specific services from the server-side tunnel registry.

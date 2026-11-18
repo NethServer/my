@@ -78,6 +78,7 @@ The support service can also **push commands** to the tunnel-client by opening o
 |:---|:---|
 | `add_services` | Inject one or more static `host:port` services into the running session without reconnection |
 | `remove_services` | Remove one or more services from the running session by name |
+| `set_expiry` | Tell the client the session's new expiry after an extension |
 
 ### Session Lifecycle
 - `pending` — Session created by backend, waiting for system to connect
@@ -212,6 +213,7 @@ All tunnel client settings are configured via environment variables or CLI flags
 
 - The server returns `X-Reconnect-Token` on the WebSocket upgrade; the client keeps it in memory and sends it as the `reconnect_token` query parameter (next to `node_id`) on every reconnect.
 - HTTP 410 on the handshake means the session was closed or expired: the client removes its support users and exits 0. Three consecutive 401/403 handshakes are terminal too (exit 1).
+- The upgrade also carries `X-Session-Expires-At` (RFC 3339), updated by `set_expiry` on extensions. When the client cannot reach the server 10 minutes after that expiry, it removes its support users and exits 0, so they do not outlive the session while the service is down.
 - At most 256 concurrent yamux streams and 8 terminals; the `CONNECT`/`COMMAND` header must arrive within 10s.
 
 Service exclusion patterns filter out services that are not useful for support operators:

@@ -15,6 +15,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"time"
 
 	"github.com/nethesis/my/services/support/configuration"
 	"github.com/nethesis/my/services/support/logger"
@@ -54,6 +56,7 @@ type SupportCommand struct {
 	SessionID    string                        `json:"session_id"`
 	Services     map[string]tunnel.ServiceInfo `json:"services,omitempty"`
 	ServiceNames []string                      `json:"service_names,omitempty"` // for remove_services
+	ExpiresAt    *time.Time                    `json:"expires_at,omitempty"`    // for set_expiry
 }
 
 // StartCommandListener listens for commands from the backend via Redis pub/sub
@@ -102,6 +105,8 @@ func StartCommandListener(ctx context.Context) {
 				handleAddServicesCommand(cmd)
 			case "remove_services":
 				handleRemoveServicesCommand(cmd)
+			case "set_expiry":
+				handleSetExpiryCommand(cmd)
 			default:
 				log.Warn().Str("action", cmd.Action).Msg("unknown command action")
 			}
@@ -167,7 +172,29 @@ func handleCloseCommand(sessionID string) {
 	ForgetClusterAdmin(sessionID)
 
 	// Close the session in the database
-	if err := session.CloseSession(sessionID, "operator"); err != nil {
+	// the backend usually closed it already
+	if err := session.CloseSession(sessionID, "operator"); err != nil && !errors.Is(err, session.ErrSessionNotLive) {
 		log.Error().Err(err).Str("session_id", sessionID).Msg("failed to close session")
+	}
+}
+
+// handleSetExpiryCommand forwards an extended expiry to the tunnel client
+func handleSetExpiryCommand(cmd SupportCommand) {
+	log := logger.ComponentLogger("commands")
+	if cmd.ExpiresAt == nil {
+		log.Warn().Str("session_id", cmd.SessionID).Msg("set_expiry command without expires_at")
+		return
+	}
+
+	payload := tunnel.CommandPayload{
+		Action:    "set_expiry",
+		ExpiresAt: cmd.ExpiresAt,
+	}
+
+	// clients older than set_expiry answer with an error: they keep working
+	if err := TunnelManager.SendCommandToSession(cmd.SessionID, payload); err != nil {
+		log.Warn().Err(err).Str("session_id", cmd.SessionID).Msg("failed to send set_expiry command to tunnel")
+	} else {
+		log.Info().Str("session_id", cmd.SessionID).Time("expires_at", *cmd.ExpiresAt).Msg("set_expiry command sent")
 	}
 }

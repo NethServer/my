@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
@@ -189,7 +190,8 @@ func ExtendSupportSession(c *gin.Context) {
 		return
 	}
 
-	if err := repo.ExtendSession(sessionID, request.Hours); err != nil {
+	expiresAt, err := repo.ExtendSession(sessionID, request.Hours)
+	if err != nil {
 		if errors.Is(err, entities.ErrSessionTooLong) {
 			c.JSON(http.StatusConflict, response.Error(http.StatusConflict, err.Error(), nil))
 			return
@@ -198,6 +200,8 @@ func ExtendSupportSession(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to extend support session", nil))
 		return
 	}
+
+	publishSessionExpiry(sessionID, expiresAt)
 
 	logger.LogBusinessOperation(c, "support", "extend", "session", sessionID, true, nil)
 	logAccessWithMetadata(c, sessionID, "session_extend", map[string]string{"hours": strconv.Itoa(request.Hours)})
@@ -274,6 +278,23 @@ func CloseAllSupportSessions(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("support sessions closed successfully", gin.H{
 		"closed": len(ids),
 	}))
+}
+
+// publishSessionExpiry tells the support service the session's new expiry, so
+// the tunnel client knows when to give up if the service becomes unreachable
+func publishSessionExpiry(sessionID string, expiresAt time.Time) {
+	redisClient := cache.GetRedisClient()
+	if redisClient == nil {
+		return
+	}
+	payload, _ := json.Marshal(map[string]string{
+		"action":     "set_expiry",
+		"session_id": sessionID,
+		"expires_at": expiresAt.UTC().Format(time.RFC3339),
+	})
+	if err := redisClient.Publish("support:commands", string(signAndMarshal(payload))); err != nil {
+		logger.Warn().Err(err).Str("session_id", sessionID).Msg("failed to publish expiry to support service")
+	}
 }
 
 // publishSessionClose asks the support service to drop the session's tunnel.

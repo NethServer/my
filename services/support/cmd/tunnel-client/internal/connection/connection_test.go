@@ -118,6 +118,42 @@ func TestDialTunnelReconnectToken(t *testing.T) {
 	}
 }
 
+func TestDialTunnelSessionExpiry(t *testing.T) {
+	expiresAt := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
+	upgrader := websocket.Upgrader{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hdr := http.Header{}
+		hdr.Set("X-Session-Expires-At", expiresAt.Format(time.RFC3339))
+		conn, err := upgrader.Upgrade(w, r, hdr)
+		if err != nil {
+			return
+		}
+		_ = conn.Close()
+	}))
+	defer srv.Close()
+
+	st := &runState{}
+	conn, err := dialTunnel(context.Background(), testConfig(srv.URL), st)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	_ = conn.Close()
+
+	if st.expiry.passed(expiresAt) {
+		t.Error("expiry passed at the expiry instant")
+	}
+	if !st.expiry.passed(expiresAt.Add(time.Second)) {
+		t.Error("expiry not stored from the handshake")
+	}
+}
+
+func TestSessionExpiryUnknown(t *testing.T) {
+	var e sessionExpiry
+	if e.passed(time.Now().Add(1000 * time.Hour)) {
+		t.Error("an unknown expiry must never pass: older servers do not send it")
+	}
+}
+
 func TestRunWithReconnectTerminalStatuses(t *testing.T) {
 	cases := []struct {
 		status    int

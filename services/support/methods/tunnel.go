@@ -119,8 +119,10 @@ func HandleTunnel(c *gin.Context) {
 	}
 
 	responseToken := ""
+	expiresAt := time.Now().Add(configuration.Config.SessionDefaultDuration)
 	if sess != nil {
 		responseToken = sess.ReconnectToken
+		expiresAt = sess.ExpiresAt
 	} else if responseToken, err = session.GenerateToken(); err != nil {
 		log.Error().Err(err).Msg("failed to generate reconnect token")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create session"})
@@ -128,7 +130,11 @@ func HandleTunnel(c *gin.Context) {
 	}
 
 	// Upgrade to WebSocket before any session row is created
-	wsConn, err := upgrader.Upgrade(c.Writer, c.Request, http.Header{"X-Reconnect-Token": []string{responseToken}})
+	// the expiry lets the client give up on its own when the service stays unreachable
+	wsConn, err := upgrader.Upgrade(c.Writer, c.Request, http.Header{
+		"X-Reconnect-Token":    []string{responseToken},
+		"X-Session-Expires-At": []string{expiresAt.UTC().Format(time.RFC3339)},
+	})
 	if err != nil {
 		log.Error().Err(err).Str("system_id", sysID).Msg("websocket upgrade failed")
 		return

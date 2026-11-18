@@ -45,6 +45,31 @@ type commandPayload struct {
 	Action       string                        `json:"action"`
 	Services     map[string]models.ServiceInfo `json:"services,omitempty"`
 	ServiceNames []string                      `json:"service_names,omitempty"` // for remove_services
+	ExpiresAt    *time.Time                    `json:"expires_at,omitempty"`    // for set_expiry
+}
+
+// expirySkewMargin is how long after the session expiry an unreachable
+// server makes the client give up
+const expirySkewMargin = 10 * time.Minute
+
+// sessionExpiry holds when the server will end the session, as last told by
+// the server; zero when an older server did not say
+type sessionExpiry struct {
+	mu sync.Mutex
+	at time.Time
+}
+
+func (e *sessionExpiry) set(at time.Time) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.at = at
+}
+
+// passed reports whether the known expiry is before now
+func (e *sessionExpiry) passed(now time.Time) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return !e.at.IsZero() && now.After(e.at)
 }
 
 // serviceStore is a goroutine-safe holder for the current service map.
@@ -198,6 +223,7 @@ type runState struct {
 	sessionUsers   *users.SessionUsers // what is reported and passed to plugins
 	lastServices   map[string]models.ServiceInfo
 	reconnectToken string
+	expiry         sessionExpiry
 	// services added by operators, kept across the reconnections of this run
 	injected map[string]models.ServiceInfo
 }
@@ -243,6 +269,14 @@ func RunWithReconnect(ctx context.Context, cfg *config.ClientConfig, leftover *u
 		}
 
 		log.Printf("Connection lost: %v", err)
+
+		// The server ends the session at its expiry: when it cannot be reached
+		// by then, leave anyway so the support users do not outlive the session.
+		// The margin absorbs a clock skew between the system and the server.
+		if st.expiry.passed(time.Now().Add(-expirySkewMargin)) {
+			log.Println("Session expired while the support service was unreachable. Exiting.")
+			return 0
+		}
 
 		// Reset backoff if connection lasted longer than 60 seconds
 		if time.Since(start) > 60*time.Second {
@@ -351,6 +385,9 @@ func dialTunnel(ctx context.Context, cfg *config.ClientConfig, st *runState) (*w
 	}
 	if token := resp.Header.Get("X-Reconnect-Token"); token != "" {
 		st.reconnectToken = token
+	}
+	if at, err := time.Parse(time.RFC3339, resp.Header.Get("X-Session-Expires-At")); err == nil {
+		st.expiry.set(at)
 	}
 	return wsConn, nil
 }
@@ -538,7 +575,7 @@ func connect(ctx context.Context, cfg *config.ClientConfig, st *runState) error 
 				return
 			}
 			if strings.HasPrefix(firstLine, "COMMAND ") {
-				handleCommandStream(yamuxStream, firstLine, store, session)
+				handleCommandStream(yamuxStream, firstLine, store, session, &st.expiry)
 			} else {
 				_ = yamuxStream.SetReadDeadline(time.Time{})
 				stream.HandleStreamWithFirstLine(yamuxStream, firstLine, store.get())
@@ -549,7 +586,7 @@ func connect(ctx context.Context, cfg *config.ClientConfig, st *runState) error 
 
 // handleCommandStream processes a COMMAND stream sent by the support service.
 // It reads the JSON payload, applies the command, and writes OK or ERROR response.
-func handleCommandStream(s net.Conn, firstLine string, store *serviceStore, session *yamux.Session) {
+func handleCommandStream(s net.Conn, firstLine string, store *serviceStore, session *yamux.Session, expiry *sessionExpiry) {
 	defer func() { _ = s.Close() }()
 
 	version := strings.TrimPrefix(firstLine, "COMMAND ")
@@ -594,6 +631,14 @@ func handleCommandStream(s net.Conn, firstLine string, store *serviceStore, sess
 			}
 		}
 		log.Printf("remove_services: removed %d service(s)", removed)
+		_, _ = fmt.Fprint(s, "OK\n")
+	case "set_expiry":
+		if payload.ExpiresAt == nil {
+			_, _ = fmt.Fprint(s, "ERROR no expiry provided\n")
+			return
+		}
+		expiry.set(*payload.ExpiresAt)
+		log.Printf("set_expiry: session expires at %s", payload.ExpiresAt.UTC().Format(time.RFC3339))
 		_, _ = fmt.Fprint(s, "OK\n")
 	default:
 		log.Printf("Unknown command action: %q", payload.Action)
