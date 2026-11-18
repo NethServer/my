@@ -27,6 +27,8 @@ own data alone:
 | **Configuration backups** | Copied to the new owner's storage area before the change is committed; the previous owner's copies are removed. |
 | **Alert history** | The system's full alert history follows the system, so the new owner sees what was happening before the handover. |
 | **System-specific silences** | Single-purpose silences (silencing all alerts of that one system) are dropped — the new owner can reapply them if needed. Broader silences set up by the previous owner (for example "silence disk-full alerts on this system during maintenance") are left in place; they expire on their own. |
+| **Active alerts** | Alerts that are firing keep firing under the new owner. The copies left under the previous owner are muted, so they fade out without being recorded as resolved. |
+| **Add-ons** | They stay on the system and keep working until they expire. The renewal continues only if the add-on was bought by the new organization or by one above it; otherwise it stops and the new owner buys it again from the shop. |
 | **Application assignments** | All app-to-organization assignments on the system are cleared. The new owner re-assigns the apps it cares about from the regular Applications view. |
 | **Inventory, heartbeat, system identity** | Untouched — `system_key`, the secret, the inventory history all carry over. Appliances do not need to re-register. |
 
@@ -48,6 +50,8 @@ change is refused until it does.
 
 1. Open the system detail page.
 2. Edit the system and pick a different **Organization** from the dropdown.
+   If the system has add-ons whose renewal would stop, a warning lists
+   them before you save.
 3. Save. Within a few seconds the system shows the new owner and all the
    data above is in place.
 

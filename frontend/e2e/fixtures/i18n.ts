@@ -31,7 +31,7 @@ const EN = JSON.parse(
  * "Go to {page}". A placeholder left unfilled is an error rather than a
  * selector that silently matches nothing.
  */
-export function t(key: string, params: Record<string, string> = {}): string {
+function lookup(key: string): string {
   const value = key.split('.').reduce<unknown>((node, part) => {
     return node && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined
   }, EN)
@@ -39,6 +39,21 @@ export function t(key: string, params: Record<string, string> = {}): string {
   if (typeof value !== 'string') {
     throw new Error(`No English translation for "${key}"`)
   }
+  return value
+}
+
+/**
+ * Resolves vue-i18n linked messages, `@:{'other.key'}` or `@:other.key`, the
+ * way the app does: a text that names a button or a filter links its label.
+ */
+function resolveLinks(value: string): string {
+  return value.replace(/@:(?:\{'([^']+)'\}|([\w.]*\w))/g, (_, braced?: string, bare?: string) =>
+    resolveLinks(lookup(braced ?? bare ?? '')),
+  )
+}
+
+export function t(key: string, params: Record<string, string> = {}): string {
+  const value = resolveLinks(lookup(key))
 
   const filled = value.replace(/\{(\w+)\}/g, (_, name: string) => {
     if (!(name in params)) {

@@ -256,6 +256,42 @@ Requisiti:
 La promozione è un cambio di gerarchia, non un ritocco estetico. Il distributore precedente perde visibilità su quel rivenditore e su tutto ciò che sta sotto di lui.
 :::
 
+### Cambio del Gestore di un Cliente
+
+Un cliente può essere spostato sotto un altro rivenditore o distributore. Usa l'azione **Cambia gestore** nel menu contestuale del cliente o sulla sua card di dettaglio: il drawer mostra in anteprima tutti gli effetti per l'azienda selezionata prima di cambiare qualsiasi cosa.
+
+Il cambio:
+
+- **Sposta con il cliente i suoi sistemi e utenti**: il nuovo gestore li vede e li gestisce, quello precedente non più
+- **Mantiene storico allarmi e backup** sul cliente
+- **Passa branding e notifiche degli allarmi** a quelli del nuovo gestore
+- **Rimuove i silenzi del gestore precedente** sui sistemi del cliente e rilascia gli allarmi assegnati ai suoi utenti
+- **Interrompe il rinnovo degli add-on acquistati dal gestore precedente**: restano attivi fino alla scadenza, poi il nuovo gestore li riacquista dallo shop. Gli add-on acquistati all'interno della nuova gerarchia continuano a rinnovarsi, quelli senza scadenza non cambiano
+- Lascia **Creato da** com'era: indica chi ha creato il cliente, mentre **Gestito da** mostra il gestore attuale
+
+Requisiti:
+
+- Organizzazione Owner o distributore, con `manage:customers`: un rivenditore non può cedere i propri clienti a un'altra azienda
+- Un distributore sposta solo clienti della propria gerarchia, verso se stesso o uno dei suoi rivenditori
+- Il cliente deve essere **attivo** e l'azienda selezionata un rivenditore o distributore non sospeso
+
+:::warning
+Il cambio di gestore è un cambio di gerarchia. Il gestore precedente perde ogni accesso al cliente, e gli add-on che ha acquistato non vengono rinnovati.
+:::
+
+Per spostare più clienti insieme, selezionali nell'elenco clienti (la selezione resta al cambio di pagina e di filtri) e scegli **Cambia gestore**: il drawer verifica prima ogni cliente selezionato, somma gli effetti dello spostamento ed elenca quelli che non possono essere spostati, poi li sposta uno alla volta mostrando l'avanzamento. Tieni la pagina aperta fino al termine; **Interrompi** ferma l'operazione dopo il cliente in corso.
+
+### Cambio del Gestore di un Rivenditore
+
+Un rivenditore può essere spostato sotto un altro distributore con l'azione **Cambia gestore** nel suo menu contestuale o sulla sua card di dettaglio. I suoi clienti, sistemi e utenti lo seguono: il distributore che lascia non li vede più, quello nuovo sì.
+
+- Il rivenditore continua a gestire i propri clienti, con storico allarmi, backup e silenzi invariati
+- Le **notifiche degli allarmi** configurate dal distributore che lascia smettono di arrivare per i suoi sistemi, iniziano quelle configurate dal nuovo distributore
+- Il **branding** segue il nuovo distributore, a meno che il rivenditore non ne abbia uno proprio
+- Gli allarmi assegnati a utenti del distributore che lascia vengono rilasciati, e **gli add-on acquistati da quella parte non vengono più rinnovati**, come per un cliente
+
+Solo l'organizzazione Owner (l'account Owner e gli Staff) può spostare un rivenditore, e solo sotto un distributore non sospeso.
+
 ## Statistiche
 
 ### Visualizzare le Statistiche

@@ -2247,6 +2247,12 @@ func (s *LocalOrganizationService) GetAllOrganizationsPaginated(userOrgRole, use
 		nextIdx++
 	}
 
+	if filters.OnlyEnabled() {
+		filterClauses = append(filterClauses, "suspended_at IS NULL")
+	} else if filters.OnlySuspended() {
+		filterClauses = append(filterClauses, "suspended_at IS NOT NULL")
+	}
+
 	filterClause := ""
 	if len(filterClauses) > 0 {
 		filterClause = " WHERE " + strings.Join(filterClauses, " AND ")
@@ -2255,13 +2261,13 @@ func (s *LocalOrganizationService) GetAllOrganizationsPaginated(userOrgRole, use
 	// UNION the three org tables, applying the RBAC scope per branch so the
 	// planner can use the logto_id index instead of materialising every row.
 	unionSQL := fmt.Sprintf(`
-		SELECT id, logto_id, name, description, custom_data, 'distributor' AS type
+		SELECT id, logto_id, name, description, custom_data, suspended_at, 'distributor' AS type
 		FROM distributors WHERE deleted_at IS NULL AND logto_id IS NOT NULL%s
 		UNION ALL
-		SELECT id, logto_id, name, description, custom_data, 'reseller' AS type
+		SELECT id, logto_id, name, description, custom_data, suspended_at, 'reseller' AS type
 		FROM resellers WHERE deleted_at IS NULL AND logto_id IS NOT NULL%s
 		UNION ALL
-		SELECT id, logto_id, name, description, custom_data, 'customer' AS type
+		SELECT id, logto_id, name, description, custom_data, suspended_at, 'customer' AS type
 		FROM customers WHERE deleted_at IS NULL AND logto_id IS NOT NULL%s
 	`, scopeClause, scopeClause, scopeClause)
 

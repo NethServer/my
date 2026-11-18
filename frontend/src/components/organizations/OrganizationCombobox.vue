@@ -26,6 +26,9 @@ const props = withDefaults(
     // client-side filter would drop to a handful of entries — or none — as soon
     // as companies of other types sort ahead of them.
     allowedTypes?: string[]
+    // Leaves out the suspended companies, for a choice the backend refuses them
+    // in (the new manager of a company). Server-side, like allowedTypes.
+    activeOnly?: boolean
     // Exclude these organization ids from the options (e.g. the caller's own org).
     excludeOrganizationIds?: string[]
     // The organization already assigned to the entity being edited. The options
@@ -37,6 +40,7 @@ const props = withDefaults(
   {
     isShown: true,
     optional: false,
+    activeOnly: false,
   },
 )
 
@@ -49,6 +53,7 @@ const { t } = useI18n()
 const { organizations, loading, onSearch, currentSearch } = useOrganizationFilter(
   () => props.isShown,
   () => props.allowedTypes,
+  () => props.activeOnly,
 )
 
 const organizationOptions = computed(() => {

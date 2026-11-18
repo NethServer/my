@@ -371,6 +371,35 @@ func UpdateSystem(c *gin.Context) {
 	c.JSON(http.StatusOK, response.OK("system updated successfully", system))
 }
 
+// GetSystemTransferPreview handles GET /api/systems/:id/transfer — what
+// assigning the system to ?organization_id= would do to its add-ons.
+func GetSystemTransferPreview(c *gin.Context) {
+	systemID := c.Param("id")
+	targetOrgID := c.Query("organization_id")
+	if systemID == "" || targetOrgID == "" {
+		c.JSON(http.StatusBadRequest, response.BadRequest("system ID and organization_id required", nil))
+		return
+	}
+
+	user, ok := helpers.GetUserFromContext(c)
+	if !ok {
+		return
+	}
+
+	plan, err := local.NewSystemsService().PlanSystemTransfer(systemID, targetOrgID, user.OrgRole, user.OrganizationID)
+	if errors.Is(err, local.ErrSystemTransferTarget) {
+		c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+			{Key: "organization_id", Message: "not_in_hierarchy", Value: targetOrgID},
+		}))
+		return
+	}
+	if helpers.HandleAccessError(c, err, "system", systemID) {
+		return
+	}
+
+	c.JSON(http.StatusOK, response.OK("system transfer preview retrieved successfully", plan))
+}
+
 // DeleteSystem handles DELETE /api/systems/:id - deletes a system
 func DeleteSystem(c *gin.Context) {
 	// Get system ID from URL parameter

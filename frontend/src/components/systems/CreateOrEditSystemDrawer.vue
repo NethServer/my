@@ -23,18 +23,21 @@ import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import {
   CreateSystemSchema,
   EditSystemSchema,
+  getSystemTransferPreview,
   postSystem,
   putSystem,
+  SYSTEM_TRANSFER_PREVIEW_KEY,
   SYSTEMS_KEY,
   SYSTEMS_TOTAL_KEY,
   type CreateSystem,
   type EditSystem,
   type System,
 } from '@/lib/systems/systems'
-import { useMutation, useQueryCache } from '@pinia/colada'
+import { useMutation, useQuery, useQueryCache } from '@pinia/colada'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useI18n } from 'vue-i18n'
 import {
+  describeRequestError,
   focusFirstRejectedField,
   getValidationIssues,
   isValidationError,
@@ -46,6 +49,7 @@ import { faCheck, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
 import { SYSTEM_FILTERS_KEY } from '@/lib/systems/systemFilters'
 import { useLoginStore } from '@/stores/login'
 import { isUserCustomer, isUserDistributor } from '@/lib/organizations/organizations'
+import { formatDateNoTime } from '@/lib/dateTime'
 
 const { isShown = false, currentSystem = undefined } = defineProps<{
   isShown: boolean
@@ -54,7 +58,7 @@ const { isShown = false, currentSystem = undefined } = defineProps<{
 
 const emit = defineEmits(['close'])
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const queryCache = useQueryCache()
 const notificationsStore = useNotificationsStore()
 const loginStore = useLoginStore()
@@ -129,6 +133,46 @@ const secret = ref('')
 const fakeSystemCreatedLoading = ref(true)
 const isSecretShown = ref(false)
 const isSecretRevealed = ref(false)
+
+const isOrganizationChanging = computed(
+  () =>
+    !!currentSystem?.id &&
+    !!organizationId.value &&
+    organizationId.value !== (currentSystem.organization.logto_id || ''),
+)
+
+const {
+  state: transferPreview,
+  asyncStatus: transferPreviewStatus,
+  error: transferPreviewError,
+} = useQuery({
+  key: () => [SYSTEM_TRANSFER_PREVIEW_KEY, currentSystem?.id ?? '', organizationId.value],
+  enabled: () => !!loginStore.jwtToken && isShown && isOrganizationChanging.value,
+  query: () => getSystemTransferPreview(currentSystem?.id ?? '', organizationId.value),
+  staleTime: 0,
+  gcTime: 0,
+})
+
+const transferPlan = computed(() =>
+  isOrganizationChanging.value ? transferPreview.value.data : undefined,
+)
+
+// The warning depends on this preview: while it loads, and if it fails, say so
+// instead of showing nothing, or the system could be saved without the user
+// learning that some add-ons stop renewing
+const isTransferPreviewLoading = computed(
+  () => isOrganizationChanging.value && transferPreviewStatus.value === 'loading',
+)
+
+const transferPreviewErrorDescription = computed(() =>
+  isOrganizationChanging.value && transferPreviewError.value
+    ? describeRequestError(transferPreviewError.value, t)
+    : '',
+)
+
+const stoppingAddons = computed(
+  () => transferPlan.value?.addons.filter((addon) => addon.renewal === 'stops') ?? [],
+)
 
 const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> = {
   name: nameRef,
@@ -305,6 +349,48 @@ function copySecretAndCloseDrawer() {
             "
             :disabled="saving"
           />
+          <!-- add-ons that stop renewing with the new organization -->
+          <NeSkeleton v-if="isTransferPreviewLoading" :lines="2" />
+          <NeInlineNotification
+            v-else-if="transferPreviewErrorDescription"
+            kind="error"
+            :title="$t('systems.cannot_check_addon_renewals')"
+            :description="transferPreviewErrorDescription"
+          />
+          <div v-else-if="transferPlan && stoppingAddons.length" class="space-y-3">
+            <NeInlineNotification
+              kind="warning"
+              :title="$t('customers.addons_renewal_stop_title', stoppingAddons.length)"
+              :description="
+                $t(
+                  'customers.addons_renewal_stop_description',
+                  { to: transferPlan.to.name, count: stoppingAddons.length },
+                  stoppingAddons.length,
+                )
+              "
+            />
+            <ul class="space-y-2">
+              <li
+                v-for="addon in stoppingAddons"
+                :key="`${addon.entitlement}-${addon.scope ?? ''}`"
+              >
+                <span class="font-medium">
+                  {{ addon.display_name
+                  }}<template v-if="addon.scope"> ({{ addon.scope }})</template>
+                </span>
+                <span class="text-tertiary-neutral">
+                  ·
+                  {{
+                    $t('customers.addon_renewal_stops', {
+                      date: addon.valid_until
+                        ? formatDateNoTime(new Date(addon.valid_until), locale)
+                        : '',
+                    })
+                  }}
+                </span>
+              </li>
+            </ul>
+          </div>
           <!-- notes -->
           <NeTextArea
             ref="notesRef"

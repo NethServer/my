@@ -60,6 +60,7 @@ func GetOrganizations(c *gin.Context) {
 		Description: c.Query("description"),
 		Types:       c.QueryArray("type"),
 		CreatedBy:   c.Query("created_by"),
+		Statuses:    c.QueryArray("status"),
 	}
 
 	// Use local organization service for better performance
@@ -145,7 +146,8 @@ func GetOrganizations(c *gin.Context) {
 // a search/name term that does not match the org name, and by any created_by
 // or description filter (the Owner organization has neither).
 func ownerEntryMatchesFilters(c *gin.Context, filters models.OrganizationFilters) bool {
-	if filters.CreatedBy != "" || filters.Description != "" {
+	// the Owner organization is never suspended
+	if filters.CreatedBy != "" || filters.Description != "" || filters.OnlySuspended() {
 		return false
 	}
 	if len(filters.Types) > 0 {

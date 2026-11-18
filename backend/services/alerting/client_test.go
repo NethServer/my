@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/nethesis/my/backend/configuration"
 	"github.com/nethesis/my/backend/models"
@@ -311,4 +312,213 @@ func TestCleanupSystemSilencesContinuesOnPartialFailure(t *testing.T) {
 	assert.Equal(t, 2, count)
 	assert.True(t, deleted["ok-1"])
 	assert.True(t, deleted["ok-2"])
+}
+
+func TestCleanupSilencesForSystemsDeletesEveryExactSystemMatch(t *testing.T) {
+	oldClient := httpClient
+	oldMimirURL := configuration.Config.MimirURL
+	defer func() {
+		httpClient = oldClient
+		configuration.Config.MimirURL = oldMimirURL
+	}()
+
+	silences := []models.AlertmanagerSilence{
+		{
+			ID:       "only-system",
+			Matchers: []models.AlertmanagerMatcher{{Name: "system_key", Value: "system-1"}},
+			Status:   &models.AlertmanagerSilenceStatus{State: "active"},
+		},
+		{
+			ID: "system-and-alert",
+			Matchers: []models.AlertmanagerMatcher{
+				{Name: "alertname", Value: "DiskFull"},
+				{Name: "system_key", Value: "system-2"},
+			},
+			Status: &models.AlertmanagerSilenceStatus{State: "pending"},
+		},
+		{
+			ID:       "expired",
+			Matchers: []models.AlertmanagerMatcher{{Name: "system_key", Value: "system-1"}},
+			Status:   &models.AlertmanagerSilenceStatus{State: "expired"},
+		},
+		{
+			ID:       "other-customer",
+			Matchers: []models.AlertmanagerMatcher{{Name: "system_key", Value: "system-9"}},
+			Status:   &models.AlertmanagerSilenceStatus{State: "active"},
+		},
+		{
+			ID:       "regex",
+			Matchers: []models.AlertmanagerMatcher{{Name: "system_key", Value: "system-.*", IsRegex: true}},
+			Status:   &models.AlertmanagerSilenceStatus{State: "active"},
+		},
+	}
+
+	deleted := map[string]bool{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "reseller-1", r.Header.Get("X-Scope-OrgID"))
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/alertmanager/api/v2/silences":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(silences)
+		case r.Method == http.MethodDelete:
+			deleted[r.URL.Path[len("/alertmanager/api/v2/silence/"):]] = true
+			w.WriteHeader(http.StatusOK)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	configuration.Config.MimirURL = server.URL
+
+	count, err := CleanupSilencesForSystems("reseller-1", []string{"system-1", "system-2"})
+	require.NoError(t, err)
+	assert.Equal(t, 2, count)
+	assert.Equal(t, map[string]bool{"only-system": true, "system-and-alert": true}, deleted)
+}
+
+func TestOrganizationHandoverSilences(t *testing.T) {
+	oldClient := httpClient
+	oldMimirURL := configuration.Config.MimirURL
+	defer func() {
+		httpClient = oldClient
+		configuration.Config.MimirURL = oldMimirURL
+	}()
+
+	silences := []models.AlertmanagerSilence{
+		{
+			ID:        "handover",
+			Matchers:  []models.AlertmanagerMatcher{{Name: "organization_id", Value: "customer-1"}},
+			CreatedBy: handoverSilenceCreator,
+			Status:    &models.AlertmanagerSilenceStatus{State: "active"},
+		},
+		{
+			ID:        "other-customer",
+			Matchers:  []models.AlertmanagerMatcher{{Name: "organization_id", Value: "customer-2"}},
+			CreatedBy: handoverSilenceCreator,
+			Status:    &models.AlertmanagerSilenceStatus{State: "active"},
+		},
+		{
+			ID:        "set-by-a-user",
+			Matchers:  []models.AlertmanagerMatcher{{Name: "organization_id", Value: "customer-1"}},
+			CreatedBy: "someone",
+			Status:    &models.AlertmanagerSilenceStatus{State: "active"},
+		},
+		{
+			ID:        "expired",
+			Matchers:  []models.AlertmanagerMatcher{{Name: "organization_id", Value: "customer-1"}},
+			CreatedBy: handoverSilenceCreator,
+			Status:    &models.AlertmanagerSilenceStatus{State: "expired"},
+		},
+	}
+
+	var created models.AlertmanagerSilenceRequest
+	deleted := map[string]bool{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/alertmanager/api/v2/silences":
+			assert.Equal(t, "reseller-old", r.Header.Get("X-Scope-OrgID"))
+			_ = json.NewDecoder(r.Body).Decode(&created)
+			_, _ = w.Write([]byte(`{"silenceID":"new"}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/alertmanager/api/v2/silences":
+			assert.Equal(t, "reseller-new", r.Header.Get("X-Scope-OrgID"))
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(silences)
+		case r.Method == http.MethodDelete:
+			deleted[r.URL.Path[len("/alertmanager/api/v2/silence/"):]] = true
+			w.WriteHeader(http.StatusOK)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	configuration.Config.MimirURL = server.URL
+
+	require.NoError(t, SilenceOrganizationHandover("reseller-old", "customer-1"))
+	assert.Equal(t, []models.AlertmanagerMatcher{{Name: "organization_id", Value: "customer-1"}}, created.Matchers)
+	assert.Equal(t, handoverSilenceCreator, created.CreatedBy)
+	starts, err := time.Parse(time.RFC3339, created.StartsAt)
+	require.NoError(t, err)
+	ends, err := time.Parse(time.RFC3339, created.EndsAt)
+	require.NoError(t, err)
+	assert.Equal(t, handoverSilenceDuration, ends.Sub(starts))
+
+	count, err := ClearOrganizationHandover("reseller-new", "customer-1")
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+	assert.Equal(t, map[string]bool{"handover": true}, deleted)
+}
+
+func TestSystemHandoverSilences(t *testing.T) {
+	oldClient := httpClient
+	oldMimirURL := configuration.Config.MimirURL
+	defer func() {
+		httpClient = oldClient
+		configuration.Config.MimirURL = oldMimirURL
+	}()
+
+	handover := func(id, org, key string) models.AlertmanagerSilence {
+		return models.AlertmanagerSilence{
+			ID: id,
+			// Alertmanager may return the matchers in another order
+			Matchers: []models.AlertmanagerMatcher{
+				{Name: "organization_id", Value: org},
+				{Name: "system_key", Value: key},
+			},
+			CreatedBy: handoverSilenceCreator,
+			Status:    &models.AlertmanagerSilenceStatus{State: "active"},
+		}
+	}
+	setByUser := handover("set-by-a-user", "customer-1", "system-1")
+	setByUser.CreatedBy = "someone"
+	silences := []models.AlertmanagerSilence{
+		handover("handover", "customer-1", "system-1"),
+		handover("other-system", "customer-1", "system-2"),
+		handover("other-organization", "customer-2", "system-1"),
+		setByUser,
+		{
+			ID:        "whole-organization",
+			Matchers:  []models.AlertmanagerMatcher{{Name: "organization_id", Value: "customer-1"}},
+			CreatedBy: handoverSilenceCreator,
+			Status:    &models.AlertmanagerSilenceStatus{State: "active"},
+		},
+	}
+
+	var created models.AlertmanagerSilenceRequest
+	deleted := map[string]bool{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/alertmanager/api/v2/silences":
+			assert.Equal(t, "reseller-1", r.Header.Get("X-Scope-OrgID"))
+			_ = json.NewDecoder(r.Body).Decode(&created)
+			_, _ = w.Write([]byte(`{"silenceID":"new"}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/alertmanager/api/v2/silences":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(silences)
+		case r.Method == http.MethodDelete:
+			deleted[r.URL.Path[len("/alertmanager/api/v2/silence/"):]] = true
+			w.WriteHeader(http.StatusOK)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	configuration.Config.MimirURL = server.URL
+
+	require.NoError(t, SilenceSystemHandover("reseller-1", "customer-2", "system-1"))
+	assert.Equal(t, []models.AlertmanagerMatcher{
+		{Name: "system_key", Value: "system-1"},
+		{Name: "organization_id", Value: "customer-2"},
+	}, created.Matchers)
+	assert.Equal(t, handoverSilenceCreator, created.CreatedBy)
+
+	count, err := ClearSystemHandover("reseller-1", "customer-1", "system-1")
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+	assert.Equal(t, map[string]bool{"handover": true}, deleted)
 }

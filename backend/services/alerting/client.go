@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -369,6 +370,160 @@ func CleanupSystemSilences(orgID, systemKey string) (int, error) {
 	}
 
 	return deleted, firstErr
+}
+
+// SilencesForSystems returns the ids of the live silences in the tenant that
+// name one of systemKeys with an exact system_key matcher, whatever other
+// matchers they carry: when those systems leave the tenant (their customer
+// moves to another manager) the silence can no longer match anything there.
+// Regex matchers span an open set of systems and are left alone.
+func SilencesForSystems(tenantOrgID string, systemKeys []string) ([]string, error) {
+	if len(systemKeys) == 0 {
+		return nil, nil
+	}
+	silences, err := GetSilences(tenantOrgID)
+	if err != nil {
+		return nil, fmt.Errorf("list silences in org %s: %w", tenantOrgID, err)
+	}
+	keys := make(map[string]bool, len(systemKeys))
+	for _, k := range systemKeys {
+		keys[k] = true
+	}
+	ids := []string{}
+	for _, s := range silences {
+		if s.Status != nil && s.Status.State == "expired" {
+			continue
+		}
+		for _, m := range s.Matchers {
+			if m.Name == "system_key" && !m.IsRegex && keys[m.Value] {
+				ids = append(ids, s.ID)
+				break
+			}
+		}
+	}
+	return ids, nil
+}
+
+// CleanupSilencesForSystems deletes, best-effort, the silences returned by
+// SilencesForSystems. Returns how many were deleted and the first error.
+func CleanupSilencesForSystems(tenantOrgID string, systemKeys []string) (int, error) {
+	ids, err := SilencesForSystems(tenantOrgID, systemKeys)
+	if err != nil {
+		return 0, err
+	}
+	deleted := 0
+	var firstErr error
+	for _, id := range ids {
+		if err := DeleteSilence(tenantOrgID, id); err != nil {
+			if errors.Is(err, ErrSilenceNotFound) {
+				continue
+			}
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		deleted++
+	}
+	return deleted, firstErr
+}
+
+// handoverSilenceCreator marks the silences this backend sets on an
+// organization that left a tenant, so they can be told apart and removed.
+const handoverSilenceCreator = "my-organization-handover"
+
+// handoverSilenceDuration outlasts resolve_timeout: an alert sent without an
+// end time lingers that long before the tenant considers it resolved.
+const handoverSilenceDuration = 24 * time.Hour
+
+// SilenceOrganizationHandover mutes the alerts an organization still holds in
+// the tenant it just left. Nothing refreshes them there any more, so they
+// expire and the tenant would report each one as resolved while it is still
+// firing in the new tenant.
+func SilenceOrganizationHandover(tenantOrgID, organizationID string) error {
+	return silenceHandover(tenantOrgID, organizationHandoverMatchers(organizationID), "organization moved to another tenant")
+}
+
+// ClearOrganizationHandover removes the handover silences of an organization
+// from the tenant it enters: one left by an earlier move out of that tenant
+// would mute its alerts now that they are back.
+func ClearOrganizationHandover(tenantOrgID, organizationID string) (int, error) {
+	return clearHandover(tenantOrgID, organizationHandoverMatchers(organizationID))
+}
+
+// SilenceSystemHandover mutes the alerts a system still holds under the
+// organization it just left: its new alerts carry the new organization_id,
+// so the old copies expire and would be reported as resolved.
+func SilenceSystemHandover(tenantOrgID, organizationID, systemKey string) error {
+	return silenceHandover(tenantOrgID, systemHandoverMatchers(organizationID, systemKey), "system moved to another organization")
+}
+
+// ClearSystemHandover removes the handover silences left by an earlier move
+// of the system out of the organization it now enters.
+func ClearSystemHandover(tenantOrgID, organizationID, systemKey string) (int, error) {
+	return clearHandover(tenantOrgID, systemHandoverMatchers(organizationID, systemKey))
+}
+
+func organizationHandoverMatchers(organizationID string) []models.AlertmanagerMatcher {
+	return []models.AlertmanagerMatcher{{Name: "organization_id", Value: organizationID}}
+}
+
+func systemHandoverMatchers(organizationID, systemKey string) []models.AlertmanagerMatcher {
+	return []models.AlertmanagerMatcher{
+		{Name: "system_key", Value: systemKey},
+		{Name: "organization_id", Value: organizationID},
+	}
+}
+
+func silenceHandover(tenantOrgID string, matchers []models.AlertmanagerMatcher, comment string) error {
+	now := time.Now().UTC()
+	_, err := CreateSilence(tenantOrgID, &models.AlertmanagerSilenceRequest{
+		Matchers:  matchers,
+		StartsAt:  now.Format(time.RFC3339),
+		EndsAt:    now.Add(handoverSilenceDuration).Format(time.RFC3339),
+		Comment:   comment,
+		CreatedBy: handoverSilenceCreator,
+	})
+	return err
+}
+
+func clearHandover(tenantOrgID string, matchers []models.AlertmanagerMatcher) (int, error) {
+	silences, err := GetSilences(tenantOrgID)
+	if err != nil {
+		return 0, fmt.Errorf("list silences in org %s: %w", tenantOrgID, err)
+	}
+	deleted := 0
+	var firstErr error
+	for _, s := range silences {
+		if s.CreatedBy != handoverSilenceCreator || (s.Status != nil && s.Status.State == "expired") {
+			continue
+		}
+		if !sameMatchers(s.Matchers, matchers) {
+			continue
+		}
+		if err := DeleteSilence(tenantOrgID, s.ID); err != nil {
+			if !errors.Is(err, ErrSilenceNotFound) && firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		deleted++
+	}
+	return deleted, firstErr
+}
+
+// sameMatchers compares two matcher sets regardless of order: Alertmanager
+// does not guarantee to return them as they were sent.
+func sameMatchers(a, b []models.AlertmanagerMatcher) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for _, m := range a {
+		if !slices.Contains(b, m) {
+			return false
+		}
+	}
+	return true
 }
 
 // silenceTargetsSystem reports whether the silence is *exclusively* scoped

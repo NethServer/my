@@ -11,10 +11,12 @@ import {
   type ImportValidationResult,
   type ImportConfirmResult,
 } from './organizations'
+import type { CustomerTransferAddon, CustomerTransferOrganization } from './customers'
 
 export const RESELLERS_KEY = 'resellers'
 export const RESELLERS_TOTAL_KEY = 'resellersTotal'
 export const RESELLERS_TABLE_ID = 'resellersTable'
+export const RESELLER_TRANSFER_PREVIEW_KEY = 'resellerTransferPreview'
 
 export type ResellerStatus = 'enabled' | 'suspended' | 'deleted'
 
@@ -254,6 +256,49 @@ export const promoteReseller = (reseller: Reseller) => {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     },
   )
+}
+
+// What moving a reseller under another distributor does: returned by the
+// preview, and with the applied counters by the transfer itself.
+export interface ResellerTransferPlan {
+  reseller: CustomerTransferOrganization
+  from: CustomerTransferOrganization
+  to: CustomerTransferOrganization
+  customers_count: number
+  systems_count: number
+  users_count: number
+  addons: CustomerTransferAddon[]
+  renewals_stopping: number
+  assignments_count: number
+  warnings?: string[]
+}
+
+export const getResellerTransferPreview = (resellerId: string, organizationId: string) => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .get<{ code: number; message: string; data: ResellerTransferPlan }>(
+      `${API_URL}/resellers/${resellerId}/transfer`,
+      {
+        headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+        params: { organization_id: organizationId },
+      },
+    )
+    .then((res) => res.data.data)
+}
+
+export const transferReseller = (resellerId: string, organizationId: string) => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .patch<{ code: number; message: string; data: ResellerTransferPlan }>(
+      `${API_URL}/resellers/${resellerId}/transfer`,
+      { organization_id: organizationId },
+      {
+        headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
+      },
+    )
+    .then((res) => res.data.data)
 }
 
 export const restoreReseller = (reseller: Reseller) => {

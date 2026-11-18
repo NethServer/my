@@ -257,6 +257,9 @@ func main() {
 			systemsGroup.PUT("/:id", methods.UpdateSystem)    // Update system (manage:systems required)
 			systemsGroup.DELETE("/:id", methods.DeleteSystem) // Soft-delete system (manage:systems required)
 
+			// What assigning the system to another organization does to its add-ons
+			systemsGroup.GET("/:id/transfer", middleware.RequirePermission("manage:systems"), methods.GetSystemTransferPreview)
+
 			// Restore and destroy endpoints
 			systemsGroup.PATCH("/:id/restore", methods.RestoreSystem)                                                   // Restore soft-deleted system (manage:systems required)
 			systemsGroup.DELETE("/:id/destroy", middleware.RequirePermission("destroy:systems"), methods.DestroySystem) // Permanently delete system (destroy:systems required)
@@ -534,6 +537,9 @@ func main() {
 		// Owner-organization gate in the handler, not manage:resellers, which every
 		// distributor holds.
 		customAuthWithAudit.PATCH("/resellers/:id/promote", middleware.RequirePermission("manage:resellers"), middleware.ExtendDeadline(60*time.Second), methods.PromoteReseller) // Promote reseller to distributor keeping its hierarchy (slow: one Logto role switch per member); the handler additionally requires the Owner organization
+		// Reseller transfer to another distributor (manage:resellers; Owner organization only, enforced in handler)
+		customAuthWithAudit.GET("/resellers/:id/transfer", middleware.RequirePermission("manage:resellers"), methods.GetResellerTransferPreview)
+		customAuthWithAudit.PATCH("/resellers/:id/transfer", middleware.RequirePermission("manage:resellers"), methods.TransferReseller)
 
 		// Customers - resource-based permission validation (read:customers for GET, manage:customers for POST/PUT/DELETE)
 		// Self-access: GET on own organization ID is always allowed (object-level RBAC in handlers)
@@ -553,6 +559,10 @@ func main() {
 			// Suspend and reactivate endpoints (cascade to users)
 			customersGroup.PATCH("/:id/suspend", methods.SuspendCustomer)       // Suspend customer and all its users
 			customersGroup.PATCH("/:id/reactivate", methods.ReactivateCustomer) // Reactivate customer and cascade-suspended users
+
+			// Customer transfer to another manager (manage:customers; owner and distributor only, enforced in handler)
+			customersGroup.GET("/:id/transfer", middleware.RequirePermission("manage:customers"), methods.GetCustomerTransferPreview)
+			customersGroup.PATCH("/:id/transfer", methods.TransferCustomer)
 
 			// Customers totals and trend endpoints (read:customers required)
 			customersGroup.GET("/totals", methods.GetCustomersTotals)
