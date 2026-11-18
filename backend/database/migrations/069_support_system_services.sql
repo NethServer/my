@@ -1,4 +1,4 @@
--- Migration 059: Services added by operators to a system's support sessions
+-- Migration 069: Services added by operators to a system's support sessions
 -- A web UI the discovery missed (a phone, a printer, a device on the LAN)
 -- is added once per system node and offered again to every later session,
 -- until an operator removes it or nobody opens it for 90 days.

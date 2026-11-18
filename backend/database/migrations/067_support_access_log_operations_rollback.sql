@@ -1,4 +1,4 @@
--- Rollback Migration 057: Restore the original support access types
+-- Rollback Migration 067: Restore the original support access types
 
 DELETE FROM support_access_logs
  WHERE access_type IN ('session_extend', 'session_close', 'service_add', 'service_remove', 'cluster_login', 'autofill', 'ui_close');

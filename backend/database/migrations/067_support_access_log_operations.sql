@@ -1,4 +1,4 @@
--- Migration 057: Record operator actions in the support access log
+-- Migration 067: Record operator actions in the support access log
 -- Extending, closing, adding or removing a service and the proxy logging into
 -- the NS8 cluster for the operator, and the operator filling a login form
 -- with the session credentials or closing a web interface, join the accesses

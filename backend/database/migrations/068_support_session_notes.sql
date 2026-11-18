@@ -1,4 +1,4 @@
--- Migration 058: Operator notes on support sessions
+-- Migration 068: Operator notes on support sessions
 -- Analyses, ticket links and chat threads written while working on a system.
 -- A note belongs to the session it was written in and is listed per system,
 -- so the history outlives the session.

@@ -1552,7 +1552,7 @@ COMMENT ON COLUMN support_session_notes.author_id IS 'Logto user ID of the opera
 
 CREATE INDEX IF NOT EXISTS idx_support_session_notes_system ON support_session_notes(system_id, created_at DESC) WHERE deleted_at IS NULL;
 
--- Services added by operators to a system's support sessions (migration 059)
+-- Services added by operators to a system's support sessions (migration 069)
 CREATE TABLE IF NOT EXISTS support_system_services (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     system_id VARCHAR(255) NOT NULL REFERENCES systems(id) ON DELETE CASCADE,
