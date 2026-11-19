@@ -1,5 +1,5 @@
 CONTAINER_NAME = my-nginx
-IMAGE = docker.io/library/nginx:alpine
+IMAGE = docker.io/library/nginx:1.30.7-alpine
 INTERNAL_PORT = 8443
 CONF = $(shell pwd)/nginx-dev.conf
 CERT = $(shell pwd)/my.localtest.me+1.pem

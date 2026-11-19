@@ -198,7 +198,7 @@ services:
     build:
       context: ./proxy
       dockerfile_inline: |
-        FROM nginx:1.25-alpine
+        FROM nginx:1.30.7-alpine
 
         # Install curl for health checks
         RUN apk add --no-cache curl
