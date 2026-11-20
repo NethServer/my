@@ -227,3 +227,37 @@ describe('systems Managed by filter', () => {
     expect(params.has('parent_organization_id')).toBe(false)
   })
 })
+
+describe('systems favorites filter', () => {
+  it('sends favorite=true on the list only when asked', () => {
+    const favorites = parse(
+      getQueryStringParams(1, 50, '', [], [], [], [], [], [], 'name', false, [], true),
+    )
+    const all = parse(getQueryStringParams(1, 50, '', [], [], [], [], [], [], 'name', false))
+
+    expect(favorites.get('favorite')).toBe('true')
+    expect(all.has('favorite')).toBe(false)
+  })
+
+  it('sends the same filter on the export', () => {
+    const params = parse(
+      getQueryStringParamsForExport(
+        'pdf',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        true,
+      ),
+    )
+
+    expect(params.get('favorite')).toBe('true')
+  })
+})

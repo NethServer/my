@@ -87,20 +87,22 @@ func ExportSystems(c *gin.Context) {
 	// Create systems service
 	systemsService := local.NewSystemsService()
 
+	listFilters := models.SystemListFilters{
+		Name:                  filterName,
+		SystemKeys:            filterSystemKey,
+		Types:                 filterTypes,
+		CreatedBy:             filterCreatedBy,
+		Versions:              filterVersions,
+		OrganizationIDs:       filterOrgIDs,
+		ParentOrganizationIDs: filterParentOrgIDs,
+		Statuses:              filterStatuses,
+		Addons:                filterAddons,
+	}
+	applySystemFavoriteFilters(c, &listFilters)
+
 	// Get systems without pagination limit (but with max export limit)
 	systems, totalCount, err := systemsService.GetSystemsByOrganizationPaginated(
-		c.Request.Context(), userID, userOrgID, userOrgRole, 1, MaxExportLimit, search, sortBy, sortDirection,
-		models.SystemListFilters{
-			Name:                  filterName,
-			SystemKeys:            filterSystemKey,
-			Types:                 filterTypes,
-			CreatedBy:             filterCreatedBy,
-			Versions:              filterVersions,
-			OrganizationIDs:       filterOrgIDs,
-			ParentOrganizationIDs: filterParentOrgIDs,
-			Statuses:              filterStatuses,
-			Addons:                filterAddons,
-		},
+		c.Request.Context(), userID, userOrgID, userOrgRole, 1, MaxExportLimit, search, sortBy, sortDirection, listFilters,
 	)
 
 	if err != nil {
@@ -138,6 +140,9 @@ func ExportSystems(c *gin.Context) {
 	filters := buildFiltersMap(search, filterName, filterSystemKey, filterTypes, filterCreatedBy, filterVersions, filterOrgIDs, filterStatuses)
 	if parents := c.QueryArray("parent_organization_id"); len(parents) > 0 {
 		filters["parent_organization_id"] = strings.Join(parents, ", ")
+	}
+	if listFilters.FavoritesOnly {
+		filters["favorite"] = true
 	}
 
 	// Create export service

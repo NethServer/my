@@ -790,7 +790,16 @@
     "open_legacy_my": "Apri My Nethesis legacy",
     "organization_systems": "Sistemi",
     "organization_id_system_not_registered": "L'azienda non può essere modificata finché il sistema non è registrato. Per modificarla ora, elimina e ricrea il sistema.",
-    "cannot_check_addon_renewals": "Impossibile verificare i rinnovi degli add-on"
+    "cannot_check_addon_renewals": "Impossibile verificare i rinnovi degli add-on",
+    "favorites": "Preferiti",
+    "favorite": "Preferito",
+    "all_systems": "Tutti i sistemi",
+    "favorites_only": "Solo preferiti",
+    "add_to_favorites": "Aggiungi ai preferiti",
+    "remove_from_favorites": "Rimuovi dai preferiti",
+    "add_system_to_favorites": "Aggiungi {name} ai preferiti",
+    "remove_system_from_favorites": "Rimuovi {name} dai preferiti",
+    "favorites_not_available_impersonating": "Non puoi modificare i preferiti mentre impersoni un altro utente"
   },
   "system_detail": {
     "title": "Dettaglio sistema",

@@ -88,7 +88,7 @@ The `system_secret` is shown **only once** during creation. Copy and save it imm
 
 Navigate to **Systems** to see:
 
-- System name
+- System name, with a star to add it to your [favorites](#favorite-systems)
 - Type (ns8, nsec, etc.)
 - Version, with an update icon when an update is available
 - FQDN and IP addresses
@@ -107,13 +107,35 @@ Use filters to find specific systems:
 - **Organization**: Filter by customer organization
 - **Created By**: Filter by user who created the system
 - **Add-on**: Filter by purchased add-on (see [Add-ons](../features/entitlements.md))
+- **Favorites**: all systems, or only the ones you starred (see [Favorite Systems](#favorite-systems))
 - **Status**: unknown, active, inactive, suspended, deleted
-- **Sort By**: Name, version, FQDN/IP address, Organization, Created By, Status
+- **Sort By**: Name, version, FQDN/IP address, Organization, Created By, Status, Favorite
 
 The **Add-on** menu lists the add-ons held by at least one of your systems, so
 an option never comes back empty. Selecting more than one widens the search:
 a system matches when it holds any of them. Only add-ons that are valid at that
 moment count, so an expired or cancelled one leaves the system out.
+
+### Favorite Systems
+
+Star the systems you work on most to find them quickly. Click the star next to
+the system name, in the systems list or in the header of the system page; click
+it again to remove the system from your favorites. In the systems list, the
+star of a system that is not a favorite shows when you point at its row; the
+**Add to favorites** and **Remove from favorites** options of the row's menu
+do the same.
+
+- Favorites are personal: each user has their own, and starring a system
+  changes nothing for anyone else
+- Every user who can see a system can star it, read-only roles included
+- Your favorites follow you on every browser and device
+- An archived system leaves your favorites list and comes back when it is
+  restored; a permanently deleted one is removed for good
+- While impersonating another user, their favorites are shown but cannot be
+  changed
+
+Use the **Favorites** filter to list only your favorites, or sort by
+**Favorite** to bring them to the top.
 
 ### System Details
 

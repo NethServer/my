@@ -64,6 +64,9 @@ export const SystemSchema = v.object({
   first_heartbeat: v.optional(v.string()),
   first_inventory: v.optional(v.string()),
   rebranding_enabled: v.optional(v.boolean()),
+  // Whether the signed-in user starred the system: personal, not a property
+  // of the system
+  is_favorite: v.optional(v.boolean()),
   // Add-on catalog ids granted and valid right now. The list endpoint sends
   // them only when asked with include_addons, and omits the key for a system
   // holding none.
@@ -99,7 +102,8 @@ export type EditSystem = v.InferOutput<typeof EditSystemSchema>
 export type System = v.InferOutput<typeof SystemSchema>
 // organization_name: the assigned company; managed_by: the company getManagedBy
 // returns for it
-export type SystemSortBy = keyof System | 'organization_name' | 'managed_by'
+// favorite: the systems the signed-in user starred first (or last)
+export type SystemSortBy = keyof System | 'organization_name' | 'managed_by' | 'favorite'
 export type SystemStatus = v.InferOutput<typeof SystemStatusSchema>
 
 interface SystemsResponse {
@@ -151,6 +155,7 @@ export const getQueryStringParams = (
   sortBy: string | null,
   sortDescending: boolean,
   parentOrganizationFilter: string[] = [],
+  favoritesOnly = false,
 ) => {
   const searchParams = new URLSearchParams({
     page: pageNum.toString(),
@@ -191,6 +196,10 @@ export const getQueryStringParams = (
   addonFilter.forEach((addon) => {
     searchParams.append('addon', addon)
   })
+
+  if (favoritesOnly) {
+    searchParams.append('favorite', 'true')
+  }
   return searchParams.toString()
 }
 
@@ -207,6 +216,7 @@ export const getQueryStringParamsForExport = (
   sortBy: string | undefined,
   sortDescending: boolean | undefined,
   parentOrganizationFilter: string[] | undefined = undefined,
+  favoritesOnly = false,
 ) => {
   const searchParams = new URLSearchParams({
     format: format,
@@ -269,6 +279,10 @@ export const getQueryStringParamsForExport = (
   if (sortDescending !== undefined) {
     searchParams.append('sort_direction', sortDescending ? 'desc' : 'asc')
   }
+
+  if (favoritesOnly) {
+    searchParams.append('favorite', 'true')
+  }
   return searchParams.toString()
 }
 
@@ -285,6 +299,7 @@ export const getSystems = (
   sortBy: string,
   sortDescending: boolean,
   parentOrganizationFilter: string[] = [],
+  favoritesOnly = false,
 ) => {
   const loginStore = useLoginStore()
   const params = getQueryStringParams(
@@ -300,6 +315,7 @@ export const getSystems = (
     sortBy,
     sortDescending,
     parentOrganizationFilter,
+    favoritesOnly,
   )
 
   return axios
@@ -375,6 +391,15 @@ export const restoreSystem = (system: System) => {
       headers: { Authorization: `Bearer ${loginStore.jwtToken}` },
     },
   )
+}
+
+// Stars or unstars a system for the signed-in user. Both calls are idempotent.
+export const setSystemFavorite = (systemId: string, favorite: boolean) => {
+  const loginStore = useLoginStore()
+  const url = `${API_URL}/systems/${systemId}/favorite`
+  const headers = { Authorization: `Bearer ${loginStore.jwtToken}` }
+
+  return favorite ? axios.put(url, {}, { headers }) : axios.delete(url, { headers })
 }
 
 export const regenerateSystemSecret = (systemId: string) => {
@@ -454,6 +479,7 @@ export const getExport = (
   sortBy: string | undefined = undefined,
   sortDescending: boolean | undefined = undefined,
   parentOrganizationFilter: string[] | undefined = undefined,
+  favoritesOnly = false,
 ) => {
   const loginStore = useLoginStore()
   const params = getQueryStringParamsForExport(
@@ -469,6 +495,7 @@ export const getExport = (
     sortBy,
     sortDescending,
     parentOrganizationFilter,
+    favoritesOnly,
   )
 
   return axios

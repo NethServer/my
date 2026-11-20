@@ -83,7 +83,7 @@ Il `system_secret` viene mostrato **una sola volta**, alla creazione. Copialo e 
 
 La pagina **Sistemi** mostra tutti i sistemi visibili con:
 
-- Nome del sistema
+- Nome del sistema, con una stella per aggiungerlo ai [preferiti](#sistemi-preferiti)
 - Tipo (NethServer o NethSecurity)
 - Versione, con un'icona di aggiornamento quando è disponibile un aggiornamento
 - Organizzazione
@@ -100,14 +100,37 @@ Usa i filtri per trovare sistemi specifici:
 - **Organizzazione**: filtra per organizzazione cliente
 - **Creato da**: filtra per utente che ha creato il sistema
 - **Add-on**: filtra per add-on acquistato (vedi [Add-on](../features/entitlements.md))
+- **Preferiti**: tutti i sistemi, o solo quelli che hai aggiunto ai preferiti (vedi [Sistemi preferiti](#sistemi-preferiti))
 - **Stato**: unknown, active, inactive, suspended, deleted
-- **Ordinamento**: nome, versione, FQDN/indirizzo IP, organizzazione, creato da, stato
+- **Ordinamento**: nome, versione, FQDN/indirizzo IP, organizzazione, creato da, stato, preferito
 
 Il menu **Add-on** elenca gli add-on posseduti da almeno uno dei tuoi sistemi,
 quindi un'opzione non restituisce mai un elenco vuoto. Selezionandone più di uno
 la ricerca si allarga: un sistema corrisponde se ne possiede almeno uno. Contano
 solo gli add-on validi in quel momento, quindi uno scaduto o annullato esclude
 il sistema.
+
+### Sistemi Preferiti
+
+Aggiungi ai preferiti i sistemi su cui lavori più spesso per trovarli subito.
+Fai clic sulla stella accanto al nome del sistema, nell'elenco dei sistemi o
+nell'intestazione della pagina del sistema; fai clic di nuovo per rimuoverlo dai
+preferiti. Nell'elenco dei sistemi, la stella di un sistema che non è tra i
+preferiti appare quando passi il mouse sulla sua riga; le opzioni **Aggiungi ai
+preferiti** e **Rimuovi dai preferiti** del menu della riga fanno lo stesso.
+
+- I preferiti sono personali: ogni utente ha i suoi, e aggiungere un sistema ai
+  preferiti non cambia nulla per gli altri
+- Ogni utente che vede un sistema può aggiungerlo ai preferiti, anche con un
+  ruolo di sola lettura
+- I preferiti ti seguono su ogni browser e dispositivo
+- Un sistema archiviato esce dall'elenco dei preferiti e ci torna quando viene
+  ripristinato; uno eliminato definitivamente viene rimosso per sempre
+- Mentre impersoni un altro utente vedi i suoi preferiti, ma non puoi
+  modificarli
+
+Usa il filtro **Preferiti** per elencare solo i tuoi preferiti, oppure ordina per
+**Preferito** per portarli in cima.
 
 ### Dettagli Sistema
 

@@ -36,6 +36,9 @@ export const useSystems = defineQuery(() => {
   // these organizations (ANDed with organizationFilter)
   const parentOrganizationFilter = ref<NeDropdownFilterV2Option[]>([])
   const addonFilter = ref<NeDropdownFilterV2Option[]>([])
+  // radio filter: 'all' or 'favorites', the systems the signed-in user starred
+  const favoriteFilter = ref<NeDropdownFilterV2Option[]>([{ id: 'all', label: 'all' }])
+  const favoritesOnly = computed(() => favoriteFilter.value.some((o) => o.id === 'favorites'))
   const sortBy = ref<SystemSortBy>('name')
   const sortDescending = ref(false)
 
@@ -52,6 +55,7 @@ export const useSystems = defineQuery(() => {
         organizationFilter: organizationFilter.value.map((o) => o.id),
         parentOrganizationFilter: parentOrganizationFilter.value.map((o) => o.id),
         addonFilter: addonFilter.value.map((o) => o.id),
+        favoritesOnly: favoritesOnly.value,
         sortBy: sortBy.value,
         sortDirection: sortDescending.value,
       },
@@ -71,6 +75,7 @@ export const useSystems = defineQuery(() => {
         sortBy.value,
         sortDescending.value,
         parentOrganizationFilter.value.map((o) => o.id),
+        favoritesOnly.value,
       ),
   })
 
@@ -82,6 +87,7 @@ export const useSystems = defineQuery(() => {
       organizationFilter.value.length === 0 &&
       parentOrganizationFilter.value.length === 0 &&
       addonFilter.value.length === 0 &&
+      !favoritesOnly.value &&
       statusFilter.value.length === 4 &&
       statusFilter.value.some((o) => o.id === 'active') &&
       statusFilter.value.some((o) => o.id === 'inactive') &&
@@ -163,6 +169,14 @@ export const useSystems = defineQuery(() => {
     },
   )
 
+  // reset to first page when favorite filter changes
+  watch(
+    () => favoritesOnly.value,
+    () => {
+      pageNum.value = 1
+    },
+  )
+
   // watch the selected org ids by value (not the array reference): reset to the
   // first page when the assigned company selection changes
   watch(
@@ -179,7 +193,12 @@ export const useSystems = defineQuery(() => {
     organizationFilter.value = []
     parentOrganizationFilter.value = []
     addonFilter.value = []
+    resetFavoriteFilter()
     resetStatusFilter()
+  }
+
+  const resetFavoriteFilter = () => {
+    favoriteFilter.value = [{ id: 'all', label: 'all' }]
   }
 
   const resetStatusFilter = () => {
@@ -204,11 +223,14 @@ export const useSystems = defineQuery(() => {
     organizationFilter,
     parentOrganizationFilter,
     addonFilter,
+    favoriteFilter,
+    favoritesOnly,
     debouncedTextFilter,
     sortBy,
     sortDescending,
     areDefaultFiltersApplied,
     resetFilters,
+    resetFavoriteFilter,
     resetStatusFilter,
   }
 })

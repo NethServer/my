@@ -20,6 +20,7 @@ import {
   faCirclePlay,
   faBomb,
   faTriangleExclamation,
+  faStar,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -48,6 +49,8 @@ import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { canManageSystems, canDestroySystems } from '@/lib/permissions'
 import { useSystems } from '@/queries/systems/systems'
+import { useSetSystemFavorite } from '@/queries/systems/favoriteSystems'
+import { useLoginStore } from '@/stores/login'
 import {
   exportSystem,
   getProductName,
@@ -79,6 +82,7 @@ import {
 import OrganizationIconAndLink from '../organizations/OrganizationIconAndLink.vue'
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
 import SystemLogoAndLink from './SystemLogoAndLink.vue'
+import SystemFavoriteToggle from './SystemFavoriteToggle.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -99,13 +103,17 @@ const {
   organizationFilter,
   parentOrganizationFilter,
   addonFilter,
+  favoriteFilter,
   sortBy,
   sortDescending,
   areDefaultFiltersApplied,
   resetFilters,
+  resetFavoriteFilter,
   resetStatusFilter,
 } = useSystems()
 const { state: systemFiltersState } = useSystemFilters()
+const { mutate: setSystemFavorite } = useSetSystemFavorite()
+const loginStore = useLoginStore()
 
 const currentSystem = ref<System | undefined>()
 const isShownCreateOrEditSystemDrawer = ref(false)
@@ -136,6 +144,11 @@ const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
     label: t('common.suspended'),
   },
   { id: 'deleted', label: t('systems.status_deleted') },
+])
+
+const favoriteFilterOptions = ref<NeDropdownFilterV2Option[]>([
+  { id: 'all', label: t('systems.all_systems') },
+  { id: 'favorites', label: t('systems.favorites_only') },
 ])
 
 const systemsPage = computed(() => {
@@ -283,6 +296,19 @@ function getKebabMenuItems(system: System) {
     })
   }
 
+  // an archived system cannot be starred, and favorites belong to the real
+  // account: the star tells the impersonator why, the menu just omits it
+  if (!isDeleted && !loginStore.isImpersonating) {
+    items.push({
+      id: 'toggleFavorite',
+      label: system.is_favorite
+        ? t('systems.remove_from_favorites')
+        : t('systems.add_to_favorites'),
+      icon: faStar,
+      action: () => setSystemFavorite({ systemId: system.id, favorite: !system.is_favorite }),
+    })
+  }
+
   items.push(
     {
       id: 'exportToPdf',
@@ -402,6 +428,22 @@ function onCloseSecretRegeneratedModal() {
             :placeholder="$t('systems.filter_systems')"
             class="max-w-48 sm:max-w-sm"
           />
+          <!-- favorites filter: the systems the signed-in user starred -->
+          <NeDropdownFilterV2
+            v-model="favoriteFilter"
+            kind="radio"
+            :label="t('systems.favorites')"
+            :options="favoriteFilterOptions"
+            :show-clear-filter="false"
+            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            :custom-action-label="t('ne_dropdown_filter.reset_selection')"
+            :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
+            @custom-action="resetFavoriteFilter"
+          />
           <NeDropdownFilterV2
             v-model="productFilter"
             kind="checkbox"
@@ -485,6 +527,7 @@ function onCloseSecretRegeneratedModal() {
                 ? [{ id: 'managed_by', label: t('organizations.parent_company') }]
                 : []),
               { id: 'status', label: t('systems.status') },
+              { id: 'favorite', label: t('systems.favorite') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
             :sort-by-label="t('sort.sort_by')"
@@ -558,13 +601,24 @@ function onCloseSecretRegeneratedModal() {
         </NeTableHeadCell>
       </NeTableHead>
       <NeTableBody>
-        <NeTableRow v-for="item in systemsPage" :key="item.id">
+        <NeTableRow v-for="item in systemsPage" :key="item.id" class="group/row">
           <NeTableCell :data-label="$t('systems.name')">
-            <div :class="{ 'text-tertiary-neutral': item.status === 'deleted' }">
+            <div
+              class="flex items-center gap-1"
+              :class="{ 'text-tertiary-neutral': item.status === 'deleted' }"
+            >
               <SystemLogoAndLink
                 :system-id="item.status === 'deleted' ? '' : item.id"
                 :system-name="item.name"
                 :system-type="item.type"
+              />
+              <!-- an archived system cannot be starred: its row has no actions but restore -->
+              <SystemFavoriteToggle
+                v-if="item.status !== 'deleted'"
+                :system-id="item.id"
+                :system-name="item.name"
+                :is-favorite="item.is_favorite"
+                reveal-on-row-hover
               />
             </div>
           </NeTableCell>

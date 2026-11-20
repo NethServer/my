@@ -242,6 +242,19 @@ routes:
   - method: PATCH
     path: /api/systems/:id/reactivate
     intent: manage:systems
+  - method: PUT
+    path: /api/systems/:id/favorite
+    intent: read:systems
+    note: |
+      Starring is a personal bookmark that changes nothing on the system, so it
+      needs only read access to it — a Reader may star what it can see. The
+      system must still be in the caller's scope.
+  - method: DELETE
+    path: /api/systems/:id/favorite
+    intent: read:systems
+    note: |
+      Removes only the caller's own star, so it may target a system that has
+      since left the caller's scope.
   - method: GET
     path: /api/systems/totals
     intent: read:systems

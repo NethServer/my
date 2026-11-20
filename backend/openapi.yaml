@@ -2224,6 +2224,25 @@ components:
           description: Cumulative count at this date
           example: 15
 
+    SystemFavoriteResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "system added to favorites"
+        data:
+          type: object
+          properties:
+            system_id:
+              type: string
+              example: "sys_123456789"
+            is_favorite:
+              type: boolean
+              example: true
+
     System:
       type: object
       properties:
@@ -2369,6 +2388,10 @@ components:
           nullable: true
           description: Logto organization ID (logto_id) that provides the rebranding assets (the org itself or an ancestor). Use this value as the :org_id parameter in /api/rebranding/:org_id/* endpoints.
           example: "org_dist001"
+        is_favorite:
+          type: boolean
+          description: Whether the caller starred the system. Personal, so two users reading the same system can get different values.
+          example: false
         addons:
           type: array
           description: |
@@ -4743,11 +4766,13 @@ components:
     SystemSortByParam:
       name: sort_by
       in: query
-      description: Field to sort systems by
+      description: >-
+        Field to sort systems by. `favorite` lists the caller's favorites first
+        in ascending order, last in descending order.
       required: false
       schema:
         type: string
-        enum: ["name", "type", "status", "fqdn", "version", "system_key", "created_at", "updated_at", "creator_name", "organization_name", "managed_by"]
+        enum: ["name", "type", "status", "fqdn", "version", "system_key", "created_at", "updated_at", "creator_name", "organization_name", "managed_by", "favorite"]
         example: "name"
 
     TrendPeriodParam:
@@ -4982,6 +5007,18 @@ components:
         example: ["nsec-blacklist", "nsec-ha"]
       style: form
       explode: true
+
+    SystemFavoriteFilterParam:
+      name: favorite
+      in: query
+      description: |
+        Only the systems the caller starred (see PUT /api/systems/{id}/favorite).
+        Favorites are personal: with an impersonation token they are the
+        target's.
+      required: false
+      schema:
+        type: boolean
+        example: true
 
     IncludeAddonsParam:
       name: include_addons
@@ -11227,6 +11264,7 @@ paths:
         - $ref: '#/components/parameters/ParentOrganizationFilterParam'
         - $ref: '#/components/parameters/SystemStatusFilterParam'
         - $ref: '#/components/parameters/SystemAddonFilterParam'
+        - $ref: '#/components/parameters/SystemFavoriteFilterParam'
         - $ref: '#/components/parameters/IncludeAddonsParam'
       responses:
         '200':
@@ -11544,6 +11582,89 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/favorite:
+    put:
+      operationId: addSystemFavorite
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
+      tags:
+        - Backend - Systems
+      summary: /systems/{id}/favorite - Star a system
+      description: |
+        Add the system to the caller's favorites. Favorites are personal and
+        change nothing on the system, so read:systems is enough. Starring a
+        system already starred succeeds without changes. The system must be
+        visible to the caller and not archived.
+
+        Refused with an API key and with an impersonation token.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: System added to favorites
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemFavoriteResponse'
+              example:
+                code: 200
+                message: "system added to favorites"
+                data:
+                  system_id: "sys_123456789"
+                  is_favorite: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: removeSystemFavorite
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
+      tags:
+        - Backend - Systems
+      summary: /systems/{id}/favorite - Unstar a system
+      description: |
+        Remove the system from the caller's favorites. It succeeds when the
+        system was not starred, and also for a system the caller can no longer
+        see or that was archived, so a stale favorite can always be removed.
+
+        Refused with an API key and with an impersonation token.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: System removed from favorites
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemFavoriteResponse'
+              example:
+                code: 200
+                message: "system removed from favorites"
+                data:
+                  system_id: "sys_123456789"
+                  is_favorite: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /systems/{id}/destroy:
     delete:
@@ -12011,6 +12132,7 @@ paths:
         - $ref: '#/components/parameters/ParentOrganizationFilterParam'
         - $ref: '#/components/parameters/SystemStatusFilterParam'
         - $ref: '#/components/parameters/SystemAddonFilterParam'
+        - $ref: '#/components/parameters/SystemFavoriteFilterParam'
       responses:
         '200':
           description: Export file generated successfully

@@ -248,6 +248,20 @@ func main() {
 		// ===========================================
 		// SYSTEMS - resource-based permission validation (read:systems for GET, manage:systems for POST/PUT/DELETE)
 		// ===========================================
+		// Favorites: personal stars on a system. Starring changes nothing on the
+		// system, so read:systems is enough for every verb. Interactive sessions
+		// only: an API key is for automation, and an impersonator must not leave
+		// stars in the target's account.
+		systemFavoritesGroup := customAuthWithAudit.Group("/systems/:id/favorite",
+			middleware.RejectAPIKey(),
+			middleware.DisableOnImpersonate(),
+			middleware.RequirePermission("read:systems"),
+		)
+		{
+			systemFavoritesGroup.PUT("", methods.AddSystemFavorite)
+			systemFavoritesGroup.DELETE("", methods.RemoveSystemFavorite)
+		}
+
 		systemsGroup := customAuthWithAudit.Group("/systems", middleware.RequireResourcePermission("systems"))
 		{
 			// CRUD operations

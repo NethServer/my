@@ -29,6 +29,7 @@ import SystemChangeHistoryPanel from '@/components/systems/SystemChangeHistoryPa
 import SystemBackupsPanel from '@/components/systems/SystemBackupsPanel.vue'
 import SystemAlertsPanel from '@/components/systems/SystemAlertsPanel.vue'
 import SystemAddonsPanel from '@/components/systems/SystemAddonsPanel.vue'
+import SystemFavoriteToggle from '@/components/systems/SystemFavoriteToggle.vue'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import { useLoginStore } from '@/stores/login'
 
@@ -91,9 +92,17 @@ const { tabs, selectedTab } = useTabs(tabsConfig)
     <NeSkeleton v-else-if="systemDetail.status === 'pending'" size="lg" class="mb-9 w-xs" />
     <div v-else class="flex items-start justify-between gap-4">
       <div class="mb-7 flex flex-wrap items-center gap-4">
-        <NeHeading tag="h3">
-          {{ systemDetail.data?.name }}
-        </NeHeading>
+        <div class="flex items-center gap-1">
+          <NeHeading tag="h3">
+            {{ systemDetail.data?.name }}
+          </NeHeading>
+          <SystemFavoriteToggle
+            v-if="systemDetail.data"
+            :system-id="systemDetail.data.id"
+            :system-name="systemDetail.data.name"
+            :is-favorite="systemDetail.data.is_favorite"
+          />
+        </div>
         <!-- owning company -->
         <NeBadgeV2
           v-if="systemDetail.data?.organization"

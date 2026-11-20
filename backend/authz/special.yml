@@ -196,6 +196,17 @@ cases:
     expect: denied
     note: the owner of this key holds impersonate:users, so only RejectAPIKey can stop it
 
+  - name: key cannot star a system
+    kind: api_key
+    as: d1r1-admin
+    mode: write
+    method: PUT
+    path: /api/systems/{system:s-d1r1c1}/favorite
+    expect: denied
+    note: |
+      The owner of this key can read the system, so only RejectAPIKey can stop
+      it: favorites are a personal bookmark of an interactive session.
+
   - name: key cannot change the owner's password
     kind: api_key
     as: d1r1-admin

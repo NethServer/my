@@ -872,7 +872,16 @@
     "open_legacy_my": "Open legacy My Nethesis",
     "organization_systems": "Systems",
     "organization_id_system_not_registered": "Company cannot be changed until the system is registered. To change it now, delete and re-create the system.",
-    "cannot_check_addon_renewals": "Cannot check add-on renewals"
+    "cannot_check_addon_renewals": "Cannot check add-on renewals",
+    "favorites": "Favorites",
+    "favorite": "Favorite",
+    "all_systems": "All systems",
+    "favorites_only": "Favorites only",
+    "add_to_favorites": "Add to favorites",
+    "remove_from_favorites": "Remove from favorites",
+    "add_system_to_favorites": "Add {name} to favorites",
+    "remove_system_from_favorites": "Remove {name} from favorites",
+    "favorites_not_available_impersonating": "You cannot change favorites while impersonating another user"
   },
   "system_detail": {
     "title": "System detail",

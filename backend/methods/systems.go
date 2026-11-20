@@ -195,6 +195,7 @@ func GetSystems(c *gin.Context) {
 		Statuses:              filterStatuses,
 		Addons:                filterAddons,
 	}
+	applySystemFavoriteFilters(c, &filters)
 	systems, totalCount, err := systemsService.GetSystemsByOrganizationPaginated(
 		c.Request.Context(), userID, userOrgID, userOrgRole, page, pageSize, search, sortBy, sortDirection, filters,
 	)
@@ -212,6 +213,7 @@ func GetSystems(c *gin.Context) {
 			Strs("filter_organization_ids", filterOrgIDs).
 			Strs("filter_statuses", filterStatuses).
 			Strs("filter_addons", filterAddons).
+			Bool("filter_favorite", filters.FavoritesOnly).
 			Str("sort_by", sortBy).
 			Str("sort_direction", sortDirection).
 			Msg("Failed to retrieve systems")
@@ -263,6 +265,7 @@ func GetSystems(c *gin.Context) {
 		Strs("filter_organization_ids", filterOrgIDs).
 		Strs("filter_statuses", filterStatuses).
 		Strs("filter_addons", filterAddons).
+		Bool("filter_favorite", filters.FavoritesOnly).
 		Str("sort_by", sortBy).
 		Str("sort_direction", sortDirection).
 		Msg("Systems list requested")
@@ -302,6 +305,14 @@ func GetSystem(c *gin.Context) {
 	if system.Organization.LogtoID != "" {
 		system.RebrandingEnabled, system.RebrandingOrgID = resolveRebranding(system.Organization.LogtoID)
 	}
+
+	isFavorite, err := entities.NewLocalSystemFavoriteRepository().IsFavorite(favoriteUserID(user), system.ID)
+	if err != nil {
+		logger.RequestLogger(c, "systems").Warn().Err(err).
+			Str("system_id", systemID).
+			Msg("Failed to resolve favorite flag")
+	}
+	system.IsFavorite = isFavorite
 
 	// Log the action
 	logger.RequestLogger(c, "systems").Info().
