@@ -138,6 +138,14 @@ const domainUsername = computed(() => props.data?.credentials?.domainUsers[0]?.u
       </NeButton>
     </div>
     <template v-if="data && !loading">
+      <div
+        v-if="data.credentialsPending"
+        class="flex shrink-0 items-center gap-2 text-sm text-gray-500 dark:text-gray-400"
+        role="status"
+      >
+        <NeSpinner size="4" />
+        {{ t('support.workspace_credentials_pending') }}
+      </div>
       <!-- appliance UI with the credentials that open it -->
       <div
         v-if="data.credentials?.clusterAdmin"

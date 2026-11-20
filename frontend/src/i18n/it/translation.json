@@ -1636,6 +1636,7 @@
     "workspace_close": "Chiudi finestra di supporto",
     "workspace_close_confirm": "Verrà chiusa {n} scheda aperta, terminali compresi. | Verranno chiuse {n} schede aperte, terminali compresi.",
     "workspaces_minimized": "Supporto",
+    "workspace_credentials_pending": "Generazione credenziali in corso…",
     "workspace_autofill": "Inserisci credenziali",
     "workspace_autofill_not_found": "Nessun form di login in questa pagina",
     "workspace_autofill_unavailable": "Inserimento non disponibile in questa pagina: ricarica la scheda",

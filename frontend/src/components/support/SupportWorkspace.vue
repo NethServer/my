@@ -125,6 +125,7 @@ const pendingMove = ref<'detach' | 'attach' | null>(null)
 // The sessions follow the system: a node that lost its tunnel comes back with
 // a new session, which must replace the closed one in the menu and the panel
 const SESSIONS_POLL_INTERVAL_MS = 30_000
+const CREDENTIALS_POLL_INTERVAL_MS = 5_000
 const sessions = ref<SessionRef[]>(props.sessions)
 const sessionsKey = (list: SessionRef[]) =>
   list
@@ -399,6 +400,26 @@ async function refreshData() {
   }
 }
 
+// the node creates the support users a minute or so after the tunnel is up:
+// reload quietly until it reports them
+let credentialsTimer: ReturnType<typeof setTimeout> | null = null
+
+function pollCredentials() {
+  if (credentialsTimer) clearTimeout(credentialsTimer)
+  credentialsTimer = null
+  if (!data.value?.credentialsPending) return
+  credentialsTimer = setTimeout(async () => {
+    try {
+      data.value = await loadWorkspaceData(sessions.value)
+    } catch {
+      // the next round retries
+    }
+    pollCredentials()
+  }, CREDENTIALS_POLL_INTERVAL_MS)
+}
+
+watch(() => data.value?.credentialsPending, pollCredentials)
+
 // The + menu: terminals first, then the appliance UI, the modules and the
 // custom services, filtered by the search box
 const menuQuery = computed(() => menuSearch.value.trim().toLowerCase())
@@ -487,6 +508,13 @@ watch(menuQuery, () => {
 // The login a web UI takes: the cluster admin for cluster-admin, the local
 // user for the NethSecurity UI, the domain user for the apps of a module.
 // Services behind the cluster login ask for it in a browser dialog instead.
+function credentialsPendingFor(service: string): boolean {
+  if (!data.value?.credentialsPending || credentialsFor(service)) return false
+  if (APPLIANCE_UI_SERVICES.includes(service)) return true
+  const svc = data.value.modules.flatMap((m) => m.services).find((s) => s.name === service)
+  return !!svc && !svc.clusterAuth
+}
+
 function credentialsFor(service: string): WorkspaceLogin | null {
   const creds = data.value?.credentials
   if (!creds) return null
@@ -567,6 +595,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   if (sessionsTimer) clearInterval(sessionsTimer)
+  if (credentialsTimer) clearTimeout(credentialsTimer)
   document.removeEventListener('visibilitychange', onVisible)
 })
 </script>
@@ -877,6 +906,7 @@ onBeforeUnmount(() => {
             :path="tab.spec.path"
             :system-name="systemName"
             :credentials="credentialsFor(tab.spec.service)"
+            :credentials-pending="credentialsPendingFor(tab.spec.service)"
             :exact="tab.spec.exact"
             :active="tab.id === activeTabId && !minimized"
             @open-link="openLink"

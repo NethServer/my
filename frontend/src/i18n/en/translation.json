@@ -1641,6 +1641,7 @@
     "workspace_close": "Close support window",
     "workspace_close_confirm": "{n} open tab will be closed, terminals included. | {n} open tabs will be closed, terminals included.",
     "workspaces_minimized": "Support",
+    "workspace_credentials_pending": "Generating credentials…",
     "workspace_autofill": "Fill in credentials",
     "workspace_autofill_not_found": "No login form on this page",
     "workspace_autofill_unavailable": "Autofill not available on this page: reload the tab",

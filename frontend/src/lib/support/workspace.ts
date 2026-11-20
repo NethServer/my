@@ -88,6 +88,8 @@ export interface WorkspaceModule {
 
 export interface WorkspaceData {
   credentials: WorkspaceCredentials | null
+  // a node has not reported its support users yet: they are still being created
+  credentialsPending: boolean
   // the labels given to the cluster nodes, by node ID
   nodeLabels: Record<string, string>
   modules: WorkspaceModule[]
@@ -230,6 +232,7 @@ export const loadWorkspaceData = async (sessions: SessionRef[]): Promise<Workspa
 
   return {
     credentials: hasCredentials ? credentials : null,
+    credentialsPending: usersResults.some((r) => r && !r.users),
     nodeLabels,
     modules,
     ungrouped: ungrouped.sort((a, b) => a.name.localeCompare(b.name)),

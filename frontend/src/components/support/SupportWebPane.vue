@@ -14,7 +14,12 @@ import {
   faUpRightFromSquare,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { NeButton, NeInlineNotification, formatDateTimeNoSeconds } from '@nethesis/vue-components'
+import {
+  NeButton,
+  NeInlineNotification,
+  NeSpinner,
+  formatDateTimeNoSeconds,
+} from '@nethesis/vue-components'
 import {
   buildSupportProxyUrl,
   generateSupportProxyToken,
@@ -36,6 +41,8 @@ const props = defineProps<{
   path: string
   systemName: string
   credentials?: WorkspaceLogin | null
+  // the node is still creating the support users
+  credentialsPending?: boolean
   exact?: boolean
   // the tab is the one in front: only then may its page ask for a new tab
   active?: boolean
@@ -241,8 +248,16 @@ defineExpose({ reload: load })
         {{ autofillNotice }}
       </span>
       <div class="ml-auto flex shrink-0 items-center gap-1">
+        <span
+          v-if="credentialsPending"
+          class="flex items-center gap-2 px-2 text-gray-500 dark:text-gray-400"
+          role="status"
+        >
+          <NeSpinner size="3" />
+          {{ t('support.workspace_credentials_pending') }}
+        </span>
         <NeButton
-          v-if="credentials"
+          v-else-if="credentials"
           kind="tertiary"
           size="xs"
           :disabled="loading || !!loadError"
