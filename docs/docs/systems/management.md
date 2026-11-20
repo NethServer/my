@@ -88,7 +88,7 @@ The `system_secret` is shown **only once** during creation. Copy and save it imm
 
 Navigate to **Systems** to see:
 
-- System name, with a star to add it to your [favorites](#favorite-systems)
+- System name, with a star to add it to your [favorites](#favorite-systems) and, when it has notes, an icon that shows them on hover (up to 10 lines)
 - Type (ns8, nsec, etc.)
 - Version, with an update icon when an update is available
 - FQDN and IP addresses

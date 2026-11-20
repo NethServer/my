@@ -83,7 +83,7 @@ Il `system_secret` viene mostrato **una sola volta**, alla creazione. Copialo e 
 
 La pagina **Sistemi** mostra tutti i sistemi visibili con:
 
-- Nome del sistema, con una stella per aggiungerlo ai [preferiti](#sistemi-preferiti)
+- Nome del sistema, con una stella per aggiungerlo ai [preferiti](#sistemi-preferiti) e, se ha delle note, un'icona che le mostra al passaggio del mouse (fino a 10 righe)
 - Tipo (NethServer o NethSecurity)
 - Versione, con un'icona di aggiornamento quando è disponibile un aggiornamento
 - Organizzazione
