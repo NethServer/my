@@ -153,7 +153,7 @@ Ogni tipo di organizzazione ha il proprio elenco:
 
 1. Vai su **[Tipo]** (Distributori/Rivenditori/Clienti)
 2. L'elenco mostra:
-   - Nome dell'organizzazione
+   - Nome dell'organizzazione, con un'icona che ne mostra le note al passaggio del mouse (fino a 10 righe), se ne ha
    - Descrizione
    - Numero di utenti
    - Numero di sistemi

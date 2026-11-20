@@ -48,6 +48,7 @@ import ApplicationLogo from './ApplicationLogo.vue'
 import { faGridOne } from '@nethesis/nethesis-solid-svg-icons'
 import AssignOrganizationDrawer from './AssignOrganizationDrawer.vue'
 import SetNotesDrawer from './SetNotesDrawer.vue'
+import NotesIcon from '@/components/common/NotesIcon.vue'
 import { useApplicationFilters } from '@/queries/applications/applicationFilters'
 import { buildVersionFilterOptions } from '@/lib/applications/applicationFilters'
 import router from '@/router'
@@ -344,12 +345,15 @@ const goToApplicationDetails = (application: Application) => {
         <NeTableBody>
           <NeTableRow v-for="item in applicationsPage" :key="item.id">
             <NeTableCell :data-label="$t('applications.name')">
-              <router-link
-                :to="{ name: 'application_detail', params: { applicationId: item.id } }"
-                class="cursor-pointer font-medium hover:underline"
-              >
-                {{ getDisplayName(item) }}
-              </router-link>
+              <div class="flex items-center gap-1">
+                <router-link
+                  :to="{ name: 'application_detail', params: { applicationId: item.id } }"
+                  class="cursor-pointer font-medium hover:underline"
+                >
+                  {{ getDisplayName(item) }}
+                </router-link>
+                <NotesIcon v-if="item.notes?.trim()" :notes="item.notes" />
+              </div>
             </NeTableCell>
             <NeTableCell :data-label="$t('applications.type')">
               <div class="flex items-center gap-2">

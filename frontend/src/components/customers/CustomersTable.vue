@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import NotesIcon from '@/components/common/NotesIcon.vue'
 import { withDangerItemsLast } from '@/lib/common'
 import {
   CUSTOMERS_TABLE_ID,
@@ -414,16 +415,19 @@ const goToCustomerDetails = (customer: Customer) => {
       <NeTableBody>
         <NeTableRow v-for="item in customersPage" :key="item.logto_id">
           <NeTableCell :data-label="$t('organizations.name')">
-            <router-link
-              v-if="!item.deleted_at"
-              :to="{ name: 'customer_detail', params: { companyId: item.logto_id } }"
-              class="cursor-pointer font-medium hover:underline"
-            >
-              {{ item.name }}
-            </router-link>
-            <span v-else class="text-tertiary-neutral">
-              {{ item.name }}
-            </span>
+            <div class="flex items-center gap-1">
+              <router-link
+                v-if="!item.deleted_at"
+                :to="{ name: 'customer_detail', params: { companyId: item.logto_id } }"
+                class="cursor-pointer font-medium hover:underline"
+              >
+                {{ item.name }}
+              </router-link>
+              <span v-else class="text-tertiary-neutral">
+                {{ item.name }}
+              </span>
+              <NotesIcon v-if="item.custom_data?.notes?.trim()" :notes="item.custom_data.notes" />
+            </div>
           </NeTableCell>
           <NeTableCell
             :data-label="$t('organizations.vat_number')"

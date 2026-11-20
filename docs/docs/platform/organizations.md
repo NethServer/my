@@ -153,7 +153,7 @@ Each organization type has its own list view:
 
 1. Navigate to **[Type]** (Distributors/Resellers/Customers)
 2. View the list with the following information:
-   - Organization name
+   - Organization name, with an icon that shows its notes on hover (up to 10 lines) when it has any
    - Description
    - Number of users
    - Number of systems

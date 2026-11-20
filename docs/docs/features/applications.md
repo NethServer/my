@@ -76,6 +76,8 @@ You can add notes to applications to record additional context or operational in
 3. Add or edit your notes
 4. Save changes
 
+In the applications list, an icon next to the name of an application with notes shows them on hover (up to 10 lines).
+
 ## Totals and Trends
 
 The [Dashboard](./dashboard.md) displays the total count of applications visible to your account, with a badge linking to the unassigned ones. Growth over time is available from the API through `/backend/api/applications/trend`.

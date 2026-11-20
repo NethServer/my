@@ -83,7 +83,7 @@ import OrganizationIconAndLink from '../organizations/OrganizationIconAndLink.vu
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
 import SystemLogoAndLink from './SystemLogoAndLink.vue'
 import SystemFavoriteToggle from './SystemFavoriteToggle.vue'
-import SystemNotesIcon from './SystemNotesIcon.vue'
+import NotesIcon from '@/components/common/NotesIcon.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -613,7 +613,7 @@ function onCloseSecretRegeneratedModal() {
                 :system-name="item.name"
                 :system-type="item.type"
               />
-              <SystemNotesIcon v-if="item.notes?.trim()" :notes="item.notes" />
+              <NotesIcon v-if="item.notes?.trim()" :notes="item.notes" />
               <!-- an archived system cannot be starred: its row has no actions but restore -->
               <SystemFavoriteToggle
                 v-if="item.status !== 'deleted'"

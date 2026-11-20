@@ -2,8 +2,8 @@
   Copyright (C) 2026 Nethesis S.r.l.
   SPDX-License-Identifier: GPL-3.0-or-later
 
-  Next to a system name, shows the system notes in a tooltip. Long notes are
-  cropped: the system details show them in full.
+  Next to the name of an object in a table, shows its notes in a tooltip. Long
+  notes are cropped: the detail page of the object shows them in full.
 -->
 
 <script setup lang="ts">
