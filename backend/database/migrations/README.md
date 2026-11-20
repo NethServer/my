@@ -143,8 +143,8 @@ podman run --rm --network=host -v "$(pwd):/migrations:ro" postgres:16-alpine \
 1. Create new migration files numbered one above the highest migration on
    `main`, never in a gap, and check the number is still free right before
    merging (rebase first):
-   - `062_your_migration_name.sql`
-   - `062_your_migration_name_rollback.sql`
+   - `070_your_migration_name.sql`
+   - `070_your_migration_name_rollback.sql`
 
    The numbers are already recorded in `schema_migrations` on QA and
    production, so a migration on `main` is never renumbered. A branch whose
@@ -152,7 +152,7 @@ podman run --rm --network=host -v "$(pwd):/migrations:ro" postgres:16-alpine \
 
    These numbers are skipped on `main` and must not be reused: **022**,
    **048** (PR #237, closed) and **054–059** (left by the support service
-   before it moved to new numbers). `TestMigrationFiles` fails on a duplicate
+   before it moved to 062–069). `TestMigrationFiles` fails on a duplicate
    number or a migration without its rollback.
 
 2. Update the migration runner script if needed
