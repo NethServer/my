@@ -104,7 +104,7 @@ const { state: thirdPartyApps } = useQuery({
                 {{ thirdPartyApp.branding.display_name }}
               </NeHeading>
             </div>
-            <p>
+            <p class="text-tertiary-neutral">
               {{ $t(getThirdPartyAppDescription(thirdPartyApp)) }}
             </p>
             <!--

@@ -137,18 +137,20 @@ const items = computed<ThirdPartyAppWidgetItem[]>(() => {
   return []
 })
 
+// the text colors of the design system: Warning, Danger, Secondary and Primary
+// neutral, and for success, which has no text token, the green of Icon/Enabled
 const toneClass = (tone?: string) => {
   switch (tone) {
     case 'warning':
-      return 'text-amber-600 dark:text-amber-400'
+      return 'text-amber-700 dark:text-amber-500'
     case 'danger':
-      return 'text-rose-600 dark:text-rose-400'
+      return 'text-danger'
     case 'success':
-      return 'text-green-600 dark:text-green-400'
+      return 'text-green-700 dark:text-green-500'
     case 'info':
-      return 'text-indigo-500 dark:text-indigo-400'
+      return 'text-secondary'
     default:
-      return 'text-gray-900 dark:text-gray-50'
+      return 'text-primary-neutral'
   }
 }
 </script>
@@ -156,13 +158,13 @@ const toneClass = (tone?: string) => {
 <template>
   <div
     v-if="app.info_url && items.length"
-    class="mt-4 border-t border-gray-200 pt-4 dark:border-gray-700"
+    class="my-4 border-t border-gray-200 pt-4 dark:border-gray-700"
   >
     <NeSkeleton v-if="state.status === 'pending'" :lines="2" />
     <!-- silent on error/empty: the widget is a nice-to-have -->
     <dl v-else-if="items.length" class="space-y-2">
       <div v-for="item in items" :key="item.label" class="flex items-center justify-between gap-3">
-        <dt class="text-sm text-gray-500 dark:text-gray-400">{{ item.label }}</dt>
+        <dt class="text-tertiary-neutral text-sm">{{ item.label }}</dt>
         <dd :class="['text-sm font-medium', toneClass(item.tone)]">
           <component
             :is="item.link ? 'a' : 'span'"
