@@ -102,7 +102,7 @@ const formattedCounter = computed(() => {
         <FontAwesomeIcon
           v-if="icon"
           :icon="icon"
-          class="text-tertiary-neutral dark:text-tertiary-neutral size-5"
+          class="text-secondary-neutral size-5"
         />
         <!--
           The title and its tooltip flow as one line of text, so the tooltip
@@ -116,7 +116,7 @@ const formattedCounter = computed(() => {
             :is="titleTag"
             v-bind="titleAttrs"
             :class="[
-              'text-tertiary-neutral dark:text-tertiary-neutral inline whitespace-normal',
+              'text-secondary-neutral inline whitespace-normal',
               isInteractive && 'cursor-pointer hover:underline',
             ]"
           >
