@@ -18,6 +18,7 @@ const {
   systemName,
   isFavorite = false,
   revealOnRowHover = false,
+  large = false,
 } = defineProps<{
   systemId: string
   systemName: string
@@ -26,6 +27,9 @@ const {
   // row is hovered or the star has the focus: the kebab menu of the row has
   // the same action for touch screens
   revealOnRowHover?: boolean
+  // next to a heading: a 20 px icon, whose 28 px button still fits a heading
+  // line of 32 px
+  large?: boolean
 }>()
 
 const { t } = useI18n()
@@ -100,7 +104,7 @@ async function toggle() {
         >
           <FontAwesomeIcon
             :icon="isStarred ? faStar : faStarLight"
-            class="size-4"
+            :class="large ? 'size-5' : 'size-4'"
             aria-hidden="true"
           />
         </button>
@@ -117,8 +121,8 @@ async function toggle() {
       >
         <FontAwesomeIcon
           :icon="isStarred ? faStar : faStarLight"
-          class="size-4 motion-reduce:animate-none"
-          :class="{ 'animate-favorite-pop': isPopping }"
+          class="motion-reduce:animate-none"
+          :class="[large ? 'size-5' : 'size-4', { 'animate-favorite-pop': isPopping }]"
           aria-hidden="true"
           @animationend="isPopping = false"
         />

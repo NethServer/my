@@ -101,6 +101,7 @@ const { tabs, selectedTab } = useTabs(tabsConfig)
             :system-id="systemDetail.data.id"
             :system-name="systemDetail.data.name"
             :is-favorite="systemDetail.data.is_favorite"
+            large
           />
         </div>
         <!-- owning company -->
