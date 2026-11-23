@@ -166,7 +166,11 @@ const copyRequestDataToClipboard = (jsonString: string) => {
             <NeTableCell :data-label="$t('account.impersonation.http_method')">
               {{ item.http_method || '-' }}
             </NeTableCell>
-            <NeTableCell :data-label="$t('account.impersonation.api_endpoint')">
+            <!-- endpoints are long unbroken paths, with ids and query strings -->
+            <NeTableCell
+              :data-label="$t('account.impersonation.api_endpoint')"
+              class="wrap-anywhere"
+            >
               {{ item.api_endpoint || '-' }}
             </NeTableCell>
             <NeTableCell :data-label="$t('account.impersonation.request_data')">
