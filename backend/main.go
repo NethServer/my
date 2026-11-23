@@ -199,20 +199,11 @@ func main() {
 		// Authentication endpoints
 		customAuth.POST("/auth/logout", middleware.RejectAPIKey(), middleware.DisableOnImpersonate(), methods.Logout)
 
-		// Consent-based impersonation endpoints (no audit to avoid recursion)
+		// Impersonation endpoints (no audit to avoid recursion)
 		impersonateGroup := customAuth.Group("/impersonate", middleware.RejectAPIKey())
 		{
-			// Consent management endpoints
-			// Consent belongs to the account itself: with an impersonation token
-			// these would act as the target, letting the impersonator grant (or
-			// renew) the very consent the feature hinges on.
-			impersonateGroup.POST("/consent", middleware.DisableOnImpersonate(), methods.EnableImpersonationConsent)
-			impersonateGroup.DELETE("/consent", middleware.DisableOnImpersonate(), methods.DisableImpersonationConsent)
-			impersonateGroup.GET("/consent", middleware.DisableOnImpersonate(), methods.GetImpersonationConsentStatus)
-
-			// Impersonation endpoints
 			impersonateGroup.GET("/status", methods.GetImpersonationStatus)
-			impersonateGroup.POST("", middleware.RequirePermission("impersonate:users"), methods.ImpersonateUserWithConsent) // Only users with impersonate:users permission
+			impersonateGroup.POST("", middleware.RequirePermission("impersonate:users"), methods.ImpersonateUser) // Only users with impersonate:users permission
 			impersonateGroup.DELETE("", methods.ExitImpersonationWithAudit)
 
 			// Session management endpoints

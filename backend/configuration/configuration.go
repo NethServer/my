@@ -114,6 +114,10 @@ type Configuration struct {
 	// trigger a run on their own; the loop catches config changes pushed by
 	// sync and any failed push. 0 disables the loop.
 	ThirdPartyAppsIdPReconcileInterval time.Duration `json:"third_party_apps_idp_reconcile_interval"`
+
+	// ImpersonationSessionDuration is how long an impersonation session lasts
+	// before its token expires: the impersonator starts a new one after it.
+	ImpersonationSessionDuration time.Duration `json:"impersonation_session_duration"`
 }
 
 var Config = Configuration{}
@@ -339,6 +343,18 @@ func Init() {
 	Config.S3SecretKey = os.Getenv("S3_SECRET_KEY")
 	Config.BackupS3UsePathStyle = parseBoolWithDefault("BACKUP_S3_USE_PATH_STYLE", false)
 	Config.ThirdPartyAppsIdPReconcileInterval = parseDurationWithDefault("THIRD_PARTY_APPS_IDP_RECONCILE_INTERVAL", 15*time.Minute)
+
+	// Capped at a week, the longest window the former consent allowed, so a
+	// misconfigured env cannot mint a long-lived impersonation token.
+	impersonationDuration := parseDurationWithDefault("IMPERSONATION_SESSION_DURATION", time.Hour)
+	if impersonationDuration > 168*time.Hour {
+		logger.LogConfigLoad("env", "IMPERSONATION_SESSION_DURATION", false, fmt.Errorf("value %s exceeds the 168h hard cap, clamping", impersonationDuration))
+		impersonationDuration = 168 * time.Hour
+	}
+	if impersonationDuration <= 0 {
+		impersonationDuration = time.Hour
+	}
+	Config.ImpersonationSessionDuration = impersonationDuration
 
 	// Cap the presigned URL lifetime at 15 minutes so a misconfigured
 	// env can never mint long-lived bearer URLs to backup objects.

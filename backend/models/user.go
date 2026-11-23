@@ -95,21 +95,6 @@ type ChangeInfoRequest struct {
 	Phone *string `json:"phone,omitempty"`
 }
 
-// ImpersonationConsent represents a user's consent to be impersonated
-type ImpersonationConsent struct {
-	ID                 string    `json:"id" db:"id"`
-	UserID             string    `json:"user_id" db:"user_id"`
-	ExpiresAt          time.Time `json:"expires_at" db:"expires_at"`
-	MaxDurationMinutes int       `json:"max_duration_minutes" db:"max_duration_minutes"`
-	CreatedAt          time.Time `json:"created_at" db:"created_at"`
-	Active             bool      `json:"-" db:"active"`
-}
-
-// EnableConsentRequest represents a request to enable impersonation consent
-type EnableConsentRequest struct {
-	DurationHours int `json:"duration_hours" binding:"min=0,max=168"` // Max 1 week, defaults to 1 hour if 0 or not provided
-}
-
 // ImpersonationAuditEntry represents an action performed during impersonation
 type ImpersonationAuditEntry struct {
 	ID                   string    `json:"id" db:"id"`

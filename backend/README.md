@@ -85,6 +85,9 @@ BACKUP_S3_USE_PATH_STYLE=false
 # Lifetime of a presigned download URL (capped server-side at 15m).
 #BACKUP_PRESIGN_TTL=5m
 
+# Lifetime of an impersonation session (Go duration, capped server-side at 168h).
+#IMPERSONATION_SESSION_DURATION=1h
+
 # ===========================================
 # SMTP EMAIL CONFIGURATION (Optional)
 # ===========================================
@@ -137,7 +140,7 @@ Templates are in `services/email/templates/` and support Go template syntax.
 Role pairing is enforced fail-closed by the API: inside the Owner organization only Staff is assignable, Staff is never assignable outside it, and the Owner user role is never assignable at all — it belongs solely to the bootstrap `owner` account seeded by `sync init` and is not returned by `GET /api/roles`. Staff holds all non-destructive technical scopes (including `impersonate:users` and `connect:systems`) but no `destroy:systems|users` and cannot manage the Owner organization's own membership; the Owner role adds those.
 
 ### User Impersonation
-Requires the `impersonate:users` permission, held only by the Staff and Owner user roles: temporarily act as another user with 1-hour scoped JWT tokens. Consent of the target user is mandatory; reach is platform-wide by design. Prevents self-impersonation and token chaining. All actions are logged.
+Requires the `impersonate:users` permission, held only by the Staff and Owner user roles: temporarily act as another user with scoped JWT tokens that expire after `IMPERSONATION_SESSION_DURATION` (default 1h). The target user's consent is not asked; reach is platform-wide by design. Prevents self-impersonation and token chaining. All actions are logged.
 
 - `POST /api/auth/impersonate` - Start impersonation
 - `POST /api/auth/exit-impersonation` - Exit impersonation

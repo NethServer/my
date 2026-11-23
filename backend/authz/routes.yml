@@ -152,25 +152,10 @@ routes:
     note: revoking somebody else's key must fail on ownership, not on a permission
 
   # ===========================================================================
-  # Impersonation. Consent is the caller's own business; impersonating somebody
-  # requires the dedicated impersonate:users permission, which only the Owner
-  # and Staff user roles carry
-  # holds in config.yml.
+  # Impersonation. Impersonating somebody requires the dedicated
+  # impersonate:users permission, which only the Owner and Staff user roles
+  # carry in config.yml; the target's consent is not asked.
   # ===========================================================================
-  - method: GET
-    path: /api/impersonate/consent
-    intent: authenticated
-
-  - method: POST
-    path: /api/impersonate/consent
-    intent: authenticated
-    skip: mutates the caller's own consent state; exercised explicitly in the special layer
-
-  - method: DELETE
-    path: /api/impersonate/consent
-    intent: authenticated
-    skip: mutates the caller's own consent state; exercised explicitly in the special layer
-
   - method: GET
     path: /api/impersonate/status
     intent: authenticated

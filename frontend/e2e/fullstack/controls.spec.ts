@@ -24,8 +24,8 @@
  * Read-only: the controls are located, never clicked, so nothing is created and
  * there is nothing to tear down. Two gates are deliberately left out and
  * tracked as later work, both because they need a fixture this spec would have
- * to build: impersonation (`impersonate:users`, which also depends on the
- * target's consent) and the add-on catalog, including the compound
+ * to build: impersonation (`impersonate:users`, which needs an active target
+ * user) and the add-on catalog, including the compound
  * `canBuyAddons` — `manage:entitlements` AND NOT owner-level, the one gate in
  * the codebase where holding more authority has to hide a control.
  */

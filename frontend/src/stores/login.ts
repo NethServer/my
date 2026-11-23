@@ -90,8 +90,8 @@ export const useLoginStore = defineStore('login', () => {
   })
 
   // The bootstrap 'owner' account is the only user without a local database id
-  // (it lives only in Logto): profile editing, API keys and impersonation
-  // consent need that row, so they are disabled for it — and only for it.
+  // (it lives only in Logto): profile editing and API keys need that row, so
+  // they are disabled for it — and only for it.
   // Staff/Owner-org users are regular accounts.
   const isOwnerAccount = computed(() => {
     return !!userInfo.value && userInfo.value.id === ''

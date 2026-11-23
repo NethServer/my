@@ -29,171 +29,14 @@ import (
 )
 
 // =============================================================================
-// CONSENT MANAGEMENT ENDPOINTS
+// IMPERSONATION ENDPOINTS
 // =============================================================================
 
-// EnableImpersonationConsent allows a user to enable consent for being impersonated
-// POST /api/impersonate/consent
-func EnableImpersonationConsent(c *gin.Context) {
-	// Get current user context
-	user, ok := helpers.GetUserFromContext(c)
-	if !ok {
-		return
-	}
-
-	// Parse request body
-	var req models.EnableConsentRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.RequestLogger(c, "impersonate").Warn().
-			Err(err).
-			Str("operation", "enable_consent_parse_request").
-			Str("user_id", user.ID).
-			Msg("Invalid enable consent request JSON")
-
-		c.JSON(http.StatusBadRequest, response.BadRequest(
-			"invalid request body: "+err.Error(),
-			nil,
-		))
-		return
-	}
-
-	// Set default duration if not provided
-	if req.DurationHours == 0 {
-		req.DurationHours = 1 // Default to 1 hour
-	}
-
-	// Create impersonation service
-	impersonationService := local.NewImpersonationService()
-
-	// Enable consent
-	consent, err := impersonationService.EnableConsent(user.ID, req.DurationHours)
-	if err != nil {
-		logger.RequestLogger(c, "impersonate").Error().
-			Err(err).
-			Str("operation", "enable_consent").
-			Str("user_id", user.ID).
-			Int("duration_hours", req.DurationHours).
-			Msg("Failed to enable impersonation consent")
-
-		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"failed to enable consent: "+err.Error(),
-			nil,
-		))
-		return
-	}
-
-	// Log consent enabling
-	logger.RequestLogger(c, "impersonate").Info().
-		Str("operation", "consent_enabled").
-		Str("user_id", user.ID).
-		Str("username", user.Username).
-		Str("consent_id", consent.ID).
-		Int("duration_hours", req.DurationHours).
-		Time("expires_at", consent.ExpiresAt).
-		Msg("User enabled impersonation consent")
-
-	c.JSON(http.StatusOK, response.OK(
-		"impersonation consent enabled successfully",
-		gin.H{
-			"consent": consent,
-		},
-	))
-}
-
-// DisableImpersonationConsent allows a user to disable consent for being impersonated
-// DELETE /api/impersonate/consent
-func DisableImpersonationConsent(c *gin.Context) {
-	// Get current user context
-	user, ok := helpers.GetUserFromContext(c)
-	if !ok {
-		return
-	}
-
-	// Create impersonation service
-	impersonationService := local.NewImpersonationService()
-
-	// Disable consent
-	err := impersonationService.DisableConsent(user.ID)
-	if err != nil {
-		logger.RequestLogger(c, "impersonate").Error().
-			Err(err).
-			Str("operation", "disable_consent").
-			Str("user_id", user.ID).
-			Msg("Failed to disable impersonation consent")
-
-		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"failed to disable consent: "+err.Error(),
-			nil,
-		))
-		return
-	}
-
-	// Log consent disabling
-	logger.RequestLogger(c, "impersonate").Info().
-		Str("operation", "consent_disabled").
-		Str("user_id", user.ID).
-		Str("username", user.Username).
-		Msg("User disabled impersonation consent")
-
-	c.JSON(http.StatusOK, response.OK(
-		"impersonation consent disabled successfully",
-		nil,
-	))
-}
-
-// GetImpersonationConsentStatus gets the current consent status for the user
-// GET /api/impersonate/consent
-func GetImpersonationConsentStatus(c *gin.Context) {
-	// Get current user context
-	user, ok := helpers.GetUserFromContext(c)
-	if !ok {
-		return
-	}
-
-	// Create impersonation service
-	impersonationService := local.NewImpersonationService()
-
-	// Get consent status
-	consent, err := impersonationService.GetConsentStatus(user.ID)
-	if err != nil {
-		logger.RequestLogger(c, "impersonate").Error().
-			Err(err).
-			Str("operation", "get_consent_status").
-			Str("user_id", user.ID).
-			Msg("Failed to get impersonation consent status")
-
-		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"failed to get consent status: "+err.Error(),
-			nil,
-		))
-		return
-	}
-
-	if consent == nil {
-		c.JSON(http.StatusOK, response.OK(
-			"no active impersonation consent",
-			gin.H{
-				"consent": nil,
-			},
-		))
-		return
-	}
-
-	c.JSON(http.StatusOK, response.OK(
-		"consent status retrieved successfully",
-		gin.H{
-			"consent": consent,
-		},
-	))
-}
-
-// =============================================================================
-// IMPERSONATION ENDPOINTS (Updated with Consent Validation)
-// =============================================================================
-
-// ImpersonateUserWithConsent allows owner users to impersonate another user (only if consent is active)
+// ImpersonateUser lets a user holding impersonate:users act as another user,
+// for configuration.Config.ImpersonationSessionDuration. The target's
+// consent is not required: every session is audited instead.
 // POST /api/impersonate
-func ImpersonateUserWithConsent(c *gin.Context) {
+func ImpersonateUser(c *gin.Context) {
 	// Get current user context
 	user, ok := helpers.GetUserFromContext(c)
 	if !ok {
@@ -337,79 +180,13 @@ func ImpersonateUserWithConsent(c *gin.Context) {
 	// Create impersonation service
 	impersonationService := local.NewImpersonationService()
 
-	// Check if target user has active consent (using database UUID for consent table FK)
-	canBeImpersonated, err := impersonationService.CanBeImpersonated(targetUser.ID)
-	if err != nil {
-		logger.RequestLogger(c, "impersonate").Error().
-			Err(err).
-			Str("operation", "check_consent").
-			Str("user_id", user.ID).
-			Str("target_user_id", targetUser.ID).
-			Msg("Failed to check impersonation consent")
-
-		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"failed to check impersonation consent: "+err.Error(),
-			nil,
-		))
-		return
-	}
-
-	if !canBeImpersonated {
-		logger.RequestLogger(c, "impersonate").Warn().
-			Str("operation", "impersonate_no_consent").
-			Str("user_id", user.ID).
-			Str("target_user_id", targetUser.ID).
-			Msg("Attempted to impersonate user without active consent")
-
-		c.JSON(http.StatusForbidden, response.Forbidden(
-			"target user has not provided consent for impersonation or consent has expired",
-			nil,
-		))
-		return
-	}
-
-	// Get consent details to determine token duration (using database UUID)
-	consent, err := impersonationService.GetConsentStatus(targetUser.ID)
-	if err != nil || consent == nil {
-		logger.RequestLogger(c, "impersonate").Error().
-			Err(err).
-			Str("operation", "get_consent_details").
-			Str("user_id", user.ID).
-			Str("target_user_id", targetUser.ID).
-			Msg("Failed to get consent details for impersonation")
-
-		c.JSON(http.StatusInternalServerError, response.InternalServerError(
-			"failed to get consent details: "+err.Error(),
-			nil,
-		))
-		return
-	}
-
-	// Calculate remaining duration from consent expiration time
-	// This ensures that multiple impersonation sessions within the same consent period
-	// all expire at the original consent expiration time, not extended durations
-	remainingDuration := time.Until(consent.ExpiresAt)
-	if remainingDuration <= 0 {
-		// Consent has expired (shouldn't happen due to earlier CanBeImpersonated check, but safety check)
-		logger.RequestLogger(c, "impersonate").Warn().
-			Str("operation", "consent_expired_during_impersonation").
-			Str("user_id", user.ID).
-			Str("target_user_id", targetUser.ID).
-			Time("consent_expires_at", consent.ExpiresAt).
-			Msg("Consent expired between validation and token generation")
-
-		c.JSON(http.StatusForbidden, response.Forbidden(
-			"consent has expired",
-			nil,
-		))
-		return
-	}
+	sessionDuration := configuration.Config.ImpersonationSessionDuration
+	expiresAt := time.Now().Add(sessionDuration)
 
 	// Generate session ID for audit tracking
 	sessionID := uuid.New().String()
 
-	// Generate impersonation token with remaining duration from consent
-	impersonationToken, err := jwt.GenerateImpersonationTokenWithDuration(*targetUser, *user, sessionID, remainingDuration)
+	impersonationToken, err := jwt.GenerateImpersonationTokenWithDuration(*targetUser, *user, sessionID, sessionDuration)
 	if err != nil {
 		logger.RequestLogger(c, "impersonate").Error().
 			Err(err).
@@ -428,7 +205,7 @@ func ImpersonateUserWithConsent(c *gin.Context) {
 
 	// Create active session in Redis to prevent duplicate impersonation
 	// Store logto_id as ImpersonatedUserID for consistency with GetUserForImpersonation
-	err = sessionManager.CreateSession(user.ID, sessionID, *targetUser.LogtoID, remainingDuration)
+	err = sessionManager.CreateSession(user.ID, sessionID, *targetUser.LogtoID, sessionDuration)
 	if err != nil {
 		logger.RequestLogger(c, "impersonate").Warn().
 			Err(err).
@@ -463,7 +240,7 @@ func ImpersonateUserWithConsent(c *gin.Context) {
 
 	// Log successful impersonation start
 	logger.RequestLogger(c, "impersonate").Info().
-		Str("operation", "impersonation_started_with_consent").
+		Str("operation", "impersonation_started").
 		Str("impersonator_user_id", user.ID).
 		Str("impersonator_username", user.Username).
 		Str("impersonated_user_id", targetUser.ID).
@@ -471,17 +248,17 @@ func ImpersonateUserWithConsent(c *gin.Context) {
 		Str("session_id", sessionID).
 		Str("impersonator_org", user.OrganizationID).
 		Str("impersonated_org", targetUser.OrganizationID).
-		Int64("remaining_duration_seconds", int64(remainingDuration.Seconds())).
-		Time("consent_expires_at", consent.ExpiresAt).
-		Msg("User impersonation started successfully with consent")
+		Int64("duration_seconds", int64(sessionDuration.Seconds())).
+		Time("expires_at", expiresAt).
+		Msg("User impersonation started successfully")
 
 	c.JSON(http.StatusOK, response.OK(
 		"impersonation started successfully",
 		gin.H{
 			"is_impersonating":  true,
 			"token":             impersonationToken,
-			"expires_in":        int64(remainingDuration.Seconds()), // Remaining seconds until consent expires
-			"expires_at":        consent.ExpiresAt,                  // ISO timestamp when consent expires
+			"expires_in":        int64(sessionDuration.Seconds()),
+			"expires_at":        expiresAt,
 			"session_id":        sessionID,
 			"impersonated_user": targetUser,
 			"impersonator":      user,
@@ -550,9 +327,9 @@ func ExitImpersonationWithAudit(c *gin.Context) {
 
 	impersonatedUser, _ := helpers.GetUserFromContext(c)
 
-	// The impersonation token dies here: its lifetime is the consent's (up to
-	// a week), so an exit that left it valid would leave a usable target
-	// identity in the caller's hands. The presented token is the one to burn.
+	// The impersonation token dies here: it would otherwise stay valid for the
+	// rest of the session (up to a week), leaving a usable target identity in
+	// the caller's hands. The presented token is the one to burn.
 	if presented := strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer "); presented != "" {
 		if blErr := cache.GetTokenBlacklist().BlacklistToken(presented, "impersonation exited"); blErr != nil {
 			logger.RequestLogger(c, "impersonate").Warn().
@@ -782,31 +559,6 @@ func GetImpersonationStatus(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError(
 			"failed to get impersonated user details: "+err.Error(),
 			nil,
-		))
-		return
-	}
-
-	// The session record alone is not enough to re-issue a token: the target
-	// may have revoked consent since it was opened.
-	stillConsenting, consentErr := local.NewImpersonationService().CanBeImpersonated(impersonatedUser.ID)
-	if consentErr != nil {
-		logger.RequestLogger(c, "impersonate").Error().
-			Err(consentErr).
-			Str("operation", "status_consent_check_failed").
-			Str("session_id", activeSession.SessionID).
-			Msg("Failed to re-check consent for the active session")
-		c.JSON(http.StatusServiceUnavailable, response.ServiceUnavailable("security service temporarily unavailable", nil))
-		return
-	}
-	if !stillConsenting {
-		if err := sessionManager.ClearSession(user.ID); err != nil {
-			logger.RequestLogger(c, "impersonate").Warn().Err(err).Str("user_id", user.ID).Msg("Failed to clear session after consent revocation")
-		}
-		c.JSON(http.StatusOK, response.OK(
-			"not currently impersonating",
-			gin.H{
-				"is_impersonating": false,
-			},
 		))
 		return
 	}

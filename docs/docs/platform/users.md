@@ -48,7 +48,7 @@ Manually assigned to users based on their job function:
 
 - **Staff** (Owner organization only): Nethesis cross-cutting staff
   - Manage systems, users, applications, alerts (including alert template configuration), add-ons, rebranding across all companies
-  - User impersonation (with the user's consent) and remote connection to systems
+  - User impersonation (any active user except the `owner` account, with every session audited) and remote connection to systems
   - Cannot permanently destroy systems or users
 
 :::note Role assignment rules

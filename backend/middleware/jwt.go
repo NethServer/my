@@ -16,12 +16,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/nethesis/my/backend/cache"
-	"github.com/nethesis/my/backend/database"
 	"github.com/nethesis/my/backend/jwt"
 	"github.com/nethesis/my/backend/logger"
 	"github.com/nethesis/my/backend/models"
 	"github.com/nethesis/my/backend/response"
-	"github.com/nethesis/my/backend/services/local"
 )
 
 // setUserContext sets user-related context values on the gin context
@@ -137,39 +135,6 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 		impersonationClaims, impErr := jwt.ValidateImpersonationToken(tokenString)
 		if impErr == nil {
 			// This is a valid impersonation token
-			// Check if impersonation consent is still active (security: revoked consent should invalidate active tokens)
-			// Skip consent validation if database is not available (e.g., in test environments)
-			if database.DB != nil {
-				impersonationService := local.NewImpersonationService()
-				canBeImpersonated, consentErr := impersonationService.CanBeImpersonated(impersonationClaims.User.ID)
-				if consentErr != nil {
-					logger.RequestLogger(c, "auth").Error().
-						Err(consentErr).
-						Str("operation", "impersonation_consent_check_failed").
-						Str("impersonated_user_id", impersonationClaims.User.ID).
-						Str("impersonator_user_id", impersonationClaims.ImpersonatedBy.ID).
-						Str("client_ip", c.ClientIP()).
-						Msg("Failed to check impersonation consent - denying request")
-					c.JSON(http.StatusServiceUnavailable, response.ServiceUnavailable("security service temporarily unavailable", nil))
-					c.Abort()
-					return
-				}
-				if !canBeImpersonated {
-					logger.RequestLogger(c, "auth").Warn().
-						Str("operation", "impersonation_consent_revoked").
-						Str("impersonated_user_id", impersonationClaims.User.ID).
-						Str("impersonator_user_id", impersonationClaims.ImpersonatedBy.ID).
-						Str("session_id", impersonationClaims.SessionID).
-						Str("client_ip", c.ClientIP()).
-						Msg("Impersonation consent has been revoked - invalidating token")
-					c.JSON(http.StatusUnauthorized, response.Unauthorized("impersonation consent has been revoked", gin.H{
-						"message": "the user has revoked consent for impersonation. please exit impersonation mode.",
-					}))
-					c.Abort()
-					return
-				}
-			}
-
 			// User-level revocation of BOTH principals: a suspended (or logged
 			// out) impersonator must not keep acting through the target, and a
 			// suspended target must not be acted for. Keyed on the Logto ID

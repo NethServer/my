@@ -48,7 +48,7 @@ Assegnati manualmente in base alla funzione lavorativa:
 
 - **Staff** (solo organizzazione Owner): personale trasversale Nethesis
   - Gestione di sistemi, utenti, applicazioni, allarmi (inclusa la configurazione dei template), add-on e rebranding su tutte le aziende
-  - Impersonificazione degli utenti (con il loro consenso) e connessione remota ai sistemi
+  - Impersonificazione degli utenti (qualsiasi utente attivo tranne l'account `owner`, con ogni sessione sotto audit) e connessione remota ai sistemi
   - Non può eliminare definitivamente sistemi o utenti
 
 :::note Regole di assegnazione

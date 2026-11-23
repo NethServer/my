@@ -18,7 +18,7 @@ import (
 //   api_key           — a myk_ token is capped by BOTH its read/write mode and
 //                       the live permissions of the user who owns it, and is
 //                       refused outright on session-bound routes
-//   impersonate       — needs impersonate:users AND the target's consent
+//   impersonate       — needs impersonate:users, and nothing from the target
 
 // SpecialSpec is one hand-written case. Kind selects the check; the remaining
 // fields are its parameters.
@@ -34,16 +34,15 @@ type SpecialSpec struct {
 	Expect       string `yaml:"expect"`
 	ExpectStatus []int  `yaml:"expect_status"`
 	// Setup runs before the case, as other personas, to establish the state the
-	// case needs — enabling a target's impersonation consent, for instance. A
+	// case needs, such as a record the case acts on. A
 	// failing setup step makes the case REVIEW rather than a silent pass, because
 	// a case whose precondition never happened proves nothing.
 	Setup []SpecialStep `yaml:"setup"`
-	// Teardown always runs, so consent flags and sessions do not leak into the
+	// Teardown always runs, so the state a setup created does not leak into the
 	// next case.
 	Teardown []SpecialStep `yaml:"teardown"`
 	// MustContain / MustNotContain assert on the response body. Used to pin down
-	// WHY something was refused: a cross-hierarchy impersonation that comes back
-	// with the consent message was not stopped by the hierarchy check.
+	// WHY something was refused, when several checks can refuse the same call.
 	MustContain    []string `yaml:"must_contain"`
 	MustNotContain []string `yaml:"must_not_contain"`
 	Note           string   `yaml:"note"`
@@ -270,8 +269,7 @@ func (a *authzRunner) specialVerdict(sc SpecialSpec, p *persona, res *probeResul
 	out := specialStatusVerdict(sc, p, res)
 
 	// Content assertions pin down the REASON, which matters when several checks
-	// can refuse the same call: a cross-hierarchy impersonation refused with the
-	// consent message means the hierarchy check never ran.
+	// can refuse the same call.
 	for _, needle := range sc.MustNotContain {
 		resolved, err := a.resolve(needle, p)
 		if err != nil {

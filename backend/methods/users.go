@@ -286,31 +286,12 @@ func GetUsers(c *gin.Context) {
 	// Check if current user has impersonate permission (from user roles or organization roles)
 	canImpersonate := HasPermission(user.UserPermissions, user.OrgPermissions, "impersonate:users")
 
-	// Enrich users with impersonation consent status if user can impersonate
+	// For a caller who can impersonate, tell which users POST /impersonate
+	// would accept, so the frontend enables the action only for them
 	enrichedUsers := make([]gin.H, 0)
 	if canImpersonate {
-		impersonationService := local.NewImpersonationService()
-
-		// Collect all user IDs for batch consent check (performance optimization)
-		userIDs := make([]string, len(accounts))
-		for i, account := range accounts {
-			userIDs[i] = account.ID
-		}
-
-		// Batch check impersonation consent for all users (single query instead of N queries)
-		consentMap, err := impersonationService.CanBeImpersonatedBatch(userIDs)
-		if err != nil {
-			logger.RequestLogger(c, "users").Warn().
-				Err(err).
-				Int("user_count", len(userIDs)).
-				Msg("Failed to batch check impersonation consent, defaulting to false")
-			// Initialize empty map so all users default to false
-			consentMap = make(map[string]bool)
-		}
-
 		for _, account := range accounts {
-			// Get consent status from batch result (defaults to false if not found)
-			canBeImpersonated := consentMap[account.ID]
+			canBeImpersonated := isImpersonationTarget(user, account)
 
 			// Convert account to gin.H and add impersonation field
 			userMap := gin.H{
@@ -1138,4 +1119,20 @@ func ResetUserPassword(c *gin.Context) {
 
 	// Return success response
 	c.JSON(http.StatusOK, response.OK("password reset successfully", nil))
+}
+
+// isImpersonationTarget mirrors the checks of ImpersonateUser: an active user
+// other than the caller, without the Owner user role
+func isImpersonationTarget(caller *models.User, account *models.LocalUser) bool {
+	if account.DeletedAt != nil || account.SuspendedAt != nil || account.ID == caller.ID {
+		return false
+	}
+	if caller.LogtoID != nil && account.LogtoID != nil && *caller.LogtoID == *account.LogtoID {
+		return false
+	}
+	roleNames := make([]string, 0, len(account.Roles))
+	for _, role := range account.Roles {
+		roleNames = append(roleNames, role.Name)
+	}
+	return !models.HasOwnerUserRole(roleNames)
 }

@@ -176,22 +176,20 @@ and 3 below are **fixed**; finding 1 turned out not to be a defect.
 
 ### 1. Cross-hierarchy impersonation — INTENDED, spec states it
 
-`POST /api/impersonate` checks the `impersonate:users` permission and the
-target's consent but **not** whether the target is inside the caller's
-hierarchy: an Owner-organization user reaches any consenting user of any
+`POST /api/impersonate` checks the `impersonate:users` permission but **not**
+whether the target is inside the caller's hierarchy, and it does not ask the
+target's consent: an Owner-organization user reaches any active user of any
 distributor, reseller or customer — all 200.
 
 That is the design, not a defect. The Owner organization's staff must be able
 to support users of every distributor and reseller. The feature therefore has
-two barriers, and the hierarchy is deliberately not one of them:
+one barrier, and the hierarchy is deliberately not it: the caller must hold
+`impersonate:users`, which only the **Staff** and **Owner** user roles carry —
+both confined to the Owner organization (Staff is assignable only there, by an
+Owner-role caller; Owner is never assignable at all). An Owner-role account is
+never a target, and every session is audited.
 
-1. the target must have consented;
-2. the caller must hold `impersonate:users`, which only the **Staff** and
-   **Owner** user roles carry — both confined to the Owner organization (Staff
-   is assignable only there, by an Owner-role caller; Owner is never
-   assignable at all).
-
-**Barrier 2 is what protects the whole feature**, so that is where the suite
+**That barrier is what protects the whole feature**, so that is where the suite
 asserts. Verified: a distributor Admin, a reseller Admin, a customer Admin and
 a Backoffice user are all refused when promoting a user to Staff *or* creating
 one — including when the role id is supplied directly rather than picked from

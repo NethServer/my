@@ -92,7 +92,7 @@ Custom JWT claims: user_id, user_roles, user_permissions, org_role, org_permissi
 
 ### 2.3 Impersonation
 
-Owner organization only (Staff and Owner user roles carry `impersonate:users`). `POST /api/impersonate` mints a JWT with the target user's permissions, expiring with the remaining consent window (not a fixed hour). Requires the target to have opted-in via `POST /api/impersonate/consent` (1-168h, default 1h; revoked with DELETE). All sessions and actions are audited via `impersonation_audit` middleware. No self-impersonation, no chaining. An account holding the Owner user role is never a target. `DELETE /api/impersonate` revokes the impersonation token and re-mints the impersonator's session from its current state (a suspended impersonator gets 401); `GET /api/impersonate/status` re-checks the target's consent before handing out a token. The consent and sessions endpoints refuse impersonation tokens (`DisableOnImpersonate`): they belong to the real account only.
+Owner organization only (Staff and Owner user roles carry `impersonate:users`). `POST /api/impersonate` mints a JWT with the target user's permissions, expiring after `IMPERSONATION_SESSION_DURATION` (default 1h, capped at 168h). The target's consent is not asked: any active user is a target, across the whole hierarchy. All sessions and actions are audited via `impersonation_audit` middleware. No self-impersonation, no chaining. An account holding the Owner user role is never a target. `DELETE /api/impersonate` revokes the impersonation token and re-mints the impersonator's session from its current state (a suspended impersonator gets 401); `GET /api/impersonate/status` hands out a token for the active session. The sessions endpoints refuse impersonation tokens (`DisableOnImpersonate`): they belong to the real account only.
 
 ---
 
@@ -270,7 +270,7 @@ Entities synced with Logto (orgs, users) carry both `id` (DB UUID) and `logto_id
 
 ### 6.2 Error messages
 
-User-facing errors are **lowercase**. Example: `"the user has revoked consent for impersonation. please exit impersonation mode."`
+User-facing errors are **lowercase**. Example: `"cannot impersonate while already impersonating another user. exit current impersonation first."`
 
 Field validation errors (`response.ValidationError` with a 400/409/422 status) are not shown to users as written: the frontend turns each one into an i18n key, `<prefix>.<key>_<message>` (`getValidationIssues` in `frontend/src/lib/validation.ts`). The dots of a nested key become underscores (`custom_data.vat` gives `custom_data_vat`); the message is lowercased and its spaces become underscores, while any other character stays as it is. Therefore:
 

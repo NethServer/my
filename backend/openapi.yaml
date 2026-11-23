@@ -30,7 +30,7 @@ tags:
   - name: Backend - Me
     description: Current user profile, password and avatar management
   - name: Backend - Impersonation
-    description: Consent-based user impersonation flow (start, exit, status, consent)
+    description: User impersonation flow (start, exit, status, sessions)
   - name: Backend - Impersonation Sessions
     description: Impersonation session history and audit logs
 
@@ -1583,7 +1583,7 @@ components:
             - $ref: '#/components/schemas/OrgCreator'
         can_be_impersonated:
           type: boolean
-          description: Whether this user can currently be impersonated (only shown for users with impersonation permissions, based on active consent)
+          description: "Whether the caller can impersonate this user (only shown for users with impersonation permissions): an active user other than the caller, without the Owner user role"
           example: true
         has_avatar:
           type: boolean
@@ -3930,32 +3930,6 @@ components:
           nullable: true
           description: Custom notes for the application
           example: "Server di posta aziendale per il reparto marketing"
-
-    ImpersonationConsent:
-      type: object
-      properties:
-        id:
-          type: string
-          description: Consent ID
-          example: "consent_123"
-        user_id:
-          type: string
-          description: User ID who grants consent
-          example: "usr_456"
-        expires_at:
-          type: string
-          format: date-time
-          description: Consent expiration timestamp
-          example: "2025-09-04T14:30:00Z"
-        max_duration_minutes:
-          type: integer
-          description: Maximum duration for each impersonation session in minutes
-          example: 60
-        created_at:
-          type: string
-          format: date-time
-          description: Consent creation timestamp
-          example: "2025-09-03T14:30:00Z"
 
     ImpersonationSession:
       type: object
@@ -7483,144 +7457,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
 
   # ===========================================================================
-  # CONSENT-BASED IMPERSONATION SYSTEM
+  # IMPERSONATION
   # ===========================================================================
-
-  /impersonate/consent:
-    post:
-      operationId: enableImpersonationConsent
-      servers:
-        - url: https://my.nethesis.it/backend/api
-          description: Backend API server
-      tags:
-        - Backend - Impersonation
-      summary: /impersonate/consent - Enable impersonation consent
-      description: |
-        Allows a user to enable consent for being impersonated by authorized users (Owner organization users holding the Staff or Owner role).
-        This is a **privacy-friendly** approach where users explicitly control
-        if and for how long they can be impersonated.
-
-        **Key Features:**
-        - User controls their own impersonation consent
-        - Custom duration (1-168 hours)
-        - Only active while consent is valid
-        - Complete audit trail of all impersonation activities
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                duration_hours:
-                  type: integer
-                  minimum: 1
-                  maximum: 168
-                  default: 1
-                  description: How many hours the consent should be active (max 1 week, defaults to 1 hour)
-                  example: 24
-      responses:
-        '200':
-          description: Impersonation consent enabled successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "impersonation consent enabled successfully"
-                  data:
-                    type: object
-                    properties:
-                      consent:
-                        $ref: '#/components/schemas/ImpersonationConsent'
-        '400':
-          description: Bad request (invalid duration)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                code: 400
-                message: "Duration must be between 1 and 168 hours"
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-    get:
-      operationId: getImpersonationConsentStatus
-      servers:
-        - url: https://my.nethesis.it/backend/api
-          description: Backend API server
-      tags:
-        - Backend - Impersonation
-      summary: /impersonate/consent - Get impersonation consent status
-      description: |
-        Retrieves the current impersonation consent status for the authenticated user.
-        Shows if consent is active, when it expires, and other consent details.
-      responses:
-        '200':
-          description: Consent status retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "consent status retrieved successfully"
-                  data:
-                    type: object
-                    properties:
-                      consent:
-                        allOf:
-                          - $ref: '#/components/schemas/ImpersonationConsent'
-                        type: object
-                        nullable: true
-                        description: Consent details (null if no active consent)
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-    delete:
-      operationId: disableImpersonationConsent
-      servers:
-        - url: https://my.nethesis.it/backend/api
-          description: Backend API server
-      tags:
-        - Backend - Impersonation
-      summary: /impersonate/consent - Disable impersonation consent
-      description: |
-        Disables all active impersonation consent for the authenticated user.
-        This prevents any future impersonation until consent is re-enabled.
-      responses:
-        '200':
-          description: Impersonation consent disabled successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "impersonation consent disabled successfully"
-                  data:
-                    type: object
-                    nullable: true
-        '401':
-          $ref: '#/components/responses/Unauthorized'
 
   /impersonate:
     post:
-      operationId: impersonateUserWithConsent
+      operationId: impersonateUser
       servers:
         - url: https://my.nethesis.it/backend/api
           description: Backend API server
@@ -7629,8 +7471,9 @@ paths:
       summary: /impersonate - Start impersonation (permission-based access)
       description: |
         Allows users with the `impersonate:users` permission (Staff and Owner roles, Owner organization only)
-        to impersonate another user, but only if that user has active consent enabled.
-        The impersonation token duration will match the user's consent settings.
+        to impersonate another active user, without the target's consent. An Owner-role account is never a
+        target. The token expires after the `IMPERSONATION_SESSION_DURATION` of the backend (default 1 hour),
+        and every session is audited.
       requestBody:
         required: true
         content:
@@ -7667,8 +7510,13 @@ paths:
                         example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                       expires_in:
                         type: integer
-                        description: Token expiration time in seconds (matches user consent)
-                        example: 86400
+                        description: Token expiration time in seconds (IMPERSONATION_SESSION_DURATION)
+                        example: 3600
+                      expires_at:
+                        type: string
+                        format: date-time
+                        description: When the impersonation token expires
+                        example: "2025-09-04T14:30:00Z"
                       session_id:
                         type: string
                         description: Unique session ID for audit tracking
@@ -7698,11 +7546,6 @@ paths:
                   value:
                     code: 400
                     message: "Target user not found or inaccessible"
-                no_consent:
-                  summary: User has no active consent
-                  value:
-                    code: 400
-                    message: "Target user has not provided consent for impersonation or consent has expired"
         '403':
           description: Forbidden (insufficient permissions for impersonation, or already impersonating)
           content:
