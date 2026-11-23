@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import UpdatingTableContainer from '@/components/common/UpdatingTableContainer.vue'
 import { faUserSecret } from '@fortawesome/free-solid-svg-icons'
 import {
   NeTable,
@@ -23,7 +24,6 @@ import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage, PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import { useImpersonationSessions } from '@/queries/impersonationSessions'
 import { SESSIONS_TABLE_ID, type Session } from '@/lib/impersonationSessions'
-import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import { formatMinutes } from '@/lib/dateTime'
 import SessionModal from './SessionModal.vue'
 import { useImpersonationSessionAuditStore } from '@/queries/impersonationSessionAudit'
@@ -60,8 +60,6 @@ const onSessionModalClose = () => {
       <div class="max-w-2xl text-gray-500 dark:text-gray-400">
         {{ $t('account.impersonation.sessions_description') }}
       </div>
-      <!-- update indicator -->
-      <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
     </div>
     <div class="flex flex-col gap-6">
       <!-- get sessions error notification -->
@@ -78,103 +76,107 @@ const onSessionModalClose = () => {
         :icon="faUserSecret"
         class="bg-white dark:bg-gray-950"
       />
-      <NeTable
+      <UpdatingTableContainer
         v-else
-        :aria-label="$t('account.impersonation.sessions')"
-        card-breakpoint="xl"
-        :loading="state.status === 'pending'"
-        :skeleton-columns="7"
-        :skeleton-rows="7"
+        :updating="asyncStatus === 'loading' && state.status !== 'pending'"
       >
-        <NeTableHead>
-          <NeTableHeadCell>{{ $t('account.impersonation.session_start') }}</NeTableHeadCell>
-          <NeTableHeadCell>{{ $t('account.impersonation.session_end') }}</NeTableHeadCell>
-          <NeTableHeadCell>{{ $t('account.impersonation.duration') }}</NeTableHeadCell>
-          <NeTableHeadCell>{{ $t('account.impersonation.impersonator') }}</NeTableHeadCell>
-          <NeTableHeadCell>{{ $t('account.impersonation.session_status') }}</NeTableHeadCell>
-          <NeTableHeadCell>
-            <!-- no header for actions -->
-          </NeTableHeadCell>
-        </NeTableHead>
-        <NeTableBody>
-          <NeTableRow v-for="item in sessionsPage" :key="item.session_id">
-            <NeTableCell :data-label="$t('account.impersonation.session_start')">
-              {{
-                item.start_time ? formatDateTimeNoSeconds(new Date(item.start_time), locale) : '-'
-              }}
-            </NeTableCell>
-            <NeTableCell :data-label="$t('account.impersonation.session_end')">
-              {{ item.end_time ? formatDateTimeNoSeconds(new Date(item.end_time), locale) : '-' }}
-            </NeTableCell>
-            <NeTableCell :data-label="$t('account.impersonation.duration')">
-              <span v-if="item.duration_minutes">{{
-                item.duration_minutes ? formatMinutes(item.duration_minutes, $t) : '-'
-              }}</span>
-              <span v-else-if="item.duration_minutes == 0">{{
-                $t('account.impersonation.less_than_a_minute')
-              }}</span>
-              <span v-else>-</span>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('account.impersonation.impersonator')">
-              {{ item.impersonator_name || '-' }}
-            </NeTableCell>
-            <NeTableCell :data-label="$t('account.impersonation.session_status')">
-              <!-- status icon -->
-              <div class="flex items-center gap-2">
-                <template v-if="item.status === 'active'">
-                  <span class="relative mx-1 flex size-2.5">
-                    <span
-                      class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-600 opacity-75 dark:bg-amber-400"
+        <NeTable
+          :aria-label="$t('account.impersonation.sessions')"
+          card-breakpoint="xl"
+          :loading="state.status === 'pending'"
+          :skeleton-columns="7"
+          :skeleton-rows="7"
+        >
+          <NeTableHead>
+            <NeTableHeadCell>{{ $t('account.impersonation.session_start') }}</NeTableHeadCell>
+            <NeTableHeadCell>{{ $t('account.impersonation.session_end') }}</NeTableHeadCell>
+            <NeTableHeadCell>{{ $t('account.impersonation.duration') }}</NeTableHeadCell>
+            <NeTableHeadCell>{{ $t('account.impersonation.impersonator') }}</NeTableHeadCell>
+            <NeTableHeadCell>{{ $t('account.impersonation.session_status') }}</NeTableHeadCell>
+            <NeTableHeadCell>
+              <!-- no header for actions -->
+            </NeTableHeadCell>
+          </NeTableHead>
+          <NeTableBody>
+            <NeTableRow v-for="item in sessionsPage" :key="item.session_id">
+              <NeTableCell :data-label="$t('account.impersonation.session_start')">
+                {{
+                  item.start_time ? formatDateTimeNoSeconds(new Date(item.start_time), locale) : '-'
+                }}
+              </NeTableCell>
+              <NeTableCell :data-label="$t('account.impersonation.session_end')">
+                {{ item.end_time ? formatDateTimeNoSeconds(new Date(item.end_time), locale) : '-' }}
+              </NeTableCell>
+              <NeTableCell :data-label="$t('account.impersonation.duration')">
+                <span v-if="item.duration_minutes">{{
+                  item.duration_minutes ? formatMinutes(item.duration_minutes, $t) : '-'
+                }}</span>
+                <span v-else-if="item.duration_minutes == 0">{{
+                  $t('account.impersonation.less_than_a_minute')
+                }}</span>
+                <span v-else>-</span>
+              </NeTableCell>
+              <NeTableCell :data-label="$t('account.impersonation.impersonator')">
+                {{ item.impersonator_name || '-' }}
+              </NeTableCell>
+              <NeTableCell :data-label="$t('account.impersonation.session_status')">
+                <!-- status icon -->
+                <div class="flex items-center gap-2">
+                  <template v-if="item.status === 'active'">
+                    <span class="relative mx-1 flex size-2.5">
+                      <span
+                        class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-600 opacity-75 dark:bg-amber-400"
+                      ></span>
+                      <span
+                        class="relative inline-flex size-2.5 rounded-full bg-amber-700 dark:bg-amber-500"
+                      ></span
                     ></span>
-                    <span
-                      class="relative inline-flex size-2.5 rounded-full bg-amber-700 dark:bg-amber-500"
-                    ></span
-                  ></span>
-                </template>
-                <FontAwesomeIcon
-                  v-else-if="item.status === 'completed'"
-                  :icon="faCircleCheck"
-                  class="text-icon-enabled size-4"
-                  aria-hidden="true"
-                />
+                  </template>
+                  <FontAwesomeIcon
+                    v-else-if="item.status === 'completed'"
+                    :icon="faCircleCheck"
+                    class="text-icon-enabled size-4"
+                    aria-hidden="true"
+                  />
 
-                {{ t(`account.impersonation.status_${item.status}`) || '-' }}
-              </div>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('common.actions')">
-              <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
-                <NeButton kind="tertiary" @click="showSessionModal(item)">
-                  {{ $t('account.impersonation.show_audit_log') }}
-                </NeButton>
-              </div>
-            </NeTableCell>
-          </NeTableRow>
-        </NeTableBody>
-        <template #paginator>
-          <NePaginator
-            :current-page="pageNum"
-            :total-rows="pagination?.total_count || 0"
-            :page-size="pageSize"
-            :page-sizes="PAGE_SIZE_OPTIONS"
-            :nav-pagination-label="$t('ne_table.pagination')"
-            :next-label="$t('ne_table.go_to_next_page')"
-            :previous-label="$t('ne_table.go_to_previous_page')"
-            :range-of-total-label="$t('ne_table.of')"
-            :page-size-label="$t('ne_table.show')"
-            @select-page="
-              (page: number) => {
-                pageNum = page
-              }
-            "
-            @select-page-size="
-              (size: number) => {
-                pageSize = size
-                savePageSizeToStorage(SESSIONS_TABLE_ID, size)
-              }
-            "
-          />
-        </template>
-      </NeTable>
+                  {{ t(`account.impersonation.status_${item.status}`) || '-' }}
+                </div>
+              </NeTableCell>
+              <NeTableCell :data-label="$t('common.actions')">
+                <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+                  <NeButton kind="tertiary" @click="showSessionModal(item)">
+                    {{ $t('account.impersonation.show_audit_log') }}
+                  </NeButton>
+                </div>
+              </NeTableCell>
+            </NeTableRow>
+          </NeTableBody>
+          <template #paginator>
+            <NePaginator
+              :current-page="pageNum"
+              :total-rows="pagination?.total_count || 0"
+              :page-size="pageSize"
+              :page-sizes="PAGE_SIZE_OPTIONS"
+              :nav-pagination-label="$t('ne_table.pagination')"
+              :next-label="$t('ne_table.go_to_next_page')"
+              :previous-label="$t('ne_table.go_to_previous_page')"
+              :range-of-total-label="$t('ne_table.of')"
+              :page-size-label="$t('ne_table.show')"
+              @select-page="
+                (page: number) => {
+                  pageNum = page
+                }
+              "
+              @select-page-size="
+                (size: number) => {
+                  pageSize = size
+                  savePageSizeToStorage(SESSIONS_TABLE_ID, size)
+                }
+              "
+            />
+          </template>
+        </NeTable>
+      </UpdatingTableContainer>
     </div>
     <SessionModal :visible="isShownSessionModal" @close="onSessionModalClose" />
   </div>

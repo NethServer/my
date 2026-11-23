@@ -8,6 +8,7 @@ import {
   SYSTEM_ALERT_HISTORY_TABLE_ID,
 } from '@/lib/alerts'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
+import { useScopedPlaceholderData } from '@/lib/scopedPlaceholderData'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { ref, watch } from 'vue'
@@ -26,6 +27,10 @@ export const useSystemAlertHistory = defineQuery(() => {
   const severityFilters = ref<NeDropdownFilterV2Option[]>([])
   const alertnameFilters = ref<NeDropdownFilterV2Option[]>([])
 
+  const { placeholderData, trackScope } = useScopedPlaceholderData<
+    Awaited<ReturnType<typeof getSystemAlertHistory>>
+  >(() => route.params.systemId)
+
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
       SYSTEM_ALERT_HISTORY_KEY,
@@ -38,15 +43,18 @@ export const useSystemAlertHistory = defineQuery(() => {
       alertnameFilters.value.map((o) => o.id).join(','),
     ],
     enabled: () => !!loginStore.jwtToken && !!route.params.systemId && isHistoryEnabled.value,
+    placeholderData,
     query: () =>
-      getSystemAlertHistory(
-        route.params.systemId as string,
-        pageNum.value,
-        pageSize.value,
-        sortBy.value,
-        sortDescending.value,
-        severityFilters.value.length > 0 ? severityFilters.value.map((o) => o.id) : undefined,
-        alertnameFilters.value.length > 0 ? alertnameFilters.value.map((o) => o.id) : undefined,
+      trackScope(
+        getSystemAlertHistory(
+          route.params.systemId as string,
+          pageNum.value,
+          pageSize.value,
+          sortBy.value,
+          sortDescending.value,
+          severityFilters.value.length > 0 ? severityFilters.value.map((o) => o.id) : undefined,
+          alertnameFilters.value.length > 0 ? alertnameFilters.value.map((o) => o.id) : undefined,
+        ),
       ),
     staleTime: ALERTS_REFETCH_INTERVAL_SECONDS * 1000,
     autoRefetch: true,

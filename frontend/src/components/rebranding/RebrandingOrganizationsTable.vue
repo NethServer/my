@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import UpdatingTableContainer from '@/components/common/UpdatingTableContainer.vue'
 import {
   formatDateTimeNoSeconds,
   NeBadgeV2,
@@ -27,7 +28,6 @@ import {
 import { faMagnifyingGlass, faPalette, faTrash } from '@fortawesome/free-solid-svg-icons'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import OrganizationIconAndLink from '@/components/organizations/OrganizationIconAndLink.vue'
 import { canManageRebrandingOrganizations } from '@/lib/permissions'
 import { getRebrandingProductBadgeClasses, REBRANDING_TABLE_ID } from '@/lib/rebranding/rebranding'
@@ -149,8 +149,6 @@ function getKebabMenuItems(organization: RebrandingOrganization): NeDropdownItem
             {{ t('common.reset_filters') }}
           </NeButton>
         </div>
-        <!-- update indicator -->
-        <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
       </div>
     </div>
     <!-- no company has rebranding yet -->
@@ -173,98 +171,102 @@ function getKebabMenuItems(organization: RebrandingOrganization): NeDropdownItem
     >
       <NeButton kind="tertiary" @click="resetFilters">{{ $t('common.reset_filters') }}</NeButton>
     </NeEmptyState>
-    <NeTable
+    <UpdatingTableContainer
       v-if="noEmptyStateShown"
-      :sort-key="sortBy"
-      :sort-descending="sortDescending"
-      :aria-label="$t('rebranding.title')"
-      card-breakpoint="2xl"
-      :loading="state.status === 'pending'"
-      :skeleton-columns="4"
-      :skeleton-rows="7"
+      :updating="asyncStatus === 'loading' && state.status !== 'pending'"
     >
-      <NeTableHead>
-        <NeTableHeadCell sortable column-key="name" @sort="onSort">
-          {{ $t('rebranding.company') }}
-        </NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('rebranding.branded_products') }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="updated_at" @sort="onSort">
-          {{ $t('rebranding.last_updated') }}
-        </NeTableHeadCell>
-        <NeTableHeadCell>
-          <!-- no header for actions -->
-        </NeTableHeadCell>
-      </NeTableHead>
-      <NeTableBody>
-        <NeTableRow v-for="item in organizationsPage" :key="item.logto_id">
-          <NeTableCell :data-label="$t('rebranding.company')">
-            <OrganizationIconAndLink
-              :organization="{
-                logto_id: item.logto_id,
-                name: item.name,
-                type: item.organization_type,
-              }"
-              icon-size="sm"
-            />
-          </NeTableCell>
-          <NeTableCell :data-label="$t('rebranding.branded_products')">
-            <div v-if="item.products.length" class="flex flex-wrap gap-2">
-              <NeBadgeV2
-                v-for="product in item.products"
-                :key="product.product_id"
-                kind="custom"
-                :custom-kind-classes="getRebrandingProductBadgeClasses(product.product_id)"
-                size="xs"
-              >
-                {{ product.product_display_name }}
-              </NeBadgeV2>
-            </div>
-            <span v-else class="text-tertiary-neutral">-</span>
-          </NeTableCell>
-          <NeTableCell :data-label="$t('rebranding.last_updated')">
-            <!-- null until the company has configured at least one product -->
-            <span v-if="item.updated_at">
-              {{ formatDateTimeNoSeconds(new Date(item.updated_at), locale) }}
-            </span>
-            <span v-else class="text-tertiary-neutral">-</span>
-          </NeTableCell>
-          <NeTableCell :data-label="$t('common.actions')">
-            <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
-              <!-- kebab menu -->
-              <NeDropdown
-                v-if="canManageRebrandingOrganizations()"
-                :items="getKebabMenuItems(item)"
-                :align-to-right="true"
+      <NeTable
+        :sort-key="sortBy"
+        :sort-descending="sortDescending"
+        :aria-label="$t('rebranding.title')"
+        card-breakpoint="2xl"
+        :loading="state.status === 'pending'"
+        :skeleton-columns="4"
+        :skeleton-rows="7"
+      >
+        <NeTableHead>
+          <NeTableHeadCell sortable column-key="name" @sort="onSort">
+            {{ $t('rebranding.company') }}
+          </NeTableHeadCell>
+          <NeTableHeadCell>{{ $t('rebranding.branded_products') }}</NeTableHeadCell>
+          <NeTableHeadCell sortable column-key="updated_at" @sort="onSort">
+            {{ $t('rebranding.last_updated') }}
+          </NeTableHeadCell>
+          <NeTableHeadCell>
+            <!-- no header for actions -->
+          </NeTableHeadCell>
+        </NeTableHead>
+        <NeTableBody>
+          <NeTableRow v-for="item in organizationsPage" :key="item.logto_id">
+            <NeTableCell :data-label="$t('rebranding.company')">
+              <OrganizationIconAndLink
+                :organization="{
+                  logto_id: item.logto_id,
+                  name: item.name,
+                  type: item.organization_type,
+                }"
+                icon-size="sm"
               />
-            </div>
-          </NeTableCell>
-        </NeTableRow>
-      </NeTableBody>
-      <template #paginator>
-        <NePaginator
-          :current-page="pageNum"
-          :total-rows="pagination?.total_count || 0"
-          :page-size="pageSize"
-          :page-sizes="PAGE_SIZE_OPTIONS"
-          :nav-pagination-label="$t('ne_table.pagination')"
-          :next-label="$t('ne_table.go_to_next_page')"
-          :previous-label="$t('ne_table.go_to_previous_page')"
-          :range-of-total-label="$t('ne_table.of')"
-          :page-size-label="$t('ne_table.show')"
-          @select-page="
-            (page: number) => {
-              pageNum = page
-            }
-          "
-          @select-page-size="
-            (size: number) => {
-              pageSize = size
-              savePageSizeToStorage(REBRANDING_TABLE_ID, size)
-            }
-          "
-        />
-      </template>
-    </NeTable>
+            </NeTableCell>
+            <NeTableCell :data-label="$t('rebranding.branded_products')">
+              <div v-if="item.products.length" class="flex flex-wrap gap-2">
+                <NeBadgeV2
+                  v-for="product in item.products"
+                  :key="product.product_id"
+                  kind="custom"
+                  :custom-kind-classes="getRebrandingProductBadgeClasses(product.product_id)"
+                  size="xs"
+                >
+                  {{ product.product_display_name }}
+                </NeBadgeV2>
+              </div>
+              <span v-else class="text-tertiary-neutral">-</span>
+            </NeTableCell>
+            <NeTableCell :data-label="$t('rebranding.last_updated')">
+              <!-- null until the company has configured at least one product -->
+              <span v-if="item.updated_at">
+                {{ formatDateTimeNoSeconds(new Date(item.updated_at), locale) }}
+              </span>
+              <span v-else class="text-tertiary-neutral">-</span>
+            </NeTableCell>
+            <NeTableCell :data-label="$t('common.actions')">
+              <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
+                <!-- kebab menu -->
+                <NeDropdown
+                  v-if="canManageRebrandingOrganizations()"
+                  :items="getKebabMenuItems(item)"
+                  :align-to-right="true"
+                />
+              </div>
+            </NeTableCell>
+          </NeTableRow>
+        </NeTableBody>
+        <template #paginator>
+          <NePaginator
+            :current-page="pageNum"
+            :total-rows="pagination?.total_count || 0"
+            :page-size="pageSize"
+            :page-sizes="PAGE_SIZE_OPTIONS"
+            :nav-pagination-label="$t('ne_table.pagination')"
+            :next-label="$t('ne_table.go_to_next_page')"
+            :previous-label="$t('ne_table.go_to_previous_page')"
+            :range-of-total-label="$t('ne_table.of')"
+            :page-size-label="$t('ne_table.show')"
+            @select-page="
+              (page: number) => {
+                pageNum = page
+              }
+            "
+            @select-page-size="
+              (size: number) => {
+                pageSize = size
+                savePageSizeToStorage(REBRANDING_TABLE_ID, size)
+              }
+            "
+          />
+        </template>
+      </NeTable>
+    </UpdatingTableContainer>
     <!-- remove from rebranding modal -->
     <RemoveFromRebrandingModal
       :visible="isShownRemoveFromRebrandingModal"

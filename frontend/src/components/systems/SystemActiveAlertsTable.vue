@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import UpdatingTableContainer from '@/components/common/UpdatingTableContainer.vue'
 import {
   faBell,
   faBellSlash,
@@ -24,7 +25,6 @@ import {
   NeInlineNotification,
   NePaginator,
   NeSortDropdown,
-  NeSpinner,
   NeTable,
   NeTableBody,
   NeTableCell,
@@ -440,10 +440,6 @@ function onMuteDrawerClose(): void {
       </div>
       <!-- Data updated every X seconds -->
       <div class="flex items-center gap-2">
-        <NeSpinner
-          color="white"
-          v-if="alertsAsyncStatus === 'loading' && alertsState.status !== 'pending'"
-        />
         <div class="text-tertiary-neutral">
           {{ t('common.data_updated_every_seconds', { seconds: ALERTS_REFETCH_INTERVAL_SECONDS }) }}
         </div>
@@ -473,139 +469,143 @@ function onMuteDrawerClose(): void {
     </NeEmptyState>
 
     <!-- Active alerts table -->
-    <NeTable
+    <UpdatingTableContainer
       v-if="isTableShown"
-      :sort-key="alertsSortBy"
-      :sort-descending="alertsSortDirection === 'desc'"
-      :aria-label="$t('system_detail.active_alerts_title')"
-      card-breakpoint="2xl"
-      :loading="alertsState.status === 'pending'"
-      :skeleton-columns="5"
-      :skeleton-rows="5"
+      :updating="alertsAsyncStatus === 'loading' && alertsState.status !== 'pending'"
     >
-      <NeTableHead>
-        <NeTableHeadCell sortable column-key="severity" @sort="onSort">{{
-          $t('alerts.severity')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="alertname" @sort="onSort">{{
-          $t('alerts.alertname')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="starts_at" @sort="onSort">{{
-          $t('alerts.started')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="assigned_user_name" @sort="onSort">{{
-          $t('alerts.assigned_to')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell>
-          <!-- actions — no header -->
-        </NeTableHeadCell>
-      </NeTableHead>
-      <NeTableBody>
-        <NeTableRow v-for="alert in alerts" :key="alert.fingerprint">
-          <!-- Severity -->
-          <NeTableCell :data-label="$t('alerts.severity')">
-            <NeBadgeV2 :kind="getSeverityBadgeKind(alert.labels?.severity)">
-              {{ capitalize(alert.labels?.severity) }}
-            </NeBadgeV2>
-          </NeTableCell>
-          <!-- Alert name + summary + muted badge -->
-          <NeTableCell :data-label="$t('alerts.alertname')">
-            <div class="flex items-start gap-2">
-              <div>
-                <div class="flex flex-wrap items-center gap-2">
-                  <span
-                    class="cursor-pointer font-medium hover:underline"
-                    @click="() => showDetails(alert)"
-                    >{{ alert.labels?.alertname || '-' }}</span
+      <NeTable
+        :sort-key="alertsSortBy"
+        :sort-descending="alertsSortDirection === 'desc'"
+        :aria-label="$t('system_detail.active_alerts_title')"
+        card-breakpoint="2xl"
+        :loading="alertsState.status === 'pending'"
+        :skeleton-columns="5"
+        :skeleton-rows="5"
+      >
+        <NeTableHead>
+          <NeTableHeadCell sortable column-key="severity" @sort="onSort">{{
+            $t('alerts.severity')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell sortable column-key="alertname" @sort="onSort">{{
+            $t('alerts.alertname')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell sortable column-key="starts_at" @sort="onSort">{{
+            $t('alerts.started')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell sortable column-key="assigned_user_name" @sort="onSort">{{
+            $t('alerts.assigned_to')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell>
+            <!-- actions — no header -->
+          </NeTableHeadCell>
+        </NeTableHead>
+        <NeTableBody>
+          <NeTableRow v-for="alert in alerts" :key="alert.fingerprint">
+            <!-- Severity -->
+            <NeTableCell :data-label="$t('alerts.severity')">
+              <NeBadgeV2 :kind="getSeverityBadgeKind(alert.labels?.severity)">
+                {{ capitalize(alert.labels?.severity) }}
+              </NeBadgeV2>
+            </NeTableCell>
+            <!-- Alert name + summary + muted badge -->
+            <NeTableCell :data-label="$t('alerts.alertname')">
+              <div class="flex items-start gap-2">
+                <div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span
+                      class="cursor-pointer font-medium hover:underline"
+                      @click="() => showDetails(alert)"
+                      >{{ alert.labels?.alertname || '-' }}</span
+                    >
+                    <ProcessingAlertBadge v-if="isProcessing(alert)" size="xs" />
+                    <NeBadgeV2 v-else-if="isAlertSilenced(alert)" kind="gray" size="xs">
+                      <FontAwesomeIcon :icon="faBellSlash" class="size-4" aria-hidden="true" />
+                      {{ t('alerts.muted') }}
+                    </NeBadgeV2>
+                  </div>
+                  <p
+                    v-if="getAlertSummary(alert, locale)"
+                    class="mt-0.5 max-w-xs text-sm wrap-anywhere text-gray-500 dark:text-gray-400"
                   >
-                  <ProcessingAlertBadge v-if="isProcessing(alert)" size="xs" />
-                  <NeBadgeV2 v-else-if="isAlertSilenced(alert)" kind="gray" size="xs">
-                    <FontAwesomeIcon :icon="faBellSlash" class="size-4" aria-hidden="true" />
-                    {{ t('alerts.muted') }}
-                  </NeBadgeV2>
+                    {{ getAlertSummary(alert, locale) }}
+                  </p>
                 </div>
-                <p
-                  v-if="getAlertSummary(alert, locale)"
-                  class="mt-0.5 max-w-xs text-sm wrap-anywhere text-gray-500 dark:text-gray-400"
+                <!-- opens the details drawer, whose timeline lists the comments -->
+                <NeTooltip
+                  v-if="alert.has_notes"
+                  trigger-event="mouseenter focus"
+                  placement="top"
+                  class="mt-0.5 ml-auto flex shrink-0"
                 >
-                  {{ getAlertSummary(alert, locale) }}
+                  <template #trigger>
+                    <button
+                      type="button"
+                      class="flex cursor-pointer text-indigo-800 transition-colors duration-(--duration-small) hover:text-indigo-950 dark:text-indigo-300 dark:hover:text-indigo-200"
+                      @click="() => showDetails(alert)"
+                    >
+                      <FontAwesomeIcon :icon="faMessage" class="size-4" aria-hidden="true" />
+                      <span class="sr-only">{{ t('alerts.show_comments') }}</span>
+                    </button>
+                  </template>
+                  <template #content>
+                    {{ t('alerts.has_comments') }}
+                  </template>
+                </NeTooltip>
+              </div>
+            </NeTableCell>
+            <!-- Started at -->
+            <NeTableCell :data-label="$t('alerts.started')">
+              <div>
+                <p>{{ formatRelativeTime(new Date(alert.startsAt), locale) }}</p>
+                <p class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5">
+                  {{ formatDateTime(new Date(alert.startsAt), locale) }}
                 </p>
               </div>
-              <!-- opens the details drawer, whose timeline lists the comments -->
-              <NeTooltip
-                v-if="alert.has_notes"
-                trigger-event="mouseenter focus"
-                placement="top"
-                class="mt-0.5 ml-auto flex shrink-0"
-              >
-                <template #trigger>
-                  <button
-                    type="button"
-                    class="flex cursor-pointer text-indigo-800 transition-colors duration-(--duration-small) hover:text-indigo-950 dark:text-indigo-300 dark:hover:text-indigo-200"
-                    @click="() => showDetails(alert)"
-                  >
-                    <FontAwesomeIcon :icon="faMessage" class="size-4" aria-hidden="true" />
-                    <span class="sr-only">{{ t('alerts.show_comments') }}</span>
-                  </button>
-                </template>
-                <template #content>
-                  {{ t('alerts.has_comments') }}
-                </template>
-              </NeTooltip>
-            </div>
-          </NeTableCell>
-          <!-- Started at -->
-          <NeTableCell :data-label="$t('alerts.started')">
-            <div>
-              <p>{{ formatRelativeTime(new Date(alert.startsAt), locale) }}</p>
-              <p class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5">
-                {{ formatDateTime(new Date(alert.startsAt), locale) }}
-              </p>
-            </div>
-          </NeTableCell>
-          <!-- Assigned to -->
-          <NeTableCell :data-label="$t('alerts.assigned_to')">
-            <AlertAssignee :alert="alert" />
-          </NeTableCell>
-          <!-- Actions -->
-          <NeTableCell :data-label="$t('common.actions')">
-            <div class="-ml-2.5 flex items-center gap-2 2xl:ml-0 2xl:justify-end">
-              <NeButton kind="tertiary" size="sm" @click="showDetails(alert)">
-                <template #prefix>
-                  <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
-                </template>
-                {{ $t('common.details') }}
-              </NeButton>
-              <NeDropdown
-                v-if="canManageSystems()"
-                :items="getAlertKebabItems(alert)"
-                :align-to-right="true"
-              />
-            </div>
-          </NeTableCell>
-        </NeTableRow>
-      </NeTableBody>
-      <template v-if="alertsPagination" #paginator>
-        <NePaginator
-          :current-page="alertsPageNum"
-          :total-rows="alertsPagination.total_count"
-          :page-size="alertsPageSize"
-          :page-sizes="PAGE_SIZE_OPTIONS"
-          :nav-pagination-label="$t('ne_table.pagination')"
-          :next-label="$t('ne_table.go_to_next_page')"
-          :previous-label="$t('ne_table.go_to_previous_page')"
-          :range-of-total-label="$t('ne_table.of')"
-          :page-size-label="$t('ne_table.show')"
-          @select-page="(page: number) => (alertsPageNum = page)"
-          @select-page-size="
-            (size: number) => {
-              alertsPageSize = size
-              savePageSizeToStorage(SYSTEM_ALERTS_TABLE_ID, size)
-            }
-          "
-        />
-      </template>
-    </NeTable>
+            </NeTableCell>
+            <!-- Assigned to -->
+            <NeTableCell :data-label="$t('alerts.assigned_to')">
+              <AlertAssignee :alert="alert" />
+            </NeTableCell>
+            <!-- Actions -->
+            <NeTableCell :data-label="$t('common.actions')">
+              <div class="-ml-2.5 flex items-center gap-2 2xl:ml-0 2xl:justify-end">
+                <NeButton kind="tertiary" size="sm" @click="showDetails(alert)">
+                  <template #prefix>
+                    <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
+                  </template>
+                  {{ $t('common.details') }}
+                </NeButton>
+                <NeDropdown
+                  v-if="canManageSystems()"
+                  :items="getAlertKebabItems(alert)"
+                  :align-to-right="true"
+                />
+              </div>
+            </NeTableCell>
+          </NeTableRow>
+        </NeTableBody>
+        <template v-if="alertsPagination" #paginator>
+          <NePaginator
+            :current-page="alertsPageNum"
+            :total-rows="alertsPagination.total_count"
+            :page-size="alertsPageSize"
+            :page-sizes="PAGE_SIZE_OPTIONS"
+            :nav-pagination-label="$t('ne_table.pagination')"
+            :next-label="$t('ne_table.go_to_next_page')"
+            :previous-label="$t('ne_table.go_to_previous_page')"
+            :range-of-total-label="$t('ne_table.of')"
+            :page-size-label="$t('ne_table.show')"
+            @select-page="(page: number) => (alertsPageNum = page)"
+            @select-page-size="
+              (size: number) => {
+                alertsPageSize = size
+                savePageSizeToStorage(SYSTEM_ALERTS_TABLE_ID, size)
+              }
+            "
+          />
+        </template>
+      </NeTable>
+    </UpdatingTableContainer>
 
     <!-- Mute alert drawer -->
     <MuteAlertDrawer

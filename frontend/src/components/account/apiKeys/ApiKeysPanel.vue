@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import UpdatingTableContainer from '@/components/common/UpdatingTableContainer.vue'
 import {
   NeButton,
   NeHeading,
@@ -45,7 +46,6 @@ import {
   loadPageSizeFromStorage,
   savePageSizeToStorage,
 } from '@/lib/tablePageSize'
-import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import DeleteObjectModal from '@/components/common/DeleteObjectModal.vue'
 import CreateApiKeyDrawer from './CreateApiKeyDrawer.vue'
 
@@ -267,7 +267,6 @@ function confirmDelete() {
             {{ $t('common.reset_filters') }}
           </NeButton>
         </div>
-        <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
       </div>
 
       <!-- no keys at all -->
@@ -291,123 +290,127 @@ function confirmDelete() {
         </NeButton>
       </NeEmptyState>
       <!-- keys table -->
-      <NeTable
+      <UpdatingTableContainer
         v-else
-        :sort-key="sortKey ?? ''"
-        :sort-descending="sortDescending"
-        :aria-label="$t('account.api_keys.api_keys')"
-        card-breakpoint="xl"
-        :loading="state.status === 'pending'"
-        :skeleton-columns="6"
-        :skeleton-rows="5"
+        :updating="asyncStatus === 'loading' && state.status !== 'pending'"
       >
-        <NeTableHead>
-          <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
-            $t('account.api_keys.name')
-          }}</NeTableHeadCell>
-          <NeTableHeadCell sortable column-key="mode" @sort="onSort">{{
-            $t('account.api_keys.mode')
-          }}</NeTableHeadCell>
-          <NeTableHeadCell sortable column-key="last_used_at" @sort="onSort">{{
-            $t('account.api_keys.last_used')
-          }}</NeTableHeadCell>
-          <NeTableHeadCell sortable column-key="expires_at" @sort="onSort">{{
-            $t('account.api_keys.expires')
-          }}</NeTableHeadCell>
-          <NeTableHeadCell sortable column-key="status" @sort="onSort">{{
-            $t('account.api_keys.status')
-          }}</NeTableHeadCell>
-          <NeTableHeadCell>
-            <!-- no header for actions -->
-          </NeTableHeadCell>
-        </NeTableHead>
-        <NeTableBody>
-          <NeTableRow v-for="key in paginatedKeys" :key="key.id">
-            <NeTableCell :data-label="$t('account.api_keys.name')">
-              <div class="flex flex-col">
-                <span>{{ key.name }}</span>
-                <span class="text-tertiary-neutral font-mono">
-                  myk_{{ key.key_public.slice(0, 12) }}…
-                </span>
-              </div>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('account.api_keys.mode')">
-              {{
-                key.mode === 'write'
-                  ? $t('account.api_keys.mode_write')
-                  : $t('account.api_keys.mode_read')
-              }}
-            </NeTableCell>
-            <NeTableCell :data-label="$t('account.api_keys.last_used')">
-              <div v-if="key.last_used_at" class="flex flex-col">
-                <span>{{ formatRelativeTime(new Date(key.last_used_at), locale) }}</span>
-                <span class="text-tertiary-neutral">
-                  {{ formatDateTimeNoSeconds(new Date(key.last_used_at), locale) }}
-                </span>
-              </div>
-              <span v-else>{{ $t('account.api_keys.never_used') }}</span>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('account.api_keys.expires')">
-              <div class="flex flex-col">
-                <span>{{ formatRelativeTime(new Date(key.expires_at), locale) }}</span>
-                <span class="text-tertiary-neutral">
-                  {{ formatDateTimeNoSeconds(new Date(key.expires_at), locale) }}
-                </span>
-              </div>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('account.api_keys.status')">
-              <div class="flex items-center gap-2">
-                <FontAwesomeIcon
-                  :icon="statusIcon(keyStatus(key))"
-                  class="size-4"
-                  :class="statusIconClass(keyStatus(key))"
-                  aria-hidden="true"
-                />
-                {{ $t(`account.api_keys.status_${keyStatus(key)}`) }}
-              </div>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('common.actions')">
-              <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
-                <NeButton
-                  v-if="keyStatus(key) === 'active'"
-                  kind="tertiary"
-                  @click="
-                    () => {
-                      deleteReset()
-                      keyToDelete = key
-                    }
-                  "
-                >
-                  <template #prefix>
-                    <FontAwesomeIcon :icon="faBan" class="h-4 w-4" aria-hidden="true" />
-                  </template>
-                  {{ $t('account.api_keys.revoke') }}
-                </NeButton>
-              </div>
-            </NeTableCell>
-          </NeTableRow>
-        </NeTableBody>
-        <template #paginator>
-          <NePaginator
-            :current-page="pageNum"
-            :total-rows="filteredKeys.length"
-            :page-size="pageSize"
-            :page-sizes="PAGE_SIZE_OPTIONS"
-            :nav-pagination-label="$t('ne_table.pagination')"
-            :next-label="$t('ne_table.go_to_next_page')"
-            :previous-label="$t('ne_table.go_to_previous_page')"
-            :range-of-total-label="$t('ne_table.of')"
-            :page-size-label="$t('ne_table.show')"
-            @select-page="(page: number) => (pageNum = page)"
-            @select-page-size="
-              (size: number) => {
-                pageSize = size
-                savePageSizeToStorage(API_KEYS_TABLE_ID, size)
-              }
-            "
-          />
-        </template>
-      </NeTable>
+        <NeTable
+          :sort-key="sortKey ?? ''"
+          :sort-descending="sortDescending"
+          :aria-label="$t('account.api_keys.api_keys')"
+          card-breakpoint="xl"
+          :loading="state.status === 'pending'"
+          :skeleton-columns="6"
+          :skeleton-rows="5"
+        >
+          <NeTableHead>
+            <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
+              $t('account.api_keys.name')
+            }}</NeTableHeadCell>
+            <NeTableHeadCell sortable column-key="mode" @sort="onSort">{{
+              $t('account.api_keys.mode')
+            }}</NeTableHeadCell>
+            <NeTableHeadCell sortable column-key="last_used_at" @sort="onSort">{{
+              $t('account.api_keys.last_used')
+            }}</NeTableHeadCell>
+            <NeTableHeadCell sortable column-key="expires_at" @sort="onSort">{{
+              $t('account.api_keys.expires')
+            }}</NeTableHeadCell>
+            <NeTableHeadCell sortable column-key="status" @sort="onSort">{{
+              $t('account.api_keys.status')
+            }}</NeTableHeadCell>
+            <NeTableHeadCell>
+              <!-- no header for actions -->
+            </NeTableHeadCell>
+          </NeTableHead>
+          <NeTableBody>
+            <NeTableRow v-for="key in paginatedKeys" :key="key.id">
+              <NeTableCell :data-label="$t('account.api_keys.name')">
+                <div class="flex flex-col">
+                  <span>{{ key.name }}</span>
+                  <span class="text-tertiary-neutral font-mono">
+                    myk_{{ key.key_public.slice(0, 12) }}…
+                  </span>
+                </div>
+              </NeTableCell>
+              <NeTableCell :data-label="$t('account.api_keys.mode')">
+                {{
+                  key.mode === 'write'
+                    ? $t('account.api_keys.mode_write')
+                    : $t('account.api_keys.mode_read')
+                }}
+              </NeTableCell>
+              <NeTableCell :data-label="$t('account.api_keys.last_used')">
+                <div v-if="key.last_used_at" class="flex flex-col">
+                  <span>{{ formatRelativeTime(new Date(key.last_used_at), locale) }}</span>
+                  <span class="text-tertiary-neutral">
+                    {{ formatDateTimeNoSeconds(new Date(key.last_used_at), locale) }}
+                  </span>
+                </div>
+                <span v-else>{{ $t('account.api_keys.never_used') }}</span>
+              </NeTableCell>
+              <NeTableCell :data-label="$t('account.api_keys.expires')">
+                <div class="flex flex-col">
+                  <span>{{ formatRelativeTime(new Date(key.expires_at), locale) }}</span>
+                  <span class="text-tertiary-neutral">
+                    {{ formatDateTimeNoSeconds(new Date(key.expires_at), locale) }}
+                  </span>
+                </div>
+              </NeTableCell>
+              <NeTableCell :data-label="$t('account.api_keys.status')">
+                <div class="flex items-center gap-2">
+                  <FontAwesomeIcon
+                    :icon="statusIcon(keyStatus(key))"
+                    class="size-4"
+                    :class="statusIconClass(keyStatus(key))"
+                    aria-hidden="true"
+                  />
+                  {{ $t(`account.api_keys.status_${keyStatus(key)}`) }}
+                </div>
+              </NeTableCell>
+              <NeTableCell :data-label="$t('common.actions')">
+                <div class="-ml-2.5 flex gap-2 xl:ml-0 xl:justify-end">
+                  <NeButton
+                    v-if="keyStatus(key) === 'active'"
+                    kind="tertiary"
+                    @click="
+                      () => {
+                        deleteReset()
+                        keyToDelete = key
+                      }
+                    "
+                  >
+                    <template #prefix>
+                      <FontAwesomeIcon :icon="faBan" class="h-4 w-4" aria-hidden="true" />
+                    </template>
+                    {{ $t('account.api_keys.revoke') }}
+                  </NeButton>
+                </div>
+              </NeTableCell>
+            </NeTableRow>
+          </NeTableBody>
+          <template #paginator>
+            <NePaginator
+              :current-page="pageNum"
+              :total-rows="filteredKeys.length"
+              :page-size="pageSize"
+              :page-sizes="PAGE_SIZE_OPTIONS"
+              :nav-pagination-label="$t('ne_table.pagination')"
+              :next-label="$t('ne_table.go_to_next_page')"
+              :previous-label="$t('ne_table.go_to_previous_page')"
+              :range-of-total-label="$t('ne_table.of')"
+              :page-size-label="$t('ne_table.show')"
+              @select-page="(page: number) => (pageNum = page)"
+              @select-page-size="
+                (size: number) => {
+                  pageSize = size
+                  savePageSizeToStorage(API_KEYS_TABLE_ID, size)
+                }
+              "
+            />
+          </template>
+        </NeTable>
+      </UpdatingTableContainer>
     </template>
 
     <CreateApiKeyDrawer :is-shown="isShownCreateDrawer" @close="isShownCreateDrawer = false" />

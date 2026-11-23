@@ -515,7 +515,9 @@ const localizedDateRange = computed(() => {
         </NeButton>
       </div>
       <!-- update indicator -->
-      <UpdatingSpinner v-if="diffsAsyncStatus === 'loading' && diffsState.status !== 'pending'" />
+      <UpdatingSpinner
+        :updating="diffsAsyncStatus === 'loading' && diffsState.status !== 'pending'"
+      />
     </div>
   </div>
 

@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import UpdatingTableContainer from '@/components/common/UpdatingTableContainer.vue'
 import {
   faBuilding,
   faMagnifyingGlass,
@@ -53,7 +54,6 @@ import { useApplicationFilters } from '@/queries/applications/applicationFilters
 import { buildVersionFilterOptions } from '@/lib/applications/applicationFilters'
 import router from '@/router'
 import UpdateAvailableIcon from '@/components/common/UpdateAvailableIcon.vue'
-import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import SystemDropdownFilter from '@/components/systems/SystemDropdownFilter.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 import SystemLogoAndLink from '../systems/SystemLogoAndLink.vue'
@@ -295,8 +295,6 @@ const goToApplicationDetails = (application: Application) => {
               {{ t('common.reset_filters') }}
             </NeButton>
           </div>
-          <!-- update indicator -->
-          <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
         </div>
       </div>
       <!-- no application matching filter -->
@@ -311,133 +309,140 @@ const goToApplicationDetails = (application: Application) => {
           {{ $t('common.reset_filters') }}
         </NeButton>
       </NeEmptyState>
-      <NeTable
+      <UpdatingTableContainer
         v-if="noEmptyStateShown"
-        :sort-key="sortBy"
-        :sort-descending="sortDescending"
-        :aria-label="$t('applications.title')"
-        card-breakpoint="2xl"
-        :loading="state.status === 'pending'"
-        :skeleton-columns="6"
-        :skeleton-rows="7"
+        :updating="asyncStatus === 'loading' && state.status !== 'pending'"
       >
-        <NeTableHead>
-          <NeTableHeadCell sortable column-key="display_name" @sort="onSort">{{
-            $t('applications.name')
-          }}</NeTableHeadCell>
-          <NeTableHeadCell sortable column-key="instance_of" @sort="onSort">{{
-            $t('applications.type')
-          }}</NeTableHeadCell>
-          <NeTableHeadCell sortable column-key="version" @sort="onSort">{{
-            $t('applications.version')
-          }}</NeTableHeadCell>
-          <NeTableHeadCell>{{ $t('applications.fqdn') }}</NeTableHeadCell>
-          <NeTableHeadCell sortable column-key="system_name" @sort="onSort">{{
-            $t('systems.system')
-          }}</NeTableHeadCell>
-          <NeTableHeadCell sortable column-key="organization_name" @sort="onSort">{{
-            $t('applications.assigned_company')
-          }}</NeTableHeadCell>
-          <NeTableHeadCell>
-            <!-- no header for actions -->
-          </NeTableHeadCell>
-        </NeTableHead>
-        <NeTableBody>
-          <NeTableRow v-for="item in applicationsPage" :key="item.id">
-            <NeTableCell :data-label="$t('applications.name')">
-              <div class="flex items-center gap-1">
-                <router-link
-                  :to="{ name: 'application_detail', params: { applicationId: item.id } }"
-                  class="cursor-pointer font-medium hover:underline"
-                >
-                  {{ getDisplayName(item) }}
-                </router-link>
-                <NotesIcon v-if="item.notes?.trim()" :notes="item.notes" />
-              </div>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('applications.type')">
-              <div class="flex items-center gap-2">
-                <ApplicationLogo :app="item.instance_of" />
-                <span class="font-medium">
-                  {{ item.name || '-' }}
-                </span>
-              </div>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('applications.version')" class="wrap-anywhere">
-              <div class="flex items-center gap-2">
-                {{ item.version || '-' }}
-                <UpdateAvailableIcon v-if="isUpdateAvailable(item)" />
-              </div>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('applications.fqdn')" class="wrap-anywhere">
-              <div class="flex flex-col items-start space-y-0.5">
-                <ClickToCopy
-                  v-for="fqdn in getFqdns(item)"
-                  :key="fqdn"
-                  :text="fqdn"
-                  tooltip-placement="top"
+        <NeTable
+          :sort-key="sortBy"
+          :sort-descending="sortDescending"
+          :aria-label="$t('applications.title')"
+          card-breakpoint="2xl"
+          :loading="state.status === 'pending'"
+          :skeleton-columns="6"
+          :skeleton-rows="7"
+        >
+          <NeTableHead>
+            <NeTableHeadCell sortable column-key="display_name" @sort="onSort">{{
+              $t('applications.name')
+            }}</NeTableHeadCell>
+            <NeTableHeadCell sortable column-key="instance_of" @sort="onSort">{{
+              $t('applications.type')
+            }}</NeTableHeadCell>
+            <NeTableHeadCell sortable column-key="version" @sort="onSort">{{
+              $t('applications.version')
+            }}</NeTableHeadCell>
+            <NeTableHeadCell>{{ $t('applications.fqdn') }}</NeTableHeadCell>
+            <NeTableHeadCell sortable column-key="system_name" @sort="onSort">{{
+              $t('systems.system')
+            }}</NeTableHeadCell>
+            <NeTableHeadCell sortable column-key="organization_name" @sort="onSort">{{
+              $t('applications.assigned_company')
+            }}</NeTableHeadCell>
+            <NeTableHeadCell>
+              <!-- no header for actions -->
+            </NeTableHeadCell>
+          </NeTableHead>
+          <NeTableBody>
+            <NeTableRow v-for="item in applicationsPage" :key="item.id">
+              <NeTableCell :data-label="$t('applications.name')">
+                <div class="flex items-center gap-1">
+                  <router-link
+                    :to="{ name: 'application_detail', params: { applicationId: item.id } }"
+                    class="cursor-pointer font-medium hover:underline"
+                  >
+                    {{ getDisplayName(item) }}
+                  </router-link>
+                  <NotesIcon v-if="item.notes?.trim()" :notes="item.notes" />
+                </div>
+              </NeTableCell>
+              <NeTableCell :data-label="$t('applications.type')">
+                <div class="flex items-center gap-2">
+                  <ApplicationLogo :app="item.instance_of" />
+                  <span class="font-medium">
+                    {{ item.name || '-' }}
+                  </span>
+                </div>
+              </NeTableCell>
+              <NeTableCell :data-label="$t('applications.version')" class="wrap-anywhere">
+                <div class="flex items-center gap-2">
+                  {{ item.version || '-' }}
+                  <UpdateAvailableIcon v-if="isUpdateAvailable(item)" />
+                </div>
+              </NeTableCell>
+              <NeTableCell :data-label="$t('applications.fqdn')" class="wrap-anywhere">
+                <div class="flex flex-col items-start space-y-0.5">
+                  <ClickToCopy
+                    v-for="fqdn in getFqdns(item)"
+                    :key="fqdn"
+                    :text="fqdn"
+                    tooltip-placement="top"
+                  />
+                  <div v-if="!getFqdns(item).length">-</div>
+                </div>
+              </NeTableCell>
+              <NeTableCell :data-label="$t('systems.system')">
+                <SystemLogoAndLink
+                  :system-id="item.system.id"
+                  :system-name="item.system.name"
+                  system-type="ns8"
                 />
-                <div v-if="!getFqdns(item).length">-</div>
-              </div>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('systems.system')">
-              <SystemLogoAndLink
-                :system-id="item.system.id"
-                :system-name="item.system.name"
-                system-type="ns8"
-              />
-            </NeTableCell>
-            <NeTableCell :data-label="$t('applications.assigned_company')">
-              <OrganizationIconAndLink v-if="item.organization" :organization="item.organization" />
-              <span v-else>-</span>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('common.actions')">
-              <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
-                <NeButton
-                  v-if="item.status !== 'deleted'"
-                  kind="tertiary"
-                  @click="goToApplicationDetails(item)"
-                >
-                  <template #prefix>
-                    <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
-                  </template>
-                  {{ $t('common.details') }}
-                </NeButton>
-                <!-- kebab menu -->
-                <NeDropdown
-                  v-if="canManageApplications()"
-                  :items="getKebabMenuItems(item)"
-                  :align-to-right="true"
+              </NeTableCell>
+              <NeTableCell :data-label="$t('applications.assigned_company')">
+                <OrganizationIconAndLink
+                  v-if="item.organization"
+                  :organization="item.organization"
                 />
-              </div>
-            </NeTableCell>
-          </NeTableRow>
-        </NeTableBody>
-        <template #paginator>
-          <NePaginator
-            :current-page="pageNum"
-            :total-rows="pagination?.total_count || 0"
-            :page-size="pageSize"
-            :page-sizes="PAGE_SIZE_OPTIONS"
-            :nav-pagination-label="$t('ne_table.pagination')"
-            :next-label="$t('ne_table.go_to_next_page')"
-            :previous-label="$t('ne_table.go_to_previous_page')"
-            :range-of-total-label="$t('ne_table.of')"
-            :page-size-label="$t('ne_table.show')"
-            @select-page="
-              (page: number) => {
-                pageNum = page
-              }
-            "
-            @select-page-size="
-              (size: number) => {
-                pageSize = size
-                savePageSizeToStorage(APPLICATIONS_TABLE_ID, size)
-              }
-            "
-          />
-        </template>
-      </NeTable>
+                <span v-else>-</span>
+              </NeTableCell>
+              <NeTableCell :data-label="$t('common.actions')">
+                <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
+                  <NeButton
+                    v-if="item.status !== 'deleted'"
+                    kind="tertiary"
+                    @click="goToApplicationDetails(item)"
+                  >
+                    <template #prefix>
+                      <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
+                    </template>
+                    {{ $t('common.details') }}
+                  </NeButton>
+                  <!-- kebab menu -->
+                  <NeDropdown
+                    v-if="canManageApplications()"
+                    :items="getKebabMenuItems(item)"
+                    :align-to-right="true"
+                  />
+                </div>
+              </NeTableCell>
+            </NeTableRow>
+          </NeTableBody>
+          <template #paginator>
+            <NePaginator
+              :current-page="pageNum"
+              :total-rows="pagination?.total_count || 0"
+              :page-size="pageSize"
+              :page-sizes="PAGE_SIZE_OPTIONS"
+              :nav-pagination-label="$t('ne_table.pagination')"
+              :next-label="$t('ne_table.go_to_next_page')"
+              :previous-label="$t('ne_table.go_to_previous_page')"
+              :range-of-total-label="$t('ne_table.of')"
+              :page-size-label="$t('ne_table.show')"
+              @select-page="
+                (page: number) => {
+                  pageNum = page
+                }
+              "
+              @select-page-size="
+                (size: number) => {
+                  pageSize = size
+                  savePageSizeToStorage(APPLICATIONS_TABLE_ID, size)
+                }
+              "
+            />
+          </template>
+        </NeTable>
+      </UpdatingTableContainer>
     </template>
     <!-- assign organization drawer -->
     <AssignOrganizationDrawer

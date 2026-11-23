@@ -8,6 +8,7 @@
 -->
 
 <script setup lang="ts">
+import UpdatingTableContainer from '@/components/common/UpdatingTableContainer.vue'
 import {
   faCirclePlus,
   faMagnifyingGlass,
@@ -39,7 +40,6 @@ import { useDebounceFn } from '@vueuse/core'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ApplicationLogo from '@/components/applications/ApplicationLogo.vue'
-import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import SystemLogo from '@/components/systems/SystemLogo.vue'
 import {
   ADDON_PRODUCTS,
@@ -336,8 +336,6 @@ const onSort = (payload: SortEvent) => {
             </NeButton>
           </div>
           <div class="flex items-center gap-4">
-            <!-- update indicator -->
-            <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
             <NeButton
               v-if="canManageAddons()"
               kind="primary"
@@ -364,108 +362,112 @@ const onSort = (payload: SortEvent) => {
           {{ $t('common.reset_filters') }}
         </NeButton>
       </NeEmptyState>
-      <NeTable
+      <UpdatingTableContainer
         v-if="noEmptyStateShown"
-        :sort-key="sortBy"
-        :sort-descending="sortDescending"
-        :aria-label="$t('addons.title')"
-        card-breakpoint="2xl"
-        :loading="state.status === 'pending'"
-        :skeleton-columns="4"
-        :skeleton-rows="7"
+        :updating="asyncStatus === 'loading' && state.status !== 'pending'"
       >
-        <NeTableHead>
-          <NeTableHeadCell sortable column-key="display_name" @sort="onSort">{{
-            $t('addons.addon_name')
-          }}</NeTableHeadCell>
-          <NeTableHeadCell sortable column-key="product" @sort="onSort">{{
-            $t('addons.product')
-          }}</NeTableHeadCell>
-          <NeTableHeadCell sortable column-key="application" @sort="onSort">{{
-            $t('addons.application')
-          }}</NeTableHeadCell>
-          <NeTableHeadCell>
-            <!-- no header for actions -->
-          </NeTableHeadCell>
-        </NeTableHead>
-        <NeTableBody>
-          <NeTableRow v-for="row in paginatedRows" :key="row.addon.id">
-            <NeTableCell :data-label="$t('addons.addon_name')">
-              <div class="flex items-center gap-2">
-                <span class="font-medium">{{ row.addon.display_name }}</span>
-                <NeBadgeV2 v-if="!row.addon.purchasable" kind="gray" size="xs">
-                  {{ $t('addons.not_on_sale') }}
-                </NeBadgeV2>
-                <NeBadgeV2 v-if="!row.addon.in_use" kind="gray" size="xs">
-                  {{ $t('addons.unused') }}
-                </NeBadgeV2>
-              </div>
-              <div v-if="row.addon.description" class="text-tertiary-neutral">
-                {{ row.addon.description }}
-              </div>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('addons.product')">
-              <div v-if="row.product" class="flex items-center gap-2">
-                <SystemLogo :system="row.product" />
-                <span>{{ row.productLabel }}</span>
-              </div>
-              <span v-else>-</span>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('addons.application')">
-              <div v-if="row.application" class="flex items-center gap-2">
-                <ApplicationLogo :app="row.application" />
-                <span>{{ row.applicationLabel }}</span>
-              </div>
-              <span v-else>-</span>
-            </NeTableCell>
-            <NeTableCell :data-label="$t('common.actions')">
-              <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
-                <NeButton
-                  v-if="canManageAddons()"
-                  kind="tertiary"
-                  @click="showEditAddonDrawer(row.addon)"
-                >
-                  <template #prefix>
-                    <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
-                  </template>
-                  {{ $t('common.edit') }}
-                </NeButton>
-                <!-- kebab menu -->
-                <NeDropdown
-                  v-if="canManageAddons()"
-                  :items="getKebabMenuItems(row.addon)"
-                  :align-to-right="true"
-                  :open-menu-aria-label="$t('ne_dropdown.open_menu')"
-                />
-              </div>
-            </NeTableCell>
-          </NeTableRow>
-        </NeTableBody>
-        <template #paginator>
-          <NePaginator
-            :current-page="pageNum"
-            :total-rows="sortedRows.length"
-            :page-size="pageSize"
-            :page-sizes="PAGE_SIZE_OPTIONS"
-            :nav-pagination-label="$t('ne_table.pagination')"
-            :next-label="$t('ne_table.go_to_next_page')"
-            :previous-label="$t('ne_table.go_to_previous_page')"
-            :range-of-total-label="$t('ne_table.of')"
-            :page-size-label="$t('ne_table.show')"
-            @select-page="
-              (page: number) => {
-                pageNum = page
-              }
-            "
-            @select-page-size="
-              (size: number) => {
-                pageSize = size
-                savePageSizeToStorage(ADDONS_TABLE_ID, size)
-              }
-            "
-          />
-        </template>
-      </NeTable>
+        <NeTable
+          :sort-key="sortBy"
+          :sort-descending="sortDescending"
+          :aria-label="$t('addons.title')"
+          card-breakpoint="2xl"
+          :loading="state.status === 'pending'"
+          :skeleton-columns="4"
+          :skeleton-rows="7"
+        >
+          <NeTableHead>
+            <NeTableHeadCell sortable column-key="display_name" @sort="onSort">{{
+              $t('addons.addon_name')
+            }}</NeTableHeadCell>
+            <NeTableHeadCell sortable column-key="product" @sort="onSort">{{
+              $t('addons.product')
+            }}</NeTableHeadCell>
+            <NeTableHeadCell sortable column-key="application" @sort="onSort">{{
+              $t('addons.application')
+            }}</NeTableHeadCell>
+            <NeTableHeadCell>
+              <!-- no header for actions -->
+            </NeTableHeadCell>
+          </NeTableHead>
+          <NeTableBody>
+            <NeTableRow v-for="row in paginatedRows" :key="row.addon.id">
+              <NeTableCell :data-label="$t('addons.addon_name')">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium">{{ row.addon.display_name }}</span>
+                  <NeBadgeV2 v-if="!row.addon.purchasable" kind="gray" size="xs">
+                    {{ $t('addons.not_on_sale') }}
+                  </NeBadgeV2>
+                  <NeBadgeV2 v-if="!row.addon.in_use" kind="gray" size="xs">
+                    {{ $t('addons.unused') }}
+                  </NeBadgeV2>
+                </div>
+                <div v-if="row.addon.description" class="text-tertiary-neutral">
+                  {{ row.addon.description }}
+                </div>
+              </NeTableCell>
+              <NeTableCell :data-label="$t('addons.product')">
+                <div v-if="row.product" class="flex items-center gap-2">
+                  <SystemLogo :system="row.product" />
+                  <span>{{ row.productLabel }}</span>
+                </div>
+                <span v-else>-</span>
+              </NeTableCell>
+              <NeTableCell :data-label="$t('addons.application')">
+                <div v-if="row.application" class="flex items-center gap-2">
+                  <ApplicationLogo :app="row.application" />
+                  <span>{{ row.applicationLabel }}</span>
+                </div>
+                <span v-else>-</span>
+              </NeTableCell>
+              <NeTableCell :data-label="$t('common.actions')">
+                <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
+                  <NeButton
+                    v-if="canManageAddons()"
+                    kind="tertiary"
+                    @click="showEditAddonDrawer(row.addon)"
+                  >
+                    <template #prefix>
+                      <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
+                    </template>
+                    {{ $t('common.edit') }}
+                  </NeButton>
+                  <!-- kebab menu -->
+                  <NeDropdown
+                    v-if="canManageAddons()"
+                    :items="getKebabMenuItems(row.addon)"
+                    :align-to-right="true"
+                    :open-menu-aria-label="$t('ne_dropdown.open_menu')"
+                  />
+                </div>
+              </NeTableCell>
+            </NeTableRow>
+          </NeTableBody>
+          <template #paginator>
+            <NePaginator
+              :current-page="pageNum"
+              :total-rows="sortedRows.length"
+              :page-size="pageSize"
+              :page-sizes="PAGE_SIZE_OPTIONS"
+              :nav-pagination-label="$t('ne_table.pagination')"
+              :next-label="$t('ne_table.go_to_next_page')"
+              :previous-label="$t('ne_table.go_to_previous_page')"
+              :range-of-total-label="$t('ne_table.of')"
+              :page-size-label="$t('ne_table.show')"
+              @select-page="
+                (page: number) => {
+                  pageNum = page
+                }
+              "
+              @select-page-size="
+                (size: number) => {
+                  pageSize = size
+                  savePageSizeToStorage(ADDONS_TABLE_ID, size)
+                }
+              "
+            />
+          </template>
+        </NeTable>
+      </UpdatingTableContainer>
     </template>
     <!-- create/edit add-on drawer -->
     <CreateOrEditAddonDrawer

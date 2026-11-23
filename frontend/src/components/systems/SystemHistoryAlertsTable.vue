@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import UpdatingTableContainer from '@/components/common/UpdatingTableContainer.vue'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import { faCircleCheck, faEye, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -15,7 +16,6 @@ import {
   NeInlineNotification,
   NePaginator,
   NeSortDropdown,
-  NeSpinner,
   NeTable,
   NeTableBody,
   NeTableCell,
@@ -207,10 +207,6 @@ function showDetails(alert: Alert): void {
       </div>
       <!-- Data updated every X seconds -->
       <div class="flex items-center gap-2">
-        <NeSpinner
-          color="white"
-          v-if="historyAsyncStatus === 'loading' && historyState.status !== 'pending'"
-        />
         <div class="text-tertiary-neutral">
           {{ t('common.data_updated_every_seconds', { seconds: ALERTS_REFETCH_INTERVAL_SECONDS }) }}
         </div>
@@ -240,109 +236,113 @@ function showDetails(alert: Alert): void {
     </NeEmptyState>
 
     <!-- History table -->
-    <NeTable
+    <UpdatingTableContainer
       v-if="isTableShown"
-      :sort-key="historySortBy"
-      :sort-descending="historySortDescending"
-      :aria-label="$t('system_detail.alert_history_title')"
-      card-breakpoint="2xl"
-      :loading="historyState.status === 'pending'"
-      :skeleton-columns="5"
-      :skeleton-rows="5"
+      :updating="historyAsyncStatus === 'loading' && historyState.status !== 'pending'"
     >
-      <NeTableHead>
-        <NeTableHeadCell sortable column-key="severity" @sort="onSort">{{
-          $t('alerts.severity')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="alertname" @sort="onSort">{{
-          $t('alerts.alertname')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="starts_at" @sort="onSort">{{
-          $t('alerts.started')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="ends_at" @sort="onSort">{{
-          $t('alerts.ends_at')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell>
-          <!-- actions -->
-        </NeTableHeadCell>
-      </NeTableHead>
-      <NeTableBody>
-        <NeTableRow v-for="record in historyAlerts" :key="record.id">
-          <!-- Severity -->
-          <NeTableCell :data-label="$t('alerts.severity')">
-            <NeBadgeV2 :kind="getSeverityBadgeKind(record.severity ?? undefined)">
-              {{ capitalize(record.severity ?? '') }}
-            </NeBadgeV2>
-          </NeTableCell>
-          <!-- Alert name + summary -->
-          <NeTableCell :data-label="$t('alerts.alertname')">
-            <span
-              class="cursor-pointer font-medium hover:underline"
-              @click="() => showDetails(toAlert(record))"
-              >{{ record.alertname || '-' }}</span
-            >
-            <p
-              v-if="historySummary(record)"
-              class="mt-0.5 max-w-xs text-sm wrap-anywhere text-gray-500 dark:text-gray-400"
-            >
-              {{ historySummary(record) }}
-            </p>
-          </NeTableCell>
-          <!-- Started at -->
-          <NeTableCell :data-label="$t('alerts.started')">
-            <div v-if="record.starts_at">
-              <p>{{ formatRelativeTime(new Date(record.starts_at), locale) }}</p>
-              <p class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5">
-                {{ formatDateTime(new Date(record.starts_at), locale) }}
+      <NeTable
+        :sort-key="historySortBy"
+        :sort-descending="historySortDescending"
+        :aria-label="$t('system_detail.alert_history_title')"
+        card-breakpoint="2xl"
+        :loading="historyState.status === 'pending'"
+        :skeleton-columns="5"
+        :skeleton-rows="5"
+      >
+        <NeTableHead>
+          <NeTableHeadCell sortable column-key="severity" @sort="onSort">{{
+            $t('alerts.severity')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell sortable column-key="alertname" @sort="onSort">{{
+            $t('alerts.alertname')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell sortable column-key="starts_at" @sort="onSort">{{
+            $t('alerts.started')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell sortable column-key="ends_at" @sort="onSort">{{
+            $t('alerts.ends_at')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell>
+            <!-- actions -->
+          </NeTableHeadCell>
+        </NeTableHead>
+        <NeTableBody>
+          <NeTableRow v-for="record in historyAlerts" :key="record.id">
+            <!-- Severity -->
+            <NeTableCell :data-label="$t('alerts.severity')">
+              <NeBadgeV2 :kind="getSeverityBadgeKind(record.severity ?? undefined)">
+                {{ capitalize(record.severity ?? '') }}
+              </NeBadgeV2>
+            </NeTableCell>
+            <!-- Alert name + summary -->
+            <NeTableCell :data-label="$t('alerts.alertname')">
+              <span
+                class="cursor-pointer font-medium hover:underline"
+                @click="() => showDetails(toAlert(record))"
+                >{{ record.alertname || '-' }}</span
+              >
+              <p
+                v-if="historySummary(record)"
+                class="mt-0.5 max-w-xs text-sm wrap-anywhere text-gray-500 dark:text-gray-400"
+              >
+                {{ historySummary(record) }}
               </p>
-            </div>
-            <div v-else>-</div>
-          </NeTableCell>
-          <!-- Ended at -->
-          <NeTableCell :data-label="$t('alerts.ends_at')">
-            <div v-if="record.ends_at">
-              <p>{{ formatRelativeTime(new Date(record.ends_at), locale) }}</p>
-              <p class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5">
-                {{ formatDateTime(new Date(record.ends_at), locale) }}
-              </p>
-            </div>
-            <div v-else>-</div>
-          </NeTableCell>
-          <!-- Actions -->
-          <NeTableCell :data-label="$t('common.actions')">
-            <div class="-ml-2.5 flex items-center gap-2 2xl:ml-0 2xl:justify-end">
-              <NeButton kind="tertiary" size="sm" @click="showDetails(toAlert(record))">
-                <template #prefix>
-                  <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
-                </template>
-                {{ $t('common.details') }}
-              </NeButton>
-            </div>
-          </NeTableCell>
-        </NeTableRow>
-      </NeTableBody>
-      <template v-if="historyPagination" #paginator>
-        <NePaginator
-          :current-page="historyPageNum"
-          :total-rows="historyPagination.total_count"
-          :page-size="historyPageSize"
-          :page-sizes="PAGE_SIZE_OPTIONS"
-          :nav-pagination-label="$t('ne_table.pagination')"
-          :next-label="$t('ne_table.go_to_next_page')"
-          :previous-label="$t('ne_table.go_to_previous_page')"
-          :range-of-total-label="$t('ne_table.of')"
-          :page-size-label="$t('ne_table.show')"
-          @select-page="(page: number) => (historyPageNum = page)"
-          @select-page-size="
-            (size: number) => {
-              historyPageSize = size
-              savePageSizeToStorage(SYSTEM_ALERT_HISTORY_TABLE_ID, size)
-            }
-          "
-        />
-      </template>
-    </NeTable>
+            </NeTableCell>
+            <!-- Started at -->
+            <NeTableCell :data-label="$t('alerts.started')">
+              <div v-if="record.starts_at">
+                <p>{{ formatRelativeTime(new Date(record.starts_at), locale) }}</p>
+                <p class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5">
+                  {{ formatDateTime(new Date(record.starts_at), locale) }}
+                </p>
+              </div>
+              <div v-else>-</div>
+            </NeTableCell>
+            <!-- Ended at -->
+            <NeTableCell :data-label="$t('alerts.ends_at')">
+              <div v-if="record.ends_at">
+                <p>{{ formatRelativeTime(new Date(record.ends_at), locale) }}</p>
+                <p class="text-tertiary-neutral dark:text-tertiary-neutral mt-0.5">
+                  {{ formatDateTime(new Date(record.ends_at), locale) }}
+                </p>
+              </div>
+              <div v-else>-</div>
+            </NeTableCell>
+            <!-- Actions -->
+            <NeTableCell :data-label="$t('common.actions')">
+              <div class="-ml-2.5 flex items-center gap-2 2xl:ml-0 2xl:justify-end">
+                <NeButton kind="tertiary" size="sm" @click="showDetails(toAlert(record))">
+                  <template #prefix>
+                    <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
+                  </template>
+                  {{ $t('common.details') }}
+                </NeButton>
+              </div>
+            </NeTableCell>
+          </NeTableRow>
+        </NeTableBody>
+        <template v-if="historyPagination" #paginator>
+          <NePaginator
+            :current-page="historyPageNum"
+            :total-rows="historyPagination.total_count"
+            :page-size="historyPageSize"
+            :page-sizes="PAGE_SIZE_OPTIONS"
+            :nav-pagination-label="$t('ne_table.pagination')"
+            :next-label="$t('ne_table.go_to_next_page')"
+            :previous-label="$t('ne_table.go_to_previous_page')"
+            :range-of-total-label="$t('ne_table.of')"
+            :page-size-label="$t('ne_table.show')"
+            @select-page="(page: number) => (historyPageNum = page)"
+            @select-page-size="
+              (size: number) => {
+                historyPageSize = size
+                savePageSizeToStorage(SYSTEM_ALERT_HISTORY_TABLE_ID, size)
+              }
+            "
+          />
+        </template>
+      </NeTable>
+    </UpdatingTableContainer>
 
     <!-- Alert details drawer -->
     <AlertDetailsDrawer

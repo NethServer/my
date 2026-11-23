@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import UpdatingTableContainer from '@/components/common/UpdatingTableContainer.vue'
 import {
   NeButton,
   NeLink,
@@ -37,7 +38,7 @@ const emit = defineEmits(['close'])
 
 const { t, locale } = useI18n()
 const sessionAuditStore = useImpersonationSessionAuditStore()
-const { state, pageNum, pageSize } = useImpersonationSessionAudit()
+const { state, asyncStatus, pageNum, pageSize } = useImpersonationSessionAudit()
 const requestDataJustCopied = ref(false)
 
 const sessionsPage = computed(() => {
@@ -138,91 +139,93 @@ const copyRequestDataToClipboard = (jsonString: string) => {
       </div>
     </div>
     <!-- audit log table -->
-    <NeTable
-      :aria-label="$t('account.impersonation.impersonation_audit_log')"
-      card-breakpoint="lg"
-      :loading="state.status === 'pending'"
-      :skeleton-columns="6"
-      :skeleton-rows="5"
-    >
-      <NeTableHead>
-        <NeTableHeadCell>{{ $t('account.impersonation.timestamp') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('account.impersonation.action_type') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('account.impersonation.http_method') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('account.impersonation.api_endpoint') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('account.impersonation.request_data') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('account.impersonation.response_status') }}</NeTableHeadCell>
-      </NeTableHead>
-      <NeTableBody>
-        <NeTableRow v-for="item in sessionsPage" :key="item.session_id">
-          <NeTableCell :data-label="$t('account.impersonation.timestamp')">
-            {{ item.timestamp ? formatDateTime(new Date(item.timestamp), locale) : '-' }}
-          </NeTableCell>
-          <NeTableCell :data-label="$t('account.impersonation.action_type')">
-            {{ $t(`account.impersonation.action_${item.action_type}`) }}
-          </NeTableCell>
-          <NeTableCell :data-label="$t('account.impersonation.http_method')">
-            {{ item.http_method || '-' }}
-          </NeTableCell>
-          <NeTableCell :data-label="$t('account.impersonation.api_endpoint')">
-            {{ item.api_endpoint || '-' }}
-          </NeTableCell>
-          <NeTableCell :data-label="$t('account.impersonation.request_data')">
-            <NeTooltip v-if="item.request_data" placement="left">
-              <template #trigger>
-                <NeButton kind="tertiary" class="-ml-2.5">
-                  {{ $t('account.impersonation.show_request_data') }}
-                </NeButton>
-              </template>
-              <template #content>
-                <div class="flex flex-col items-start gap-2">
-                  <pre>{{ prettyPrintJsonString(item.request_data, true) || '-' }}</pre>
-                  <NeLink invertedTheme @click="copyRequestDataToClipboard(item.request_data)">
-                    {{
-                      requestDataJustCopied
-                        ? t('common.copied')
-                        : t('account.impersonation.copy_request_data')
-                    }}
-                  </NeLink>
-                </div>
-              </template>
-            </NeTooltip>
-            <span v-else>-</span>
-          </NeTableCell>
-          <NeTableCell :data-label="$t('account.impersonation.response_status')">
-            <span v-if="item.response_status_text && item.response_status"
-              >{{ item.response_status_text }} ({{ item.response_status }})</span
-            >
-            <span v-else-if="item.response_status"></span>
-            <span v-else>-</span>
-          </NeTableCell>
-        </NeTableRow>
-      </NeTableBody>
-      <template #paginator>
-        <NePaginator
-          :current-page="pageNum"
-          :total-rows="pagination?.total_count || 0"
-          :page-size="pageSize"
-          :page-sizes="PAGE_SIZE_OPTIONS"
-          :nav-pagination-label="$t('ne_table.pagination')"
-          :next-label="$t('ne_table.go_to_next_page')"
-          :previous-label="$t('ne_table.go_to_previous_page')"
-          :range-of-total-label="$t('ne_table.of')"
-          :page-size-label="$t('ne_table.show')"
-          listbox-options-panel-style="z-120"
-          @select-page="
-            (page: number) => {
-              pageNum = page
-            }
-          "
-          @select-page-size="
-            (size: number) => {
-              pageSize = size
-              savePageSizeToStorage(SESSION_AUDIT_TABLE_ID, size)
-            }
-          "
-        />
-      </template>
-    </NeTable>
+    <UpdatingTableContainer :updating="asyncStatus === 'loading' && state.status !== 'pending'">
+      <NeTable
+        :aria-label="$t('account.impersonation.impersonation_audit_log')"
+        card-breakpoint="lg"
+        :loading="state.status === 'pending'"
+        :skeleton-columns="6"
+        :skeleton-rows="5"
+      >
+        <NeTableHead>
+          <NeTableHeadCell>{{ $t('account.impersonation.timestamp') }}</NeTableHeadCell>
+          <NeTableHeadCell>{{ $t('account.impersonation.action_type') }}</NeTableHeadCell>
+          <NeTableHeadCell>{{ $t('account.impersonation.http_method') }}</NeTableHeadCell>
+          <NeTableHeadCell>{{ $t('account.impersonation.api_endpoint') }}</NeTableHeadCell>
+          <NeTableHeadCell>{{ $t('account.impersonation.request_data') }}</NeTableHeadCell>
+          <NeTableHeadCell>{{ $t('account.impersonation.response_status') }}</NeTableHeadCell>
+        </NeTableHead>
+        <NeTableBody>
+          <NeTableRow v-for="item in sessionsPage" :key="item.session_id">
+            <NeTableCell :data-label="$t('account.impersonation.timestamp')">
+              {{ item.timestamp ? formatDateTime(new Date(item.timestamp), locale) : '-' }}
+            </NeTableCell>
+            <NeTableCell :data-label="$t('account.impersonation.action_type')">
+              {{ $t(`account.impersonation.action_${item.action_type}`) }}
+            </NeTableCell>
+            <NeTableCell :data-label="$t('account.impersonation.http_method')">
+              {{ item.http_method || '-' }}
+            </NeTableCell>
+            <NeTableCell :data-label="$t('account.impersonation.api_endpoint')">
+              {{ item.api_endpoint || '-' }}
+            </NeTableCell>
+            <NeTableCell :data-label="$t('account.impersonation.request_data')">
+              <NeTooltip v-if="item.request_data" placement="left">
+                <template #trigger>
+                  <NeButton kind="tertiary" class="-ml-2.5">
+                    {{ $t('account.impersonation.show_request_data') }}
+                  </NeButton>
+                </template>
+                <template #content>
+                  <div class="flex flex-col items-start gap-2">
+                    <pre>{{ prettyPrintJsonString(item.request_data, true) || '-' }}</pre>
+                    <NeLink invertedTheme @click="copyRequestDataToClipboard(item.request_data)">
+                      {{
+                        requestDataJustCopied
+                          ? t('common.copied')
+                          : t('account.impersonation.copy_request_data')
+                      }}
+                    </NeLink>
+                  </div>
+                </template>
+              </NeTooltip>
+              <span v-else>-</span>
+            </NeTableCell>
+            <NeTableCell :data-label="$t('account.impersonation.response_status')">
+              <span v-if="item.response_status_text && item.response_status"
+                >{{ item.response_status_text }} ({{ item.response_status }})</span
+              >
+              <span v-else-if="item.response_status"></span>
+              <span v-else>-</span>
+            </NeTableCell>
+          </NeTableRow>
+        </NeTableBody>
+        <template #paginator>
+          <NePaginator
+            :current-page="pageNum"
+            :total-rows="pagination?.total_count || 0"
+            :page-size="pageSize"
+            :page-sizes="PAGE_SIZE_OPTIONS"
+            :nav-pagination-label="$t('ne_table.pagination')"
+            :next-label="$t('ne_table.go_to_next_page')"
+            :previous-label="$t('ne_table.go_to_previous_page')"
+            :range-of-total-label="$t('ne_table.of')"
+            :page-size-label="$t('ne_table.show')"
+            listbox-options-panel-style="z-120"
+            @select-page="
+              (page: number) => {
+                pageNum = page
+              }
+            "
+            @select-page-size="
+              (size: number) => {
+                pageSize = size
+                savePageSizeToStorage(SESSION_AUDIT_TABLE_ID, size)
+              }
+            "
+          />
+        </template>
+      </NeTable>
+    </UpdatingTableContainer>
   </NeModal>
 </template>

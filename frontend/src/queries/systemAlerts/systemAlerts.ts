@@ -8,6 +8,7 @@ import {
 } from '@/lib/alerts'
 import { syncWithBackend } from '@/lib/alertPendingStates'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
+import { useScopedPlaceholderData } from '@/lib/scopedPlaceholderData'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { ref, watch } from 'vue'
@@ -43,6 +44,10 @@ export const useSystemAlerts = defineQuery(() => {
   const commentsFilters = ref<NeDropdownFilterV2Option[]>([])
   const shouldAutoRefetch = () => document.visibilityState === 'visible'
 
+  const { placeholderData, trackScope } = useScopedPlaceholderData<
+    Awaited<ReturnType<typeof getSystemActiveAlerts>>
+  >(() => route.params.systemId)
+
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
       SYSTEM_ALERTS_KEY,
@@ -58,22 +63,25 @@ export const useSystemAlerts = defineQuery(() => {
       commentsFilters.value.map((o) => o.id).join(','),
     ],
     enabled: () => !!loginStore.jwtToken && !!route.params.systemId,
+    placeholderData,
     query: () =>
-      getSystemActiveAlerts(
-        route.params.systemId as string,
-        pageNum.value,
-        pageSize.value,
-        sortBy.value,
-        sortDirection.value,
-        statusFilters.value.length > 0
-          ? (statusFilters.value.map((o) => o.id) as AlertStatusEnum[])
-          : undefined,
-        severityFilters.value.length > 0 ? severityFilters.value.map((o) => o.id) : undefined,
-        alertnameFilters.value.length > 0 ? alertnameFilters.value.map((o) => o.id) : undefined,
-        assigneeFilters.value.length > 0
-          ? assigneeFilters.value.map((o) => String(o.id))
-          : undefined,
-        getHasNotesFilter(commentsFilters.value),
+      trackScope(
+        getSystemActiveAlerts(
+          route.params.systemId as string,
+          pageNum.value,
+          pageSize.value,
+          sortBy.value,
+          sortDirection.value,
+          statusFilters.value.length > 0
+            ? (statusFilters.value.map((o) => o.id) as AlertStatusEnum[])
+            : undefined,
+          severityFilters.value.length > 0 ? severityFilters.value.map((o) => o.id) : undefined,
+          alertnameFilters.value.length > 0 ? alertnameFilters.value.map((o) => o.id) : undefined,
+          assigneeFilters.value.length > 0
+            ? assigneeFilters.value.map((o) => String(o.id))
+            : undefined,
+          getHasNotesFilter(commentsFilters.value),
+        ),
       ),
     staleTime: ALERTS_REFETCH_INTERVAL_SECONDS * 1000,
     autoRefetch: shouldAutoRefetch,

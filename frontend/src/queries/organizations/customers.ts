@@ -45,6 +45,9 @@ export const useCustomers = defineQuery(() => {
       },
     ],
     enabled: () => !!loginStore.jwtToken,
+    // a filter, sort or page change keeps the current rows on screen until the
+    // new ones arrive: the table shows its skeleton only on the first load
+    placeholderData: (previousData) => previousData,
     query: () =>
       getCustomers(
         pageNum.value,

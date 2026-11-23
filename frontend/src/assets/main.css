@@ -51,6 +51,10 @@
   --duration-small: 200ms;
   --duration-large-enter: 300ms;
   --duration-large-leave: 200ms;
+  /* how long a reload runs before its indicator shows: a quicker one ends
+     before anyone needs to be told, and a flashing bar distracts more than it
+     informs */
+  --duration-loading-delay: 500ms;
 
   /* animations */
   --animate-spin-relaxed: spin 1.5s linear infinite;
@@ -58,6 +62,10 @@
   --animate-fade-in-relaxed: fade-in 0.6s ease-in;
   /* one-shot feedback when a system is starred, so it follows the duration scale */
   --animate-favorite-pop: favorite-pop var(--duration-large-enter) ease-out;
+  /* a loading indicator that stays transparent while the load is quick, then
+     fades in; removed before the delay ends, it never shows */
+  --animate-delayed-fade-in: fade-in var(--duration-small) ease-in var(--duration-loading-delay)
+    both;
 
   @keyframes fade-in {
     from {

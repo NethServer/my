@@ -19,7 +19,7 @@ const { state: timelineState, asyncStatus: timelineAsyncStatus } = useInventoryT
     </div>
     <!-- update indicator -->
     <UpdatingSpinner
-      v-if="timelineAsyncStatus === 'loading' && timelineState.status !== 'pending'"
+      :updating="timelineAsyncStatus === 'loading' && timelineState.status !== 'pending'"
     />
   </div>
   <!-- changes timeline -->

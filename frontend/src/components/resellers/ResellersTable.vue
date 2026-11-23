@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import UpdatingTableContainer from '@/components/common/UpdatingTableContainer.vue'
 import NotesIcon from '@/components/common/NotesIcon.vue'
 import { withDangerItemsLast } from '@/lib/common'
 import {
@@ -66,7 +67,6 @@ import {
   canTransferResellers,
 } from '@/lib/permissions'
 import router from '@/router'
-import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
@@ -386,8 +386,6 @@ const goToResellerDetails = (reseller: Reseller) => {
             {{ t('common.reset_filters') }}
           </NeButton>
         </div>
-        <!-- update indicator -->
-        <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
       </div>
     </div>
     <!-- empty state -->
@@ -409,199 +407,207 @@ const goToResellerDetails = (reseller: Reseller) => {
         {{ $t('common.reset_filters') }}
       </NeButton>
     </NeEmptyState>
-    <NeTable
+    <UpdatingTableContainer
       v-if="noEmptyStateShown"
-      :sort-key="sortBy"
-      :sort-descending="sortDescending"
-      :aria-label="$t('resellers.title')"
-      card-breakpoint="2xl"
-      :loading="state.status === 'pending'"
-      :skeleton-columns="5"
-      :skeleton-rows="7"
+      :updating="asyncStatus === 'loading' && state.status !== 'pending'"
     >
-      <NeTableHead>
-        <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
-          $t('organizations.name')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('organizations.vat_number') }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="customers_count" @sort="onSort">{{
-          $t('customers.title')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="systems_count" @sort="onSort">{{
-          $t('systems.total_systems')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell
-          v-if="canSeeParentOfResellers()"
-          sortable
-          column-key="managed_by"
-          @sort="onSort"
-          >{{ $t('organizations.parent_company') }}</NeTableHeadCell
-        >
-        <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
-          $t('common.status')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell>
-          <!-- no header for actions -->
-        </NeTableHeadCell>
-      </NeTableHead>
-      <NeTableBody>
-        <NeTableRow v-for="item in resellersPage" :key="item.logto_id">
-          <NeTableCell :data-label="$t('organizations.name')">
-            <div class="flex items-center gap-1">
+      <NeTable
+        :sort-key="sortBy"
+        :sort-descending="sortDescending"
+        :aria-label="$t('resellers.title')"
+        card-breakpoint="2xl"
+        :loading="state.status === 'pending'"
+        :skeleton-columns="5"
+        :skeleton-rows="7"
+      >
+        <NeTableHead>
+          <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
+            $t('organizations.name')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell>{{ $t('organizations.vat_number') }}</NeTableHeadCell>
+          <NeTableHeadCell sortable column-key="customers_count" @sort="onSort">{{
+            $t('customers.title')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell sortable column-key="systems_count" @sort="onSort">{{
+            $t('systems.total_systems')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell
+            v-if="canSeeParentOfResellers()"
+            sortable
+            column-key="managed_by"
+            @sort="onSort"
+            >{{ $t('organizations.parent_company') }}</NeTableHeadCell
+          >
+          <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
+            $t('common.status')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell>
+            <!-- no header for actions -->
+          </NeTableHeadCell>
+        </NeTableHead>
+        <NeTableBody>
+          <NeTableRow v-for="item in resellersPage" :key="item.logto_id">
+            <NeTableCell :data-label="$t('organizations.name')">
+              <div class="flex items-center gap-1">
+                <router-link
+                  v-if="!item.deleted_at"
+                  :to="{ name: 'reseller_detail', params: { companyId: item.logto_id } }"
+                  class="cursor-pointer font-medium hover:underline"
+                >
+                  {{ item.name }}
+                </router-link>
+                <span v-else class="text-tertiary-neutral">
+                  {{ item.name }}
+                </span>
+                <NotesIcon v-if="item.custom_data?.notes?.trim()" :notes="item.custom_data.notes" />
+              </div>
+            </NeTableCell>
+            <NeTableCell
+              :data-label="$t('organizations.vat_number')"
+              :class="{ 'text-tertiary-neutral': item.deleted_at }"
+            >
+              {{ item.custom_data?.vat || '-' }}
+            </NeTableCell>
+            <NeTableCell :data-label="$t('customers.title')">
+              <!-- links to the Customers page filtered by this reseller as parent company -->
               <router-link
                 v-if="!item.deleted_at"
-                :to="{ name: 'reseller_detail', params: { companyId: item.logto_id } }"
-                class="cursor-pointer font-medium hover:underline"
+                :to="{
+                  name: 'customers',
+                  query: {
+                    organization_id: item.logto_id,
+                    organization_name: item.name,
+                  },
+                }"
+                class="flex items-center gap-2 hover:underline"
+                :aria-label="$t('resellers.show_reseller_customers', { name: item.name })"
               >
-                {{ item.name }}
+                <OrganizationIcon org-type="customer" variant="plain" size="sm" />
+                {{ item.customers_count }}
               </router-link>
-              <span v-else class="text-tertiary-neutral">
-                {{ item.name }}
-              </span>
-              <NotesIcon v-if="item.custom_data?.notes?.trim()" :notes="item.custom_data.notes" />
-            </div>
-          </NeTableCell>
-          <NeTableCell
-            :data-label="$t('organizations.vat_number')"
-            :class="{ 'text-tertiary-neutral': item.deleted_at }"
-          >
-            {{ item.custom_data?.vat || '-' }}
-          </NeTableCell>
-          <NeTableCell :data-label="$t('customers.title')">
-            <!-- links to the Customers page filtered by this reseller as parent company -->
-            <router-link
-              v-if="!item.deleted_at"
-              :to="{
-                name: 'customers',
-                query: {
-                  organization_id: item.logto_id,
-                  organization_name: item.name,
-                },
-              }"
-              class="flex items-center gap-2 hover:underline"
-              :aria-label="$t('resellers.show_reseller_customers', { name: item.name })"
-            >
-              <OrganizationIcon org-type="customer" variant="plain" size="sm" />
-              {{ item.customers_count }}
-            </router-link>
-            <div v-else class="text-tertiary-neutral flex items-center gap-2">
-              <OrganizationIcon org-type="customer" variant="plain" size="sm" />
-              {{ item.customers_count }}
-            </div>
-          </NeTableCell>
-          <NeTableCell :data-label="$t('systems.total_systems')">
-            <router-link
-              v-if="!item.deleted_at"
-              :to="{
-                name: 'systems',
-                query: {
-                  parent_organization_id: item.logto_id,
-                  parent_organization_name: item.name,
-                },
-              }"
-              class="flex items-center gap-2 hover:underline"
-              :aria-label="$t('resellers.show_reseller_systems', { name: item.name })"
-            >
-              <FontAwesomeIcon
-                :icon="faServer"
-                class="text-icon-neutral size-4"
-                aria-hidden="true"
-              />
-              {{ item.systems_count }}
-            </router-link>
-            <div v-else class="text-tertiary-neutral flex items-center gap-2">
-              <FontAwesomeIcon
-                :icon="faServer"
-                class="text-icon-neutral size-4"
-                aria-hidden="true"
-              />
-              {{ item.systems_count }}
-            </div>
-          </NeTableCell>
-          <NeTableCell
-            v-if="canSeeParentOfResellers()"
-            :data-label="$t('organizations.parent_company')"
-            :class="{ 'text-tertiary-neutral': item.deleted_at }"
-          >
-            <ParentCompanyLink :parent="item.parent" :creator="item.created_by" />
-          </NeTableCell>
-          <NeTableCell :data-label="$t('common.status')">
-            <div class="flex items-center gap-2">
-              <template v-if="item.deleted_at">
+              <div v-else class="text-tertiary-neutral flex items-center gap-2">
+                <OrganizationIcon org-type="customer" variant="plain" size="sm" />
+                {{ item.customers_count }}
+              </div>
+            </NeTableCell>
+            <NeTableCell :data-label="$t('systems.total_systems')">
+              <router-link
+                v-if="!item.deleted_at"
+                :to="{
+                  name: 'systems',
+                  query: {
+                    parent_organization_id: item.logto_id,
+                    parent_organization_name: item.name,
+                  },
+                }"
+                class="flex items-center gap-2 hover:underline"
+                :aria-label="$t('resellers.show_reseller_systems', { name: item.name })"
+              >
                 <FontAwesomeIcon
-                  :icon="faBoxArchive"
+                  :icon="faServer"
                   class="text-icon-neutral size-4"
                   aria-hidden="true"
                 />
-                <span>
-                  {{ t('common.archived') }}
-                </span>
-              </template>
-              <template v-else-if="item.suspended_at">
+                {{ item.systems_count }}
+              </router-link>
+              <div v-else class="text-tertiary-neutral flex items-center gap-2">
                 <FontAwesomeIcon
-                  :icon="faCirclePause"
+                  :icon="faServer"
                   class="text-icon-neutral size-4"
                   aria-hidden="true"
                 />
-                <span>
-                  {{ t('common.suspended') }}
-                </span>
-              </template>
-              <template v-else>
-                <FontAwesomeIcon
-                  :icon="faCircleCheck"
-                  class="text-icon-enabled size-4"
-                  aria-hidden="true"
-                />
-                <span>
-                  {{ t('common.enabled') }}
-                </span>
-              </template>
-            </div>
-          </NeTableCell>
-          <NeTableCell :data-label="$t('common.actions')">
-            <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
-              <NeButton v-if="!item.deleted_at" kind="tertiary" @click="goToResellerDetails(item)">
-                <template #prefix>
-                  <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
+                {{ item.systems_count }}
+              </div>
+            </NeTableCell>
+            <NeTableCell
+              v-if="canSeeParentOfResellers()"
+              :data-label="$t('organizations.parent_company')"
+              :class="{ 'text-tertiary-neutral': item.deleted_at }"
+            >
+              <ParentCompanyLink :parent="item.parent" :creator="item.created_by" />
+            </NeTableCell>
+            <NeTableCell :data-label="$t('common.status')">
+              <div class="flex items-center gap-2">
+                <template v-if="item.deleted_at">
+                  <FontAwesomeIcon
+                    :icon="faBoxArchive"
+                    class="text-icon-neutral size-4"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {{ t('common.archived') }}
+                  </span>
                 </template>
-                {{ $t('common.details') }}
-              </NeButton>
-              <!-- kebab menu -->
-              <NeDropdown
-                v-if="canManageResellers() || canDestroyResellers() || canPromoteOrganizations()"
-                :items="getKebabMenuItems(item)"
-                :align-to-right="true"
-              />
-            </div>
-          </NeTableCell>
-        </NeTableRow>
-      </NeTableBody>
-      <template #paginator>
-        <NePaginator
-          :current-page="pageNum"
-          :total-rows="pagination?.total_count || 0"
-          :page-size="pageSize"
-          :page-sizes="PAGE_SIZE_OPTIONS"
-          :nav-pagination-label="$t('ne_table.pagination')"
-          :next-label="$t('ne_table.go_to_next_page')"
-          :previous-label="$t('ne_table.go_to_previous_page')"
-          :range-of-total-label="$t('ne_table.of')"
-          :page-size-label="$t('ne_table.show')"
-          @select-page="
-            (page: number) => {
-              pageNum = page
-            }
-          "
-          @select-page-size="
-            (size: number) => {
-              pageSize = size
-              savePageSizeToStorage(RESELLERS_TABLE_ID, size)
-            }
-          "
-        />
-      </template>
-    </NeTable>
+                <template v-else-if="item.suspended_at">
+                  <FontAwesomeIcon
+                    :icon="faCirclePause"
+                    class="text-icon-neutral size-4"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {{ t('common.suspended') }}
+                  </span>
+                </template>
+                <template v-else>
+                  <FontAwesomeIcon
+                    :icon="faCircleCheck"
+                    class="text-icon-enabled size-4"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {{ t('common.enabled') }}
+                  </span>
+                </template>
+              </div>
+            </NeTableCell>
+            <NeTableCell :data-label="$t('common.actions')">
+              <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
+                <NeButton
+                  v-if="!item.deleted_at"
+                  kind="tertiary"
+                  @click="goToResellerDetails(item)"
+                >
+                  <template #prefix>
+                    <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
+                  </template>
+                  {{ $t('common.details') }}
+                </NeButton>
+                <!-- kebab menu -->
+                <NeDropdown
+                  v-if="canManageResellers() || canDestroyResellers() || canPromoteOrganizations()"
+                  :items="getKebabMenuItems(item)"
+                  :align-to-right="true"
+                />
+              </div>
+            </NeTableCell>
+          </NeTableRow>
+        </NeTableBody>
+        <template #paginator>
+          <NePaginator
+            :current-page="pageNum"
+            :total-rows="pagination?.total_count || 0"
+            :page-size="pageSize"
+            :page-sizes="PAGE_SIZE_OPTIONS"
+            :nav-pagination-label="$t('ne_table.pagination')"
+            :next-label="$t('ne_table.go_to_next_page')"
+            :previous-label="$t('ne_table.go_to_previous_page')"
+            :range-of-total-label="$t('ne_table.of')"
+            :page-size-label="$t('ne_table.show')"
+            @select-page="
+              (page: number) => {
+                pageNum = page
+              }
+            "
+            @select-page-size="
+              (size: number) => {
+                pageSize = size
+                savePageSizeToStorage(RESELLERS_TABLE_ID, size)
+              }
+            "
+          />
+        </template>
+      </NeTable>
+    </UpdatingTableContainer>
     <!-- side drawer -->
     <CreateOrEditResellerDrawer
       :is-shown="isShownCreateOrEditResellerDrawer"

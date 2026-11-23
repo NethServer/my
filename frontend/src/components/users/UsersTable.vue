@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import UpdatingTableContainer from '@/components/common/UpdatingTableContainer.vue'
 import { USERS_TABLE_ID, type User } from '@/lib/users/users'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import {
@@ -62,7 +63,6 @@ import OrganizationIconAndLink from '@/components/organizations/OrganizationIcon
 import UserRoleBadge from './UserRoleBadge.vue'
 import { useUserFilters } from '@/queries/users/userFilters'
 import { normalize, withDangerItemsLast } from '@/lib/common'
-import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import UserAvatar from './UserAvatar.vue'
 import ClickToCopy from '@/components/common/ClickToCopy.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
@@ -420,8 +420,6 @@ const goToAccount = () => {
             {{ t('common.reset_filters') }}
           </NeButton>
         </div>
-        <!-- update indicator -->
-        <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
       </div>
     </div>
     <!-- empty state -->
@@ -441,171 +439,179 @@ const goToAccount = () => {
     >
       <NeButton kind="tertiary" @click="resetFilters"> {{ $t('common.reset_filters') }}</NeButton>
     </NeEmptyState>
-    <NeTable
+    <UpdatingTableContainer
       v-if="noEmptyStateShown"
-      :sort-key="sortBy"
-      :sort-descending="sortDescending"
-      :aria-label="$t('users.title')"
-      card-breakpoint="2xl"
-      :loading="state.status === 'pending'"
-      :skeleton-columns="5"
-      :skeleton-rows="7"
+      :updating="asyncStatus === 'loading' && state.status !== 'pending'"
     >
-      <NeTableHead>
-        <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
-          $t('users.name')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="organization" @sort="onSort">{{
-          $t('users.organization')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('users.role') }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="status" @sort="onSort">{{
-          $t('common.status')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell>
-          <!-- no header for actions -->
-        </NeTableHeadCell>
-      </NeTableHead>
-      <NeTableBody>
-        <NeTableRow v-for="item in usersPage" :key="item.username">
-          <NeTableCell
-            :data-label="$t('users.name')"
-            :class="{ 'text-tertiary-neutral': item.deleted_at }"
-          >
-            <div class="flex items-center gap-2">
-              <UserAvatar
-                :size="'sm'"
-                :is-owner="item.username === 'owner'"
-                :name="item.name"
-                :logto-id="item.logto_id || ''"
-                :has-avatar="item.has_avatar"
-              />
-              <div class="flex flex-col">
-                <div class="flex flex-wrap items-center gap-2">
-                  {{ item.name }}
-                  <span v-if="isCurrentUser(item)" class="text-tertiary-neutral"
-                    >({{ $t('users.me') }})</span
-                  >
-                  <NeBadgeV2 v-if="!item.latest_login_at" kind="gray" size="xs">
-                    {{ $t('users.no_login') }}
-                  </NeBadgeV2>
+      <NeTable
+        :sort-key="sortBy"
+        :sort-descending="sortDescending"
+        :aria-label="$t('users.title')"
+        card-breakpoint="2xl"
+        :loading="state.status === 'pending'"
+        :skeleton-columns="5"
+        :skeleton-rows="7"
+      >
+        <NeTableHead>
+          <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
+            $t('users.name')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell sortable column-key="organization" @sort="onSort">{{
+            $t('users.organization')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell>{{ $t('users.role') }}</NeTableHeadCell>
+          <NeTableHeadCell sortable column-key="status" @sort="onSort">{{
+            $t('common.status')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell>
+            <!-- no header for actions -->
+          </NeTableHeadCell>
+        </NeTableHead>
+        <NeTableBody>
+          <NeTableRow v-for="item in usersPage" :key="item.username">
+            <NeTableCell
+              :data-label="$t('users.name')"
+              :class="{ 'text-tertiary-neutral': item.deleted_at }"
+            >
+              <div class="flex items-center gap-2">
+                <UserAvatar
+                  :size="'sm'"
+                  :is-owner="item.username === 'owner'"
+                  :name="item.name"
+                  :logto-id="item.logto_id || ''"
+                  :has-avatar="item.has_avatar"
+                />
+                <div class="flex flex-col">
+                  <div class="flex flex-wrap items-center gap-2">
+                    {{ item.name }}
+                    <span v-if="isCurrentUser(item)" class="text-tertiary-neutral"
+                      >({{ $t('users.me') }})</span
+                    >
+                    <NeBadgeV2 v-if="!item.latest_login_at" kind="gray" size="xs">
+                      {{ $t('users.no_login') }}
+                    </NeBadgeV2>
+                  </div>
+                  <ClickToCopy
+                    v-if="item.email"
+                    :text="item.email"
+                    tooltip-placement="right"
+                    class="text-tertiary-neutral wrap-anywhere"
+                  />
                 </div>
-                <ClickToCopy
-                  v-if="item.email"
-                  :text="item.email"
-                  tooltip-placement="right"
-                  class="text-tertiary-neutral wrap-anywhere"
+              </div>
+            </NeTableCell>
+            <NeTableCell :data-label="$t('users.organization')">
+              <div :class="{ 'text-tertiary-neutral': item.deleted_at }">
+                <OrganizationIconAndLink
+                  v-if="item.organization"
+                  :organization="item.organization"
+                  size="sm"
+                />
+                <span v-else>-</span>
+              </div>
+            </NeTableCell>
+            <NeTableCell :data-label="$t('users.role')">
+              <span
+                v-if="!item.roles || item.roles.length === 0"
+                :class="{ 'text-tertiary-neutral': item.deleted_at }"
+                >-</span
+              >
+              <div v-else class="flex flex-wrap gap-1">
+                <UserRoleBadge
+                  v-for="role in item.roles?.sort(sortByProperty('name'))"
+                  :key="role.id"
+                  :role="role.name"
                 />
               </div>
-            </div>
-          </NeTableCell>
-          <NeTableCell :data-label="$t('users.organization')">
-            <div :class="{ 'text-tertiary-neutral': item.deleted_at }">
-              <OrganizationIconAndLink
-                v-if="item.organization"
-                :organization="item.organization"
-                size="sm"
-              />
-              <span v-else>-</span>
-            </div>
-          </NeTableCell>
-          <NeTableCell :data-label="$t('users.role')">
-            <span
-              v-if="!item.roles || item.roles.length === 0"
-              :class="{ 'text-tertiary-neutral': item.deleted_at }"
-              >-</span
-            >
-            <div v-else class="flex flex-wrap gap-1">
-              <UserRoleBadge
-                v-for="role in item.roles?.sort(sortByProperty('name'))"
-                :key="role.id"
-                :role="role.name"
-              />
-            </div>
-          </NeTableCell>
-          <NeTableCell :data-label="$t('common.status')">
-            <div class="flex items-center gap-2">
-              <template v-if="item.deleted_at">
-                <FontAwesomeIcon
-                  :icon="faBoxArchive"
-                  class="text-icon-neutral size-4"
-                  aria-hidden="true"
-                />
-                <span>
-                  {{ t('common.archived') }}
-                </span>
-              </template>
-              <template v-else-if="item.suspended_at">
-                <FontAwesomeIcon
-                  :icon="faCirclePause"
-                  class="text-icon-neutral size-4"
-                  aria-hidden="true"
-                />
-                <span>
-                  {{ t('users.suspended') }}
-                </span>
-              </template>
-              <template v-else>
-                <FontAwesomeIcon
-                  :icon="faCircleCheck"
-                  class="text-icon-enabled size-4"
-                  aria-hidden="true"
-                />
-                <span>
-                  {{ t('common.enabled') }}
-                </span>
-              </template>
-            </div>
-          </NeTableCell>
-          <NeTableCell :data-label="$t('common.actions')">
-            <div v-if="canManageUsers()" class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
-              <template v-if="!isCurrentUser(item)">
-                <NeButton v-if="!item.deleted_at" kind="tertiary" @click="showEditUserDrawer(item)">
-                  <template #prefix>
-                    <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
-                  </template>
-                  {{ $t('common.edit') }}
-                </NeButton>
-                <!-- kebab menu -->
-                <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />
-              </template>
-              <template v-else>
-                <NeButton kind="tertiary" @click="goToAccount">
-                  <template #prefix>
-                    <FontAwesomeIcon :icon="faArrowRight" class="h-4 w-4" aria-hidden="true" />
-                  </template>
-                  {{ $t('account.title') }}
-                </NeButton>
-              </template>
-            </div>
-          </NeTableCell>
-        </NeTableRow>
-      </NeTableBody>
-      <template #paginator>
-        <NePaginator
-          :current-page="pageNum"
-          :total-rows="pagination?.total_count || 0"
-          :page-size="pageSize"
-          :page-sizes="PAGE_SIZE_OPTIONS"
-          :nav-pagination-label="$t('ne_table.pagination')"
-          :next-label="$t('ne_table.go_to_next_page')"
-          :previous-label="$t('ne_table.go_to_previous_page')"
-          :range-of-total-label="$t('ne_table.of')"
-          :page-size-label="$t('ne_table.show')"
-          @select-page="
-            (page: number) => {
-              pageNum = page
-            }
-          "
-          @select-page-size="
-            (size: number) => {
-              pageSize = size
-              savePageSizeToStorage(USERS_TABLE_ID, size)
-            }
-          "
-        />
-      </template>
-    </NeTable>
+            </NeTableCell>
+            <NeTableCell :data-label="$t('common.status')">
+              <div class="flex items-center gap-2">
+                <template v-if="item.deleted_at">
+                  <FontAwesomeIcon
+                    :icon="faBoxArchive"
+                    class="text-icon-neutral size-4"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {{ t('common.archived') }}
+                  </span>
+                </template>
+                <template v-else-if="item.suspended_at">
+                  <FontAwesomeIcon
+                    :icon="faCirclePause"
+                    class="text-icon-neutral size-4"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {{ t('users.suspended') }}
+                  </span>
+                </template>
+                <template v-else>
+                  <FontAwesomeIcon
+                    :icon="faCircleCheck"
+                    class="text-icon-enabled size-4"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {{ t('common.enabled') }}
+                  </span>
+                </template>
+              </div>
+            </NeTableCell>
+            <NeTableCell :data-label="$t('common.actions')">
+              <div v-if="canManageUsers()" class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
+                <template v-if="!isCurrentUser(item)">
+                  <NeButton
+                    v-if="!item.deleted_at"
+                    kind="tertiary"
+                    @click="showEditUserDrawer(item)"
+                  >
+                    <template #prefix>
+                      <FontAwesomeIcon :icon="faPenToSquare" class="h-4 w-4" aria-hidden="true" />
+                    </template>
+                    {{ $t('common.edit') }}
+                  </NeButton>
+                  <!-- kebab menu -->
+                  <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />
+                </template>
+                <template v-else>
+                  <NeButton kind="tertiary" @click="goToAccount">
+                    <template #prefix>
+                      <FontAwesomeIcon :icon="faArrowRight" class="h-4 w-4" aria-hidden="true" />
+                    </template>
+                    {{ $t('account.title') }}
+                  </NeButton>
+                </template>
+              </div>
+            </NeTableCell>
+          </NeTableRow>
+        </NeTableBody>
+        <template #paginator>
+          <NePaginator
+            :current-page="pageNum"
+            :total-rows="pagination?.total_count || 0"
+            :page-size="pageSize"
+            :page-sizes="PAGE_SIZE_OPTIONS"
+            :nav-pagination-label="$t('ne_table.pagination')"
+            :next-label="$t('ne_table.go_to_next_page')"
+            :previous-label="$t('ne_table.go_to_previous_page')"
+            :range-of-total-label="$t('ne_table.of')"
+            :page-size-label="$t('ne_table.show')"
+            @select-page="
+              (page: number) => {
+                pageNum = page
+              }
+            "
+            @select-page-size="
+              (size: number) => {
+                pageSize = size
+                savePageSizeToStorage(USERS_TABLE_ID, size)
+              }
+            "
+          />
+        </template>
+      </NeTable>
+    </UpdatingTableContainer>
     <!-- side drawer -->
     <CreateOrEditUserDrawer
       :is-shown="isShownCreateOrEditUserDrawer"
