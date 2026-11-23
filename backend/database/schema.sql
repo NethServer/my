@@ -269,6 +269,7 @@ CREATE TABLE IF NOT EXISTS systems (
     -- Metadata
     custom_data JSONB,                      -- Additional system metadata
     notes TEXT DEFAULT '',                  -- User notes/description
+    ui_url VARCHAR(2048),                   -- Custom web interface address (NULL = default from fqdn and type)
     created_by JSONB NOT NULL,              -- {user_id, username, organization_id} who created the system
 
     -- Timestamps
@@ -304,6 +305,7 @@ ALTER TABLE systems SET (autovacuum_analyze_scale_factor = 0.02);
 COMMENT ON TABLE systems IS 'NS8/NethSecurity systems registered for monitoring and inventory collection';
 COMMENT ON COLUMN systems.type IS 'System type from inventory: ns8 (NethServer 8), nsec (NethSecurity)';
 COMMENT ON COLUMN systems.status IS 'Heartbeat status: unknown (no data), active (heartbeat recent), inactive (heartbeat stale), unregistered (credentials refused), deleted';
+COMMENT ON COLUMN systems.ui_url IS 'Custom address of the system web interface, set by an admin. NULL = the default derived from fqdn and type';
 COMMENT ON COLUMN systems.last_inventory_at IS 'Timestamp of last inventory received. NULL means no inventory received yet';
 COMMENT ON COLUMN systems.suspended_at IS 'Suspension timestamp: NULL = active, non-NULL = suspended';
 COMMENT ON COLUMN systems.suspended_by_org_id IS 'Organization that caused cascade suspension (for targeted reactivation)';

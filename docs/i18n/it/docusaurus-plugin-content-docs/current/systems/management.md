@@ -134,7 +134,26 @@ Usa il filtro **Preferiti** per elencare solo i tuoi preferiti, oppure ordina pe
 
 ### Dettagli Sistema
 
-Cliccando su un sistema si accede alle informazioni complete:
+Cliccando su un sistema si accede alle informazioni complete.
+
+#### Apertura del Sistema
+
+Il pulsante in alto nella pagina apre l'interfaccia web del sistema in una
+nuova scheda: **Apri NethServer**, **Apri NethSecurity**, oppure **Apri
+sistema** finché il prodotto non è noto. L'indirizzo predefinito deriva
+dall'FQDN dell'ultimo inventario:
+
+- NethServer: `https://<fqdn>/cluster-admin`
+- NethSecurity: `https://<fqdn>:9090` (la verifica prova anche la porta 443)
+
+My verifica se l'indirizzo risponde. La verifica parte dal server di My, non
+dal tuo browser: se fallisce, accanto al pulsante compare un'icona di
+avviso, ma il pulsante funziona comunque, perché il sistema potrebbe aprirsi
+dalla tua rete, ad esempio tramite VPN. Il pulsante è disabilitato solo
+finché l'indirizzo non è noto, prima del primo inventario.
+
+Se l'interfaccia web risponde a un altro indirizzo, impostalo in **URL
+dell'interfaccia web** modificando il sistema.
 
 #### Tab Panoramica
 
@@ -191,6 +210,9 @@ Vedi [Inventario e Heartbeat](./inventory-heartbeat.md) per i dettagli.
    - Nome
    - Organizzazione
    - Note
+   - URL dell'interfaccia web, quando il primo inventario ha indicato il
+     prodotto: l'indirizzo usato dal pulsante **Apri**. Lascialo vuoto per
+     usare quello predefinito, che segue l'FQDN degli inventari successivi
 4. Clicca su **Salva**
 
 :::note

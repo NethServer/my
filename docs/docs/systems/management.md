@@ -139,7 +139,26 @@ Use the **Favorites** filter to list only your favorites, or sort by
 
 ### System Details
 
-Click on a system to view comprehensive information:
+Click on a system to view comprehensive information.
+
+#### Opening the System
+
+The button at the top of the page opens the web interface of the system in a
+new tab: **Open NethServer**, **Open NethSecurity**, or **Open system** while
+the product is not known yet. The default address comes from the FQDN of the
+latest inventory:
+
+- NethServer: `https://<fqdn>/cluster-admin`
+- NethSecurity: `https://<fqdn>:9090` (the check also tries port 443)
+
+My checks whether the address answers. The check runs from the My server, not
+from your browser: when it fails, a warning icon appears next to the button,
+but the button still works, because the system may open from your network, for
+example over a VPN. The button is disabled only while the address is unknown,
+before the first inventory.
+
+If the web interface answers at another address, set it in **Web interface
+URL** when editing the system.
 
 #### Overview Tab
 
@@ -196,6 +215,9 @@ See [Inventory and Heartbeat](./inventory-heartbeat.md) for details.
    - Name
    - Organization
    - Notes
+   - Web interface URL, once the first inventory has told the product: the
+     address the **Open** button uses. Leave it empty to use the default one,
+     which follows the FQDN of later inventories
 4. Click **Save system**
 
 :::tip

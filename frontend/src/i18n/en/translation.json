@@ -858,7 +858,10 @@
     "remove_from_favorites": "Remove from favorites",
     "add_system_to_favorites": "Add {name} to favorites",
     "remove_system_from_favorites": "Remove {name} from favorites",
-    "favorites_not_available_impersonating": "You cannot change favorites while impersonating another user"
+    "favorites_not_available_impersonating": "You cannot change favorites while impersonating another user",
+    "ui_url": "Web interface URL",
+    "ui_url_helper": "Leave empty to use the default address, {url}",
+    "ui_url_invalid": "Enter an address that starts with https:// or http://"
   },
   "system_detail": {
     "title": "System detail",
@@ -866,7 +869,8 @@
     "hardware": "Hardware",
     "change_history": "Change history",
     "unknown_product": "Unknown product",
-    "go_to_system": "Go to system",
+    "open_product": "Open {product}",
+    "open_system": "Open system",
     "go_to_system_tooltip": "Note: The system may be unreachable due to network settings.",
     "uptime": "Uptime",
     "leader_node_uptime": "Leader node uptime",
@@ -900,7 +904,6 @@
     "system_key": "System key",
     "cannot_determine_system_url_description": "Cannot access the system because its URL cannot be determined.",
     "checking_reachability": "Checking system reachability…",
-    "system_unreachable": "The system UI is not publicly reachable. This might happen due to network configuration or security measures.",
     "change_history_description": "The change history is based on the differences between the inventories sent by the system. If the system has not sent any inventory yet, no change history will be available.",
     "today": "Today",
     "no_changes_today": "No changes",
@@ -963,7 +966,10 @@
     "memory_used_of_total": "{used} used of {total}",
     "storage_free_of_total": "{free} free of {total}",
     "no_hardware_info": "No hardware information",
-    "no_hardware_info_description": "Hardware information will appear here after the system has sent at least one inventory."
+    "no_hardware_info_description": "Hardware information will appear here after the system has sent at least one inventory.",
+    "system_address_unknown": "The address of the system is not known yet: it comes with its first inventory.",
+    "system_not_reachable": "My could not reach the system from the internet. It may still open from your network, for example over a VPN.",
+    "system_not_reachable_edit": "If it answers at a different address, set it as the web interface URL."
   },
   "application_detail": {
     "title": "Application detail",

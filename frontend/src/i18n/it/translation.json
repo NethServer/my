@@ -776,7 +776,10 @@
     "remove_from_favorites": "Rimuovi dai preferiti",
     "add_system_to_favorites": "Aggiungi {name} ai preferiti",
     "remove_system_from_favorites": "Rimuovi {name} dai preferiti",
-    "favorites_not_available_impersonating": "Non puoi modificare i preferiti mentre impersoni un altro utente"
+    "favorites_not_available_impersonating": "Non puoi modificare i preferiti mentre impersoni un altro utente",
+    "ui_url": "URL dell'interfaccia web",
+    "ui_url_helper": "Lascia vuoto per usare l'indirizzo predefinito, {url}",
+    "ui_url_invalid": "Inserisci un indirizzo che inizia con https:// o http://"
   },
   "system_detail": {
     "title": "Dettaglio sistema",
@@ -784,7 +787,8 @@
     "hardware": "Hardware",
     "change_history": "Cronologia modifiche",
     "unknown_product": "Prodotto sconosciuto",
-    "go_to_system": "Vai al sistema",
+    "open_product": "Apri {product}",
+    "open_system": "Apri sistema",
     "go_to_system_tooltip": "Nota: Il sistema potrebbe non essere raggiungibile a causa delle impostazioni di rete.",
     "uptime": "Tempo di attività (Uptime)",
     "leader_node_uptime": "Uptime nodo leader",
@@ -818,7 +822,6 @@
     "system_key": "Chiave di sistema",
     "cannot_determine_system_url_description": "Impossibile accedere al sistema perché non è possibile determinarne l'URL.",
     "checking_reachability": "Verifica raggiungibilità del sistema…",
-    "system_unreachable": "L'interfaccia del sistema non è raggiungibile pubblicamente. Questo potrebbe accadere a causa della configurazione di rete o di misure di sicurezza.",
     "change_history_description": "La cronologia delle modifiche si basa sulle differenze tra gli inventari inviati dal sistema. Se il sistema non ha ancora inviato alcun inventario, non sarà disponibile alcuna cronologia delle modifiche.",
     "today": "Oggi",
     "no_changes_today": "Nessuna modifica",
@@ -881,7 +884,10 @@
     "memory_used_of_total": "{used} usati di {total}",
     "storage_free_of_total": "{free} liberi di {total}",
     "no_hardware_info": "Nessuna informazione hardware",
-    "no_hardware_info_description": "Le informazioni hardware appariranno qui dopo che il sistema avrà inviato almeno un inventario."
+    "no_hardware_info_description": "Le informazioni hardware appariranno qui dopo che il sistema avrà inviato almeno un inventario.",
+    "system_address_unknown": "L'indirizzo del sistema non è ancora noto: arriva con il primo inventario.",
+    "system_not_reachable": "My non è riuscito a raggiungere il sistema da internet. Potrebbe comunque aprirsi dalla tua rete, ad esempio tramite VPN.",
+    "system_not_reachable_edit": "Se risponde a un indirizzo diverso, impostalo come URL dell'interfaccia web."
   },
   "application_detail": {
     "title": "Dettaglio applicazione",

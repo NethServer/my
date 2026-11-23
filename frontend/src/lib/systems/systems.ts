@@ -37,15 +37,42 @@ export const CreateSystemSchema = v.object({
   created_by_organization_id: v.optional(v.string()),
 })
 
+// An absolute http(s) address with a host, as the backend checks it
+// (models.NormalizeUIURL); empty means the default address
+export const isValidUiUrl = (value: string) => {
+  if (!value) {
+    return true
+  }
+  try {
+    const url = new URL(value)
+    return (
+      (url.protocol === 'https:' || url.protocol === 'http:') && !!url.hostname && !url.username
+    )
+  } catch {
+    return false
+  }
+}
+
 export const EditSystemSchema = v.object({
   ...CreateSystemSchema.entries,
   id: v.string(),
+  // omitted keeps the current address, empty goes back to the default
+  ui_url: v.optional(
+    v.pipe(
+      v.string(),
+      v.maxLength(2048, 'systems.ui_url_invalid'),
+      v.check(isValidUiUrl, 'systems.ui_url_invalid'),
+    ),
+  ),
 })
 
 export const SystemSchema = v.object({
   ...CreateSystemSchema.entries,
   ...EditSystemSchema.entries,
   type: v.optional(v.picklist(['ns8', 'nsec'])),
+  // Address of the web interface set by an admin; null means the default one
+  // (getDefaultUiUrl)
+  ui_url: v.optional(v.nullable(v.string())),
   status: v.optional(SystemStatusSchema),
   fqdn: v.string(),
   ipv4_address: v.string(),
@@ -441,6 +468,23 @@ export function getProductName(systemType: string) {
     return 'NethSecurity'
   } else {
     return systemType
+  }
+}
+
+// The address the web interface answers on when nobody set another one, as the
+// backend derives it (models.DefaultUIURL). Empty while the type or the FQDN is
+// not known, before the first inventory.
+export const getDefaultUiUrl = (systemType: string | undefined, fqdn: string | undefined) => {
+  if (!fqdn) {
+    return ''
+  }
+  switch (systemType) {
+    case 'ns8':
+      return `https://${fqdn}/cluster-admin`
+    case 'nsec':
+      return `https://${fqdn}:9090`
+    default:
+      return ''
   }
 }
 

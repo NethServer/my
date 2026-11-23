@@ -2311,6 +2311,14 @@ components:
           type: string
           description: Additional notes or description for the system
           example: "Production web server for EU region"
+        ui_url:
+          type: string
+          nullable: true
+          description: |
+            Address of the system web interface set by an admin. Null means the
+            default one, derived from fqdn and type: `https://{fqdn}/cluster-admin`
+            for NethServer, `https://{fqdn}:9090` for NethSecurity.
+          example: "https://firewall.example.com:8443"
         created_at:
           type: string
           format: date-time
@@ -2616,6 +2624,15 @@ components:
           type: string
           description: Additional notes or description for the system
           example: "Production web server for EU region"
+        ui_url:
+          type: string
+          maxLength: 2048
+          description: |
+            Address of the system web interface, an absolute http or https URL.
+            Omitted keeps the current one; empty, or the default address, goes
+            back to the default derived from fqdn and type. An invalid value
+            returns 400 with the validation error `ui_url` / `invalid`.
+          example: "https://firewall.example.com:8443"
 
     # Entitlements schemas
     EntitlementCatalogItem:
@@ -11767,11 +11784,18 @@ paths:
       summary: /systems/{id}/reachability - Check if system web UI is reachable
       description: |
         Checks if the system's web UI is reachable from the backend server.
-        The target URL is constructed from the system's FQDN and type:
+        When an admin set `ui_url`, only that address is tried. Otherwise the
+        target URL is constructed from the system's FQDN and type:
         - NS8: `https://{fqdn}/cluster-admin`
-        - NethSecurity: tries `https://{fqdn}:443` first, then `https://{fqdn}:9090`
+        - NethSecurity: tries `https://{fqdn}:9090` first, then `https://{fqdn}:443`
 
-        Returns `reachable: true` with the responding `url` on success, or `reachable: false` if unreachable.
+        Hosts that are not publicly routable are never probed, and read as not reachable.
+
+        Returns `reachable: true` with the responding `url` on success. When
+        nothing responds, `reachable: false` comes with the `url` to open
+        anyway, since the check runs from the server and the system may still
+        open from the user's network; `url` is empty only when no address is
+        known yet.
       parameters:
         - name: id
           in: path
@@ -11802,7 +11826,7 @@ paths:
                         example: true
                       url:
                         type: string
-                        description: The URL that responded successfully (empty if not reachable)
+                        description: The URL that responded, or the one to open when none did (empty when no address is known yet)
                         example: "https://firewall.example.com:9090"
         '400':
           $ref: '#/components/responses/BadRequest'
