@@ -126,7 +126,7 @@ const goToAddons = () => {
       </div>
       <NeEmptyState v-else :title="$t('system_detail.no_addons')" :icon="faPuzzlePiece" />
     </template>
-    <div v-if="!isLoading" class="flex justify-end">
+    <div v-if="!isLoading" class="flex">
       <NeButton kind="tertiary" class="mt-2" @click="goToAddons()">
         <template #prefix>
           <FontAwesomeIcon :icon="faArrowRight" aria-hidden="true" />

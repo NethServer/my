@@ -123,7 +123,7 @@ const { state: thirdPartyApps } = useQuery({
             kind="secondary"
             :disabled="!isEnabled(thirdPartyApp)"
             :aria-label="getButtonAriaLabel(thirdPartyApp)"
-            class="self-end"
+            class="self-start"
             @click="openThirdPartyApp(thirdPartyApp)"
           >
             <template #prefix>

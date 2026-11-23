@@ -47,7 +47,7 @@ const openLegacyMy = () => {
       </i18n-t>
     </template>
     <!-- at the bottom, level with the other cards of the row -->
-    <div class="mt-auto flex justify-end">
+    <div class="mt-auto flex">
       <NeButton kind="secondary" @click="openLegacyMy">
         <template #prefix>
           <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />

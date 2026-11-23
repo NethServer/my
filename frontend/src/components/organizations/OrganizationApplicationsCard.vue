@@ -91,7 +91,7 @@ const goToApplications = () => {
         </NeLink>
       </div>
     </div>
-    <div v-if="applicationsCount > 0" class="flex justify-end">
+    <div v-if="applicationsCount > 0" class="flex">
       <NeButton kind="tertiary" class="mt-2" @click="goToApplications()">
         <template #prefix>
           <FontAwesomeIcon :icon="faArrowRight" aria-hidden="true" />
