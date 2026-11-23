@@ -4025,7 +4025,7 @@ components:
           example: "Jane Smith"
         action_type:
           type: string
-          enum: [session_start, session_end, api_call]
+          enum: [session_start, session_extended, session_end, api_call]
           description: Type of action performed
           example: "api_call"
         api_endpoint:
@@ -7618,6 +7618,77 @@ paths:
                 message: "Not currently impersonating a user"
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  /impersonate/extend:
+    post:
+      operationId: extendImpersonation
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
+      tags:
+        - Backend - Impersonation
+      summary: /impersonate/extend - Extend the impersonation session
+      description: |
+        Restarts the current impersonation session for a full `IMPERSONATION_SESSION_DURATION` (default 1 hour)
+        from now, with no limit on the number of extensions. Called with the impersonation token: the response
+        carries a new token for the same session, and the presented one is revoked. The impersonator must still
+        hold `impersonate:users` and the target must still be an active user without the Owner role. API keys
+        are refused. The extension is recorded in the session audit as `session_extended`.
+      responses:
+        '200':
+          description: Impersonation extended successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "impersonation extended successfully"
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        description: New impersonation JWT token for the same session
+                        example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      expires_in:
+                        type: integer
+                        description: Token expiration time in seconds (IMPERSONATION_SESSION_DURATION)
+                        example: 3600
+                      expires_at:
+                        type: string
+                        format: date-time
+                        description: When the new impersonation token expires
+                        example: "2025-09-04T14:30:00Z"
+                      session_id:
+                        type: string
+                        description: The session being extended
+                        example: "session-uuid-here"
+                      is_impersonating:
+                        type: boolean
+                        example: true
+                      impersonated_user:
+                        $ref: '#/components/schemas/User'
+                      impersonator:
+                        $ref: '#/components/schemas/User'
+        '400':
+          description: Not impersonating, the session expired or ended, or the target is no longer active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The impersonator lost impersonate:users, the target now has the Owner role, or the caller used an API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /impersonate/status:
     get:

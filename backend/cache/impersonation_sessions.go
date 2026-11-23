@@ -11,6 +11,7 @@ package cache
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -171,6 +172,46 @@ func (m *ImpersonationSessionManager) ClearSession(impersonatorUserID string) er
 	logger.ComponentLogger("impersonation_sessions").Info().
 		Str("impersonator_user_id", impersonatorUserID).
 		Msg("Active impersonation session cleared")
+
+	return nil
+}
+
+// ErrImpersonationSessionNotFound means the impersonator has no active
+// session with the given id: it expired, was exited, or was replaced.
+var ErrImpersonationSessionNotFound = errors.New("impersonation session not found")
+
+// ExtendSession moves the expiry of the impersonator's active session to
+// now + duration, keeping its id and start. It fails with
+// ErrImpersonationSessionNotFound when sessionID is not the active session.
+func (m *ImpersonationSessionManager) ExtendSession(impersonatorUserID, sessionID string, duration time.Duration) error {
+	if m.redis == nil {
+		logger.ComponentLogger("impersonation_sessions").Warn().
+			Msg("Redis client not available - skipping session extension")
+		return nil // Fail-open, as CreateSession
+	}
+
+	session, err := m.GetActiveSession(impersonatorUserID)
+	if err != nil {
+		return err
+	}
+	if session == nil || session.SessionID != sessionID {
+		return ErrImpersonationSessionNotFound
+	}
+
+	session.ExpiresAt = time.Now().Add(duration)
+	sessionData, err := json.Marshal(session)
+	if err != nil {
+		return fmt.Errorf("failed to marshal session data: %w", err)
+	}
+	if err := m.redis.Set(m.getSessionKey(impersonatorUserID), string(sessionData), duration); err != nil {
+		return fmt.Errorf("failed to store session: %w", err)
+	}
+
+	logger.ComponentLogger("impersonation_sessions").Info().
+		Str("impersonator_user_id", impersonatorUserID).
+		Str("session_id", sessionID).
+		Time("expires_at", session.ExpiresAt).
+		Msg("Active impersonation session extended")
 
 	return nil
 }

@@ -195,6 +195,19 @@ cases:
     expect: denied
     note: the owner of this key holds impersonate:users, so only RejectAPIKey can stop it
 
+  - name: key cannot extend an impersonation
+    kind: api_key
+    as: owner-staff
+    mode: write
+    method: POST
+    path: /api/impersonate/extend
+    expect: denied
+    note: |
+      A key is not an impersonation token, so the handler would answer 400
+      anyway; the case pins that RejectAPIKey refuses it first, so a key never
+      reaches the session logic.
+    must_not_contain: ["not currently impersonating"]
+
   - name: key cannot star a system
     kind: api_key
     as: d1r1-admin

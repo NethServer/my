@@ -205,6 +205,7 @@ func main() {
 			impersonateGroup.GET("/status", methods.GetImpersonationStatus)
 			impersonateGroup.POST("", middleware.RequirePermission("impersonate:users"), methods.ImpersonateUser) // Only users with impersonate:users permission
 			impersonateGroup.DELETE("", methods.ExitImpersonationWithAudit)
+			impersonateGroup.POST("/extend", methods.ExtendImpersonation) // impersonation token only; the handler checks the impersonator
 
 			// Session management endpoints
 			impersonateGroup.GET("/sessions", middleware.DisableOnImpersonate(), methods.GetImpersonationSessions)

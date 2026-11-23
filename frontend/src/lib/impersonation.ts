@@ -16,6 +16,7 @@ interface ImpersonateResponse {
     impersonator: UserInfo
     session_id: string
     token: string
+    expires_in: number
     expires_at: string
   }
 }
@@ -61,6 +62,23 @@ export const postImpersonate = (userId: string) => {
     .then((res) => res.data.data)
     .catch((error) => {
       console.error('Cannot post impersonate:', error)
+      throw error
+    })
+}
+
+// restarts the current session for a full duration: a new token, same session
+export const postExtendImpersonation = () => {
+  const loginStore = useLoginStore()
+
+  return axios
+    .post<ImpersonateResponse>(`${API_URL}/${IMPERSONATE_PATH}/extend`, null, {
+      headers: {
+        Authorization: `Bearer ${loginStore.jwtToken}`,
+      },
+    })
+    .then((res) => res.data.data)
+    .catch((error) => {
+      console.error('Cannot extend impersonation:', error)
       throw error
     })
 }

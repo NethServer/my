@@ -61,6 +61,8 @@ Every impersonation session lasts a fixed duration, set by the platform administ
 
 While impersonating, hover over the impersonation badge in the top bar to see how much time is left. When the time runs out, the session ends and you are logged in as yourself again.
 
+To keep working, click **Extend session** in the same tooltip: the session restarts for its full duration from that moment, with no confirmation and no limit on the number of extensions. A notification confirms the new remaining time, and the extension appears in the session's audit log as **Session extended**.
+
 ## Impersonation Workflow
 
 ### Step 1: Administrator Impersonates User
@@ -130,6 +132,7 @@ You are not asked for permission before a session starts. Instead, every session
 
 **Audit Information:**
 - Date and time of each action
+- Start, extensions and end of the session
 - API endpoint called
 - Sensitive data automatically redacted
 - Result (success/failure)

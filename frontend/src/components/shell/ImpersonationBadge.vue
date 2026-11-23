@@ -9,7 +9,7 @@ import { useLoginStore } from '@/stores/login'
 import { useNotificationsStore } from '@/stores/notifications'
 import { faUserSecret, faXmark } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { NeBadgeV2, NeSpinner, NeTooltip } from '@nethesis/vue-components'
+import { NeBadgeV2, NeLink, NeSpinner, NeTooltip } from '@nethesis/vue-components'
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -23,6 +23,7 @@ const totalSeconds = ref(0)
 const formattedTimer = ref('')
 const formattedTimerLong = ref('')
 const loadingExitImpersonation = ref(false)
+const loadingExtendImpersonation = ref(false)
 
 watch(
   () => totalSeconds.value,
@@ -70,6 +71,28 @@ const exitImpersonation = async (timerExpired = false) => {
     })
 }
 
+const extendImpersonation = () => {
+  loadingExtendImpersonation.value = true
+  loginStore
+    .extendImpersonation()
+    .then((res) => {
+      updateTimer()
+      notificationsStore.createNotification({
+        kind: 'success',
+        title: t('users.impersonation_extended'),
+        description: t('users.impersonation_timer_tooltip', {
+          timer: formatSeconds(res.expires_in, t),
+        }),
+      })
+    })
+    .catch(() => {
+      // the axios interceptor already notifies the failure
+    })
+    .finally(() => {
+      loadingExtendImpersonation.value = false
+    })
+}
+
 const formatTimer = (startDate: Date, endDate: Date) => {
   const diffMs = endDate.getTime() - startDate.getTime()
 
@@ -104,8 +127,18 @@ const formatTimer = (startDate: Date, endDate: Date) => {
           </div>
         </template>
         <template #content>
-          {{ t('users.you_are_impersonating_user', { user: loginStore.impersonatedUser?.name }) }}.
-          {{ t('users.impersonation_timer_tooltip', { timer: formattedTimerLong }) }}
+          <div class="flex flex-col items-start gap-1">
+            <span>
+              {{
+                t('users.you_are_impersonating_user', { user: loginStore.impersonatedUser?.name })
+              }}.
+              {{ t('users.impersonation_timer_tooltip', { timer: formattedTimerLong }) }}
+            </span>
+            <NeSpinner v-if="loadingExtendImpersonation" color="white" />
+            <NeLink v-else inverted-theme @click="extendImpersonation">
+              {{ t('users.extend_impersonation') }}
+            </NeLink>
+          </div>
         </template>
       </NeTooltip>
       <!-- loading exit impersonation -->

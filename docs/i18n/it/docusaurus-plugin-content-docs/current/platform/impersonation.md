@@ -61,6 +61,8 @@ Ogni sessione di impersonificazione ha una durata fissa, stabilita dall'amminist
 
 Durante l'impersonificazione, passa il mouse sul badge di impersonificazione nella barra superiore per vedere il tempo rimanente. Allo scadere del tempo la sessione termina e torni a usare il tuo account.
 
+Per continuare a lavorare, clicca su **Estendi sessione** nello stesso tooltip: la sessione riparte per la sua durata completa da quel momento, senza conferma e senza un limite al numero di estensioni. Una notifica conferma il nuovo tempo rimanente, e l'estensione compare nell'audit log della sessione come **Sessione estesa**.
+
 ## Flusso di Lavoro
 
 ### Passo 1: L'Amministratore Impersonifica l'Utente
@@ -128,6 +130,7 @@ Prima che una sessione inizi non ti viene chiesto alcun permesso. In compenso og
 
 **Informazioni registrate:**
 - Data e ora di ogni azione
+- Inizio, estensioni e fine della sessione
 - Endpoint API chiamato
 - Dati sensibili oscurati automaticamente
 - Esito (successo/errore)

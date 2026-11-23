@@ -479,7 +479,7 @@ CREATE TABLE IF NOT EXISTS impersonation_audit (
     impersonated_name TEXT,                       -- Display name for display
 
     -- Action details
-    action_type VARCHAR(50) NOT NULL,       -- start, end, api_call, error
+    action_type VARCHAR(50) NOT NULL,       -- session_start, session_extended, session_end, api_call
     api_endpoint VARCHAR(255),              -- API endpoint accessed (for api_call actions)
     http_method VARCHAR(10),                -- HTTP method used
     request_data TEXT,                      -- Request body (sanitized)

@@ -266,6 +266,150 @@ func ImpersonateUser(c *gin.Context) {
 	))
 }
 
+// ExtendImpersonation restarts the current impersonation session for a full
+// configuration.Config.ImpersonationSessionDuration: same session, new token.
+// Called with the impersonation token itself; API keys never reach it
+// (RejectAPIKey on the group). The impersonator is re-read from its current
+// state, so a user who lost impersonate:users cannot keep a session alive; the
+// new token still names the impersonator as the session was started, since
+// its id keys the session in Redis and the audit trail.
+// POST /api/impersonate/extend
+func ExtendImpersonation(c *gin.Context) {
+	isImpersonated, exists := c.Get("is_impersonated")
+	if !exists || !isImpersonated.(bool) {
+		c.JSON(http.StatusBadRequest, response.BadRequest("not currently impersonating a user", nil))
+		return
+	}
+
+	sessionIDStr, _ := c.Get("session_id")
+	sessionID, _ := sessionIDStr.(string)
+	impersonator, _ := c.Get("impersonated_by")
+	impersonatorUser, ok := impersonator.(*models.User)
+	impersonatedUser, hasTarget := helpers.GetUserFromContext(c)
+	if !hasTarget {
+		return // GetUserFromContext already answered
+	}
+	if !ok || impersonatorUser == nil || sessionID == "" ||
+		impersonatorUser.LogtoID == nil || impersonatedUser.LogtoID == nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("invalid impersonation state", nil))
+		return
+	}
+
+	freshImpersonator, err := local.ResolveUserByLogtoID(*impersonatorUser.LogtoID)
+	if err != nil {
+		if errors.Is(err, local.ErrUserInactive) {
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("account suspended or deleted", nil))
+			return
+		}
+		logger.RequestLogger(c, "impersonate").Error().
+			Err(err).
+			Str("operation", "extend_impersonation_resolve_impersonator").
+			Str("impersonator_user_id", impersonatorUser.ID).
+			Msg("Failed to resolve impersonator for extending impersonation")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to extend impersonation", nil))
+		return
+	}
+	if !HasPermission(freshImpersonator.UserPermissions, freshImpersonator.OrgPermissions, "impersonate:users") {
+		logger.RequestLogger(c, "impersonate").Warn().
+			Str("operation", "extend_impersonation_permission_lost").
+			Str("impersonator_user_id", impersonatorUser.ID).
+			Str("session_id", sessionID).
+			Msg("Impersonator no longer holds impersonate:users")
+		c.JSON(http.StatusForbidden, response.Forbidden("insufficient permissions to impersonate users", nil))
+		return
+	}
+
+	// The target is re-read too: it may have been suspended, deleted or given
+	// the Owner user role since the session started, and the new token must
+	// carry its current permissions.
+	freshTarget, err := logto.GetUserForImpersonation(*impersonatedUser.LogtoID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, response.BadRequest("target user not found or inaccessible", nil))
+		return
+	}
+	if models.HasOwnerUserRole(freshTarget.UserRoles) {
+		c.JSON(http.StatusForbidden, response.Forbidden("an Owner-role account cannot be impersonated", nil))
+		return
+	}
+
+	sessionDuration := configuration.Config.ImpersonationSessionDuration
+	expiresAt := time.Now().Add(sessionDuration)
+
+	sessionManager := cache.NewImpersonationSessionManager()
+	if err := sessionManager.ExtendSession(impersonatorUser.ID, sessionID, sessionDuration); err != nil {
+		if errors.Is(err, cache.ErrImpersonationSessionNotFound) {
+			c.JSON(http.StatusBadRequest, response.BadRequest("impersonation session expired or ended", nil))
+			return
+		}
+		logger.RequestLogger(c, "impersonate").Warn().
+			Err(err).
+			Str("operation", "extend_active_session_failed").
+			Str("session_id", sessionID).
+			Msg("Failed to extend active session - continuing (fail open)")
+	}
+
+	impersonationToken, err := jwt.GenerateImpersonationTokenWithDuration(*freshTarget, *impersonatorUser, sessionID, sessionDuration)
+	if err != nil {
+		logger.RequestLogger(c, "impersonate").Error().
+			Err(err).
+			Str("operation", "extend_impersonation_generate_token").
+			Str("session_id", sessionID).
+			Msg("Failed to generate impersonation token")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to extend impersonation", nil))
+		return
+	}
+
+	// The old token would otherwise stay valid until its own expiry
+	if presented := strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer "); presented != "" {
+		if blErr := cache.GetTokenBlacklist().BlacklistToken(presented, "impersonation extended"); blErr != nil {
+			logger.RequestLogger(c, "impersonate").Warn().
+				Err(blErr).
+				Str("operation", "extend_impersonation_blacklist_failed").
+				Str("session_id", sessionID).
+				Msg("Failed to revoke the previous impersonation token")
+		}
+	}
+
+	auditEntry := &models.ImpersonationAuditEntry{
+		SessionID:            sessionID,
+		ImpersonatorUserID:   helpers.GetEffectiveUserID(impersonatorUser),
+		ImpersonatedUserID:   freshTarget.ID,
+		ActionType:           "session_extended",
+		ImpersonatorUsername: impersonatorUser.Username,
+		ImpersonatedUsername: freshTarget.Username,
+		ImpersonatorName:     impersonatorUser.Name,
+		ImpersonatedName:     freshTarget.Name,
+	}
+	if err := local.NewImpersonationService().LogImpersonationAction(auditEntry); err != nil {
+		logger.RequestLogger(c, "impersonate").Warn().
+			Err(err).
+			Str("operation", "log_session_extended").
+			Str("session_id", sessionID).
+			Msg("Failed to log impersonation session extension")
+	}
+
+	logger.RequestLogger(c, "impersonate").Info().
+		Str("operation", "impersonation_extended").
+		Str("impersonator_user_id", impersonatorUser.ID).
+		Str("impersonated_user_id", freshTarget.ID).
+		Str("session_id", sessionID).
+		Time("expires_at", expiresAt).
+		Msg("Impersonation session extended")
+
+	c.JSON(http.StatusOK, response.OK(
+		"impersonation extended successfully",
+		gin.H{
+			"is_impersonating":  true,
+			"token":             impersonationToken,
+			"expires_in":        int64(sessionDuration.Seconds()),
+			"expires_at":        expiresAt,
+			"session_id":        sessionID,
+			"impersonated_user": freshTarget,
+			"impersonator":      impersonatorUser,
+		},
+	))
+}
+
 // ExitImpersonationWithAudit allows user to exit impersonation mode and logs the session end
 // DELETE /api/impersonate
 func ExitImpersonationWithAudit(c *gin.Context) {

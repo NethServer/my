@@ -16,7 +16,12 @@ import { useStorage } from '@vueuse/core'
 import { getPreference } from '@nethesis/vue-components'
 import { getBrowserLocale, setLocale } from '@/i18n'
 import router from '@/router'
-import { deleteImpersonate, getImpersonationStatus, postImpersonate } from '@/lib/impersonation'
+import {
+  deleteImpersonate,
+  getImpersonationStatus,
+  postExtendImpersonation,
+  postImpersonate,
+} from '@/lib/impersonation'
 import { canImpersonateUsers } from '@/lib/permissions'
 import { organizationDetailRoute } from '@/lib/organizations/organizationDetailRoute'
 
@@ -563,6 +568,16 @@ export const useLoginStore = defineStore('login', () => {
     }
   }
 
+  // the previous impersonation token is revoked: switch to the new one at once
+  const extendImpersonation = async () => {
+    const res = await postExtendImpersonation()
+    jwtToken.value = res.token
+    impersonatedUser.value = res.impersonated_user as UserInfo
+    userInfo.value = impersonatedUser.value
+    impersonateExpiration.value = new Date(res.expires_at)
+    return res
+  }
+
   const exitImpersonation = async () => {
     try {
       const res = await deleteImpersonate()
@@ -611,6 +626,7 @@ export const useLoginStore = defineStore('login', () => {
     pendingRefresh,
     refreshIdToken,
     impersonateUser,
+    extendImpersonation,
     exitImpersonation,
     login,
     logout,

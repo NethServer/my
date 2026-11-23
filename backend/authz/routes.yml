@@ -169,6 +169,15 @@ routes:
     intent: authenticated
     note: exiting an impersonation the caller is not in is a no-op, not an authorization question
 
+  - method: POST
+    path: /api/impersonate/extend
+    intent: authenticated
+    note: |
+      Only an impersonation token has a session to extend: any other token gets
+      400. The handler re-reads the impersonator and requires impersonate:users
+      from its current state; API keys are refused by RejectAPIKey, asserted in
+      the special layer.
+
   - method: GET
     path: /api/impersonate/sessions
     intent: authenticated
