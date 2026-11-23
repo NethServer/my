@@ -107,8 +107,8 @@ Use filters to find specific systems:
 - **Organization**: Filter by customer organization
 - **Created By**: Filter by user who created the system
 - **Add-on**: Filter by purchased add-on (see [Add-ons](../features/entitlements.md))
-- **Favorites**: all systems, or only the ones you starred (see [Favorite Systems](#favorite-systems))
 - **Status**: unknown, active, inactive, suspended, deleted
+- **Favorites**: all systems, or only the ones you starred (see [Favorite Systems](#favorite-systems))
 - **Sort By**: Name, version, FQDN/IP address, Organization, Created By, Status, Favorite
 
 The **Add-on** menu lists the add-ons held by at least one of your systems, so

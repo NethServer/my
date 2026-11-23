@@ -429,22 +429,6 @@ function onCloseSecretRegeneratedModal() {
             :placeholder="$t('systems.filter_systems')"
             class="max-w-48 sm:max-w-sm"
           />
-          <!-- favorites filter: the systems the signed-in user starred -->
-          <NeDropdownFilterV2
-            v-model="favoriteFilter"
-            kind="radio"
-            :label="t('systems.favorites')"
-            :options="favoriteFilterOptions"
-            :show-clear-filter="false"
-            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
-            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
-            :no-options-label="t('ne_dropdown_filter.no_options')"
-            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
-            :clear-search-label="t('ne_dropdown_filter.clear_search')"
-            :custom-action-label="t('ne_dropdown_filter.reset_selection')"
-            :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
-            @custom-action="resetFavoriteFilter"
-          />
           <NeDropdownFilterV2
             v-model="productFilter"
             kind="checkbox"
@@ -513,6 +497,22 @@ function onCloseSecretRegeneratedModal() {
             :custom-action-label="t('ne_dropdown_filter.reset_selection')"
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             @custom-action="resetStatusFilter"
+          />
+          <!-- favorites filter: the systems the signed-in user starred -->
+          <NeDropdownFilterV2
+            v-model="favoriteFilter"
+            kind="radio"
+            :label="t('systems.favorites')"
+            :options="favoriteFilterOptions"
+            :show-clear-filter="false"
+            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            :custom-action-label="t('ne_dropdown_filter.reset_selection')"
+            :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
+            @custom-action="resetFavoriteFilter"
           />
           <!-- sort dropdown -->
           <NeSortDropdown

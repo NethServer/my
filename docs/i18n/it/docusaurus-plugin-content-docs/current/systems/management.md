@@ -100,8 +100,8 @@ Usa i filtri per trovare sistemi specifici:
 - **Organizzazione**: filtra per organizzazione cliente
 - **Creato da**: filtra per utente che ha creato il sistema
 - **Add-on**: filtra per add-on acquistato (vedi [Add-on](../features/entitlements.md))
-- **Preferiti**: tutti i sistemi, o solo quelli che hai aggiunto ai preferiti (vedi [Sistemi preferiti](#sistemi-preferiti))
 - **Stato**: unknown, active, inactive, suspended, deleted
+- **Preferiti**: tutti i sistemi, o solo quelli che hai aggiunto ai preferiti (vedi [Sistemi preferiti](#sistemi-preferiti))
 - **Ordinamento**: nome, versione, FQDN/indirizzo IP, organizzazione, creato da, stato, preferito
 
 Il menu **Add-on** elenca gli add-on posseduti da almeno uno dei tuoi sistemi,
