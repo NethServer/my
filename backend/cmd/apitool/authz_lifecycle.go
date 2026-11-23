@@ -231,7 +231,13 @@ func (lc *lcRun) systemDeleteRestore() error {
 		"PATCH", "/api/systems/"+s+"/restore", nil, "denied"); err != nil {
 		return err
 	}
-	if _, err := lc.expect("customer admin restores its own system", "d1r1c1-admin",
+	// Restoring is the Owner organization's alone: for a partner, a Delete is
+	// final, even on its own system.
+	if _, err := lc.expect("customer admin cannot restore its own system", "d1r1c1-admin",
+		"PATCH", "/api/systems/"+s+"/restore", nil, "denied"); err != nil {
+		return err
+	}
+	if _, err := lc.expect("staff restores the system", "owner-staff",
 		"PATCH", "/api/systems/"+s+"/restore", nil, "allowed"); err != nil {
 		return err
 	}
@@ -301,7 +307,11 @@ func (lc *lcRun) customerDeleteRestoreAndPromotion() error {
 		return err
 	}
 	lc.routed("customer: no route while deleted", lcr, "lc-c@", false)
-	if _, err := lc.expect("reseller admin restores its customer", adminKey,
+	if _, err := lc.expect("reseller admin cannot restore its own customer", adminKey,
+		"PATCH", "/api/customers/"+lcc+"/restore", nil, "denied"); err != nil {
+		return err
+	}
+	if _, err := lc.expect("staff restores the customer", "owner-staff",
 		"PATCH", "/api/customers/"+lcc+"/restore", nil, "allowed"); err != nil {
 		return err
 	}

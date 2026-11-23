@@ -13,7 +13,7 @@ import {
   faMagnifyingGlass,
   faGlobe,
   faPenToSquare,
-  faBoxArchive,
+  faTrash,
   faCirclePause,
   faCirclePlay,
   faCircleCheck,
@@ -52,7 +52,11 @@ import RestoreDistributorModal from './RestoreDistributorModal.vue'
 import DestroyDistributorModal from './DestroyDistributorModal.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useDistributors } from '@/queries/organizations/distributors'
-import { canDestroyDistributors, canManageDistributors } from '@/lib/permissions'
+import {
+  canDestroyDistributors,
+  canManageDistributors,
+  canSeeDeletedObjects,
+} from '@/lib/permissions'
 import router from '@/router'
 import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
 
@@ -85,7 +89,9 @@ const isShownReactivateDistributorModal = ref(false)
 const isShownRestoreDistributorModal = ref(false)
 const isShownDestroyDistributorModal = ref(false)
 
-const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
+// computed: whether the deleted ones are shown is known only once the user
+// info has loaded, which can be after the table mounts
+const statusFilterOptions = computed<NeDropdownFilterV2Option[]>(() => [
   {
     id: 'enabled',
     label: t('common.enabled'),
@@ -94,10 +100,7 @@ const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
     id: 'suspended',
     label: t('common.suspended'),
   },
-  {
-    id: 'deleted',
-    label: t('common.archived'),
-  },
+  ...(canSeeDeletedObjects() ? [{ id: 'deleted', label: t('common.deleted') }] : []),
 ])
 
 const distributorsPage = computed(() => {
@@ -203,8 +206,8 @@ function getKebabMenuItems(distributor: Distributor) {
 
       items.push({
         id: 'deleteDistributor',
-        label: t('common.archive'),
-        icon: faBoxArchive,
+        label: t('common.delete'),
+        icon: faTrash,
         danger: true,
         action: () => showDeleteDistributorDrawer(distributor),
         disabled: asyncStatus.value === 'loading',
@@ -228,8 +231,8 @@ function getKebabMenuItems(distributor: Distributor) {
 
       items.push({
         id: 'deleteDistributor',
-        label: t('common.archive'),
-        icon: faBoxArchive,
+        label: t('common.delete'),
+        icon: faTrash,
         danger: true,
         action: () => showDeleteDistributorDrawer(distributor),
         disabled: asyncStatus.value === 'loading',
@@ -479,12 +482,12 @@ const goToDistributorDetails = (distributor: Distributor) => {
               <div class="flex items-center gap-2">
                 <template v-if="item.deleted_at">
                   <FontAwesomeIcon
-                    :icon="faBoxArchive"
+                    :icon="faTrash"
                     class="text-icon-neutral size-4"
                     aria-hidden="true"
                   />
                   <span>
-                    {{ t('common.archived') }}
+                    {{ t('common.deleted') }}
                   </span>
                 </template>
                 <template v-else-if="item.suspended_at">

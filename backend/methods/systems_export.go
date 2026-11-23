@@ -77,6 +77,9 @@ func ExportSystems(c *gin.Context) {
 		return
 	}
 	filterStatuses := c.QueryArray("status")
+	if rejectDeletedStatusOutsideOwnerOrg(c, user.OrgRole, filterStatuses) {
+		return
+	}
 	filterAddons := c.QueryArray("addon")
 
 	// For export, we don't use pagination - get all matching systems (with limit)

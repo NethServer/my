@@ -30,7 +30,7 @@ import {
   faCirclePause,
   faCirclePlay,
   faCircleCheck,
-  faBoxArchive,
+  faTrash,
   faCircleUp,
   faShuffle,
 } from '@fortawesome/free-solid-svg-icons'
@@ -146,11 +146,11 @@ function getKebabMenuItems() {
             <div class="flex items-center gap-2">
               <template v-if="resellerDetail.data.deleted_at">
                 <FontAwesomeIcon
-                  :icon="faBoxArchive"
+                  :icon="faTrash"
                   class="text-icon-neutral size-4"
                   aria-hidden="true"
                 />
-                <span>{{ $t('common.archived') }}</span>
+                <span>{{ $t('common.deleted') }}</span>
               </template>
               <template v-else-if="resellerDetail.data.suspended_at">
                 <FontAwesomeIcon

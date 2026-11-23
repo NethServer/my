@@ -14,7 +14,7 @@ My uses a dual-role system combining business hierarchy with technical capabilit
 
 Automatically inherited from user's organization:
 
-- **Owner**: Complete platform access (Nethesis only). Every member of the Owner organization has global visibility on all companies, systems and users, including archiving and destroying distributors, resellers and customers
+- **Owner**: Complete platform access (Nethesis only). Every member of the Owner organization has global visibility on all companies, systems and users, including deleting, restoring and destroying distributors, resellers and customers
 - **Distributor**: Manages resellers and customers
 - **Reseller**: Manages customers
 - **Customer**: Views own organization data
@@ -138,7 +138,7 @@ Use filters to find specific users:
 - **Search by name or email**: Type in the search box
 - **Search by organization**: Select one or more organizations
 - **Search by role**: Admin, Backoffice, Support, Reader, Staff
-- **Filter by status**: Enabled, Suspended, Archived, No login. "No login" selects
+- **Filter by status**: Enabled, Suspended, Deleted (Owner organization only), No login. "No login" selects
   the accounts that never signed in since the invitation, the same ones flagged
   with the badge next to the name; it adds to the other statuses rather than
   narrowing them
@@ -237,9 +237,9 @@ Re-enable a suspended account:
 
 ### Deleting a User
 
-**Delete archives, it does not erase.** The user is soft-deleted: it disappears
-from the lists and can no longer sign in, but the record is kept and can be
-brought back with **Restore**.
+**Delete keeps the record.** The user is soft-deleted: it disappears from the
+lists and can no longer sign in, but the record is kept and the Owner
+organization can bring it back with **Restore**.
 
 To delete a user:
 
@@ -249,7 +249,8 @@ To delete a user:
 
 **Effects of deletion:**
 - The user can no longer sign in
-- The account is archived, not erased -- **Restore** brings it back
+- The account is kept, not erased -- the Owner organization can bring it back
+  with **Restore**
 - All audit logs are preserved
 - Systems created by this user remain
 
@@ -258,7 +259,7 @@ To delete a user:
 - You need `manage:users` (Admin, Backoffice or Staff)
 
 :::danger Permanent deletion
-Erasing a user for good is a separate operation and requires `destroy:users`,
+**Destroy**, which erases a user for good, is a separate operation and requires `destroy:users`,
 which no assignable role holds -- only the bootstrap `owner` account. That one
 cannot be undone.
 :::
@@ -302,7 +303,7 @@ hierarchy.
 | Create and edit users | `manage:users` | Yes | Yes | Yes | No | No |
 | Reset a user's password | `manage:users` | Yes | Yes | Yes | No | No |
 | Suspend / reactivate a user | `manage:users` | Yes | Yes | Yes | No | No |
-| Delete a user (archive) | `manage:users` | Yes | Yes | Yes | No | No |
+| Delete a user (soft delete) | `manage:users` | Yes | Yes | Yes | No | No |
 | View systems | `read:systems` | Yes | Yes | Yes | Yes | Yes |
 | Create, edit and delete systems | `manage:systems` | Yes | Yes | No | Yes | No |
 | Silence alerts | `manage:systems` | Yes | Yes | No | Yes | No |

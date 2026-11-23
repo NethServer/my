@@ -226,6 +226,7 @@ Embedded in the custom JWT at exchange time. No external calls during request ha
 - `middleware.RequireResourcePermission("systems")` — HTTP-verb-aware: `read:` on GET, `manage:` on **POST/PUT/PATCH/DELETE alike** (`middleware/rbac.go`). `destroy:` is never derived from the verb — an endpoint that needs it says so explicitly, e.g. `middleware.RequirePermission("destroy:systems")` on `/systems/:id/destroy`
 - `middleware.RequireResourcePermissionOrSelf("resellers")` — as above, plus a GET on the caller's own organization is always allowed (org roles carry permissions for the levels *below*, so without this a reseller could not read itself)
 - `middleware.PreventSelfModification()` — blocks a user from acting on their own account for dangerous verbs
+- Soft-deleted objects belong to the Owner organization: outside it, a list or export with `status=deleted` gets 403 (`methods.rejectDeletedStatusOutsideOwnerOrg`) and the `/:id/restore` routes are gated by `middleware.RequireOrgRole(models.OwnerOrgRole)`. For everyone else, Delete is final
 - Hierarchy check for cross-org reads/writes: `local.UserService.IsOrganizationInHierarchy(orgRole, userOrgID, targetOrgID)`
 - RBAC filtering in SQL: `helpers.AppendOrgFilter(query, orgRole, orgID, tableAlias, args, nextArgIdx)` uses `GetAllowedOrgIDsForFilter` (cached org-ID set) for non-owner roles
 

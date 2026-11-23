@@ -16,7 +16,7 @@ import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import {
   faMagnifyingGlass,
   faPenToSquare,
-  faBoxArchive,
+  faTrash,
   faBuilding,
   faCirclePause,
   faCirclePlay,
@@ -58,7 +58,12 @@ import DestroyCustomerModal from './DestroyCustomerModal.vue'
 import TransferOrganizationDrawer from '@/components/organizations/TransferOrganizationDrawer.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useCustomers } from '@/queries/organizations/customers'
-import { canManageCustomers, canDestroyCustomers, canTransferCustomers } from '@/lib/permissions'
+import {
+  canManageCustomers,
+  canDestroyCustomers,
+  canTransferCustomers,
+  canSeeDeletedObjects,
+} from '@/lib/permissions'
 import router from '@/router'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
@@ -95,7 +100,9 @@ const isShownRestoreCustomerModal = ref(false)
 const isShownDestroyCustomerModal = ref(false)
 const isShownTransferCustomerDrawer = ref(false)
 
-const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
+// computed: whether the deleted ones are shown is known only once the user
+// info has loaded, which can be after the table mounts
+const statusFilterOptions = computed<NeDropdownFilterV2Option[]>(() => [
   {
     id: 'enabled',
     label: t('common.enabled'),
@@ -104,10 +111,7 @@ const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
     id: 'suspended',
     label: t('common.suspended'),
   },
-  {
-    id: 'deleted',
-    label: t('common.archived'),
-  },
+  ...(canSeeDeletedObjects() ? [{ id: 'deleted', label: t('common.deleted') }] : []),
 ])
 
 const customersPage = computed(() => {
@@ -218,8 +222,8 @@ function getKebabMenuItems(customer: Customer) {
 
       items.push({
         id: 'deleteCustomer',
-        label: t('common.archive'),
-        icon: faBoxArchive,
+        label: t('common.delete'),
+        icon: faTrash,
         danger: true,
         action: () => showDeleteCustomerDrawer(customer),
         disabled: asyncStatus.value === 'loading',
@@ -253,8 +257,8 @@ function getKebabMenuItems(customer: Customer) {
 
       items.push({
         id: 'deleteCustomer',
-        label: t('common.archive'),
-        icon: faBoxArchive,
+        label: t('common.delete'),
+        icon: faTrash,
         danger: true,
         action: () => showDeleteCustomerDrawer(customer),
         disabled: asyncStatus.value === 'loading',
@@ -473,12 +477,12 @@ const goToCustomerDetails = (customer: Customer) => {
               <div class="flex items-center gap-2">
                 <template v-if="item.deleted_at">
                   <FontAwesomeIcon
-                    :icon="faBoxArchive"
+                    :icon="faTrash"
                     class="text-icon-neutral size-4"
                     aria-hidden="true"
                   />
                   <span>
-                    {{ t('common.archived') }}
+                    {{ t('common.deleted') }}
                   </span>
                 </template>
                 <template v-else-if="item.suspended_at">

@@ -161,7 +161,10 @@ func GetSystems(c *gin.Context) {
 	filterVersions := c.QueryArray("version")       // Version filter (multiple values)
 	filterOrgIDs := c.QueryArray("organization_id") // Organization filter (multiple IDs)
 	filterStatuses := c.QueryArray("status")        // Status filter (multiple values)
-	filterAddons := c.QueryArray("addon")           // Add-on filter (multiple catalog ids)
+	if rejectDeletedStatusOutsideOwnerOrg(c, userOrgRole, filterStatuses) {
+		return
+	}
+	filterAddons := c.QueryArray("addon") // Add-on filter (multiple catalog ids)
 
 	// include_hierarchy expands each organization_id filter to the org plus its
 	// whole subtree (resellers/customers); the systems RBAC scope still applies

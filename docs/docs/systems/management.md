@@ -129,8 +129,8 @@ do the same.
   changes nothing for anyone else
 - Every user who can see a system can star it, read-only roles included
 - Your favorites follow you on every browser and device
-- An archived system leaves your favorites list and comes back when it is
-  restored; a permanently deleted one is removed for good
+- A deleted system leaves your favorites list and comes back when it is
+  restored; a destroyed one is removed for good
 - While impersonating another user, their favorites are shown but cannot be
   changed
 
@@ -249,27 +249,27 @@ Soft delete marks a system as deleted without removing data:
 - Cannot send inventory or heartbeat
 - Hidden from normal views
 - Its applications are hidden from lists, totals and organization counters until the system is restored (they are kept, not deleted)
-- Can be restored if needed
+- Can be restored by the Owner organization
 - All historical data is preserved
 
-**To view deleted systems:**
-1. Apply filter: Status = "deleted"
+**To view deleted systems** (Owner organization only):
+1. Apply filter: Status = Deleted
 2. Select the deleted system
 3. Click **Restore** to undelete
 
-### Permanent Delete
+### Destroy
 
 :::danger
 This operation is irreversible!
 :::
 
-To permanently delete:
+To destroy a system:
 1. Soft delete the system first
 2. Navigate to deleted systems view
 3. Select the system
-4. Click **Permanent Delete**
+4. Click **Destroy**
 5. Type system name to confirm
-6. Click **Delete**
+6. Click **Destroy**
 
 **This will remove:**
 - System record

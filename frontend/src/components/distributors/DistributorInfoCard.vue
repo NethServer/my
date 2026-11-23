@@ -28,7 +28,7 @@ import {
   faCirclePause,
   faCirclePlay,
   faCircleCheck,
-  faBoxArchive,
+  faTrash,
 } from '@fortawesome/free-solid-svg-icons'
 import { useI18n } from 'vue-i18n'
 import CreateOrEditDistributorDrawer from './CreateOrEditDistributorDrawer.vue'
@@ -129,11 +129,11 @@ function getKebabMenuItems() {
             <div class="flex items-center gap-2">
               <template v-if="distributorDetail.data.deleted_at">
                 <FontAwesomeIcon
-                  :icon="faBoxArchive"
+                  :icon="faTrash"
                   class="text-icon-neutral size-4"
                   aria-hidden="true"
                 />
-                <span>{{ $t('common.archived') }}</span>
+                <span>{{ $t('common.deleted') }}</span>
               </template>
               <template v-else-if="distributorDetail.data.suspended_at">
                 <FontAwesomeIcon

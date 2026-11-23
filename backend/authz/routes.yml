@@ -226,6 +226,8 @@ routes:
   - method: PATCH
     path: /api/systems/:id/restore
     intent: manage:systems
+    org_role: owner
+    note: soft-deleted objects are seen and restored by the Owner organization only
   - method: DELETE
     path: /api/systems/:id/destroy
     intent: destroy:systems
@@ -658,6 +660,8 @@ routes:
   - method: PATCH
     path: /api/distributors/:id/restore
     intent: manage:distributors
+    org_role: owner
+    note: soft-deleted objects are seen and restored by the Owner organization only
   - method: DELETE
     path: /api/distributors/:id/destroy
     intent: destroy:distributors
@@ -716,6 +720,8 @@ routes:
   - method: PATCH
     path: /api/resellers/:id/restore
     intent: manage:resellers
+    org_role: owner
+    note: soft-deleted objects are seen and restored by the Owner organization only
   - method: DELETE
     path: /api/resellers/:id/destroy
     intent: destroy:resellers
@@ -804,6 +810,8 @@ routes:
   - method: PATCH
     path: /api/customers/:id/restore
     intent: manage:customers
+    org_role: owner
+    note: soft-deleted objects are seen and restored by the Owner organization only
   - method: DELETE
     path: /api/customers/:id/destroy
     intent: destroy:customers
@@ -882,6 +890,8 @@ routes:
   - method: PATCH
     path: /api/users/:id/restore
     intent: manage:users
+    org_role: owner
+    note: soft-deleted objects are seen and restored by the Owner organization only
   - method: DELETE
     path: /api/users/:id/destroy
     intent: destroy:users

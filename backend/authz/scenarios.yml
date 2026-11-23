@@ -276,6 +276,73 @@ scenarios:
     path: /api/customers/{org:d1r2c1}/suspend
     expect: denied
 
+  # ===========================================================================
+  # Soft-deleted objects belong to the Owner organization: it alone sees and
+  # restores them, and for everyone else a Delete is final. Outside it, a list
+  # or an export filtered on status=deleted is refused, and so is a restore,
+  # even of an object inside the caller's own hierarchy.
+  # ===========================================================================
+  - name: distributor cannot list deleted resellers
+    as: d1-admin
+    method: GET
+    path: /api/resellers?status=deleted
+    expect_status: [403]
+  - name: reseller cannot list deleted customers
+    as: d1r1-admin
+    method: GET
+    path: /api/customers?status=deleted
+    expect_status: [403]
+  - name: reseller cannot list deleted users
+    as: d1r1-admin
+    method: GET
+    path: /api/users?status=deleted
+    expect_status: [403]
+  - name: customer cannot list deleted systems
+    as: d1r1c1-admin
+    method: GET
+    path: /api/systems?status=deleted
+    expect_status: [403]
+  - name: reseller cannot list deleted systems among other statuses
+    as: d1r1-admin
+    method: GET
+    path: /api/systems?status=active&status=deleted
+    expect_status: [403]
+  - name: reseller cannot export deleted customers
+    as: d1r1-admin
+    method: GET
+    path: /api/customers/export?format=csv&status=deleted
+    expect_status: [403]
+  - name: distributor cannot export deleted systems
+    as: d1-admin
+    method: GET
+    path: /api/systems/export?format=csv&status=deleted
+    expect_status: [403]
+  - name: staff can list deleted customers
+    as: owner-staff
+    method: GET
+    path: /api/customers?status=deleted
+    expect: allowed
+  - name: staff can list deleted users
+    as: owner-staff
+    method: GET
+    path: /api/users?status=deleted
+    expect: allowed
+  - name: reseller cannot restore its own customer
+    as: d1r1-admin
+    method: PATCH
+    path: /api/customers/{org:d1r1c1}/restore
+    expect_status: [403]
+  - name: reseller cannot restore its own user
+    as: d1r1-admin
+    method: PATCH
+    path: /api/users/{user:d1r1c1-admin}/restore
+    expect_status: [403]
+  - name: customer cannot restore its own system
+    as: d1r1c1-admin
+    method: PATCH
+    path: /api/systems/{system:s-d1r1c1}/restore
+    expect_status: [403]
+
   - name: reseller cannot restore an organization outside its hierarchy
     as: d1r1-admin
     method: PATCH

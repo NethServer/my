@@ -8,7 +8,7 @@ import { withDangerItemsLast } from '@/lib/common'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import {
   faMagnifyingGlass,
-  faBoxArchive,
+  faTrash,
   faServer,
   faEye,
   faPenToSquare,
@@ -47,7 +47,7 @@ import {
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
-import { canManageSystems, canDestroySystems } from '@/lib/permissions'
+import { canManageSystems, canDestroySystems, canSeeDeletedObjects } from '@/lib/permissions'
 import { useSystems } from '@/queries/systems/systems'
 import { useSetSystemFavorite } from '@/queries/systems/favoriteSystems'
 import { useLoginStore } from '@/stores/login'
@@ -127,7 +127,9 @@ const isShownReactivateSystemModal = ref(false)
 const isShownDestroySystemModal = ref(false)
 const newSecret = ref<string>('')
 
-const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
+// computed: whether the deleted ones are shown is known only once the user
+// info has loaded, which can be after the table mounts
+const statusFilterOptions = computed<NeDropdownFilterV2Option[]>(() => [
   {
     id: 'active',
     label: t('systems.status_active'),
@@ -144,7 +146,7 @@ const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
     id: 'suspended',
     label: t('common.suspended'),
   },
-  { id: 'deleted', label: t('systems.status_deleted') },
+  ...(canSeeDeletedObjects() ? [{ id: 'deleted', label: t('systems.status_deleted') }] : []),
 ])
 
 const favoriteFilterOptions = ref<NeDropdownFilterV2Option[]>([
@@ -297,7 +299,7 @@ function getKebabMenuItems(system: System) {
     })
   }
 
-  // an archived system cannot be starred, and favorites belong to the real
+  // a deleted system cannot be starred, and favorites belong to the real
   // account: the star tells the impersonator why, the menu just omits it
   if (!isDeleted && !loginStore.isImpersonating) {
     items.push({
@@ -353,8 +355,8 @@ function getKebabMenuItems(system: System) {
 
     items.push({
       id: 'deleteSystem',
-      label: t('common.archive'),
-      icon: faBoxArchive,
+      label: t('common.delete'),
+      icon: faTrash,
       danger: true,
       action: () => showDeleteSystemModal(system),
     })
@@ -615,7 +617,7 @@ function onCloseSecretRegeneratedModal() {
                   :system-type="item.type"
                 />
                 <NotesIcon v-if="item.notes?.trim()" :notes="item.notes" />
-                <!-- an archived system cannot be starred: its row has no actions but restore -->
+                <!-- a deleted system cannot be starred: its row has no actions but restore -->
                 <SystemFavoriteToggle
                   v-if="item.status !== 'deleted'"
                   :system-id="item.id"

@@ -42,6 +42,10 @@ const hasOwnerLevelAuthority = () => {
 // organization only — matches the backend isEntitlementAdmin gate.
 export const isEntitlementAdmin = () => hasOwnerLevelAuthority()
 
+// Soft-deleted objects, with their Restore and Destroy actions, are shown to
+// the Owner organization only: for everyone else, Delete is final
+export const canSeeDeletedObjects = () => hasOwnerLevelAuthority()
+
 export const canReadDistributors = () => {
   const loginStore = useLoginStore()
   return loginStore.permissions.includes(READ_DISTRIBUTORS)

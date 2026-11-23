@@ -14,7 +14,7 @@ My usa un sistema a doppio ruolo che combina la gerarchia commerciale con le cap
 
 Ereditati automaticamente dall'organizzazione dell'utente:
 
-- **Owner**: accesso completo alla piattaforma (solo Nethesis). Ogni membro dell'organizzazione Owner ha visibilità globale su tutte le aziende, i sistemi e gli utenti, inclusa l'archiviazione e l'eliminazione definitiva di distributori, rivenditori e clienti
+- **Owner**: accesso completo alla piattaforma (solo Nethesis). Ogni membro dell'organizzazione Owner ha visibilità globale su tutte le aziende, i sistemi e gli utenti, inclusi l'eliminazione, il ripristino e la distruzione di distributori, rivenditori e clienti
 - **Distributore**: gestisce rivenditori e clienti
 - **Rivenditore**: gestisce i clienti
 - **Cliente**: vede i dati della propria organizzazione
@@ -138,7 +138,7 @@ Usa i filtri per trovare utenti specifici:
 - **Ricerca per nome o email**: digita nella casella di ricerca
 - **Ricerca per organizzazione**: seleziona una o più organizzazioni
 - **Ricerca per ruolo**: Admin, Backoffice, Support, Reader, Staff
-- **Filtro per stato**: Abilitato, Sospeso, Archiviato, Nessun accesso. "Nessun
+- **Filtro per stato**: Abilitato, Sospeso, Eliminato (solo organizzazione Owner), Nessun accesso. "Nessun
   accesso" seleziona gli account che non hanno mai effettuato l'accesso
   dall'invito, gli stessi segnalati dal badge accanto al nome; si somma agli
   altri stati invece di restringerli
@@ -237,7 +237,7 @@ Riabilita un account sospeso:
 
 ### Eliminazione
 
-**L'eliminazione archivia, non cancella.** L'utente viene eliminato in modo
+**L'eliminazione conserva il record.** L'utente viene eliminato in modo
 soft: sparisce dagli elenchi e non può più accedere, ma il record resta e può
 essere recuperato con **Ripristina**.
 
@@ -249,7 +249,8 @@ Per eliminare un utente:
 
 **Effetti dell'eliminazione:**
 - L'utente non può più accedere
-- L'account viene archiviato, non cancellato -- **Ripristina** lo riporta indietro
+- L'account viene conservato, non cancellato -- l'organizzazione Owner può
+  riportarlo indietro con **Ripristina**
 - I log di audit vengono conservati
 - I sistemi creati da quell'utente restano
 
@@ -257,8 +258,8 @@ Per eliminare un utente:
 - Non è possibile eliminare il proprio account
 - Serve `manage:users` (Admin, Backoffice o Staff)
 
-:::danger Eliminazione definitiva
-Cancellare un utente per sempre è un'operazione separata e richiede
+:::danger Distruzione
+**Distruggi**, che cancella un utente per sempre, è un'operazione separata e richiede
 `destroy:users`, che non appartiene a nessun ruolo assegnabile: solo l'account
 `owner` creato all'installazione. Quella non è reversibile.
 :::
@@ -302,7 +303,7 @@ ruolo utente -- con una sola eccezione: al Reader vengono tolti i permessi
 | Crea e modifica utenti | `manage:users` | Sì | Sì | Sì | No | No |
 | Reset password di un utente | `manage:users` | Sì | Sì | Sì | No | No |
 | Sospendi / riattiva un utente | `manage:users` | Sì | Sì | Sì | No | No |
-| Elimina un utente (archiviazione) | `manage:users` | Sì | Sì | Sì | No | No |
+| Elimina un utente (eliminazione soft) | `manage:users` | Sì | Sì | Sì | No | No |
 | Visualizza sistemi | `read:systems` | Sì | Sì | Sì | Sì | Sì |
 | Crea, modifica ed elimina sistemi | `manage:systems` | Sì | Sì | No | Sì | No |
 | Silenzia allarmi | `manage:systems` | Sì | Sì | No | Sì | No |
@@ -325,7 +326,7 @@ Per esportare un elenco basta il permesso `read:` di quella risorsa, quindi ogni
 ruolo può esportare ciò che vede -- Support compreso, tranne gli utenti, che
 non può leggere.
 
-:::note Eliminazione definitiva
+:::note Distruzione
 `destroy:systems` e `destroy:users` non appartengono a nessun ruolo assegnabile,
 Staff incluso. Sono solo dell'account `owner` creato all'installazione, che è
 anche l'unico a poter creare e gestire gli utenti dell'organizzazione Owner.

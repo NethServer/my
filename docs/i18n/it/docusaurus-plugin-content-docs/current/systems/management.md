@@ -124,8 +124,8 @@ preferiti** e **Rimuovi dai preferiti** del menu della riga fanno lo stesso.
 - Ogni utente che vede un sistema può aggiungerlo ai preferiti, anche con un
   ruolo di sola lettura
 - I preferiti ti seguono su ogni browser e dispositivo
-- Un sistema archiviato esce dall'elenco dei preferiti e ci torna quando viene
-  ripristinato; uno eliminato definitivamente viene rimosso per sempre
+- Un sistema eliminato esce dall'elenco dei preferiti e ci torna quando viene
+  ripristinato; uno distrutto viene rimosso per sempre
 - Mentre impersoni un altro utente vedi i suoi preferiti, ma non puoi
   modificarli
 
@@ -240,27 +240,27 @@ L'eliminazione soft marca il sistema come eliminato senza rimuovere i dati:
 - Non può più inviare inventario o heartbeat
 - Sparisce dalle viste normali
 - Le sue applicazioni spariscono da elenchi, totali e contatori delle organizzazioni finché il sistema non viene ripristinato (vengono conservate, non cancellate)
-- Può essere ripristinato in qualsiasi momento
+- Può essere ripristinato dall'organizzazione Owner
 - Tutti i dati storici vengono conservati
 
-**Per vedere i sistemi eliminati:**
-1. Applica il filtro Stato = "deleted"
+**Per vedere i sistemi eliminati** (solo organizzazione Owner):
+1. Applica il filtro Stato = Eliminato
 2. Seleziona il sistema eliminato
 3. Clicca su **Ripristina**
 
-### Eliminazione Permanente
+### Distruzione
 
 :::danger
 Questa operazione è irreversibile!
 :::
 
-Per eliminare definitivamente:
+Per distruggere un sistema:
 1. Elimina prima il sistema in modo soft
 2. Vai alla vista dei sistemi eliminati
 3. Seleziona il sistema
-4. Clicca su **Elimina definitivamente**
+4. Clicca su **Distruggi**
 5. Digita il nome del sistema per confermare
-6. Clicca su **Elimina**
+6. Clicca su **Distruggi**
 
 **Viene rimosso:**
 - Il record del sistema

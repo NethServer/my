@@ -17,7 +17,7 @@ import {
   faMagnifyingGlass,
   faCity,
   faPenToSquare,
-  faBoxArchive,
+  faTrash,
   faCirclePause,
   faCirclePlay,
   faCircleCheck,
@@ -65,6 +65,7 @@ import {
   canDestroyResellers,
   canPromoteOrganizations,
   canTransferResellers,
+  canSeeDeletedObjects,
 } from '@/lib/permissions'
 import router from '@/router'
 import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
@@ -104,7 +105,9 @@ const isShownDestroyResellerModal = ref(false)
 const isShownPromoteResellerModal = ref(false)
 const isShownTransferResellerDrawer = ref(false)
 
-const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
+// computed: whether the deleted ones are shown is known only once the user
+// info has loaded, which can be after the table mounts
+const statusFilterOptions = computed<NeDropdownFilterV2Option[]>(() => [
   {
     id: 'enabled',
     label: t('common.enabled'),
@@ -113,10 +116,7 @@ const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
     id: 'suspended',
     label: t('common.suspended'),
   },
-  {
-    id: 'deleted',
-    label: t('common.archived'),
-  },
+  ...(canSeeDeletedObjects() ? [{ id: 'deleted', label: t('common.deleted') }] : []),
 ])
 
 const resellersPage = computed(() => {
@@ -254,8 +254,8 @@ function getKebabMenuItems(reseller: Reseller) {
 
       items.push({
         id: 'deleteReseller',
-        label: t('common.archive'),
-        icon: faBoxArchive,
+        label: t('common.delete'),
+        icon: faTrash,
         danger: true,
         action: () => showDeleteResellerDrawer(reseller),
         disabled: asyncStatus.value === 'loading',
@@ -279,8 +279,8 @@ function getKebabMenuItems(reseller: Reseller) {
 
       items.push({
         id: 'deleteReseller',
-        label: t('common.archive'),
-        icon: faBoxArchive,
+        label: t('common.delete'),
+        icon: faTrash,
         danger: true,
         action: () => showDeleteResellerDrawer(reseller),
         disabled: asyncStatus.value === 'loading',
@@ -530,12 +530,12 @@ const goToResellerDetails = (reseller: Reseller) => {
               <div class="flex items-center gap-2">
                 <template v-if="item.deleted_at">
                   <FontAwesomeIcon
-                    :icon="faBoxArchive"
+                    :icon="faTrash"
                     class="text-icon-neutral size-4"
                     aria-hidden="true"
                   />
                   <span>
-                    {{ t('common.archived') }}
+                    {{ t('common.deleted') }}
                   </span>
                 </template>
                 <template v-else-if="item.suspended_at">

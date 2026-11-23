@@ -47,6 +47,9 @@ func ExportDistributors(c *gin.Context) {
 	// Parse search and status parameters
 	search := c.Query("search")
 	statuses := c.QueryArray("status")
+	if rejectDeletedStatusOutsideOwnerOrg(c, user.OrgRole, statuses) {
+		return
+	}
 
 	// For export, we don't use pagination - get all matching distributors (with limit)
 	sortBy := c.DefaultQuery("sort_by", "created_at")

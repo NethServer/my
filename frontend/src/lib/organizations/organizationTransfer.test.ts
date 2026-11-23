@@ -44,7 +44,7 @@ describe('isBulkTransferEligible', () => {
     expect(isBulkTransferEligible({ logto_id: 'a', name: 'A' })).toBe(true)
   })
 
-  it('leaves out a suspended or archived company', () => {
+  it('leaves out a suspended or deleted company', () => {
     expect(isBulkTransferEligible({ logto_id: 'a', name: 'A', suspended_at: '2026-01-01' })).toBe(
       false,
     )

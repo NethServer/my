@@ -164,6 +164,9 @@ func GetDistributors(c *gin.Context) {
 	// Parse search and status parameters
 	search := c.Query("search")
 	statuses := c.QueryArray("status")
+	if rejectDeletedStatusOutsideOwnerOrg(c, user.OrgRole, statuses) {
+		return
+	}
 	createdBy := c.QueryArray("created_by")
 
 	// Create service

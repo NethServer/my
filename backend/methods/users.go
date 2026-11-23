@@ -263,6 +263,9 @@ func GetUsers(c *gin.Context) {
 	// Parse filter parameters
 	organizationFilter := c.QueryArray("organization_id")
 	statuses := c.QueryArray("status")
+	if rejectDeletedStatusOutsideOwnerOrg(c, user.OrgRole, statuses) {
+		return
+	}
 	roleFilter := c.QueryArray("role")
 	createdByFilter := c.QueryArray("created_by")
 

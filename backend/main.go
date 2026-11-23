@@ -267,7 +267,7 @@ func main() {
 			systemsGroup.GET("/:id/transfer", middleware.RequirePermission("manage:systems"), methods.GetSystemTransferPreview)
 
 			// Restore and destroy endpoints
-			systemsGroup.PATCH("/:id/restore", methods.RestoreSystem)                                                   // Restore soft-deleted system (manage:systems required)
+			systemsGroup.PATCH("/:id/restore", middleware.RequireOrgRole(models.OwnerOrgRole), methods.RestoreSystem)   // Restore soft-deleted system (manage:systems required)
 			systemsGroup.DELETE("/:id/destroy", middleware.RequirePermission("destroy:systems"), methods.DestroySystem) // Permanently delete system (destroy:systems required)
 
 			// Suspend and reactivate endpoints
@@ -480,7 +480,7 @@ func main() {
 			distributorsGroup.DELETE("/:id", methods.DeleteDistributor) // Soft-delete distributor (manage:distributors required)
 
 			// Restore and destroy endpoints (cascade to users and systems)
-			distributorsGroup.PATCH("/:id/restore", methods.RestoreDistributor)                                                        // Restore soft-deleted distributor and cascade-deleted users/systems
+			distributorsGroup.PATCH("/:id/restore", middleware.RequireOrgRole(models.OwnerOrgRole), methods.RestoreDistributor)        // Restore soft-deleted distributor and cascade-deleted users/systems
 			distributorsGroup.DELETE("/:id/destroy", middleware.RequirePermission("destroy:distributors"), methods.DestroyDistributor) // Permanently delete distributor and all hierarchy (destroy:distributors required)
 
 			// Suspend and reactivate endpoints (cascade to users)
@@ -515,7 +515,7 @@ func main() {
 			resellersGroup.DELETE("/:id", methods.DeleteReseller) // Soft-delete reseller (manage:resellers required)
 
 			// Restore and destroy endpoints (cascade to users and systems)
-			resellersGroup.PATCH("/:id/restore", methods.RestoreReseller)                                                     // Restore soft-deleted reseller and cascade-deleted users/systems
+			resellersGroup.PATCH("/:id/restore", middleware.RequireOrgRole(models.OwnerOrgRole), methods.RestoreReseller)     // Restore soft-deleted reseller and cascade-deleted users/systems
 			resellersGroup.DELETE("/:id/destroy", middleware.RequirePermission("destroy:resellers"), methods.DestroyReseller) // Permanently delete reseller and all hierarchy (destroy:resellers required)
 
 			// Suspend and reactivate endpoints (cascade to users)
@@ -559,7 +559,7 @@ func main() {
 			customersGroup.DELETE("/:id", methods.DeleteCustomer) // Soft-delete customer (manage:customers required)
 
 			// Restore and destroy endpoints (cascade to users and systems)
-			customersGroup.PATCH("/:id/restore", methods.RestoreCustomer)                                                     // Restore soft-deleted customer and cascade-deleted users/systems
+			customersGroup.PATCH("/:id/restore", middleware.RequireOrgRole(models.OwnerOrgRole), methods.RestoreCustomer)     // Restore soft-deleted customer and cascade-deleted users/systems
 			customersGroup.DELETE("/:id/destroy", middleware.RequirePermission("destroy:customers"), methods.DestroyCustomer) // Permanently delete customer and all hierarchy (destroy:customers required)
 
 			// Suspend and reactivate endpoints (cascade to users)
@@ -599,7 +599,7 @@ func main() {
 			usersGroup.DELETE("/:id", middleware.PreventSelfModification(), methods.DeleteUser) // Soft-delete user (manage:users required, prevent self-modification)
 
 			// Restore and destroy endpoints
-			usersGroup.PATCH("/:id/restore", middleware.PreventSelfModification(), methods.RestoreUser)                                                 // Restore soft-deleted user (manage:users required, prevent self-modification)
+			usersGroup.PATCH("/:id/restore", middleware.RequireOrgRole(models.OwnerOrgRole), middleware.PreventSelfModification(), methods.RestoreUser) // Restore soft-deleted user (manage:users required, prevent self-modification)
 			usersGroup.DELETE("/:id/destroy", middleware.RequirePermission("destroy:users"), middleware.PreventSelfModification(), methods.DestroyUser) // Permanently delete user (destroy:users required, prevent self-modification)
 
 			// Suspend and reactivate endpoints (manage:users required, prevent self-modification)

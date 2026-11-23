@@ -11,7 +11,7 @@ import {
   faMagnifyingGlass,
   faUserGroup,
   faPenToSquare,
-  faBoxArchive,
+  faTrash,
   faKey,
   faUserSecret,
   faCirclePause,
@@ -52,7 +52,12 @@ import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import ResetPasswordModal from './ResetPasswordModal.vue'
 import PasswordChangedModal from './PasswordChangedModal.vue'
 import { useUsers } from '@/queries/users/users'
-import { canManageUsers, canImpersonateUsers, canDestroyUsers } from '@/lib/permissions'
+import {
+  canManageUsers,
+  canImpersonateUsers,
+  canDestroyUsers,
+  canSeeDeletedObjects,
+} from '@/lib/permissions'
 import { isCurrentUser } from '@/lib/users/users'
 import { useLoginStore } from '@/stores/login'
 import ImpersonateUserModal from './ImpersonateUserModal.vue'
@@ -107,7 +112,9 @@ const isShownDestroyUserModal = ref(false)
 const newPassword = ref<string>('')
 const isImpersonating = ref(false)
 
-const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
+// computed: whether the deleted ones are shown is known only once the user
+// info has loaded, which can be after the table mounts
+const statusFilterOptions = computed<NeDropdownFilterV2Option[]>(() => [
   {
     id: 'enabled',
     label: t('common.enabled'),
@@ -116,10 +123,7 @@ const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
     id: 'suspended',
     label: t('common.suspended'),
   },
-  {
-    id: 'deleted',
-    label: t('common.archived'),
-  },
+  ...(canSeeDeletedObjects() ? [{ id: 'deleted', label: t('common.deleted') }] : []),
   {
     id: 'no_login',
     label: t('users.no_login'),
@@ -282,8 +286,8 @@ function getKebabMenuItems(user: User) {
         },
         {
           id: 'deleteAccount',
-          label: t('common.archive'),
-          icon: faBoxArchive,
+          label: t('common.delete'),
+          icon: faTrash,
           danger: true,
           action: () => showDeleteUserModal(user),
         },
@@ -305,8 +309,8 @@ function getKebabMenuItems(user: User) {
         },
         {
           id: 'deleteAccount',
-          label: t('common.archive'),
-          icon: faBoxArchive,
+          label: t('common.delete'),
+          icon: faTrash,
           danger: true,
           action: () => showDeleteUserModal(user),
         },
@@ -528,12 +532,12 @@ const goToAccount = () => {
               <div class="flex items-center gap-2">
                 <template v-if="item.deleted_at">
                   <FontAwesomeIcon
-                    :icon="faBoxArchive"
+                    :icon="faTrash"
                     class="text-icon-neutral size-4"
                     aria-hidden="true"
                   />
                   <span>
-                    {{ t('common.archived') }}
+                    {{ t('common.deleted') }}
                   </span>
                 </template>
                 <template v-else-if="item.suspended_at">
