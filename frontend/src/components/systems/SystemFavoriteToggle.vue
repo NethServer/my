@@ -100,7 +100,7 @@ async function toggle() {
           disabled
           :aria-label="ariaLabel"
           :aria-pressed="isStarred"
-          class="text-secondary pointer-events-none flex p-1 opacity-50"
+          class="text-icon-favourite pointer-events-none flex p-1 opacity-50"
         >
           <FontAwesomeIcon
             :icon="isStarred ? faStar : faStarLight"
@@ -116,7 +116,7 @@ async function toggle() {
         :aria-label="ariaLabel"
         :aria-pressed="isStarred"
         :class="revealClasses"
-        class="text-secondary focus-visible:ring-primary-500 dark:focus-visible:ring-primary-300 flex rounded-sm p-1 transition duration-(--duration-small) hover:text-indigo-900 focus-visible:ring-2 focus-visible:outline-hidden dark:hover:text-indigo-300"
+        class="text-icon-favourite focus-visible:ring-primary-500 dark:focus-visible:ring-primary-300 hover:text-icon-favourite-hover flex rounded-sm p-1 transition duration-(--duration-small) focus-visible:ring-2 focus-visible:outline-hidden"
         @click="toggle"
       >
         <FontAwesomeIcon

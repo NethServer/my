@@ -214,6 +214,8 @@
   --background-input: var(--color-white);
   --icon-enabled: var(--color-green-700);
   --icon-neutral: var(--color-gray-600);
+  --icon-favourite: var(--color-indigo-700);
+  --icon-favourite-hover: var(--color-indigo-900);
 }
 
 /* Apply dark theme when .dark class is present (overrides media query) */
@@ -252,6 +254,8 @@
   --background-input: var(--color-gray-950);
   --icon-enabled: var(--color-green-500);
   --icon-neutral: var(--color-gray-400);
+  --icon-favourite: var(--color-indigo-400);
+  --icon-favourite-hover: var(--color-indigo-300);
 }
 
 /* Reference the CSS custom properties in @theme inline */
@@ -278,6 +282,8 @@
   --color-border-secondary: var(--border-secondary);
   --color-icon-enabled: var(--icon-enabled);
   --color-icon-neutral: var(--icon-neutral);
+  --color-icon-favourite: var(--icon-favourite);
+  --color-icon-favourite-hover: var(--icon-favourite-hover);
 
   --border-ring-button: var(--ring-button);
   --border-ring-input: var(--ring-input);
