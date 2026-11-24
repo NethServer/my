@@ -53,9 +53,16 @@ import { useLoginStore } from '@/stores/login'
 import { isUserCustomer, isUserDistributor } from '@/lib/organizations/organizations'
 import { formatDateNoTime } from '@/lib/dateTime'
 
-const { isShown = false, currentSystem = undefined } = defineProps<{
+const {
+  isShown = false,
+  currentSystem = undefined,
+  focusField = undefined,
+} = defineProps<{
   isShown: boolean
   currentSystem: System | undefined
+  // the field to focus on opening, when the drawer is opened for it; the name
+  // otherwise
+  focusField?: 'ui_url'
 }>()
 
 const emit = defineEmits(['close'])
@@ -230,7 +237,7 @@ watch(
 
 function onShow() {
   clearErrors()
-  focusElement(nameRef)
+  focusElement(focusField === 'ui_url' && isUiUrlShown.value ? uiUrlRef : nameRef)
   step.value = 'create'
   secret.value = ''
   fakeSystemCreatedLoading.value = true

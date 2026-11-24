@@ -16,11 +16,7 @@ import {
   NeTooltip,
 } from '@nethesis/vue-components'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import {
-  faArrowUpRightFromSquare,
-  faCircleInfo,
-  faTriangleExclamation,
-} from '@fortawesome/free-solid-svg-icons'
+import { faArrowUpRightFromSquare, faCircleInfo } from '@fortawesome/free-solid-svg-icons'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import OrganizationLink from '@/components/organizations/OrganizationLink.vue'
 import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
@@ -204,23 +200,29 @@ const openSystem = () => {
           <template #trigger>
             <button type="button" class="inline-flex">
               <FontAwesomeIcon
-                :icon="faTriangleExclamation"
-                class="size-4 text-amber-700 dark:text-amber-500"
+                :icon="faCircleInfo"
+                class="size-4 text-indigo-500 dark:text-indigo-300"
                 aria-hidden="true"
               />
               <span class="sr-only">{{ $t('system_detail.system_not_reachable') }}</span>
             </button>
           </template>
           <template #content>
-            <div class="flex flex-col items-start gap-1">
-              <span>{{ $t('system_detail.system_not_reachable') }}</span>
-              <template v-if="canEditSystemUiUrl">
-                <span>{{ $t('system_detail.system_not_reachable_edit') }}</span>
-                <NeLink inverted-theme @click="isEditSystemDrawerShown = true">
-                  {{ $t('systems.edit_system') }}
-                </NeLink>
-              </template>
-            </div>
+            <p>
+              {{ $t('system_detail.system_not_reachable') }}
+              <i18n-t
+                v-if="canEditSystemUiUrl"
+                keypath="system_detail.system_not_reachable_edit"
+                tag="span"
+                scope="global"
+              >
+                <template #editSystem>
+                  <NeLink inverted-theme @click="isEditSystemDrawerShown = true">
+                    {{ $t('systems.edit_system') }}
+                  </NeLink>
+                </template>
+              </i18n-t>
+            </p>
           </template>
         </NeTooltip>
         <NeButton
@@ -266,6 +268,7 @@ const openSystem = () => {
     <CreateOrEditSystemDrawer
       :is-shown="isEditSystemDrawerShown"
       :current-system="systemDetail.data"
+      focus-field="ui_url"
       @close="isEditSystemDrawerShown = false"
     />
   </div>

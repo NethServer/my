@@ -968,8 +968,8 @@
     "no_hardware_info": "No hardware information",
     "no_hardware_info_description": "Hardware information will appear here after the system has sent at least one inventory.",
     "system_address_unknown": "The address of the system is not known yet: it comes with its first inventory.",
-    "system_not_reachable": "My could not reach the system from the internet. It may still open from your network, for example over a VPN.",
-    "system_not_reachable_edit": "If it answers at a different address, set it as the web interface URL."
+    "system_not_reachable": "My Nethesis could not reach the system from the internet. It may still open from your network, for example over a VPN.",
+    "system_not_reachable_edit": "If it answers at a different address, set it as @:{'systems.ui_url'} in {editSystem}."
   },
   "application_detail": {
     "title": "Application detail",

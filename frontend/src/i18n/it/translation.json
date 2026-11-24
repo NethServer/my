@@ -886,8 +886,8 @@
     "no_hardware_info": "Nessuna informazione hardware",
     "no_hardware_info_description": "Le informazioni hardware appariranno qui dopo che il sistema avrà inviato almeno un inventario.",
     "system_address_unknown": "L'indirizzo del sistema non è ancora noto: arriva con il primo inventario.",
-    "system_not_reachable": "My non è riuscito a raggiungere il sistema da internet. Potrebbe comunque aprirsi dalla tua rete, ad esempio tramite VPN.",
-    "system_not_reachable_edit": "Se risponde a un indirizzo diverso, impostalo come URL dell'interfaccia web."
+    "system_not_reachable": "My Nethesis non è riuscito a raggiungere il sistema da internet. Potrebbe comunque aprirsi dalla tua rete, ad esempio tramite VPN.",
+    "system_not_reachable_edit": "Se risponde a un indirizzo diverso, impostalo come @:{'systems.ui_url'} in {editSystem}."
   },
   "application_detail": {
     "title": "Dettaglio applicazione",
