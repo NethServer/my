@@ -41,7 +41,7 @@ const {
       notificationsStore.createNotification({
         kind: 'success',
         title: t('customers.customer_deleted'),
-        description: t('common.object_deleted_successfully', {
+        description: t('customers.customer_deleted_description', {
           name: vars.name,
         }),
       })

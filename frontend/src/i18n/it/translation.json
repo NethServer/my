@@ -36,8 +36,6 @@
     "too_many_records_to_export_description": "I filtri attuali selezionano {total} record e un'esportazione ne contiene al massimo {max}. Restringi i filtri e riprova.",
     "object_created_successfully": "{name} creato con successo",
     "object_saved_successfully": "{name} è stato aggiornato con successo",
-    "object_destroyed_successfully": "{name} è stato distrutto",
-    "object_deleted_successfully": "{name} è stato eliminato",
     "updating": "Aggiornamento…",
     "loading": "Caricamento…",
     "show": "Mostra",
@@ -127,7 +125,11 @@
     "distributors_imported": "Distributori importati",
     "show_distributor_systems": "Mostra i sistemi di {name} e della sua gerarchia",
     "show_distributor_resellers": "Mostra i rivenditori di {name}",
-    "show_distributor_customers": "Mostra i clienti di {name} e della sua gerarchia"
+    "show_distributor_customers": "Mostra i clienti di {name} e della sua gerarchia",
+    "distributor_deleted_description": "Il distributore {name} è stato eliminato",
+    "distributor_destroyed_description": "Il distributore {name} è stato distrutto",
+    "distributor_restored_description": "Il distributore {name} è stato ripristinato",
+    "distributor_restored": "Distributore ripristinato"
   },
   "distributor_detail": {
     "title": "Dettaglio distributore",
@@ -214,7 +216,11 @@
     "new_manager_required": "Seleziona un distributore",
     "transfer_effect_history": "Lo storico allarmi e i backup restano ai sistemi del rivenditore e dei suoi clienti",
     "transfer_no_addons": "Nessun add-on attivo sui sistemi di questo rivenditore e dei suoi clienti",
-    "bulk_problems_title": "Nessun problema | {count} rivenditore spostato con problemi | {count} rivenditori spostati con problemi"
+    "bulk_problems_title": "Nessun problema | {count} rivenditore spostato con problemi | {count} rivenditori spostati con problemi",
+    "reseller_deleted_description": "Il rivenditore {name} è stato eliminato",
+    "reseller_destroyed_description": "Il rivenditore {name} è stato distrutto",
+    "reseller_restored_description": "Il rivenditore {name} è stato ripristinato",
+    "reseller_restored": "Rivenditore ripristinato"
   },
   "customers": {
     "title": "Clienti",
@@ -299,7 +305,11 @@
     "bulk_summary_alerts": "Le notifiche degli allarmi seguono la configurazione di {to}, non più quella dei gestori attuali",
     "new_manager_required": "Seleziona un rivenditore o un distributore",
     "bulk_problems_title": "Nessun problema | {count} cliente spostato con problemi | {count} clienti spostati con problemi",
-    "bulk_silences_unavailable_description": "Il servizio degli allarmi non risponde, quindi gli allarmi silenziati dai gestori attuali su questi sistemi non possono essere elencati. Il cambio di gestore proverà a riattivarli."
+    "bulk_silences_unavailable_description": "Il servizio degli allarmi non risponde, quindi gli allarmi silenziati dai gestori attuali su questi sistemi non possono essere elencati. Il cambio di gestore proverà a riattivarli.",
+    "customer_deleted_description": "Il cliente {name} è stato eliminato",
+    "customer_destroyed_description": "Il cliente {name} è stato distrutto",
+    "customer_restored_description": "Il cliente {name} è stato ripristinato",
+    "customer_restored": "Cliente ripristinato"
   },
   "organizations": {
     "your_company": "La tua azienda",
@@ -344,8 +354,6 @@
     "reactivate_organization_confirmation": "L'azienda {name} verrà riattivata, con i suoi utenti e sistemi.",
     "restore_organization": "Ripristina azienda",
     "cannot_restore_organization": "Impossibile ripristinare l'azienda",
-    "organization_restored": "Azienda ripristinata",
-    "organization_restored_successfully": "{name} è stata ripristinata",
     "restore_organization_confirmation": "L'azienda {name} verrà ripristinata, con i suoi utenti e sistemi.",
     "promote_organization_is_suspended": "Questa azienda è sospesa. Riattivala prima di promuoverla.",
     "promote_organization_not_synced": "Questa azienda non è ancora sincronizzata con l'identity provider. Riprova più tardi.",
@@ -464,7 +472,6 @@
     "restore_user": "Ripristina utente",
     "cannot_restore_user": "Impossibile ripristinare l'utente",
     "user_restored": "Utente ripristinato",
-    "user_restored_successfully": "{name} è stato ripristinato",
     "restore_user_confirmation": "L'utente {name} verrà ripristinato.",
     "export_users_to_pdf": "Esporta utenti in PDF",
     "export_users_to_csv": "Esporta utenti in CSV",
@@ -475,7 +482,10 @@
     "user_role_ids_only_the_staff_role_can_be_assigned_in_the_owner_organization": "Nell'azienda owner si può assegnare solo il ruolo Staff",
     "user_role_ids_this_role_can_only_be_assigned_to_users_of_the_owner_organization": "Questo ruolo può essere assegnato solo agli utenti dell'azienda owner",
     "me": "io",
-    "no_login": "Nessun accesso"
+    "no_login": "Nessun accesso",
+    "user_deleted_description": "L'utente {name} è stato eliminato",
+    "user_destroyed_description": "L'utente {name} è stato distrutto",
+    "user_restored_description": "L'utente {name} è stato ripristinato"
   },
   "third_party_apps": {
     "description_nethshop_nethesis_it": "Sfoglia e ordina prodotti e servizi Nethesis.",
@@ -744,7 +754,6 @@
     "restore_system": "Ripristina sistema",
     "restore_system_confirmation": "Il sistema {name} verrà ripristinato.",
     "system_restored": "Sistema ripristinato",
-    "system_restored_successfully": "{name} è stato ripristinato",
     "cannot_restore_system": "Impossibile ripristinare il sistema",
     "suspend_system": "Sospendi sistema",
     "reactivate_system": "Riattiva sistema",
@@ -779,7 +788,10 @@
     "favorites_not_available_impersonating": "Non puoi modificare i preferiti mentre impersoni un altro utente",
     "ui_url": "URL dell'interfaccia web",
     "ui_url_helper": "Lascia vuoto per usare l'indirizzo predefinito, {url}",
-    "ui_url_invalid": "Inserisci un indirizzo che inizia con https:// o http://"
+    "ui_url_invalid": "Inserisci un indirizzo che inizia con https:// o http://",
+    "system_deleted_description": "Il sistema {name} è stato eliminato",
+    "system_destroyed_description": "Il sistema {name} è stato distrutto",
+    "system_restored_description": "Il sistema {name} è stato ripristinato"
   },
   "system_detail": {
     "title": "Dettaglio sistema",
@@ -1125,7 +1137,8 @@
     "tiers": {
       "R-NS8-TS1": "Nodo singolo",
       "R-NS8-TS2": "Cluster (multi-nodo)"
-    }
+    },
+    "addon_deleted_description": "L'add-on {name} è stato eliminato"
   },
   "rebranding": {
     "title": "Rebranding",

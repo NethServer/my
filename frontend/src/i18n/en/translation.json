@@ -37,8 +37,6 @@
     "too_many_records_to_export_description": "The current filters match {total} records and an export holds at most {max}. Narrow the filters and try again.",
     "object_created_successfully": "{name} has been created successfully",
     "object_saved_successfully": "{name} has been updated successfully",
-    "object_destroyed_successfully": "{name} has been destroyed",
-    "object_deleted_successfully": "{name} has been deleted",
     "updating": "Updating…",
     "loading": "Loading…",
     "show": "Show",
@@ -127,7 +125,11 @@
     "distributors_imported": "Distributors imported",
     "show_distributor_systems": "Show systems of {name} and its hierarchy",
     "show_distributor_resellers": "Show resellers of {name}",
-    "show_distributor_customers": "Show customers of {name} and its hierarchy"
+    "show_distributor_customers": "Show customers of {name} and its hierarchy",
+    "distributor_deleted_description": "Distributor {name} has been deleted",
+    "distributor_destroyed_description": "Distributor {name} has been destroyed",
+    "distributor_restored_description": "Distributor {name} has been restored",
+    "distributor_restored": "Distributor restored"
   },
   "distributor_detail": {
     "title": "Distributor detail",
@@ -214,7 +216,11 @@
     "new_manager_required": "Select a distributor",
     "transfer_effect_history": "Alert history and backups stay with the systems of the reseller and its customers",
     "transfer_no_addons": "No active add-ons on the systems of this reseller and its customers",
-    "bulk_problems_title": "No problems | {count} reseller moved with problems | {count} resellers moved with problems"
+    "bulk_problems_title": "No problems | {count} reseller moved with problems | {count} resellers moved with problems",
+    "reseller_deleted_description": "Reseller {name} has been deleted",
+    "reseller_destroyed_description": "Reseller {name} has been destroyed",
+    "reseller_restored_description": "Reseller {name} has been restored",
+    "reseller_restored": "Reseller restored"
   },
   "customers": {
     "title": "Customers",
@@ -299,7 +305,11 @@
     "bulk_summary_alerts": "Alert notifications follow the configuration of {to}, no longer that of the current managers",
     "new_manager_required": "Select a reseller or a distributor",
     "bulk_problems_title": "No problems | {count} customer moved with problems | {count} customers moved with problems",
-    "bulk_silences_unavailable_description": "The alerting service is not responding, so the alerts that the current managers muted on these systems cannot be listed. The change of manager will try to unmute them."
+    "bulk_silences_unavailable_description": "The alerting service is not responding, so the alerts that the current managers muted on these systems cannot be listed. The change of manager will try to unmute them.",
+    "customer_deleted_description": "Customer {name} has been deleted",
+    "customer_destroyed_description": "Customer {name} has been destroyed",
+    "customer_restored_description": "Customer {name} has been restored",
+    "customer_restored": "Customer restored"
   },
   "organizations": {
     "your_company": "Your company",
@@ -349,8 +359,6 @@
     "reactivate_organization_confirmation": "Company {name} will be reactivated, with its users and systems.",
     "restore_organization": "Restore company",
     "cannot_restore_organization": "Cannot restore company",
-    "organization_restored": "Company restored",
-    "organization_restored_successfully": "{name} has been restored",
     "restore_organization_confirmation": "Company {name} will be restored, with its users and systems.",
     "promote_organization_is_suspended": "This company is suspended. Reactivate it before promoting it.",
     "promote_organization_not_synced": "This company is not synchronised with the identity provider yet. Try again later.",
@@ -546,7 +554,6 @@
     "restore_user": "Restore user",
     "cannot_restore_user": "Cannot restore user",
     "user_restored": "User restored",
-    "user_restored_successfully": "{name} has been restored",
     "restore_user_confirmation": "User {name} will be restored.",
     "export_users_to_pdf": "Export users to PDF",
     "export_users_to_csv": "Export users to CSV",
@@ -557,7 +564,10 @@
     "user_role_ids_only_the_staff_role_can_be_assigned_in_the_owner_organization": "Only the Staff role can be assigned in the owner company",
     "user_role_ids_this_role_can_only_be_assigned_to_users_of_the_owner_organization": "This role can only be assigned to users of the owner company",
     "me": "me",
-    "no_login": "No login"
+    "no_login": "No login",
+    "user_deleted_description": "User {name} has been deleted",
+    "user_destroyed_description": "User {name} has been destroyed",
+    "user_restored_description": "User {name} has been restored"
   },
   "third_party_apps": {
     "description_nethshop_nethesis_it": "Browse and order Nethesis products and services.",
@@ -826,7 +836,6 @@
     "restore_system": "Restore system",
     "restore_system_confirmation": "System {name} will be restored.",
     "system_restored": "System restored",
-    "system_restored_successfully": "{name} has been restored",
     "cannot_restore_system": "Cannot restore system",
     "suspend_system": "Suspend system",
     "reactivate_system": "Reactivate system",
@@ -861,7 +870,10 @@
     "favorites_not_available_impersonating": "You cannot change favorites while impersonating another user",
     "ui_url": "Web interface URL",
     "ui_url_helper": "Leave empty to use the default address, {url}",
-    "ui_url_invalid": "Enter an address that starts with https:// or http://"
+    "ui_url_invalid": "Enter an address that starts with https:// or http://",
+    "system_deleted_description": "System {name} has been deleted",
+    "system_destroyed_description": "System {name} has been destroyed",
+    "system_restored_description": "System {name} has been restored"
   },
   "system_detail": {
     "title": "System detail",
@@ -1207,7 +1219,8 @@
     "tiers": {
       "R-NS8-TS1": "Single node",
       "R-NS8-TS2": "Cluster (multi-node)"
-    }
+    },
+    "addon_deleted_description": "Add-on {name} has been deleted"
   },
   "rebranding": {
     "title": "Rebranding",

@@ -38,7 +38,7 @@ const {
       notificationsStore.createNotification({
         kind: 'success',
         title: t('systems.system_restored'),
-        description: t('systems.system_restored_successfully', {
+        description: t('systems.system_restored_description', {
           name: vars.name,
         }),
       })

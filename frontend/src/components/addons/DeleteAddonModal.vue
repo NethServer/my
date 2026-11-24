@@ -38,7 +38,7 @@ const {
       notificationsStore.createNotification({
         kind: 'success',
         title: t('addons.addon_deleted'),
-        description: t('common.object_deleted_successfully', {
+        description: t('addons.addon_deleted_description', {
           name: vars.display_name,
         }),
       })

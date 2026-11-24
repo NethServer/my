@@ -41,7 +41,7 @@ const {
       notificationsStore.createNotification({
         kind: 'success',
         title: t('resellers.reseller_destroyed'),
-        description: t('common.object_destroyed_successfully', {
+        description: t('resellers.reseller_destroyed_description', {
           name: vars.name,
         }),
       })
