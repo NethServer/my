@@ -130,7 +130,7 @@ func ImpersonateUser(c *gin.Context) {
 	}
 
 	// Get target user information for impersonation (req.UserID is a Logto ID)
-	targetUser, err := logto.GetUserForImpersonation(req.UserID)
+	targetUser, err := getUserForImpersonation(req.UserID)
 	if err != nil {
 		logger.RequestLogger(c, "impersonate").Error().
 			Err(err).
@@ -295,7 +295,7 @@ func ExtendImpersonation(c *gin.Context) {
 		return
 	}
 
-	freshImpersonator, err := local.ResolveUserByLogtoID(*impersonatorUser.LogtoID)
+	permitted, err := impersonatorStillPermitted(*impersonatorUser.LogtoID)
 	if err != nil {
 		if errors.Is(err, local.ErrUserInactive) {
 			c.JSON(http.StatusUnauthorized, response.Unauthorized("account suspended or deleted", nil))
@@ -309,7 +309,7 @@ func ExtendImpersonation(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to extend impersonation", nil))
 		return
 	}
-	if !HasPermission(freshImpersonator.UserPermissions, freshImpersonator.OrgPermissions, "impersonate:users") {
+	if !permitted {
 		logger.RequestLogger(c, "impersonate").Warn().
 			Str("operation", "extend_impersonation_permission_lost").
 			Str("impersonator_user_id", impersonatorUser.ID).
@@ -322,7 +322,7 @@ func ExtendImpersonation(c *gin.Context) {
 	// The target is re-read too: it may have been suspended, deleted or given
 	// the Owner user role since the session started, and the new token must
 	// carry its current permissions.
-	freshTarget, err := logto.GetUserForImpersonation(*impersonatedUser.LogtoID)
+	freshTarget, err := getUserForImpersonation(*impersonatedUser.LogtoID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, response.BadRequest("target user not found or inaccessible", nil))
 		return
@@ -341,11 +341,16 @@ func ExtendImpersonation(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, response.BadRequest("impersonation session expired or ended", nil))
 			return
 		}
-		logger.RequestLogger(c, "impersonate").Warn().
+		// Fail closed: a token outliving its Redis session would let the
+		// duplicate-session guard and the status endpoint treat the session as
+		// over while the token still works.
+		logger.RequestLogger(c, "impersonate").Error().
 			Err(err).
 			Str("operation", "extend_active_session_failed").
 			Str("session_id", sessionID).
-			Msg("Failed to extend active session - continuing (fail open)")
+			Msg("Failed to extend active session")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to extend impersonation", nil))
+		return
 	}
 
 	impersonationToken, err := jwt.GenerateImpersonationTokenWithDuration(*freshTarget, *impersonatorUser, sessionID, sessionDuration)
@@ -380,7 +385,7 @@ func ExtendImpersonation(c *gin.Context) {
 		ImpersonatorName:     impersonatorUser.Name,
 		ImpersonatedName:     freshTarget.Name,
 	}
-	if err := local.NewImpersonationService().LogImpersonationAction(auditEntry); err != nil {
+	if err := logImpersonationAction(auditEntry); err != nil {
 		logger.RequestLogger(c, "impersonate").Warn().
 			Err(err).
 			Str("operation", "log_session_extended").
@@ -689,8 +694,50 @@ func GetImpersonationStatus(c *gin.Context) {
 		return
 	}
 
+	// The regular token carries the permissions of when it was minted: re-read
+	// the impersonator, so that a user who lost impersonate:users cannot resume
+	// the session. The session is then over: it is cleared, not just refused.
+	if user.LogtoID == nil {
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("invalid impersonation state", nil))
+		return
+	}
+	permitted, err := impersonatorStillPermitted(*user.LogtoID)
+	if err != nil {
+		if errors.Is(err, local.ErrUserInactive) {
+			c.JSON(http.StatusUnauthorized, response.Unauthorized("account suspended or deleted", nil))
+			return
+		}
+		logger.RequestLogger(c, "impersonate").Error().
+			Err(err).
+			Str("operation", "impersonation_status_resolve_impersonator").
+			Str("user_id", user.ID).
+			Msg("Failed to resolve impersonator for resuming impersonation")
+		c.JSON(http.StatusInternalServerError, response.InternalServerError("failed to check impersonation status", nil))
+		return
+	}
+	if !permitted {
+		logger.RequestLogger(c, "impersonate").Warn().
+			Str("operation", "impersonation_status_session_revoked").
+			Str("user_id", user.ID).
+			Str("session_id", activeSession.SessionID).
+			Msg("Impersonator no longer holds impersonate:users - clearing the session")
+		if err := sessionManager.ClearSession(user.ID); err != nil {
+			logger.RequestLogger(c, "impersonate").Warn().
+				Err(err).
+				Str("user_id", user.ID).
+				Msg("Failed to clear revoked session")
+		}
+		c.JSON(http.StatusOK, response.OK(
+			"not currently impersonating",
+			gin.H{
+				"is_impersonating": false,
+			},
+		))
+		return
+	}
+
 	// User has an active impersonation session - get impersonated user details
-	impersonatedUser, err := logto.GetUserForImpersonation(activeSession.ImpersonatedUserID)
+	impersonatedUser, err := getUserForImpersonation(activeSession.ImpersonatedUserID)
 	if err != nil {
 		logger.RequestLogger(c, "impersonate").Error().
 			Err(err).
@@ -726,6 +773,24 @@ func GetImpersonationStatus(c *gin.Context) {
 				Msg("Failed to clear expired session")
 		}
 
+		c.JSON(http.StatusOK, response.OK(
+			"not currently impersonating",
+			gin.H{
+				"is_impersonating": false,
+			},
+		))
+		return
+	}
+
+	// The target may have been given the Owner user role since the session
+	// started: such an account is never impersonated
+	if models.HasOwnerUserRole(impersonatedUser.UserRoles) {
+		if err := sessionManager.ClearSession(user.ID); err != nil {
+			logger.RequestLogger(c, "impersonate").Warn().
+				Err(err).
+				Str("user_id", user.ID).
+				Msg("Failed to clear the session of an Owner-role target")
+		}
 		c.JSON(http.StatusOK, response.OK(
 			"not currently impersonating",
 			gin.H{
@@ -1063,3 +1128,24 @@ func GetSessionAudit(c *gin.Context) {
 		},
 	))
 }
+
+// impersonatorStillPermitted re-reads the impersonator from its current state:
+// a token carries the permissions of when it was minted, and a user who lost
+// impersonate:users must not keep a session going. A suspended or deleted
+// account returns local.ErrUserInactive.
+var impersonatorStillPermitted = func(logtoID string) (bool, error) {
+	fresh, err := local.ResolveUserByLogtoID(logtoID)
+	if err != nil {
+		return false, err
+	}
+	return HasPermission(fresh.UserPermissions, fresh.OrgPermissions, "impersonate:users"), nil
+}
+
+// Seams for the handler tests: both reach outside the process (Logto, the
+// database).
+var (
+	getUserForImpersonation = logto.GetUserForImpersonation
+	logImpersonationAction  = func(entry *models.ImpersonationAuditEntry) error {
+		return local.NewImpersonationService().LogImpersonationAction(entry)
+	}
+)

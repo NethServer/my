@@ -184,10 +184,10 @@ var ErrImpersonationSessionNotFound = errors.New("impersonation session not foun
 // now + duration, keeping its id and start. It fails with
 // ErrImpersonationSessionNotFound when sessionID is not the active session.
 func (m *ImpersonationSessionManager) ExtendSession(impersonatorUserID, sessionID string, duration time.Duration) error {
+	// Fail closed, unlike CreateSession: extending mints a token for a full
+	// new duration, which must not outlive a session nobody recorded
 	if m.redis == nil {
-		logger.ComponentLogger("impersonation_sessions").Warn().
-			Msg("Redis client not available - skipping session extension")
-		return nil // Fail-open, as CreateSession
+		return errors.New("redis client not available")
 	}
 
 	session, err := m.GetActiveSession(impersonatorUserID)
