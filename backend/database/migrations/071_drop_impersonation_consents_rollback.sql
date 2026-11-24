@@ -1,6 +1,6 @@
--- Rollback 063: recreate impersonation_consents, empty
+-- Rollback 071: recreate impersonation_consents, empty
 --
--- The consent records dropped by 063 are not restored: users grant consent
+-- The consent records dropped by 071 are not restored: users grant consent
 -- again from their account page.
 
 CREATE TABLE IF NOT EXISTS impersonation_consents (

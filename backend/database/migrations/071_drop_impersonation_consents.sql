@@ -1,4 +1,4 @@
--- Migration 063: drop impersonation_consents
+-- Migration 071: drop impersonation_consents
 --
 -- Owner and Staff users impersonate without the target's consent: every
 -- session is audited in impersonation_audit instead. The consent records have

@@ -1,4 +1,4 @@
--- Migration 062: favorite systems
+-- Migration 070: favorite systems
 --
 -- One row per system a user starred. Keyed on the Logto user ID rather than
 -- users(id): the Owner account has no local users row. A destroyed system

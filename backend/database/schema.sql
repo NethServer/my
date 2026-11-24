@@ -1427,7 +1427,7 @@ COMMENT ON COLUMN system_entitlements.renewal_stopped_reason IS 'Why the renewal
 -- =============================================================================
 -- Systems a user starred. Keyed on the Logto user ID rather than users(id):
 -- the Owner account has no local users row. A destroyed system takes its rows
--- with it; a destroyed user is cleaned up by the backend. See migration 062.
+-- with it; a destroyed user is cleaned up by the backend. See migration 070.
 
 CREATE TABLE IF NOT EXISTS system_favorites (
     user_logto_id VARCHAR(255) NOT NULL,
