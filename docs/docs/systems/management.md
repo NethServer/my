@@ -152,10 +152,10 @@ latest inventory:
 - NethSecurity: `https://<fqdn>:9090` (the check also tries port 443)
 
 My checks whether the address answers. The check runs from the My server, not
-from your browser: when it fails, a warning icon appears next to the button,
-but the button still works, because the system may open from your network, for
-example over a VPN. The button is disabled only while the address is unknown,
-before the first inventory.
+from your browser: when it fails, an information icon next to the button
+explains why, but the button still works, because the system may open from
+your network, for example over a VPN. The button is disabled only while the
+address is unknown, before the first inventory.
 
 If the web interface answers at another address, set it in **Web interface
 URL** when editing the system.

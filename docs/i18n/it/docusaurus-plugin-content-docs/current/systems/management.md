@@ -147,10 +147,10 @@ dall'FQDN dell'ultimo inventario:
 - NethSecurity: `https://<fqdn>:9090` (la verifica prova anche la porta 443)
 
 My verifica se l'indirizzo risponde. La verifica parte dal server di My, non
-dal tuo browser: se fallisce, accanto al pulsante compare un'icona di
-avviso, ma il pulsante funziona comunque, perché il sistema potrebbe aprirsi
-dalla tua rete, ad esempio tramite VPN. Il pulsante è disabilitato solo
-finché l'indirizzo non è noto, prima del primo inventario.
+dal tuo browser: se fallisce, un'icona di informazioni accanto al pulsante ne
+spiega il motivo, ma il pulsante funziona comunque, perché il sistema potrebbe
+aprirsi dalla tua rete, ad esempio tramite VPN. Il pulsante è disabilitato
+solo finché l'indirizzo non è noto, prima del primo inventario.
 
 Se l'interfaccia web risponde a un altro indirizzo, impostalo in **URL
 dell'interfaccia web** modificando il sistema.

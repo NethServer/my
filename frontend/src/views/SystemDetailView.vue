@@ -9,7 +9,6 @@ import {
   NeButton,
   NeHeading,
   NeInlineNotification,
-  NeLink,
   NeSkeleton,
   NeSpinner,
   NeTabs,
@@ -37,6 +36,7 @@ import SystemFavoriteToggle from '@/components/systems/SystemFavoriteToggle.vue'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
 import { getDefaultUiUrl, getProductName } from '@/lib/systems/systems'
 import CreateOrEditSystemDrawer from '@/components/systems/CreateOrEditSystemDrawer.vue'
+import TooltipActionButton from '@/components/common/TooltipActionButton.vue'
 import { useSystemReachability } from '@/queries/systems/systemReachability'
 import { useLoginStore } from '@/stores/login'
 
@@ -175,6 +175,7 @@ const openSystem = () => {
         </template>
         <NeTooltip
           v-if="isOpenSystemDisabled"
+          class="flex"
           placement="left"
           trigger-event="mouseenter focus"
           :tippy-props="{ aria: { content: null } }"
@@ -193,6 +194,7 @@ const openSystem = () => {
         </NeTooltip>
         <NeTooltip
           v-else-if="isNotReachableWarningShown"
+          class="flex"
           placement="left"
           trigger-event="mouseenter focus"
           :tippy-props="{ aria: { content: null } }"
@@ -208,7 +210,7 @@ const openSystem = () => {
             </button>
           </template>
           <template #content>
-            <p>
+            <p id="system-not-reachable-hint">
               {{ $t('system_detail.system_not_reachable') }}
               <i18n-t
                 v-if="canEditSystemUiUrl"
@@ -216,10 +218,15 @@ const openSystem = () => {
                 tag="span"
                 scope="global"
               >
+                <!-- described by the whole hint, which the icon button names
+                     only in part -->
                 <template #editSystem>
-                  <NeLink inverted-theme @click="isEditSystemDrawerShown = true">
+                  <TooltipActionButton
+                    aria-describedby="system-not-reachable-hint"
+                    @click="isEditSystemDrawerShown = true"
+                  >
                     {{ $t('systems.edit_system') }}
-                  </NeLink>
+                  </TooltipActionButton>
                 </template>
               </i18n-t>
             </p>
