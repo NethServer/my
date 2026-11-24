@@ -9,12 +9,20 @@ const createNotificationFromAxiosError = vi.fn()
 
 vi.mock('@/i18n', () => ({ default: { global: { t: (key: string) => key } } }))
 vi.mock('@/router', () => ({ default: { push: (...args: unknown[]) => push(...args) } }))
-vi.mock('@/stores/login', () => ({ useLoginStore: () => ({}) }))
+const loginStore = {
+  jwtToken: '',
+  doRefreshToken: vi.fn(async () => false),
+  forceReauth: vi.fn(),
+  shouldRefreshToken: () => false,
+  pendingRefresh: async () => {},
+}
+vi.mock('@/stores/login', () => ({ useLoginStore: () => loginStore }))
 vi.mock('@/stores/notifications', () => ({
   useNotificationsStore: () => ({ createNotificationFromAxiosError }),
 }))
 
 const { configureAxios } = await import('./axios')
+const { API_URL } = await import('./config')
 configureAxios()
 
 // the handler configureAxios installed, called the way axios calls it
@@ -104,5 +112,60 @@ describe('error message', () => {
     )
     await expect(onRejected(error)).rejects.toBe(error)
     expect(error.message).toBe('common.network_error')
+  })
+})
+
+describe('401 response interceptor', () => {
+  // a refused request that axios replays: the adapter answers the replay
+  // without a network, and records the token it carried
+  function unauthorized(sentToken: string) {
+    const replayedWith: string[] = []
+    const config = {
+      method: 'get',
+      url: `${API_URL}/systems`,
+      headers: new AxiosHeaders({ Authorization: `Bearer ${sentToken}` }),
+      adapter: async (replay: InternalAxiosRequestConfig) => {
+        replayedWith.push(String(replay.headers.Authorization))
+        return { data: { ok: true }, status: 200, statusText: 'OK', headers: {}, config: replay }
+      },
+    }
+    const error = new AxiosError(
+      'Request failed with status code 401',
+      'ERR_BAD_REQUEST',
+      config as unknown as InternalAxiosRequestConfig,
+      null,
+      {
+        status: 401,
+        statusText: '',
+        headers: {},
+        config: config as unknown as InternalAxiosRequestConfig,
+        data: { code: 401 },
+      },
+    )
+    return { error, replayedWith }
+  }
+
+  beforeEach(() => {
+    loginStore.jwtToken = 'current-token'
+    loginStore.doRefreshToken.mockClear()
+    loginStore.forceReauth.mockClear()
+  })
+
+  it('replays with the current token a request sent with a replaced one', async () => {
+    const { error, replayedWith } = unauthorized('old-token')
+
+    await expect(onRejected(error)).resolves.toMatchObject({ status: 200 })
+    expect(replayedWith).toEqual(['Bearer current-token'])
+    expect(loginStore.doRefreshToken).not.toHaveBeenCalled()
+    expect(loginStore.forceReauth).not.toHaveBeenCalled()
+  })
+
+  it('re-authenticates when the current token itself is refused and cannot be refreshed', async () => {
+    const { error, replayedWith } = unauthorized('current-token')
+
+    await expect(onRejected(error)).rejects.toBe(error)
+    expect(replayedWith).toEqual([])
+    expect(loginStore.doRefreshToken).toHaveBeenCalledOnce()
+    expect(loginStore.forceReauth).toHaveBeenCalledOnce()
   })
 })
