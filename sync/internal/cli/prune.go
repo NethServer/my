@@ -360,7 +360,21 @@ func cleanupDatabase(dryRun, force bool) error {
 	}
 
 	if usersCount > 0 {
-		result, err := db.Exec("DELETE FROM users WHERE deleted_at IS NULL")
+		// The favorites of the users go with them: they are keyed on the Logto
+		// ID, with no foreign key to users. A database from before migration 070
+		// has no such table.
+		query := "DELETE FROM users WHERE deleted_at IS NULL"
+		var hasFavorites bool
+		if err := db.QueryRow("SELECT to_regclass('system_favorites') IS NOT NULL").Scan(&hasFavorites); err != nil {
+			logger.Error("Failed to check for system_favorites: %v", err)
+		} else if hasFavorites {
+			query = `WITH favorites AS (
+				DELETE FROM system_favorites
+				WHERE user_logto_id IN (SELECT logto_id FROM users WHERE deleted_at IS NULL AND logto_id IS NOT NULL)
+			)
+			DELETE FROM users WHERE deleted_at IS NULL`
+		}
+		result, err := db.Exec(query)
 		if err != nil {
 			logger.Error("Failed to delete users: %v", err)
 		} else {
