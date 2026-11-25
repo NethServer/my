@@ -153,7 +153,7 @@ Each organization type has its own list view:
 
 1. Navigate to **[Type]** (Distributors/Resellers/Customers)
 2. View the list with the following information:
-   - Organization name
+   - Organization name, with an icon that shows its notes on hover (up to 10 lines) when it has any
    - Description
    - Number of users
    - Number of systems
@@ -189,13 +189,13 @@ Click on an organization to view detailed information:
 
 ### Deleting Organizations
 
-**Delete archives, it does not erase.** The organization is soft-deleted and
+**Delete keeps the data.** The organization is soft-deleted and
 disappears from the lists, and the same operation cascades down the hierarchy:
 
-- Every **user** of the organization is archived
-- Every **system** of the organization is archived
+- Every **user** of the organization is deleted
+- Every **system** of the organization is deleted
 - For a distributor or a reseller, every **child organization** in its
-  hierarchy is archived too, together with their users and systems
+  hierarchy is deleted too, together with their users and systems
 
 To delete an organization:
 
@@ -205,7 +205,9 @@ To delete an organization:
 
 :::tip Reversible
 A deleted organization can be brought back with **Restore**, which
-cascade-restores the users and systems archived along with it.
+cascade-restores the users and systems deleted along with it. Only the Owner
+organization sees deleted organizations and can restore them: for everyone
+else, deletion is final.
 :::
 
 :::danger Permanent deletion

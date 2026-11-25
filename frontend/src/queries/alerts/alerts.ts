@@ -56,6 +56,9 @@ export const useAlerts = defineQuery(() => {
       commentsFilters.value.map((o) => o.id).join(','),
     ],
     enabled: () => !!loginStore.jwtToken,
+    // a filter, sort or page change keeps the current rows on screen until the
+    // new ones arrive: the table shows its skeleton only on the first load
+    placeholderData: (previousData) => previousData,
     query: () =>
       getAlerts(
         organizationIds.value.length > 0 ? organizationIds.value.map((o) => o.id) : undefined,

@@ -41,8 +41,8 @@ const {
     setTimeout(() => {
       notificationsStore.createNotification({
         kind: 'success',
-        title: t('organizations.organization_restored'),
-        description: t('organizations.organization_restored_successfully', {
+        title: t('customers.customer_restored'),
+        description: t('customers.customer_restored_description', {
           name: vars.name,
         }),
       })

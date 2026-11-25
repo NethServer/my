@@ -5,24 +5,23 @@
 #   api_key           — a myk_ token is bounded by BOTH its read/write mode and
 #                       the live permissions of the user who owns it, and is
 #                       refused outright on session-bound routes
-#   impersonate       — needs impersonate:users AND the target's consent
+#   impersonate       — needs impersonate:users, and nothing from the target
 #
 # IMPERSONATION IS DELIBERATELY CROSS-HIERARCHY. The Owner organization's
-# staff must be able to support users of every distributor and reseller. So
-# the design has exactly two barriers, and neither of them is the hierarchy:
+# staff must be able to support users of every distributor and reseller,
+# without asking them first. So the design has one barrier, and it is not the
+# hierarchy: the caller must hold impersonate:users, which only the Owner and
+# Staff user roles carry — both confined to the Owner organization. The
+# handler also refuses the caller itself, an inactive user and any Owner-role
+# account; every session is audited.
 #
-#   1. the target must have consented;
-#   2. the caller must hold impersonate:users, which only the Owner and Staff
-#      user roles carry — both confined to the Owner organization.
+# The barrier is therefore what protects the whole feature, and it is asserted
+# in scenarios.yml ("cannot promote a user to Owner"), not here.
 #
-# Barrier 2 is therefore what protects the whole feature, and it is asserted in
-# scenarios.yml ("cannot promote a user to Owner"), not here.
-#
-# The cases below assert both barriers, in both directions: consent missing means
-# refused, consent present means allowed even across branches. The positive ones
-# open real sessions, which the runner closes immediately with the token the
-# response returns — otherwise a live session would block that persona with a 409
-# for an hour. setup/teardown exist to grant and revoke the target's consent.
+# The cases below assert the reach, across branches and upwards. They open real
+# sessions, which the runner closes immediately with the token the response
+# returns — otherwise a live session would block that persona with a 409 for
+# the rest of the session.
 
 cases:
   # ===========================================================================
@@ -196,6 +195,30 @@ cases:
     expect: denied
     note: the owner of this key holds impersonate:users, so only RejectAPIKey can stop it
 
+  - name: key cannot extend an impersonation
+    kind: api_key
+    as: owner-staff
+    mode: write
+    method: POST
+    path: /api/impersonate/extend
+    expect: denied
+    note: |
+      A key is not an impersonation token, so the handler would answer 400
+      anyway; the case pins that RejectAPIKey refuses it first, so a key never
+      reaches the session logic.
+    must_not_contain: ["not currently impersonating"]
+
+  - name: key cannot star a system
+    kind: api_key
+    as: d1r1-admin
+    mode: write
+    method: PUT
+    path: /api/systems/{system:s-d1r1c1}/favorite
+    expect: denied
+    note: |
+      The owner of this key can read the system, so only RejectAPIKey can stop
+      it: favorites are a personal bookmark of an interactive session.
+
   - name: key cannot change the owner's password
     kind: api_key
     as: d1r1-admin
@@ -242,98 +265,39 @@ cases:
     note: the owner of this key holds manage:resellers, so only the Owner-organization gate in the handler can stop it
 
   # ===========================================================================
-  # Impersonation. Consent is checked first, so every case here says explicitly
-  # which barrier it is testing.
+  # Impersonation. No consent: an Owner-organization user with impersonate:users
+  # reaches any active user, whatever the branch.
   # ===========================================================================
-  - name: impersonation without the target's consent is refused
+  - name: a user of another organization CAN be impersonated
     kind: impersonate
-    as: owner-staff
-    method: POST
-    path: /api/impersonate
-    body: '{"user_id":"{user:d1r1-reader}"}'
-    expect: denied
-    must_contain: ["consent"]
-    note: same organization, so consent is the only barrier left — and it must hold
-
-  - name: a consenting user of another organization CAN be impersonated
-    kind: impersonate
-    setup:
-      - as: d1r2-admin
-        method: POST
-        path: /api/impersonate/consent
-        body: '{"duration_hours":1}'
     as: owner-staff
     method: POST
     path: /api/impersonate
     body: '{"user_id":"{user:d1r2-admin}"}'
     expect: allowed
-    teardown:
-      - as: d1r2-admin
-        method: DELETE
-        path: /api/impersonate/consent
     note: |
       The feature this design exists for: reaching a user outside your own subtree
-      — here the sibling reseller's admin — with that user's consent. Asserted
-      positively so that adding a hierarchy check would show up as a regression in
-      legitimate support access rather than as a silent behaviour change.
+      — here the sibling reseller's admin. Asserted positively so that adding a
+      hierarchy check, or bringing back a consent, would show up as a regression
+      in legitimate support access rather than as a silent behaviour change.
 
-  - name: a consenting user of the parent organization CAN be impersonated
+  - name: a user of the parent organization CAN be impersonated
     kind: impersonate
-    setup:
-      - as: d1-admin
-        method: POST
-        path: /api/impersonate/consent
-        body: '{"duration_hours":1}'
     as: owner-staff
     method: POST
     path: /api/impersonate
     body: '{"user_id":"{user:d1-admin}"}'
     expect: allowed
-    teardown:
-      - as: d1-admin
-        method: DELETE
-        path: /api/impersonate/consent
     note: upward too — Nethesis Italia is a distributor, so its staff must reach peers and parents
 
-  - name: a consenting user of a different branch CAN be impersonated
+  - name: a user of a different branch CAN be impersonated
     kind: impersonate
-    setup:
-      - as: d2r1c1-admin
-        method: POST
-        path: /api/impersonate/consent
-        body: '{"duration_hours":1}'
     as: owner-staff
     method: POST
     path: /api/impersonate
     body: '{"user_id":"{user:d2r1c1-admin}"}'
     expect: allowed
-    teardown:
-      - as: d2r1c1-admin
-        method: DELETE
-        path: /api/impersonate/consent
     note: |
       Reach is platform-wide by design: impersonate:users lives only on the
       Owner and Staff user roles, both confined to the Owner organization, so
-      the containment is structural now — no partner user can hold it. Consent
-      remains the per-target barrier.
-
-  - name: consent expiry is honoured — a revoked consent stops working
-    kind: impersonate
-    setup:
-      - as: d1r2-support
-        method: POST
-        path: /api/impersonate/consent
-        body: '{"duration_hours":1}'
-      - as: d1r2-support
-        method: DELETE
-        path: /api/impersonate/consent
-    as: owner-staff
-    method: POST
-    path: /api/impersonate
-    body: '{"user_id":"{user:d1r2-support}"}'
-    expect: denied
-    must_contain: ["consent"]
-    note: |
-      Granting then revoking must leave the target protected. Without this, a
-      consent that is written but never actually enforced on revocation would look
-      identical to a working one.
+      the containment is structural — no partner user can hold it.

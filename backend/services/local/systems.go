@@ -415,6 +415,13 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 	if request.Notes != "" || request.Notes == "" {
 		system.Notes = request.Notes
 	}
+	if request.UIURL != nil {
+		uiURL, err := models.NormalizeUIURL(*request.UIURL, system.Type, system.FQDN)
+		if err != nil {
+			return nil, err
+		}
+		system.UIURL = uiURL
+	}
 
 	system.UpdatedAt = now
 
@@ -467,11 +474,11 @@ func (s *LocalSystemsService) UpdateSystem(systemID string, request *models.Upda
 	// Note: type and system_key are not modifiable
 	query := `
 		UPDATE systems
-		SET name = $2, organization_id = $3, custom_data = $4, notes = $5, updated_at = $6
+		SET name = $2, organization_id = $3, custom_data = $4, notes = $5, updated_at = $6, ui_url = $7
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
-	_, err = database.DB.Exec(query, systemID, system.Name, system.Organization.LogtoID, customDataJSON, system.Notes, now)
+	_, err = database.DB.Exec(query, systemID, system.Name, system.Organization.LogtoID, customDataJSON, system.Notes, now, system.UIURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update system: %w", err)
 	}

@@ -10,6 +10,7 @@ import {
   type ResellerStatus,
 } from '@/lib/organizations/resellers'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
+import { useHideDeletedStatus } from '@/composables/useHideDeletedStatus'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
@@ -45,6 +46,9 @@ export const useResellers = defineQuery(() => {
       },
     ],
     enabled: () => !!loginStore.jwtToken,
+    // a filter, sort or page change keeps the current rows on screen until the
+    // new ones arrive: the table shows its skeleton only on the first load
+    placeholderData: (previousData) => previousData,
     query: () =>
       getResellers(
         pageNum.value,
@@ -139,6 +143,8 @@ export const useResellers = defineQuery(() => {
       { id: 'suspended', label: 'suspended' },
     ]
   }
+
+  useHideDeletedStatus(statusFilter, resetStatusFilter)
 
   return {
     ...rest,

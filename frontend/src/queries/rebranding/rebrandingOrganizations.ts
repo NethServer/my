@@ -40,6 +40,9 @@ export const useRebrandingOrganizations = defineQuery(() => {
     // Without the permission check this 403s, and the axios interceptor turns
     // any 403 into a redirect to /forbidden.
     enabled: () => !!loginStore.jwtToken && canReadRebranding(),
+    // a filter, sort or page change keeps the current rows on screen until the
+    // new ones arrive: the table shows its skeleton only on the first load
+    placeholderData: (previousData) => previousData,
     query: () =>
       getRebrandingOrganizations(
         pageNum.value,

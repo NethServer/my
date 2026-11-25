@@ -152,25 +152,10 @@ routes:
     note: revoking somebody else's key must fail on ownership, not on a permission
 
   # ===========================================================================
-  # Impersonation. Consent is the caller's own business; impersonating somebody
-  # requires the dedicated impersonate:users permission, which only the Owner
-  # and Staff user roles carry
-  # holds in config.yml.
+  # Impersonation. Impersonating somebody requires the dedicated
+  # impersonate:users permission, which only the Owner and Staff user roles
+  # carry in config.yml; the target's consent is not asked.
   # ===========================================================================
-  - method: GET
-    path: /api/impersonate/consent
-    intent: authenticated
-
-  - method: POST
-    path: /api/impersonate/consent
-    intent: authenticated
-    skip: mutates the caller's own consent state; exercised explicitly in the special layer
-
-  - method: DELETE
-    path: /api/impersonate/consent
-    intent: authenticated
-    skip: mutates the caller's own consent state; exercised explicitly in the special layer
-
   - method: GET
     path: /api/impersonate/status
     intent: authenticated
@@ -183,6 +168,15 @@ routes:
     path: /api/impersonate
     intent: authenticated
     note: exiting an impersonation the caller is not in is a no-op, not an authorization question
+
+  - method: POST
+    path: /api/impersonate/extend
+    intent: authenticated
+    note: |
+      Only an impersonation token has a session to extend: any other token gets
+      400. The handler re-reads the impersonator and requires impersonate:users
+      from its current state; API keys are refused by RejectAPIKey, asserted in
+      the special layer.
 
   - method: GET
     path: /api/impersonate/sessions
@@ -232,6 +226,8 @@ routes:
   - method: PATCH
     path: /api/systems/:id/restore
     intent: manage:systems
+    org_role: owner
+    note: soft-deleted objects are seen and restored by the Owner organization only
   - method: DELETE
     path: /api/systems/:id/destroy
     intent: destroy:systems
@@ -242,6 +238,19 @@ routes:
   - method: PATCH
     path: /api/systems/:id/reactivate
     intent: manage:systems
+  - method: PUT
+    path: /api/systems/:id/favorite
+    intent: read:systems
+    note: |
+      Starring is a personal bookmark that changes nothing on the system, so it
+      needs only read access to it — a Reader may star what it can see. The
+      system must still be in the caller's scope.
+  - method: DELETE
+    path: /api/systems/:id/favorite
+    intent: read:systems
+    note: |
+      Removes only the caller's own star, so it may target a system that has
+      since left the caller's scope.
   - method: GET
     path: /api/systems/totals
     intent: read:systems
@@ -651,6 +660,8 @@ routes:
   - method: PATCH
     path: /api/distributors/:id/restore
     intent: manage:distributors
+    org_role: owner
+    note: soft-deleted objects are seen and restored by the Owner organization only
   - method: DELETE
     path: /api/distributors/:id/destroy
     intent: destroy:distributors
@@ -709,6 +720,8 @@ routes:
   - method: PATCH
     path: /api/resellers/:id/restore
     intent: manage:resellers
+    org_role: owner
+    note: soft-deleted objects are seen and restored by the Owner organization only
   - method: DELETE
     path: /api/resellers/:id/destroy
     intent: destroy:resellers
@@ -797,6 +810,8 @@ routes:
   - method: PATCH
     path: /api/customers/:id/restore
     intent: manage:customers
+    org_role: owner
+    note: soft-deleted objects are seen and restored by the Owner organization only
   - method: DELETE
     path: /api/customers/:id/destroy
     intent: destroy:customers
@@ -875,6 +890,8 @@ routes:
   - method: PATCH
     path: /api/users/:id/restore
     intent: manage:users
+    org_role: owner
+    note: soft-deleted objects are seen and restored by the Owner organization only
   - method: DELETE
     path: /api/users/:id/destroy
     intent: destroy:users

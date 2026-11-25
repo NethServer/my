@@ -74,10 +74,12 @@ function onConfirm() {
 <template>
   <DeleteObjectModal
     :visible="visible"
-    :title="$t('rebranding.remove_from_rebranding_title', { name: organization?.name })"
-    :primary-label="$t('rebranding.remove_from_rebranding')"
+    :title="$t('rebranding.remove_from_rebranding')"
+    :primary-label="$t('common.remove')"
     :deleting="disableRebrandingLoading"
-    :confirmation-message="$t('rebranding.remove_from_rebranding_message')"
+    :confirmation-message="
+      $t('rebranding.remove_from_rebranding_message', { name: organization?.name })
+    "
     :error-title="$t('rebranding.cannot_remove_from_rebranding')"
     :error-description="disableRebrandingError?.message"
     @show="onShow"

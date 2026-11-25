@@ -92,7 +92,7 @@ Custom JWT claims: user_id, user_roles, user_permissions, org_role, org_permissi
 
 ### 2.3 Impersonation
 
-Owner organization only (Staff and Owner user roles carry `impersonate:users`). `POST /api/impersonate` mints a JWT with the target user's permissions, expiring with the remaining consent window (not a fixed hour). Requires the target to have opted-in via `POST /api/impersonate/consent` (1-168h, default 1h; revoked with DELETE). All sessions and actions are audited via `impersonation_audit` middleware. No self-impersonation, no chaining. An account holding the Owner user role is never a target. `DELETE /api/impersonate` revokes the impersonation token and re-mints the impersonator's session from its current state (a suspended impersonator gets 401); `GET /api/impersonate/status` re-checks the target's consent before handing out a token. The consent and sessions endpoints refuse impersonation tokens (`DisableOnImpersonate`): they belong to the real account only.
+Owner organization only (Staff and Owner user roles carry `impersonate:users`). `POST /api/impersonate` mints a JWT with the target user's permissions, expiring after `IMPERSONATION_SESSION_DURATION` (default 1h, capped at 168h). The target's consent is not asked: any active user is a target, across the whole hierarchy. All sessions and actions are audited via `impersonation_audit` middleware. No self-impersonation, no chaining. An account holding the Owner user role is never a target. `POST /api/impersonate/extend` (impersonation token only, never an API key) restarts the session for a full duration with a new token and revokes the presented one, re-checking the impersonator's `impersonate:users` and the target from their current state; it is audited as `session_extended`. `DELETE /api/impersonate` revokes the impersonation token and re-mints the impersonator's session from its current state (a suspended impersonator gets 401); `GET /api/impersonate/status` hands out a token for the active session. The sessions endpoints refuse impersonation tokens (`DisableOnImpersonate`): they belong to the real account only.
 
 ---
 
@@ -226,6 +226,7 @@ Embedded in the custom JWT at exchange time. No external calls during request ha
 - `middleware.RequireResourcePermission("systems")` — HTTP-verb-aware: `read:` on GET, `manage:` on **POST/PUT/PATCH/DELETE alike** (`middleware/rbac.go`). `destroy:` is never derived from the verb — an endpoint that needs it says so explicitly, e.g. `middleware.RequirePermission("destroy:systems")` on `/systems/:id/destroy`
 - `middleware.RequireResourcePermissionOrSelf("resellers")` — as above, plus a GET on the caller's own organization is always allowed (org roles carry permissions for the levels *below*, so without this a reseller could not read itself)
 - `middleware.PreventSelfModification()` — blocks a user from acting on their own account for dangerous verbs
+- Soft-deleted objects belong to the Owner organization: outside it, a list or export with `status=deleted` gets 403 (`methods.rejectDeletedStatusOutsideOwnerOrg`) and the `/:id/restore` routes are gated by `middleware.RequireOrgRole(models.OwnerOrgRole)`. For everyone else, Delete is final
 - Hierarchy check for cross-org reads/writes: `local.UserService.IsOrganizationInHierarchy(orgRole, userOrgID, targetOrgID)`
 - RBAC filtering in SQL: `helpers.AppendOrgFilter(query, orgRole, orgID, tableAlias, args, nextArgIdx)` uses `GetAllowedOrgIDsForFilter` (cached org-ID set) for non-owner roles
 
@@ -270,7 +271,7 @@ Entities synced with Logto (orgs, users) carry both `id` (DB UUID) and `logto_id
 
 ### 6.2 Error messages
 
-User-facing errors are **lowercase**. Example: `"the user has revoked consent for impersonation. please exit impersonation mode."`
+User-facing errors are **lowercase**. Example: `"cannot impersonate while already impersonating another user. exit current impersonation first."`
 
 Field validation errors (`response.ValidationError` with a 400/409/422 status) are not shown to users as written: the frontend turns each one into an i18n key, `<prefix>.<key>_<message>` (`getValidationIssues` in `frontend/src/lib/validation.ts`). The dots of a nested key become underscores (`custom_data.vat` gives `custom_data_vat`); the message is lowercased and its spaces become underscores, while any other character stays as it is. Therefore:
 

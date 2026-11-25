@@ -104,7 +104,7 @@ function closeAddon() {
             : $t('addons.system_addons_description')
         }}
       </p>
-      <UpdatingSpinner v-if="isRefreshing" />
+      <UpdatingSpinner :updating="isRefreshing" />
     </div>
     <!-- get add-ons error notification -->
     <NeInlineNotification

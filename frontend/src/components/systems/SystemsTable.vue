@@ -8,7 +8,7 @@ import { withDangerItemsLast } from '@/lib/common'
 import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import {
   faMagnifyingGlass,
-  faBoxArchive,
+  faTrash,
   faServer,
   faEye,
   faPenToSquare,
@@ -20,6 +20,7 @@ import {
   faCirclePlay,
   faBomb,
   faTriangleExclamation,
+  faStar,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
@@ -46,8 +47,10 @@ import {
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
-import { canManageSystems, canDestroySystems } from '@/lib/permissions'
+import { canManageSystems, canDestroySystems, canSeeDeletedObjects } from '@/lib/permissions'
 import { useSystems } from '@/queries/systems/systems'
+import { useSetSystemFavorite } from '@/queries/systems/favoriteSystems'
+import { useLoginStore } from '@/stores/login'
 import {
   exportSystem,
   getProductName,
@@ -69,7 +72,7 @@ import ReactivateSystemModal from './ReactivateSystemModal.vue'
 import DestroySystemModal from './DestroySystemModal.vue'
 import SystemStatusIcon from './SystemStatusIcon.vue'
 import UpdateAvailableIcon from '@/components/common/UpdateAvailableIcon.vue'
-import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
+import UpdatingTableContainer from '@/components/common/UpdatingTableContainer.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 import {
   canSeeParentOfCustomers,
@@ -79,6 +82,8 @@ import {
 import OrganizationIconAndLink from '../organizations/OrganizationIconAndLink.vue'
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
 import SystemLogoAndLink from './SystemLogoAndLink.vue'
+import SystemFavoriteToggle from './SystemFavoriteToggle.vue'
+import NotesIcon from '@/components/common/NotesIcon.vue'
 
 const { isShownCreateSystemDrawer = false } = defineProps<{
   isShownCreateSystemDrawer: boolean
@@ -99,13 +104,17 @@ const {
   organizationFilter,
   parentOrganizationFilter,
   addonFilter,
+  favoriteFilter,
   sortBy,
   sortDescending,
   areDefaultFiltersApplied,
   resetFilters,
+  resetFavoriteFilter,
   resetStatusFilter,
 } = useSystems()
 const { state: systemFiltersState } = useSystemFilters()
+const { mutate: setSystemFavorite } = useSetSystemFavorite()
+const loginStore = useLoginStore()
 
 const currentSystem = ref<System | undefined>()
 const isShownCreateOrEditSystemDrawer = ref(false)
@@ -118,7 +127,9 @@ const isShownReactivateSystemModal = ref(false)
 const isShownDestroySystemModal = ref(false)
 const newSecret = ref<string>('')
 
-const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
+// computed: whether the deleted ones are shown is known only once the user
+// info has loaded, which can be after the table mounts
+const statusFilterOptions = computed<NeDropdownFilterV2Option[]>(() => [
   {
     id: 'active',
     label: t('systems.status_active'),
@@ -135,7 +146,12 @@ const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
     id: 'suspended',
     label: t('common.suspended'),
   },
-  { id: 'deleted', label: t('systems.status_deleted') },
+  ...(canSeeDeletedObjects() ? [{ id: 'deleted', label: t('systems.status_deleted') }] : []),
+])
+
+const favoriteFilterOptions = ref<NeDropdownFilterV2Option[]>([
+  { id: 'all', label: t('systems.all_systems') },
+  { id: 'favorites', label: t('systems.favorites_only') },
 ])
 
 const systemsPage = computed(() => {
@@ -283,6 +299,19 @@ function getKebabMenuItems(system: System) {
     })
   }
 
+  // a deleted system cannot be starred, and favorites belong to the real
+  // account: the star tells the impersonator why, the menu just omits it
+  if (!isDeleted && !loginStore.isImpersonating) {
+    items.push({
+      id: 'toggleFavorite',
+      label: system.is_favorite
+        ? t('systems.remove_from_favorites')
+        : t('systems.add_to_favorites'),
+      icon: faStar,
+      action: () => setSystemFavorite({ systemId: system.id, favorite: !system.is_favorite }),
+    })
+  }
+
   items.push(
     {
       id: 'exportToPdf',
@@ -326,8 +355,8 @@ function getKebabMenuItems(system: System) {
 
     items.push({
       id: 'deleteSystem',
-      label: t('common.archive'),
-      icon: faBoxArchive,
+      label: t('common.delete'),
+      icon: faTrash,
       danger: true,
       action: () => showDeleteSystemModal(system),
     })
@@ -471,6 +500,22 @@ function onCloseSecretRegeneratedModal() {
             :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
             @custom-action="resetStatusFilter"
           />
+          <!-- favorites filter: the systems the signed-in user starred -->
+          <NeDropdownFilterV2
+            v-model="favoriteFilter"
+            kind="radio"
+            :label="t('systems.favorites')"
+            :options="favoriteFilterOptions"
+            :show-clear-filter="false"
+            :clear-filter-label="t('ne_dropdown_filter.clear_selection')"
+            :open-menu-aria-label="t('ne_dropdown_filter.open_filter')"
+            :no-options-label="t('ne_dropdown_filter.no_options')"
+            :more-options-hidden-label="t('ne_dropdown_filter.more_options_hidden')"
+            :clear-search-label="t('ne_dropdown_filter.clear_search')"
+            :custom-action-label="t('ne_dropdown_filter.reset_selection')"
+            :options-filter-placeholder="t('ne_dropdown_filter.options_filter_placeholder')"
+            @custom-action="resetFavoriteFilter"
+          />
           <!-- sort dropdown -->
           <NeSortDropdown
             v-model:sort-key="sortBy"
@@ -485,6 +530,7 @@ function onCloseSecretRegeneratedModal() {
                 ? [{ id: 'managed_by', label: t('organizations.parent_company') }]
                 : []),
               { id: 'status', label: t('systems.status') },
+              { id: 'favorite', label: t('systems.favorite') },
             ]"
             :open-menu-aria-label="t('ne_dropdown.open_menu')"
             :sort-by-label="t('sort.sort_by')"
@@ -497,8 +543,6 @@ function onCloseSecretRegeneratedModal() {
             {{ t('systems.reset_filters') }}
           </NeButton>
         </div>
-        <!-- update indicator -->
-        <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
       </div>
     </div>
     <!-- empty state -->
@@ -520,199 +564,218 @@ function onCloseSecretRegeneratedModal() {
         {{ $t('systems.reset_filters') }}
       </NeButton>
     </NeEmptyState>
-    <NeTable
+    <UpdatingTableContainer
       v-if="noEmptyStateShown"
-      :sort-key="sortBy"
-      :sort-descending="sortDescending"
-      :aria-label="$t('systems.title')"
-      card-breakpoint="2xl"
-      :loading="state.status === 'pending'"
-      :skeleton-columns="5"
-      :skeleton-rows="7"
+      :updating="asyncStatus === 'loading' && state.status !== 'pending'"
     >
-      <NeTableHead>
-        <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
-          $t('systems.name')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="version" @sort="onSort">{{
-          $t('systems.version')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="fqdn" @sort="onSort">{{
-          $t('systems.fqdn_ip_address')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="organization_name" @sort="onSort">{{
-          $t('systems.organization')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell
-          v-if="canSeeParentOfCustomers()"
-          sortable
-          column-key="managed_by"
-          @sort="onSort"
-          >{{ $t('organizations.parent_company') }}</NeTableHeadCell
-        >
-        <NeTableHeadCell sortable column-key="status" @sort="onSort">{{
-          $t('systems.status')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell>
-          <!-- no header for actions -->
-        </NeTableHeadCell>
-      </NeTableHead>
-      <NeTableBody>
-        <NeTableRow v-for="item in systemsPage" :key="item.id">
-          <NeTableCell :data-label="$t('systems.name')">
-            <div :class="{ 'text-tertiary-neutral': item.status === 'deleted' }">
-              <SystemLogoAndLink
-                :system-id="item.status === 'deleted' ? '' : item.id"
-                :system-name="item.name"
-                :system-type="item.type"
-              />
-            </div>
-          </NeTableCell>
-          <NeTableCell :data-label="$t('systems.version')" class="wrap-anywhere">
-            <div
-              class="flex items-center gap-2"
-              :class="{ 'text-tertiary-neutral': item.status === 'deleted' }"
-            >
-              {{ item.version || '-' }}
-              <UpdateAvailableIcon v-if="item.update_available" />
-            </div>
-          </NeTableCell>
-          <NeTableCell :data-label="$t('systems.fqdn_ip_address')" class="wrap-anywhere">
-            <div
-              class="flex flex-col items-start space-y-0.5"
-              :class="{ 'text-tertiary-neutral': item.status === 'deleted' }"
-            >
-              <ClickToCopy v-if="item.fqdn" :text="item.fqdn" tooltip-placement="top" />
-              <ClickToCopy
-                v-if="item.ipv4_address"
-                :text="item.ipv4_address"
-                tooltip-placement="bottom"
-              />
-              <div v-if="item.ipv6_address">
-                {{ item.ipv6_address }}
-              </div>
-              <div v-if="!item.fqdn && !item.ipv4_address && !item.ipv6_address">-</div>
-            </div>
-          </NeTableCell>
-          <NeTableCell :data-label="$t('systems.organization')">
-            <div :class="{ 'text-tertiary-neutral': item.status === 'deleted' }">
-              <OrganizationIconAndLink v-if="item.organization" :organization="item.organization" />
-              <span v-else>-</span>
-            </div>
-          </NeTableCell>
-          <NeTableCell
+      <NeTable
+        :sort-key="sortBy"
+        :sort-descending="sortDescending"
+        :aria-label="$t('systems.title')"
+        card-breakpoint="2xl"
+        :loading="state.status === 'pending'"
+        :skeleton-columns="5"
+        :skeleton-rows="7"
+      >
+        <NeTableHead>
+          <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
+            $t('systems.name')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell sortable column-key="version" @sort="onSort">{{
+            $t('systems.version')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell sortable column-key="fqdn" @sort="onSort">{{
+            $t('systems.fqdn_ip_address')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell sortable column-key="organization_name" @sort="onSort">{{
+            $t('systems.organization')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell
             v-if="canSeeParentOfCustomers()"
-            :data-label="$t('organizations.parent_company')"
+            sortable
+            column-key="managed_by"
+            @sort="onSort"
+            >{{ $t('organizations.parent_company') }}</NeTableHeadCell
           >
-            <div :class="{ 'text-tertiary-neutral': item.status === 'deleted' }">
-              <ParentCompanyLink
-                v-if="getManagedBy(item.organization)"
-                :parent="getManagedBy(item.organization)"
-              />
-              <span v-else>-</span>
-            </div>
-          </NeTableCell>
-          <NeTableCell :data-label="$t('systems.status')">
-            <div class="flex items-center gap-2">
-              <template v-if="item.status">
+          <NeTableHeadCell sortable column-key="status" @sort="onSort">{{
+            $t('systems.status')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell>
+            <!-- no header for actions -->
+          </NeTableHeadCell>
+        </NeTableHead>
+        <NeTableBody>
+          <NeTableRow v-for="item in systemsPage" :key="item.id" class="group/row">
+            <NeTableCell :data-label="$t('systems.name')">
+              <div
+                class="flex items-center gap-1"
+                :class="{ 'text-tertiary-neutral': item.status === 'deleted' }"
+              >
+                <SystemLogoAndLink
+                  :system-id="item.status === 'deleted' ? '' : item.id"
+                  :system-name="item.name"
+                  :system-type="item.type"
+                />
+                <NotesIcon v-if="item.notes?.trim()" :notes="item.notes" />
+                <!-- a deleted system cannot be starred: its row has no actions but restore -->
+                <SystemFavoriteToggle
+                  v-if="item.status !== 'deleted'"
+                  :system-id="item.id"
+                  :system-name="item.name"
+                  :is-favorite="item.is_favorite"
+                  reveal-on-row-hover
+                />
+              </div>
+            </NeTableCell>
+            <NeTableCell :data-label="$t('systems.version')" class="wrap-anywhere">
+              <div
+                class="flex items-center gap-2"
+                :class="{ 'text-tertiary-neutral': item.status === 'deleted' }"
+              >
+                {{ item.version || '-' }}
+                <UpdateAvailableIcon v-if="item.update_available" />
+              </div>
+            </NeTableCell>
+            <NeTableCell :data-label="$t('systems.fqdn_ip_address')" class="wrap-anywhere">
+              <div
+                class="flex flex-col items-start space-y-0.5"
+                :class="{ 'text-tertiary-neutral': item.status === 'deleted' }"
+              >
+                <ClickToCopy v-if="item.fqdn" :text="item.fqdn" tooltip-placement="top" />
+                <ClickToCopy
+                  v-if="item.ipv4_address"
+                  :text="item.ipv4_address"
+                  tooltip-placement="bottom"
+                />
+                <div v-if="item.ipv6_address">
+                  {{ item.ipv6_address }}
+                </div>
+                <div v-if="!item.fqdn && !item.ipv4_address && !item.ipv6_address">-</div>
+              </div>
+            </NeTableCell>
+            <NeTableCell :data-label="$t('systems.organization')">
+              <div :class="{ 'text-tertiary-neutral': item.status === 'deleted' }">
+                <OrganizationIconAndLink
+                  v-if="item.organization"
+                  :organization="item.organization"
+                />
+                <span v-else>-</span>
+              </div>
+            </NeTableCell>
+            <NeTableCell
+              v-if="canSeeParentOfCustomers()"
+              :data-label="$t('organizations.parent_company')"
+            >
+              <div :class="{ 'text-tertiary-neutral': item.status === 'deleted' }">
+                <ParentCompanyLink
+                  v-if="getManagedBy(item.organization)"
+                  :parent="getManagedBy(item.organization)"
+                />
+                <span v-else>-</span>
+              </div>
+            </NeTableCell>
+            <NeTableCell :data-label="$t('systems.status')">
+              <div class="flex items-center gap-2">
+                <template v-if="item.status">
+                  <NeTooltip
+                    v-if="
+                      item.status === 'active' ||
+                      item.status === 'inactive' ||
+                      item.status === 'unknown'
+                    "
+                    trigger-event="mouseenter focus"
+                    placement="top"
+                  >
+                    <template #trigger>
+                      <div class="flex items-center gap-2">
+                        <SystemStatusIcon :status="item.status" />
+                        {{ t(`systems.status_${item.status}`) }}
+                      </div>
+                    </template>
+                    <template #content>
+                      <template v-if="item.status === 'unknown'">
+                        {{ $t('system_detail.no_heartbeat_yet') }}
+                      </template>
+                      <template v-else>
+                        {{
+                          $t('system_detail.last_heartbeat_time', {
+                            time: item.last_heartbeat
+                              ? formatRelativeTime(new Date(item.last_heartbeat), locale)
+                              : '-',
+                          })
+                        }}
+                      </template>
+                    </template>
+                  </NeTooltip>
+                  <template v-else>
+                    <SystemStatusIcon :status="item.status" />
+                    {{ t(`systems.status_${item.status}`) }}
+                  </template>
+                </template>
+                <span v-else>-</span>
+                <!-- no inventory warning (do not show for pending/unknown status) -->
                 <NeTooltip
-                  v-if="
-                    item.status === 'active' ||
-                    item.status === 'inactive' ||
-                    item.status === 'unknown'
-                  "
+                  v-if="!item.last_inventory && item.status !== 'unknown'"
                   trigger-event="mouseenter focus"
                   placement="top"
                 >
                   <template #trigger>
-                    <div class="flex items-center gap-2">
-                      <SystemStatusIcon :status="item.status" />
-                      {{ t(`systems.status_${item.status}`) }}
-                    </div>
+                    <FontAwesomeIcon
+                      :icon="faTriangleExclamation"
+                      class="size-4 text-amber-700 dark:text-amber-500"
+                      aria-hidden="true"
+                    />
                   </template>
                   <template #content>
-                    <template v-if="item.status === 'unknown'">
-                      {{ $t('system_detail.no_heartbeat_yet') }}
-                    </template>
-                    <template v-else>
-                      {{
-                        $t('system_detail.last_heartbeat_time', {
-                          time: item.last_heartbeat
-                            ? formatRelativeTime(new Date(item.last_heartbeat), locale)
-                            : '-',
-                        })
-                      }}
-                    </template>
+                    {{ $t('system_detail.no_inventory_available') }}
                   </template>
                 </NeTooltip>
-                <template v-else>
-                  <SystemStatusIcon :status="item.status" />
-                  {{ t(`systems.status_${item.status}`) }}
-                </template>
-              </template>
-              <span v-else>-</span>
-              <!-- no inventory warning (do not show for pending/unknown status) -->
-              <NeTooltip
-                v-if="!item.last_inventory && item.status !== 'unknown'"
-                trigger-event="mouseenter focus"
-                placement="top"
-              >
-                <template #trigger>
-                  <FontAwesomeIcon
-                    :icon="faTriangleExclamation"
-                    class="size-4 text-amber-700 dark:text-amber-500"
-                    aria-hidden="true"
-                  />
-                </template>
-                <template #content>
-                  {{ $t('system_detail.no_inventory_available') }}
-                </template>
-              </NeTooltip>
-            </div>
-          </NeTableCell>
-          <NeTableCell :data-label="$t('common.actions')">
-            <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
-              <NeButton
-                v-if="item.status !== 'deleted'"
-                kind="tertiary"
-                @click="goToSystemDetails(item)"
-              >
-                <template #prefix>
-                  <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
-                </template>
-                {{ $t('common.details') }}
-              </NeButton>
-              <!-- kebab menu -->
-              <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />
-            </div>
-          </NeTableCell>
-        </NeTableRow>
-      </NeTableBody>
-      <template #paginator>
-        <NePaginator
-          :current-page="pageNum"
-          :total-rows="pagination?.total_count || 0"
-          :page-size="pageSize"
-          :page-sizes="PAGE_SIZE_OPTIONS"
-          :nav-pagination-label="$t('ne_table.pagination')"
-          :next-label="$t('ne_table.go_to_next_page')"
-          :previous-label="$t('ne_table.go_to_previous_page')"
-          :range-of-total-label="$t('ne_table.of')"
-          :page-size-label="$t('ne_table.show')"
-          @select-page="
-            (page: number) => {
-              pageNum = page
-            }
-          "
-          @select-page-size="
-            (size: number) => {
-              pageSize = size
-              savePageSizeToStorage(SYSTEMS_TABLE_ID, size)
-            }
-          "
-        />
-      </template>
-    </NeTable>
+              </div>
+            </NeTableCell>
+            <NeTableCell :data-label="$t('common.actions')">
+              <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
+                <NeButton
+                  v-if="item.status !== 'deleted'"
+                  kind="tertiary"
+                  @click="goToSystemDetails(item)"
+                >
+                  <template #prefix>
+                    <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
+                  </template>
+                  {{ $t('common.details') }}
+                </NeButton>
+                <!-- kebab menu -->
+                <NeDropdown :items="getKebabMenuItems(item)" :align-to-right="true" />
+              </div>
+            </NeTableCell>
+          </NeTableRow>
+        </NeTableBody>
+        <template #paginator>
+          <NePaginator
+            :current-page="pageNum"
+            :total-rows="pagination?.total_count || 0"
+            :page-size="pageSize"
+            :page-sizes="PAGE_SIZE_OPTIONS"
+            :nav-pagination-label="$t('ne_table.pagination')"
+            :next-label="$t('ne_table.go_to_next_page')"
+            :previous-label="$t('ne_table.go_to_previous_page')"
+            :range-of-total-label="$t('ne_table.of')"
+            :page-size-label="$t('ne_table.show')"
+            @select-page="
+              (page: number) => {
+                pageNum = page
+              }
+            "
+            @select-page-size="
+              (size: number) => {
+                pageSize = size
+                savePageSizeToStorage(SYSTEMS_TABLE_ID, size)
+              }
+            "
+          />
+        </template>
+      </NeTable>
+    </UpdatingTableContainer>
     <!-- side drawer -->
     <CreateOrEditSystemDrawer
       :is-shown="isShownCreateOrEditSystemDrawer"

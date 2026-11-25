@@ -40,6 +40,7 @@ const {
   organizationFilter,
   parentOrganizationFilter,
   addonFilter,
+  favoritesOnly,
   sortBy,
   sortDescending,
   resetFilters,
@@ -116,6 +117,7 @@ async function exportSystems(format: 'pdf' | 'csv') {
       sortBy.value,
       sortDescending.value,
       parentOrganizationFilter.value.map((o) => o.id),
+      favoritesOnly.value,
     )
     const fileName = exportFileName(t('systems.title'), format)
     downloadFile(exportData, fileName, format)

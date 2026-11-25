@@ -269,6 +269,7 @@ CREATE TABLE IF NOT EXISTS systems (
     -- Metadata
     custom_data JSONB,                      -- Additional system metadata
     notes TEXT DEFAULT '',                  -- User notes/description
+    ui_url VARCHAR(2048),                   -- Custom web interface address (NULL = default from fqdn and type)
     created_by JSONB NOT NULL,              -- {user_id, username, organization_id} who created the system
 
     -- Timestamps
@@ -304,6 +305,7 @@ ALTER TABLE systems SET (autovacuum_analyze_scale_factor = 0.02);
 COMMENT ON TABLE systems IS 'NS8/NethSecurity systems registered for monitoring and inventory collection';
 COMMENT ON COLUMN systems.type IS 'System type from inventory: ns8 (NethServer 8), nsec (NethSecurity)';
 COMMENT ON COLUMN systems.status IS 'Heartbeat status: unknown (no data), active (heartbeat recent), inactive (heartbeat stale), unregistered (credentials refused), deleted';
+COMMENT ON COLUMN systems.ui_url IS 'Custom address of the system web interface, set by an admin. NULL = the default derived from fqdn and type';
 COMMENT ON COLUMN systems.last_inventory_at IS 'Timestamp of last inventory received. NULL means no inventory received yet';
 COMMENT ON COLUMN systems.suspended_at IS 'Suspension timestamp: NULL = active, non-NULL = suspended';
 COMMENT ON COLUMN systems.suspended_by_org_id IS 'Organization that caused cascade suspension (for targeted reactivation)';
@@ -460,47 +462,6 @@ ALTER TABLE applications ADD CONSTRAINT chk_applications_org_type
 ALTER TABLE applications SET (autovacuum_analyze_scale_factor = 0.02);
 
 -- =============================================================================
--- IMPERSONATION CONSENTS TABLE
--- =============================================================================
--- User consents for allowing impersonation by Owner users
--- Required for GDPR compliance and audit trail
-
-CREATE TABLE IF NOT EXISTS impersonation_consents (
-    id VARCHAR(255) PRIMARY KEY,            -- Unique consent ID
-
-    -- User who gave consent
-    user_id VARCHAR(255) NOT NULL,          -- FK to users table
-
-    -- Consent validity
-    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,  -- When consent expires
-    max_duration_minutes INTEGER NOT NULL DEFAULT 60,  -- Max impersonation session duration
-
-    -- Status
-    active BOOLEAN NOT NULL DEFAULT TRUE,   -- Whether consent is currently active
-
-    -- Timestamps
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-
--- Table documentation
-COMMENT ON TABLE impersonation_consents IS 'User consents for allowing impersonation by Owner users';
-COMMENT ON COLUMN impersonation_consents.user_id IS 'User who granted consent for impersonation';
-COMMENT ON COLUMN impersonation_consents.expires_at IS 'Timestamp when consent expires and must be renewed';
-COMMENT ON COLUMN impersonation_consents.max_duration_minutes IS 'Maximum duration of impersonation session in minutes';
-COMMENT ON COLUMN impersonation_consents.active IS 'Whether consent is currently active (can be revoked)';
-
--- Foreign key constraint
-ALTER TABLE impersonation_consents
-ADD CONSTRAINT impersonation_consents_user_id_fkey
-FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-
--- Performance indexes
-CREATE INDEX IF NOT EXISTS idx_impersonation_consents_user_id ON impersonation_consents(user_id);
-CREATE INDEX IF NOT EXISTS idx_impersonation_consents_active ON impersonation_consents(active);
-CREATE INDEX IF NOT EXISTS idx_impersonation_consents_expires_at ON impersonation_consents(expires_at);
-CREATE INDEX IF NOT EXISTS idx_impersonation_consents_user_active ON impersonation_consents(user_id, active);
-
--- =============================================================================
 -- IMPERSONATION AUDIT TABLE
 -- =============================================================================
 -- Audit log of all impersonation activities for compliance and security
@@ -520,7 +481,7 @@ CREATE TABLE IF NOT EXISTS impersonation_audit (
     impersonated_name TEXT,                       -- Display name for display
 
     -- Action details
-    action_type VARCHAR(50) NOT NULL,       -- start, end, api_call, error
+    action_type VARCHAR(50) NOT NULL,       -- session_start, session_extended, session_end, api_call
     api_endpoint VARCHAR(255),              -- API endpoint accessed (for api_call actions)
     http_method VARCHAR(10),                -- HTTP method used
     request_data TEXT,                      -- Request body (sanitized)
@@ -1460,3 +1421,22 @@ COMMENT ON COLUMN entitlement_seats.released_reason IS 'manual (freed by a user)
 COMMENT ON COLUMN entitlement_seats.released_by     IS 'Actor snapshot of the user that freed the seat; NULL when collect freed it';
 COMMENT ON COLUMN system_entitlements.renewal_stopped_at IS 'The shop must not renew this grant any more: it stays valid until valid_until. Cleared by an activation from a buyer that manages the system';
 COMMENT ON COLUMN system_entitlements.renewal_stopped_reason IS 'Why the renewal stopped: customer_transferred, reseller_transferred or system_transferred (the buyer organization no longer manages what moved). NULL when renewing normally';
+
+-- =============================================================================
+-- SYSTEM FAVORITES
+-- =============================================================================
+-- Systems a user starred. Keyed on the Logto user ID rather than users(id):
+-- the Owner account has no local users row. A destroyed system takes its rows
+-- with it; a destroyed user is cleaned up by the backend. See migration 062.
+
+CREATE TABLE IF NOT EXISTS system_favorites (
+    user_logto_id VARCHAR(255) NOT NULL,
+    system_id     VARCHAR(255) NOT NULL REFERENCES systems(id) ON DELETE CASCADE,
+    created_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_logto_id, system_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_system_favorites_system_id ON system_favorites(system_id);
+
+COMMENT ON TABLE  system_favorites               IS 'Systems a user starred as favorites; personal, never shared with other users';
+COMMENT ON COLUMN system_favorites.user_logto_id IS 'Logto user ID of the user who starred the system (no FK: the Owner has no users row)';

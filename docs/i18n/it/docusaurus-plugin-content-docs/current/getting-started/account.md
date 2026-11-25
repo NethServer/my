@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # Impostazioni Account
 
-Gestione di lingua, profilo, avatar, password, API key e consenso all'impersonificazione.
+Gestione di lingua, profilo, avatar, password e API key, e consultazione delle sessioni di impersonificazione.
 
 ## Panoramica
 
@@ -15,7 +15,7 @@ La pagina Account è accessibile dal menu utente in alto a destra e si compone d
 - **Avatar** -- immagine del profilo
 - **Cambio password** -- aggiornamento credenziali
 - **API key** -- credenziali per l'accesso programmatico
-- **Consenso impersonificazione** -- se gli amministratori possono agire al posto tuo
+- **Impersonificazione** -- le sessioni in cui il personale Nethesis ha agito al posto tuo
 
 ## Impostazioni Generali
 
@@ -93,12 +93,14 @@ La nuova password deve rispettare la policy della piattaforma: almeno **12 carat
 
 La pagina Account include una sezione **API key** dove puoi creare e revocare key personali per l'accesso programmatico da applicazioni e script esterni. Per i dettagli completi consulta [API Key](./api-keys.md).
 
-## Consenso Impersonificazione
+## Impersonificazione
 
-La sezione **Impersonificazione** controlla se gli amministratori dell'organizzazione Owner possono usare temporaneamente la piattaforma al posto tuo. Per capire come funziona, vedi [Impersonificazione](../platform/impersonation.md).
+Il personale Nethesis (utenti dell'organizzazione Owner con ruolo Staff, o l'account `owner`) può usare temporaneamente la piattaforma al posto tuo, per risolvere problemi tecnici o fornire supporto. Il tuo consenso non viene richiesto, e ogni sessione ha una durata limitata.
+
+La sezione **Impersonificazione** elenca, sotto **Sessioni**, ogni sessione in cui sei stato impersonificato: inizio, fine, durata, impersonatore e stato. Clicca su **Mostra audit log** in una sessione per vedere tutte le azioni compiute durante la sessione. Per capire come funziona, vedi [Impersonificazione](../platform/impersonation.md).
 
 :::note
-Il consenso è facoltativo e sempre revocabile da te. Con il consenso revocato, nessuno può aprire una sessione a tuo nome.
+La tabella **Sessioni** non è disponibile mentre stai impersonificando un altro utente.
 :::
 
 ## Risoluzione Problemi

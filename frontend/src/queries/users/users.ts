@@ -4,6 +4,7 @@
 import { MIN_SEARCH_LENGTH } from '@/lib/common'
 import { DEFAULT_PAGE_SIZE, loadPageSizeFromStorage } from '@/lib/tablePageSize'
 import { getUsers, USERS_KEY, USERS_TABLE_ID, type User, type UserStatus } from '@/lib/users/users'
+import { useHideDeletedStatus } from '@/composables/useHideDeletedStatus'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
@@ -40,6 +41,9 @@ export const useUsers = defineQuery(() => {
       },
     ],
     enabled: () => !!loginStore.jwtToken,
+    // a filter, sort or page change keeps the current rows on screen until the
+    // new ones arrive: the table shows its skeleton only on the first load
+    placeholderData: (previousData) => previousData,
     query: () =>
       getUsers(
         pageNum.value,
@@ -135,6 +139,8 @@ export const useUsers = defineQuery(() => {
       { id: 'suspended', label: 'suspended' },
     ]
   }
+
+  useHideDeletedStatus(statusFilter, resetStatusFilter)
 
   return {
     ...rest,

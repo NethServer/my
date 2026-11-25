@@ -51,11 +51,21 @@
   --duration-small: 200ms;
   --duration-large-enter: 300ms;
   --duration-large-leave: 200ms;
+  /* how long a reload runs before its indicator shows: a quicker one ends
+     before anyone needs to be told, and a flashing bar distracts more than it
+     informs */
+  --duration-loading-delay: 500ms;
 
   /* animations */
   --animate-spin-relaxed: spin 1.5s linear infinite;
   --animate-fade-in: fade-in 0.3s ease-in;
   --animate-fade-in-relaxed: fade-in 0.6s ease-in;
+  /* one-shot feedback when a system is starred, so it follows the duration scale */
+  --animate-favorite-pop: favorite-pop var(--duration-large-enter) ease-out;
+  /* a loading indicator that stays transparent while the load is quick, then
+     fades in; removed before the delay ends, it never shows */
+  --animate-delayed-fade-in: fade-in var(--duration-small) ease-in var(--duration-loading-delay)
+    both;
 
   @keyframes fade-in {
     from {
@@ -63,6 +73,21 @@
     }
     to {
       opacity: 1;
+    }
+  }
+
+  @keyframes favorite-pop {
+    0% {
+      transform: scale(1) rotate(0deg);
+    }
+    40% {
+      transform: scale(1.35) rotate(-12deg);
+    }
+    70% {
+      transform: scale(0.95) rotate(4deg);
+    }
+    100% {
+      transform: scale(1) rotate(0deg);
     }
   }
 }
@@ -189,6 +214,8 @@
   --background-input: var(--color-white);
   --icon-enabled: var(--color-green-700);
   --icon-neutral: var(--color-gray-600);
+  --icon-favourite: var(--color-indigo-700);
+  --icon-favourite-hover: var(--color-indigo-900);
 }
 
 /* Apply dark theme when .dark class is present (overrides media query) */
@@ -227,6 +254,8 @@
   --background-input: var(--color-gray-950);
   --icon-enabled: var(--color-green-500);
   --icon-neutral: var(--color-gray-400);
+  --icon-favourite: var(--color-indigo-400);
+  --icon-favourite-hover: var(--color-indigo-300);
 }
 
 /* Reference the CSS custom properties in @theme inline */
@@ -253,6 +282,8 @@
   --color-border-secondary: var(--border-secondary);
   --color-icon-enabled: var(--icon-enabled);
   --color-icon-neutral: var(--icon-neutral);
+  --color-icon-favourite: var(--icon-favourite);
+  --color-icon-favourite-hover: var(--icon-favourite-hover);
 
   --border-ring-button: var(--ring-button);
   --border-ring-input: var(--ring-input);

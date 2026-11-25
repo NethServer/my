@@ -40,8 +40,8 @@ const {
     setTimeout(() => {
       notificationsStore.createNotification({
         kind: 'success',
-        title: t('resellers.reseller_archived'),
-        description: t('common.object_archived_successfully', {
+        title: t('resellers.reseller_deleted'),
+        description: t('resellers.reseller_deleted_description', {
           name: vars.name,
         }),
       })
@@ -67,12 +67,12 @@ function onShow() {
 <template>
   <DeleteObjectModal
     :visible="visible"
-    :title="$t('resellers.archive_reseller')"
-    :primary-label="$t('common.archive')"
+    :title="$t('resellers.delete_reseller')"
+    :primary-label="$t('common.delete')"
     :deleting="deleteResellerLoading"
-    :confirmation-message="t('resellers.archive_reseller_confirmation', { name: reseller?.name })"
+    :confirmation-message="t('resellers.delete_reseller_confirmation', { name: reseller?.name })"
     :confirmation-input="reseller?.name"
-    :error-title="t('organizations.cannot_archive_organization')"
+    :error-title="t('organizations.cannot_delete_organization')"
     :error-description="deleteResellerError?.message"
     @show="onShow"
     @close="emit('close')"

@@ -30,7 +30,7 @@ tags:
   - name: Backend - Me
     description: Current user profile, password and avatar management
   - name: Backend - Impersonation
-    description: Consent-based user impersonation flow (start, exit, status, consent)
+    description: User impersonation flow (start, exit, status, sessions)
   - name: Backend - Impersonation Sessions
     description: Impersonation session history and audit logs
 
@@ -1583,7 +1583,7 @@ components:
             - $ref: '#/components/schemas/OrgCreator'
         can_be_impersonated:
           type: boolean
-          description: Whether this user can currently be impersonated (only shown for users with impersonation permissions, based on active consent)
+          description: "Whether the caller can impersonate this user (only shown for users with impersonation permissions): an active user other than the caller, without the Owner user role"
           example: true
         has_avatar:
           type: boolean
@@ -2224,6 +2224,25 @@ components:
           description: Cumulative count at this date
           example: 15
 
+    SystemFavoriteResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "system added to favorites"
+        data:
+          type: object
+          properties:
+            system_id:
+              type: string
+              example: "sys_123456789"
+            is_favorite:
+              type: boolean
+              example: true
+
     System:
       type: object
       properties:
@@ -2292,6 +2311,14 @@ components:
           type: string
           description: Additional notes or description for the system
           example: "Production web server for EU region"
+        ui_url:
+          type: string
+          nullable: true
+          description: |
+            Address of the system web interface set by an admin. Null means the
+            default one, derived from fqdn and type: `https://{fqdn}/cluster-admin`
+            for NethServer, `https://{fqdn}:9090` for NethSecurity.
+          example: "https://firewall.example.com:8443"
         created_at:
           type: string
           format: date-time
@@ -2369,6 +2396,10 @@ components:
           nullable: true
           description: Logto organization ID (logto_id) that provides the rebranding assets (the org itself or an ancestor). Use this value as the :org_id parameter in /api/rebranding/:org_id/* endpoints.
           example: "org_dist001"
+        is_favorite:
+          type: boolean
+          description: Whether the caller starred the system. Personal, so two users reading the same system can get different values.
+          example: false
         addons:
           type: array
           description: |
@@ -2593,6 +2624,15 @@ components:
           type: string
           description: Additional notes or description for the system
           example: "Production web server for EU region"
+        ui_url:
+          type: string
+          maxLength: 2048
+          description: |
+            Address of the system web interface, an absolute http or https URL.
+            Omitted keeps the current one; empty, or the default address, goes
+            back to the default derived from fqdn and type. An invalid value
+            returns 400 with the validation error `ui_url` / `invalid`.
+          example: "https://firewall.example.com:8443"
 
     # Entitlements schemas
     EntitlementCatalogItem:
@@ -3908,32 +3948,6 @@ components:
           description: Custom notes for the application
           example: "Server di posta aziendale per il reparto marketing"
 
-    ImpersonationConsent:
-      type: object
-      properties:
-        id:
-          type: string
-          description: Consent ID
-          example: "consent_123"
-        user_id:
-          type: string
-          description: User ID who grants consent
-          example: "usr_456"
-        expires_at:
-          type: string
-          format: date-time
-          description: Consent expiration timestamp
-          example: "2025-09-04T14:30:00Z"
-        max_duration_minutes:
-          type: integer
-          description: Maximum duration for each impersonation session in minutes
-          example: 60
-        created_at:
-          type: string
-          format: date-time
-          description: Consent creation timestamp
-          example: "2025-09-03T14:30:00Z"
-
     ImpersonationSession:
       type: object
       properties:
@@ -4028,7 +4042,7 @@ components:
           example: "Jane Smith"
         action_type:
           type: string
-          enum: [session_start, session_end, api_call]
+          enum: [session_start, session_extended, session_end, api_call]
           description: Type of action performed
           example: "api_call"
         api_endpoint:
@@ -4720,6 +4734,8 @@ components:
         - deleted: soft-deleted
 
         When "deleted" is combined with other statuses, both deleted and non-deleted matching records are returned.
+
+        Only the Owner organization may ask for "deleted": any other caller gets 403.
       required: false
       schema:
         type: array
@@ -4743,11 +4759,13 @@ components:
     SystemSortByParam:
       name: sort_by
       in: query
-      description: Field to sort systems by
+      description: >-
+        Field to sort systems by. `favorite` lists the caller's favorites first
+        in ascending order, last in descending order.
       required: false
       schema:
         type: string
-        enum: ["name", "type", "status", "fqdn", "version", "system_key", "created_at", "updated_at", "creator_name", "organization_name", "managed_by"]
+        enum: ["name", "type", "status", "fqdn", "version", "system_key", "created_at", "updated_at", "creator_name", "organization_name", "managed_by", "favorite"]
         example: "name"
 
     TrendPeriodParam:
@@ -4948,6 +4966,7 @@ components:
 
         Special value "deleted" shows soft-deleted systems (where deleted_at IS NOT NULL).
         When "deleted" is combined with other statuses, both deleted and non-deleted systems matching the other statuses are returned.
+        Only the Owner organization may ask for "deleted": any other caller gets 403.
 
         "no_inventory" is additive rather than exclusive: such a system is also
         active or inactive, so it matches both filters. Selecting it alone yields
@@ -4982,6 +5001,18 @@ components:
         example: ["nsec-blacklist", "nsec-ha"]
       style: form
       explode: true
+
+    SystemFavoriteFilterParam:
+      name: favorite
+      in: query
+      description: |
+        Only the systems the caller starred (see PUT /api/systems/{id}/favorite).
+        Favorites are personal: with an impersonation token they are the
+        target's.
+      required: false
+      schema:
+        type: boolean
+        example: true
 
     IncludeAddonsParam:
       name: include_addons
@@ -5395,7 +5426,8 @@ paths:
 
             - enabled: not suspended and not deleted
             - suspended: suspended but not deleted
-            - deleted: soft-deleted
+            - deleted: soft-deleted, for the Owner organization only (any other
+              caller gets 403)
             - no_login: virtual status matching accounts that never signed in
               (latest_login_at IS NULL)
 
@@ -5898,7 +5930,7 @@ paths:
       tags:
         - Backend - Users
       summary: /users/{id}/restore - Restore soft-deleted user
-      description: Restore a soft-deleted user (requires manage:users permission and hierarchical validation)
+      description: Restore a soft-deleted user (Owner organization only; requires manage:users permission and hierarchical validation)
       parameters:
         - name: id
           in: path
@@ -6096,7 +6128,8 @@ paths:
 
             - enabled: not suspended and not deleted
             - suspended: suspended but not deleted
-            - deleted: soft-deleted
+            - deleted: soft-deleted, for the Owner organization only (any other
+              caller gets 403)
             - no_login: virtual status matching accounts that never signed in
               (latest_login_at IS NULL)
 
@@ -7446,144 +7479,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
 
   # ===========================================================================
-  # CONSENT-BASED IMPERSONATION SYSTEM
+  # IMPERSONATION
   # ===========================================================================
-
-  /impersonate/consent:
-    post:
-      operationId: enableImpersonationConsent
-      servers:
-        - url: https://my.nethesis.it/backend/api
-          description: Backend API server
-      tags:
-        - Backend - Impersonation
-      summary: /impersonate/consent - Enable impersonation consent
-      description: |
-        Allows a user to enable consent for being impersonated by authorized users (Owner organization users holding the Staff or Owner role).
-        This is a **privacy-friendly** approach where users explicitly control
-        if and for how long they can be impersonated.
-
-        **Key Features:**
-        - User controls their own impersonation consent
-        - Custom duration (1-168 hours)
-        - Only active while consent is valid
-        - Complete audit trail of all impersonation activities
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                duration_hours:
-                  type: integer
-                  minimum: 1
-                  maximum: 168
-                  default: 1
-                  description: How many hours the consent should be active (max 1 week, defaults to 1 hour)
-                  example: 24
-      responses:
-        '200':
-          description: Impersonation consent enabled successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "impersonation consent enabled successfully"
-                  data:
-                    type: object
-                    properties:
-                      consent:
-                        $ref: '#/components/schemas/ImpersonationConsent'
-        '400':
-          description: Bad request (invalid duration)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                code: 400
-                message: "Duration must be between 1 and 168 hours"
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-    get:
-      operationId: getImpersonationConsentStatus
-      servers:
-        - url: https://my.nethesis.it/backend/api
-          description: Backend API server
-      tags:
-        - Backend - Impersonation
-      summary: /impersonate/consent - Get impersonation consent status
-      description: |
-        Retrieves the current impersonation consent status for the authenticated user.
-        Shows if consent is active, when it expires, and other consent details.
-      responses:
-        '200':
-          description: Consent status retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "consent status retrieved successfully"
-                  data:
-                    type: object
-                    properties:
-                      consent:
-                        allOf:
-                          - $ref: '#/components/schemas/ImpersonationConsent'
-                        type: object
-                        nullable: true
-                        description: Consent details (null if no active consent)
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-    delete:
-      operationId: disableImpersonationConsent
-      servers:
-        - url: https://my.nethesis.it/backend/api
-          description: Backend API server
-      tags:
-        - Backend - Impersonation
-      summary: /impersonate/consent - Disable impersonation consent
-      description: |
-        Disables all active impersonation consent for the authenticated user.
-        This prevents any future impersonation until consent is re-enabled.
-      responses:
-        '200':
-          description: Impersonation consent disabled successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 200
-                  message:
-                    type: string
-                    example: "impersonation consent disabled successfully"
-                  data:
-                    type: object
-                    nullable: true
-        '401':
-          $ref: '#/components/responses/Unauthorized'
 
   /impersonate:
     post:
-      operationId: impersonateUserWithConsent
+      operationId: impersonateUser
       servers:
         - url: https://my.nethesis.it/backend/api
           description: Backend API server
@@ -7592,8 +7493,9 @@ paths:
       summary: /impersonate - Start impersonation (permission-based access)
       description: |
         Allows users with the `impersonate:users` permission (Staff and Owner roles, Owner organization only)
-        to impersonate another user, but only if that user has active consent enabled.
-        The impersonation token duration will match the user's consent settings.
+        to impersonate another active user, without the target's consent. An Owner-role account is never a
+        target. The token expires after the `IMPERSONATION_SESSION_DURATION` of the backend (default 1 hour),
+        and every session is audited.
       requestBody:
         required: true
         content:
@@ -7630,8 +7532,13 @@ paths:
                         example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                       expires_in:
                         type: integer
-                        description: Token expiration time in seconds (matches user consent)
-                        example: 86400
+                        description: Token expiration time in seconds (IMPERSONATION_SESSION_DURATION)
+                        example: 3600
+                      expires_at:
+                        type: string
+                        format: date-time
+                        description: When the impersonation token expires
+                        example: "2025-09-04T14:30:00Z"
                       session_id:
                         type: string
                         description: Unique session ID for audit tracking
@@ -7661,11 +7568,6 @@ paths:
                   value:
                     code: 400
                     message: "Target user not found or inaccessible"
-                no_consent:
-                  summary: User has no active consent
-                  value:
-                    code: 400
-                    message: "Target user has not provided consent for impersonation or consent has expired"
         '403':
           description: Forbidden (insufficient permissions for impersonation, or already impersonating)
           content:
@@ -7738,6 +7640,77 @@ paths:
                 message: "Not currently impersonating a user"
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  /impersonate/extend:
+    post:
+      operationId: extendImpersonation
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
+      tags:
+        - Backend - Impersonation
+      summary: /impersonate/extend - Extend the impersonation session
+      description: |
+        Restarts the current impersonation session for a full `IMPERSONATION_SESSION_DURATION` (default 1 hour)
+        from now, with no limit on the number of extensions. Called with the impersonation token: the response
+        carries a new token for the same session, and the presented one is revoked. The impersonator must still
+        hold `impersonate:users` and the target must still be an active user without the Owner role. API keys
+        are refused. The extension is recorded in the session audit as `session_extended`.
+      responses:
+        '200':
+          description: Impersonation extended successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "impersonation extended successfully"
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        description: New impersonation JWT token for the same session
+                        example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      expires_in:
+                        type: integer
+                        description: Token expiration time in seconds (IMPERSONATION_SESSION_DURATION)
+                        example: 3600
+                      expires_at:
+                        type: string
+                        format: date-time
+                        description: When the new impersonation token expires
+                        example: "2025-09-04T14:30:00Z"
+                      session_id:
+                        type: string
+                        description: The session being extended
+                        example: "session-uuid-here"
+                      is_impersonating:
+                        type: boolean
+                        example: true
+                      impersonated_user:
+                        $ref: '#/components/schemas/User'
+                      impersonator:
+                        $ref: '#/components/schemas/User'
+        '400':
+          description: Not impersonating, the session expired or ended, or the target is no longer active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: The impersonator lost impersonate:users, the target now has the Owner role, or the caller used an API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /impersonate/status:
     get:
@@ -8575,7 +8548,7 @@ paths:
       tags:
         - Backend - Customers
       summary: /customers/{id}/restore - Restore soft-deleted customer
-      description: Restore a soft-deleted customer (requires manage:customers permission and hierarchical validation)
+      description: Restore a soft-deleted customer (Owner organization only; requires manage:customers permission and hierarchical validation)
       parameters:
         - name: id
           in: path
@@ -9210,7 +9183,7 @@ paths:
       tags:
         - Backend - Distributors
       summary: /distributors/{id}/restore - Restore soft-deleted distributor
-      description: Restore a soft-deleted distributor (requires manage:distributors permission and hierarchical validation)
+      description: Restore a soft-deleted distributor (Owner organization only; requires manage:distributors permission and hierarchical validation)
       parameters:
         - name: id
           in: path
@@ -10912,7 +10885,7 @@ paths:
       tags:
         - Backend - Resellers
       summary: /resellers/{id}/restore - Restore soft-deleted reseller
-      description: Restore a soft-deleted reseller (requires manage:resellers permission and hierarchical validation)
+      description: Restore a soft-deleted reseller (Owner organization only; requires manage:resellers permission and hierarchical validation)
       parameters:
         - name: id
           in: path
@@ -11227,6 +11200,7 @@ paths:
         - $ref: '#/components/parameters/ParentOrganizationFilterParam'
         - $ref: '#/components/parameters/SystemStatusFilterParam'
         - $ref: '#/components/parameters/SystemAddonFilterParam'
+        - $ref: '#/components/parameters/SystemFavoriteFilterParam'
         - $ref: '#/components/parameters/IncludeAddonsParam'
       responses:
         '200':
@@ -11496,7 +11470,7 @@ paths:
       tags:
         - Backend - Systems
       summary: /systems/{id}/restore - Restore soft-deleted system
-      description: Restore a soft-deleted system. Users can restore systems they have permission to delete based on hierarchical permissions.
+      description: Restore a soft-deleted system (Owner organization only; requires manage:systems permission and hierarchical validation).
       parameters:
         - name: id
           in: path
@@ -11544,6 +11518,89 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /systems/{id}/favorite:
+    put:
+      operationId: addSystemFavorite
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
+      tags:
+        - Backend - Systems
+      summary: /systems/{id}/favorite - Star a system
+      description: |
+        Add the system to the caller's favorites. Favorites are personal and
+        change nothing on the system, so read:systems is enough. Starring a
+        system already starred succeeds without changes. The system must be
+        visible to the caller and not archived.
+
+        Refused with an API key and with an impersonation token.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: System added to favorites
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemFavoriteResponse'
+              example:
+                code: 200
+                message: "system added to favorites"
+                data:
+                  system_id: "sys_123456789"
+                  is_favorite: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: removeSystemFavorite
+      servers:
+        - url: https://my.nethesis.it/backend/api
+          description: Backend API server
+      tags:
+        - Backend - Systems
+      summary: /systems/{id}/favorite - Unstar a system
+      description: |
+        Remove the system from the caller's favorites. It succeeds when the
+        system was not starred, and also for a system the caller can no longer
+        see or that was archived, so a stale favorite can always be removed.
+
+        Refused with an API key and with an impersonation token.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: System ID
+          schema:
+            type: string
+            example: "sys_123456789"
+      responses:
+        '200':
+          description: System removed from favorites
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemFavoriteResponse'
+              example:
+                code: 200
+                message: "system removed from favorites"
+                data:
+                  system_id: "sys_123456789"
+                  is_favorite: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /systems/{id}/destroy:
     delete:
@@ -11727,11 +11784,18 @@ paths:
       summary: /systems/{id}/reachability - Check if system web UI is reachable
       description: |
         Checks if the system's web UI is reachable from the backend server.
-        The target URL is constructed from the system's FQDN and type:
+        When an admin set `ui_url`, only that address is tried. Otherwise the
+        target URL is constructed from the system's FQDN and type:
         - NS8: `https://{fqdn}/cluster-admin`
-        - NethSecurity: tries `https://{fqdn}:443` first, then `https://{fqdn}:9090`
+        - NethSecurity: tries `https://{fqdn}:9090` first, then `https://{fqdn}:443`
 
-        Returns `reachable: true` with the responding `url` on success, or `reachable: false` if unreachable.
+        Hosts that are not publicly routable are never probed, and read as not reachable.
+
+        Returns `reachable: true` with the responding `url` on success. When
+        nothing responds, `reachable: false` comes with the `url` to open
+        anyway, since the check runs from the server and the system may still
+        open from the user's network; `url` is empty only when no address is
+        known yet.
       parameters:
         - name: id
           in: path
@@ -11762,7 +11826,7 @@ paths:
                         example: true
                       url:
                         type: string
-                        description: The URL that responded successfully (empty if not reachable)
+                        description: The URL that responded, or the one to open when none did (empty when no address is known yet)
                         example: "https://firewall.example.com:9090"
         '400':
           $ref: '#/components/responses/BadRequest'
@@ -12011,6 +12075,7 @@ paths:
         - $ref: '#/components/parameters/ParentOrganizationFilterParam'
         - $ref: '#/components/parameters/SystemStatusFilterParam'
         - $ref: '#/components/parameters/SystemAddonFilterParam'
+        - $ref: '#/components/parameters/SystemFavoriteFilterParam'
       responses:
         '200':
           description: Export file generated successfully

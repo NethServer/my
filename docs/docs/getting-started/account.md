@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # Account Settings
 
-Manage your language, profile, avatar, password, API keys and impersonation consent.
+Manage your language, profile, avatar, password and API keys, and review your impersonation sessions.
 
 ## Overview
 
@@ -15,7 +15,7 @@ The Account page is reached from the user menu in the top-right corner. It is ma
 - **Avatar** -- your profile picture
 - **Change password** -- credential update
 - **API keys** -- credentials for programmatic access
-- **Impersonation consent** -- whether administrators may act as you
+- **Impersonation** -- the sessions in which Nethesis staff acted as you
 
 ## General Settings
 
@@ -93,12 +93,14 @@ The new password must satisfy the platform policy: at least **12 characters**, w
 
 The Account page includes an **API Keys** section where you can create and revoke personal keys for programmatic access from external applications and scripts. For full details, see [API Keys](./api-keys.md).
 
-## Impersonation Consent
+## Impersonation
 
-The **Impersonation** section controls whether Owner-organization administrators can temporarily use the platform as you. For how impersonation works, see [Impersonation](../platform/impersonation.md).
+Nethesis staff (users of the Owner organization with the Staff role, or the `owner` account) can temporarily use the platform as you, to resolve technical issues or provide support. Your consent is not asked, and every session has a limited duration.
+
+The **Impersonation** section lists, under **Sessions**, every session in which you were impersonated: start, end, duration, impersonator and status. Click **Show audit log** on a session to see every action performed during it. For how impersonation works, see [Impersonation](../platform/impersonation.md).
 
 :::note
-Consent is optional and always yours to revoke. With consent revoked, nobody can start a session as you.
+The **Sessions** table is not available while you are impersonating another user.
 :::
 
 ## Troubleshooting

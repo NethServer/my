@@ -2,13 +2,13 @@
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
 /**
- * Creating, editing and archiving a user, and assigning technical roles.
+ * Creating, editing and deleting a user, and assigning technical roles.
  *
  * The lifecycle runs as one serial sequence rather than as independent tests,
  * for a reason that is not tidiness: creating a user makes the backend send a
  * welcome email with a temporary password
  * (`services/local/users.go:351`). Sharing one user across create, edit and
- * archive keeps that to a single message per run instead of one per test.
+ * delete keeps that to a single message per run instead of one per test.
  *
  * Everything created is plus sub-addressed with the reserved tag and destroyed
  * afterwards; teardown refuses any address without it. See
@@ -104,7 +104,7 @@ async function filterTo(page: Page, email: string): Promise<Locator> {
 
 test.describe('user lifecycle', () => {
   // Serial for the reason in the file docstring: one account covers create,
-  // edit and archive, so each step depends on the one before. Scoped to this
+  // edit and delete, so each step depends on the one before. Scoped to this
   // describe rather than the file, so a failure here does not skip the
   // independent validation test below.
   //
@@ -163,44 +163,44 @@ test.describe('user lifecycle', () => {
     ])
   })
 
-  test('archives the user', async ({ page }) => {
+  test('deletes the user', async ({ page }) => {
     await openUsers(page)
 
     const row = await filterTo(page, email)
     await row.getByRole('button', { name: /menu/i }).click()
-    await page.getByRole('menuitem', { name: t('common.archive') }).click()
+    await page.getByRole('menuitem', { name: t('common.delete') }).click()
 
     // The confirmation is type-to-confirm, and that is load-bearing:
     // `DeleteObjectModal.vue` only emits primary-click when the typed text
-    // matches the name exactly, so clicking Archive without it shows a
-    // validation error and archives nothing.
+    // matches the name exactly, so clicking Delete without it shows a
+    // validation error and deletes nothing.
     //
     // Asserted on the heading rather than on the dialog itself: the element
     // carrying role="dialog" is a zero-size wrapper around fixed-position
     // children, which Playwright reports as hidden however open the modal is.
     const confirm = page.getByRole('dialog')
-    const title = confirm.getByRole('heading', { name: t('users.archive_user') })
+    const title = confirm.getByRole('heading', { name: t('users.delete_user') })
 
     await expect(title).toBeVisible()
     await confirm.getByRole('textbox').fill(name)
-    await confirm.getByRole('button', { name: t('common.archive') }).click()
+    await confirm.getByRole('button', { name: t('common.delete') }).click()
 
     // Wait for the modal to go before looking at the table, and not only for
     // tidiness: while it is open the rest of the page is aria-hidden, so
     // `getByRole('row')` matches nothing and the assertion below would pass
-    // against an archive that never happened.
+    // against a deletion that never happened.
     await expect(title).toBeHidden({ timeout: 30_000 })
 
-    // Archived users drop out of the listing, which asks for enabled and
+    // Deleted users drop out of the listing, which asks for enabled and
     // suspended only.
     await expect(rowOf(page, email)).toHaveCount(0, { timeout: 30_000 })
 
-    // The row leaving the page is not the same as the account being archived.
-    // Ask the backend for the archived ones and it is there.
-    const archived = await listE2eUsers(['deleted'])
+    // The row leaving the page is not the same as the account being deleted.
+    // Ask the backend for the deleted ones and it is there.
+    const deleted = await listE2eUsers(['deleted'])
     expect(
-      archived.map((u) => u.email),
-      `${email} should be listed once the archived are asked for`,
+      deleted.map((u) => u.email),
+      `${email} should be listed once the deleted are asked for`,
     ).toContain(email)
   })
 })

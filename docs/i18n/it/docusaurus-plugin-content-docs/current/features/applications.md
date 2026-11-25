@@ -73,6 +73,8 @@ Un'applicazione senza assegnazione non sparisce: torna a essere conteggiata sull
 3. Aggiungi o modifica le note
 4. Salva le modifiche
 
+Nell'elenco delle applicazioni, un'icona accanto al nome di un'applicazione con note le mostra al passaggio del mouse (fino a 10 righe).
+
 ## Totali e Trend
 
 La [Dashboard](./dashboard.md) mostra il totale delle applicazioni visibili al tuo account, con un badge che porta a quelle non assegnate. I dati di crescita nel tempo sono disponibili da API tramite `/backend/api/applications/trend`.

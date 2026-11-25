@@ -16,7 +16,12 @@ import { useStorage } from '@vueuse/core'
 import { getPreference } from '@nethesis/vue-components'
 import { getBrowserLocale, setLocale } from '@/i18n'
 import router from '@/router'
-import { deleteImpersonate, getImpersonationStatus, postImpersonate } from '@/lib/impersonation'
+import {
+  deleteImpersonate,
+  getImpersonationStatus,
+  postExtendImpersonation,
+  postImpersonate,
+} from '@/lib/impersonation'
 import { canImpersonateUsers } from '@/lib/permissions'
 import { organizationDetailRoute } from '@/lib/organizations/organizationDetailRoute'
 
@@ -82,6 +87,11 @@ export const useLoginStore = defineStore('login', () => {
   const impersonatedUser = ref<UserInfo | undefined>()
   const originalUser = ref<UserInfo | undefined>()
   const impersonateExpiration = ref<Date | undefined>()
+  // Bumped whenever the session switches to another identity (an
+  // impersonation starts or ends). A token replaced within the same identity
+  // (a refresh, an extended impersonation) keeps it: the interceptor replays a
+  // refused request only under the identity it was sent with.
+  const sessionEpoch = ref<number>(0)
 
   const userDisplayName = computed(() => userInfo.value?.name || '')
 
@@ -90,8 +100,8 @@ export const useLoginStore = defineStore('login', () => {
   })
 
   // The bootstrap 'owner' account is the only user without a local database id
-  // (it lives only in Logto): profile editing, API keys and impersonation
-  // consent need that row, so they are disabled for it — and only for it.
+  // (it lives only in Logto): profile editing and API keys need that row, so
+  // they are disabled for it — and only for it.
   // Staff/Owner-org users are regular accounts.
   const isOwnerAccount = computed(() => {
     return !!userInfo.value && userInfo.value.id === ''
@@ -416,6 +426,7 @@ export const useLoginStore = defineStore('login', () => {
       }
 
       // Update tokens and user info with impersonated user
+      sessionEpoch.value++
       jwtToken.value = impersonationStatus.token
       impersonatedUser.value = impersonationStatus.impersonated_user
       userInfo.value = impersonatedUser.value
@@ -546,6 +557,7 @@ export const useLoginStore = defineStore('login', () => {
       }
 
       // Update tokens and user info with impersonated user
+      sessionEpoch.value++
       jwtToken.value = res.token
       impersonatedUser.value = res.impersonated_user as UserInfo
       userInfo.value = impersonatedUser.value
@@ -563,11 +575,22 @@ export const useLoginStore = defineStore('login', () => {
     }
   }
 
+  // the previous impersonation token is revoked: switch to the new one at once
+  const extendImpersonation = async () => {
+    const res = await postExtendImpersonation()
+    jwtToken.value = res.token
+    impersonatedUser.value = res.impersonated_user as UserInfo
+    userInfo.value = impersonatedUser.value
+    impersonateExpiration.value = new Date(res.expires_at)
+    return res
+  }
+
   const exitImpersonation = async () => {
     try {
       const res = await deleteImpersonate()
 
       // Restore original user info
+      sessionEpoch.value++
       jwtToken.value = res.token
       refreshToken.value = res.refresh_token
       tokenRefreshedAt.value = Date.now()
@@ -604,6 +627,7 @@ export const useLoginStore = defineStore('login', () => {
     impersonatedUser,
     originalUser,
     impersonateExpiration,
+    sessionEpoch,
     refreshAvatar,
     fetchTokenAndUserInfo,
     shouldRefreshToken,
@@ -611,6 +635,7 @@ export const useLoginStore = defineStore('login', () => {
     pendingRefresh,
     refreshIdToken,
     impersonateUser,
+    extendImpersonation,
     exitImpersonation,
     login,
     logout,

@@ -37,15 +37,42 @@ export const CreateSystemSchema = v.object({
   created_by_organization_id: v.optional(v.string()),
 })
 
+// An absolute http(s) address with a host, as the backend checks it
+// (models.NormalizeUIURL); empty means the default address
+export const isValidUiUrl = (value: string) => {
+  if (!value) {
+    return true
+  }
+  try {
+    const url = new URL(value)
+    return (
+      (url.protocol === 'https:' || url.protocol === 'http:') && !!url.hostname && !url.username
+    )
+  } catch {
+    return false
+  }
+}
+
 export const EditSystemSchema = v.object({
   ...CreateSystemSchema.entries,
   id: v.string(),
+  // omitted keeps the current address, empty goes back to the default
+  ui_url: v.optional(
+    v.pipe(
+      v.string(),
+      v.maxLength(2048, 'systems.ui_url_invalid'),
+      v.check(isValidUiUrl, 'systems.ui_url_invalid'),
+    ),
+  ),
 })
 
 export const SystemSchema = v.object({
   ...CreateSystemSchema.entries,
   ...EditSystemSchema.entries,
   type: v.optional(v.picklist(['ns8', 'nsec'])),
+  // Address of the web interface set by an admin; null means the default one
+  // (getDefaultUiUrl)
+  ui_url: v.optional(v.nullable(v.string())),
   status: v.optional(SystemStatusSchema),
   fqdn: v.string(),
   ipv4_address: v.string(),
@@ -64,6 +91,9 @@ export const SystemSchema = v.object({
   first_heartbeat: v.optional(v.string()),
   first_inventory: v.optional(v.string()),
   rebranding_enabled: v.optional(v.boolean()),
+  // Whether the signed-in user starred the system: personal, not a property
+  // of the system
+  is_favorite: v.optional(v.boolean()),
   // Add-on catalog ids granted and valid right now. The list endpoint sends
   // them only when asked with include_addons, and omits the key for a system
   // holding none.
@@ -99,7 +129,8 @@ export type EditSystem = v.InferOutput<typeof EditSystemSchema>
 export type System = v.InferOutput<typeof SystemSchema>
 // organization_name: the assigned company; managed_by: the company getManagedBy
 // returns for it
-export type SystemSortBy = keyof System | 'organization_name' | 'managed_by'
+// favorite: the systems the signed-in user starred first (or last)
+export type SystemSortBy = keyof System | 'organization_name' | 'managed_by' | 'favorite'
 export type SystemStatus = v.InferOutput<typeof SystemStatusSchema>
 
 interface SystemsResponse {
@@ -151,6 +182,7 @@ export const getQueryStringParams = (
   sortBy: string | null,
   sortDescending: boolean,
   parentOrganizationFilter: string[] = [],
+  favoritesOnly = false,
 ) => {
   const searchParams = new URLSearchParams({
     page: pageNum.toString(),
@@ -191,6 +223,10 @@ export const getQueryStringParams = (
   addonFilter.forEach((addon) => {
     searchParams.append('addon', addon)
   })
+
+  if (favoritesOnly) {
+    searchParams.append('favorite', 'true')
+  }
   return searchParams.toString()
 }
 
@@ -207,6 +243,7 @@ export const getQueryStringParamsForExport = (
   sortBy: string | undefined,
   sortDescending: boolean | undefined,
   parentOrganizationFilter: string[] | undefined = undefined,
+  favoritesOnly = false,
 ) => {
   const searchParams = new URLSearchParams({
     format: format,
@@ -269,6 +306,10 @@ export const getQueryStringParamsForExport = (
   if (sortDescending !== undefined) {
     searchParams.append('sort_direction', sortDescending ? 'desc' : 'asc')
   }
+
+  if (favoritesOnly) {
+    searchParams.append('favorite', 'true')
+  }
   return searchParams.toString()
 }
 
@@ -285,6 +326,7 @@ export const getSystems = (
   sortBy: string,
   sortDescending: boolean,
   parentOrganizationFilter: string[] = [],
+  favoritesOnly = false,
 ) => {
   const loginStore = useLoginStore()
   const params = getQueryStringParams(
@@ -300,6 +342,7 @@ export const getSystems = (
     sortBy,
     sortDescending,
     parentOrganizationFilter,
+    favoritesOnly,
   )
 
   return axios
@@ -377,6 +420,15 @@ export const restoreSystem = (system: System) => {
   )
 }
 
+// Stars or unstars a system for the signed-in user. Both calls are idempotent.
+export const setSystemFavorite = (systemId: string, favorite: boolean) => {
+  const loginStore = useLoginStore()
+  const url = `${API_URL}/systems/${systemId}/favorite`
+  const headers = { Authorization: `Bearer ${loginStore.jwtToken}` }
+
+  return favorite ? axios.put(url, {}, { headers }) : axios.delete(url, { headers })
+}
+
 export const regenerateSystemSecret = (systemId: string) => {
   const loginStore = useLoginStore()
 
@@ -419,6 +471,23 @@ export function getProductName(systemType: string) {
   }
 }
 
+// The address the web interface answers on when nobody set another one, as the
+// backend derives it (models.DefaultUIURL). Empty while the type or the FQDN is
+// not known, before the first inventory.
+export const getDefaultUiUrl = (systemType: string | undefined, fqdn: string | undefined) => {
+  if (!fqdn) {
+    return ''
+  }
+  switch (systemType) {
+    case 'ns8':
+      return `https://${fqdn}/cluster-admin`
+    case 'nsec':
+      return `https://${fqdn}:9090`
+    default:
+      return ''
+  }
+}
+
 export const getProductLogo = (systemType: string) => {
   switch (systemType) {
     case 'ns8':
@@ -454,6 +523,7 @@ export const getExport = (
   sortBy: string | undefined = undefined,
   sortDescending: boolean | undefined = undefined,
   parentOrganizationFilter: string[] | undefined = undefined,
+  favoritesOnly = false,
 ) => {
   const loginStore = useLoginStore()
   const params = getQueryStringParamsForExport(
@@ -469,6 +539,7 @@ export const getExport = (
     sortBy,
     sortDescending,
     parentOrganizationFilter,
+    favoritesOnly,
   )
 
   return axios

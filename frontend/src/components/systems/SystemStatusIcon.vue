@@ -6,7 +6,7 @@
 <script setup lang="ts">
 import type { SystemStatus } from '@/lib/systems/systems'
 import {
-  faBoxArchive,
+  faTrash,
   faCircleCheck,
   faCirclePause,
   faCircleQuestion,
@@ -41,7 +41,7 @@ defineProps<{
   />
   <FontAwesomeIcon
     v-else-if="status === 'deleted'"
-    :icon="faBoxArchive"
+    :icon="faTrash"
     class="text-icon-neutral size-4"
     aria-hidden="true"
   />

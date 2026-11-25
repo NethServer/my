@@ -88,7 +88,7 @@ The `system_secret` is shown **only once** during creation. Copy and save it imm
 
 Navigate to **Systems** to see:
 
-- System name
+- System name, with a star to add it to your [favorites](#favorite-systems) and, when it has notes, an icon that shows them on hover (up to 10 lines)
 - Type (ns8, nsec, etc.)
 - Version, with an update icon when an update is available
 - FQDN and IP addresses
@@ -108,16 +108,57 @@ Use filters to find specific systems:
 - **Created By**: Filter by user who created the system
 - **Add-on**: Filter by purchased add-on (see [Add-ons](../features/entitlements.md))
 - **Status**: unknown, active, inactive, suspended, deleted
-- **Sort By**: Name, version, FQDN/IP address, Organization, Created By, Status
+- **Favorites**: all systems, or only the ones you starred (see [Favorite Systems](#favorite-systems))
+- **Sort By**: Name, version, FQDN/IP address, Organization, Created By, Status, Favorite
 
 The **Add-on** menu lists the add-ons held by at least one of your systems, so
 an option never comes back empty. Selecting more than one widens the search:
 a system matches when it holds any of them. Only add-ons that are valid at that
 moment count, so an expired or cancelled one leaves the system out.
 
+### Favorite Systems
+
+Star the systems you work on most to find them quickly. Click the star next to
+the system name, in the systems list or in the header of the system page; click
+it again to remove the system from your favorites. In the systems list, the
+star of a system that is not a favorite shows when you point at its row; the
+**Add to favorites** and **Remove from favorites** options of the row's menu
+do the same.
+
+- Favorites are personal: each user has their own, and starring a system
+  changes nothing for anyone else
+- Every user who can see a system can star it, read-only roles included
+- Your favorites follow you on every browser and device
+- A deleted system leaves your favorites list and comes back when it is
+  restored; a destroyed one is removed for good
+- While impersonating another user, their favorites are shown but cannot be
+  changed
+
+Use the **Favorites** filter to list only your favorites, or sort by
+**Favorite** to bring them to the top.
+
 ### System Details
 
-Click on a system to view comprehensive information:
+Click on a system to view comprehensive information.
+
+#### Opening the System
+
+The button at the top of the page opens the web interface of the system in a
+new tab: **Open NethServer**, **Open NethSecurity**, or **Open system** while
+the product is not known yet. The default address comes from the FQDN of the
+latest inventory:
+
+- NethServer: `https://<fqdn>/cluster-admin`
+- NethSecurity: `https://<fqdn>:9090` (the check also tries port 443)
+
+My checks whether the address answers. The check runs from the My server, not
+from your browser: when it fails, an information icon next to the button
+explains why, but the button still works, because the system may open from
+your network, for example over a VPN. The button is disabled only while the
+address is unknown, before the first inventory.
+
+If the web interface answers at another address, set it in **Web interface
+URL** when editing the system.
 
 #### Overview Tab
 
@@ -174,6 +215,9 @@ See [Inventory and Heartbeat](./inventory-heartbeat.md) for details.
    - Name
    - Organization
    - Notes
+   - Web interface URL, once the first inventory has told the product: the
+     address the **Open** button uses. Leave it empty to use the default one,
+     which follows the FQDN of later inventories
 4. Click **Save system**
 
 :::tip
@@ -227,27 +271,27 @@ Soft delete marks a system as deleted without removing data:
 - Cannot send inventory or heartbeat
 - Hidden from normal views
 - Its applications are hidden from lists, totals and organization counters until the system is restored (they are kept, not deleted)
-- Can be restored if needed
+- Can be restored by the Owner organization
 - All historical data is preserved
 
-**To view deleted systems:**
-1. Apply filter: Status = "deleted"
+**To view deleted systems** (Owner organization only):
+1. Apply filter: Status = Deleted
 2. Select the deleted system
 3. Click **Restore** to undelete
 
-### Permanent Delete
+### Destroy
 
 :::danger
 This operation is irreversible!
 :::
 
-To permanently delete:
+To destroy a system:
 1. Soft delete the system first
 2. Navigate to deleted systems view
 3. Select the system
-4. Click **Permanent Delete**
+4. Click **Destroy**
 5. Type system name to confirm
-6. Click **Delete**
+6. Click **Destroy**
 
 **This will remove:**
 - System record

@@ -6,21 +6,24 @@
 <script setup lang="ts">
 import {
   NeBadgeV2,
+  NeButton,
   NeHeading,
   NeInlineNotification,
   NeSkeleton,
+  NeSpinner,
   NeTabs,
+  NeTooltip,
 } from '@nethesis/vue-components'
-/*//// import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome' */
-/*//// import { faArrowUpRightFromSquare } from '@fortawesome/free-solid-svg-icons' */
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { faArrowUpRightFromSquare, faCircleInfo } from '@fortawesome/free-solid-svg-icons'
 import PageBreadcrumb from '@/components/common/PageBreadcrumb.vue'
 import OrganizationLink from '@/components/organizations/OrganizationLink.vue'
 import OrganizationIcon from '@/components/organizations/OrganizationIcon.vue'
 import { getOrganizationBadgeClasses } from '@/lib/organizations/organizations'
-import { canReadAddons, canReadSystems } from '@/lib/permissions'
+import { canManageSystems, canReadAddons, canReadSystems } from '@/lib/permissions'
 import { useSystemDetail } from '@/queries/systems/systemDetail'
 import { useTabs } from '@/composables/useTabs'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Tab } from '@nethesis/vue-components'
 import SystemOverviewPanel from '@/components/systems/SystemOverviewPanel.vue'
@@ -29,14 +32,19 @@ import SystemChangeHistoryPanel from '@/components/systems/SystemChangeHistoryPa
 import SystemBackupsPanel from '@/components/systems/SystemBackupsPanel.vue'
 import SystemAlertsPanel from '@/components/systems/SystemAlertsPanel.vue'
 import SystemAddonsPanel from '@/components/systems/SystemAddonsPanel.vue'
+import SystemFavoriteToggle from '@/components/systems/SystemFavoriteToggle.vue'
 import { useLatestInventory } from '@/queries/systems/latestInventory'
+import { getDefaultUiUrl, getProductName } from '@/lib/systems/systems'
+import CreateOrEditSystemDrawer from '@/components/systems/CreateOrEditSystemDrawer.vue'
+import TooltipActionButton from '@/components/common/TooltipActionButton.vue'
+import { useSystemReachability } from '@/queries/systems/systemReachability'
 import { useLoginStore } from '@/stores/login'
 
 const { t } = useI18n()
 const loginStore = useLoginStore()
 const { state: systemDetail } = useSystemDetail()
 const { state: latestInventory } = useLatestInventory()
-// const { state: reachabilityState, asyncStatus: reachabilityAsyncStatus } = useSystemReachability() ////
+const { state: reachabilityState, asyncStatus: reachabilityAsyncStatus } = useSystemReachability()
 
 // Add-ons are only listed to companies allowed to see what they hold; every
 // other tab is available to anyone who can read the system.
@@ -57,19 +65,54 @@ const tabsConfig = computed((): Tab[] => {
 
 const { tabs, selectedTab } = useTabs(tabsConfig)
 
-////
-// const isSystemReachable = computed(() => !!reachabilityState.value.data?.reachable)
-// const isCheckingReachability = computed(() => reachabilityAsyncStatus.value === 'loading')
-// const isGoToSystemDisabled = computed(
-//   () => isCheckingReachability.value || !isSystemReachable.value,
-// )
+const isCheckingReachability = computed(() => reachabilityAsyncStatus.value === 'loading')
+const isEditSystemDrawerShown = ref(false)
 
-// const openSystem = () => {
-//   const url = reachabilityState.value.data?.url
-//   if (url) {
-//     window.open(url, '_blank')
-//   }
-// }
+// The address to open: the one that answered the check, else the custom or the
+// default one. The check runs from the My server, so a system it cannot reach
+// may still open from the user's network: the button stays enabled, and only
+// an unknown address, before the first inventory, disables it.
+const openSystemUrl = computed(() => {
+  const system = systemDetail.value.data
+  return (
+    reachabilityState.value.data?.url ||
+    system?.ui_url ||
+    getDefaultUiUrl(system?.type, system?.fqdn)
+  )
+})
+const isOpenSystemDisabled = computed(() => !openSystemUrl.value)
+const isNotReachableWarningShown = computed(
+  () =>
+    !!openSystemUrl.value &&
+    reachabilityState.value.status === 'success' &&
+    !reachabilityState.value.data.reachable,
+)
+
+// the address can be changed from the edit drawer, which offers it once the
+// product is known
+const canEditSystemUiUrl = computed(() => {
+  const system = systemDetail.value.data
+  return (
+    canManageSystems() &&
+    system?.status !== 'deleted' &&
+    !!getDefaultUiUrl(system?.type, system?.fqdn)
+  )
+})
+
+// the product, known from the inventory: a system that never sent one has no
+// type yet, and gets the generic label
+const openSystemLabel = computed(() => {
+  const type = systemDetail.value.data?.type
+  return type
+    ? t('system_detail.open_product', { product: getProductName(type) })
+    : t('system_detail.open_system')
+})
+
+const openSystem = () => {
+  if (openSystemUrl.value) {
+    window.open(openSystemUrl.value, '_blank', 'noopener')
+  }
+}
 </script>
 
 <template>
@@ -91,9 +134,18 @@ const { tabs, selectedTab } = useTabs(tabsConfig)
     <NeSkeleton v-else-if="systemDetail.status === 'pending'" size="lg" class="mb-9 w-xs" />
     <div v-else class="flex items-start justify-between gap-4">
       <div class="mb-7 flex flex-wrap items-center gap-4">
-        <NeHeading tag="h3">
-          {{ systemDetail.data?.name }}
-        </NeHeading>
+        <div class="flex items-center gap-1">
+          <NeHeading tag="h3">
+            {{ systemDetail.data?.name }}
+          </NeHeading>
+          <SystemFavoriteToggle
+            v-if="systemDetail.data"
+            :system-id="systemDetail.data.id"
+            :system-name="systemDetail.data.name"
+            :is-favorite="systemDetail.data.is_favorite"
+            large
+          />
+        </div>
         <!-- owning company -->
         <NeBadgeV2
           v-if="systemDetail.data?.organization"
@@ -112,43 +164,85 @@ const { tabs, selectedTab } = useTabs(tabsConfig)
         </NeBadgeV2>
       </div>
       <div class="flex shrink-0 items-center gap-2">
-        <!-- go to system button ////
-        <NeSpinner v-if="reachabilityState.status === 'pending'" color="white" />
+        <!-- open system button. A reason or a warning sits on the icon before
+             it, not on the button: a disabled button takes no focus, so its own
+             tooltip would be out of reach of the keyboard. The text is also the
+             name of the icon button, so the tooltip does not describe it a
+             second time -->
+        <template v-if="isCheckingReachability">
+          <NeSpinner color="white" />
+          <span class="sr-only" role="status">{{ $t('system_detail.checking_reachability') }}</span>
+        </template>
         <NeTooltip
-          v-if="!isSystemReachable"
+          v-if="isOpenSystemDisabled"
+          class="flex"
           placement="left"
           trigger-event="mouseenter focus"
-          class="shrink-0"
+          :tippy-props="{ aria: { content: null } }"
         >
           <template #trigger>
-            <NeButton kind="primary" :disabled="isGoToSystemDisabled">
-              <template #prefix>
-                <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
-              </template>
-              {{ $t('system_detail.go_to_system') }}
-            </NeButton>
+            <button type="button" class="inline-flex">
+              <FontAwesomeIcon
+                :icon="faCircleInfo"
+                class="size-4 text-indigo-500 dark:text-indigo-300"
+                aria-hidden="true"
+              />
+              <span class="sr-only">{{ $t('system_detail.system_address_unknown') }}</span>
+            </button>
+          </template>
+          <template #content>{{ $t('system_detail.system_address_unknown') }}</template>
+        </NeTooltip>
+        <NeTooltip
+          v-else-if="isNotReachableWarningShown"
+          class="flex"
+          placement="left"
+          trigger-event="mouseenter focus"
+          :tippy-props="{ aria: { content: null } }"
+        >
+          <template #trigger>
+            <button type="button" class="inline-flex">
+              <FontAwesomeIcon
+                :icon="faCircleInfo"
+                class="size-4 text-indigo-500 dark:text-indigo-300"
+                aria-hidden="true"
+              />
+              <span class="sr-only">{{ $t('system_detail.system_not_reachable') }}</span>
+            </button>
           </template>
           <template #content>
-            {{
-              isCheckingReachability
-                ? $t('system_detail.checking_reachability')
-                : $t('system_detail.system_unreachable')
-            }}
+            <p id="system-not-reachable-hint">
+              {{ $t('system_detail.system_not_reachable') }}
+              <i18n-t
+                v-if="canEditSystemUiUrl"
+                keypath="system_detail.system_not_reachable_edit"
+                tag="span"
+                scope="global"
+              >
+                <!-- described by the whole hint, which the icon button names
+                     only in part -->
+                <template #editSystem>
+                  <TooltipActionButton
+                    aria-describedby="system-not-reachable-hint"
+                    @click="isEditSystemDrawerShown = true"
+                  >
+                    {{ $t('systems.edit_system') }}
+                  </TooltipActionButton>
+                </template>
+              </i18n-t>
+            </p>
           </template>
         </NeTooltip>
         <NeButton
-          v-else
           kind="primary"
-          :disabled="isGoToSystemDisabled"
+          :disabled="isOpenSystemDisabled"
           class="shrink-0"
           @click="openSystem()"
         >
           <template #prefix>
             <FontAwesomeIcon :icon="faArrowUpRightFromSquare" aria-hidden="true" />
           </template>
-          {{ $t('system_detail.go_to_system') }}
+          {{ openSystemLabel }}
         </NeButton>
-        -->
       </div>
     </div>
     <!-- no inventory notification -->
@@ -178,5 +272,11 @@ const { tabs, selectedTab } = useTabs(tabsConfig)
     <SystemAlertsPanel v-else-if="selectedTab === 'alert_history'" />
     <SystemBackupsPanel v-else-if="selectedTab === 'backups'" />
     <SystemAddonsPanel v-else-if="selectedTab === 'addons'" />
+    <CreateOrEditSystemDrawer
+      :is-shown="isEditSystemDrawerShown"
+      :current-system="systemDetail.data"
+      focus-field="ui_url"
+      @close="isEditSystemDrawerShown = false"
+    />
   </div>
 </template>

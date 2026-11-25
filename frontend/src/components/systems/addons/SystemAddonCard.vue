@@ -255,7 +255,7 @@ const isBuyShown = computed(
         </template>
       </div>
       <!-- pushed to the bottom so cards of differing height line their buttons up -->
-      <div class="mt-auto flex justify-end gap-2">
+      <div class="mt-auto flex gap-2">
         <NeButton v-if="actions.buy && isBuyShown" kind="tertiary" @click="actions.buy.action?.()">
           <template v-if="actions.buy.icon" #prefix>
             <FontAwesomeIcon :icon="actions.buy.icon" class="size-4" aria-hidden="true" />

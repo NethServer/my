@@ -10,6 +10,7 @@ import { useNotificationsStore } from '@/stores/notifications'
 import { faUserSecret, faXmark } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { NeBadgeV2, NeSpinner, NeTooltip } from '@nethesis/vue-components'
+import TooltipActionButton from '@/components/common/TooltipActionButton.vue'
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -23,6 +24,7 @@ const totalSeconds = ref(0)
 const formattedTimer = ref('')
 const formattedTimerLong = ref('')
 const loadingExitImpersonation = ref(false)
+const loadingExtendImpersonation = ref(false)
 
 watch(
   () => totalSeconds.value,
@@ -70,6 +72,28 @@ const exitImpersonation = async (timerExpired = false) => {
     })
 }
 
+const extendImpersonation = () => {
+  loadingExtendImpersonation.value = true
+  loginStore
+    .extendImpersonation()
+    .then((res) => {
+      updateTimer()
+      notificationsStore.createNotification({
+        kind: 'success',
+        title: t('users.impersonation_extended'),
+        description: t('users.impersonation_timer_tooltip', {
+          timer: formatSeconds(res.expires_in, t),
+        }),
+      })
+    })
+    .catch(() => {
+      // the axios interceptor already notifies the failure
+    })
+    .finally(() => {
+      loadingExtendImpersonation.value = false
+    })
+}
+
 const formatTimer = (startDate: Date, endDate: Date) => {
   const diffMs = endDate.getTime() - startDate.getTime()
 
@@ -92,20 +116,35 @@ const formatTimer = (startDate: Date, endDate: Date) => {
   <NeBadgeV2 kind="amber">
     <div class="flex items-center gap-2">
       <NeTooltip trigger-event="mouseenter focus" placement="bottom" class="relative flex">
+        <!-- a button, so that the keyboard reaches the tooltip and its extend
+             action; the user name stays readable to screen readers on phones -->
         <template #trigger>
-          <div class="flex items-center gap-2">
+          <button
+            type="button"
+            class="flex items-center gap-2 rounded focus:ring-2 focus:ring-offset-2 focus:outline-hidden"
+          >
             <FontAwesomeIcon :icon="faUserSecret" class="size-4" aria-hidden="true" />
             <!-- impersonated user -->
-            <span class="hidden sm:inline">
+            <span class="sr-only sm:not-sr-only">
               {{ loginStore.userDisplayName }}
             </span>
             <!-- timer -->
             <span class="relative top-px font-mono">{{ formattedTimer }}</span>
-          </div>
+          </button>
         </template>
         <template #content>
-          {{ t('users.you_are_impersonating_user', { user: loginStore.impersonatedUser?.name }) }}.
-          {{ t('users.impersonation_timer_tooltip', { timer: formattedTimerLong }) }}
+          <div class="flex flex-col items-start gap-1">
+            <span>
+              {{
+                t('users.you_are_impersonating_user', { user: loginStore.impersonatedUser?.name })
+              }}.
+              {{ t('users.impersonation_timer_tooltip', { timer: formattedTimerLong }) }}
+            </span>
+            <NeSpinner v-if="loadingExtendImpersonation" color="white" />
+            <TooltipActionButton v-else @click="extendImpersonation">
+              {{ t('users.extend_impersonation') }}
+            </TooltipActionButton>
+          </div>
         </template>
       </NeTooltip>
       <!-- loading exit impersonation -->

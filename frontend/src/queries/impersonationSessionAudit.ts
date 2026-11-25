@@ -8,6 +8,7 @@ import {
   type Session,
 } from '@/lib/impersonationSessions'
 import { loadPageSizeFromStorage } from '@/lib/tablePageSize'
+import { useScopedPlaceholderData } from '@/lib/scopedPlaceholderData'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { ref, watch } from 'vue'
@@ -20,6 +21,10 @@ export const useImpersonationSessionAudit = defineQuery(() => {
   const pageNum = ref(1)
   const pageSize = ref(PAGE_SIZE)
   const sessionAuditStore = useImpersonationSessionAuditStore()
+
+  const { placeholderData, trackScope } = useScopedPlaceholderData<
+    Awaited<ReturnType<typeof getSessionAudit>>
+  >(() => sessionAuditStore.session?.session_id)
 
   const { state, asyncStatus, ...rest } = useQuery({
     key: () => [
@@ -34,8 +39,11 @@ export const useImpersonationSessionAudit = defineQuery(() => {
       !!loginStore.jwtToken &&
       !loginStore.isImpersonating &&
       !!sessionAuditStore.session?.session_id,
+    placeholderData,
     query: () =>
-      getSessionAudit(sessionAuditStore.session?.session_id || '', pageNum.value, pageSize.value),
+      trackScope(
+        getSessionAudit(sessionAuditStore.session?.session_id || '', pageNum.value, pageSize.value),
+      ),
   })
 
   // load table page size from storage

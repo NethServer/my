@@ -4,6 +4,7 @@
 -->
 
 <script setup lang="ts">
+import UpdatingTableContainer from '@/components/common/UpdatingTableContainer.vue'
 import {
   NeButton,
   NeDropdown,
@@ -41,7 +42,6 @@ import {
 import { useSystemBackups } from '@/queries/systems/backups'
 import { useNotificationsStore } from '@/stores/notifications'
 import DeleteObjectModal from '@/components/common/DeleteObjectModal.vue'
-import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -196,7 +196,6 @@ function getKebabMenuItems(backup: BackupMetadata): NeDropdownItem[] {
     </div>
 
     <div class="flex items-center justify-end gap-4">
-      <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
       <NeButton kind="secondary" :disabled="asyncStatus === 'loading'" @click="refresh()">
         <template #prefix>
           <FontAwesomeIcon :icon="faArrowsRotate" aria-hidden="true" />
@@ -236,47 +235,49 @@ function getKebabMenuItems(backup: BackupMetadata): NeDropdownItem[] {
 
   <!-- table -->
   <template v-if="isTableShown">
-    <NeTable
-      :aria-label="$t('backups.title')"
-      card-breakpoint="md"
-      :loading="state.status === 'pending'"
-      :skeleton-columns="4"
-      :skeleton-rows="7"
-    >
-      <NeTableHead>
-        <NeTableHeadCell>{{ $t('backups.date') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('backups.filename') }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('backups.size') }}</NeTableHeadCell>
-        <NeTableHeadCell>
-          <!-- no header for actions -->
-        </NeTableHeadCell>
-      </NeTableHead>
-      <NeTableBody>
-        <NeTableRow v-for="backup in state.data?.backups" :key="backup.id">
-          <NeTableCell :data-label="$t('backups.date')">
-            {{ formatDateTimeNoSeconds(new Date(backup.uploaded_at), locale) }}
-          </NeTableCell>
-          <NeTableCell :data-label="$t('backups.filename')">
-            <div class="flex items-center gap-2">
-              <FontAwesomeIcon
-                :icon="faBoxArchive"
-                class="h-4 w-4 shrink-0 text-gray-400"
-                aria-hidden="true"
-              />
-              <span class="font-medium break-all">{{ backup.filename || backup.id }}</span>
-            </div>
-          </NeTableCell>
-          <NeTableCell :data-label="$t('backups.size')">
-            {{ byteFormat1024(backup.size) }}
-          </NeTableCell>
-          <NeTableCell :data-label="$t('backups.actions')">
-            <div class="-ml-2.5 flex gap-2 md:ml-0 md:justify-end">
-              <NeDropdown :items="getKebabMenuItems(backup)" :align-to-right="true" />
-            </div>
-          </NeTableCell>
-        </NeTableRow>
-      </NeTableBody>
-    </NeTable>
+    <UpdatingTableContainer :updating="asyncStatus === 'loading' && state.status !== 'pending'">
+      <NeTable
+        :aria-label="$t('backups.title')"
+        card-breakpoint="md"
+        :loading="state.status === 'pending'"
+        :skeleton-columns="4"
+        :skeleton-rows="7"
+      >
+        <NeTableHead>
+          <NeTableHeadCell>{{ $t('backups.date') }}</NeTableHeadCell>
+          <NeTableHeadCell>{{ $t('backups.filename') }}</NeTableHeadCell>
+          <NeTableHeadCell>{{ $t('backups.size') }}</NeTableHeadCell>
+          <NeTableHeadCell>
+            <!-- no header for actions -->
+          </NeTableHeadCell>
+        </NeTableHead>
+        <NeTableBody>
+          <NeTableRow v-for="backup in state.data?.backups" :key="backup.id">
+            <NeTableCell :data-label="$t('backups.date')">
+              {{ formatDateTimeNoSeconds(new Date(backup.uploaded_at), locale) }}
+            </NeTableCell>
+            <NeTableCell :data-label="$t('backups.filename')">
+              <div class="flex items-center gap-2">
+                <FontAwesomeIcon
+                  :icon="faBoxArchive"
+                  class="h-4 w-4 shrink-0 text-gray-400"
+                  aria-hidden="true"
+                />
+                <span class="font-medium break-all">{{ backup.filename || backup.id }}</span>
+              </div>
+            </NeTableCell>
+            <NeTableCell :data-label="$t('backups.size')">
+              {{ byteFormat1024(backup.size) }}
+            </NeTableCell>
+            <NeTableCell :data-label="$t('backups.actions')">
+              <div class="-ml-2.5 flex gap-2 md:ml-0 md:justify-end">
+                <NeDropdown :items="getKebabMenuItems(backup)" :align-to-right="true" />
+              </div>
+            </NeTableCell>
+          </NeTableRow>
+        </NeTableBody>
+      </NeTable>
+    </UpdatingTableContainer>
   </template>
 
   <DeleteObjectModal

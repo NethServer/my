@@ -23,9 +23,11 @@ import { computed, ref, useTemplateRef, watch, type ShallowRef } from 'vue'
 import {
   CreateSystemSchema,
   EditSystemSchema,
+  getDefaultUiUrl,
   getSystemTransferPreview,
   postSystem,
   putSystem,
+  SYSTEM_REACHABILITY_KEY,
   SYSTEM_TRANSFER_PREVIEW_KEY,
   SYSTEMS_KEY,
   SYSTEMS_TOTAL_KEY,
@@ -51,9 +53,16 @@ import { useLoginStore } from '@/stores/login'
 import { isUserCustomer, isUserDistributor } from '@/lib/organizations/organizations'
 import { formatDateNoTime } from '@/lib/dateTime'
 
-const { isShown = false, currentSystem = undefined } = defineProps<{
+const {
+  isShown = false,
+  currentSystem = undefined,
+  focusField = undefined,
+} = defineProps<{
   isShown: boolean
   currentSystem: System | undefined
+  // the field to focus on opening, when the drawer is opened for it; the name
+  // otherwise
+  focusField?: 'ui_url'
 }>()
 
 const emit = defineEmits(['close'])
@@ -117,6 +126,8 @@ const {
   onSettled: () => {
     queryCache.invalidateQueries({ key: [SYSTEMS_KEY] })
     queryCache.invalidateQueries({ key: [SYSTEM_FILTERS_KEY] })
+    // the web interface address may have changed: check it again
+    queryCache.invalidateQueries({ key: [SYSTEM_REACHABILITY_KEY] })
   },
 })
 
@@ -126,6 +137,8 @@ const organizationId = ref('')
 const organizationIdRef = useTemplateRef<HTMLInputElement>('organizationIdRef')
 const notes = ref('')
 const notesRef = useTemplateRef<HTMLInputElement>('notesRef')
+const uiUrl = ref('')
+const uiUrlRef = useTemplateRef<HTMLInputElement>('uiUrlRef')
 const createdByOrganizationId = ref('')
 const validationIssues = ref<Record<string, string[]>>({})
 const step = ref<'create' | 'secret'>('create')
@@ -178,7 +191,13 @@ const fieldRefs: Record<string, Readonly<ShallowRef<HTMLInputElement | null>>> =
   name: nameRef,
   organization_id: organizationIdRef,
   notes: notesRef,
+  ui_url: uiUrlRef,
 }
+
+// The address of the web interface can be changed once the product is known:
+// before the first inventory there is no default to fall back on
+const defaultUiUrl = computed(() => getDefaultUiUrl(currentSystem?.type, currentSystem?.fqdn))
+const isUiUrlShown = computed(() => !!currentSystem?.id && !!defaultUiUrl.value)
 
 const saving = computed(() => {
   return createSystemLoading.value || editSystemLoading.value
@@ -218,7 +237,7 @@ watch(
 
 function onShow() {
   clearErrors()
-  focusElement(nameRef)
+  focusElement(focusField === 'ui_url' && isUiUrlShown.value ? uiUrlRef : nameRef)
   step.value = 'create'
   secret.value = ''
   fakeSystemCreatedLoading.value = true
@@ -228,6 +247,7 @@ function onShow() {
     // editing system
     name.value = currentSystem.name
     notes.value = currentSystem.notes || ''
+    uiUrl.value = currentSystem.ui_url || ''
     organizationId.value = currentSystem.organization.logto_id || ''
     createdByOrganizationId.value = ''
   } else {
@@ -236,6 +256,7 @@ function onShow() {
     name.value = ''
     organizationId.value = isUserCustomer() ? loginStore.userInfo?.organization_id || '' : ''
     notes.value = ''
+    uiUrl.value = ''
     createdByOrganizationId.value = ''
   }
 }
@@ -266,6 +287,9 @@ async function saveSystem() {
     const systemToEdit: EditSystem = {
       ...system,
       id: currentSystem.id,
+      // sent only while the field is shown, so that it never clears an address
+      // the user could not see
+      ...(isUiUrlShown.value ? { ui_url: uiUrl.value.trim() } : {}),
     }
 
     if (validateForm(EditSystemSchema, systemToEdit, validationIssues, fieldRefs)) {
@@ -399,6 +423,20 @@ function copySecretAndCloseDrawer() {
             :label="$t('common.notes')"
             :disabled="saving"
             :invalid-message="validationIssues.notes?.[0] ? $t(validationIssues.notes[0]) : ''"
+            :optional="true"
+            :optional-label="t('common.optional')"
+          />
+          <!-- web interface address: empty means the default one -->
+          <NeTextInput
+            v-if="isUiUrlShown"
+            ref="uiUrlRef"
+            v-model="uiUrl"
+            @blur="uiUrl = uiUrl.trim()"
+            type="url"
+            :label="$t('systems.ui_url')"
+            :helper-text="$t('systems.ui_url_helper', { url: defaultUiUrl })"
+            :disabled="saving"
+            :invalid-message="validationIssues.ui_url?.[0] ? $t(validationIssues.ui_url[0]) : ''"
             :optional="true"
             :optional-label="t('common.optional')"
           />

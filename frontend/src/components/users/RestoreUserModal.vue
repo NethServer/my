@@ -37,7 +37,7 @@ const {
       notificationsStore.createNotification({
         kind: 'success',
         title: t('users.user_restored'),
-        description: t('users.user_restored_successfully', {
+        description: t('users.user_restored_description', {
           name: vars.name,
         }),
       })

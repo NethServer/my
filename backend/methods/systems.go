@@ -9,8 +9,11 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -161,7 +164,10 @@ func GetSystems(c *gin.Context) {
 	filterVersions := c.QueryArray("version")       // Version filter (multiple values)
 	filterOrgIDs := c.QueryArray("organization_id") // Organization filter (multiple IDs)
 	filterStatuses := c.QueryArray("status")        // Status filter (multiple values)
-	filterAddons := c.QueryArray("addon")           // Add-on filter (multiple catalog ids)
+	if rejectDeletedStatusOutsideOwnerOrg(c, userOrgRole, filterStatuses) {
+		return
+	}
+	filterAddons := c.QueryArray("addon") // Add-on filter (multiple catalog ids)
 
 	// include_hierarchy expands each organization_id filter to the org plus its
 	// whole subtree (resellers/customers); the systems RBAC scope still applies
@@ -195,6 +201,7 @@ func GetSystems(c *gin.Context) {
 		Statuses:              filterStatuses,
 		Addons:                filterAddons,
 	}
+	applySystemFavoriteFilters(c, &filters)
 	systems, totalCount, err := systemsService.GetSystemsByOrganizationPaginated(
 		c.Request.Context(), userID, userOrgID, userOrgRole, page, pageSize, search, sortBy, sortDirection, filters,
 	)
@@ -212,6 +219,7 @@ func GetSystems(c *gin.Context) {
 			Strs("filter_organization_ids", filterOrgIDs).
 			Strs("filter_statuses", filterStatuses).
 			Strs("filter_addons", filterAddons).
+			Bool("filter_favorite", filters.FavoritesOnly).
 			Str("sort_by", sortBy).
 			Str("sort_direction", sortDirection).
 			Msg("Failed to retrieve systems")
@@ -263,6 +271,7 @@ func GetSystems(c *gin.Context) {
 		Strs("filter_organization_ids", filterOrgIDs).
 		Strs("filter_statuses", filterStatuses).
 		Strs("filter_addons", filterAddons).
+		Bool("filter_favorite", filters.FavoritesOnly).
 		Str("sort_by", sortBy).
 		Str("sort_direction", sortDirection).
 		Msg("Systems list requested")
@@ -302,6 +311,14 @@ func GetSystem(c *gin.Context) {
 	if system.Organization.LogtoID != "" {
 		system.RebrandingEnabled, system.RebrandingOrgID = resolveRebranding(system.Organization.LogtoID)
 	}
+
+	isFavorite, err := entities.NewLocalSystemFavoriteRepository().IsFavorite(favoriteUserID(user), system.ID)
+	if err != nil {
+		logger.RequestLogger(c, "systems").Warn().Err(err).
+			Str("system_id", systemID).
+			Msg("Failed to resolve favorite flag")
+	}
+	system.IsFavorite = isFavorite
 
 	// Log the action
 	logger.RequestLogger(c, "systems").Info().
@@ -357,6 +374,12 @@ func UpdateSystem(c *gin.Context) {
 	if err != nil && strings.Contains(err.Error(), "cannot reassign organization") {
 		c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
 			{Key: "organization_id", Message: "system_not_registered", Value: request.OrganizationID},
+		}))
+		return
+	}
+	if errors.Is(err, models.ErrInvalidUIURL) {
+		c.JSON(http.StatusBadRequest, response.ValidationFailed("validation failed", []response.ValidationError{
+			{Key: "ui_url", Message: "invalid", Value: *request.UIURL},
 		}))
 		return
 	}
@@ -786,42 +809,59 @@ func CheckSystemReachability(c *gin.Context) {
 		return
 	}
 
-	if system.FQDN == "" {
+	// url is the address to open, reachable or not: the probe runs from this
+	// server, and a system it cannot reach may still open from the admin's own
+	// network. Empty when no address is known yet.
+	candidateURLs := models.UIURLCandidates(system.UIURL, system.Type, system.FQDN)
+	if len(candidateURLs) == 0 {
 		c.JSON(http.StatusOK, response.OK("reachability check completed", gin.H{"reachable": false, "url": ""}))
 		return
 	}
-	// The FQDN is what the appliance reported about itself: a value pointing
-	// inside this backend's network would turn the probe into a port scanner
-	// of Render's private services. Such a system is simply "not reachable".
-	if err := rejectNonPublicHost(system.FQDN); err != nil {
+	openURL := candidateURLs[0]
+	notReachable := gin.H{"reachable": false, "url": openURL}
+
+	// The host is what the appliance reported about itself, or what an admin
+	// typed: a value pointing inside this backend's network would turn the
+	// probe into a port scanner of Render's private services. Such a system is
+	// simply "not reachable", and the dialer below checks again at connect time.
+	parsedURL, err := url.Parse(openURL)
+	if err != nil || parsedURL.Hostname() == "" {
+		c.JSON(http.StatusOK, response.OK("reachability check completed", notReachable))
+		return
+	}
+	if err := rejectNonPublicHost(parsedURL.Hostname()); err != nil {
 		logger.RequestLogger(c, "systems").Warn().
 			Err(err).
 			Str("system_id", systemID).
-			Str("fqdn", system.FQDN).
+			Str("host", parsedURL.Hostname()).
 			Msg("Reachability probe refused: host is not publicly routable")
-		c.JSON(http.StatusOK, response.OK("reachability check completed", gin.H{"reachable": false, "url": ""}))
-		return
-	}
-
-	// Build candidate URLs based on system type
-	var candidateURLs []string
-	switch {
-	case system.Type != nil && *system.Type == "ns8":
-		candidateURLs = []string{fmt.Sprintf("https://%s/cluster-admin", system.FQDN)}
-	case system.Type != nil && *system.Type == "nsec":
-		candidateURLs = []string{
-			fmt.Sprintf("https://%s:443", system.FQDN),
-			fmt.Sprintf("https://%s:9090", system.FQDN),
-		}
-	default:
-		c.JSON(http.StatusOK, response.OK("reachability check completed", gin.H{"reachable": false, "url": ""}))
+		c.JSON(http.StatusOK, response.OK("reachability check completed", notReachable))
 		return
 	}
 
 	// HTTP client with short timeout and skip TLS verification (self-signed certs)
+	// The dialer refuses a non-public address at connect time too: a name can
+	// resolve to a public address for the check above and to a private one for
+	// the connection (DNS rebinding).
+	dialer := &net.Dialer{
+		Timeout: 5 * time.Second,
+		Control: func(_, address string, _ syscall.RawConn) error {
+			host, _, err := net.SplitHostPort(address)
+			if err != nil {
+				return err
+			}
+			ip := net.ParseIP(host)
+			if ip == nil {
+				return fmt.Errorf("unparseable address %q", host)
+			}
+			return rejectNonPublicIP(ip)
+		},
+	}
 	client := &http.Client{
 		Timeout: 5 * time.Second,
 		Transport: &http.Transport{
+			DialContext:     dialer.DialContext,
+			Proxy:           nil,
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // systems use self-signed certificates
 		},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -845,7 +885,7 @@ func CheckSystemReachability(c *gin.Context) {
 		Str("system_id", systemID).
 		Msg("System is not reachable on any candidate URL")
 
-	c.JSON(http.StatusOK, response.OK("reachability check completed", gin.H{"reachable": false, "url": ""}))
+	c.JSON(http.StatusOK, response.OK("reachability check completed", notReachable))
 }
 
 // attachSystemAddons fills the Addons list of the given systems with one batch

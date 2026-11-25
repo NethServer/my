@@ -64,7 +64,7 @@ const buyAction = computed(() =>
         </p>
       </div>
       <div class="flex items-center gap-4">
-        <UpdatingSpinner v-if="refreshing" />
+        <UpdatingSpinner :updating="refreshing" />
         <NeButton v-if="buyAction" kind="secondary" @click="buyAction.action?.()">
           <template v-if="buyAction.icon" #prefix>
             <FontAwesomeIcon :icon="buyAction.icon" class="size-4" aria-hidden="true" />

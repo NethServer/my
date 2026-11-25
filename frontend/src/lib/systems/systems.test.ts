@@ -1,7 +1,12 @@
 //  Copyright (C) 2026 Nethesis S.r.l.
 //  SPDX-License-Identifier: GPL-3.0-or-later
 
-import { getQueryStringParams, getQueryStringParamsForExport } from './systems'
+import {
+  getDefaultUiUrl,
+  getQueryStringParams,
+  getQueryStringParamsForExport,
+  isValidUiUrl,
+} from './systems'
 import { expect, it, describe } from 'vitest'
 
 // the builders return a query string; parse it back so the assertions don't
@@ -225,5 +230,57 @@ describe('systems Managed by filter', () => {
     const params = parse(getQueryStringParams(1, 50, '', [], [], [], [], [], [], 'name', false))
 
     expect(params.has('parent_organization_id')).toBe(false)
+  })
+})
+
+describe('systems favorites filter', () => {
+  it('sends favorite=true on the list only when asked', () => {
+    const favorites = parse(
+      getQueryStringParams(1, 50, '', [], [], [], [], [], [], 'name', false, [], true),
+    )
+    const all = parse(getQueryStringParams(1, 50, '', [], [], [], [], [], [], 'name', false))
+
+    expect(favorites.get('favorite')).toBe('true')
+    expect(all.has('favorite')).toBe(false)
+  })
+
+  it('sends the same filter on the export', () => {
+    const params = parse(
+      getQueryStringParamsForExport(
+        'pdf',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        true,
+      ),
+    )
+
+    expect(params.get('favorite')).toBe('true')
+  })
+})
+
+describe('systems web interface address', () => {
+  it('derives the default address from the product and the FQDN', () => {
+    expect(getDefaultUiUrl('ns8', 'ns.example.com')).toBe('https://ns.example.com/cluster-admin')
+    expect(getDefaultUiUrl('nsec', 'fw.example.com')).toBe('https://fw.example.com:9090')
+    expect(getDefaultUiUrl(undefined, 'fw.example.com')).toBe('')
+    expect(getDefaultUiUrl('nsec', '')).toBe('')
+  })
+
+  it('accepts an empty value or an absolute http(s) address only', () => {
+    expect(isValidUiUrl('')).toBe(true)
+    expect(isValidUiUrl('https://fw.example.org:8443')).toBe(true)
+    expect(isValidUiUrl('http://192.0.2.10:9090')).toBe(true)
+    expect(isValidUiUrl('fw.example.org')).toBe(false)
+    expect(isValidUiUrl('javascript:alert(1)')).toBe(false)
+    expect(isValidUiUrl('https://user:pass@fw.example.org')).toBe(false)
   })
 })

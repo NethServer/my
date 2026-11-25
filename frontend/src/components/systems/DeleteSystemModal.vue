@@ -36,8 +36,8 @@ const {
     setTimeout(() => {
       notificationsStore.createNotification({
         kind: 'success',
-        title: t('systems.system_archived'),
-        description: t('common.object_archived_successfully', {
+        title: t('systems.system_deleted'),
+        description: t('systems.system_deleted_description', {
           name: vars.name,
         }),
       })
@@ -53,7 +53,7 @@ const {
     // Refresh the systems lists/aggregates, but skip this system's detail
     // query. [SYSTEMS_KEY] prefix-matches both the list and the detail entry
     // (['systems', <id>]); since we're navigating away and the system is now
-    // archived, refetching GET /systems/<id> would fail and show a spurious
+    // deleted, refetching GET /systems/<id> would fail and show a spurious
     // "request failed" notification.
     queryCache.invalidateQueries({
       key: [SYSTEMS_KEY],
@@ -73,12 +73,12 @@ function onShow() {
 <template>
   <DeleteObjectModal
     :visible="visible"
-    :title="$t('systems.archive_system')"
-    :primary-label="$t('common.archive')"
+    :title="$t('systems.delete_system')"
+    :primary-label="$t('common.delete')"
     :deleting="deleteSystemLoading"
-    :confirmation-message="t('systems.archive_system_confirmation', { name: system?.name })"
+    :confirmation-message="t('systems.delete_system_confirmation', { name: system?.name })"
     :confirmation-input="system?.name"
-    :error-title="t('systems.cannot_archive_system')"
+    :error-title="t('systems.cannot_delete_system')"
     :error-description="deleteSystemError?.message"
     @show="onShow"
     @close="emit('close')"

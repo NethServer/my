@@ -25,10 +25,8 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useI18n } from 'vue-i18n'
 import { useNotificationsStore } from '@/stores/notifications'
 import router from '@/router'
-import { useImpersonationConsent } from '@/queries/impersonationConsent'
 import UserAvatar from '../users/UserAvatar.vue'
 import ImpersonationBadge from './ImpersonationBadge.vue'
-import ImpersonationConsentBadge from './ImpersonationConsentBadge.vue'
 import { getOrganizationIcon } from '@/lib/organizations/organizations'
 import { isKapaWidgetEnabled, openKapaWidget } from '@/composables/useKapaWidget'
 import AiSparkIcon from '@/components/common/AiSparkIcon.vue'
@@ -40,7 +38,6 @@ const themeStore = useThemeStore()
 const densityStore = useDensityStore()
 const loginStore = useLoginStore()
 const notificationsStore = useNotificationsStore()
-const { state: impersonationConsentState } = useImpersonationConsent()
 
 const topBarButtonClasses =
   'flex rounded-full p-2.5 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-50 transition-colors duration-(--duration-small)'
@@ -137,9 +134,6 @@ function openNotificationsDrawer() {
       <div class="flex items-center gap-x-4">
         <!-- impersonation badge -->
         <ImpersonationBadge v-if="loginStore.isImpersonating" />
-        <ImpersonationConsentBadge
-          v-if="impersonationConsentState.data?.consent && !loginStore.isImpersonating"
-        />
         <!-- separator -->
         <div
           class="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-200 dark:lg:bg-gray-700"

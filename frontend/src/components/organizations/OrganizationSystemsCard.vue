@@ -91,7 +91,7 @@ const goToSystems = () => {
         </NeLink>
       </div>
     </div>
-    <div v-if="systemsCount > 0" class="flex justify-end">
+    <div v-if="systemsCount > 0" class="flex">
       <NeButton kind="tertiary" class="mt-2" @click="goToSystems()">
         <template #prefix>
           <FontAwesomeIcon :icon="faArrowRight" aria-hidden="true" />

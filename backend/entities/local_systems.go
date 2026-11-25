@@ -66,7 +66,7 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 	// idx_inventory_records_system_id_created_at.
 	query := `
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
-		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.created_by, s.registered_at, s.unregistered_at, s.suspended_at, s.suspended_by_org_id, h.last_heartbeat, s.last_inventory_at, s.update_available,
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.ui_url, s.created_at, s.updated_at, s.created_by, s.registered_at, s.unregistered_at, s.suspended_at, s.suspended_by_org_id, h.last_heartbeat, s.last_inventory_at, s.update_available,
 		       h.created_at as first_heartbeat,
 		       (SELECT MIN(ir.created_at) FROM inventory_records ir WHERE ir.system_id = s.id) as first_inventory,
 		       COALESCE(uo.name, 'Owner') as organization_name,
@@ -89,7 +89,7 @@ func (r *LocalSystemRepository) getByID(id string, includeDeleted bool) (*models
 	err := r.db.QueryRow(query, id).Scan(
 		&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 		&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.LogtoID,
-		&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &unregisteredAt, &suspendedAt, &suspendedByOrgID, &lastHeartbeat, &lastInventory, &system.UpdateAvailable,
+		&customDataJSON, &system.Notes, &system.UIURL, &system.CreatedAt, &system.UpdatedAt, &createdByJSON, &registeredAt, &unregisteredAt, &suspendedAt, &suspendedByOrgID, &lastHeartbeat, &lastInventory, &system.UpdateAvailable,
 		&firstHeartbeat, &firstInventory,
 		&organizationName, &organizationType, &organizationDBID,
 	)
@@ -420,6 +420,22 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(ctx context.Context
 		args = append(args, addonArgs...)
 	}
 
+	// The caller's favorites: a LEFT JOIN on their own rows only, so it adds
+	// no row and never widens the RBAC scope built above.
+	favoriteJoin := ""
+	favoriteExpr := "FALSE"
+	// sorts favorites first in ascending order, the sort's default direction
+	favoriteSortExpr := "TRUE"
+	if f.FavoritesOf != "" {
+		args = append(args, f.FavoritesOf)
+		favoriteJoin = fmt.Sprintf("LEFT JOIN system_favorites sf ON sf.system_id = s.id AND sf.user_logto_id = $%d", len(args))
+		favoriteExpr = "(sf.system_id IS NOT NULL)"
+		favoriteSortExpr = "(sf.system_id IS NULL)"
+	}
+	if f.FavoritesOnly {
+		whereClause += " AND " + favoriteExpr
+	}
+
 	// Build ORDER BY clause
 	orderBy := "s.created_at DESC"
 	if sortBy != "" {
@@ -435,6 +451,7 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(ctx context.Context
 			"creator_name":      "LOWER(s.created_by ->> 'name')",
 			"organization_name": "LOWER(uo.name)",
 			"managed_by":        systemManagedBySortExpression,
+			"favorite":          favoriteSortExpr,
 		}
 
 		if column, exists := columnMap[sortBy]; exists {
@@ -443,9 +460,10 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(ctx context.Context
 				direction = "DESC"
 			}
 			orderBy = fmt.Sprintf("%s %s", column, direction)
-			// many systems share one manager: fall back to their name, so
-			// OFFSET paging does not repeat or skip a row across a tie
-			if sortBy == "managed_by" {
+			// many systems share one manager, or one favorite flag: fall
+			// back to their name, so OFFSET paging does not repeat or skip
+			// a row across a tie
+			if sortBy == "managed_by" || sortBy == "favorite" {
 				orderBy += ", LOWER(s.name), s.id"
 			}
 		}
@@ -454,18 +472,20 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(ctx context.Context
 	// Single query with COUNT(*) OVER() to get total count + paginated results
 	query := fmt.Sprintf(`
 		SELECT s.id, s.name, s.type, s.status, s.fqdn, s.ipv4_address, s.ipv6_address, s.version,
-		       s.system_key, s.organization_id, s.custom_data, s.notes, s.created_at, s.updated_at, s.deleted_at, s.registered_at, s.unregistered_at, s.suspended_at, s.suspended_by_org_id, s.created_by, h.last_heartbeat, s.last_inventory_at, s.update_available,
+		       s.system_key, s.organization_id, s.custom_data, s.notes, s.ui_url, s.created_at, s.updated_at, s.deleted_at, s.registered_at, s.unregistered_at, s.suspended_at, s.suspended_by_org_id, s.created_by, h.last_heartbeat, s.last_inventory_at, s.update_available,
 		       COALESCE(uo.name, 'Owner') as organization_name,
 		       COALESCE(uo.org_type, 'owner') as organization_type,
 		       COALESCE(uo.db_id, '') as organization_db_id,
+		       %s as is_favorite,
 		       COUNT(*) OVER() as total_count
 		FROM systems s
 		LEFT JOIN system_heartbeats h ON s.id = h.system_id
 		LEFT JOIN unified_organizations uo ON s.organization_id = uo.logto_id
+		%s
 		WHERE %s
 		ORDER BY %s
 		LIMIT $%d OFFSET $%d
-	`, whereClause, orderBy, len(args)+1, len(args)+2)
+	`, favoriteExpr, favoriteJoin, whereClause, orderBy, len(args)+1, len(args)+2)
 
 	listArgs := make([]interface{}, len(args)+2)
 	copy(listArgs, args)
@@ -491,8 +511,9 @@ func (r *LocalSystemRepository) ListByCreatedByOrganizations(ctx context.Context
 		err := rows.Scan(
 			&system.ID, &system.Name, &system.Type, &system.Status, &fqdn,
 			&ipv4Address, &ipv6Address, &version, &system.SystemKey, &system.Organization.LogtoID,
-			&customDataJSON, &system.Notes, &system.CreatedAt, &system.UpdatedAt, &deletedAt, &registeredAt, &unregisteredAt, &suspendedAt, &suspendedByOrgID, &createdByJSON, &lastHeartbeat, &lastInventory, &system.UpdateAvailable,
+			&customDataJSON, &system.Notes, &system.UIURL, &system.CreatedAt, &system.UpdatedAt, &deletedAt, &registeredAt, &unregisteredAt, &suspendedAt, &suspendedByOrgID, &createdByJSON, &lastHeartbeat, &lastInventory, &system.UpdateAvailable,
 			&organizationName, &organizationType, &organizationDBID,
+			&system.IsFavorite,
 			&totalCount,
 		)
 		if err != nil {

@@ -1525,35 +1525,43 @@ func (r *LocalUserRepository) Restore(logtoID string) error {
 	return nil
 }
 
-// HardDelete permanently deletes a user by logto_id
+// HardDelete permanently deletes a user by logto_id, together with the
+// systems the user starred: system_favorites has no foreign key to users
+// (the Owner has no users row), so the same statement removes them.
 func (r *LocalUserRepository) HardDelete(logtoID string) error {
-	query := `DELETE FROM users WHERE logto_id = $1`
+	query := `WITH deleted AS (
+	              DELETE FROM users WHERE logto_id = $1 RETURNING logto_id
+	          ), favorites AS (
+	              DELETE FROM system_favorites WHERE user_logto_id IN (SELECT logto_id FROM deleted)
+	          )
+	          SELECT COUNT(*) FROM deleted`
 
-	result, err := r.db.Exec(query, logtoID)
-	if err != nil {
+	var deleted int
+	if err := r.db.QueryRow(query, logtoID).Scan(&deleted); err != nil {
 		return fmt.Errorf("failed to hard-delete user: %w", err)
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
-	}
-
-	if rowsAffected == 0 {
+	if deleted == 0 {
 		return fmt.Errorf("user not found")
 	}
 
 	return nil
 }
 
-// HardDeleteByOrgID permanently deletes all users belonging to an organization
+// HardDeleteByOrgID permanently deletes all users belonging to an organization,
+// together with the systems they starred (see HardDelete).
 // Returns the logto_ids of deleted users for Logto cleanup
 func (r *LocalUserRepository) HardDeleteByOrgID(orgLogtoID string) ([]string, error) {
-	// First get the logto_ids of users that will be deleted (for Logto cleanup)
-	selectQuery := `SELECT logto_id FROM users WHERE organization_id = $1 AND logto_id IS NOT NULL`
-	rows, err := r.db.Query(selectQuery, orgLogtoID)
+	query := `WITH deleted AS (
+	              DELETE FROM users WHERE organization_id = $1 RETURNING logto_id
+	          ), favorites AS (
+	              DELETE FROM system_favorites
+	              WHERE user_logto_id IN (SELECT logto_id FROM deleted WHERE logto_id IS NOT NULL)
+	          )
+	          SELECT logto_id FROM deleted WHERE logto_id IS NOT NULL`
+	rows, err := r.db.Query(query, orgLogtoID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query users for hard-delete: %w", err)
+		return nil, fmt.Errorf("failed to hard-delete users by org: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -1567,13 +1575,6 @@ func (r *LocalUserRepository) HardDeleteByOrgID(orgLogtoID string) ([]string, er
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating users: %w", err)
-	}
-
-	// Hard-delete all users for this org
-	deleteQuery := `DELETE FROM users WHERE organization_id = $1`
-	_, err = r.db.Exec(deleteQuery, orgLogtoID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to hard-delete users by org: %w", err)
 	}
 
 	return logtoIDs, nil

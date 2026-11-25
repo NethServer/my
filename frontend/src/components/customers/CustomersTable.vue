@@ -4,6 +4,8 @@
 -->
 
 <script setup lang="ts">
+import UpdatingTableContainer from '@/components/common/UpdatingTableContainer.vue'
+import NotesIcon from '@/components/common/NotesIcon.vue'
 import { withDangerItemsLast } from '@/lib/common'
 import {
   CUSTOMERS_TABLE_ID,
@@ -14,7 +16,7 @@ import { PAGE_SIZE_OPTIONS } from '@/lib/tablePageSize'
 import {
   faMagnifyingGlass,
   faPenToSquare,
-  faBoxArchive,
+  faTrash,
   faBuilding,
   faCirclePause,
   faCirclePlay,
@@ -56,9 +58,13 @@ import DestroyCustomerModal from './DestroyCustomerModal.vue'
 import TransferOrganizationDrawer from '@/components/organizations/TransferOrganizationDrawer.vue'
 import { savePageSizeToStorage } from '@/lib/tablePageSize'
 import { useCustomers } from '@/queries/organizations/customers'
-import { canManageCustomers, canDestroyCustomers, canTransferCustomers } from '@/lib/permissions'
+import {
+  canManageCustomers,
+  canDestroyCustomers,
+  canTransferCustomers,
+  canSeeDeletedObjects,
+} from '@/lib/permissions'
 import router from '@/router'
-import UpdatingSpinner from '@/components/common/UpdatingSpinner.vue'
 import OrganizationDropdownFilter from '@/components/organizations/OrganizationDropdownFilter.vue'
 import ParentCompanyLink from '@/components/organizations/ParentCompanyLink.vue'
 import { canSeeParentOfCustomers } from '@/lib/organizations/organizations'
@@ -94,7 +100,9 @@ const isShownRestoreCustomerModal = ref(false)
 const isShownDestroyCustomerModal = ref(false)
 const isShownTransferCustomerDrawer = ref(false)
 
-const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
+// computed: whether the deleted ones are shown is known only once the user
+// info has loaded, which can be after the table mounts
+const statusFilterOptions = computed<NeDropdownFilterV2Option[]>(() => [
   {
     id: 'enabled',
     label: t('common.enabled'),
@@ -103,10 +111,7 @@ const statusFilterOptions = ref<NeDropdownFilterV2Option[]>([
     id: 'suspended',
     label: t('common.suspended'),
   },
-  {
-    id: 'deleted',
-    label: t('common.archived'),
-  },
+  ...(canSeeDeletedObjects() ? [{ id: 'deleted', label: t('common.deleted') }] : []),
 ])
 
 const customersPage = computed(() => {
@@ -217,8 +222,8 @@ function getKebabMenuItems(customer: Customer) {
 
       items.push({
         id: 'deleteCustomer',
-        label: t('common.archive'),
-        icon: faBoxArchive,
+        label: t('common.delete'),
+        icon: faTrash,
         danger: true,
         action: () => showDeleteCustomerDrawer(customer),
         disabled: asyncStatus.value === 'loading',
@@ -252,8 +257,8 @@ function getKebabMenuItems(customer: Customer) {
 
       items.push({
         id: 'deleteCustomer',
-        label: t('common.archive'),
-        icon: faBoxArchive,
+        label: t('common.delete'),
+        icon: faTrash,
         danger: true,
         action: () => showDeleteCustomerDrawer(customer),
         disabled: asyncStatus.value === 'loading',
@@ -358,8 +363,6 @@ const goToCustomerDetails = (customer: Customer) => {
             {{ t('common.reset_filters') }}
           </NeButton>
         </div>
-        <!-- update indicator -->
-        <UpdatingSpinner v-if="asyncStatus === 'loading' && state.status !== 'pending'" />
       </div>
     </div>
     <!-- empty state -->
@@ -379,168 +382,179 @@ const goToCustomerDetails = (customer: Customer) => {
     >
       <NeButton kind="tertiary" @click="resetFilters"> {{ $t('common.reset_filters') }}</NeButton>
     </NeEmptyState>
-    <NeTable
+    <UpdatingTableContainer
       v-if="noEmptyStateShown"
-      :sort-key="sortBy"
-      :sort-descending="sortDescending"
-      :aria-label="$t('customers.title')"
-      card-breakpoint="2xl"
-      :loading="state.status === 'pending'"
-      :skeleton-columns="5"
-      :skeleton-rows="7"
+      :updating="asyncStatus === 'loading' && state.status !== 'pending'"
     >
-      <NeTableHead>
-        <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
-          $t('organizations.name')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell>{{ $t('organizations.vat_number') }}</NeTableHeadCell>
-        <NeTableHeadCell sortable column-key="systems_count" @sort="onSort">
-          {{ $t('systems.title') }}
-        </NeTableHeadCell>
-        <NeTableHeadCell
-          v-if="canSeeParentOfCustomers()"
-          sortable
-          column-key="managed_by"
-          @sort="onSort"
-          >{{ $t('organizations.parent_company') }}</NeTableHeadCell
-        >
-        <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
-          $t('common.status')
-        }}</NeTableHeadCell>
-        <NeTableHeadCell>
-          <!-- no header for actions -->
-        </NeTableHeadCell>
-      </NeTableHead>
-      <NeTableBody>
-        <NeTableRow v-for="item in customersPage" :key="item.logto_id">
-          <NeTableCell :data-label="$t('organizations.name')">
-            <router-link
-              v-if="!item.deleted_at"
-              :to="{ name: 'customer_detail', params: { companyId: item.logto_id } }"
-              class="cursor-pointer font-medium hover:underline"
-            >
-              {{ item.name }}
-            </router-link>
-            <span v-else class="text-tertiary-neutral">
-              {{ item.name }}
-            </span>
-          </NeTableCell>
-          <NeTableCell
-            :data-label="$t('organizations.vat_number')"
-            :class="{ 'text-tertiary-neutral': item.deleted_at }"
-          >
-            {{ item.custom_data?.vat || '-' }}
-          </NeTableCell>
-          <NeTableCell :data-label="$t('systems.title')">
-            <router-link
-              v-if="!item.deleted_at"
-              :to="{
-                name: 'systems',
-                query: { organization_id: item.logto_id, organization_name: item.name },
-              }"
-              class="flex items-center gap-2 hover:underline"
-              :aria-label="$t('customers.show_customer_systems', { name: item.name })"
-            >
-              <FontAwesomeIcon
-                :icon="faServer"
-                class="text-icon-neutral size-4"
-                aria-hidden="true"
-              />
-              {{ item.systems_count }}
-            </router-link>
-            <div v-else class="text-tertiary-neutral flex items-center gap-2">
-              <FontAwesomeIcon
-                :icon="faServer"
-                class="text-icon-neutral size-4"
-                aria-hidden="true"
-              />
-              {{ item.systems_count }}
-            </div>
-          </NeTableCell>
-          <NeTableCell
+      <NeTable
+        :sort-key="sortBy"
+        :sort-descending="sortDescending"
+        :aria-label="$t('customers.title')"
+        card-breakpoint="2xl"
+        :loading="state.status === 'pending'"
+        :skeleton-columns="5"
+        :skeleton-rows="7"
+      >
+        <NeTableHead>
+          <NeTableHeadCell sortable column-key="name" @sort="onSort">{{
+            $t('organizations.name')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell>{{ $t('organizations.vat_number') }}</NeTableHeadCell>
+          <NeTableHeadCell sortable column-key="systems_count" @sort="onSort">
+            {{ $t('systems.title') }}
+          </NeTableHeadCell>
+          <NeTableHeadCell
             v-if="canSeeParentOfCustomers()"
-            :data-label="$t('organizations.parent_company')"
-            :class="{ 'text-tertiary-neutral': item.deleted_at }"
+            sortable
+            column-key="managed_by"
+            @sort="onSort"
+            >{{ $t('organizations.parent_company') }}</NeTableHeadCell
           >
-            <ParentCompanyLink :parent="item.parent" :creator="item.created_by" />
-          </NeTableCell>
-          <NeTableCell :data-label="$t('common.status')">
-            <div class="flex items-center gap-2">
-              <template v-if="item.deleted_at">
+          <NeTableHeadCell sortable column-key="suspended_at" @sort="onSort">{{
+            $t('common.status')
+          }}</NeTableHeadCell>
+          <NeTableHeadCell>
+            <!-- no header for actions -->
+          </NeTableHeadCell>
+        </NeTableHead>
+        <NeTableBody>
+          <NeTableRow v-for="item in customersPage" :key="item.logto_id">
+            <NeTableCell :data-label="$t('organizations.name')">
+              <div class="flex items-center gap-1">
+                <router-link
+                  v-if="!item.deleted_at"
+                  :to="{ name: 'customer_detail', params: { companyId: item.logto_id } }"
+                  class="cursor-pointer font-medium hover:underline"
+                >
+                  {{ item.name }}
+                </router-link>
+                <span v-else class="text-tertiary-neutral">
+                  {{ item.name }}
+                </span>
+                <NotesIcon v-if="item.custom_data?.notes?.trim()" :notes="item.custom_data.notes" />
+              </div>
+            </NeTableCell>
+            <NeTableCell
+              :data-label="$t('organizations.vat_number')"
+              :class="{ 'text-tertiary-neutral': item.deleted_at }"
+            >
+              {{ item.custom_data?.vat || '-' }}
+            </NeTableCell>
+            <NeTableCell :data-label="$t('systems.title')">
+              <router-link
+                v-if="!item.deleted_at"
+                :to="{
+                  name: 'systems',
+                  query: { organization_id: item.logto_id, organization_name: item.name },
+                }"
+                class="flex items-center gap-2 hover:underline"
+                :aria-label="$t('customers.show_customer_systems', { name: item.name })"
+              >
                 <FontAwesomeIcon
-                  :icon="faBoxArchive"
+                  :icon="faServer"
                   class="text-icon-neutral size-4"
                   aria-hidden="true"
                 />
-                <span>
-                  {{ t('common.archived') }}
-                </span>
-              </template>
-              <template v-else-if="item.suspended_at">
+                {{ item.systems_count }}
+              </router-link>
+              <div v-else class="text-tertiary-neutral flex items-center gap-2">
                 <FontAwesomeIcon
-                  :icon="faCirclePause"
+                  :icon="faServer"
                   class="text-icon-neutral size-4"
                   aria-hidden="true"
                 />
-                <span>
-                  {{ t('common.suspended') }}
-                </span>
-              </template>
-              <template v-else>
-                <FontAwesomeIcon
-                  :icon="faCircleCheck"
-                  class="text-icon-enabled size-4"
-                  aria-hidden="true"
-                />
-                <span>
-                  {{ t('common.enabled') }}
-                </span>
-              </template>
-            </div>
-          </NeTableCell>
-          <NeTableCell :data-label="$t('common.actions')">
-            <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
-              <NeButton v-if="!item.deleted_at" kind="tertiary" @click="goToCustomerDetails(item)">
-                <template #prefix>
-                  <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
+                {{ item.systems_count }}
+              </div>
+            </NeTableCell>
+            <NeTableCell
+              v-if="canSeeParentOfCustomers()"
+              :data-label="$t('organizations.parent_company')"
+              :class="{ 'text-tertiary-neutral': item.deleted_at }"
+            >
+              <ParentCompanyLink :parent="item.parent" :creator="item.created_by" />
+            </NeTableCell>
+            <NeTableCell :data-label="$t('common.status')">
+              <div class="flex items-center gap-2">
+                <template v-if="item.deleted_at">
+                  <FontAwesomeIcon
+                    :icon="faTrash"
+                    class="text-icon-neutral size-4"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {{ t('common.deleted') }}
+                  </span>
                 </template>
-                {{ $t('common.details') }}
-              </NeButton>
-              <!-- kebab menu -->
-              <NeDropdown
-                v-if="canManageCustomers() || canDestroyCustomers()"
-                :items="getKebabMenuItems(item)"
-                :align-to-right="true"
-              />
-            </div>
-          </NeTableCell>
-        </NeTableRow>
-      </NeTableBody>
-      <template #paginator>
-        <NePaginator
-          :current-page="pageNum"
-          :total-rows="pagination?.total_count || 0"
-          :page-size="pageSize"
-          :page-sizes="PAGE_SIZE_OPTIONS"
-          :nav-pagination-label="$t('ne_table.pagination')"
-          :next-label="$t('ne_table.go_to_next_page')"
-          :previous-label="$t('ne_table.go_to_previous_page')"
-          :range-of-total-label="$t('ne_table.of')"
-          :page-size-label="$t('ne_table.show')"
-          @select-page="
-            (page: number) => {
-              pageNum = page
-            }
-          "
-          @select-page-size="
-            (size: number) => {
-              pageSize = size
-              savePageSizeToStorage(CUSTOMERS_TABLE_ID, size)
-            }
-          "
-        />
-      </template>
-    </NeTable>
+                <template v-else-if="item.suspended_at">
+                  <FontAwesomeIcon
+                    :icon="faCirclePause"
+                    class="text-icon-neutral size-4"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {{ t('common.suspended') }}
+                  </span>
+                </template>
+                <template v-else>
+                  <FontAwesomeIcon
+                    :icon="faCircleCheck"
+                    class="text-icon-enabled size-4"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {{ t('common.enabled') }}
+                  </span>
+                </template>
+              </div>
+            </NeTableCell>
+            <NeTableCell :data-label="$t('common.actions')">
+              <div class="-ml-2.5 flex gap-2 2xl:ml-0 2xl:justify-end">
+                <NeButton
+                  v-if="!item.deleted_at"
+                  kind="tertiary"
+                  @click="goToCustomerDetails(item)"
+                >
+                  <template #prefix>
+                    <FontAwesomeIcon :icon="faEye" class="h-4 w-4" aria-hidden="true" />
+                  </template>
+                  {{ $t('common.details') }}
+                </NeButton>
+                <!-- kebab menu -->
+                <NeDropdown
+                  v-if="canManageCustomers() || canDestroyCustomers()"
+                  :items="getKebabMenuItems(item)"
+                  :align-to-right="true"
+                />
+              </div>
+            </NeTableCell>
+          </NeTableRow>
+        </NeTableBody>
+        <template #paginator>
+          <NePaginator
+            :current-page="pageNum"
+            :total-rows="pagination?.total_count || 0"
+            :page-size="pageSize"
+            :page-sizes="PAGE_SIZE_OPTIONS"
+            :nav-pagination-label="$t('ne_table.pagination')"
+            :next-label="$t('ne_table.go_to_next_page')"
+            :previous-label="$t('ne_table.go_to_previous_page')"
+            :range-of-total-label="$t('ne_table.of')"
+            :page-size-label="$t('ne_table.show')"
+            @select-page="
+              (page: number) => {
+                pageNum = page
+              }
+            "
+            @select-page-size="
+              (size: number) => {
+                pageSize = size
+                savePageSizeToStorage(CUSTOMERS_TABLE_ID, size)
+              }
+            "
+          />
+        </template>
+      </NeTable>
+    </UpdatingTableContainer>
     <!-- side drawer -->
     <CreateOrEditCustomerDrawer
       :is-shown="isShownCreateOrEditCustomerDrawer"

@@ -83,7 +83,7 @@ Il `system_secret` viene mostrato **una sola volta**, alla creazione. Copialo e 
 
 La pagina **Sistemi** mostra tutti i sistemi visibili con:
 
-- Nome del sistema
+- Nome del sistema, con una stella per aggiungerlo ai [preferiti](#sistemi-preferiti) e, se ha delle note, un'icona che le mostra al passaggio del mouse (fino a 10 righe)
 - Tipo (NethServer o NethSecurity)
 - Versione, con un'icona di aggiornamento quando è disponibile un aggiornamento
 - Organizzazione
@@ -101,7 +101,8 @@ Usa i filtri per trovare sistemi specifici:
 - **Creato da**: filtra per utente che ha creato il sistema
 - **Add-on**: filtra per add-on acquistato (vedi [Add-on](../features/entitlements.md))
 - **Stato**: unknown, active, inactive, suspended, deleted
-- **Ordinamento**: nome, versione, FQDN/indirizzo IP, organizzazione, creato da, stato
+- **Preferiti**: tutti i sistemi, o solo quelli che hai aggiunto ai preferiti (vedi [Sistemi preferiti](#sistemi-preferiti))
+- **Ordinamento**: nome, versione, FQDN/indirizzo IP, organizzazione, creato da, stato, preferito
 
 Il menu **Add-on** elenca gli add-on posseduti da almeno uno dei tuoi sistemi,
 quindi un'opzione non restituisce mai un elenco vuoto. Selezionandone più di uno
@@ -109,9 +110,50 @@ la ricerca si allarga: un sistema corrisponde se ne possiede almeno uno. Contano
 solo gli add-on validi in quel momento, quindi uno scaduto o annullato esclude
 il sistema.
 
+### Sistemi Preferiti
+
+Aggiungi ai preferiti i sistemi su cui lavori più spesso per trovarli subito.
+Fai clic sulla stella accanto al nome del sistema, nell'elenco dei sistemi o
+nell'intestazione della pagina del sistema; fai clic di nuovo per rimuoverlo dai
+preferiti. Nell'elenco dei sistemi, la stella di un sistema che non è tra i
+preferiti appare quando passi il mouse sulla sua riga; le opzioni **Aggiungi ai
+preferiti** e **Rimuovi dai preferiti** del menu della riga fanno lo stesso.
+
+- I preferiti sono personali: ogni utente ha i suoi, e aggiungere un sistema ai
+  preferiti non cambia nulla per gli altri
+- Ogni utente che vede un sistema può aggiungerlo ai preferiti, anche con un
+  ruolo di sola lettura
+- I preferiti ti seguono su ogni browser e dispositivo
+- Un sistema eliminato esce dall'elenco dei preferiti e ci torna quando viene
+  ripristinato; uno distrutto viene rimosso per sempre
+- Mentre impersoni un altro utente vedi i suoi preferiti, ma non puoi
+  modificarli
+
+Usa il filtro **Preferiti** per elencare solo i tuoi preferiti, oppure ordina per
+**Preferito** per portarli in cima.
+
 ### Dettagli Sistema
 
-Cliccando su un sistema si accede alle informazioni complete:
+Cliccando su un sistema si accede alle informazioni complete.
+
+#### Apertura del Sistema
+
+Il pulsante in alto nella pagina apre l'interfaccia web del sistema in una
+nuova scheda: **Apri NethServer**, **Apri NethSecurity**, oppure **Apri
+sistema** finché il prodotto non è noto. L'indirizzo predefinito deriva
+dall'FQDN dell'ultimo inventario:
+
+- NethServer: `https://<fqdn>/cluster-admin`
+- NethSecurity: `https://<fqdn>:9090` (la verifica prova anche la porta 443)
+
+My verifica se l'indirizzo risponde. La verifica parte dal server di My, non
+dal tuo browser: se fallisce, un'icona di informazioni accanto al pulsante ne
+spiega il motivo, ma il pulsante funziona comunque, perché il sistema potrebbe
+aprirsi dalla tua rete, ad esempio tramite VPN. Il pulsante è disabilitato
+solo finché l'indirizzo non è noto, prima del primo inventario.
+
+Se l'interfaccia web risponde a un altro indirizzo, impostalo in **URL
+dell'interfaccia web** modificando il sistema.
 
 #### Tab Panoramica
 
@@ -168,6 +210,9 @@ Vedi [Inventario e Heartbeat](./inventory-heartbeat.md) per i dettagli.
    - Nome
    - Organizzazione
    - Note
+   - URL dell'interfaccia web, quando il primo inventario ha indicato il
+     prodotto: l'indirizzo usato dal pulsante **Apri**. Lascialo vuoto per
+     usare quello predefinito, che segue l'FQDN degli inventari successivi
 4. Clicca su **Salva**
 
 :::note
@@ -217,27 +262,27 @@ L'eliminazione soft marca il sistema come eliminato senza rimuovere i dati:
 - Non può più inviare inventario o heartbeat
 - Sparisce dalle viste normali
 - Le sue applicazioni spariscono da elenchi, totali e contatori delle organizzazioni finché il sistema non viene ripristinato (vengono conservate, non cancellate)
-- Può essere ripristinato in qualsiasi momento
+- Può essere ripristinato dall'organizzazione Owner
 - Tutti i dati storici vengono conservati
 
-**Per vedere i sistemi eliminati:**
-1. Applica il filtro Stato = "deleted"
+**Per vedere i sistemi eliminati** (solo organizzazione Owner):
+1. Applica il filtro Stato = Eliminato
 2. Seleziona il sistema eliminato
 3. Clicca su **Ripristina**
 
-### Eliminazione Permanente
+### Distruzione
 
 :::danger
 Questa operazione è irreversibile!
 :::
 
-Per eliminare definitivamente:
+Per distruggere un sistema:
 1. Elimina prima il sistema in modo soft
 2. Vai alla vista dei sistemi eliminati
 3. Seleziona il sistema
-4. Clicca su **Elimina definitivamente**
+4. Clicca su **Distruggi**
 5. Digita il nome del sistema per confermare
-6. Clicca su **Elimina**
+6. Clicca su **Distruggi**
 
 **Viene rimosso:**
 - Il record del sistema

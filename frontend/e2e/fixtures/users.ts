@@ -83,12 +83,12 @@ export async function roleIdByName(name: string): Promise<string> {
  * load-bearing for teardown: `/users` adds `AND u.deleted_at IS NULL` unless
  * `status=deleted` is among the query parameters
  * (`entities/local_users.go`, `deletedClause`). A default listing therefore
- * cannot see an archived user, so the sweep would walk straight past one and
- * leave it in the tenant for ever — which is exactly what the archive spec
+ * cannot see an deleted user, so the sweep would walk straight past one and
+ * leave it in the tenant for ever — which is exactly what the delete spec
  * creates.
  *
  * Pass a narrower list to ask a question instead of to clean up, e.g.
- * `listE2eUsers(['deleted'])` for "did the archive really happen".
+ * `listE2eUsers(['deleted'])` for "did the deletion really happen".
  */
 export async function listE2eUsers(
   statuses: string[] = ['enabled', 'suspended', 'deleted'],

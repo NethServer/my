@@ -153,7 +153,7 @@ Ogni tipo di organizzazione ha il proprio elenco:
 
 1. Vai su **[Tipo]** (Distributori/Rivenditori/Clienti)
 2. L'elenco mostra:
-   - Nome dell'organizzazione
+   - Nome dell'organizzazione, con un'icona che ne mostra le note al passaggio del mouse (fino a 10 righe), se ne ha
    - Descrizione
    - Numero di utenti
    - Numero di sistemi
@@ -189,13 +189,13 @@ Cliccando su un'organizzazione si accede alle informazioni di dettaglio:
 
 ### Eliminazione
 
-**L'eliminazione archivia, non cancella.** L'organizzazione viene eliminata in
+**L'eliminazione conserva i dati.** L'organizzazione viene eliminata in
 modo soft e sparisce dagli elenchi, e la stessa operazione si propaga lungo la
 gerarchia:
 
-- Ogni **utente** dell'organizzazione viene archiviato
-- Ogni **sistema** dell'organizzazione viene archiviato
-- Per un distributore o un rivenditore, viene archiviata anche ogni
+- Ogni **utente** dell'organizzazione viene eliminato
+- Ogni **sistema** dell'organizzazione viene eliminato
+- Per un distributore o un rivenditore, viene eliminata anche ogni
   **organizzazione figlia** della sua gerarchia, con i relativi utenti e sistemi
 
 Per eliminare un'organizzazione:
@@ -207,11 +207,13 @@ Per eliminare un'organizzazione:
 
 :::tip Reversibile
 Un'organizzazione eliminata può essere recuperata con **Ripristina**, che
-ripristina a cascata anche gli utenti e i sistemi archiviati insieme a lei.
+ripristina a cascata anche gli utenti e i sistemi eliminati insieme a lei. Solo
+l'organizzazione Owner vede le organizzazioni eliminate e può ripristinarle: per
+tutti gli altri l'eliminazione è definitiva.
 :::
 
-:::danger Eliminazione definitiva
-**Elimina definitivamente** è l'operazione irreversibile: cancella
+:::danger Distruzione
+**Distruggi** è l'operazione irreversibile: cancella
 l'organizzazione per sempre e non si può annullare. Richiede il permesso
 `destroy:` su quella risorsa, che ha solo l'organizzazione Owner.
 :::

@@ -71,31 +71,34 @@ func (c *SystemCreator) SetCreatorOrgType(orgType string) {
 
 // System represents a managed system in the infrastructure
 type System struct {
-	ID               string            `json:"id" structs:"id"`
-	Name             string            `json:"name" structs:"name"`
-	Type             *string           `json:"type" structs:"type"`     // ns8, nsec, etc. - nullable until first inventory
-	Status           string            `json:"status" structs:"status"` // Unified status: unknown, active, inactive, suspended, deleted
-	FQDN             string            `json:"fqdn" structs:"fqdn"`
-	IPv4Address      string            `json:"ipv4_address" structs:"ipv4_address"`
-	IPv6Address      string            `json:"ipv6_address" structs:"ipv6_address"`
-	Version          string            `json:"version" structs:"version"`
-	UpdateAvailable  *bool             `json:"update_available" structs:"update_available"` // From the latest inventory; nil = not reported
-	CustomData       map[string]string `json:"custom_data" structs:"custom_data"`
-	Organization     Organization      `json:"organization" structs:"organization"` // Organization details with type
-	SystemKey        string            `json:"system_key" structs:"system_key"`
-	SystemSecret     string            `json:"system_secret,omitempty" structs:"system_secret"` // Returned during creation and regeneration
-	Notes            string            `json:"notes" structs:"notes"`
-	CreatedAt        time.Time         `json:"created_at" structs:"created_at"`
-	UpdatedAt        time.Time         `json:"updated_at" structs:"updated_at"`
-	DeletedAt        *time.Time        `json:"deleted_at" structs:"deleted_at"`                   // Soft delete timestamp
-	RegisteredAt     *time.Time        `json:"registered_at" structs:"registered_at"`             // Registration timestamp
-	UnregisteredAt   *time.Time        `json:"unregistered_at" structs:"unregistered_at"`         // Terminal: the system gave up its credentials
-	SuspendedAt      *time.Time        `json:"suspended_at" structs:"suspended_at"`               // Suspension timestamp
-	SuspendedByOrgID *string           `json:"suspended_by_org_id" structs:"suspended_by_org_id"` // Organization that caused cascade suspension
-	DeletedByOrgID   *string           `json:"deleted_by_org_id" structs:"deleted_by_org_id"`     // Organization that caused cascade soft-deletion
-	CreatedBy        SystemCreator     `json:"created_by" structs:"created_by"`
-	LastHeartbeat    *time.Time        `json:"last_heartbeat,omitempty"` // Last heartbeat timestamp
-	LastInventory    *time.Time        `json:"last_inventory,omitempty"` // Last inventory timestamp (NULL = never received)
+	ID              string            `json:"id" structs:"id"`
+	Name            string            `json:"name" structs:"name"`
+	Type            *string           `json:"type" structs:"type"`     // ns8, nsec, etc. - nullable until first inventory
+	Status          string            `json:"status" structs:"status"` // Unified status: unknown, active, inactive, suspended, deleted
+	FQDN            string            `json:"fqdn" structs:"fqdn"`
+	IPv4Address     string            `json:"ipv4_address" structs:"ipv4_address"`
+	IPv6Address     string            `json:"ipv6_address" structs:"ipv6_address"`
+	Version         string            `json:"version" structs:"version"`
+	UpdateAvailable *bool             `json:"update_available" structs:"update_available"` // From the latest inventory; nil = not reported
+	CustomData      map[string]string `json:"custom_data" structs:"custom_data"`
+	Organization    Organization      `json:"organization" structs:"organization"` // Organization details with type
+	SystemKey       string            `json:"system_key" structs:"system_key"`
+	SystemSecret    string            `json:"system_secret,omitempty" structs:"system_secret"` // Returned during creation and regeneration
+	Notes           string            `json:"notes" structs:"notes"`
+	// UIURL is the address of the web interface set by an admin; nil means the
+	// default one, which DefaultUIURL derives from FQDN and Type
+	UIURL            *string       `json:"ui_url" structs:"ui_url"`
+	CreatedAt        time.Time     `json:"created_at" structs:"created_at"`
+	UpdatedAt        time.Time     `json:"updated_at" structs:"updated_at"`
+	DeletedAt        *time.Time    `json:"deleted_at" structs:"deleted_at"`                   // Soft delete timestamp
+	RegisteredAt     *time.Time    `json:"registered_at" structs:"registered_at"`             // Registration timestamp
+	UnregisteredAt   *time.Time    `json:"unregistered_at" structs:"unregistered_at"`         // Terminal: the system gave up its credentials
+	SuspendedAt      *time.Time    `json:"suspended_at" structs:"suspended_at"`               // Suspension timestamp
+	SuspendedByOrgID *string       `json:"suspended_by_org_id" structs:"suspended_by_org_id"` // Organization that caused cascade suspension
+	DeletedByOrgID   *string       `json:"deleted_by_org_id" structs:"deleted_by_org_id"`     // Organization that caused cascade soft-deletion
+	CreatedBy        SystemCreator `json:"created_by" structs:"created_by"`
+	LastHeartbeat    *time.Time    `json:"last_heartbeat,omitempty"` // Last heartbeat timestamp
+	LastInventory    *time.Time    `json:"last_inventory,omitempty"` // Last inventory timestamp (NULL = never received)
 
 	// First contact timestamps, populated by the single-system read only
 	// (GetByID): they need per-system lookups that a list query cannot
@@ -106,6 +109,10 @@ type System struct {
 	// Rebranding info (populated by handler)
 	RebrandingEnabled bool    `json:"rebranding_enabled"`
 	RebrandingOrgID   *string `json:"rebranding_org_id,omitempty"`
+
+	// IsFavorite reports whether the caller starred the system. It is
+	// personal: two users reading the same system can get different values.
+	IsFavorite bool `json:"is_favorite"`
 
 	// Addons lists the catalog ids of the add-ons granted and still valid on
 	// the system. The list endpoint fills it only when asked
@@ -128,6 +135,11 @@ type SystemListFilters struct {
 	ParentOrganizationIDs []string // "Managed by": owning organization within these subtrees
 	Statuses              []string // unified status, including suspended/no_inventory
 	Addons                []string // catalog ids of add-ons the system must hold
+
+	// FavoritesOf is the Logto ID of the caller: it fills IsFavorite and
+	// enables the favorite sort. Empty leaves every system unstarred.
+	FavoritesOf   string
+	FavoritesOnly bool // only the systems FavoritesOf starred
 }
 
 // IsSuspended returns true if the system is suspended
@@ -163,6 +175,8 @@ type UpdateSystemRequest struct {
 	OrganizationID string            `json:"organization_id" structs:"organization_id"`
 	CustomData     map[string]string `json:"custom_data" structs:"custom_data"`
 	Notes          string            `json:"notes" structs:"notes"`
+	// UIURL: omitted keeps the current address, empty goes back to the default
+	UIURL *string `json:"ui_url,omitempty" structs:"ui_url"`
 }
 
 // RegisterSystemRequest represents the request payload for registering a system
