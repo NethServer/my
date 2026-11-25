@@ -361,7 +361,7 @@ func cleanupDatabase(dryRun, force bool) error {
 
 	if usersCount > 0 {
 		// The favorites of the users go with them: they are keyed on the Logto
-		// ID, with no foreign key to users. A database from before migration 070
+		// ID, with no foreign key to users. A database from before migration 062
 		// has no such table.
 		query := "DELETE FROM users WHERE deleted_at IS NULL"
 		var hasFavorites bool

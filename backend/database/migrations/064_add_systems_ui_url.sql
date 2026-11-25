@@ -1,4 +1,4 @@
--- Migration 072: add systems.ui_url
+-- Migration 064: add systems.ui_url
 --
 -- The address of the system's web interface, set by an admin when the default
 -- one derived from the FQDN (https://<fqdn>/cluster-admin for NethServer,
