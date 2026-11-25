@@ -10,6 +10,7 @@ import {
   type SystemSortBy,
   type SystemStatus,
 } from '@/lib/systems/systems'
+import { useHideDeletedStatus } from '@/composables/useHideDeletedStatus'
 import { useLoginStore } from '@/stores/login'
 import { defineQuery, useQuery } from '@pinia/colada'
 import { useDebounceFn } from '@vueuse/core'
@@ -212,6 +213,8 @@ export const useSystems = defineQuery(() => {
       { id: 'suspended', label: 'suspended' },
     ]
   }
+
+  useHideDeletedStatus(statusFilter, resetStatusFilter)
 
   return {
     ...rest,
