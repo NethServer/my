@@ -1,4 +1,4 @@
--- Migration 062: Support sessions and access logs
+-- Migration 065: Support sessions and access logs
 -- Description: Tables for WebSocket tunnel-based support sessions
 
 -- Support sessions track active tunnel connections from client systems

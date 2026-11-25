@@ -1,4 +1,4 @@
--- Migration 063: Security hardening for support service
+-- Migration 066: Security hardening for support service
 -- Description: Adds support_enabled flag to systems and reconnect_token to sessions
 
 -- #2: Per-system kill switch for the support tunnel (consent is the appliance admin starting it)

@@ -152,7 +152,7 @@ podman run --rm --network=host -v "$(pwd):/migrations:ro" postgres:16-alpine \
 
    These numbers are skipped on `main` and must not be reused: **022**,
    **048** (PR #237, closed) and **054–059** (left by the support service
-   before it moved to 062–069). `TestMigrationFiles` fails on a duplicate
+   before it moved to new numbers). `TestMigrationFiles` fails on a duplicate
    number or a migration without its rollback.
 
 2. Update the migration runner script if needed
