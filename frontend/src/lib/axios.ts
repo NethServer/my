@@ -12,10 +12,12 @@ const AUTH_EXCHANGE_URL = `${API_URL}/auth/exchange`
 const AUTH_REFRESH_URL = `${API_URL}/auth/refresh`
 
 // marks a request already replayed once after a token refresh, so a second 401
-// gives up instead of looping
+// gives up instead of looping, and records the session identity it was sent
+// under (loginStore.sessionEpoch)
 type RetriableRequestConfig = InternalAxiosRequestConfig & {
   retriedAfterRefresh?: boolean
   retriedWithCurrentToken?: boolean
+  sessionEpoch?: number
 }
 
 // requests whose Bearer token is the backend JWT: our API only, excluding the
@@ -39,7 +41,7 @@ export const configureAxios = () => {
 
   // request interceptor
   axios.interceptors.request.use(
-    async function (config: InternalAxiosRequestConfig) {
+    async function (config: RetriableRequestConfig) {
       if (carriesBackendJwt(config)) {
         if (loginStore.shouldRefreshToken()) {
           // the access token is short-lived: sending the request with a stale
@@ -56,6 +58,7 @@ export const configureAxios = () => {
         if (loginStore.jwtToken) {
           config.headers.Authorization = `Bearer ${loginStore.jwtToken}`
         }
+        config.sessionEpoch ??= loginStore.sessionEpoch
       }
       return config
     },
@@ -116,8 +119,16 @@ export const configureAxios = () => {
           return Promise.reject(error)
         }
 
-        // a request sent with a token that has been replaced since (an
-        // impersonation started, extended or ended, a refresh) was refused for
+        // a request sent before an impersonation started or ended was meant
+        // for the identity of that time: replaying it, or refreshing the token
+        // for it, would run it as someone else (an impersonator's own account
+        // after the exit). Give it up, and leave the session alone.
+        if (config?.sessionEpoch !== undefined && config.sessionEpoch !== loginStore.sessionEpoch) {
+          return Promise.reject(error)
+        }
+
+        // a request sent with a token that has been replaced since within the
+        // same identity (an extended impersonation, a refresh) was refused for
         // that old token only: replay it once with the current one
         const sentToken = String(config?.headers?.Authorization ?? '').replace(/^Bearer /, '')
         if (

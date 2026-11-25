@@ -11,6 +11,7 @@ vi.mock('@/i18n', () => ({ default: { global: { t: (key: string) => key } } }))
 vi.mock('@/router', () => ({ default: { push: (...args: unknown[]) => push(...args) } }))
 const loginStore = {
   jwtToken: '',
+  sessionEpoch: 0,
   doRefreshToken: vi.fn(async () => false),
   forceReauth: vi.fn(),
   shouldRefreshToken: () => false,
@@ -118,10 +119,11 @@ describe('error message', () => {
 describe('401 response interceptor', () => {
   // a refused request that axios replays: the adapter answers the replay
   // without a network, and records the token it carried
-  function unauthorized(sentToken: string) {
+  function unauthorized(sentToken: string, method = 'get', sessionEpoch?: number) {
     const replayedWith: string[] = []
     const config = {
-      method: 'get',
+      method,
+      sessionEpoch,
       url: `${API_URL}/systems`,
       headers: new AxiosHeaders({ Authorization: `Bearer ${sentToken}` }),
       adapter: async (replay: InternalAxiosRequestConfig) => {
@@ -147,6 +149,7 @@ describe('401 response interceptor', () => {
 
   beforeEach(() => {
     loginStore.jwtToken = 'current-token'
+    loginStore.sessionEpoch = 1
     loginStore.doRefreshToken.mockClear()
     loginStore.forceReauth.mockClear()
   })
@@ -159,6 +162,27 @@ describe('401 response interceptor', () => {
     expect(loginStore.doRefreshToken).not.toHaveBeenCalled()
     expect(loginStore.forceReauth).not.toHaveBeenCalled()
   })
+
+  it('replays a request sent under the same identity with an older token', async () => {
+    const { error, replayedWith } = unauthorized('old-token', 'put', 1)
+
+    await expect(onRejected(error)).resolves.toMatchObject({ status: 200 })
+    expect(replayedWith).toEqual(['Bearer current-token'])
+  })
+
+  // an impersonation ended (or started) while the request was in flight: the
+  // current token belongs to another identity
+  it.each(['get', 'put', 'delete'])(
+    'never replays a %s sent under another identity',
+    async (method) => {
+      const { error, replayedWith } = unauthorized('impersonation-token', method, 0)
+
+      await expect(onRejected(error)).rejects.toBe(error)
+      expect(replayedWith).toEqual([])
+      expect(loginStore.doRefreshToken).not.toHaveBeenCalled()
+      expect(loginStore.forceReauth).not.toHaveBeenCalled()
+    },
+  )
 
   it('re-authenticates when the current token itself is refused and cannot be refreshed', async () => {
     const { error, replayedWith } = unauthorized('current-token')

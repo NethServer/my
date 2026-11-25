@@ -87,6 +87,11 @@ export const useLoginStore = defineStore('login', () => {
   const impersonatedUser = ref<UserInfo | undefined>()
   const originalUser = ref<UserInfo | undefined>()
   const impersonateExpiration = ref<Date | undefined>()
+  // Bumped whenever the session switches to another identity (an
+  // impersonation starts or ends). A token replaced within the same identity
+  // (a refresh, an extended impersonation) keeps it: the interceptor replays a
+  // refused request only under the identity it was sent with.
+  const sessionEpoch = ref<number>(0)
 
   const userDisplayName = computed(() => userInfo.value?.name || '')
 
@@ -421,6 +426,7 @@ export const useLoginStore = defineStore('login', () => {
       }
 
       // Update tokens and user info with impersonated user
+      sessionEpoch.value++
       jwtToken.value = impersonationStatus.token
       impersonatedUser.value = impersonationStatus.impersonated_user
       userInfo.value = impersonatedUser.value
@@ -551,6 +557,7 @@ export const useLoginStore = defineStore('login', () => {
       }
 
       // Update tokens and user info with impersonated user
+      sessionEpoch.value++
       jwtToken.value = res.token
       impersonatedUser.value = res.impersonated_user as UserInfo
       userInfo.value = impersonatedUser.value
@@ -583,6 +590,7 @@ export const useLoginStore = defineStore('login', () => {
       const res = await deleteImpersonate()
 
       // Restore original user info
+      sessionEpoch.value++
       jwtToken.value = res.token
       refreshToken.value = res.refresh_token
       tokenRefreshedAt.value = Date.now()
@@ -619,6 +627,7 @@ export const useLoginStore = defineStore('login', () => {
     impersonatedUser,
     originalUser,
     impersonateExpiration,
+    sessionEpoch,
     refreshAvatar,
     fetchTokenAndUserInfo,
     shouldRefreshToken,
