@@ -13,6 +13,7 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/nethesis/my/backend/database"
+	"github.com/nethesis/my/backend/models"
 )
 
 // LocalLegacySystemsByOrgRepository serves the per-organization count of
@@ -49,11 +50,28 @@ func legacySystemsCount(orgSet string) string {
 	return "(SELECT COALESCE(SUM(l.total), 0) FROM legacy_systems_by_org l WHERE l.organization_id IN (" + orgSet + "))"
 }
 
+// legacyProductColumns are the per-product columns, in scan order.
+var legacyProductColumns = []string{"nethservice", "nethsecurity", "nethvoice"}
+
+// legacyProductsCount is legacySystemsCount for the per-product columns: three
+// SQL expressions in legacyProductColumns order, aliased with the given suffix.
+func legacyProductsCount(orgSet, suffix string) string {
+	out := ""
+	for i, col := range legacyProductColumns {
+		if i > 0 {
+			out += ",\n\t\t\t"
+		}
+		out += "(SELECT COALESCE(SUM(l." + col + "), 0) FROM legacy_systems_by_org l WHERE l.organization_id IN (" + orgSet + ")) as legacy_" + col + suffix
+	}
+	return out
+}
+
 // LegacySystemsSum is the aggregated answer for one scope. OldestUpdate is the
 // MIN(updated_at) across the queried rows, so a caller can tell a genuine zero
 // from a sync that stopped running. It is the zero time when no rows matched.
 type LegacySystemsSum struct {
 	Total        int
+	Products     models.LegacyProducts
 	OldestUpdate time.Time
 }
 
@@ -72,10 +90,13 @@ func (r *LocalLegacySystemsByOrgRepository) SumByOrgIDs(orgIDs []string) (Legacy
 	err := r.db.QueryRow(`
 		SELECT
 			COALESCE(SUM(total), 0),
+			COALESCE(SUM(nethservice), 0),
+			COALESCE(SUM(nethsecurity), 0),
+			COALESCE(SUM(nethvoice), 0),
 			MIN(updated_at)
 		FROM legacy_systems_by_org
 		WHERE organization_id = ANY($1)
-	`, pq.Array(orgIDs)).Scan(&out.Total, &oldest)
+	`, pq.Array(orgIDs)).Scan(&out.Total, &out.Products.NethService, &out.Products.NethSecurity, &out.Products.NethVoice, &oldest)
 	if err != nil {
 		return LegacySystemsSum{}, fmt.Errorf("sum legacy_systems_by_org: %w", err)
 	}
@@ -92,8 +113,14 @@ func (r *LocalLegacySystemsByOrgRepository) SumAll() (LegacySystemsSum, error) {
 	var out LegacySystemsSum
 	var oldest sql.NullTime
 	err := r.db.QueryRow(`
-		SELECT COALESCE(SUM(total), 0), MIN(updated_at) FROM legacy_systems_by_org
-	`).Scan(&out.Total, &oldest)
+		SELECT
+			COALESCE(SUM(total), 0),
+			COALESCE(SUM(nethservice), 0),
+			COALESCE(SUM(nethsecurity), 0),
+			COALESCE(SUM(nethvoice), 0),
+			MIN(updated_at)
+		FROM legacy_systems_by_org
+	`).Scan(&out.Total, &out.Products.NethService, &out.Products.NethSecurity, &out.Products.NethVoice, &oldest)
 	if err != nil {
 		return LegacySystemsSum{}, fmt.Errorf("sum all legacy_systems_by_org: %w", err)
 	}
@@ -110,7 +137,7 @@ func (r *LocalLegacySystemsByOrgRepository) SumAll() (LegacySystemsSum, error) {
 // the payload, and an upsert-only write would leave its last non-zero count
 // there for good. Organizations whose VAT matches nothing here are simply not
 // in the payload.
-func (r *LocalLegacySystemsByOrgRepository) ReplaceAll(counts map[string]int) error {
+func (r *LocalLegacySystemsByOrgRepository) ReplaceAll(counts map[string]models.LegacySystemCount) error {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin legacy_systems_by_org replace: %w", err)
@@ -122,19 +149,19 @@ func (r *LocalLegacySystemsByOrgRepository) ReplaceAll(counts map[string]int) er
 	}
 
 	stmt, err := tx.Prepare(`
-		INSERT INTO legacy_systems_by_org (organization_id, total, updated_at)
-		VALUES ($1, $2, NOW())
+		INSERT INTO legacy_systems_by_org (organization_id, total, nethservice, nethsecurity, nethvoice, updated_at)
+		VALUES ($1, $2, $3, $4, $5, NOW())
 	`)
 	if err != nil {
 		return fmt.Errorf("prepare legacy_systems_by_org insert: %w", err)
 	}
 	defer func() { _ = stmt.Close() }()
 
-	for orgID, total := range counts {
+	for orgID, count := range counts {
 		if orgID == "" {
 			continue
 		}
-		if _, err := stmt.Exec(orgID, total); err != nil {
+		if _, err := stmt.Exec(orgID, count.Total, count.NethService, count.NethSecurity, count.NethVoice); err != nil {
 			return fmt.Errorf("insert legacy count for %s: %w", orgID, err)
 		}
 	}
