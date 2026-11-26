@@ -277,8 +277,9 @@ was edited by hand in the helpdesk, are never touched: many hand-written
 helpdesk names are better than the my ones. The SSO carries no organization
 either, so the same run gives each contact with no company the Freshdesk
 company of its my organization, matched by VAT number (`partita_iva`) or,
-failing that, by name, and creates the company with just name and VAT number
-when the helpdesk has none; a company set in the helpdesk is never changed and
+failing that, by name, and creates the company with just name, VAT number and
+the mandatory `tipo_cliente` (`Reseller` or `Cliente`, from the organization
+type) when the helpdesk has none; a company set in the helpdesk is never changed and
 the other company fields stay with the back office. On Render it runs hourly as the
 `my-freshdesk-contacts-prod` cron job, defined in the dashboard like the QA
 cron jobs (not in render.yaml): it pulls `ghcr.io/nethserver/my/backend:latest`

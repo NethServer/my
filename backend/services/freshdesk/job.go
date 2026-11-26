@@ -151,7 +151,7 @@ func syncCompanies(log *zerolog.Logger, client *Client, management *logto.LogtoM
 			event(log.Error().Err(err)).Msg("cannot read the user organization")
 			continue
 		}
-		name, vat, ok := helpdeskOrganization(orgs)
+		name, vat, kind, ok := helpdeskOrganization(orgs)
 		if !ok {
 			continue
 		}
@@ -166,7 +166,7 @@ func syncCompanies(log *zerolog.Logger, client *Client, management *logto.LogtoM
 		}
 
 		if !found {
-			created, err := client.CreateCompany(name, vat)
+			created, err := client.CreateCompany(name, vat, kind)
 			if err != nil {
 				result.failed++
 				event(log.Error().Err(err)).Str("organization", name).Msg("company creation failed")
@@ -192,11 +192,15 @@ func syncCompanies(log *zerolog.Logger, client *Client, management *logto.LogtoM
 }
 
 // helpdeskOrganization picks the distributor, reseller or customer the user
-// belongs to; the owner organization has no company in the helpdesk
-func helpdeskOrganization(orgs []models.LogtoOrganization) (name, vat string, ok bool) {
+// belongs to, with the helpdesk kind of company it maps to; the owner
+// organization has no company in the helpdesk
+func helpdeskOrganization(orgs []models.LogtoOrganization) (name, vat, kind string, ok bool) {
 	for _, org := range orgs {
 		switch org.CustomData["type"] {
-		case "distributor", "reseller", "customer":
+		case "distributor", "reseller":
+			kind = "Reseller"
+		case "customer":
+			kind = "Cliente"
 		default:
 			continue
 		}
@@ -205,7 +209,7 @@ func helpdeskOrganization(orgs []models.LogtoOrganization) (name, vat string, ok
 			continue
 		}
 		vat, _ = org.CustomData["vat"].(string)
-		return name, strings.TrimSpace(vat), true
+		return name, strings.TrimSpace(vat), kind, true
 	}
-	return "", "", false
+	return "", "", "", false
 }

@@ -150,13 +150,13 @@ func TestCreateCompanyAndAssign(t *testing.T) {
 		_, _ = w.Write([]byte(`{}`))
 	})
 
-	company, err := client.CreateCompany("Acme Srl", "01234567890")
+	company, err := client.CreateCompany("Acme Srl", "01234567890", "Reseller")
 	require.NoError(t, err)
 	assert.Equal(t, int64(42), company.ID)
 	require.NoError(t, client.UpdateContactCompany(9, company.ID))
 
 	assert.Equal(t, []string{
-		`POST /api/v2/companies {"custom_fields":{"partita_iva":"01234567890"},"name":"Acme Srl"}`,
+		`POST /api/v2/companies {"custom_fields":{"partita_iva":"01234567890","tipo_cliente":"Reseller"},"name":"Acme Srl"}`,
 		`PUT /api/v2/contacts/9 {"company_id":42}`,
 	}, bodies)
 }

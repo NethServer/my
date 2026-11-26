@@ -49,7 +49,8 @@ type Company struct {
 
 // CompanyCustomFields holds the account's custom company fields the sync uses
 type CompanyCustomFields struct {
-	VAT string `json:"partita_iva"`
+	VAT  string `json:"partita_iva,omitempty"`
+	Kind string `json:"tipo_cliente,omitempty"`
 }
 
 // Client calls the Freshdesk API with an agent API key
@@ -118,12 +119,10 @@ func (c *Client) ListCompanies() ([]Company, error) {
 	}
 }
 
-// CreateCompany adds a company with its name and, when known, its VAT number
-func (c *Client) CreateCompany(name, vat string) (*Company, error) {
-	body := map[string]any{"name": name}
-	if vat != "" {
-		body["custom_fields"] = map[string]string{"partita_iva": vat}
-	}
+// CreateCompany adds a company with its name, its kind (the account requires
+// one) and, when known, its VAT number
+func (c *Client) CreateCompany(name, vat, kind string) (*Company, error) {
+	body := map[string]any{"name": name, "custom_fields": CompanyCustomFields{VAT: vat, Kind: kind}}
 	var company Company
 	if err := c.do(http.MethodPost, "/companies", body, &company); err != nil {
 		return nil, fmt.Errorf("create company %q: %w", name, err)
