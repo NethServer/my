@@ -34,9 +34,22 @@ var sleep = time.Sleep
 
 // Contact is the part of a Freshdesk contact the sync reads and writes
 type Contact struct {
-	ID    int64  `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	Email     string `json:"email"`
+	CompanyID *int64 `json:"company_id"`
+}
+
+// Company is the part of a Freshdesk company the sync reads and writes
+type Company struct {
+	ID           int64               `json:"id"`
+	Name         string              `json:"name"`
+	CustomFields CompanyCustomFields `json:"custom_fields"`
+}
+
+// CompanyCustomFields holds the account's custom company fields the sync uses
+type CompanyCustomFields struct {
+	VAT string `json:"partita_iva"`
 }
 
 // Client calls the Freshdesk API with an agent API key
@@ -84,6 +97,43 @@ func (c *Client) FindContactsByEmail(email string) ([]Contact, error) {
 // UpdateContactName sets the display name of a contact
 func (c *Client) UpdateContactName(id int64, name string) error {
 	if err := c.do(http.MethodPut, fmt.Sprintf("/contacts/%d", id), map[string]string{"name": name}, nil); err != nil {
+		return fmt.Errorf("update contact %d: %w", id, err)
+	}
+	return nil
+}
+
+// ListCompanies pages through every company of the account
+func (c *Client) ListCompanies() ([]Company, error) {
+	var all []Company
+	for page := 1; ; page++ {
+		var items []Company
+		path := fmt.Sprintf("/companies?per_page=%d&page=%d", pageSize, page)
+		if err := c.do(http.MethodGet, path, nil, &items); err != nil {
+			return nil, fmt.Errorf("list companies page %d: %w", page, err)
+		}
+		all = append(all, items...)
+		if len(items) < pageSize {
+			return all, nil
+		}
+	}
+}
+
+// CreateCompany adds a company with its name and, when known, its VAT number
+func (c *Client) CreateCompany(name, vat string) (*Company, error) {
+	body := map[string]any{"name": name}
+	if vat != "" {
+		body["custom_fields"] = map[string]string{"partita_iva": vat}
+	}
+	var company Company
+	if err := c.do(http.MethodPost, "/companies", body, &company); err != nil {
+		return nil, fmt.Errorf("create company %q: %w", name, err)
+	}
+	return &company, nil
+}
+
+// UpdateContactCompany sets the primary company of a contact
+func (c *Client) UpdateContactCompany(id, companyID int64) error {
+	if err := c.do(http.MethodPut, fmt.Sprintf("/contacts/%d", id), map[string]int64{"company_id": companyID}, nil); err != nil {
 		return fmt.Errorf("update contact %d: %w", id, err)
 	}
 	return nil

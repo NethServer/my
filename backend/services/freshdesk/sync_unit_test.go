@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/nethesis/my/backend/models"
 )
@@ -52,4 +53,53 @@ func TestPlanRenames(t *testing.T) {
 		{Contact: contacts[0], Name: "Maria Grazia De Luca"},
 	}, PlanRenames(contacts, identities))
 	assert.Empty(t, PlanRenames(nil, identities))
+}
+
+func TestPlanOrphans(t *testing.T) {
+	company := int64(7)
+	identities := map[string]Identity{
+		"luigi@example.com": {UserID: "u1"},
+		"maria@example.com": {UserID: "u2"},
+		"anna@example.com":  {UserID: "u3"},
+	}
+	contacts := []Contact{
+		{ID: 1, Email: "Maria@example.com"},
+		{ID: 2, Email: "luigi@example.com"},
+		{ID: 2, Email: "luigi@example.com"},
+		{ID: 3, Email: "anna@example.com", CompanyID: &company},
+		{ID: 4, Email: "stranger@example.com"},
+	}
+
+	orphans := PlanOrphans(contacts, identities)
+	require.Len(t, orphans, 2)
+	assert.Equal(t, Orphan{Contact: contacts[1], UserID: "u1"}, orphans[0])
+	assert.Equal(t, Orphan{Contact: contacts[0], UserID: "u2"}, orphans[1])
+}
+
+func TestCompanyIndexFind(t *testing.T) {
+	index := NewCompanyIndex([]Company{
+		{ID: 1, Name: "Acme Srl", CustomFields: CompanyCustomFields{VAT: "IT 01234567890"}},
+		{ID: 2, Name: "DIGINET1 Communications srl"},
+		{ID: 3, Name: "Old Name Spa", CustomFields: CompanyCustomFields{VAT: "09876543210"}},
+	})
+
+	company, ok := index.Find("01234567890", "Another Name")
+	require.True(t, ok)
+	assert.Equal(t, int64(1), company.ID)
+
+	company, ok = index.Find("03830671206", "DIGINET1  communications SRL")
+	require.True(t, ok)
+	assert.Equal(t, int64(2), company.ID)
+
+	company, ok = index.Find("09876543210", "New Name Spa")
+	require.True(t, ok)
+	assert.Equal(t, int64(3), company.ID)
+
+	_, ok = index.Find("00502140049", "G.S.C. GENERAL SYSTEMS CUNEO SRL")
+	assert.False(t, ok)
+
+	index.Add(Company{ID: 4, Name: "G.S.C. GENERAL SYSTEMS CUNEO SRL", CustomFields: CompanyCustomFields{VAT: "00502140049"}})
+	company, ok = index.Find("00502140049", "")
+	require.True(t, ok)
+	assert.Equal(t, int64(4), company.ID)
 }

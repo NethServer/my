@@ -274,7 +274,12 @@ their side. `backend freshdesk-contacts` finds the Freshdesk contacts still name
 after the Logto username of the my user with the same email and renames them to
 that user's display name. Contacts whose email is not a my user, or whose name
 was edited by hand in the helpdesk, are never touched: many hand-written
-helpdesk names are better than the my ones. On Render it runs hourly as the
+helpdesk names are better than the my ones. The SSO carries no organization
+either, so the same run gives each contact with no company the Freshdesk
+company of its my organization, matched by VAT number (`partita_iva`) or,
+failing that, by name, and creates the company with just name and VAT number
+when the helpdesk has none; a company set in the helpdesk is never changed and
+the other company fields stay with the back office. On Render it runs hourly as the
 `my-freshdesk-contacts-prod` cron job, defined in the dashboard like the QA
 cron jobs (not in render.yaml): it pulls `ghcr.io/nethserver/my/backend:latest`
 before each run, so it follows the production releases on its own, and it is
@@ -285,7 +290,7 @@ an older image ignores the arguments and fails on the missing server
 configuration at every run.
 
 ```bash
-# Plan only: logs every contact to rename
+# Plan only: logs every contact to rename or to give a company
 FRESHDESK_DOMAIN=nethesis.freshdesk.com FRESHDESK_API_KEY=... ENV_FILE=.env.production \
   go run main.go freshdesk-contacts
 

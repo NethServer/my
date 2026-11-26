@@ -12,6 +12,7 @@ package freshdesk
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -134,4 +135,28 @@ func TestRateLimitGivesUp(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "status 429")
 	assert.Equal(t, maxRateLimitRetries+1, calls)
+}
+
+func TestCreateCompanyAndAssign(t *testing.T) {
+	var bodies []string
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, r.Method+" "+r.URL.Path+" "+string(body))
+		if r.Method == http.MethodPost {
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id":42,"name":"Acme Srl","custom_fields":{"partita_iva":"01234567890"}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{}`))
+	})
+
+	company, err := client.CreateCompany("Acme Srl", "01234567890")
+	require.NoError(t, err)
+	assert.Equal(t, int64(42), company.ID)
+	require.NoError(t, client.UpdateContactCompany(9, company.ID))
+
+	assert.Equal(t, []string{
+		`POST /api/v2/companies {"custom_fields":{"partita_iva":"01234567890"},"name":"Acme Srl"}`,
+		`PUT /api/v2/contacts/9 {"company_id":42}`,
+	}, bodies)
 }
