@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nethesis/my/backend/database"
+	"github.com/nethesis/my/backend/models"
 )
 
 func setupLegacySystemsMock(t *testing.T) (*LocalLegacySystemsByOrgRepository, sqlmock.Sqlmock, func()) {
@@ -48,12 +49,13 @@ func TestLegacySumByOrgIDs_AggregatesAcrossTheScope(t *testing.T) {
 
 	oldest := time.Now().Add(-3 * time.Hour).UTC()
 	mock.ExpectQuery("SELECT(.|\n)*FROM legacy_systems_by_org").
-		WillReturnRows(sqlmock.NewRows([]string{"sum", "min"}).AddRow(42, oldest))
+		WillReturnRows(sqlmock.NewRows([]string{"sum", "nethservice", "nethsecurity", "nethvoice", "min"}).AddRow(42, 7, 20, 9, oldest))
 
 	sum, err := repo.SumByOrgIDs([]string{"org-a", "org-b"})
 
 	assert.NoError(t, err)
 	assert.Equal(t, 42, sum.Total)
+	assert.Equal(t, models.LegacyProducts{NethService: 7, NethSecurity: 20, NethVoice: 9}, sum.Products)
 	assert.WithinDuration(t, oldest, sum.OldestUpdate, time.Second)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -66,7 +68,7 @@ func TestLegacySumByOrgIDs_NoRowsIsZeroWithNoTimestamp(t *testing.T) {
 	defer cleanup()
 
 	mock.ExpectQuery("SELECT(.|\n)*FROM legacy_systems_by_org").
-		WillReturnRows(sqlmock.NewRows([]string{"sum", "min"}).AddRow(0, nil))
+		WillReturnRows(sqlmock.NewRows([]string{"sum", "nethservice", "nethsecurity", "nethvoice", "min"}).AddRow(0, 0, 0, 0, nil))
 
 	sum, err := repo.SumByOrgIDs([]string{"org-never-synced"})
 
@@ -80,13 +82,14 @@ func TestLegacySumAll_CoversEveryOrganization(t *testing.T) {
 	repo, mock, cleanup := setupLegacySystemsMock(t)
 	defer cleanup()
 
-	mock.ExpectQuery("SELECT COALESCE\\(SUM\\(total\\), 0\\), MIN\\(updated_at\\) FROM legacy_systems_by_org").
-		WillReturnRows(sqlmock.NewRows([]string{"sum", "min"}).AddRow(19312, time.Now().UTC()))
+	mock.ExpectQuery("SELECT(.|\n)*FROM legacy_systems_by_org").
+		WillReturnRows(sqlmock.NewRows([]string{"sum", "nethservice", "nethsecurity", "nethvoice", "min"}).AddRow(19312, 3499, 10278, 7927, time.Now().UTC()))
 
 	sum, err := repo.SumAll()
 
 	assert.NoError(t, err)
 	assert.Equal(t, 19312, sum.Total)
+	assert.Equal(t, 10278, sum.Products.NethSecurity)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -103,11 +106,11 @@ func TestLegacyReplaceAll_ClearsBeforeInserting(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 7))
 	mock.ExpectPrepare("INSERT INTO legacy_systems_by_org").
 		ExpectExec().
-		WithArgs("org-a", 12).
+		WithArgs("org-a", 12, 3, 8, 2).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
-	err := repo.ReplaceAll(map[string]int{"org-a": 12})
+	err := repo.ReplaceAll(map[string]models.LegacySystemCount{"org-a": {OrganizationID: "org-a", Total: 12, NethService: 3, NethSecurity: 8, NethVoice: 2}})
 
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -126,7 +129,7 @@ func TestLegacyReplaceAll_EmptyPayloadEmptiesTheTable(t *testing.T) {
 	mock.ExpectPrepare("INSERT INTO legacy_systems_by_org")
 	mock.ExpectCommit()
 
-	err := repo.ReplaceAll(map[string]int{})
+	err := repo.ReplaceAll(map[string]models.LegacySystemCount{})
 
 	assert.NoError(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -141,11 +144,11 @@ func TestLegacyReplaceAll_RollsBackWhenAnInsertFails(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 2))
 	mock.ExpectPrepare("INSERT INTO legacy_systems_by_org").
 		ExpectExec().
-		WithArgs("org-a", 5).
+		WithArgs("org-a", 5, 0, 0, 0).
 		WillReturnError(assert.AnError)
 	mock.ExpectRollback()
 
-	err := repo.ReplaceAll(map[string]int{"org-a": 5})
+	err := repo.ReplaceAll(map[string]models.LegacySystemCount{"org-a": {OrganizationID: "org-a", Total: 5}})
 
 	assert.Error(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())

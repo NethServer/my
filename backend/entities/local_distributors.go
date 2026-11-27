@@ -876,6 +876,8 @@ func (r *LocalDistributorRepository) GetStats(id string) (*models.DistributorSta
 			)) as systems_hierarchy_count,
 			` + legacySystemsCount("$1") + ` as legacy_systems_count,
 			` + legacySystemsCount(hierarchy) + ` as legacy_systems_hierarchy_count,
+			` + legacyProductsCount("$1", "") + `,
+			` + legacyProductsCount(hierarchy, "_hierarchy") + `,
 			(SELECT COUNT(*) FROM resellers WHERE custom_data->>'createdBy' = $1 AND deleted_at IS NULL) as resellers_count,
 			(SELECT COUNT(*) FROM customers c WHERE c.deleted_at IS NULL AND (
 				c.custom_data->>'createdBy' = $1
@@ -894,6 +896,8 @@ func (r *LocalDistributorRepository) GetStats(id string) (*models.DistributorSta
 		&stats.UsersCount, &stats.UsersHierarchyCount,
 		&stats.SystemsCount, &stats.SystemsHierarchyCount,
 		&stats.LegacySystemsCount, &stats.LegacySystemsHierarchyCount,
+		&stats.LegacyProducts.NethService, &stats.LegacyProducts.NethSecurity, &stats.LegacyProducts.NethVoice,
+		&stats.LegacyProductsHierarchy.NethService, &stats.LegacyProductsHierarchy.NethSecurity, &stats.LegacyProductsHierarchy.NethVoice,
 		&stats.ResellersCount, &stats.CustomersCount,
 		&stats.ApplicationsAssignedCount, &stats.ApplicationsUnassignedCount,
 		&stats.ApplicationsAssignedHierarchyCount, &stats.ApplicationsUnassignedHierarchyCount,

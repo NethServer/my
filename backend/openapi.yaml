@@ -1993,6 +1993,22 @@ components:
             for a headline figure; use total whenever the number has to agree with the
             systems list.
           example: 1430
+        legacy_products:
+          type: object
+          description: |
+            Product breakdown of `legacy`: how many of those systems run each product, as the
+            old my shows under "Installed products". A system running two products counts in
+            both, so the three values do not add up to `legacy`. Transitional field.
+          properties:
+            nethservice:
+              type: integer
+              example: 138
+            nethsecurity:
+              type: integer
+              example: 116
+            nethvoice:
+              type: integer
+              example: 96
 
     UserTotals:
       type: object
@@ -2050,6 +2066,35 @@ components:
           description: |
             Systems still on the old my for the whole distributor hierarchy. Transitional field.
           example: 240
+        legacy_products:
+          type: object
+          description: |
+            Product breakdown of legacy_systems_count. A system running two products counts in
+            both. Transitional field.
+          properties:
+            nethservice:
+              type: integer
+              example: 138
+            nethsecurity:
+              type: integer
+              example: 116
+            nethvoice:
+              type: integer
+              example: 96
+        legacy_products_hierarchy:
+          type: object
+          description: |
+            Product breakdown of legacy_systems_hierarchy_count. Transitional field.
+          properties:
+            nethservice:
+              type: integer
+              example: 138
+            nethsecurity:
+              type: integer
+              example: 116
+            nethvoice:
+              type: integer
+              example: 96
         resellers_count:
           type: integer
           description: Number of resellers created by this distributor
@@ -2117,6 +2162,36 @@ components:
             organization, never on its customers, so the hierarchy adds nothing. Present for
             symmetry with the distributor stats. Transitional field.
           example: 12
+        legacy_products:
+          type: object
+          description: |
+            Product breakdown of legacy_systems_count. A system running two products counts in
+            both. Transitional field.
+          properties:
+            nethservice:
+              type: integer
+              example: 138
+            nethsecurity:
+              type: integer
+              example: 116
+            nethvoice:
+              type: integer
+              example: 96
+        legacy_products_hierarchy:
+          type: object
+          description: |
+            Same values as legacy_products, present for symmetry with the distributor stats.
+            Transitional field.
+          properties:
+            nethservice:
+              type: integer
+              example: 138
+            nethsecurity:
+              type: integer
+              example: 116
+            nethvoice:
+              type: integer
+              example: 96
         customers_count:
           type: integer
           description: Number of customers created by this reseller
@@ -13425,6 +13500,21 @@ paths:
                         minimum: 0
                         description: Systems still on the old my for that organization, excluding deleted and disabled ones
                         example: 12
+                      nethservice:
+                        type: integer
+                        minimum: 0
+                        description: Of `total`, systems running NethService. Optional, defaults to 0
+                        example: 3
+                      nethsecurity:
+                        type: integer
+                        minimum: 0
+                        description: Of `total`, systems running NethSecurity. Optional, defaults to 0
+                        example: 8
+                      nethvoice:
+                        type: integer
+                        minimum: 0
+                        description: Of `total`, systems running NethVoice. Optional, defaults to 0
+                        example: 2
       responses:
         '200':
           description: Counters stored

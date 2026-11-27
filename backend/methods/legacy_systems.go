@@ -45,17 +45,17 @@ func ReplaceLegacySystemCounts(c *gin.Context) {
 		return
 	}
 
-	counts := make(map[string]int, len(req.Counts))
+	counts := make(map[string]models.LegacySystemCount, len(req.Counts))
 	for _, entry := range req.Counts {
 		if entry.OrganizationID == "" {
 			c.JSON(http.StatusBadRequest, response.BadRequest("organization_id cannot be empty", nil))
 			return
 		}
-		if entry.Total < 0 {
-			c.JSON(http.StatusBadRequest, response.BadRequest("total cannot be negative", nil))
+		if entry.Total < 0 || entry.NethService < 0 || entry.NethSecurity < 0 || entry.NethVoice < 0 {
+			c.JSON(http.StatusBadRequest, response.BadRequest("counts cannot be negative", nil))
 			return
 		}
-		counts[entry.OrganizationID] = entry.Total
+		counts[entry.OrganizationID] = entry
 	}
 
 	repo := entities.NewLocalLegacySystemsByOrgRepository()
@@ -70,7 +70,7 @@ func ReplaceLegacySystemCounts(c *gin.Context) {
 
 	total := 0
 	for _, n := range counts {
-		total += n
+		total += n.Total
 	}
 
 	logger.RequestLogger(c, "legacy_systems").Info().

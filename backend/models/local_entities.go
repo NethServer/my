@@ -448,6 +448,16 @@ type SystemTotals struct {
 	Unknown         int `json:"unknown"`
 	Legacy          int `json:"legacy"`
 	TotalWithLegacy int `json:"total_with_legacy"`
+	// Product breakdown of Legacy; a system running two products counts in both.
+	LegacyProducts LegacyProducts `json:"legacy_products"`
+}
+
+// LegacyProducts counts the legacy systems running each product, the same
+// figures the old my shows as "Installed products".
+type LegacyProducts struct {
+	NethService  int `json:"nethservice"`
+	NethSecurity int `json:"nethsecurity"`
+	NethVoice    int `json:"nethvoice"`
 }
 
 // LegacySystemCount is one organization's share of the systems still on the old
@@ -456,6 +466,9 @@ type SystemTotals struct {
 type LegacySystemCount struct {
 	OrganizationID string `json:"organization_id" binding:"required"`
 	Total          int    `json:"total"`
+	NethService    int    `json:"nethservice"`
+	NethSecurity   int    `json:"nethsecurity"`
+	NethVoice      int    `json:"nethvoice"`
 }
 
 // ReplaceLegacySystemCountsRequest carries the complete set of legacy counts
@@ -491,10 +504,13 @@ type DistributorStats struct {
 	// legacy decommission.
 	LegacySystemsCount          int `json:"legacy_systems_count"`
 	LegacySystemsHierarchyCount int `json:"legacy_systems_hierarchy_count"`
-	ResellersCount              int `json:"resellers_count"`
-	CustomersCount              int `json:"customers_count"`
-	ApplicationsCount           int `json:"applications_count"`           // direct applications
-	ApplicationsHierarchyCount  int `json:"applications_hierarchy_count"` // applications in hierarchy
+	// Product breakdown of the two legacy counts above.
+	LegacyProducts             LegacyProducts `json:"legacy_products"`
+	LegacyProductsHierarchy    LegacyProducts `json:"legacy_products_hierarchy"`
+	ResellersCount             int            `json:"resellers_count"`
+	CustomersCount             int            `json:"customers_count"`
+	ApplicationsCount          int            `json:"applications_count"`           // direct applications
+	ApplicationsHierarchyCount int            `json:"applications_hierarchy_count"` // applications in hierarchy
 	// Assigned / unassigned split of the two counts above
 	ApplicationsAssignedCount            int `json:"applications_assigned_count"`
 	ApplicationsUnassignedCount          int `json:"applications_unassigned_count"`
@@ -517,9 +533,12 @@ type ResellerStats struct {
 	// organization, never on its customers, so the subtree adds nothing.
 	LegacySystemsCount          int `json:"legacy_systems_count"`
 	LegacySystemsHierarchyCount int `json:"legacy_systems_hierarchy_count"`
-	CustomersCount              int `json:"customers_count"`
-	ApplicationsCount           int `json:"applications_count"`           // direct applications
-	ApplicationsHierarchyCount  int `json:"applications_hierarchy_count"` // applications in hierarchy
+	// Product breakdown of the two legacy counts above.
+	LegacyProducts             LegacyProducts `json:"legacy_products"`
+	LegacyProductsHierarchy    LegacyProducts `json:"legacy_products_hierarchy"`
+	CustomersCount             int            `json:"customers_count"`
+	ApplicationsCount          int            `json:"applications_count"`           // direct applications
+	ApplicationsHierarchyCount int            `json:"applications_hierarchy_count"` // applications in hierarchy
 	// Assigned / unassigned split of the two counts above
 	ApplicationsAssignedCount            int `json:"applications_assigned_count"`
 	ApplicationsUnassignedCount          int `json:"applications_unassigned_count"`

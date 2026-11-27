@@ -1270,6 +1270,7 @@ func (s *LocalSystemsService) GetTotalsByCreatedByOrganizations(allowedOrgIDs []
 		Unknown:         unknown,
 		Legacy:          legacySum.Total,
 		TotalWithLegacy: total + legacySum.Total,
+		LegacyProducts:  legacySum.Products,
 	}, nil
 }
 
