@@ -12,6 +12,7 @@ package middleware
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -177,31 +178,27 @@ func ImpersonationAuditMiddleware() gin.HandlerFunc {
 	}
 }
 
-// sanitizeRequestData removes or masks sensitive information from request data
+// sanitizeRequestData returns the body with sensitive JSON fields masked, or
+// only its size when it cannot be parsed as JSON and redacted.
 func sanitizeRequestData(data string) string {
-	// A body that is not valid UTF-8 (or carries NUL bytes) would make the
-	// Postgres INSERT fail and the action vanish from the audit trail: keep
-	// the printable part instead.
-	data = strings.ToValidUTF8(strings.ReplaceAll(data, "\x00", ""), "\uFFFD")
-
-	// Limit size to prevent huge audit logs
-	maxSize := 10000 // 10KB limit
-	if len(data) > maxSize {
-		data = data[:maxSize] + "... (truncated)"
+	if strings.TrimSpace(data) == "" {
+		return ""
 	}
-
-	// Try to parse as JSON to sanitize sensitive fields
 	var jsonData interface{}
-	if err := json.Unmarshal([]byte(data), &jsonData); err == nil {
-		// Successfully parsed as JSON, sanitize it
-		sanitized := sanitizeJSONData(jsonData)
-		if sanitizedBytes, err := json.Marshal(sanitized); err == nil {
-			return string(sanitizedBytes)
-		}
+	if err := json.Unmarshal([]byte(data), &jsonData); err != nil {
+		return fmt.Sprintf("[body omitted: not JSON, %d bytes]", len(data))
 	}
+	sanitizedBytes, err := json.Marshal(sanitizeJSONData(jsonData))
+	if err != nil {
+		return fmt.Sprintf("[body omitted: redaction failed, %d bytes]", len(data))
+	}
+	sanitized := string(sanitizedBytes)
 
-	// If not JSON or failed to sanitize, return as is (already size-limited)
-	return data
+	const maxSize = 10000
+	if len(sanitized) > maxSize {
+		sanitized = strings.ToValidUTF8(sanitized[:maxSize], "") + "... (truncated)"
+	}
+	return sanitized
 }
 
 // sanitizeJSONData recursively sanitizes JSON data to remove sensitive information
