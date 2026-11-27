@@ -1,6 +1,6 @@
 # Build stage
 # Node version: keep in sync with /.nvmrc
-FROM docker.io/library/node:24.20.0 AS base
+FROM docker.io/library/node:26.13.1 AS base
 
 WORKDIR /app
 
