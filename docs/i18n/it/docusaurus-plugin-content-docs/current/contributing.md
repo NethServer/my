@@ -54,7 +54,7 @@ navigazione di quella locale.
 
 ## Prerequisiti
 
-- Node.js 24 o superiore (vedi `engines` in `package.json`)
+- Node.js 26 o superiore (vedi `engines` in `package.json`)
 
 ## Sviluppo Locale
 

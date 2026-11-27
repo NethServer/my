@@ -53,7 +53,7 @@ is shared, so a page missing from one locale breaks navigation there.
 
 ## Prerequisites
 
-- Node.js 24 or later (see `engines` in `package.json`)
+- Node.js 26 or later (see `engines` in `package.json`)
 
 ## Local Development
 
