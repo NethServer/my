@@ -19,11 +19,6 @@
       "groupName": "docusaurus"
     },
     {
-      "description": "typescript-eslint supports TypeScript <6.1.0 only",
-      "matchPackageNames": ["typescript"],
-      "allowedVersions": "<6.1.0"
-    },
-    {
       "description": "Automerge patch updates",
       "matchUpdateTypes": ["patch"],
       "automerge": true,
